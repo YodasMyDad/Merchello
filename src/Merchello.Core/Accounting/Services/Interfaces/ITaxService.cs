@@ -1,0 +1,33 @@
+using Merchello.Core.Accounting.Models;
+using Merchello.Core.Shared.Models;
+
+namespace Merchello.Core.Accounting.Services.Interfaces;
+
+public interface ITaxService
+{
+    /// <summary>
+    /// Gets all tax groups
+    /// </summary>
+    Task<List<TaxGroup>> GetTaxGroups(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a tax group by ID
+    /// </summary>
+    Task<TaxGroup?> GetTaxGroup(Guid taxGroupId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a new tax group
+    /// </summary>
+    Task<CrudResult<TaxGroup>> CreateTaxGroup(string name, decimal rate, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates an existing tax group
+    /// </summary>
+    Task<CrudResult<TaxGroup>> UpdateTaxGroup(TaxGroup taxGroup, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a tax group
+    /// </summary>
+    Task<CrudResult<bool>> DeleteTaxGroup(Guid taxGroupId, CancellationToken cancellationToken = default);
+}
+

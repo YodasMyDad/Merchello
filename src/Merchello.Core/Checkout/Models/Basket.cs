@@ -1,0 +1,104 @@
+﻿using Merchello.Core.Accounting.Models;
+using Merchello.Core.Locality.Models;
+using Merchello.Core.Shipping.Providers;
+using Merchello.Core.Shared.Extensions;
+
+namespace Merchello.Core.Checkout.Models;
+
+public class Basket
+{
+    /// <summary>
+    /// Basket Id
+    /// </summary>
+    public Guid Id { get; set; } = GuidExtensions.NewSequentialGuid;
+
+    /// <summary>
+    /// If a customer is logged in then this will be the customers id
+    /// </summary>
+    public Guid? CustomerId { get; set; }
+
+    /// <summary>
+    /// Line items in the basket
+    /// </summary>
+    public List<LineItem> LineItems { get; set; } = new();
+
+    /// <summary>
+    /// Adjustments for this basket (I.e. Discounts)
+    /// </summary>
+    public List<Adjustment> Adjustments { get; set; } = new();
+
+    /// <summary>
+    /// Date basket was created
+    /// </summary>
+    public DateTime DateCreated { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Date basket was updated
+    /// </summary>
+    public DateTime DateUpdated { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Currency of this basket
+    /// </summary>
+    public string? Currency { get; set; }
+
+    /// <summary>
+    /// Currency Symbol for this basket
+    /// </summary>
+    public string? CurrencySymbol { get; set; }
+
+    /// <summary>
+    /// The default basket rounding
+    /// </summary>
+    public MidpointRounding TaxRounding { get; set; } = MidpointRounding.AwayFromZero;
+
+    /// <summary>
+    /// Holds the sub total of the basket
+    /// </summary>
+    public decimal SubTotal { get; set; }
+
+    /// <summary>
+    /// Holds any discount amount in the basket as a whole
+    /// </summary>
+    public decimal Discount { get; set; }
+
+    /// <summary>
+    /// Subtotal after discounts are applied
+    /// </summary>
+    public decimal AdjustedSubTotal { get; set; }
+
+    /// <summary>
+    /// Holds any tax amount in the basket as a whole
+    /// </summary>
+    public decimal Tax { get; set; }
+
+    /// <summary>
+    /// Holds the Total of the basket
+    /// </summary>
+    public decimal Total { get; set; }
+
+    /// <summary>
+    /// Holds the Total of shipping
+    /// </summary>
+    public decimal Shipping { get; set; }
+
+    /// <summary>
+    /// Holds a list of errors
+    /// </summary>
+    public List<BasketError> Errors { get; set; } = new();
+
+    /// <summary>
+    /// Billing address used during checkout
+    /// </summary>
+    public Address BillingAddress { get; set; } = new();
+
+    /// <summary>
+    /// Shipping address used during checkout
+    /// </summary>
+    public Address ShippingAddress { get; set; } = new();
+
+    /// <summary>
+    /// Shipping quotes returned by enabled providers during basket calculation.
+    /// </summary>
+    public List<ShippingRateQuote> AvailableShippingQuotes { get; set; } = new();
+}

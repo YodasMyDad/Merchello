@@ -1,0 +1,74 @@
+using Merchello.Core.Products.Models;
+using Merchello.Core.Shipping.Models;
+
+namespace Merchello.Core.Products.ExtensionMethods;
+
+public static class ProductShippingExtensions
+{
+    /// <summary>
+    /// Gets the allowed shipping options for a product based on its restriction mode.
+    /// Falls back to warehouse shipping options if product has no specific options configured.
+    /// </summary>
+    public static IEnumerable<ShippingOption> GetAllowedShippingOptions(this Product product)
+    {
+        // Get base shipping options - use product options or fall back to warehouse options
+        var baseOptions = product.ShippingOptions.Any()
+            ? product.ShippingOptions
+            : product.ProductRoot?.ProductRootWarehouses
+                .SelectMany(prw => prw.Warehouse?.ShippingOptions ?? Enumerable.Empty<ShippingOption>())
+                .Distinct()
+                .ToList() ?? Enumerable.Empty<ShippingOption>();
+
+        // Apply restriction mode
+        return product.ShippingRestrictionMode switch
+        {
+            ShippingRestrictionMode.AllowList => product.AllowedShippingOptions,
+            ShippingRestrictionMode.ExcludeList => baseOptions
+                .Where(so => !product.ExcludedShippingOptions.Any(eso => eso.Id == so.Id)),
+            _ => baseOptions
+        };
+    }
+
+    /// <summary>
+    /// Gets the common shipping options available for all products in a collection
+    /// Returns empty if no common options exist
+    /// </summary>
+    public static IEnumerable<ShippingOption> GetCommonShippingOptions(this IEnumerable<Product> products)
+    {
+        var productList = products.ToList();
+
+        if (!productList.Any())
+        {
+            return Enumerable.Empty<ShippingOption>();
+        }
+
+        // Start with the first product's allowed options
+        var commonOptions = productList[0].GetAllowedShippingOptions().ToList();
+
+        // Intersect with each subsequent product's allowed options
+        for (var i = 1; i < productList.Count; i++)
+        {
+            var productOptions = productList[i].GetAllowedShippingOptions().ToList();
+            commonOptions = commonOptions
+                .Where(co => productOptions.Any(po => po.Id == co.Id))
+                .ToList();
+
+            // Early exit if no common options
+            if (!commonOptions.Any())
+            {
+                break;
+            }
+        }
+
+        return commonOptions;
+    }
+
+    /// <summary>
+    /// Checks if a product can be shipped using the specified shipping option
+    /// </summary>
+    public static bool CanUseShippingOption(this Product product, ShippingOption shippingOption)
+    {
+        return product.GetAllowedShippingOptions().Any(so => so.Id == shippingOption.Id);
+    }
+}
+
