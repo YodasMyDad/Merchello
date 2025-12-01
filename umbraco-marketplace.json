@@ -1,0 +1,14 @@
+{
+    "$schema": "https://marketplace.umbraco.com/umbraco-marketplace-schema.json", 
+    "AuthorDetails": {
+      "Name": "Lee Messenger",
+      "ImageUrl": "https://github.com/GITHUB_USERNAME.png"
+    },
+    "Category": "",
+    "Description": "",
+    "LicenseTypes": [ "Free" ],
+    "IssueTrackerUrl": "https://github.com/GITHUB_USERNAME/GITHUB_REPOSITORY/issues",
+    "PackageType": "Package",
+    "Tags": [],
+    "Title": "Merchello "
+  }

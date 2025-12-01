@@ -1,0 +1,14 @@
+{
+  "id": "Merchello",
+  "name": "Merchello",
+  "version": "0.0.0",
+  "allowTelemetry": true,
+  "extensions": [
+    {
+      "name": "Merchello Bundle",
+      "alias": "Merchello.Bundle",
+      "type": "bundle",
+      "js": "/App_Plugins/Merchello/merchello.js"
+    }
+  ]
+}
