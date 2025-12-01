@@ -355,3 +355,4 @@ MigrationBackup/
 # Rider
 src/.idea
 /.claude/settings.local.json
+/nul
