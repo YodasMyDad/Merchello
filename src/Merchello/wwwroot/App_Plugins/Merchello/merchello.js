@@ -178,7 +178,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Orders.ListView",
     name: "Orders List View",
-    js: () => import("./orders-list.element-C6p14wdO.js"),
+    js: () => import("./orders-list.element-CuWfjCpD.js"),
     weight: 100,
     meta: {
       label: "Orders",
@@ -198,7 +198,7 @@ const e = [
     kind: "routable",
     alias: "Merchello.Order.Detail.Workspace",
     name: "Order Detail Workspace",
-    api: () => import("./order-detail-workspace.context-B_HARYyW.js"),
+    api: () => import("./order-detail-workspace.context-Dnspx4T4.js"),
     meta: {
       entityType: "merchello-order"
     }

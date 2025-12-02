@@ -24,8 +24,6 @@ public class ProductService(
     SlugHelper slugHelper,
     ILogger<ProductService> logger) : IProductService
 {
-    private readonly IEFCoreScopeProvider<MerchelloDbContext> _efCoreScopeProvider = efCoreScopeProvider;
-
     /// <summary>
     /// Updates a product root
     /// </summary>
@@ -34,7 +32,7 @@ public class ProductService(
     public async Task<CrudResult<ProductRoot>> Update(ProductRoot productRoot)
     {
         var result = new CrudResult<ProductRoot>();
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -206,7 +204,7 @@ public class ProductService(
     {
         var result = new CrudResult<ProductRoot>();
         ProductRoot? productRoot = null;
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -241,7 +239,7 @@ public class ProductService(
     public async Task<CrudResult<Product>> Update(Product product)
     {
         var result = new CrudResult<Product>();
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -270,7 +268,7 @@ public class ProductService(
     public async Task<CrudResult<ProductRoot>> Delete(ProductRoot productRoot)
     {
         var result = new CrudResult<ProductRoot>();
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -313,7 +311,7 @@ public class ProductService(
     {
         var result = new CrudResult<ProductRoot>();
         ProductRoot? productRoot = null;
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -372,7 +370,7 @@ public class ProductService(
     {
         var result = new CrudResult<ProductOption>();
         ProductOption? option = null;
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -404,7 +402,7 @@ public class ProductService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -444,7 +442,7 @@ public class ProductService(
     {
         var result = new CrudResult<List<Product>>();
         List<Product>? generatedVariants = null;
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -494,7 +492,7 @@ public class ProductService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -541,7 +539,7 @@ public class ProductService(
     {
         var result = new CrudResult<bool>();
         List<Product>? variants = null;
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -589,7 +587,7 @@ public class ProductService(
     {
         var result = new CrudResult<ProductType>();
         ProductType? productType = null;
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -629,7 +627,7 @@ public class ProductService(
     {
         var result = new CrudResult<ProductCategory>();
         ProductCategory? category = null;
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -653,7 +651,7 @@ public class ProductService(
     /// </summary>
     public async Task<List<ProductType>> GetProductTypes(CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.ProductTypes.OrderBy(pt => pt.Name).ToListAsync(cancellationToken));
         scope.Complete();
@@ -665,7 +663,7 @@ public class ProductService(
     /// </summary>
     public async Task<List<ProductCategory>> GetProductCategories(CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.ProductCategories.OrderBy(pc => pc.Name).ToListAsync(cancellationToken));
         scope.Complete();
@@ -706,7 +704,7 @@ public class ProductService(
         bool includeWarehouses = false,
         CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             IQueryable<ProductRoot> query = db.RootProducts
@@ -741,7 +739,7 @@ public class ProductService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -793,7 +791,7 @@ public class ProductService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -894,7 +892,7 @@ public class ProductService(
     /// </summary>
     public async Task<List<ProductFilterGroup>> GetFilterGroups(CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.ProductFilterGroups
                 .Include(fg => fg.Filters)
@@ -910,7 +908,7 @@ public class ProductService(
     /// </summary>
     public async Task<ProductCategory?> GetCategory(Guid categoryId, CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.ProductCategories
                 .AsNoTracking()
@@ -924,7 +922,7 @@ public class ProductService(
     /// </summary>
     public async Task<Product?> GetProduct(GetProductParameters parameters, CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             IQueryable<Product> query = db.Products;
@@ -987,7 +985,7 @@ public class ProductService(
     /// <returns></returns>
     public async Task<PaginatedList<Product>> QueryProducts(ProductQueryParameters parameters, CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             // Build a base query without Includes; apply Includes only when materializing items.
@@ -1084,7 +1082,7 @@ public class ProductService(
     /// <returns></returns>
     public async Task<PaginatedList<ProductRoot>> QueryProductRoots(ProductRootQueryParameters parameters, CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             var query =

@@ -17,17 +17,13 @@ public class ShippingQuoteService(
     IShippingProviderManager providerRegistry,
     ILogger<ShippingQuoteService> logger) : IShippingQuoteService
 {
-    private readonly IEFCoreScopeProvider<MerchelloDbContext> _efCoreScopeProvider = efCoreScopeProvider;
-    private readonly IShippingProviderManager _providerRegistry = providerRegistry;
-    private readonly ILogger<ShippingQuoteService> _logger = logger;
-
     public async Task<IReadOnlyCollection<ShippingRateQuote>> GetQuotesAsync(
         Basket basket,
         string countryCode,
         string? stateOrProvinceCode = null,
         CancellationToken cancellationToken = default)
     {
-        var (request, requestErrors) = await BuildRequestAsync(basket, countryCode, stateOrProvinceCode, cancellationToken);
+        (ShippingQuoteRequest request, List<BasketError> requestErrors) = await BuildRequestAsync(basket, countryCode, stateOrProvinceCode, cancellationToken);
 
         foreach (var error in requestErrors)
         {
@@ -36,10 +32,10 @@ public class ShippingQuoteService(
 
         if (!request.Items.Any())
         {
-            return Array.Empty<ShippingRateQuote>();
+            return [];
         }
 
-        var providers = await _providerRegistry.GetEnabledProvidersAsync(cancellationToken);
+        IReadOnlyCollection<RegisteredShippingProvider> providers = await providerRegistry.GetEnabledProvidersAsync(cancellationToken);
         List<ShippingRateQuote> quotes = [];
 
         foreach (var provider in providers)
@@ -59,7 +55,7 @@ public class ShippingQuoteService(
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Shipping provider {ProviderKey} failed while retrieving quotes.", provider.Metadata.Key);
+                logger.LogError(ex, "Shipping provider {ProviderKey} failed while retrieving quotes.", provider.Metadata.Key);
             }
         }
 
@@ -106,7 +102,7 @@ public class ShippingQuoteService(
 
         var productIds = lineItems.Select(item => item.ProductId!.Value).Distinct().ToList();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var products = await scope.ExecuteWithContextAsync(async db =>
             await db.Products
                 .Include(product => product.ProductRoot)

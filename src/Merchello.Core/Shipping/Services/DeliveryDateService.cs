@@ -13,10 +13,6 @@ public class DeliveryDateService(
     IDeliveryDateProvider defaultProvider,
     ILogger<DeliveryDateService> logger) : IDeliveryDateService
 {
-    private readonly ExtensionManager _extensionManager = extensionManager;
-    private readonly IDeliveryDateProvider _defaultProvider = defaultProvider;
-    private readonly ILogger<DeliveryDateService> _logger = logger;
-
     public async Task<List<DateTime>> GetAvailableDatesForShippingOptionAsync(
         ShippingOption shippingOption,
         Address shippingAddress,
@@ -36,7 +32,7 @@ public class DeliveryDateService(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting available delivery dates for shipping option {ShippingOptionId}", shippingOption.Id);
+            logger.LogError(ex, "Error getting available delivery dates for shipping option {ShippingOptionId}", shippingOption.Id);
             return [];
         }
     }
@@ -68,7 +64,7 @@ public class DeliveryDateService(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error calculating delivery date surcharge for shipping option {ShippingOptionId}", shippingOption.Id);
+            logger.LogError(ex, "Error calculating delivery date surcharge for shipping option {ShippingOptionId}", shippingOption.Id);
             return 0m;
         }
     }
@@ -96,7 +92,7 @@ public class DeliveryDateService(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error validating delivery date for shipping option {ShippingOptionId}", shippingOption.Id);
+            logger.LogError(ex, "Error validating delivery date for shipping option {ShippingOptionId}", shippingOption.Id);
             return false;
         }
     }
@@ -122,12 +118,12 @@ public class DeliveryDateService(
     {
         if (string.IsNullOrWhiteSpace(shippingOption.DeliveryDatePricingMethod))
         {
-            return _defaultProvider;
+            return defaultProvider;
         }
 
         try
         {
-            var providers = _extensionManager.GetInstances<IDeliveryDateProvider>().ToList();
+            var providers = extensionManager.GetInstances<IDeliveryDateProvider>().ToList();
             var provider = providers.FirstOrDefault(p =>
                 p?.GetType().FullName == shippingOption.DeliveryDatePricingMethod);
 
@@ -136,20 +132,20 @@ public class DeliveryDateService(
                 return provider;
             }
 
-            _logger.LogWarning(
+            logger.LogWarning(
                 "Delivery date provider {ProviderType} not found for shipping option {ShippingOptionId}, using default provider",
                 shippingOption.DeliveryDatePricingMethod,
                 shippingOption.Id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
+            logger.LogError(ex,
                 "Error loading delivery date provider {ProviderType} for shipping option {ShippingOptionId}, using default provider",
                 shippingOption.DeliveryDatePricingMethod,
                 shippingOption.Id);
         }
 
-        return _defaultProvider;
+        return defaultProvider;
     }
 }
 

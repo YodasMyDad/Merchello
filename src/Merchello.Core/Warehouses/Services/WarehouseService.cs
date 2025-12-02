@@ -19,8 +19,6 @@ public class WarehouseService(
     WarehouseFactory warehouseFactory,
     ILogger<WarehouseService> logger) : IWarehouseService
 {
-    private readonly IEFCoreScopeProvider<MerchelloDbContext> _efCoreScopeProvider = efCoreScopeProvider;
-
     /// <summary>
     /// Selects the best warehouse for a product based on priority, region serviceability, and stock availability.
     /// If no single warehouse can fulfill the full quantity, attempts multi-warehouse allocation.
@@ -42,7 +40,7 @@ public class WarehouseService(
         // Load product with necessary relationships if not already loaded
         if (product.ProductRoot == null)
         {
-            using var scope = _efCoreScopeProvider.CreateScope();
+            using var scope = efCoreScopeProvider.CreateScope();
             var loadedProduct = await scope.ExecuteWithContextAsync(async db =>
                 await db.Products
                     .Include(p => p.ProductRoot)
@@ -67,7 +65,7 @@ public class WarehouseService(
             .Where(w => w != null)
             .ToList() ?? [];
 
-        if (!eligibleWarehouses.Any())
+        if (eligibleWarehouses.Count == 0)
         {
             logger.LogWarning(
                 "No warehouses configured for product {ProductId} ({ProductName})",
@@ -237,7 +235,7 @@ public class WarehouseService(
         warehouse.AutomationMethod = parameters.AutomationMethod;
         warehouse.ExtendedData = parameters.ExtendedData ?? new Dictionary<string, object>();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             db.Warehouses.Add(warehouse);
@@ -258,7 +256,7 @@ public class WarehouseService(
     {
         var result = new CrudResult<Warehouse>();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var warehouse = await db.Warehouses
@@ -310,7 +308,7 @@ public class WarehouseService(
     {
         var result = new CrudResult<bool>();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var warehouse = await db.Warehouses
@@ -402,7 +400,7 @@ public class WarehouseService(
     {
         var result = new CrudResult<bool>();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             // Validate product root exists
@@ -474,7 +472,7 @@ public class WarehouseService(
     {
         var result = new CrudResult<bool>();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var productRootWarehouse = await db.ProductRootWarehouses
@@ -535,7 +533,7 @@ public class WarehouseService(
     {
         var result = new CrudResult<bool>();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var productRootWarehouse = await db.ProductRootWarehouses
@@ -590,7 +588,7 @@ public class WarehouseService(
             return result;
         }
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             // Validate product exists
@@ -664,7 +662,7 @@ public class WarehouseService(
     {
         var result = new CrudResult<bool>();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var productWarehouse = await db.ProductWarehouses
@@ -746,7 +744,7 @@ public class WarehouseService(
             return result;
         }
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             // Get source warehouse stock
@@ -838,7 +836,7 @@ public class WarehouseService(
     /// </summary>
     public async Task<List<Warehouse>> GetWarehouses(CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.Warehouses
                 .OrderBy(w => w.Name)
@@ -854,7 +852,7 @@ public class WarehouseService(
         Guid productId,
         CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.ProductWarehouses
                 .Where(pw => pw.ProductId == productId)
@@ -883,7 +881,7 @@ public class WarehouseService(
         bool lowStockOnly = false,
         CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             IQueryable<ProductWarehouse> query = db.ProductWarehouses
@@ -924,7 +922,7 @@ public class WarehouseService(
         Guid? warehouseId = null,
         CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             // Check available stock (Stock - ReservedStock) for tracked items, total Stock for untracked

@@ -136,8 +136,15 @@ public class RunMigration(
 
 ```bash
 # Each provider needs its own migration
-dotnet ef migrations add Initial -p src/MyPackage.Persistence.SqlServer
-dotnet ef migrations add Initial -p src/MyPackage.Persistence.Sqlite
+# IMPORTANT: Use the provider project as BOTH --project and --startup-project
+dotnet ef migrations add Initial --project src/MyPackage.Persistence.SqlServer --startup-project src/MyPackage.Persistence.SqlServer
+dotnet ef migrations add Initial --project src/MyPackage.Persistence.Sqlite --startup-project src/MyPackage.Persistence.Sqlite
+```
+
+For Merchello, use the helper script:
+```powershell
+.\scripts\add-migration.ps1
+# Prompts for migration name, then creates both SQLite and SQL Server migrations
 ```
 
 ## Key Points

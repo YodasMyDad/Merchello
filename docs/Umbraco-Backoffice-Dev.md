@@ -685,6 +685,122 @@ html`
 
 ---
 
+## Routable Workspaces (Detail/Edit Views)
+
+Routable workspaces are used for CRUD operations where you need to navigate to a specific entity (e.g., edit a document, view order details).
+
+### URL Pattern
+```
+section/{sectionPathname}/workspace/{entityType}/{routePath}
+```
+
+Example: `section/merchello/workspace/merchello-order/edit/9cd851e3-da06-4563-be6a-b3a700b565fd`
+
+### Manifest Setup
+```typescript
+// 1. Routable workspace manifest
+{
+  type: "workspace",
+  kind: "routable",
+  alias: "My.Item.Detail.Workspace",
+  name: "Item Detail Workspace",
+  api: () => import("./item-detail-workspace.context.js"),
+  meta: {
+    entityType: "my-item",  // Must match the URL pattern
+  },
+}
+```
+
+### Workspace Context (CRITICAL)
+The workspace context **must** set up routes using `this.routes.setRoutes()`:
+
+```typescript
+import type { UmbControllerHost } from "@umbraco-cms/backoffice/controller-api";
+import { UmbControllerBase } from "@umbraco-cms/backoffice/class-api";
+import type { UmbRoutableWorkspaceContext } from "@umbraco-cms/backoffice/workspace";
+import { UMB_WORKSPACE_CONTEXT, UmbWorkspaceRouteManager } from "@umbraco-cms/backoffice/workspace";
+import { UmbObjectState } from "@umbraco-cms/backoffice/observable-api";
+
+export class MyItemDetailWorkspaceContext extends UmbControllerBase implements UmbRoutableWorkspaceContext {
+  readonly workspaceAlias = "My.Item.Detail.Workspace";
+  readonly routes: UmbWorkspaceRouteManager;
+
+  #itemId?: string;
+  #item = new UmbObjectState<MyItemDto | undefined>(undefined);
+  readonly item = this.#item.asObservable();
+
+  constructor(host: UmbControllerHost) {
+    super(host, UMB_WORKSPACE_CONTEXT.toString());
+    this.routes = new UmbWorkspaceRouteManager(host);
+    this.provideContext(UMB_WORKSPACE_CONTEXT, this);
+
+    // CRITICAL: Must set up routes - without this, navigation won't work!
+    this.routes.setRoutes([
+      {
+        path: "edit/:id",  // Matches URL: .../workspace/my-item/edit/{id}
+        component: () => import("./item-detail.element.js"),
+        setup: (_component, info) => {
+          const id = info.match.params.id;
+          this.load(id);
+        },
+      },
+    ]);
+  }
+
+  getEntityType(): string {
+    return "my-item";
+  }
+
+  getUnique(): string | undefined {
+    return this.#itemId;
+  }
+
+  async load(unique: string): Promise<void> {
+    this.#itemId = unique;
+    const { data, error } = await MyApi.getItem(unique);
+    if (error) {
+      console.error("Failed to load item:", error);
+      return;
+    }
+    this.#item.setValue(data);
+  }
+}
+
+export { MyItemDetailWorkspaceContext as api };
+```
+
+### Navigation (from list to detail)
+Use `href` attributes on elements - **never use `window.location.hash` or `window.location.href`**:
+
+```typescript
+// In your list element
+private _getItemHref(id: string): string {
+  // Pattern: section/{sectionPathname}/workspace/{entityType}/{routePath}
+  return `section/my-section/workspace/my-item/edit/${id}`;
+}
+
+render() {
+  return html`
+    <table>
+      ${this._items.map(item => html`
+        <tr>
+          <td><a href=${this._getItemHref(item.id)}>${item.name}</a></td>
+        </tr>
+      `)}
+    </table>
+  `;
+}
+```
+
+### Common Mistakes
+
+1. **Missing `routes.setRoutes()`** - The workspace context creates `UmbWorkspaceRouteManager` but never defines routes
+2. **Wrong URL pattern** - Using `window.location.hash = '#/...'` instead of `href` attribute
+3. **Including hash in href** - Use `section/...` not `#/section/...`
+4. **EntityType mismatch** - The `entityType` in manifest must match what's in the URL
+
+---
+
 ## Merchello Project Patterns
 
 > This section covers only Merchello-specific differences. For general patterns, see sections above.

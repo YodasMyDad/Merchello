@@ -14,12 +14,9 @@ namespace Merchello.Core.Warehouses.Services;
 
 public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider, ILocalityCatalog catalog) : ILocationsService
 {
-    private readonly IEFCoreScopeProvider<MerchelloDbContext> _efCoreScopeProvider = efCoreScopeProvider;
-    private readonly ILocalityCatalog _catalog = catalog;
-
     public async Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesAsync(CancellationToken ct = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var warehouses = await scope.ExecuteWithContextAsync(async db =>
             await db.Warehouses
                 .AsNoTracking()
@@ -76,7 +73,7 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
         // If wildcard include is present, include all countries from catalog
         if (hasWildcardInclude)
         {
-            var all = await _catalog.GetCountriesAsync(ct);
+            var all = await catalog.GetCountriesAsync(ct);
             foreach (var c in all)
             {
                 included.Add(c.Code);
@@ -98,7 +95,7 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
         included.ExceptWith(excluded);
 
         // Resolve display names via catalog
-        var countryMap = (await _catalog.GetCountriesAsync(ct)).ToDictionary(x => x.Code, x => x.Name, StringComparer.OrdinalIgnoreCase);
+        var countryMap = (await catalog.GetCountriesAsync(ct)).ToDictionary(x => x.Code, x => x.Name, StringComparer.OrdinalIgnoreCase);
 
         var result = included
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -118,7 +115,7 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
 
         var code = countryCode.ToUpperInvariant();
 
-        var regionsCatalog = await _catalog.GetRegionsAsync(code, ct);
+        var regionsCatalog = await catalog.GetRegionsAsync(code, ct);
         var regionCatalog = regionsCatalog.ToDictionary(r => r.RegionCode, r => r.Name, StringComparer.OrdinalIgnoreCase);
         if (regionCatalog.Count == 0)
         {
@@ -126,7 +123,7 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
             return Array.Empty<RegionAvailability>();
         }
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var warehouses = await scope.ExecuteWithContextAsync(async db =>
             await db.Warehouses
                 .AsNoTracking()

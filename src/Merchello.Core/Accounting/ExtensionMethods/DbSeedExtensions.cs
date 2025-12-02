@@ -13,6 +13,25 @@ public static class InvoiceSeedExtensions
     private static readonly Random Random = new(42); // Fixed seed for reproducibility
 
     /// <summary>
+    /// Creates a copy of an Address. Required because EF Core owned types
+    /// cannot be shared between multiple owners.
+    /// </summary>
+    private static Address CloneAddress(Address source) => new()
+    {
+        Name = source.Name,
+        Company = source.Company,
+        AddressOne = source.AddressOne,
+        AddressTwo = source.AddressTwo,
+        TownCity = source.TownCity,
+        CountyState = new CountyState { Name = source.CountyState.Name, RegionCode = source.CountyState.RegionCode },
+        PostalCode = source.PostalCode,
+        Country = source.Country,
+        CountryCode = source.CountryCode,
+        Email = source.Email,
+        Phone = source.Phone
+    };
+
+    /// <summary>
     /// Creates a complete invoice with orders, line items, payments, and notes.
     /// Adds to context but does NOT save - caller must call SaveChangesAsync.
     /// </summary>
@@ -40,8 +59,8 @@ public static class InvoiceSeedExtensions
         {
             Id = GuidExtensions.NewSequentialGuid,
             InvoiceNumber = invoiceNumber,
-            BillingAddress = billingAddress,
-            ShippingAddress = shippingAddress,
+            BillingAddress = CloneAddress(billingAddress),
+            ShippingAddress = CloneAddress(shippingAddress),
             Channel = channel,
             SubTotal = subTotal,
             Tax = Math.Round(tax, 2),
@@ -63,7 +82,6 @@ public static class InvoiceSeedExtensions
             Invoice = invoice,
             WarehouseId = Guid.Empty, // No real warehouse for seed data
             ShippingOptionId = Guid.Empty,
-            ShippingAddress = shippingAddress,
             ShippingCost = shippingCost,
             Status = orderStatus,
             DateCreated = created,

@@ -1251,75 +1251,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.OwnsOne("Merchello.Core.Locality.Models.Address", "ShippingAddress", b1 =>
-                        {
-                            b1.Property<Guid>("OrderId")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<string>("AddressOne")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<string>("AddressTwo")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<string>("Company")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<string>("Country")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<string>("CountryCode")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<string>("Email")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<string>("Name")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<string>("Phone")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<string>("PostalCode")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<string>("TownCity")
-                                .HasColumnType("TEXT");
-
-                            b1.HasKey("OrderId");
-
-                            b1.ToTable("merchelloOrders");
-
-                            b1.WithOwner()
-                                .HasForeignKey("OrderId");
-
-                            b1.OwnsOne("Merchello.Core.Locality.Models.CountyState", "CountyState", b2 =>
-                                {
-                                    b2.Property<Guid>("AddressOrderId")
-                                        .HasColumnType("TEXT");
-
-                                    b2.Property<string>("Name")
-                                        .HasColumnType("TEXT");
-
-                                    b2.Property<string>("RegionCode")
-                                        .HasColumnType("TEXT");
-
-                                    b2.HasKey("AddressOrderId");
-
-                                    b2.ToTable("merchelloOrders");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("AddressOrderId");
-                                });
-
-                            b1.Navigation("CountyState")
-                                .IsRequired();
-                        });
-
                     b.Navigation("Invoice");
-
-                    b.Navigation("ShippingAddress")
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Merchello.Core.Accounting.Models.Payment", b =>

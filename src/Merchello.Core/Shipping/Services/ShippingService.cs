@@ -16,8 +16,6 @@ public class ShippingService(
     IWarehouseService warehouseService,
     ILogger<ShippingService> logger) : IShippingService
 {
-    private readonly IEFCoreScopeProvider<MerchelloDbContext> _efCoreScopeProvider = efCoreScopeProvider;
-
     /// <summary>
     /// Gets shipping options for a basket, grouping products by warehouse and shipping option availability.
     /// Products from the same warehouse with different shipping restrictions are split into separate groups,
@@ -54,7 +52,7 @@ public class ShippingService(
             .ToList();
 
         // Load products with necessary relationships for warehouse selection
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var products = await scope.ExecuteWithContextAsync(async db =>
             await db.Products
                 .Include(p => p.ProductRoot)
@@ -281,7 +279,7 @@ public class ShippingService(
 
         var shippingOptionIds = selectedShippingOptions.Values.ToList();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var shippingOptions = await scope.ExecuteWithContextAsync(async db =>
             await db.ShippingOptions
                 .Where(so => shippingOptionIds.Contains(so.Id))
@@ -348,7 +346,7 @@ public class ShippingService(
 
     public async Task<List<ShippingOption>> GetAllShippingOptions(CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.ShippingOptions
                 .OrderBy(so => so.Name)

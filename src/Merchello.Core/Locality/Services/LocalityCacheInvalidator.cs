@@ -8,9 +8,13 @@ namespace Merchello.Core.Locality.Services;
 public class LocalityCacheInvalidator(CacheService cache) : ILocalityCacheInvalidator
 {
     public Task InvalidateAllRegionsAsync(CancellationToken ct = default)
-        => cache.RemoveByTagAsync(CacheTags.LocalityRegions, ct);
+    {
+        return cache.RemoveByTagAsync(CacheTags.LocalityRegions, ct);
+    }
 
     public Task InvalidateCountryRegionsAsync(string countryCode, CancellationToken ct = default)
-        => cache.RemoveByTagAsync(CacheTags.LocalityRegionsCountry(countryCode), ct);
+    {
+        return cache.RemoveByTagAsync(CacheTags.LocalityRegionsCountry(countryCode), ct);
+    }
 }
 

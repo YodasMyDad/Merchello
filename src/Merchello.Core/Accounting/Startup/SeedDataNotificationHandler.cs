@@ -50,6 +50,7 @@ public class SeedDataNotificationHandler(
                 var count = await db.Invoices.CountAsync(cancellationToken);
                 logger.LogInformation("Merchello seed data: Created {Count} sample invoices", count);
             });
+            scope.Complete();
         }
         catch (Exception ex)
         {

@@ -11,18 +11,11 @@ using Microsoft.Extensions.Options;
 
 namespace Merchello.Core.Locality.Services;
 
-public class DefaultLocalityCatalog : ILocalityCatalog
+public class DefaultLocalityCatalog(IOptions<CacheOptions> cacheOptions, CacheService cacheService)
+    : ILocalityCatalog
 {
-    private readonly Lazy<IReadOnlyDictionary<string, string>> _countries;
-    private readonly CacheService _cacheService;
-    private readonly CacheOptions _cacheOptions;
-
-    public DefaultLocalityCatalog(IOptions<CacheOptions> cacheOptions, CacheService cacheService)
-    {
-        _cacheService = cacheService;
-        _cacheOptions = cacheOptions.Value;
-        _countries = new Lazy<IReadOnlyDictionary<string, string>>(BuildCountryMap, isThreadSafe: true);
-    }
+    private readonly Lazy<IReadOnlyDictionary<string, string>> _countries = new(BuildCountryMap, isThreadSafe: true);
+    private readonly CacheOptions _cacheOptions = cacheOptions.Value;
 
     public Task<IReadOnlyCollection<CountryInfo>> GetCountriesAsync(CancellationToken ct = default)
     {
@@ -45,7 +38,7 @@ public class DefaultLocalityCatalog : ILocalityCatalog
         var key = $"locality:regions:{cc}";
         var ttl = TimeSpan.FromSeconds(_cacheOptions.LocalityRegionsTtlSeconds);
         var tags = new[] { CacheTags.LocalityRegions, CacheTags.LocalityRegionsCountry(cc) };
-        var list = await _cacheService.GetOrCreateAsync(key, cancel =>
+        var list = await cacheService.GetOrCreateAsync(key, cancel =>
         {
             var map = GetRegionMapFor(cc);
             if (map.Count == 0)

@@ -13,14 +13,12 @@ public class TaxService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     ILogger<TaxService> logger) : ITaxService
 {
-    private readonly IEFCoreScopeProvider<MerchelloDbContext> _efCoreScopeProvider = efCoreScopeProvider;
-
     /// <summary>
     /// Gets all tax groups
     /// </summary>
     public async Task<List<TaxGroup>> GetTaxGroups(CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.TaxGroups
                 .OrderBy(tg => tg.Name)
@@ -34,7 +32,7 @@ public class TaxService(
     /// </summary>
     public async Task<TaxGroup?> GetTaxGroup(Guid taxGroupId, CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.TaxGroups
                 .FirstOrDefaultAsync(tg => tg.Id == taxGroupId, cancellationToken));
@@ -66,7 +64,7 @@ public class TaxService(
             TaxPercentage = rate
         };
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             db.TaxGroups.Add(taxGroup);
@@ -87,7 +85,7 @@ public class TaxService(
     {
         var result = new CrudResult<TaxGroup>();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var existing = await db.TaxGroups
@@ -127,7 +125,7 @@ public class TaxService(
     {
         var result = new CrudResult<bool>();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var taxGroup = await db.TaxGroups

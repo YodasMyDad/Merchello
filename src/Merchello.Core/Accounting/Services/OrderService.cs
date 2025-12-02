@@ -22,8 +22,6 @@ public class OrderService(
     IDeliveryDateService deliveryDateService,
     ILogger<OrderService> logger) : IOrderService
 {
-    private readonly IEFCoreScopeProvider<MerchelloDbContext> _efCoreScopeProvider = efCoreScopeProvider;
-
     public async Task<Invoice> CreateOrderFromBasketAsync(
         Basket basket,
         CheckoutSession checkoutSession,
@@ -41,7 +39,7 @@ public class OrderService(
             throw new InvalidOperationException("No warehouse shipping groups found for basket. Cannot create order.");
         }
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var invoice = await scope.ExecuteWithContextAsync(async db =>
         {
             // Load shipping options to get costs
@@ -183,7 +181,6 @@ public class OrderService(
                     InvoiceId = newInvoice.Id,
                     WarehouseId = group.WarehouseId,
                     ShippingOptionId = selectedShippingOptionId,
-                    ShippingAddress = checkoutSession.ShippingAddress,
                     ShippingCost = totalShippingCost,
                     RequestedDeliveryDate = requestedDeliveryDate,
                     IsDeliveryDateGuaranteed = isDeliveryDateGuaranteed,
@@ -351,7 +348,7 @@ public class OrderService(
         CreateShipmentsParameters parameters,
         CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var shipments = await scope.ExecuteWithContextAsync(async db =>
         {
             // Load the order with its line items, shipments, and products
@@ -551,7 +548,7 @@ public class OrderService(
     {
         var result = new CrudResult<bool>();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var order = await db.Orders
@@ -612,7 +609,7 @@ public class OrderService(
     {
         var result = new CrudResult<bool>();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var order = await db.Orders
@@ -693,7 +690,7 @@ public class OrderService(
         Guid orderId,
         CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.Orders
                 .Include(o => o.Invoice)

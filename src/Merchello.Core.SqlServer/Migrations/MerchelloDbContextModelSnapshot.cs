@@ -1256,75 +1256,7 @@ namespace Merchello.Core.SqlServer.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.OwnsOne("Merchello.Core.Locality.Models.Address", "ShippingAddress", b1 =>
-                        {
-                            b1.Property<Guid>("OrderId")
-                                .HasColumnType("uniqueidentifier");
-
-                            b1.Property<string>("AddressOne")
-                                .HasColumnType("nvarchar(max)");
-
-                            b1.Property<string>("AddressTwo")
-                                .HasColumnType("nvarchar(max)");
-
-                            b1.Property<string>("Company")
-                                .HasColumnType("nvarchar(max)");
-
-                            b1.Property<string>("Country")
-                                .HasColumnType("nvarchar(max)");
-
-                            b1.Property<string>("CountryCode")
-                                .HasColumnType("nvarchar(max)");
-
-                            b1.Property<string>("Email")
-                                .HasColumnType("nvarchar(max)");
-
-                            b1.Property<string>("Name")
-                                .HasColumnType("nvarchar(max)");
-
-                            b1.Property<string>("Phone")
-                                .HasColumnType("nvarchar(max)");
-
-                            b1.Property<string>("PostalCode")
-                                .HasColumnType("nvarchar(max)");
-
-                            b1.Property<string>("TownCity")
-                                .HasColumnType("nvarchar(max)");
-
-                            b1.HasKey("OrderId");
-
-                            b1.ToTable("merchelloOrders");
-
-                            b1.WithOwner()
-                                .HasForeignKey("OrderId");
-
-                            b1.OwnsOne("Merchello.Core.Locality.Models.CountyState", "CountyState", b2 =>
-                                {
-                                    b2.Property<Guid>("AddressOrderId")
-                                        .HasColumnType("uniqueidentifier");
-
-                                    b2.Property<string>("Name")
-                                        .HasColumnType("nvarchar(max)");
-
-                                    b2.Property<string>("RegionCode")
-                                        .HasColumnType("nvarchar(max)");
-
-                                    b2.HasKey("AddressOrderId");
-
-                                    b2.ToTable("merchelloOrders");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("AddressOrderId");
-                                });
-
-                            b1.Navigation("CountyState")
-                                .IsRequired();
-                        });
-
                     b.Navigation("Invoice");
-
-                    b.Navigation("ShippingAddress")
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Merchello.Core.Accounting.Models.Payment", b =>

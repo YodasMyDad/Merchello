@@ -32,11 +32,6 @@ public class Order
     public Guid ShippingOptionId { get; set; }
 
     /// <summary>
-    /// Shipping address for this order
-    /// </summary>
-    public Address ShippingAddress { get; set; } = new();
-
-    /// <summary>
     /// Shipping cost for this order
     /// </summary>
     public decimal ShippingCost { get; set; }

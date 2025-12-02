@@ -13,8 +13,6 @@ public class InventoryService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     ILogger<InventoryService> logger) : IInventoryService
 {
-    private readonly IEFCoreScopeProvider<MerchelloDbContext> _efCoreScopeProvider = efCoreScopeProvider;
-
     public async Task<CrudResult<bool>> ReserveStockAsync(
         Guid productId,
         Guid warehouseId,
@@ -33,7 +31,7 @@ public class InventoryService(
             return result;
         }
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var productWarehouse = await db.ProductWarehouses
@@ -103,7 +101,7 @@ public class InventoryService(
             return result;
         }
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var productWarehouse = await db.ProductWarehouses
@@ -161,7 +159,7 @@ public class InventoryService(
             return result;
         }
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var productWarehouse = await db.ProductWarehouses
@@ -207,7 +205,7 @@ public class InventoryService(
         Guid warehouseId,
         CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             var productWarehouse = await db.ProductWarehouses
@@ -239,7 +237,7 @@ public class InventoryService(
             return result;
         }
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var validationErrors = new List<string>();
@@ -293,7 +291,7 @@ public class InventoryService(
         Guid warehouseId,
         CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             var productWarehouse = await db.ProductWarehouses

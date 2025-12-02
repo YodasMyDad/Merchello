@@ -18,6 +18,18 @@ export class MerchelloOrderDetailWorkspaceContext extends UmbControllerBase impl
     super(host, UMB_WORKSPACE_CONTEXT.toString());
     this.routes = new UmbWorkspaceRouteManager(host);
     this.provideContext(UMB_WORKSPACE_CONTEXT, this);
+
+    // Set up routes for this workspace
+    this.routes.setRoutes([
+      {
+        path: "edit/:id",
+        component: () => import("./order-detail.element.js"),
+        setup: (_component, info) => {
+          const id = info.match.params.id;
+          this.load(id);
+        },
+      },
+    ]);
   }
 
   getEntityType(): string {

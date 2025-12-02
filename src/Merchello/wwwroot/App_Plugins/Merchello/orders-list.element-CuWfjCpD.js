@@ -1,10 +1,10 @@
 import { LitElement as u, html as d, css as h, state as o, customElement as b } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin as p } from "@umbraco-cms/backoffice/element-api";
 import { M as v } from "./merchello-api-CdBya1Dq.js";
-var g = Object.defineProperty, m = Object.getOwnPropertyDescriptor, s = (t, e, r, l) => {
-  for (var i = l > 1 ? void 0 : l ? m(e, r) : e, c = t.length - 1, n; c >= 0; c--)
+var m = Object.defineProperty, g = Object.getOwnPropertyDescriptor, s = (t, e, r, l) => {
+  for (var i = l > 1 ? void 0 : l ? g(e, r) : e, c = t.length - 1, n; c >= 0; c--)
     (n = t[c]) && (i = (l ? n(e, r, i) : n(i)) || i);
-  return l && i && g(e, r, i), i;
+  return l && i && m(e, r, i), i;
 };
 let a = class extends p(u) {
   constructor() {
@@ -48,8 +48,8 @@ let a = class extends p(u) {
       currency: "USD"
     }).format(t);
   }
-  _navigateToOrder(t) {
-    window.location.href = `#/merchello/order/${t}/details`;
+  _getOrderHref(t) {
+    return `section/merchello/workspace/merchello-order/edit/${t}`;
   }
   render() {
     return d`
@@ -161,15 +161,17 @@ let a = class extends p(u) {
                       <tbody>
                         ${this._orders.map(
       (t) => d`
-                            <tr @click=${() => this._navigateToOrder(t.id)}>
-                              <td class="checkbox-col" @click=${(e) => e.stopPropagation()}>
+                            <tr>
+                              <td class="checkbox-col">
                                 <input
                                   type="checkbox"
                                   .checked=${this._selectedOrders.has(t.id)}
                                   @change=${(e) => this._handleSelectOrder(t.id, e)}
                                 />
                               </td>
-                              <td class="order-number">${t.invoiceNumber || t.id.substring(0, 8)}</td>
+                              <td class="order-number">
+                                <a href=${this._getOrderHref(t.id)}>${t.invoiceNumber || t.id.substring(0, 8)}</a>
+                              </td>
                               <td>${this._formatDate(t.dateCreated)}</td>
                               <td>${t.customerName}</td>
                               <td>${t.channel}</td>
@@ -483,4 +485,4 @@ export {
   a as MerchelloOrdersListElement,
   x as default
 };
-//# sourceMappingURL=orders-list.element-C6p14wdO.js.map
+//# sourceMappingURL=orders-list.element-CuWfjCpD.js.map

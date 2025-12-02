@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Merchello.Core.Accounting.Models;
-using System.Linq;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Parameters;
@@ -9,7 +8,6 @@ using Merchello.Core.Data;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Models;
-using Merchello.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
@@ -23,7 +21,6 @@ public class CheckoutService(
     IShippingQuoteService shippingQuoteService,
     ILocationsService? locationsService = null) : ICheckoutService
 {
-    private readonly IEFCoreScopeProvider<MerchelloDbContext> _efCoreScopeProvider = efCoreScopeProvider;
     private readonly ILocationsService _locationsService = locationsService ?? new NoopLocationsService();
 
     /// <summary>
@@ -158,7 +155,7 @@ public class CheckoutService(
         Basket? anonBasket = null;
         Basket? userBasket = null;
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         basket = await scope.ExecuteWithContextAsync(async db =>
         {
             if (parameters.CustomerId.HasValue)
@@ -244,7 +241,7 @@ public class CheckoutService(
 
             var isNewBasket = false;
 
-            using var scope = _efCoreScopeProvider.CreateScope();
+            using var scope = efCoreScopeProvider.CreateScope();
             await scope.ExecuteWithContextAsync<Task>(async db =>
             {
                 if (basket == null)
@@ -297,7 +294,7 @@ public class CheckoutService(
                 lineItem.Quantity = quantity;
                 await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
 
-                using var scope = _efCoreScopeProvider.CreateScope();
+                using var scope = efCoreScopeProvider.CreateScope();
                 await scope.ExecuteWithContextAsync<Task>(async db =>
                 {
                     await db.SaveChangesAsync(cancellationToken);
@@ -318,7 +315,7 @@ public class CheckoutService(
         {
             await RemoveFromBasketAsync(basket, lineItemId, countryCode, cancellationToken);
 
-            using var scope = _efCoreScopeProvider.CreateScope();
+            using var scope = efCoreScopeProvider.CreateScope();
             await scope.ExecuteWithContextAsync<Task>(async db =>
             {
                 await db.SaveChangesAsync(cancellationToken);
@@ -332,7 +329,7 @@ public class CheckoutService(
     /// </summary>
     public async Task DeleteBasket(Guid basketId, CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var basketToDelete = await db.Baskets
@@ -370,7 +367,7 @@ public class CheckoutService(
             .Distinct()
             .ToList();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var products = await scope.ExecuteWithContextAsync(async db =>
         {
             // Reuse the same includes used by ShippingQuoteService to ensure consistency

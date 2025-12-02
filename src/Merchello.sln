@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.4.33020.496
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{C31D73E7-117E-41BA-89FF-FD6ED17C3975}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docs", "Docs", "{C31D73E7-117E-41BA-89FF-FD6ED17C3975}"
 	ProjectSection(SolutionItems) = preProject
 		..\.github\CONTRIBUTING.md = ..\.github\CONTRIBUTING.md
 		..\.github\README.md = ..\.github\README.md
@@ -19,6 +19,11 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Merchello.Core.SqlServer", "Merchello.Core.SqlServer\Merchello.Core.SqlServer.csproj", "{BA9637B2-23F0-4660-B5E5-1E68F0B9C61A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Merchello.Core.Sqlite", "Merchello.Core.Sqlite\Merchello.Core.Sqlite.csproj", "{FFE3B881-B59C-4F9A-BFCD-BB50422BD8F5}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Scripts", "Scripts", "{0319B1CD-CE56-462E-93B5-77F87B9564F0}"
+	ProjectSection(SolutionItems) = preProject
+		..\scripts\add-migration.ps1 = ..\scripts\add-migration.ps1
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

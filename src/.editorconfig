@@ -145,9 +145,9 @@ dotnet_style_prefer_simplified_interpolation = true:warning
 [*.{cs,csx,cake}]
 # Implicit and explicit types
 # https://docs.microsoft.com/visualstudio/ide/editorconfig-language-conventions#implicit-and-explicit-types
-csharp_style_var_for_built_in_types = never
-csharp_style_var_when_type_is_apparent = false
-csharp_style_var_elsewhere = false
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = true:suggestion
 # Expression-bodied members
 # https://docs.microsoft.com/visualstudio/ide/editorconfig-language-conventions#expression-bodied-members
 csharp_style_expression_bodied_methods = false:suggestion

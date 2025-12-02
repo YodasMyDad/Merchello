@@ -106,9 +106,9 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     }).format(amount);
   }
 
-  private _navigateToOrder(id: string): void {
-    // Navigate to order detail - this would use Umbraco's router
-    window.location.href = `#/merchello/order/${id}/details`;
+  private _getOrderHref(id: string): string {
+    // Pattern: section/{sectionPathname}/workspace/{entityType}/{routePath}
+    return `section/merchello/workspace/merchello-order/edit/${id}`;
   }
 
   render() {
@@ -227,15 +227,17 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
                       <tbody>
                         ${this._orders.map(
                           (order) => html`
-                            <tr @click=${() => this._navigateToOrder(order.id)}>
-                              <td class="checkbox-col" @click=${(e: Event) => e.stopPropagation()}>
+                            <tr>
+                              <td class="checkbox-col">
                                 <input
                                   type="checkbox"
                                   .checked=${this._selectedOrders.has(order.id)}
                                   @change=${(e: Event) => this._handleSelectOrder(order.id, e)}
                                 />
                               </td>
-                              <td class="order-number">${order.invoiceNumber || order.id.substring(0, 8)}</td>
+                              <td class="order-number">
+                                <a href=${this._getOrderHref(order.id)}>${order.invoiceNumber || order.id.substring(0, 8)}</a>
+                              </td>
                               <td>${this._formatDate(order.dateCreated)}</td>
                               <td>${order.customerName}</td>
                               <td>${order.channel}</td>

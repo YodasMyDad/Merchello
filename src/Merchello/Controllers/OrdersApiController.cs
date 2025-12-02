@@ -5,6 +5,7 @@ using Merchello.Core.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Controllers;
 
@@ -12,11 +13,11 @@ namespace Merchello.Controllers;
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class OrdersApiController : MerchelloApiControllerBase
 {
-    private readonly MerchelloDbContext _dbContext;
+    private readonly IEFCoreScopeProvider<MerchelloDbContext> _scopeProvider;
 
-    public OrdersApiController(MerchelloDbContext dbContext)
+    public OrdersApiController(IEFCoreScopeProvider<MerchelloDbContext> scopeProvider)
     {
-        _dbContext = dbContext;
+        _scopeProvider = scopeProvider;
     }
 
     /// <summary>
@@ -26,85 +27,91 @@ public class OrdersApiController : MerchelloApiControllerBase
     [ProducesResponseType<OrderListResponse>(StatusCodes.Status200OK)]
     public async Task<OrderListResponse> GetOrders([FromQuery] OrderListQuery query)
     {
-        var invoicesQuery = _dbContext.Invoices
-            .Include(i => i.Orders)
-            .Include(i => i.Payments)
-            .AsQueryable();
-
-        // Apply filters
-        if (!string.IsNullOrEmpty(query.Search))
+        using var scope = _scopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
         {
-            var search = query.Search.ToLower();
-            invoicesQuery = invoicesQuery.Where(i =>
-                i.InvoiceNumber.ToLower().Contains(search) ||
-                (i.BillingAddress.Name != null && i.BillingAddress.Name.ToLower().Contains(search)));
-        }
+            var invoicesQuery = db.Invoices
+                .Include(i => i.Orders)
+                .Include(i => i.Payments)
+                .AsQueryable();
 
-        if (!string.IsNullOrEmpty(query.PaymentStatus))
-        {
-            if (query.PaymentStatus.Equals("paid", StringComparison.OrdinalIgnoreCase))
+            // Apply filters
+            if (!string.IsNullOrEmpty(query.Search))
             {
+                var search = query.Search.ToLower();
                 invoicesQuery = invoicesQuery.Where(i =>
-                    i.Payments != null && i.Payments.Sum(p => p.PaymentSuccess ? p.Amount : 0) >= i.Total);
+                    i.InvoiceNumber.ToLower().Contains(search) ||
+                    (i.BillingAddress.Name != null && i.BillingAddress.Name.ToLower().Contains(search)));
             }
-            else if (query.PaymentStatus.Equals("unpaid", StringComparison.OrdinalIgnoreCase))
+
+            if (!string.IsNullOrEmpty(query.PaymentStatus))
             {
-                invoicesQuery = invoicesQuery.Where(i =>
-                    i.Payments == null || i.Payments.Sum(p => p.PaymentSuccess ? p.Amount : 0) < i.Total);
+                if (query.PaymentStatus.Equals("paid", StringComparison.OrdinalIgnoreCase))
+                {
+                    invoicesQuery = invoicesQuery.Where(i =>
+                        i.Payments != null && i.Payments.Sum(p => p.PaymentSuccess ? p.Amount : 0) >= i.Total);
+                }
+                else if (query.PaymentStatus.Equals("unpaid", StringComparison.OrdinalIgnoreCase))
+                {
+                    invoicesQuery = invoicesQuery.Where(i =>
+                        i.Payments == null || i.Payments.Sum(p => p.PaymentSuccess ? p.Amount : 0) < i.Total);
+                }
             }
-        }
 
-        if (!string.IsNullOrEmpty(query.FulfillmentStatus))
-        {
-            if (query.FulfillmentStatus.Equals("unfulfilled", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(query.FulfillmentStatus))
             {
-                invoicesQuery = invoicesQuery.Where(i =>
-                    i.Orders != null && i.Orders.Any(o =>
-                        o.Status != OrderStatus.Completed && o.Status != OrderStatus.Shipped));
+                if (query.FulfillmentStatus.Equals("unfulfilled", StringComparison.OrdinalIgnoreCase))
+                {
+                    invoicesQuery = invoicesQuery.Where(i =>
+                        i.Orders != null && i.Orders.Any(o =>
+                            o.Status != OrderStatus.Completed && o.Status != OrderStatus.Shipped));
+                }
+                else if (query.FulfillmentStatus.Equals("fulfilled", StringComparison.OrdinalIgnoreCase))
+                {
+                    invoicesQuery = invoicesQuery.Where(i =>
+                        i.Orders != null && i.Orders.All(o =>
+                            o.Status == OrderStatus.Completed || o.Status == OrderStatus.Shipped));
+                }
             }
-            else if (query.FulfillmentStatus.Equals("fulfilled", StringComparison.OrdinalIgnoreCase))
+
+            // Get total count before pagination
+            var totalItems = await invoicesQuery.CountAsync();
+
+            // Apply sorting
+            invoicesQuery = query.SortBy?.ToLower() switch
             {
-                invoicesQuery = invoicesQuery.Where(i =>
-                    i.Orders != null && i.Orders.All(o =>
-                        o.Status == OrderStatus.Completed || o.Status == OrderStatus.Shipped));
-            }
-        }
+                "total" => query.SortDir?.ToLower() == "asc"
+                    ? invoicesQuery.OrderBy(i => i.Total)
+                    : invoicesQuery.OrderByDescending(i => i.Total),
+                "customer" => query.SortDir?.ToLower() == "asc"
+                    ? invoicesQuery.OrderBy(i => i.BillingAddress.Name)
+                    : invoicesQuery.OrderByDescending(i => i.BillingAddress.Name),
+                _ => query.SortDir?.ToLower() == "asc"
+                    ? invoicesQuery.OrderBy(i => i.DateCreated)
+                    : invoicesQuery.OrderByDescending(i => i.DateCreated)
+            };
 
-        // Get total count before pagination
-        var totalItems = await invoicesQuery.CountAsync();
+            // Apply pagination
+            var skip = (query.Page - 1) * query.PageSize;
+            var invoices = await invoicesQuery
+                .Skip(skip)
+                .Take(query.PageSize)
+                .ToListAsync();
 
-        // Apply sorting
-        invoicesQuery = query.SortBy?.ToLower() switch
-        {
-            "total" => query.SortDir?.ToLower() == "asc"
-                ? invoicesQuery.OrderBy(i => i.Total)
-                : invoicesQuery.OrderByDescending(i => i.Total),
-            "customer" => query.SortDir?.ToLower() == "asc"
-                ? invoicesQuery.OrderBy(i => i.BillingAddress.Name)
-                : invoicesQuery.OrderByDescending(i => i.BillingAddress.Name),
-            _ => query.SortDir?.ToLower() == "asc"
-                ? invoicesQuery.OrderBy(i => i.DateCreated)
-                : invoicesQuery.OrderByDescending(i => i.DateCreated)
-        };
+            // Map to DTOs
+            var items = invoices.Select(MapToListItem).ToList();
 
-        // Apply pagination
-        var skip = (query.Page - 1) * query.PageSize;
-        var invoices = await invoicesQuery
-            .Skip(skip)
-            .Take(query.PageSize)
-            .ToListAsync();
-
-        // Map to DTOs
-        var items = invoices.Select(MapToListItem).ToList();
-
-        return new OrderListResponse
-        {
-            Items = items,
-            Page = query.Page,
-            PageSize = query.PageSize,
-            TotalItems = totalItems,
-            TotalPages = (int)Math.Ceiling((double)totalItems / query.PageSize)
-        };
+            return new OrderListResponse
+            {
+                Items = items,
+                Page = query.Page,
+                PageSize = query.PageSize,
+                TotalItems = totalItems,
+                TotalPages = (int)Math.Ceiling((double)totalItems / query.PageSize)
+            };
+        });
+        scope.Complete();
+        return result;
     }
 
     /// <summary>
@@ -115,13 +122,18 @@ public class OrdersApiController : MerchelloApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetOrder(Guid id)
     {
-        var invoice = await _dbContext.Invoices
-            .Include(i => i.Orders)!
-                .ThenInclude(o => o.LineItems)
-            .Include(i => i.Orders)!
-                .ThenInclude(o => o.Shipments)
-            .Include(i => i.Payments)
-            .FirstOrDefaultAsync(i => i.Id == id);
+        using var scope = _scopeProvider.CreateScope();
+        var invoice = await scope.ExecuteWithContextAsync(async db =>
+        {
+            return await db.Invoices
+                .Include(i => i.Orders)!
+                    .ThenInclude(o => o.LineItems)
+                .Include(i => i.Orders)!
+                    .ThenInclude(o => o.Shipments)
+                .Include(i => i.Payments)
+                .FirstOrDefaultAsync(i => i.Id == id);
+        });
+        scope.Complete();
 
         if (invoice == null)
         {
@@ -143,7 +155,7 @@ public class OrdersApiController : MerchelloApiControllerBase
 
         var fulfillmentStatus = GetFulfillmentStatus(orders);
         var deliveryStatus = GetDeliveryStatus(orders);
-        var deliveryMethod = orders.FirstOrDefault()?.ShippingAddress?.Name ?? "Standard"; // This would normally come from ShippingOption lookup
+        var deliveryMethod = "Standard"; // TODO: This should come from ShippingOption lookup
 
         return new OrderListItemDto
         {
