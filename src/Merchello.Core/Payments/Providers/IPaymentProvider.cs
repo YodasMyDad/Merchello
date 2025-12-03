@@ -7,6 +7,7 @@ namespace Merchello.Core.Payments.Providers;
 
 /// <summary>
 /// Contract that payment provider plugins must implement.
+/// Supports multiple integration types: Redirect, HostedFields, Widget, and DirectForm.
 /// </summary>
 public interface IPaymentProvider
 {
@@ -15,8 +16,12 @@ public interface IPaymentProvider
     /// </summary>
     PaymentProviderMetadata Metadata { get; }
 
+    // =====================================================
+    // Configuration
+    // =====================================================
+
     /// <summary>
-    /// Get the configuration fields required by this provider (for UI).
+    /// Get the configuration fields required by this provider (for backoffice UI).
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Field definitions for dynamic configuration UI.</returns>
@@ -32,15 +37,35 @@ public interface IPaymentProvider
         PaymentProviderConfiguration? configuration,
         CancellationToken cancellationToken = default);
 
+    // =====================================================
+    // Payment Flow
+    // =====================================================
+
     /// <summary>
-    /// Initiate a payment - returns redirect URL for hosted checkout.
+    /// Create a payment session - returns what the frontend needs to render the payment UI.
+    /// Based on IntegrationType, this may include redirect URL, client token, SDK config, or form fields.
     /// </summary>
     /// <param name="request">Payment request details.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Result containing redirect URL or error information.</returns>
-    Task<PaymentInitiationResult> InitiatePaymentAsync(
+    /// <returns>Session result containing the appropriate data for the integration type.</returns>
+    Task<PaymentSessionResult> CreatePaymentSessionAsync(
         PaymentRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Process the result from client-side interaction.
+    /// Called after redirect return, SDK tokenization, or form submission.
+    /// </summary>
+    /// <param name="request">The payment processing request with tokens/form data.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result of the payment processing.</returns>
+    Task<PaymentResult> ProcessPaymentAsync(
+        ProcessPaymentRequest request,
+        CancellationToken cancellationToken = default);
+
+    // =====================================================
+    // Capture (for auth-then-capture flow)
+    // =====================================================
 
     /// <summary>
     /// Capture an authorized payment (for auth-then-capture flow).
@@ -54,6 +79,10 @@ public interface IPaymentProvider
         decimal? amount = null,
         CancellationToken cancellationToken = default);
 
+    // =====================================================
+    // Refunds
+    // =====================================================
+
     /// <summary>
     /// Process a refund.
     /// </summary>
@@ -63,6 +92,10 @@ public interface IPaymentProvider
     Task<RefundResult> RefundPaymentAsync(
         RefundRequest request,
         CancellationToken cancellationToken = default);
+
+    // =====================================================
+    // Webhooks
+    // =====================================================
 
     /// <summary>
     /// Validate an incoming webhook signature.

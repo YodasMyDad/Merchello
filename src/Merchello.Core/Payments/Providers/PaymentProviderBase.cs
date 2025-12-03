@@ -35,10 +35,23 @@ public abstract class PaymentProviderBase : IPaymentProvider
         return ValueTask.CompletedTask;
     }
 
+    // =====================================================
+    // Payment Flow
+    // =====================================================
+
     /// <inheritdoc />
-    public abstract Task<PaymentInitiationResult> InitiatePaymentAsync(
+    public abstract Task<PaymentSessionResult> CreatePaymentSessionAsync(
         PaymentRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <inheritdoc />
+    public abstract Task<PaymentResult> ProcessPaymentAsync(
+        ProcessPaymentRequest request,
+        CancellationToken cancellationToken = default);
+
+    // =====================================================
+    // Capture
+    // =====================================================
 
     /// <inheritdoc />
     public virtual Task<PaymentCaptureResult> CapturePaymentAsync(

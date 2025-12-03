@@ -261,8 +261,9 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
             Description = meta.Description,
             SupportsRefunds = meta.SupportsRefunds,
             SupportsPartialRefunds = meta.SupportsPartialRefunds,
-            UsesRedirectCheckout = meta.UsesRedirectCheckout,
+            IntegrationType = meta.IntegrationType,
             SupportsAuthAndCapture = meta.SupportsAuthAndCapture,
+            RequiresWebhook = meta.RequiresWebhook,
             WebhookPath = meta.WebhookPath,
             IsEnabled = registered.IsEnabled,
             SettingId = registered.Setting?.Id

@@ -1,3 +1,5 @@
+using Merchello.Core.Payments.Models;
+
 namespace Merchello.Core.Payments.Providers;
 
 /// <summary>
@@ -27,6 +29,12 @@ public class PaymentProviderMetadata
     public string? Description { get; init; }
 
     /// <summary>
+    /// The integration type this provider uses.
+    /// Determines how the checkout UI is rendered.
+    /// </summary>
+    public required PaymentIntegrationType IntegrationType { get; init; }
+
+    /// <summary>
     /// Whether this provider supports refunds.
     /// </summary>
     public bool SupportsRefunds { get; init; } = true;
@@ -37,14 +45,14 @@ public class PaymentProviderMetadata
     public bool SupportsPartialRefunds { get; init; } = true;
 
     /// <summary>
-    /// Whether this provider uses redirect-based checkout.
-    /// </summary>
-    public bool UsesRedirectCheckout { get; init; } = true;
-
-    /// <summary>
     /// Whether this provider supports authorization-then-capture.
     /// </summary>
     public bool SupportsAuthAndCapture { get; init; } = false;
+
+    /// <summary>
+    /// Whether this provider requires webhook configuration.
+    /// </summary>
+    public bool RequiresWebhook { get; init; } = false;
 
     /// <summary>
     /// Webhook endpoint path for this provider.

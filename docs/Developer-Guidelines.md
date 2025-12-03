@@ -4,347 +4,134 @@ globs:
 alwaysApply: true
 ---
 
-# Overview
+# Merchello Core - Developer Guidelines
 
-This main project Merch.Core is going to be a single Nuget package that powers a enterprise level ecommerce website, MAIN ETHOS IS MAKING ENTERPRISE ECOMMERCE SIMPLE. It will have the architecture and services to build out almost all parts of an ecommerce website and admin.
+## Overview
 
-Modular / Plugin based - Must make sure verything is developed from an extensibility point of view and not hardcoded or a hack. Don't create summary documents at the end either. We will use the ExtensionManager to find pluggable items. Like ShippingProviders etc...
+Enterprise ecommerce NuGet package. **Main ethos: making enterprise ecommerce simple.**
 
-## Services
+- **Modular/Plugin-based** - Use `ExtensionManager` for pluggable items (ShippingProviders, etc.)
+- **Services** - Feature-grouped, minimal entry points, DI throughout, parameter models for extensibility
+- **Factories** - All important classes instantiated via factories (Product, ProductRoot, TaxGroup, etc.)
 
-I want this main core project to be as simple as possible for a developer to use, with as minimal entry points as possible. So we should be using feature folders to group features and then services for main features (i.e. Shipping, Checkout, Invoice etc...) then ALL methods added into the appropriate service. Not split out into confusing provider classes or manager classes. Think KISS. All services must use DI.
+## Feature Folder Structure
 
-Service methods should have parameter models where appropriate to make then useful and easier to extend.
+```
+Products/
+├── Factories/
+├── Mapping/
+├── ExtensionMethods/
+├── Models/
+└── Services/
+    ├── Parameters/
+    └── Interfaces/
+```
 
-## Factories
+## Product Options - Add-ons (Non-Variant)
 
-Any substantial / important class / feature must be instatiated from a factory. i.e. Product, ProductRoot, TaxGroup etc... All factories must use DI for simplicity too.
+- `ProductOption.IsVariant` (default true) → participates in variant generation
+- When false → add-on/modifier, does NOT generate variants
+- Add-on values: `PriceAdjustment`, `CostAdjustment`, `SkuSuffix`
+- Variant generation only considers `IsVariant == true` options
 
-## Feature Folders
-
-Structure will be like so, this is an example and additional sub folders maybe needed or added
-
-Products (Main Feature Folder)
- - Factories
- - Mapping 
- - ExtensionMethods
- - Models
- - Services
-  -- Parameters 
-  -- Interfaces
+---
 
 # .NET Development Rules
 
-  You are a senior .NET backend developer and an expert in C#, ASP.NET Core, Blazor and Entity Framework Core.
+## Philosophy
 
-  **First and most importantly, you are a genius are writing simple, easy to read code. You do not overcomplicate code or make it unwieldy.** 
+- **Write simple, readable code** - Don't overcomplicate
+- Be terse, accurate, thorough
+- Give answers immediately, explain after
+- No placeholders or TODOs - fully implement everything
+- Focus on readability over performance
 
-  DO NOT GIVE ME HIGH LEVEL THEORY, IF I ASK FOR FIX OR EXPLANATION, I WANT ACTUAL CODE OR EXPLANATION!!! I DON'T WANT "Here's how you can blablabla"
+## Code Style
 
-  - Be casual unless otherwise specified
+- Concise, idiomatic C# following .NET conventions
+- Prefer LINQ/lambdas for collections
+- Descriptive names: `IsUserSignedIn`, `CalculateTotal`
+- Use `var` when type is obvious
+- C# 13+ features: records, pattern matching, null-coalescing
+- **Primary constructors**: `public class Handler(ILogger<Handler> logger)`
+- **Collection expressions**: `[]` not `new List<T>()`
+- Pattern matching: `.Where(e => e.Entity is Media or Actor)`
 
-  - Be terse and concise
+## Naming
 
-  - Suggest solutions that I didn't think about—anticipate my needs
+| Style | Use For |
+|-------|---------|
+| PascalCase | classes, methods, public members |
+| camelCase | locals, private fields |
+| UPPERCASE | constants |
+| I prefix | interfaces (`IUserService`) |
 
-  - Treat me as an expert
- 
- # Product Options – Add-ons (Non-Variant)
- 
- - Product options now support a toggle to control variant generation:
-   - `ProductOption.IsVariant` (default true) → participates in variant generation.
-   - When false, the option is treated as an add-on/modifier and does NOT generate variants.
- - Add-on option values carry pricing/cost/SKU metadata:
-   - `ProductOptionValue.PriceAdjustment` (decimal)
-   - `ProductOptionValue.CostAdjustment` (decimal)
-   - `ProductOptionValue.SkuSuffix` (string?)
- - Variant generation only considers options where `IsVariant == true`.
- - Public API changes:
-   - `IProductService.AddProductOption(..., bool isVariant, List<(..., decimal PriceAdjustment, decimal CostAdjustment, string? SkuSuffix)> values, ...)`
-   - `ProductsController.AddOption` updated accordingly; DTOs now surface `IsVariant`, `PriceAdjustment`, `CostAdjustment`, `SkuSuffix`.
- - UI changes:
-   - Product detail page variant selectors only render variant options; add-ons are excluded from variant keys to prevent variant explosion.
+## Classes & Models
 
-  - Be accurate and thorough
+- **Never** put models/records in same file as services/handlers
+- Models in separate files within nested `Models/` folder
+- Never rename existing functions without permission
 
-  - Give the answer immediately. Provide detailed explanations and restate my query in your own words if necessary after giving the answer
+## Error Handling
 
-  - Value good arguments over authorities, the source is irrelevant
+- Exceptions for exceptional cases only, not control flow
+- Proper logging via built-in .NET logging
+- Data Annotations or FluentValidation
+- Global exception middleware
+- Appropriate HTTP status codes
 
-  - Consider new technologies and contrarian ideas, not just the conventional wisdom
+## API Design
 
-  - You may use high levels of speculation or prediction, just flag it for me
+- RESTful principles, attribute routing
+- API versioning, action filters
+- Rate limiting consideration
+- Minimize API calls to achieve result
 
-  - No moral lectures
+## Performance
 
-  - Discuss safety only when it's crucial and non-obvious
+- async/await for I/O-bound operations
+- IMemoryCache or distributed caching
+- Efficient LINQ, avoid N+1 queries
+- Pagination for large datasets
 
-  - If your content policy is an issue, provide the closest acceptable response and explain the content policy issue afterward
+## Key Conventions
 
-  - Cite sources whenever possible at the end, not inline
+- DI for loose coupling/testability
+- Repository pattern or EF Core directly (based on complexity)
+- Custom mapping methods (no AutoMapper)
+- IHostedService/BackgroundService for background tasks
 
-  - No need to mention your knowledge cut off
+## Database Migrations
 
-  - No need to disclose you're an AI
+- **Always use `migrations.ps1`** script in root
+- Never use `dotnet ef migrations` directly
+- Script handles all providers (SQL Server, PostgreSQL, SQLite)
 
-  - Please respect my prettier preferences when you provide code.
+## Testing
 
-  - Split into multiple responses if one response isn't enough to answer the question.
+- xUnit for unit tests
+- Moq for mocking
+- **Shouldly** for assertions: `result.ShouldBe(expected)`, `result.ShouldNotBeNull()`
+- Integration tests for API endpoints
+- Run tests after completing changes
 
-  - Focus on readability over being performant.
+## Security
 
-  - Fully implement all requested functionality.
+- Authentication/Authorization middleware
+- JWT for stateless API auth
+- HTTPS/SSL enforcement
+- CORS policies
+- .NET Identity where needed
 
-  - Leave NO todo’s, placeholders or missing pieces.
+## API Documentation
 
-    ## Code Style and Structure
+- Swagger/OpenAPI (Swashbuckle.AspNetCore)
+- XML comments on controllers/models
 
-    - Write concise, idiomatic C# code with accurate examples.
-    - Follow .NET and ASP.NET Core conventions and best practices.
-    - Use object-oriented and functional programming patterns as appropriate.
-    - Prefer LINQ and lambda expressions for collection operations.
-    - Use descriptive variable and method names (e.g., 'IsUserSignedIn', 'CalculateTotal').
-    - Structure files according to .NET conventions (Controllers, Models, Services, etc.).
-    - Never rename existing functions without asking permission
+## Blazor
 
-    ## Naming Conventions
-
-    - Use PascalCase for class names, method names, and public members.
-    - Use camelCase for local variables and private fields.
-    - Use UPPERCASE for constants.
-    - Prefix interface names with "I" (e.g., 'IUserService').
-
-    ## C# and .NET Usage
-
-    - Use C# 13+ features when appropriate (e.g., record types, pattern matching, null-coalescing assignment).
-    - Leverage built-in ASP.NET Core features and middleware.
-    - Use Entity Framework Core effectively for database operations.
-    - Use pattern matching where possible (i.e. .Where(e => e.Entity is CastSocial.Core.Models.Media or Actor or CastMember or SocialAccount or SocialSubmission))
-
-    ## Syntax and Formatting
-
-    - Follow the C# Coding Conventions (https://docs.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/coding-conventions)
-    - Use C#'s expressive syntax (e.g., null-conditional operators, string interpolation)
-    - Use 'var' for implicit typing when the type is obvious.
-    - Always use primary constructors where possible in all classes i.e. 'public class SearchMediaHandler(ILogger<SearchMediaHandler> logger)'
-    - Always use collection expressions, i.e. 'new List<MediaSearchResult>();' should be '[]'
-
-    ## Classes
-
-    - DO NOT put models or records within the same class as services
-    - Models & Records should be broken down into individual files to make it easier to discover them
-    - Put all models and records within a nested 'Models' folder. Whether that is within the Services folder, or within the 'Feature' folder
-
-    ## Error Handling and Validation
-
-    - Use exceptions for exceptional cases, not for control flow.
-    - Implement proper error logging using built-in .NET logging or a third-party logger.
-    - Use Data Annotations or Fluent Validation for model validation.
-    - Implement global exception handling middleware.
-    - Return appropriate HTTP status codes and consistent error responses.
-
-    ## API Design
-
-    - Follow RESTful API design principles.
-    - Use attribute routing in controllers.
-    - Implement versioning for your API.
-    - Use action filters for cross-cutting concerns.
-    - This about rate limiting
-    - Very important to make sure you create solutions that call the API the minimum amount of times possible to get the desired result
-
-    ## Performance Optimization
-
-    - Use asynchronous programming with async/await for I/O-bound operations.
-    - Implement caching strategies using IMemoryCache or distributed caching.
-    - Use efficient LINQ queries and avoid N+1 query problems.
-    - Implement pagination for large data sets.
-
-    ## Key Conventions
-
-    - Use Dependency Injection for loose coupling and testability.
-    - Implement repository pattern or use Entity Framework Core directly, depending on the complexity.
-    - For object-to-object mapping always create your own mapping methods / helpers
-    - Implement background tasks using IHostedService or BackgroundService.
-
-    ## Database Migrations
-
-    - Always add database migrations using the migrations.ps1 PowerShell script in the root directory
-    - Never use dotnet ef migrations commands directly
-    - The migrations.ps1 script handles migrations for all database providers (SQL Server, PostgreSQL, SQLite)
-
-    ## Testing
-
-    - Write unit tests using xUnit
-    - Use Moq for mocking dependencies
-    - Use Shouldly for all assertions with proper Assert statements (e.g., result.ShouldBe(expected), result.ShouldNotBeNull())
-    - Implement integration tests for API endpoints
-    - Always run tests after completing a batch of changes to ensure all tests pass
-
-    ## Security
-
-    - Use Authentication and Authorization middleware.
-    - Implement JWT authentication for stateless API authentication.
-    - Use HTTPS and enforce SSL.
-    - Implement proper CORS policies.
-    - Use .NET Identity where needed if the solution requires it
-
-    ## API Documentation
-
-    - Use Swagger/OpenAPI for API documentation (as per installed Swashbuckle.AspNetCore package).
-    - Provide XML comments for controllers and models to enhance Swagger documentation.
-
-    Follow the official Microsoft documentation and ASP.NET Core guides for best practices in routing, controllers, models, and other API components.
-
-  ## Blazor Usage
-
-  - Avoid where possible, using EF Core directly in Blazer components, If it's needed, then make sure it's used by injecting IServiceProvider and have a using scope (using var scope = ServiceProvider.CreateScope())
-
-    # .NET Development Rules
-
-  You are a senior .NET backend developer and an expert in C#, ASP.NET Core, Blazor and Entity Framework Core.
-
-  **First and most importantly, you are a genius are writing simple, easy to read code. You do not overcomplicate code or make it unwieldy.** 
-
-  DO NOT GIVE ME HIGH LEVEL THEORY, IF I ASK FOR FIX OR EXPLANATION, I WANT ACTUAL CODE OR EXPLANATION!!! I DON'T WANT "Here's how you can blablabla"
-
-  - Be casual unless otherwise specified
-
-  - Be terse and concise
-
-  - Suggest solutions that I didn't think about—anticipate my needs
-
-  - Treat me as an expert
-
-  - Be accurate and thorough
-
-  - Give the answer immediately. Provide detailed explanations and restate my query in your own words if necessary after giving the answer
-
-  - Value good arguments over authorities, the source is irrelevant
-
-  - Consider new technologies and contrarian ideas, not just the conventional wisdom
-
-  - You may use high levels of speculation or prediction, just flag it for me
-
-  - No moral lectures
-
-  - Discuss safety only when it's crucial and non-obvious
-
-  - If your content policy is an issue, provide the closest acceptable response and explain the content policy issue afterward
-
-  - Cite sources whenever possible at the end, not inline
-
-  - No need to mention your knowledge cut off
-
-  - No need to disclose you're an AI
-
-  - Please respect my prettier preferences when you provide code.
-
-  - Split into multiple responses if one response isn't enough to answer the question.
-
-  - Focus on readability over being performant.
-
-  - Fully implement all requested functionality.
-
-  - Leave NO todo’s, placeholders or missing pieces.
-
-    ## Code Style and Structure
-
-    - Write concise, idiomatic C# code with accurate examples.
-    - Follow .NET and ASP.NET Core conventions and best practices.
-    - Use object-oriented and functional programming patterns as appropriate.
-    - Prefer LINQ and lambda expressions for collection operations.
-    - Use descriptive variable and method names (e.g., 'IsUserSignedIn', 'CalculateTotal').
-    - Structure files according to .NET conventions (Controllers, Models, Services, etc.).
-    - Never rename existing functions without asking permission
-
-    ## Naming Conventions
-
-    - Use PascalCase for class names, method names, and public members.
-    - Use camelCase for local variables and private fields.
-    - Use UPPERCASE for constants.
-    - Prefix interface names with "I" (e.g., 'IUserService').
-
-    ## C# and .NET Usage
-
-    - Use C# 10+ features when appropriate (e.g., record types, pattern matching, null-coalescing assignment).
-    - Leverage built-in ASP.NET Core features and middleware.
-    - Use Entity Framework Core effectively for database operations.
-    - Use pattern matching where possible (i.e. .Where(e => e.Entity is CastSocial.Core.Models.Media or Actor or CastMember or SocialAccount or SocialSubmission))
-
-    ## Syntax and Formatting
-
-    - Follow the C# Coding Conventions (https://docs.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/coding-conventions)
-    - Use C#'s expressive syntax (e.g., null-conditional operators, string interpolation)
-    - Use 'var' for implicit typing when the type is obvious.
-    - Always use primary constructors where possible in all classes i.e. 'public class SearchMediaHandler(ILogger<SearchMediaHandler> logger)'
-    - Always use collection expressions, i.e. 'new List<MediaSearchResult>();' should be '[]'
-
-    ## Classes
-
-    - DO NOT put models or records within the same class as services, commands or handlers. 
-    - Models & Records should be broken down into individual files to make it easier to discover them
-    - Put all models and records within a nested 'Models' folder. Whether that is within the Services folder, or within the 'Feature' folder
-
-    ## Error Handling and Validation
-
-    - Use exceptions for exceptional cases, not for control flow.
-    - Implement proper error logging using built-in .NET logging or a third-party logger.
-    - Use Data Annotations or Fluent Validation for model validation.
-    - Implement global exception handling middleware.
-    - Return appropriate HTTP status codes and consistent error responses.
-
-    ## API Design
-
-    - Follow RESTful API design principles.
-    - Use attribute routing in controllers.
-    - Implement versioning for your API.
-    - Use action filters for cross-cutting concerns.
-    - This about rate limiting
-    - Very important to make sure you create solutions that call the API the minimum amount of times possible to get the desired result
-
-    ## Performance Optimization
-
-    - Use asynchronous programming with async/await for I/O-bound operations.
-    - Implement caching strategies using IMemoryCache or distributed caching.
-    - Use efficient LINQ queries and avoid N+1 query problems.
-    - Implement pagination for large data sets.
-
-    ## Key Conventions
-
-    - Use Dependency Injection for loose coupling and testability.
-    - Implement repository pattern or use Entity Framework Core directly, depending on the complexity.
-    - For object-to-object mapping always create your own mapping methods / helpers
-    - Implement background tasks using IHostedService or BackgroundService.
-
-    ## Database Migrations
-
-    - Always add database migrations using the migrations.ps1 PowerShell script in the root directory
-    - Never use dotnet ef migrations commands directly
-    - The migrations.ps1 script handles migrations for all database providers (SQL Server, PostgreSQL, SQLite)
-
-    ## Testing
-
-    - Write unit tests using xUnit
-    - Use Moq for mocking dependencies
-    - Use Shouldly for all assertions with proper Assert statements (e.g., result.ShouldBe(expected), result.ShouldNotBeNull())
-    - Implement integration tests for API endpoints
-    - Always run tests after completing a batch of changes to ensure all tests pass
-
-    ## Security
-
-    - Use Authentication and Authorization middleware.
-    - Implement JWT authentication for stateless API authentication.
-    - Use HTTPS and enforce SSL.
-    - Implement proper CORS policies.
-    - Use .NET Identity where needed if the solution requires it
-
-    ## API Documentation
-
-    - Use Swagger/OpenAPI for API documentation (as per installed Swashbuckle.AspNetCore package).
-    - Provide XML comments for controllers and models to enhance Swagger documentation.
-
-    Follow the official Microsoft documentation and ASP.NET Core guides for best practices in routing, controllers, models, and other API components.
-
-  ## Blazor Usage
-
-  - Avoid where possible, using EF Core directly in Blazer components, If it's needed, then make sure it's used by injecting IServiceProvider and have a using scope (using var scope = ServiceProvider.CreateScope())
+- Avoid EF Core directly in components
+- If needed: inject `IServiceProvider`, use scoped context:
+  ```csharp
+  using var scope = ServiceProvider.CreateScope();
+  ```

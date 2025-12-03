@@ -30,7 +30,7 @@ public class PaymentService : IPaymentService
     }
 
     /// <inheritdoc />
-    public async Task<PaymentInitiationResult> InitiatePaymentAsync(
+    public async Task<PaymentSessionResult> CreatePaymentSessionAsync(
         Guid invoiceId,
         string providerAlias,
         string returnUrl,
@@ -41,7 +41,7 @@ public class PaymentService : IPaymentService
         var registeredProvider = await _providerManager.GetProviderAsync(providerAlias, requireEnabled: true, cancellationToken);
         if (registeredProvider == null)
         {
-            return PaymentInitiationResult.Failure(
+            return PaymentSessionResult.Failed(
                 $"Payment provider '{providerAlias}' is not available or not enabled.");
         }
 
@@ -55,7 +55,7 @@ public class PaymentService : IPaymentService
 
         if (invoice == null)
         {
-            return PaymentInitiationResult.Failure($"Invoice '{invoiceId}' not found.");
+            return PaymentSessionResult.Failed($"Invoice '{invoiceId}' not found.");
         }
 
         // Create the payment request
@@ -76,18 +76,98 @@ public class PaymentService : IPaymentService
 
         try
         {
-            var result = await registeredProvider.Provider.InitiatePaymentAsync(request, cancellationToken);
+            var result = await registeredProvider.Provider.CreatePaymentSessionAsync(request, cancellationToken);
 
             _logger.LogInformation(
-                "Payment initiated for invoice {InvoiceId} via {Provider}. Success: {Success}, TransactionId: {TransactionId}",
-                invoiceId, providerAlias, result.Success, result.TransactionId);
+                "Payment session created for invoice {InvoiceId} via {Provider}. Success: {Success}, SessionId: {SessionId}",
+                invoiceId, providerAlias, result.Success, result.SessionId);
 
             return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initiate payment for invoice {InvoiceId} via {Provider}", invoiceId, providerAlias);
-            return PaymentInitiationResult.Failure($"Payment initiation failed: {ex.Message}");
+            _logger.LogError(ex, "Failed to create payment session for invoice {InvoiceId} via {Provider}", invoiceId, providerAlias);
+            return PaymentSessionResult.Failed($"Payment session creation failed: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<CrudResult<Payment>> ProcessPaymentAsync(
+        ProcessPaymentRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<Payment>();
+
+        // Get the provider
+        var registeredProvider = await _providerManager.GetProviderAsync(request.ProviderAlias, requireEnabled: true, cancellationToken);
+        if (registeredProvider == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Payment provider '{request.ProviderAlias}' is not available or not enabled.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        try
+        {
+            // Process the payment with the provider
+            var paymentResult = await registeredProvider.Provider.ProcessPaymentAsync(request, cancellationToken);
+
+            if (!paymentResult.Success)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = paymentResult.ErrorMessage ?? "Payment processing failed.",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return result;
+            }
+
+            // Record the payment if completed or authorized
+            if (paymentResult.Status == PaymentResultStatus.Completed ||
+                paymentResult.Status == PaymentResultStatus.Authorized)
+            {
+                return await RecordPaymentAsync(
+                    request.InvoiceId,
+                    request.ProviderAlias,
+                    paymentResult.TransactionId ?? Guid.NewGuid().ToString("N"),
+                    paymentResult.Amount ?? request.Amount ?? 0,
+                    cancellationToken: cancellationToken);
+            }
+
+            // For pending status, we'll wait for webhook confirmation
+            if (paymentResult.Status == PaymentResultStatus.Pending)
+            {
+                _logger.LogInformation(
+                    "Payment pending for invoice {InvoiceId} via {Provider}. Awaiting webhook confirmation. TransactionId: {TransactionId}",
+                    request.InvoiceId, request.ProviderAlias, paymentResult.TransactionId);
+
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Payment is pending confirmation.",
+                    ResultMessageType = ResultMessageType.Success
+                });
+                return result;
+            }
+
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Payment processing completed with status: {paymentResult.Status}",
+                ResultMessageType = paymentResult.Success ? ResultMessageType.Success : ResultMessageType.Error
+            });
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to process payment for invoice {InvoiceId} via {Provider}", request.InvoiceId, request.ProviderAlias);
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Payment processing failed: {ex.Message}",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
         }
     }
 
@@ -458,10 +538,6 @@ public class PaymentService : IPaymentService
 
         if (totalRefunds > 0 && netPayment < totalPayments)
         {
-            if (netPayment >= invoiceTotal)
-            {
-                return InvoicePaymentStatus.PartiallyRefunded;
-            }
             return InvoicePaymentStatus.PartiallyRefunded;
         }
 

@@ -10,19 +10,30 @@ namespace Merchello.Core.Payments.Services;
 public interface IPaymentService
 {
     /// <summary>
-    /// Initiate a payment for an invoice using a specific provider.
+    /// Create a payment session for an invoice using a specific provider.
+    /// Returns what the frontend needs to render the payment UI (redirect URL, client token, or form fields).
     /// </summary>
     /// <param name="invoiceId">The invoice ID to pay.</param>
     /// <param name="providerAlias">The payment provider alias to use.</param>
     /// <param name="returnUrl">URL to redirect to after successful payment.</param>
     /// <param name="cancelUrl">URL to redirect to if payment is cancelled.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Result containing redirect URL or client secret.</returns>
-    Task<PaymentInitiationResult> InitiatePaymentAsync(
+    /// <returns>Session result containing what the frontend needs for the payment flow.</returns>
+    Task<PaymentSessionResult> CreatePaymentSessionAsync(
         Guid invoiceId,
         string providerAlias,
         string returnUrl,
         string cancelUrl,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Process a payment after client-side interaction (redirect return, token submission, or form submission).
+    /// </summary>
+    /// <param name="request">The payment processing request with tokens/form data.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result of the payment processing.</returns>
+    Task<CrudResult<Payment>> ProcessPaymentAsync(
+        ProcessPaymentRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>

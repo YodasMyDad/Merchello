@@ -111,34 +111,76 @@ public class InitiatePaymentDto
 }
 
 /// <summary>
-/// Response from payment initiation
+/// Response from payment session creation
 /// </summary>
-public class PaymentInitiationResponseDto
+public class PaymentSessionResponseDto
 {
     /// <summary>
-    /// Whether the initiation was successful
+    /// Whether the session was created successfully
     /// </summary>
     public bool Success { get; set; }
 
     /// <summary>
-    /// URL to redirect customer to for payment
+    /// Session identifier
+    /// </summary>
+    public string? SessionId { get; set; }
+
+    /// <summary>
+    /// How the frontend should handle this payment
+    /// </summary>
+    public PaymentIntegrationType IntegrationType { get; set; }
+
+    /// <summary>
+    /// URL to redirect customer to for payment (Redirect type)
     /// </summary>
     public string? RedirectUrl { get; set; }
 
     /// <summary>
-    /// Transaction ID from the payment provider
+    /// Client token for JS SDK initialization (HostedFields/Widget types)
     /// </summary>
-    public string? TransactionId { get; set; }
+    public string? ClientToken { get; set; }
 
     /// <summary>
-    /// Client secret for embedded checkout (e.g., Stripe Elements)
+    /// Client secret for Stripe-style integrations
     /// </summary>
     public string? ClientSecret { get; set; }
+
+    /// <summary>
+    /// URL to the payment provider's JavaScript SDK
+    /// </summary>
+    public string? JavaScriptSdkUrl { get; set; }
+
+    /// <summary>
+    /// SDK configuration object
+    /// </summary>
+    public Dictionary<string, object>? SdkConfiguration { get; set; }
+
+    /// <summary>
+    /// Form fields for DirectForm type
+    /// </summary>
+    public List<CheckoutFormFieldDto>? FormFields { get; set; }
 
     /// <summary>
     /// Error message if not successful
     /// </summary>
     public string? ErrorMessage { get; set; }
+}
+
+/// <summary>
+/// Checkout form field definition
+/// </summary>
+public class CheckoutFormFieldDto
+{
+    public required string Key { get; set; }
+    public required string Label { get; set; }
+    public string? Description { get; set; }
+    public required string FieldType { get; set; }
+    public bool IsRequired { get; set; }
+    public string? DefaultValue { get; set; }
+    public string? Placeholder { get; set; }
+    public string? ValidationPattern { get; set; }
+    public string? ValidationMessage { get; set; }
+    public List<SelectOptionDto>? Options { get; set; }
 }
 
 /// <summary>
@@ -150,7 +192,7 @@ public class PaymentMethodDto
     public required string DisplayName { get; set; }
     public string? Icon { get; set; }
     public string? Description { get; set; }
-    public bool UsesRedirectCheckout { get; set; }
+    public PaymentIntegrationType IntegrationType { get; set; }
     public int SortOrder { get; set; }
 }
 

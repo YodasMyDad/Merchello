@@ -1,5 +1,6 @@
 using Merchello.Controllers.Dtos;
 using Merchello.Core.Data;
+using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -53,20 +54,20 @@ public class CheckoutPaymentsApiController : ControllerBase
                 DisplayName = p.DisplayName,
                 Icon = p.Metadata.Icon,
                 Description = p.Metadata.Description,
-                UsesRedirectCheckout = p.Metadata.UsesRedirectCheckout,
+                IntegrationType = p.Metadata.IntegrationType,
                 SortOrder = p.SortOrder
             })
             .ToList();
     }
 
     /// <summary>
-    /// Initiate a payment for an invoice
+    /// Create a payment session for an invoice
     /// </summary>
     [HttpPost("{invoiceId:guid}/pay")]
-    [ProducesResponseType<PaymentInitiationResponseDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<PaymentSessionResponseDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> InitiatePayment(
+    public async Task<IActionResult> CreatePaymentSession(
         Guid invoiceId,
         [FromBody] InitiatePaymentDto request,
         CancellationToken cancellationToken = default)
@@ -108,27 +109,48 @@ public class CheckoutPaymentsApiController : ControllerBase
             return BadRequest($"Payment provider '{request.ProviderAlias}' is not available.");
         }
 
-        // Initiate payment
-        var result = await _paymentService.InitiatePaymentAsync(
+        // Create payment session
+        var result = await _paymentService.CreatePaymentSessionAsync(
             invoiceId,
             request.ProviderAlias,
             request.ReturnUrl,
             request.CancelUrl,
             cancellationToken);
 
-        var response = new PaymentInitiationResponseDto
+        var response = new PaymentSessionResponseDto
         {
             Success = result.Success,
+            SessionId = result.SessionId,
+            IntegrationType = result.IntegrationType,
             RedirectUrl = result.RedirectUrl,
-            TransactionId = result.TransactionId,
+            ClientToken = result.ClientToken,
             ClientSecret = result.ClientSecret,
+            JavaScriptSdkUrl = result.JavaScriptSdkUrl,
+            SdkConfiguration = result.SdkConfiguration,
+            FormFields = result.FormFields?.Select(f => new CheckoutFormFieldDto
+            {
+                Key = f.Key,
+                Label = f.Label,
+                Description = f.Description,
+                FieldType = f.FieldType.ToString(),
+                IsRequired = f.IsRequired,
+                DefaultValue = f.DefaultValue,
+                Placeholder = f.Placeholder,
+                ValidationPattern = f.ValidationPattern,
+                ValidationMessage = f.ValidationMessage,
+                Options = f.Options?.Select(o => new SelectOptionDto
+                {
+                    Value = o.Value,
+                    Label = o.Label
+                }).ToList()
+            }).ToList(),
             ErrorMessage = result.ErrorMessage
         };
 
         if (!result.Success)
         {
             _logger.LogWarning(
-                "Payment initiation failed for invoice {InvoiceId} with provider {Provider}: {Error}",
+                "Payment session creation failed for invoice {InvoiceId} with provider {Provider}: {Error}",
                 invoiceId,
                 request.ProviderAlias,
                 result.ErrorMessage);
@@ -136,10 +158,10 @@ public class CheckoutPaymentsApiController : ControllerBase
         else
         {
             _logger.LogInformation(
-                "Payment initiated for invoice {InvoiceId} with provider {Provider}, TransactionId: {TransactionId}",
+                "Payment session created for invoice {InvoiceId} with provider {Provider}, SessionId: {SessionId}",
                 invoiceId,
                 request.ProviderAlias,
-                result.TransactionId);
+                result.SessionId);
         }
 
         return Ok(response);

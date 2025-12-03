@@ -25,6 +25,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Scripts", "Scripts", "{0319
 		..\scripts\add-migration.ps1 = ..\scripts\add-migration.ps1
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Merchello.Tests", "Merchello.Tests\Merchello.Tests.csproj", "{8A3B9DF8-3680-4715-B49D-A880F11BA45A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -95,6 +97,18 @@ Global
 		{FFE3B881-B59C-4F9A-BFCD-BB50422BD8F5}.Release|x64.Build.0 = Release|Any CPU
 		{FFE3B881-B59C-4F9A-BFCD-BB50422BD8F5}.Release|x86.ActiveCfg = Release|Any CPU
 		{FFE3B881-B59C-4F9A-BFCD-BB50422BD8F5}.Release|x86.Build.0 = Release|Any CPU
+		{8A3B9DF8-3680-4715-B49D-A880F11BA45A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8A3B9DF8-3680-4715-B49D-A880F11BA45A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8A3B9DF8-3680-4715-B49D-A880F11BA45A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8A3B9DF8-3680-4715-B49D-A880F11BA45A}.Debug|x64.Build.0 = Debug|Any CPU
+		{8A3B9DF8-3680-4715-B49D-A880F11BA45A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8A3B9DF8-3680-4715-B49D-A880F11BA45A}.Debug|x86.Build.0 = Debug|Any CPU
+		{8A3B9DF8-3680-4715-B49D-A880F11BA45A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8A3B9DF8-3680-4715-B49D-A880F11BA45A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8A3B9DF8-3680-4715-B49D-A880F11BA45A}.Release|x64.ActiveCfg = Release|Any CPU
+		{8A3B9DF8-3680-4715-B49D-A880F11BA45A}.Release|x64.Build.0 = Release|Any CPU
+		{8A3B9DF8-3680-4715-B49D-A880F11BA45A}.Release|x86.ActiveCfg = Release|Any CPU
+		{8A3B9DF8-3680-4715-B49D-A880F11BA45A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

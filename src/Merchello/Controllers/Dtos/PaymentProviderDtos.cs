@@ -1,3 +1,4 @@
+using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 
 namespace Merchello.Controllers.Dtos;
@@ -13,8 +14,9 @@ public class PaymentProviderDto
     public string? Description { get; set; }
     public bool SupportsRefunds { get; set; }
     public bool SupportsPartialRefunds { get; set; }
-    public bool UsesRedirectCheckout { get; set; }
+    public PaymentIntegrationType IntegrationType { get; set; }
     public bool SupportsAuthAndCapture { get; set; }
+    public bool RequiresWebhook { get; set; }
     public string? WebhookPath { get; set; }
 
     /// <summary>
