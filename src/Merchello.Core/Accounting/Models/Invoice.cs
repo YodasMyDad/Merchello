@@ -48,12 +48,12 @@ public class Invoice
     /// <summary>
     /// Adjustments for this basket (I.e. Discounts)
     /// </summary>
-    public List<Adjustment> Adjustments { get; set; } = new();
+    public List<Adjustment> Adjustments { get; set; } = [];
 
     /// <summary>
     /// Notes about the invoice including any actions/changes on it
     /// </summary>
-    public List<InvoiceNote> Notes { get; set; } = new();
+    public List<InvoiceNote> Notes { get; set; } = [];
 
     /// <summary>
     /// The default basket rounding

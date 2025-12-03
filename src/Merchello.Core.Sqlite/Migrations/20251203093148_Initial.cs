@@ -87,6 +87,24 @@ namespace Merchello.Core.Sqlite.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "merchelloPaymentProviders",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    ProviderAlias = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
+                    DisplayName = table.Column<string>(type: "TEXT", maxLength: 250, nullable: false),
+                    IsEnabled = table.Column<bool>(type: "INTEGER", nullable: false),
+                    Configuration = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: true),
+                    SortOrder = table.Column<int>(type: "INTEGER", nullable: false),
+                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_merchelloPaymentProviders", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "merchelloProductCategories",
                 columns: table => new
                 {
@@ -215,10 +233,14 @@ namespace Merchello.Core.Sqlite.Migrations
                     InvoiceId = table.Column<Guid>(type: "TEXT", nullable: false),
                     Amount = table.Column<decimal>(type: "TEXT", precision: 18, scale: 2, nullable: false),
                     PaymentMethod = table.Column<string>(type: "TEXT", maxLength: 350, nullable: true),
+                    PaymentProviderAlias = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
+                    PaymentType = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
                     TransactionId = table.Column<string>(type: "TEXT", maxLength: 350, nullable: true),
                     FraudResponse = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
                     Description = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
                     PaymentSuccess = table.Column<bool>(type: "INTEGER", nullable: false),
+                    RefundReason = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
+                    ParentPaymentId = table.Column<Guid>(type: "TEXT", nullable: true),
                     DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
@@ -230,6 +252,12 @@ namespace Merchello.Core.Sqlite.Migrations
                         principalTable: "merchelloInvoices",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_merchelloPayments_merchelloPayments_ParentPaymentId",
+                        column: x => x.ParentPaymentId,
+                        principalTable: "merchelloPayments",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -741,9 +769,20 @@ namespace Merchello.Core.Sqlite.Migrations
                 column: "InvoiceId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_merchelloPaymentProviders_ProviderAlias",
+                table: "merchelloPaymentProviders",
+                column: "ProviderAlias",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_merchelloPayments_InvoiceId",
                 table: "merchelloPayments",
                 column: "InvoiceId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_merchelloPayments_ParentPaymentId",
+                table: "merchelloPayments",
+                column: "ParentPaymentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloProductAllowedShippingOptions_ProductId",
@@ -849,6 +888,9 @@ namespace Merchello.Core.Sqlite.Migrations
 
             migrationBuilder.DropTable(
                 name: "merchelloLineItems");
+
+            migrationBuilder.DropTable(
+                name: "merchelloPaymentProviders");
 
             migrationBuilder.DropTable(
                 name: "merchelloPayments");
