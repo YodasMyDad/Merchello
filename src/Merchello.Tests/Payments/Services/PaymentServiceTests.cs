@@ -54,7 +54,8 @@ public class PaymentServiceTests
 
         // Assert
         result.ResultObject.ShouldBeNull();
-        result.Messages.ShouldContain(m => m.Message.Contains("Cannot refund a refund"));
+        result.Messages.ShouldNotBeNull();
+        result.Messages!.ShouldContain(m => m.Message != null && m.Message.Contains("Cannot refund a refund"));
     }
 
     [Fact]
@@ -85,7 +86,8 @@ public class PaymentServiceTests
 
         // Assert
         result.ResultObject.ShouldBeNull();
-        result.Messages.ShouldContain(m => m.Message.Contains("exceeds refundable amount"));
+        result.Messages.ShouldNotBeNull();
+        result.Messages!.ShouldContain(m => m.Message != null && m.Message.Contains("exceeds refundable amount"));
     }
 
     [Fact]
@@ -129,7 +131,8 @@ public class PaymentServiceTests
 
         // Assert
         result.ResultObject.ShouldBeNull();
-        result.Messages.ShouldContain(m => m.Message.Contains("does not support partial refunds"));
+        result.Messages.ShouldNotBeNull();
+        result.Messages!.ShouldContain(m => m.Message != null && m.Message.Contains("does not support partial refunds"));
     }
 
     #endregion
@@ -247,7 +250,8 @@ public class PaymentServiceTests
 
         // Assert
         result.Success.ShouldBeFalse();
-        result.ErrorMessage.ShouldContain("not available or not enabled");
+        result.ErrorMessage.ShouldNotBeNull();
+        result.ErrorMessage!.ShouldContain("not available or not enabled");
     }
 
     #endregion
