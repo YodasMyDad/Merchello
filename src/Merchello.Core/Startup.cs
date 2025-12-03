@@ -49,9 +49,9 @@ public static class Startup
         });
 #pragma warning restore CS0618
 
-        // Configure Merch settings
-        builder.Services.Configure<MerchSettings>(builder.Config.GetSection("Merch"));
-        builder.Services.Configure<CacheOptions>(builder.Config.GetSection("Merch:Cache"));
+        // Configure Merchello settings
+        builder.Services.Configure<MerchelloSettings>(builder.Config.GetSection("Merchello"));
+        builder.Services.Configure<CacheOptions>(builder.Config.GetSection("Merchello:Cache"));
 
         // Caching
         builder.Services.AddMemoryCache();
@@ -102,17 +102,66 @@ public static class Startup
         builder.Services.AddScoped<IPaymentService, PaymentService>();
 
         // Plugin assemblies for extension scanning
+        // Start with explicitly passed assemblies
         List<Assembly> assembliesToScan = (pluginAssemblies ?? [])
             .Distinct()
             .ToList();
 
-        if (assembliesToScan.Count == 0)
-        {
-            assembliesToScan.Add(typeof(Startup).Assembly);
-        }
+        // Always include Merchello.Core assembly
+        assembliesToScan.Add(typeof(Startup).Assembly);
 
-        AssemblyManager.SetAssemblies(assembliesToScan.ToArray());
+        // Auto-discover assemblies containing IPaymentProvider or IShippingProvider implementations
+        var providerAssemblies = DiscoverProviderAssemblies();
+        assembliesToScan.AddRange(providerAssemblies);
+
+        // Remove duplicates and set assemblies for scanning
+        AssemblyManager.SetAssemblies(assembliesToScan.Distinct().ToArray());
 
         return builder;
+    }
+
+    /// <summary>
+    /// Discovers assemblies containing payment or shipping provider implementations.
+    /// Scans all loaded assemblies for types implementing IPaymentProvider or IShippingProvider.
+    /// </summary>
+    private static IEnumerable<Assembly> DiscoverProviderAssemblies()
+    {
+        var paymentProviderType = typeof(IPaymentProvider);
+        var shippingProviderType = typeof(IShippingProvider);
+
+        var discoveredAssemblies = new HashSet<Assembly>();
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            // Skip system and framework assemblies
+            var assemblyName = assembly.GetName().Name;
+            if (assemblyName == null ||
+                assemblyName.StartsWith("System", StringComparison.OrdinalIgnoreCase) ||
+                assemblyName.StartsWith("Microsoft", StringComparison.OrdinalIgnoreCase) ||
+                assemblyName.StartsWith("netstandard", StringComparison.OrdinalIgnoreCase) ||
+                assemblyName.StartsWith("mscorlib", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            try
+            {
+                var types = assembly.GetExportedTypes();
+                var hasProviders = types.Any(t =>
+                    t.IsClass && !t.IsAbstract &&
+                    (paymentProviderType.IsAssignableFrom(t) || shippingProviderType.IsAssignableFrom(t)));
+
+                if (hasProviders)
+                {
+                    discoveredAssemblies.Add(assembly);
+                }
+            }
+            catch
+            {
+                // Skip assemblies that can't be scanned (e.g., dynamic assemblies)
+            }
+        }
+
+        return discoveredAssemblies;
     }
 }

@@ -10,7 +10,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docs", "Docs", "{C31D73E7-1
 		..\umbraco-marketplace.json = ..\umbraco-marketplace.json
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Merchello.TestSite", "Merchello.TestSite\Merchello.TestSite.csproj", "{52C685A8-B742-4B80-B282-D8FBDD539443}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Merchello.Site", "Merchello.Site\Merchello.Site.csproj", "{52C685A8-B742-4B80-B282-D8FBDD539443}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Merchello", "Merchello\Merchello.csproj", "{89581362-A4D3-4B97-8A9E-44B273703324}"
 EndProject

@@ -9,10 +9,10 @@ import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UUIButtonElement } from "@umbraco-cms/backoffice/external/uui";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import { UMB_CURRENT_USER_CONTEXT, UmbCurrentUserModel } from "@umbraco-cms/backoffice/current-user";
-import { MerchelloApi, UserModel } from "../api/merchello-api.js";
+import { MerchelloApi, UserModel } from "@api/merchello-api.js";
 
-@customElement("example-dashboard")
-export class ExampleDashboardElement extends UmbElementMixin(LitElement) {
+@customElement("merchello-dashboard")
+export class MerchelloDashboardElement extends UmbElementMixin(LitElement) {
   @state()
   private _yourName?: string = "Press the button!";
 
@@ -209,10 +209,10 @@ export class ExampleDashboardElement extends UmbElementMixin(LitElement) {
   ];
 }
 
-export default ExampleDashboardElement;
+export default MerchelloDashboardElement;
 
 declare global {
   interface HTMLElementTagNameMap {
-    "example-dashboard": ExampleDashboardElement;
+    "merchello-dashboard": MerchelloDashboardElement;
   }
 }

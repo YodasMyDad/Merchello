@@ -58,5 +58,11 @@ public class PaymentProviderMetadata
     /// Webhook endpoint path for this provider.
     /// </summary>
     public string WebhookPath => $"/umbraco/merchello/webhooks/payments/{Alias}";
+
+    /// <summary>
+    /// Optional setup instructions/documentation for developers.
+    /// Supports markdown formatting.
+    /// </summary>
+    public string? SetupInstructions { get; init; }
 }
 

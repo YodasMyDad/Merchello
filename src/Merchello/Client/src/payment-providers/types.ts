@@ -15,6 +15,8 @@ export interface PaymentProviderDto {
   isEnabled: boolean;
   /** The setting ID if configured */
   settingId?: string;
+  /** Optional setup instructions/documentation for developers (markdown format) */
+  setupInstructions?: string;
 }
 
 /** Configuration field definition for dynamic UI */
@@ -51,6 +53,8 @@ export interface PaymentProviderSettingDto {
   providerAlias: string;
   displayName: string;
   isEnabled: boolean;
+  /** Whether the provider is in test/sandbox mode */
+  isTestMode: boolean;
   configuration?: Record<string, string>;
   sortOrder: number;
   dateCreated: string;
@@ -67,6 +71,8 @@ export interface CreatePaymentProviderSettingDto {
   displayName?: string;
   /** Whether to enable immediately */
   isEnabled?: boolean;
+  /** Whether the provider is in test/sandbox mode */
+  isTestMode?: boolean;
   /** Configuration values (key-value pairs) */
   configuration?: Record<string, string>;
 }
@@ -77,6 +83,8 @@ export interface UpdatePaymentProviderSettingDto {
   displayName?: string;
   /** Whether the provider is enabled */
   isEnabled?: boolean;
+  /** Whether the provider is in test/sandbox mode */
+  isTestMode?: boolean;
   /** Configuration values (key-value pairs) */
   configuration?: Record<string, string>;
 }

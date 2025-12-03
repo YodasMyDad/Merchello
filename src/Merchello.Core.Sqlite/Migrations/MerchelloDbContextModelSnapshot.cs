@@ -68,9 +68,6 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("TaxRounding")
-                        .HasColumnType("INTEGER");
-
                     b.Property<decimal>("Total")
                         .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
@@ -361,9 +358,6 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("TaxRounding")
-                        .HasColumnType("INTEGER");
-
                     b.Property<decimal>("Total")
                         .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
@@ -395,6 +389,9 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsTestMode")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ProviderAlias")

@@ -2,6 +2,8 @@ using Asp.Versioning;
 using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Locality.Dtos;
+using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Services;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Data;
 using Merchello.Core.Shipping.Models;
@@ -17,10 +19,14 @@ namespace Merchello.Controllers;
 public class OrdersApiController : MerchelloApiControllerBase
 {
     private readonly IEFCoreScopeProvider<MerchelloDbContext> _scopeProvider;
+    private readonly IPaymentService _paymentService;
 
-    public OrdersApiController(IEFCoreScopeProvider<MerchelloDbContext> scopeProvider)
+    public OrdersApiController(
+        IEFCoreScopeProvider<MerchelloDbContext> scopeProvider,
+        IPaymentService paymentService)
     {
         _scopeProvider = scopeProvider;
+        _paymentService = paymentService;
     }
 
     /// <summary>
@@ -290,13 +296,13 @@ public class OrdersApiController : MerchelloApiControllerBase
         return Ok(MapToDetail(invoice));
     }
 
-    private static OrderListItemDto MapToListItem(Invoice invoice)
+    private OrderListItemDto MapToListItem(Invoice invoice)
     {
         var orders = invoice.Orders?.ToList() ?? new List<Order>();
         var payments = invoice.Payments?.ToList() ?? new List<Payment>();
 
-        var amountPaid = payments.Where(p => p.PaymentSuccess).Sum(p => p.Amount);
-        var isPaid = amountPaid >= invoice.Total;
+        // Use centralized payment status calculation from PaymentService
+        var paymentDetails = _paymentService.CalculatePaymentStatus(payments, invoice.Total);
 
         var itemCount = orders.SelectMany(o => o.LineItems ?? Enumerable.Empty<LineItem>()).Sum(li => li.Quantity);
 
@@ -312,7 +318,8 @@ public class OrdersApiController : MerchelloApiControllerBase
             CustomerName = invoice.BillingAddress?.Name ?? "Unknown",
             Channel = invoice.Channel,
             Total = invoice.Total,
-            PaymentStatus = isPaid ? "Paid" : "Unpaid",
+            PaymentStatus = paymentDetails.Status,
+            PaymentStatusDisplay = paymentDetails.StatusDisplay,
             FulfillmentStatus = fulfillmentStatus,
             ItemCount = itemCount,
             DeliveryStatus = deliveryStatus,
@@ -321,12 +328,13 @@ public class OrdersApiController : MerchelloApiControllerBase
         };
     }
 
-    private static OrderDetailDto MapToDetail(Invoice invoice)
+    private OrderDetailDto MapToDetail(Invoice invoice)
     {
         var orders = invoice.Orders?.ToList() ?? new List<Order>();
         var payments = invoice.Payments?.ToList() ?? new List<Payment>();
 
-        var amountPaid = payments.Where(p => p.PaymentSuccess).Sum(p => p.Amount);
+        // Use centralized payment status calculation from PaymentService
+        var paymentDetails = _paymentService.CalculatePaymentStatus(payments, invoice.Total);
         var shippingCost = orders.Sum(o => o.ShippingCost);
 
         return new OrderDetailDto
@@ -339,8 +347,10 @@ public class OrdersApiController : MerchelloApiControllerBase
             ShippingCost = shippingCost,
             Tax = invoice.Tax,
             Total = invoice.Total,
-            AmountPaid = amountPaid,
-            PaymentStatus = amountPaid >= invoice.Total ? "Paid" : "Unpaid",
+            AmountPaid = paymentDetails.NetPayment,
+            BalanceDue = paymentDetails.BalanceDue,
+            PaymentStatus = paymentDetails.Status,
+            PaymentStatusDisplay = paymentDetails.StatusDisplay,
             FulfillmentStatus = GetFulfillmentStatus(orders),
             BillingAddress = MapAddress(invoice.BillingAddress),
             ShippingAddress = MapAddress(invoice.ShippingAddress),
@@ -695,7 +705,10 @@ public class OrdersApiController : MerchelloApiControllerBase
 
     private static OrderFulfillmentDto MapToOrderFulfillment(Order order, Dictionary<Guid, string> warehouseNames)
     {
-        var lineItems = order.LineItems?.ToList() ?? new List<LineItem>();
+        // Only include product line items for fulfillment (exclude shipping, discounts, etc.)
+        var lineItems = order.LineItems?
+            .Where(li => li.LineItemType == LineItemType.Product)
+            .ToList() ?? new List<LineItem>();
         var shipments = order.Shipments?.ToList() ?? new List<Shipment>();
 
         // Calculate shipped quantities per line item

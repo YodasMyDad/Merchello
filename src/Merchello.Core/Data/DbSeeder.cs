@@ -28,7 +28,7 @@ public class DbSeeder(
     ProductFilterFactory productFilterFactory,
     WarehouseFactory warehouseFactory,
     ProductFactory productFactory,
-    IOptions<MerchSettings> settings,
+    IOptions<MerchelloSettings> settings,
     ILogger<DbSeeder> logger)
 {
     public async Task SeedAsync(CancellationToken cancellationToken = default)

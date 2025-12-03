@@ -13,7 +13,7 @@ export function setApiConfig(config: {
   token?: () => Promise<string | undefined>;
   baseUrl?: string;
   credentials?: RequestCredentials;
-}) {
+}): void {
   apiConfig = { ...apiConfig, ...config };
 }
 
@@ -158,9 +158,13 @@ import type {
   CreateShipmentRequest,
   UpdateShipmentRequest,
   ShipmentDetailDto,
-} from '../orders/types.js';
+  PaymentDto,
+  PaymentStatusDto,
+  RecordManualPaymentDto,
+  ProcessRefundDto,
+} from '../orders/types/order.types.js';
 
-// Import payment types
+// Import payment provider types
 import type {
   PaymentProviderDto,
   PaymentProviderSettingDto,
@@ -168,13 +172,6 @@ import type {
   CreatePaymentProviderSettingDto,
   UpdatePaymentProviderSettingDto,
 } from '../payment-providers/types.js';
-
-import type {
-  PaymentDto,
-  PaymentStatusDto,
-  RecordManualPaymentDto,
-  ProcessRefundDto,
-} from '../orders/payments/types.js';
 
 // Helper to build query string from params
 function buildQueryString(params?: Record<string, unknown>): string {
@@ -188,12 +185,22 @@ function buildQueryString(params?: Record<string, unknown>): string {
   return searchParams.toString();
 }
 
+// Store settings type
+export interface StoreSettingsDto {
+  currencyCode: string;
+  currencySymbol: string;
+  invoiceNumberPrefix: string;
+}
+
 // API methods
 export const MerchelloApi = {
   ping: () => apiGet<string>('ping'),
   whatsMyName: () => apiGet<string>('whatsMyName'),
   whatsTheTimeMrWolf: () => apiGet<string>('whatsTheTimeMrWolf'),
   whoAmI: () => apiGet<UserModel>('whoAmI'),
+
+  // Store Settings
+  getSettings: () => apiGet<StoreSettingsDto>('settings'),
 
   // Orders API
   getOrders: (params?: OrderListParams) => {

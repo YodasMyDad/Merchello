@@ -4,7 +4,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.Fulfillment.Modal",
     name: "Merchello Fulfillment Modal",
-    js: () => import("./fulfillment/fulfillment-modal.element.js"),
+    js: () => import("./modals/fulfillment-modal.element.js"),
   },
 
   // Shipment edit modal for updating tracking info
@@ -12,7 +12,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.ShipmentEdit.Modal",
     name: "Merchello Shipment Edit Modal",
-    js: () => import("./shipments/shipment-edit-modal.element.js"),
+    js: () => import("./modals/shipment-edit-modal.element.js"),
   },
 
   // Manual payment modal for recording offline payments
@@ -20,7 +20,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.ManualPayment.Modal",
     name: "Merchello Manual Payment Modal",
-    js: () => import("./payments/manual-payment-modal.element.js"),
+    js: () => import("./modals/manual-payment-modal.element.js"),
   },
 
   // Refund modal for processing refunds
@@ -28,7 +28,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.Refund.Modal",
     name: "Merchello Refund Modal",
-    js: () => import("./payments/refund-modal.element.js"),
+    js: () => import("./modals/refund-modal.element.js"),
   },
 
   // Workspace for orders list (when clicking "Orders" in tree)
@@ -48,7 +48,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Orders.ListView",
     name: "Orders List View",
-    js: () => import("./orders-list.element.js"),
+    js: () => import("./components/orders-list.element.js"),
     weight: 100,
     meta: {
       label: "Orders",
@@ -69,7 +69,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     kind: "routable",
     alias: "Merchello.Order.Detail.Workspace",
     name: "Order Detail Workspace",
-    api: () => import("./order-detail-workspace.context.js"),
+    api: () => import("./contexts/order-detail-workspace.context.js"),
     meta: {
       entityType: "merchello-order",
     },

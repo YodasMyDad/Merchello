@@ -168,7 +168,7 @@ public static class InvoiceSeedExtensions
                 Id = GuidExtensions.NewSequentialGuid,
                 InvoiceId = invoice.Id,
                 Invoice = invoice,
-                Amount = total,
+                Amount = Math.Round(total, 2), // Must match invoice.Total to avoid precision issues
                 PaymentMethod = "Credit Card",
                 TransactionId = $"TXN-{Guid.NewGuid().ToString()[..8].ToUpper()}",
                 PaymentSuccess = true,

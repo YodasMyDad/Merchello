@@ -44,7 +44,82 @@ public class StripePaymentProvider : PaymentProviderBase
         SupportsRefunds = true,
         SupportsPartialRefunds = true,
         SupportsAuthAndCapture = true,
-        RequiresWebhook = true
+        RequiresWebhook = true,
+        SetupInstructions = """
+            ## Stripe Setup Instructions
+
+            ### 1. Get API Keys
+
+            1. Create a free account at [stripe.com](https://stripe.com)
+            2. In the Dashboard, ensure **Test mode** is toggled ON (top right)
+            3. Go to **Developers → API keys**
+            4. Copy your **Publishable key** (`pk_test_...`) and **Secret key** (`sk_test_...`)
+
+            ### 2. Configure Webhooks
+
+            Webhooks are required to confirm payments after customers complete checkout.
+
+            #### For Production/Staging:
+
+            1. Go to **Developers → Webhooks**
+            2. Click **"+ Add endpoint"**
+            3. Enter your webhook URL:
+               ```
+               https://your-site.com/umbraco/merchello/webhooks/payments/stripe
+               ```
+            4. Select these events:
+               - `checkout.session.completed`
+               - `payment_intent.succeeded`
+               - `payment_intent.payment_failed`
+               - `charge.refunded`
+            5. Click **"Add endpoint"**
+            6. Click **"Reveal"** under "Signing secret" and copy the `whsec_...` value
+
+            #### For Local Development:
+
+            Use the Stripe CLI to forward webhooks to localhost:
+
+            **Install Stripe CLI:**
+            ```powershell
+            # Windows (winget)
+            winget install Stripe.StripeCLI
+
+            # Windows (scoop)
+            scoop bucket add stripe https://github.com/stripe/scoop-stripe-cli.git
+            scoop install stripe
+
+            # macOS
+            brew install stripe/stripe-cli/stripe
+            ```
+
+            **Forward webhooks:**
+            ```bash
+            stripe login
+            stripe listen --forward-to https://localhost:44391/umbraco/merchello/webhooks/payments/stripe
+            ```
+
+            The CLI will display a webhook signing secret (`whsec_...`) - use this in the configuration.
+
+            ### 3. Test Card Numbers
+
+            Use these test cards with any future expiry date and any 3-digit CVC:
+
+            | Card Number | Result |
+            |-------------|--------|
+            | `4242 4242 4242 4242` | Successful payment |
+            | `4000 0000 0000 3220` | 3D Secure required |
+            | `4000 0000 0000 9995` | Declined (insufficient funds) |
+            | `4000 0000 0000 0002` | Declined (generic) |
+
+            ### 4. Going Live
+
+            1. Complete your Stripe account verification
+            2. Toggle off **Test mode** in the Stripe Dashboard
+            3. Copy your live API keys (`pk_live_...`, `sk_live_...`)
+            4. Create a new webhook endpoint for your production URL
+            5. Update the configuration with live keys and webhook secret
+            6. Uncheck **Test Mode** in the provider settings
+            """
     };
 
     /// <inheritdoc />
@@ -104,8 +179,9 @@ public class StripePaymentProvider : PaymentProviderBase
 
     /// <summary>
     /// Whether the provider is configured in test mode.
+    /// Uses the explicit IsTestMode setting from the admin configuration.
     /// </summary>
-    public bool IsTestMode => Configuration?.GetValue("secretKey")?.StartsWith("sk_test_") ?? true;
+    public bool IsTestMode => Configuration?.IsTestMode ?? true;
 
     // =====================================================
     // Payment Flow

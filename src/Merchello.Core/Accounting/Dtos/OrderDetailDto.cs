@@ -1,4 +1,5 @@
 using Merchello.Core.Locality.Dtos;
+using Merchello.Core.Payments.Models;
 using Merchello.Core.Shipping.Dtos;
 
 namespace Merchello.Core.Accounting.Dtos;
@@ -19,7 +20,9 @@ public class OrderDetailDto
     public decimal Tax { get; set; }
     public decimal Total { get; set; }
     public decimal AmountPaid { get; set; }
-    public string PaymentStatus { get; set; } = string.Empty;
+    public decimal BalanceDue { get; set; }
+    public InvoicePaymentStatus PaymentStatus { get; set; }
+    public string PaymentStatusDisplay { get; set; } = string.Empty;
     public string FulfillmentStatus { get; set; } = string.Empty;
 
     // Addresses

@@ -1,6 +1,15 @@
 import { defineConfig } from "vite";
+import { resolve } from "path";
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@api": resolve(__dirname, "src/api"),
+      "@orders": resolve(__dirname, "src/orders"),
+      "@payment-providers": resolve(__dirname, "src/payment-providers"),
+      "@shared": resolve(__dirname, "src/shared"),
+    },
+  },
   build: {
     lib: {
       entry: "src/bundle.manifests.ts", // Bundle registers one or more manifests

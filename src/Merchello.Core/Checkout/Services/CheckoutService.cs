@@ -5,11 +5,13 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Data;
+using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Checkout.Services;
@@ -19,9 +21,11 @@ public class CheckoutService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IHttpContextAccessor httpContextAccessor,
     IShippingQuoteService shippingQuoteService,
+    IOptions<MerchelloSettings> settings,
     ILocationsService? locationsService = null) : ICheckoutService
 {
     private readonly ILocationsService _locationsService = locationsService ?? new NoopLocationsService();
+    private readonly MerchelloSettings _settings = settings.Value;
 
     /// <summary>
     /// Add line item to the basket
@@ -123,7 +127,7 @@ public class CheckoutService(
             .FirstOrDefault();
 
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            lineItemService.CalculateLineItems(basket.LineItems, basket.Adjustments, shippingCost, defaultTaxRate, isShippingTaxable, basket.TaxRounding);
+            lineItemService.CalculateLineItems(basket.LineItems, basket.Adjustments, shippingCost, defaultTaxRate, isShippingTaxable, _settings.DefaultRounding);
 
         basket.SubTotal = subTotal;
         basket.Discount = discount;

@@ -28,6 +28,12 @@ public class PaymentProviderSetting
     public bool IsEnabled { get; set; }
 
     /// <summary>
+    /// Whether this provider is in test/sandbox mode.
+    /// When true, the provider should use test credentials and sandbox environments.
+    /// </summary>
+    public bool IsTestMode { get; set; } = true;
+
+    /// <summary>
     /// JSON-serialized configuration values.
     /// </summary>
     public string? Configuration { get; set; }

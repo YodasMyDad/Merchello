@@ -12,11 +12,19 @@ public class PaymentProviderConfiguration
     private readonly Dictionary<string, string> _values;
 
     /// <summary>
+    /// Whether the provider is operating in test/sandbox mode.
+    /// When true, providers should use test credentials and sandbox environments.
+    /// </summary>
+    public bool IsTestMode { get; }
+
+    /// <summary>
     /// Creates a new configuration instance from JSON.
     /// </summary>
     /// <param name="json">JSON string containing configuration values.</param>
-    public PaymentProviderConfiguration(string? json)
+    /// <param name="isTestMode">Whether the provider is in test mode.</param>
+    public PaymentProviderConfiguration(string? json, bool isTestMode = true)
     {
+        IsTestMode = isTestMode;
         _values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         if (!string.IsNullOrWhiteSpace(json))
@@ -43,8 +51,10 @@ public class PaymentProviderConfiguration
     /// Creates configuration from a dictionary of values.
     /// </summary>
     /// <param name="values">Configuration values.</param>
-    public PaymentProviderConfiguration(IDictionary<string, string>? values)
+    /// <param name="isTestMode">Whether the provider is in test mode.</param>
+    public PaymentProviderConfiguration(IDictionary<string, string>? values, bool isTestMode = true)
     {
+        IsTestMode = isTestMode;
         _values = values != null
             ? new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

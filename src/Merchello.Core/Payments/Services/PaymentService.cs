@@ -506,52 +506,65 @@ public class PaymentService : IPaymentService
         });
         scope.Complete();
 
-        if (statusInfo.InvoiceTotal == 0 && !statusInfo.Payments.Any())
-        {
-            return InvoicePaymentStatus.Unpaid;
-        }
+        var details = CalculatePaymentStatus(statusInfo.Payments, statusInfo.InvoiceTotal);
+        return details.Status;
+    }
 
-        var payments = statusInfo.Payments;
-        var invoiceTotal = statusInfo.InvoiceTotal;
+    /// <inheritdoc />
+    public PaymentStatusDetails CalculatePaymentStatus(IEnumerable<Payment> payments, decimal invoiceTotal)
+    {
+        var paymentList = payments.ToList();
 
-        if (!payments.Any())
-        {
-            return InvoicePaymentStatus.Unpaid;
-        }
-
-        // Calculate totals
-        var totalPayments = payments
-            .Where(p => p.PaymentType == PaymentType.Payment)
+        // Calculate totals - only count successful payments
+        var totalPaid = paymentList
+            .Where(p => p.PaymentSuccess && p.PaymentType == PaymentType.Payment)
             .Sum(p => p.Amount);
 
-        var totalRefunds = payments
-            .Where(p => p.PaymentType == PaymentType.Refund || p.PaymentType == PaymentType.PartialRefund)
+        var totalRefunded = paymentList
+            .Where(p => p.PaymentSuccess &&
+                  (p.PaymentType == PaymentType.Refund || p.PaymentType == PaymentType.PartialRefund))
             .Sum(p => Math.Abs(p.Amount));
 
-        var netPayment = totalPayments - totalRefunds;
+        // Round to avoid floating-point precision issues
+        totalPaid = Math.Round(totalPaid, 2);
+        totalRefunded = Math.Round(totalRefunded, 2);
+        invoiceTotal = Math.Round(invoiceTotal, 2);
+
+        var netPayment = totalPaid - totalRefunded;
+        var balanceDue = Math.Max(0, invoiceTotal - netPayment);
 
         // Determine status
-        if (netPayment <= 0)
+        InvoicePaymentStatus status;
+        if (totalRefunded > 0 && netPayment <= 0)
         {
-            return InvoicePaymentStatus.Refunded;
+            status = InvoicePaymentStatus.Refunded;
+        }
+        else if (totalRefunded > 0 && netPayment < totalPaid)
+        {
+            status = InvoicePaymentStatus.PartiallyRefunded;
+        }
+        else if (netPayment >= invoiceTotal)
+        {
+            status = InvoicePaymentStatus.Paid;
+        }
+        else if (netPayment > 0)
+        {
+            status = InvoicePaymentStatus.PartiallyPaid;
+        }
+        else
+        {
+            status = InvoicePaymentStatus.Unpaid;
         }
 
-        if (totalRefunds > 0 && netPayment < totalPayments)
+        return new PaymentStatusDetails
         {
-            return InvoicePaymentStatus.PartiallyRefunded;
-        }
-
-        if (netPayment >= invoiceTotal)
-        {
-            return InvoicePaymentStatus.Paid;
-        }
-
-        if (netPayment > 0)
-        {
-            return InvoicePaymentStatus.PartiallyPaid;
-        }
-
-        return InvoicePaymentStatus.Unpaid;
+            Status = status,
+            StatusDisplay = PaymentStatusDetails.GetStatusDisplay(status),
+            TotalPaid = totalPaid,
+            TotalRefunded = totalRefunded,
+            NetPayment = netPayment,
+            BalanceDue = balanceDue
+        };
     }
 
     /// <inheritdoc />

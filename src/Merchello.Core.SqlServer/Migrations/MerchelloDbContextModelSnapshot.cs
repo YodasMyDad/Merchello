@@ -73,9 +73,6 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int>("TaxRounding")
-                        .HasColumnType("int");
-
                     b.Property<decimal>("Total")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -366,9 +363,6 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int>("TaxRounding")
-                        .HasColumnType("int");
-
                     b.Property<decimal>("Total")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -400,6 +394,9 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("nvarchar(250)");
 
                     b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsTestMode")
                         .HasColumnType("bit");
 
                     b.Property<string>("ProviderAlias")

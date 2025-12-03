@@ -125,6 +125,7 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
             ProviderAlias = request.ProviderAlias,
             DisplayName = request.DisplayName ?? provider.Metadata.DisplayName,
             IsEnabled = request.IsEnabled,
+            IsTestMode = request.IsTestMode,
             Configuration = request.Configuration != null ? JsonSerializer.Serialize(request.Configuration) : null,
             SortOrder = maxSortOrder + 1
         };
@@ -164,6 +165,11 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
         if (request.IsEnabled.HasValue)
         {
             setting.IsEnabled = request.IsEnabled.Value;
+        }
+
+        if (request.IsTestMode.HasValue)
+        {
+            setting.IsTestMode = request.IsTestMode.Value;
         }
 
         if (request.Configuration != null)
@@ -266,7 +272,8 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
             RequiresWebhook = meta.RequiresWebhook,
             WebhookPath = meta.WebhookPath,
             IsEnabled = registered.IsEnabled,
-            SettingId = registered.Setting?.Id
+            SettingId = registered.Setting?.Id,
+            SetupInstructions = meta.SetupInstructions
         };
     }
 
@@ -291,6 +298,7 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
             ProviderAlias = setting.ProviderAlias,
             DisplayName = setting.DisplayName,
             IsEnabled = setting.IsEnabled,
+            IsTestMode = setting.IsTestMode,
             Configuration = config,
             SortOrder = setting.SortOrder,
             DateCreated = setting.DateCreated,

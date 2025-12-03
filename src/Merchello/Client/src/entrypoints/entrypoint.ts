@@ -3,7 +3,8 @@ import type {
   UmbEntryPointOnUnload,
 } from "@umbraco-cms/backoffice/extension-api";
 import { UMB_AUTH_CONTEXT } from "@umbraco-cms/backoffice/auth";
-import { setApiConfig } from "../api/merchello-api.js";
+import { setApiConfig } from "@api/merchello-api.js";
+import { preloadSettings } from "@api/store-settings.js";
 
 // load up the manifests here
 export const onInit: UmbEntryPointOnInit = (_host, _extensionRegistry) => {
@@ -17,6 +18,9 @@ export const onInit: UmbEntryPointOnInit = (_host, _extensionRegistry) => {
       baseUrl: config?.base ?? "",
       credentials: config?.credentials ?? "same-origin",
     });
+
+    // Preload store settings for currency formatting
+    preloadSettings();
   });
 };
 

@@ -58,8 +58,7 @@ public class OrderService(
                 AdjustedSubTotal = basket.AdjustedSubTotal,
                 Tax = basket.Tax,
                 Total = basket.Total,
-                Adjustments = basket.Adjustments,
-                TaxRounding = basket.TaxRounding
+                Adjustments = basket.Adjustments
             };
 
             // Create one order per warehouse shipping group

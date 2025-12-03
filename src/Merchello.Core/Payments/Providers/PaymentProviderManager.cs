@@ -82,9 +82,9 @@ public class PaymentProviderManager : IPaymentProviderManager
             try
             {
                 PaymentProviderConfiguration? configuration = null;
-                if (setting?.Configuration != null)
+                if (setting != null)
                 {
-                    configuration = new PaymentProviderConfiguration(setting.Configuration);
+                    configuration = new PaymentProviderConfiguration(setting.Configuration, setting.IsTestMode);
                 }
 
                 await provider.ConfigureAsync(configuration, cancellationToken);
@@ -206,6 +206,7 @@ public class PaymentProviderManager : IPaymentProviderManager
                 // Update existing
                 existing.DisplayName = setting.DisplayName;
                 existing.IsEnabled = setting.IsEnabled;
+                existing.IsTestMode = setting.IsTestMode;
                 existing.Configuration = setting.Configuration;
                 existing.SortOrder = setting.SortOrder;
                 existing.DateUpdated = DateTime.UtcNow;

@@ -97,30 +97,21 @@ public class PaymentsApiController : MerchelloApiControllerBase
             return NotFound($"Invoice '{invoiceId}' not found.");
         }
 
-        var status = await _paymentService.GetInvoicePaymentStatusAsync(invoiceId, cancellationToken);
         var payments = await _paymentService.GetPaymentsForInvoiceAsync(invoiceId, cancellationToken);
 
-        var totalPaid = payments
-            .Where(p => p.PaymentType == PaymentType.Payment && p.PaymentSuccess)
-            .Sum(p => p.Amount);
-
-        var totalRefunded = payments
-            .Where(p => (p.PaymentType == PaymentType.Refund || p.PaymentType == PaymentType.PartialRefund) && p.PaymentSuccess)
-            .Sum(p => Math.Abs(p.Amount));
-
-        var netPayment = totalPaid - totalRefunded;
-        var balanceDue = invoice.Total - netPayment;
+        // Use centralized payment status calculation from PaymentService
+        var details = _paymentService.CalculatePaymentStatus(payments, invoice.Total);
 
         return Ok(new PaymentStatusDto
         {
             InvoiceId = invoiceId,
-            Status = status,
-            StatusDisplay = GetStatusDisplay(status),
+            Status = details.Status,
+            StatusDisplay = details.StatusDisplay,
             InvoiceTotal = invoice.Total,
-            TotalPaid = totalPaid,
-            TotalRefunded = totalRefunded,
-            NetPayment = netPayment,
-            BalanceDue = Math.Max(0, balanceDue)
+            TotalPaid = details.TotalPaid,
+            TotalRefunded = details.TotalRefunded,
+            NetPayment = details.NetPayment,
+            BalanceDue = details.BalanceDue
         });
     }
 
@@ -261,20 +252,6 @@ public class PaymentsApiController : MerchelloApiControllerBase
                 .OrderBy(r => r.DateCreated)
                 .Select(MapToPaymentDto)
                 .ToList()
-        };
-    }
-
-    private static string GetStatusDisplay(InvoicePaymentStatus status)
-    {
-        return status switch
-        {
-            InvoicePaymentStatus.Unpaid => "Unpaid",
-            InvoicePaymentStatus.AwaitingPayment => "Awaiting Payment",
-            InvoicePaymentStatus.PartiallyPaid => "Partially Paid",
-            InvoicePaymentStatus.Paid => "Paid",
-            InvoicePaymentStatus.PartiallyRefunded => "Partially Refunded",
-            InvoicePaymentStatus.Refunded => "Refunded",
-            _ => status.ToString()
         };
     }
 }

@@ -1,8 +1,8 @@
 export const manifests: Array<UmbExtensionManifest> = [
-  // Workspace view for payment providers (under Settings workspace)
+  // Workspace view for payment providers (under Providers workspace)
   {
     type: "workspaceView",
-    alias: "Merchello.Settings.PaymentProviders.View",
+    alias: "Merchello.Providers.PaymentProviders.View",
     name: "Payment Providers View",
     js: () => import("./payment-providers-list.element.js"),
     weight: 90,
@@ -14,7 +14,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     conditions: [
       {
         alias: "Umb.Condition.WorkspaceAlias",
-        match: "Merchello.Settings.Workspace",
+        match: "Merchello.Providers.Workspace",
       },
     ],
   },
@@ -25,6 +25,14 @@ export const manifests: Array<UmbExtensionManifest> = [
     alias: "Merchello.PaymentProvider.Config.Modal",
     name: "Payment Provider Configuration Modal",
     js: () => import("./payment-provider-config-modal.element.js"),
+  },
+
+  // Modal for displaying setup instructions
+  {
+    type: "modal",
+    alias: "Merchello.SetupInstructions.Modal",
+    name: "Setup Instructions Modal",
+    js: () => import("./setup-instructions-modal.element.js"),
   },
 ];
 

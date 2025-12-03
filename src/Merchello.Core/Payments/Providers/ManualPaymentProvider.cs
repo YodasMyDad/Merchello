@@ -23,7 +23,35 @@ public class ManualPaymentProvider : PaymentProviderBase
         SupportsRefunds = true,
         SupportsPartialRefunds = true,
         SupportsAuthAndCapture = false,
-        RequiresWebhook = false
+        RequiresWebhook = false,
+        SetupInstructions = """
+            ## Manual Payment Provider
+
+            This provider is used to record offline/manual payments from the backoffice. It does not process actual payments through any gateway.
+
+            ### Use Cases
+
+            - **Cash payments** - Record cash received in-store
+            - **Check payments** - Record check payments with check numbers
+            - **Bank transfers** - Record wire transfers or direct deposits
+            - **Purchase orders** - Record B2B purchase order payments
+            - **Other** - Any other offline payment method
+
+            ### How It Works
+
+            1. **Backoffice Only**: This provider is typically hidden from checkout (uncheck "Show In Checkout")
+            2. **Manual Recording**: Staff can record payments from the order detail screen
+            3. **Reference Tracking**: Add check numbers, PO numbers, or transaction references
+            4. **Notes**: Add any relevant notes about the payment
+
+            ### Configuration
+
+            No configuration is required for this provider. Simply install it and it's ready to use.
+
+            ### Refunds
+
+            Manual refunds can be recorded for any payment. These are tracked in the system but no actual refund is processed (since the original payment was offline).
+            """
     };
 
     /// <inheritdoc />

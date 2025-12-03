@@ -27,4 +27,9 @@ public class PaymentProviderDto
     /// The setting ID if configured
     /// </summary>
     public Guid? SettingId { get; set; }
+
+    /// <summary>
+    /// Optional setup instructions/documentation for developers (markdown format)
+    /// </summary>
+    public string? SetupInstructions { get; set; }
 }

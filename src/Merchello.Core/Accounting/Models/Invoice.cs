@@ -56,11 +56,6 @@ public class Invoice
     public List<InvoiceNote> Notes { get; set; } = [];
 
     /// <summary>
-    /// The default basket rounding
-    /// </summary>
-    public MidpointRounding TaxRounding { get; set; } = MidpointRounding.AwayFromZero;
-
-    /// <summary>
     /// Holds the sub total of the basket
     /// </summary>
     public decimal SubTotal { get; set; }

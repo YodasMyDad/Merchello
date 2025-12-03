@@ -6,8 +6,10 @@ import {
   state,
 } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import { MerchelloApi } from "../api/merchello-api.js";
-import type { DashboardStatsDto, OrderListItemDto } from "../orders/types.js";
+import { MerchelloApi } from "@api/merchello-api.js";
+import { formatCurrency, formatShortDate, formatPercent } from "@shared/utils/formatting.js";
+import type { DashboardStatsDto, OrderListItemDto } from "@orders/types/order.types.js";
+import { InvoicePaymentStatus } from "@orders/types/order.types.js";
 
 @customElement("merchello-stats-dashboard")
 export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) {
@@ -18,7 +20,7 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
   private _recentOrders: OrderListItemDto[] = [];
 
   @state()
-  private _loading = true;
+  private _isLoading = true;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -26,7 +28,7 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
   }
 
   private async _loadData(): Promise<void> {
-    this._loading = true;
+    this._isLoading = true;
 
     // Load both in parallel
     const [statsResult, ordersResult] = await Promise.all([
@@ -42,27 +44,23 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
       this._recentOrders = ordersResult.data.items;
     }
 
-    this._loading = false;
+    this._isLoading = false;
   }
 
-  private _formatCurrency(amount: number): string {
-    return new Intl.NumberFormat("en-GB", {
-      style: "currency",
-      currency: "GBP",
-    }).format(amount);
-  }
-
-  private _formatDate(dateString: string): string {
-    return new Date(dateString).toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  }
-
-  private _formatPercent(value: number): string {
-    const sign = value >= 0 ? "+" : "";
-    return `${sign}${value}%`;
+  private _getPaymentStatusBadgeClass(status: InvoicePaymentStatus): string {
+    switch (status) {
+      case InvoicePaymentStatus.Paid:
+        return "paid";
+      case InvoicePaymentStatus.PartiallyPaid:
+        return "partial";
+      case InvoicePaymentStatus.Refunded:
+      case InvoicePaymentStatus.PartiallyRefunded:
+        return "refunded";
+      case InvoicePaymentStatus.AwaitingPayment:
+        return "awaiting";
+      default:
+        return "unpaid";
+    }
   }
 
   private _getChangeClass(value: number): string {
@@ -76,7 +74,7 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
   }
 
   render() {
-    if (this._loading) {
+    if (this._isLoading) {
       return html`
         <div class="loading">
           <uui-loader></uui-loader>
@@ -90,15 +88,15 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
           <div class="stat-value">${this._stats?.ordersThisMonth ?? 0}</div>
           <div class="stat-label">This Month</div>
           <div class="stat-change ${this._getChangeClass(this._stats?.ordersChangePercent ?? 0)}">
-            ${this._formatPercent(this._stats?.ordersChangePercent ?? 0)} from last month
+            ${formatPercent(this._stats?.ordersChangePercent ?? 0)} from last month
           </div>
         </uui-box>
 
         <uui-box headline="Revenue">
-          <div class="stat-value">${this._formatCurrency(this._stats?.revenueThisMonth ?? 0)}</div>
+          <div class="stat-value">${formatCurrency(this._stats?.revenueThisMonth ?? 0)}</div>
           <div class="stat-label">This Month</div>
           <div class="stat-change ${this._getChangeClass(this._stats?.revenueChangePercent ?? 0)}">
-            ${this._formatPercent(this._stats?.revenueChangePercent ?? 0)} from last month
+            ${formatPercent(this._stats?.revenueChangePercent ?? 0)} from last month
           </div>
         </uui-box>
 
@@ -143,14 +141,14 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
                         <a href=${this._getOrderHref(order.id)}>#${order.invoiceNumber}</a>
                       </uui-table-cell>
                       <uui-table-cell>${order.customerName}</uui-table-cell>
-                      <uui-table-cell>${this._formatDate(order.dateCreated)}</uui-table-cell>
+                      <uui-table-cell>${formatShortDate(order.dateCreated)}</uui-table-cell>
                       <uui-table-cell>
-                        <span class="badge ${order.paymentStatus.toLowerCase()}">${order.paymentStatus}</span>
+                        <span class="badge ${this._getPaymentStatusBadgeClass(order.paymentStatus)}">${order.paymentStatusDisplay}</span>
                       </uui-table-cell>
                       <uui-table-cell>
                         <span class="badge ${order.fulfillmentStatus.toLowerCase().replace(" ", "-")}">${order.fulfillmentStatus}</span>
                       </uui-table-cell>
-                      <uui-table-cell>${this._formatCurrency(order.total)}</uui-table-cell>
+                      <uui-table-cell>${formatCurrency(order.total)}</uui-table-cell>
                     </uui-table-row>
                   `
                 )}

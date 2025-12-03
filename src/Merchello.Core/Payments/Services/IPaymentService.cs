@@ -111,6 +111,16 @@ public interface IPaymentService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Calculate payment status details from a list of payments.
+    /// This is the single source of truth for payment status calculations.
+    /// Use this when you already have payments loaded.
+    /// </summary>
+    /// <param name="payments">The payments for the invoice.</param>
+    /// <param name="invoiceTotal">The invoice total amount.</param>
+    /// <returns>Full payment status details including totals and balance.</returns>
+    PaymentStatusDetails CalculatePaymentStatus(IEnumerable<Payment> payments, decimal invoiceTotal);
+
+    /// <summary>
     /// Record a manual/offline payment (for backoffice use).
     /// </summary>
     /// <param name="invoiceId">The invoice ID.</param>

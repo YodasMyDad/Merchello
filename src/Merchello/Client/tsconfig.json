@@ -20,6 +20,15 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
+    /* Path aliases */
+    "baseUrl": ".",
+    "paths": {
+      "@api/*": [ "src/api/*" ],
+      "@orders/*": [ "src/orders/*" ],
+      "@payment-providers/*": [ "src/payment-providers/*" ],
+      "@shared/*": [ "src/shared/*" ]
+    },
+
     "types": [ "@umbraco-cms/backoffice/extension-types" ]
   },
   "include": [ "src" ]

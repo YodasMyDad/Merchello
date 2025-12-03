@@ -1,3 +1,5 @@
+using Merchello.Core.Payments.Models;
+
 namespace Merchello.Core.Accounting.Dtos;
 
 /// <summary>
@@ -11,7 +13,8 @@ public class OrderListItemDto
     public string CustomerName { get; set; } = string.Empty;
     public string Channel { get; set; } = string.Empty;
     public decimal Total { get; set; }
-    public string PaymentStatus { get; set; } = string.Empty;
+    public InvoicePaymentStatus PaymentStatus { get; set; }
+    public string PaymentStatusDisplay { get; set; } = string.Empty;
     public string FulfillmentStatus { get; set; } = string.Empty;
     public int ItemCount { get; set; }
     public string DeliveryStatus { get; set; } = string.Empty;

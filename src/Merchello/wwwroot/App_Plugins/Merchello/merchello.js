@@ -3,17 +3,17 @@ const e = [
     name: "Merchello Entrypoint",
     alias: "Merchello.Entrypoint",
     type: "backofficeEntryPoint",
-    js: () => import("./entrypoint-CVulIESN.js")
+    js: () => import("./entrypoint-DkrVHs5q.js")
   }
-], l = [
+], a = [
   {
     name: "Merchello Dashboard",
     alias: "Merchello.Dashboard",
     type: "dashboard",
-    js: () => import("./dashboard.element-UIebsWWm.js"),
+    js: () => import("./dashboard.element-Crf3eITa.js"),
     meta: {
-      label: "Example Dashboard",
-      pathname: "example-dashboard"
+      label: "Merchello Dashboard",
+      pathname: "merchello-dashboard"
     },
     conditions: [
       {
@@ -22,7 +22,7 @@ const e = [
       }
     ]
   }
-], a = [
+], o = [
   // Section
   {
     type: "section",
@@ -68,7 +68,7 @@ const e = [
     type: "dashboard",
     alias: "Merchello.Dashboard.Stats",
     name: "Merchello Stats Dashboard",
-    element: () => import("./stats-dashboard.element-Ct5MHEUo.js"),
+    element: () => import("./stats-dashboard.element-CyLojmeq.js"),
     meta: {
       label: "Stats",
       pathname: "stats"
@@ -80,13 +80,13 @@ const e = [
       }
     ]
   }
-], t = [
+], l = [
   // Tree Repository
   {
     type: "repository",
     alias: "Merchello.Tree.Repository",
     name: "Merchello Tree Repository",
-    api: () => import("./repository-CyRl41dS.js")
+    api: () => import("./repository-C_EO0E2_.js")
   },
   // Tree
   {
@@ -104,7 +104,19 @@ const e = [
     kind: "default",
     alias: "Merchello.TreeItem",
     name: "Merchello Tree Item",
-    forEntityTypes: ["merchello-root", "merchello-settings", "merchello-orders", "merchello-order"]
+    forEntityTypes: [
+      "merchello-root",
+      "merchello-orders",
+      "merchello-order",
+      "merchello-products",
+      "merchello-customers",
+      "merchello-providers",
+      "merchello-analytics",
+      "merchello-marketing",
+      "merchello-settings",
+      "merchello-warehouses",
+      "merchello-shipping"
+    ]
   },
   // Menu Item to add tree to the menu
   {
@@ -119,7 +131,232 @@ const e = [
       treeAlias: "Merchello.Tree"
     }
   }
-], o = [
+], i = [
+  // Fulfillment modal for creating shipments
+  {
+    type: "modal",
+    alias: "Merchello.Fulfillment.Modal",
+    name: "Merchello Fulfillment Modal",
+    js: () => import("./fulfillment-modal.element-DPipekXL.js")
+  },
+  // Shipment edit modal for updating tracking info
+  {
+    type: "modal",
+    alias: "Merchello.ShipmentEdit.Modal",
+    name: "Merchello Shipment Edit Modal",
+    js: () => import("./shipment-edit-modal.element-DX9i22aZ.js")
+  },
+  // Manual payment modal for recording offline payments
+  {
+    type: "modal",
+    alias: "Merchello.ManualPayment.Modal",
+    name: "Merchello Manual Payment Modal",
+    js: () => import("./manual-payment-modal.element-BlhyNoK4.js")
+  },
+  // Refund modal for processing refunds
+  {
+    type: "modal",
+    alias: "Merchello.Refund.Modal",
+    name: "Merchello Refund Modal",
+    js: () => import("./refund-modal.element-t2DdSXwv.js")
+  },
+  // Workspace for orders list (when clicking "Orders" in tree)
+  {
+    type: "workspace",
+    kind: "default",
+    alias: "Merchello.Orders.Workspace",
+    name: "Merchello Orders Workspace",
+    meta: {
+      entityType: "merchello-orders",
+      headline: "Orders"
+    }
+  },
+  // Workspace view - the orders list
+  {
+    type: "workspaceView",
+    alias: "Merchello.Orders.ListView",
+    name: "Orders List View",
+    js: () => import("./orders-list.element-DYG4Tx1f.js"),
+    weight: 100,
+    meta: {
+      label: "Orders",
+      pathname: "list",
+      icon: "icon-list"
+    },
+    conditions: [
+      {
+        alias: "Umb.Condition.WorkspaceAlias",
+        match: "Merchello.Orders.Workspace"
+      }
+    ]
+  },
+  // Workspace for individual order detail (routable)
+  {
+    type: "workspace",
+    kind: "routable",
+    alias: "Merchello.Order.Detail.Workspace",
+    name: "Order Detail Workspace",
+    api: () => import("./order-detail-workspace.context-Bn7mDueZ.js"),
+    meta: {
+      entityType: "merchello-order"
+    }
+  }
+], t = [
+  // Workspace for products (when clicking "Products" in tree)
+  {
+    type: "workspace",
+    kind: "default",
+    alias: "Merchello.Products.Workspace",
+    name: "Merchello Products Workspace",
+    meta: {
+      entityType: "merchello-products",
+      headline: "Products"
+    }
+  },
+  // Workspace view for products
+  {
+    type: "workspaceView",
+    alias: "Merchello.Products.Workspace.View",
+    name: "Merchello Products View",
+    js: () => import("./products-workspace.element-DJMzQim_.js"),
+    weight: 100,
+    meta: {
+      label: "Products",
+      pathname: "products",
+      icon: "icon-box"
+    },
+    conditions: [
+      {
+        alias: "Umb.Condition.WorkspaceAlias",
+        match: "Merchello.Products.Workspace"
+      }
+    ]
+  }
+], r = [
+  // Workspace for customers (when clicking "Customers" in tree)
+  {
+    type: "workspace",
+    kind: "default",
+    alias: "Merchello.Customers.Workspace",
+    name: "Merchello Customers Workspace",
+    meta: {
+      entityType: "merchello-customers",
+      headline: "Customers"
+    }
+  },
+  // Workspace view for customers
+  {
+    type: "workspaceView",
+    alias: "Merchello.Customers.Workspace.View",
+    name: "Merchello Customers View",
+    js: () => import("./customers-workspace.element-8UV46O-R.js"),
+    weight: 100,
+    meta: {
+      label: "Customers",
+      pathname: "customers",
+      icon: "icon-users"
+    },
+    conditions: [
+      {
+        alias: "Umb.Condition.WorkspaceAlias",
+        match: "Merchello.Customers.Workspace"
+      }
+    ]
+  }
+], s = [
+  // Workspace for providers (when clicking "Providers" in tree)
+  {
+    type: "workspace",
+    kind: "default",
+    alias: "Merchello.Providers.Workspace",
+    name: "Merchello Providers Workspace",
+    meta: {
+      entityType: "merchello-providers",
+      headline: "Providers"
+    }
+  },
+  // Workspace view for providers overview
+  {
+    type: "workspaceView",
+    alias: "Merchello.Providers.Workspace.View",
+    name: "Merchello Providers View",
+    js: () => import("./providers-workspace.element-DUC_gQpN.js"),
+    weight: 100,
+    meta: {
+      label: "Overview",
+      pathname: "overview",
+      icon: "icon-nodes"
+    },
+    conditions: [
+      {
+        alias: "Umb.Condition.WorkspaceAlias",
+        match: "Merchello.Providers.Workspace"
+      }
+    ]
+  }
+], c = [
+  // Workspace for analytics (when clicking "Analytics" in tree)
+  {
+    type: "workspace",
+    kind: "default",
+    alias: "Merchello.Analytics.Workspace",
+    name: "Merchello Analytics Workspace",
+    meta: {
+      entityType: "merchello-analytics",
+      headline: "Analytics"
+    }
+  },
+  // Workspace view for analytics
+  {
+    type: "workspaceView",
+    alias: "Merchello.Analytics.Workspace.View",
+    name: "Merchello Analytics View",
+    js: () => import("./analytics-workspace.element-BvcWxAL1.js"),
+    weight: 100,
+    meta: {
+      label: "Analytics",
+      pathname: "analytics",
+      icon: "icon-chart-curve"
+    },
+    conditions: [
+      {
+        alias: "Umb.Condition.WorkspaceAlias",
+        match: "Merchello.Analytics.Workspace"
+      }
+    ]
+  }
+], n = [
+  // Workspace for marketing (when clicking "Marketing" in tree)
+  {
+    type: "workspace",
+    kind: "default",
+    alias: "Merchello.Marketing.Workspace",
+    name: "Merchello Marketing Workspace",
+    meta: {
+      entityType: "merchello-marketing",
+      headline: "Marketing"
+    }
+  },
+  // Workspace view for marketing
+  {
+    type: "workspaceView",
+    alias: "Merchello.Marketing.Workspace.View",
+    name: "Merchello Marketing View",
+    js: () => import("./marketing-workspace.element-C61vfnfG.js"),
+    weight: 100,
+    meta: {
+      label: "Marketing",
+      pathname: "marketing",
+      icon: "icon-megaphone"
+    },
+    conditions: [
+      {
+        alias: "Umb.Condition.WorkspaceAlias",
+        match: "Merchello.Marketing.Workspace"
+      }
+    ]
+  }
+], m = [
   // Workspace for root (when clicking "Merchello" in tree)
   {
     type: "workspace",
@@ -161,71 +398,119 @@ const e = [
       }
     ]
   }
-], i = [
-  // Fulfillment modal for creating shipments
-  {
-    type: "modal",
-    alias: "Merchello.Fulfillment.Modal",
-    name: "Merchello Fulfillment Modal",
-    js: () => import("./fulfillment-modal.element-DucCQJoE.js")
-  },
-  // Shipment edit modal for updating tracking info
-  {
-    type: "modal",
-    alias: "Merchello.ShipmentEdit.Modal",
-    name: "Merchello Shipment Edit Modal",
-    js: () => import("./shipment-edit-modal.element-j7WO5Gfx.js")
-  },
-  // Workspace for orders list (when clicking "Orders" in tree)
+], p = [
+  // Workspace for warehouses (child of Settings in tree)
   {
     type: "workspace",
     kind: "default",
-    alias: "Merchello.Orders.Workspace",
-    name: "Merchello Orders Workspace",
+    alias: "Merchello.Warehouses.Workspace",
+    name: "Merchello Warehouses Workspace",
     meta: {
-      entityType: "merchello-orders",
-      headline: "Orders"
+      entityType: "merchello-warehouses",
+      headline: "Warehouses"
     }
   },
-  // Workspace view - the orders list
+  // Workspace view for warehouses
   {
     type: "workspaceView",
-    alias: "Merchello.Orders.ListView",
-    name: "Orders List View",
-    js: () => import("./orders-list.element-BHUiEkY5.js"),
+    alias: "Merchello.Warehouses.Workspace.View",
+    name: "Merchello Warehouses View",
+    js: () => import("./warehouses-workspace.element-p6XyIaEc.js"),
     weight: 100,
     meta: {
-      label: "Orders",
-      pathname: "list",
-      icon: "icon-list"
+      label: "Warehouses",
+      pathname: "warehouses",
+      icon: "icon-store"
     },
     conditions: [
       {
         alias: "Umb.Condition.WorkspaceAlias",
-        match: "Merchello.Orders.Workspace"
+        match: "Merchello.Warehouses.Workspace"
+      }
+    ]
+  }
+], h = [
+  // Workspace for shipping (child of Settings in tree)
+  {
+    type: "workspace",
+    kind: "default",
+    alias: "Merchello.Shipping.Workspace",
+    name: "Merchello Shipping Workspace",
+    meta: {
+      entityType: "merchello-shipping",
+      headline: "Shipping"
+    }
+  },
+  // Workspace view for shipping
+  {
+    type: "workspaceView",
+    alias: "Merchello.Shipping.Workspace.View",
+    name: "Merchello Shipping View",
+    js: () => import("./shipping-workspace.element-Cr-E2dGp.js"),
+    weight: 100,
+    meta: {
+      label: "Shipping",
+      pathname: "shipping",
+      icon: "icon-truck"
+    },
+    conditions: [
+      {
+        alias: "Umb.Condition.WorkspaceAlias",
+        match: "Merchello.Shipping.Workspace"
+      }
+    ]
+  }
+], d = [
+  // Workspace view for payment providers (under Providers workspace)
+  {
+    type: "workspaceView",
+    alias: "Merchello.Providers.PaymentProviders.View",
+    name: "Payment Providers View",
+    js: () => import("./payment-providers-list.element-DGcXGmIH.js"),
+    weight: 90,
+    meta: {
+      label: "Payment Providers",
+      pathname: "payment-providers",
+      icon: "icon-credit-card"
+    },
+    conditions: [
+      {
+        alias: "Umb.Condition.WorkspaceAlias",
+        match: "Merchello.Providers.Workspace"
       }
     ]
   },
-  // Workspace for individual order detail (routable)
+  // Modal for configuring a payment provider
   {
-    type: "workspace",
-    kind: "routable",
-    alias: "Merchello.Order.Detail.Workspace",
-    name: "Order Detail Workspace",
-    api: () => import("./order-detail-workspace.context-Dxol5ue8.js"),
-    meta: {
-      entityType: "merchello-order"
-    }
+    type: "modal",
+    alias: "Merchello.PaymentProvider.Config.Modal",
+    name: "Payment Provider Configuration Modal",
+    js: () => import("./payment-provider-config-modal.element-CfL72evg.js")
+  },
+  // Modal for displaying setup instructions
+  {
+    type: "modal",
+    alias: "Merchello.SetupInstructions.Modal",
+    name: "Setup Instructions Modal",
+    js: () => import("./setup-instructions-modal.element-DYsUpkyA.js")
   }
-], r = [
+], M = [
   ...e,
-  ...l,
   ...a,
-  ...t,
   ...o,
-  ...i
+  ...l,
+  ...i,
+  ...t,
+  ...r,
+  ...s,
+  ...c,
+  ...n,
+  ...m,
+  ...p,
+  ...h,
+  ...d
 ];
 export {
-  r as manifests
+  M as manifests
 };
 //# sourceMappingURL=merchello.js.map
