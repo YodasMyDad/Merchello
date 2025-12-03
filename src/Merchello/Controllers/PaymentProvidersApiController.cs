@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Asp.Versioning;
-using Merchello.Controllers.Dtos;
+using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Shared.Extensions;

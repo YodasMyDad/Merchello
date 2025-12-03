@@ -1,6 +1,8 @@
 using Asp.Versioning;
-using Merchello.Controllers.Dtos;
+using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Locality.Dtos;
+using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Data;
 using Merchello.Core.Shipping.Models;
 using Microsoft.AspNetCore.Http;

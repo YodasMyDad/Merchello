@@ -1,5 +1,5 @@
-using Merchello.Controllers.Dtos;
 using Merchello.Core.Data;
+using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Services;

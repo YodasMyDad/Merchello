@@ -1,6 +1,6 @@
 using Asp.Versioning;
-using Merchello.Controllers.Dtos;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Data;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services;
