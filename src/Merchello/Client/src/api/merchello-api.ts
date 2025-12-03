@@ -162,6 +162,9 @@ import type {
   PaymentStatusDto,
   RecordManualPaymentDto,
   ProcessRefundDto,
+  InvoiceNoteDto,
+  AddInvoiceNoteRequest,
+  AddressDto,
 } from '../orders/types/order.types.js';
 
 // Import payment provider types
@@ -192,6 +195,12 @@ export interface StoreSettingsDto {
   invoiceNumberPrefix: string;
 }
 
+// Country type for dropdowns
+export interface CountryDto {
+  code: string;
+  name: string;
+}
+
 // API methods
 export const MerchelloApi = {
   ping: () => apiGet<string>('ping'),
@@ -201,6 +210,7 @@ export const MerchelloApi = {
 
   // Store Settings
   getSettings: () => apiGet<StoreSettingsDto>('settings'),
+  getCountries: () => apiGet<CountryDto[]>('countries'),
 
   // Orders API
   getOrders: (params?: OrderListParams) => {
@@ -208,6 +218,12 @@ export const MerchelloApi = {
     return apiGet<OrderListResponse>(`orders${queryString ? `?${queryString}` : ''}`);
   },
   getOrder: (id: string) => apiGet<OrderDetailDto>(`orders/${id}`),
+  addInvoiceNote: (invoiceId: string, data: AddInvoiceNoteRequest) =>
+    apiPost<InvoiceNoteDto>(`orders/${invoiceId}/notes`, data),
+  updateBillingAddress: (invoiceId: string, address: AddressDto) =>
+    apiPut<AddressDto>(`orders/${invoiceId}/billing-address`, address),
+  updateShippingAddress: (invoiceId: string, address: AddressDto) =>
+    apiPut<AddressDto>(`orders/${invoiceId}/shipping-address`, address),
   getOrderStats: () => apiGet<OrderStatsDto>('orders/stats'),
   getDashboardStats: () => apiGet<DashboardStatsDto>('orders/dashboard-stats'),
 

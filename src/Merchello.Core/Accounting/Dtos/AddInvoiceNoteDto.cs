@@ -1,12 +1,10 @@
 namespace Merchello.Core.Accounting.Dtos;
 
 /// <summary>
-/// Invoice note DTO for timeline
+/// Request DTO for adding a note to an invoice
 /// </summary>
-public class InvoiceNoteDto
+public class AddInvoiceNoteDto
 {
-    public DateTime Date { get; set; }
     public string Text { get; set; } = string.Empty;
-    public string? Author { get; set; }
     public bool VisibleToCustomer { get; set; }
 }

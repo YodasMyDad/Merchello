@@ -296,6 +296,144 @@ public class OrdersApiController : MerchelloApiControllerBase
         return Ok(MapToDetail(invoice));
     }
 
+    /// <summary>
+    /// Add a note to an invoice timeline
+    /// </summary>
+    [HttpPost("orders/{invoiceId:guid}/notes")]
+    [ProducesResponseType<InvoiceNoteDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AddNote(Guid invoiceId, [FromBody] AddInvoiceNoteDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Text))
+        {
+            return BadRequest("Note text is required");
+        }
+
+        using var scope = _scopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId);
+            if (invoice == null)
+            {
+                return ((InvoiceNote?)null, "Invoice not found");
+            }
+
+            var note = new InvoiceNote
+            {
+                DateCreated = DateTime.UtcNow,
+                Description = request.Text.Trim(),
+                Author = "Staff", // TODO: Get current user name from auth context
+                VisibleToCustomer = request.VisibleToCustomer
+            };
+
+            invoice.Notes ??= new List<InvoiceNote>();
+            invoice.Notes.Add(note);
+            invoice.DateUpdated = DateTime.UtcNow;
+
+            await db.SaveChangesAsync();
+            return (note, (string?)null);
+        });
+        scope.Complete();
+
+        if (result.Item1 == null)
+        {
+            return result.Item2 == "Invoice not found" ? NotFound(result.Item2) : BadRequest(result.Item2);
+        }
+
+        return Ok(new InvoiceNoteDto
+        {
+            Date = result.Item1.DateCreated,
+            Text = result.Item1.Description ?? string.Empty,
+            Author = result.Item1.Author,
+            VisibleToCustomer = result.Item1.VisibleToCustomer
+        });
+    }
+
+    /// <summary>
+    /// Update billing address for an invoice
+    /// </summary>
+    [HttpPut("orders/{invoiceId:guid}/billing-address")]
+    [ProducesResponseType<AddressDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateBillingAddress(Guid invoiceId, [FromBody] AddressDto request)
+    {
+        using var scope = _scopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId);
+            if (invoice == null)
+            {
+                return (false, (AddressDto?)null);
+            }
+
+            invoice.BillingAddress = MapDtoToAddress(request);
+            invoice.DateUpdated = DateTime.UtcNow;
+
+            await db.SaveChangesAsync();
+            return (true, MapAddress(invoice.BillingAddress));
+        });
+        scope.Complete();
+
+        if (!result.Item1)
+        {
+            return NotFound("Invoice not found");
+        }
+
+        return Ok(result.Item2);
+    }
+
+    /// <summary>
+    /// Update shipping address for an invoice
+    /// </summary>
+    [HttpPut("orders/{invoiceId:guid}/shipping-address")]
+    [ProducesResponseType<AddressDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateShippingAddress(Guid invoiceId, [FromBody] AddressDto request)
+    {
+        using var scope = _scopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId);
+            if (invoice == null)
+            {
+                return (false, (AddressDto?)null);
+            }
+
+            invoice.ShippingAddress = MapDtoToAddress(request);
+            invoice.DateUpdated = DateTime.UtcNow;
+
+            await db.SaveChangesAsync();
+            return (true, MapAddress(invoice.ShippingAddress));
+        });
+        scope.Complete();
+
+        if (!result.Item1)
+        {
+            return NotFound("Invoice not found");
+        }
+
+        return Ok(result.Item2);
+    }
+
+    private static Core.Locality.Models.Address MapDtoToAddress(AddressDto dto)
+    {
+        return new Core.Locality.Models.Address
+        {
+            Name = dto.Name,
+            Company = dto.Company,
+            AddressOne = dto.AddressOne,
+            AddressTwo = dto.AddressTwo,
+            TownCity = dto.TownCity,
+            CountyState = new Core.Locality.Models.CountyState { Name = dto.CountyState },
+            PostalCode = dto.PostalCode,
+            Country = dto.Country,
+            CountryCode = dto.CountryCode,
+            Email = dto.Email,
+            Phone = dto.Phone
+        };
+    }
+
     private OrderListItemDto MapToListItem(Invoice invoice)
     {
         var orders = invoice.Orders?.ToList() ?? new List<Order>();
@@ -359,7 +497,8 @@ public class OrdersApiController : MerchelloApiControllerBase
             {
                 Date = n.DateCreated,
                 Text = n.Description ?? string.Empty,
-                Author = n.Author
+                Author = n.Author,
+                VisibleToCustomer = n.VisibleToCustomer
             }).ToList() ?? new List<InvoiceNoteDto>()
         };
     }

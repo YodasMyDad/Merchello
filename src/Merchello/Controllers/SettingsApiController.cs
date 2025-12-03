@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -14,10 +15,12 @@ namespace Merchello.Controllers;
 public class SettingsApiController : MerchelloApiControllerBase
 {
     private readonly MerchelloSettings _settings;
+    private readonly ILocalityCatalog _localityCatalog;
 
-    public SettingsApiController(IOptions<MerchelloSettings> settings)
+    public SettingsApiController(IOptions<MerchelloSettings> settings, ILocalityCatalog localityCatalog)
     {
         _settings = settings.Value;
+        _localityCatalog = localityCatalog;
     }
 
     /// <summary>
@@ -34,6 +37,31 @@ public class SettingsApiController : MerchelloApiControllerBase
             InvoiceNumberPrefix = _settings.InvoiceNumberPrefix
         });
     }
+
+    /// <summary>
+    /// Get list of countries for address dropdowns
+    /// </summary>
+    [HttpGet("countries")]
+    [ProducesResponseType<List<CountryDto>>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetCountries(CancellationToken ct)
+    {
+        var countries = await _localityCatalog.GetCountriesAsync(ct);
+        var result = countries.Select(c => new CountryDto
+        {
+            Code = c.Code,
+            Name = c.Name
+        }).ToList();
+        return Ok(result);
+    }
+}
+
+/// <summary>
+/// Country data for dropdowns
+/// </summary>
+public class CountryDto
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 }
 
 /// <summary>

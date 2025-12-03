@@ -168,6 +168,13 @@ export interface InvoiceNoteDto {
   date: string;
   text: string;
   author: string | null;
+  visibleToCustomer: boolean;
+}
+
+/** Request to add a note to an invoice */
+export interface AddInvoiceNoteRequest {
+  text: string;
+  visibleToCustomer: boolean;
 }
 
 export interface OrderListResponse {
