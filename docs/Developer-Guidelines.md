@@ -101,6 +101,38 @@ Products/
 - Custom mapping methods (no AutoMapper)
 - IHostedService/BackgroundService for background tasks
 
+## DbContext & Service Architecture
+
+- **All DbContext queries must be performed in services** - Controllers should never access DbContext directly
+- Controllers inject services and call service methods that encapsulate data access
+- This separation ensures testability, reusability, and proper architectural boundaries
+
+**Service Method Design:**
+- Design methods for **reusability** - avoid single-purpose methods that only serve one specific use case
+- Think about what parameters and return types would make the method useful across multiple scenarios
+- Prefer composable, flexible methods over highly-specific ones
+- If a query is needed in multiple places, it belongs in a shared service method
+
+```csharp
+// ❌ Bad - DbContext in controller
+public class OrdersController(MerchelloDbContext db) : Controller
+{
+    public async Task<IActionResult> GetOrders() => Ok(await db.Invoices.ToListAsync());
+}
+
+// ✅ Good - Service handles data access
+public class OrdersController(IInvoiceService invoiceService) : Controller
+{
+    public async Task<IActionResult> GetOrders() => Ok(await invoiceService.GetAllAsync());
+}
+
+// ❌ Bad - Overly specific service method
+Task<List<Invoice>> GetUnpaidInvoicesForCustomerCreatedThisMonth(Guid customerId);
+
+// ✅ Good - Reusable with flexible parameters
+Task<List<Invoice>> QueryAsync(InvoiceQueryParameters parameters);
+```
+
 ## Database Migrations
 
 - **Always use `migrations.ps1`** script in root

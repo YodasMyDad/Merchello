@@ -15,7 +15,8 @@ public class SqliteDbContextFactory : IDesignTimeDbContextFactory<MerchelloDbCon
         var optionsBuilder = new DbContextOptionsBuilder<MerchelloDbContext>();
         optionsBuilder.UseSqlite(
             "Data Source=merchello_design.db",
-            x => x.MigrationsAssembly(GetType().Assembly.FullName));
+            x => x.MigrationsAssembly(GetType().Assembly.FullName)
+            .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery));
         return new MerchelloDbContext(optionsBuilder.Options);
     }
 }

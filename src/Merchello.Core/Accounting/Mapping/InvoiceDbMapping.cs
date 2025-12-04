@@ -67,5 +67,12 @@ public class InvoiceDbMapping : IEntityTypeConfiguration<Invoice>
         builder.Property(x => x.SubTotal).HasPrecision(18, 2);
         builder.Property(x => x.Tax).HasPrecision(18, 2);
         builder.Property(x => x.Total).HasPrecision(18, 2);
+
+        // Soft delete
+        builder.Property(x => x.IsDeleted).HasDefaultValue(false);
+        builder.Property(x => x.DateDeleted).IsRequired(false);
+
+        // Index for efficient filtering of non-deleted invoices
+        builder.HasIndex(x => x.IsDeleted);
     }
 }

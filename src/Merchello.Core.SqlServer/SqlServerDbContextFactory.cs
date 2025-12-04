@@ -15,7 +15,8 @@ public class SqlServerDbContextFactory : IDesignTimeDbContextFactory<MerchelloDb
         var optionsBuilder = new DbContextOptionsBuilder<MerchelloDbContext>();
         optionsBuilder.UseSqlServer(
             "Server=.;Database=Merchello_Design;Trusted_Connection=True;TrustServerCertificate=True;",
-            x => x.MigrationsAssembly(GetType().Assembly.FullName));
+            x => x.MigrationsAssembly(GetType().Assembly.FullName)
+                  .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery));
         return new MerchelloDbContext(optionsBuilder.Options);
     }
 }

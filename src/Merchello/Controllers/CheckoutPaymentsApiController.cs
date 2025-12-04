@@ -1,14 +1,11 @@
-using Merchello.Core.Data;
+using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Payments.Dtos;
-using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Controllers;
 
@@ -18,25 +15,12 @@ namespace Merchello.Controllers;
 [ApiController]
 [Route("api/merchello/checkout")]
 [AllowAnonymous]
-public class CheckoutPaymentsApiController : ControllerBase
+public class CheckoutPaymentsApiController(
+    IPaymentProviderManager providerManager,
+    IPaymentService paymentService,
+    IInvoiceService invoiceService,
+    ILogger<CheckoutPaymentsApiController> logger) : ControllerBase
 {
-    private readonly IPaymentProviderManager _providerManager;
-    private readonly IPaymentService _paymentService;
-    private readonly IEFCoreScopeProvider<MerchelloDbContext> _scopeProvider;
-    private readonly ILogger<CheckoutPaymentsApiController> _logger;
-
-    public CheckoutPaymentsApiController(
-        IPaymentProviderManager providerManager,
-        IPaymentService paymentService,
-        IEFCoreScopeProvider<MerchelloDbContext> scopeProvider,
-        ILogger<CheckoutPaymentsApiController> logger)
-    {
-        _providerManager = providerManager;
-        _paymentService = paymentService;
-        _scopeProvider = scopeProvider;
-        _logger = logger;
-    }
-
     /// <summary>
     /// Get available payment methods for checkout
     /// </summary>
@@ -44,7 +28,7 @@ public class CheckoutPaymentsApiController : ControllerBase
     [ProducesResponseType<List<PaymentMethodDto>>(StatusCodes.Status200OK)]
     public async Task<List<PaymentMethodDto>> GetPaymentMethods(CancellationToken cancellationToken = default)
     {
-        var providers = await _providerManager.GetEnabledProvidersAsync(cancellationToken);
+        var providers = await providerManager.GetEnabledProvidersAsync(cancellationToken);
 
         return providers
             .OrderBy(p => p.SortOrder)
@@ -88,10 +72,7 @@ public class CheckoutPaymentsApiController : ControllerBase
         }
 
         // Verify invoice exists
-        using var scope = _scopeProvider.CreateScope();
-        var invoiceExists = await scope.ExecuteWithContextAsync(async db =>
-            await db.Invoices.AnyAsync(i => i.Id == invoiceId, cancellationToken));
-        scope.Complete();
+        var invoiceExists = await invoiceService.InvoiceExistsAsync(invoiceId, cancellationToken);
 
         if (!invoiceExists)
         {
@@ -99,7 +80,7 @@ public class CheckoutPaymentsApiController : ControllerBase
         }
 
         // Verify provider is enabled
-        var provider = await _providerManager.GetProviderAsync(
+        var provider = await providerManager.GetProviderAsync(
             request.ProviderAlias,
             requireEnabled: true,
             cancellationToken);
@@ -110,7 +91,7 @@ public class CheckoutPaymentsApiController : ControllerBase
         }
 
         // Create payment session
-        var result = await _paymentService.CreatePaymentSessionAsync(
+        var result = await paymentService.CreatePaymentSessionAsync(
             invoiceId,
             request.ProviderAlias,
             request.ReturnUrl,
@@ -149,7 +130,7 @@ public class CheckoutPaymentsApiController : ControllerBase
 
         if (!result.Success)
         {
-            _logger.LogWarning(
+            logger.LogWarning(
                 "Payment session creation failed for invoice {InvoiceId} with provider {Provider}: {Error}",
                 invoiceId,
                 request.ProviderAlias,
@@ -157,7 +138,7 @@ public class CheckoutPaymentsApiController : ControllerBase
         }
         else
         {
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Payment session created for invoice {InvoiceId} with provider {Provider}, SessionId: {SessionId}",
                 invoiceId,
                 request.ProviderAlias,
@@ -176,7 +157,7 @@ public class CheckoutPaymentsApiController : ControllerBase
         [FromQuery] PaymentReturnQuery query,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation(
+        logger.LogInformation(
             "Payment return received: InvoiceId={InvoiceId}, TransactionId={TransactionId}, Provider={Provider}",
             query.InvoiceId,
             query.TransactionId,
@@ -185,7 +166,7 @@ public class CheckoutPaymentsApiController : ControllerBase
         // If we have a transaction ID, check if payment was already recorded (via webhook)
         if (!string.IsNullOrEmpty(query.TransactionId))
         {
-            var existingPayment = await _paymentService.GetPaymentByTransactionIdAsync(
+            var existingPayment = await paymentService.GetPaymentByTransactionIdAsync(
                 query.TransactionId,
                 cancellationToken);
 
@@ -222,7 +203,7 @@ public class CheckoutPaymentsApiController : ControllerBase
         [FromQuery] PaymentReturnQuery query,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation(
+        logger.LogInformation(
             "Payment cancelled: InvoiceId={InvoiceId}, TransactionId={TransactionId}, Provider={Provider}",
             query.InvoiceId,
             query.TransactionId,
@@ -236,4 +217,3 @@ public class CheckoutPaymentsApiController : ControllerBase
         });
     }
 }
-

@@ -1,13 +1,11 @@
 using Asp.Versioning;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Payments.Dtos;
-using Merchello.Core.Data;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Controllers;
 
@@ -16,19 +14,10 @@ namespace Merchello.Controllers;
 /// </summary>
 [ApiVersion("1.0")]
 [ApiExplorerSettings(GroupName = "Merchello")]
-public class PaymentsApiController : MerchelloApiControllerBase
+public class PaymentsApiController(
+    IPaymentService paymentService,
+    IInvoiceService invoiceService) : MerchelloApiControllerBase
 {
-    private readonly IPaymentService _paymentService;
-    private readonly IEFCoreScopeProvider<MerchelloDbContext> _scopeProvider;
-
-    public PaymentsApiController(
-        IPaymentService paymentService,
-        IEFCoreScopeProvider<MerchelloDbContext> scopeProvider)
-    {
-        _paymentService = paymentService;
-        _scopeProvider = scopeProvider;
-    }
-
     /// <summary>
     /// Get all payments for an invoice
     /// </summary>
@@ -38,17 +27,14 @@ public class PaymentsApiController : MerchelloApiControllerBase
     public async Task<IActionResult> GetInvoicePayments(Guid invoiceId, CancellationToken cancellationToken = default)
     {
         // Verify invoice exists
-        using var scope = _scopeProvider.CreateScope();
-        var invoiceExists = await scope.ExecuteWithContextAsync(async db =>
-            await db.Invoices.AnyAsync(i => i.Id == invoiceId, cancellationToken));
-        scope.Complete();
+        var invoiceExists = await invoiceService.InvoiceExistsAsync(invoiceId, cancellationToken);
 
         if (!invoiceExists)
         {
             return NotFound($"Invoice '{invoiceId}' not found.");
         }
 
-        var payments = await _paymentService.GetPaymentsForInvoiceAsync(invoiceId, cancellationToken);
+        var payments = await paymentService.GetPaymentsForInvoiceAsync(invoiceId, cancellationToken);
 
         // Only return top-level payments (not refunds, which are nested)
         var result = payments
@@ -67,7 +53,7 @@ public class PaymentsApiController : MerchelloApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPayment(Guid id, CancellationToken cancellationToken = default)
     {
-        var payment = await _paymentService.GetPaymentAsync(id, cancellationToken);
+        var payment = await paymentService.GetPaymentAsync(id, cancellationToken);
         if (payment == null)
         {
             return NotFound();
@@ -84,23 +70,18 @@ public class PaymentsApiController : MerchelloApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPaymentStatus(Guid invoiceId, CancellationToken cancellationToken = default)
     {
-        // Get invoice and payments
-        using var scope = _scopeProvider.CreateScope();
-        var invoice = await scope.ExecuteWithContextAsync(async db =>
-            await db.Invoices
-                .AsNoTracking()
-                .FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken));
-        scope.Complete();
+        // Get invoice
+        var invoice = await invoiceService.GetInvoiceAsync(invoiceId, cancellationToken);
 
         if (invoice == null)
         {
             return NotFound($"Invoice '{invoiceId}' not found.");
         }
 
-        var payments = await _paymentService.GetPaymentsForInvoiceAsync(invoiceId, cancellationToken);
+        var payments = await paymentService.GetPaymentsForInvoiceAsync(invoiceId, cancellationToken);
 
         // Use centralized payment status calculation from PaymentService
-        var details = _paymentService.CalculatePaymentStatus(payments, invoice.Total);
+        var details = paymentService.CalculatePaymentStatus(payments, invoice.Total);
 
         return Ok(new PaymentStatusDto
         {
@@ -137,7 +118,7 @@ public class PaymentsApiController : MerchelloApiControllerBase
             return BadRequest("PaymentMethod is required.");
         }
 
-        var result = await _paymentService.RecordManualPaymentAsync(
+        var result = await paymentService.RecordManualPaymentAsync(
             invoiceId,
             request.Amount,
             request.PaymentMethod,
@@ -183,7 +164,7 @@ public class PaymentsApiController : MerchelloApiControllerBase
             if (amount <= 0)
             {
                 // Get original payment to determine full refund amount
-                var payment = await _paymentService.GetPaymentAsync(id, cancellationToken);
+                var payment = await paymentService.GetPaymentAsync(id, cancellationToken);
                 if (payment == null)
                 {
                     return NotFound($"Payment '{id}' not found.");
@@ -193,7 +174,7 @@ public class PaymentsApiController : MerchelloApiControllerBase
                 amount = payment.Amount - existingRefunds;
             }
 
-            result = await _paymentService.RecordManualRefundAsync(
+            result = await paymentService.RecordManualRefundAsync(
                 id,
                 amount,
                 request.Reason,
@@ -202,7 +183,7 @@ public class PaymentsApiController : MerchelloApiControllerBase
         else
         {
             // Process refund via provider
-            result = await _paymentService.ProcessRefundAsync(
+            result = await paymentService.ProcessRefundAsync(
                 id,
                 request.Amount,
                 request.Reason,
@@ -255,4 +236,3 @@ public class PaymentsApiController : MerchelloApiControllerBase
         };
     }
 }
-

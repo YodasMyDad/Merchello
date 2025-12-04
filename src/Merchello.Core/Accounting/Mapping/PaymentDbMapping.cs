@@ -34,5 +34,8 @@ public class PaymentDbMapping : IEntityTypeConfiguration<Payment>
             .WithMany(x => x.Refunds)
             .HasForeignKey(x => x.ParentPaymentId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Index for efficient payment status calculations in invoice queries
+        builder.HasIndex(x => new { x.InvoiceId, x.PaymentSuccess });
     }
 }

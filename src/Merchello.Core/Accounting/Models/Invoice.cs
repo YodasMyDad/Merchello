@@ -1,4 +1,5 @@
 ﻿using Merchello.Core.Locality.Models;
+using Merchello.Core.Payments.Models;
 using Merchello.Core.Shared.Extensions;
 
 namespace Merchello.Core.Accounting.Models;
@@ -89,4 +90,14 @@ public class Invoice
     /// Date invoice was last updated
     /// </summary>
     public DateTime DateUpdated { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Whether the invoice has been soft-deleted
+    /// </summary>
+    public bool IsDeleted { get; set; }
+
+    /// <summary>
+    /// Date the invoice was soft-deleted (null if not deleted)
+    /// </summary>
+    public DateTime? DateDeleted { get; set; }
 }

@@ -12,17 +12,10 @@ namespace Merchello.Controllers;
 /// </summary>
 [ApiVersion("1.0")]
 [ApiExplorerSettings(GroupName = "Merchello")]
-public class SettingsApiController : MerchelloApiControllerBase
+public class SettingsApiController(
+    IOptions<MerchelloSettings> settings,
+    ILocalityCatalog localityCatalog) : MerchelloApiControllerBase
 {
-    private readonly MerchelloSettings _settings;
-    private readonly ILocalityCatalog _localityCatalog;
-
-    public SettingsApiController(IOptions<MerchelloSettings> settings, ILocalityCatalog localityCatalog)
-    {
-        _settings = settings.Value;
-        _localityCatalog = localityCatalog;
-    }
-
     /// <summary>
     /// Get store settings for the admin UI
     /// </summary>
@@ -32,9 +25,9 @@ public class SettingsApiController : MerchelloApiControllerBase
     {
         return Ok(new StoreSettingsDto
         {
-            CurrencyCode = _settings.StoreCurrencyCode,
-            CurrencySymbol = _settings.CurrencySymbol,
-            InvoiceNumberPrefix = _settings.InvoiceNumberPrefix
+            CurrencyCode = settings.Value.StoreCurrencyCode,
+            CurrencySymbol = settings.Value.CurrencySymbol,
+            InvoiceNumberPrefix = settings.Value.InvoiceNumberPrefix
         });
     }
 
@@ -45,7 +38,7 @@ public class SettingsApiController : MerchelloApiControllerBase
     [ProducesResponseType<List<CountryDto>>(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetCountries(CancellationToken ct)
     {
-        var countries = await _localityCatalog.GetCountriesAsync(ct);
+        var countries = await localityCatalog.GetCountriesAsync(ct);
         var result = countries.Select(c => new CountryDto
         {
             Code = c.Code,

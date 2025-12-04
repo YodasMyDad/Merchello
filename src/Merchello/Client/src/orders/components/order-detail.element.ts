@@ -42,10 +42,12 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     super();
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
       this.#workspaceContext = context as MerchelloOrderDetailWorkspaceContext;
-      this.observe(this.#workspaceContext.order, (order) => {
-        this._order = order ?? null;
-        this._isLoading = !order;
-      });
+      if (this.#workspaceContext) {
+        this.observe(this.#workspaceContext.order, (order) => {
+          this._order = order ?? null;
+          this._isLoading = !order;
+        });
+      }
     });
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
       this.#modalManager = context;

@@ -13,21 +13,11 @@ namespace Merchello.Core.Payments.Services;
 /// <summary>
 /// Service for handling payment operations.
 /// </summary>
-public class PaymentService : IPaymentService
+public class PaymentService(
+    IPaymentProviderManager providerManager,
+    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    ILogger<PaymentService> logger) : IPaymentService
 {
-    private readonly IPaymentProviderManager _providerManager;
-    private readonly IEFCoreScopeProvider<MerchelloDbContext> _efCoreScopeProvider;
-    private readonly ILogger<PaymentService> _logger;
-
-    public PaymentService(
-        IPaymentProviderManager providerManager,
-        IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
-        ILogger<PaymentService> logger)
-    {
-        _providerManager = providerManager;
-        _efCoreScopeProvider = efCoreScopeProvider;
-        _logger = logger;
-    }
 
     /// <inheritdoc />
     public async Task<PaymentSessionResult> CreatePaymentSessionAsync(
@@ -38,7 +28,7 @@ public class PaymentService : IPaymentService
         CancellationToken cancellationToken = default)
     {
         // Get the provider
-        var registeredProvider = await _providerManager.GetProviderAsync(providerAlias, requireEnabled: true, cancellationToken);
+        var registeredProvider = await providerManager.GetProviderAsync(providerAlias, requireEnabled: true, cancellationToken);
         if (registeredProvider == null)
         {
             return PaymentSessionResult.Failed(
@@ -46,7 +36,7 @@ public class PaymentService : IPaymentService
         }
 
         // Load the invoice to get amount and details
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var invoice = await scope.ExecuteWithContextAsync(async db =>
             await db.Invoices
                 .AsNoTracking()
@@ -67,7 +57,7 @@ public class PaymentService : IPaymentService
             ReturnUrl = returnUrl,
             CancelUrl = cancelUrl,
             Description = $"Payment for Invoice {invoice.InvoiceNumber}",
-            Metadata = new Dictionary<string, string>
+            Metadata = new()
             {
                 ["invoiceId"] = invoiceId.ToString(),
                 ["invoiceNumber"] = invoice.InvoiceNumber
@@ -78,7 +68,7 @@ public class PaymentService : IPaymentService
         {
             var result = await registeredProvider.Provider.CreatePaymentSessionAsync(request, cancellationToken);
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Payment session created for invoice {InvoiceId} via {Provider}. Success: {Success}, SessionId: {SessionId}",
                 invoiceId, providerAlias, result.Success, result.SessionId);
 
@@ -86,7 +76,7 @@ public class PaymentService : IPaymentService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create payment session for invoice {InvoiceId} via {Provider}", invoiceId, providerAlias);
+            logger.LogError(ex, "Failed to create payment session for invoice {InvoiceId} via {Provider}", invoiceId, providerAlias);
             return PaymentSessionResult.Failed($"Payment session creation failed: {ex.Message}");
         }
     }
@@ -99,7 +89,7 @@ public class PaymentService : IPaymentService
         var result = new CrudResult<Payment>();
 
         // Get the provider
-        var registeredProvider = await _providerManager.GetProviderAsync(request.ProviderAlias, requireEnabled: true, cancellationToken);
+        var registeredProvider = await providerManager.GetProviderAsync(request.ProviderAlias, requireEnabled: true, cancellationToken);
         if (registeredProvider == null)
         {
             result.Messages.Add(new ResultMessage
@@ -140,7 +130,7 @@ public class PaymentService : IPaymentService
             // For pending status, we'll wait for webhook confirmation
             if (paymentResult.Status == PaymentResultStatus.Pending)
             {
-                _logger.LogInformation(
+                logger.LogInformation(
                     "Payment pending for invoice {InvoiceId} via {Provider}. Awaiting webhook confirmation. TransactionId: {TransactionId}",
                     request.InvoiceId, request.ProviderAlias, paymentResult.TransactionId);
 
@@ -161,7 +151,7 @@ public class PaymentService : IPaymentService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to process payment for invoice {InvoiceId} via {Provider}", request.InvoiceId, request.ProviderAlias);
+            logger.LogError(ex, "Failed to process payment for invoice {InvoiceId} via {Provider}", request.InvoiceId, request.ProviderAlias);
             result.Messages.Add(new ResultMessage
             {
                 Message = $"Payment processing failed: {ex.Message}",
@@ -183,7 +173,7 @@ public class PaymentService : IPaymentService
     {
         var result = new CrudResult<Payment>();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             // Check if invoice exists
@@ -203,7 +193,7 @@ public class PaymentService : IPaymentService
                 .AnyAsync(p => p.TransactionId == transactionId, cancellationToken);
             if (duplicateTransaction)
             {
-                _logger.LogWarning(
+                logger.LogWarning(
                     "Duplicate payment transaction {TransactionId} for invoice {InvoiceId}. Ignoring.",
                     transactionId, invoiceId);
 
@@ -236,7 +226,7 @@ public class PaymentService : IPaymentService
             await db.SaveChangesAsync(cancellationToken);
 
             result.ResultObject = payment;
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Payment recorded: {PaymentId} for invoice {InvoiceId}, amount {Amount}, transaction {TransactionId}",
                 payment.Id, invoiceId, amount, transactionId);
         });
@@ -255,7 +245,7 @@ public class PaymentService : IPaymentService
         var result = new CrudResult<Payment>();
 
         // Load the original payment
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var originalPayment = await scope.ExecuteWithContextAsync(async db =>
             await db.Payments
                 .Include(p => p.Refunds)
@@ -322,7 +312,7 @@ public class PaymentService : IPaymentService
             return result;
         }
 
-        var registeredProvider = await _providerManager.GetProviderAsync(
+        var registeredProvider = await providerManager.GetProviderAsync(
             originalPayment.PaymentProviderAlias,
             requireEnabled: false, // Allow refunds even if provider is disabled
             cancellationToken);
@@ -376,7 +366,7 @@ public class PaymentService : IPaymentService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to process refund for payment {PaymentId}", paymentId);
+            logger.LogError(ex, "Failed to process refund for payment {PaymentId}", paymentId);
             result.Messages.Add(new ResultMessage
             {
                 Message = $"Refund processing failed: {ex.Message}",
@@ -419,7 +409,7 @@ public class PaymentService : IPaymentService
             await db.SaveChangesAsync(cancellationToken);
 
             result.ResultObject = refundPayment;
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Refund recorded: {RefundId} for payment {PaymentId}, amount {Amount}, reason: {Reason}",
                 refundPayment.Id, paymentId, refundAmount, reason);
         });
@@ -433,7 +423,7 @@ public class PaymentService : IPaymentService
         Guid invoiceId,
         CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var payments = await scope.ExecuteWithContextAsync(async db =>
             await db.Payments
                 .AsNoTracking()
@@ -450,7 +440,7 @@ public class PaymentService : IPaymentService
         Guid paymentId,
         CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var payment = await scope.ExecuteWithContextAsync(async db =>
             await db.Payments
                 .AsNoTracking()
@@ -470,7 +460,7 @@ public class PaymentService : IPaymentService
             return null;
         }
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var payment = await scope.ExecuteWithContextAsync(async db =>
             await db.Payments
                 .AsNoTracking()
@@ -485,7 +475,7 @@ public class PaymentService : IPaymentService
         Guid invoiceId,
         CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var statusInfo = await scope.ExecuteWithContextAsync(async db =>
         {
             var invoice = await db.Invoices
@@ -494,7 +484,7 @@ public class PaymentService : IPaymentService
 
             if (invoice == null)
             {
-                return (InvoiceTotal: 0m, Payments: new List<Payment>());
+                return (InvoiceTotal: 0m, Payments: (List<Payment>)[]);
             }
 
             var payments = await db.Payments
@@ -587,7 +577,7 @@ public class PaymentService : IPaymentService
             return result;
         }
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             // Verify invoice exists
@@ -619,7 +609,7 @@ public class PaymentService : IPaymentService
             await db.SaveChangesAsync(cancellationToken);
 
             result.ResultObject = payment;
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Manual payment recorded: {PaymentId} for invoice {InvoiceId}, amount {Amount}, method: {Method}",
                 payment.Id, invoiceId, amount, paymentMethod);
         });
@@ -647,7 +637,7 @@ public class PaymentService : IPaymentService
             return result;
         }
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             // Load original payment
@@ -709,7 +699,7 @@ public class PaymentService : IPaymentService
             await db.SaveChangesAsync(cancellationToken);
 
             result.ResultObject = refundPayment;
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Manual refund recorded: {RefundId} for payment {PaymentId}, amount {Amount}, reason: {Reason}",
                 refundPayment.Id, paymentId, amount, reason);
         });

@@ -227,6 +227,10 @@ export const MerchelloApi = {
   getOrderStats: () => apiGet<OrderStatsDto>('orders/stats'),
   getDashboardStats: () => apiGet<DashboardStatsDto>('orders/dashboard-stats'),
 
+  /** Soft-delete multiple orders/invoices */
+  deleteOrders: (ids: string[]) =>
+    apiPost<{ deletedCount: number }>('orders/delete', { ids }),
+
   // Fulfillment API
   /** Get fulfillment summary for an invoice (used in fulfillment dialog) */
   getFulfillmentSummary: (invoiceId: string) =>

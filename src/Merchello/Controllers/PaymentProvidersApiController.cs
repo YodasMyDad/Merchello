@@ -14,14 +14,9 @@ namespace Merchello.Controllers;
 /// </summary>
 [ApiVersion("1.0")]
 [ApiExplorerSettings(GroupName = "Merchello")]
-public class PaymentProvidersApiController : MerchelloApiControllerBase
+public class PaymentProvidersApiController(
+    IPaymentProviderManager providerManager) : MerchelloApiControllerBase
 {
-    private readonly IPaymentProviderManager _providerManager;
-
-    public PaymentProvidersApiController(IPaymentProviderManager providerManager)
-    {
-        _providerManager = providerManager;
-    }
 
     /// <summary>
     /// Get all available payment providers discovered from assemblies
@@ -30,7 +25,7 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
     [ProducesResponseType<List<PaymentProviderDto>>(StatusCodes.Status200OK)]
     public async Task<List<PaymentProviderDto>> GetAvailableProviders(CancellationToken cancellationToken = default)
     {
-        var providers = await _providerManager.GetAvailableProvidersAsync(cancellationToken);
+        var providers = await providerManager.GetAvailableProvidersAsync(cancellationToken);
         return providers.Select(MapToProviderDto).ToList();
     }
 
@@ -41,10 +36,10 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
     [ProducesResponseType<List<PaymentProviderSettingDto>>(StatusCodes.Status200OK)]
     public async Task<List<PaymentProviderSettingDto>> GetProviderSettings(CancellationToken cancellationToken = default)
     {
-        var settings = await _providerManager.GetProviderSettingsAsync(cancellationToken);
-        var providers = await _providerManager.GetAvailableProvidersAsync(cancellationToken);
+        var settings = await providerManager.GetProviderSettingsAsync(cancellationToken);
+        var providers = await providerManager.GetAvailableProvidersAsync(cancellationToken);
 
-        var result = new List<PaymentProviderSettingDto>();
+        List<PaymentProviderSettingDto> result = [];
         foreach (var setting in settings.OrderBy(s => s.SortOrder))
         {
             var provider = providers.FirstOrDefault(p => p.Metadata.Alias == setting.ProviderAlias);
@@ -62,13 +57,13 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProviderSetting(Guid id, CancellationToken cancellationToken = default)
     {
-        var setting = await _providerManager.GetProviderSettingAsync(id, cancellationToken);
+        var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);
         if (setting == null)
         {
             return NotFound();
         }
 
-        var provider = await _providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
+        var provider = await providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
         return Ok(MapToSettingDto(setting, provider));
     }
 
@@ -80,7 +75,7 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProviderFields(string alias, CancellationToken cancellationToken = default)
     {
-        var provider = await _providerManager.GetProviderAsync(alias, requireEnabled: false, cancellationToken);
+        var provider = await providerManager.GetProviderAsync(alias, requireEnabled: false, cancellationToken);
         if (provider == null)
         {
             return NotFound($"Provider '{alias}' not found.");
@@ -104,14 +99,14 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
         CancellationToken cancellationToken = default)
     {
         // Verify provider exists
-        var provider = await _providerManager.GetProviderAsync(request.ProviderAlias, requireEnabled: false, cancellationToken);
+        var provider = await providerManager.GetProviderAsync(request.ProviderAlias, requireEnabled: false, cancellationToken);
         if (provider == null)
         {
             return NotFound($"Provider '{request.ProviderAlias}' not found.");
         }
 
         // Check if already configured
-        var existingSettings = await _providerManager.GetProviderSettingsAsync(cancellationToken);
+        var existingSettings = await providerManager.GetProviderSettingsAsync(cancellationToken);
         if (existingSettings.Any(s => s.ProviderAlias == request.ProviderAlias))
         {
             return BadRequest($"Provider '{request.ProviderAlias}' is already configured.");
@@ -130,7 +125,7 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
             SortOrder = maxSortOrder + 1
         };
 
-        var result = await _providerManager.SaveProviderSettingAsync(setting, cancellationToken);
+        var result = await providerManager.SaveProviderSettingAsync(setting, cancellationToken);
         if (!result.Successful)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to create provider setting.");
@@ -151,7 +146,7 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
         [FromBody] UpdatePaymentProviderSettingDto request,
         CancellationToken cancellationToken = default)
     {
-        var setting = await _providerManager.GetProviderSettingAsync(id, cancellationToken);
+        var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);
         if (setting == null)
         {
             return NotFound();
@@ -179,13 +174,13 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
 
         setting.DateUpdated = DateTime.UtcNow;
 
-        var result = await _providerManager.SaveProviderSettingAsync(setting, cancellationToken);
+        var result = await providerManager.SaveProviderSettingAsync(setting, cancellationToken);
         if (!result.Successful)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to update provider setting.");
         }
 
-        var provider = await _providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
+        var provider = await providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
         return Ok(MapToSettingDto(result.ResultObject!, provider));
     }
 
@@ -197,7 +192,7 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteProviderSetting(Guid id, CancellationToken cancellationToken = default)
     {
-        var result = await _providerManager.DeleteProviderSettingAsync(id, cancellationToken);
+        var result = await providerManager.DeleteProviderSettingAsync(id, cancellationToken);
         if (!result.Successful)
         {
             return NotFound();
@@ -217,14 +212,14 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
         [FromBody] TogglePaymentProviderDto request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _providerManager.SetProviderEnabledAsync(id, request.IsEnabled, cancellationToken);
+        var result = await providerManager.SetProviderEnabledAsync(id, request.IsEnabled, cancellationToken);
         if (!result.Successful)
         {
             return NotFound();
         }
 
-        var setting = await _providerManager.GetProviderSettingAsync(id, cancellationToken);
-        var provider = await _providerManager.GetProviderAsync(setting!.ProviderAlias, requireEnabled: false, cancellationToken);
+        var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);
+        var provider = await providerManager.GetProviderAsync(setting!.ProviderAlias, requireEnabled: false, cancellationToken);
         return Ok(MapToSettingDto(setting, provider));
     }
 
@@ -243,7 +238,7 @@ public class PaymentProvidersApiController : MerchelloApiControllerBase
             return BadRequest("OrderedIds is required.");
         }
 
-        var result = await _providerManager.UpdateProviderSortOrderAsync(request.OrderedIds, cancellationToken);
+        var result = await providerManager.UpdateProviderSortOrderAsync(request.OrderedIds, cancellationToken);
         if (!result.Successful)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to reorder providers.");

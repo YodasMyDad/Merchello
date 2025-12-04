@@ -81,7 +81,7 @@ public static class Startup
         // Services
         builder.Services.AddScoped<ILineItemService, LineItemService>();
         builder.Services.AddScoped<ICheckoutService, CheckoutService>();
-        builder.Services.AddScoped<IOrderService, OrderService>();
+        builder.Services.AddScoped<IInvoiceService, InvoiceService>();
         builder.Services.AddScoped<IInventoryService, InventoryService>();
         builder.Services.AddScoped<IOrderStatusHandler, DefaultOrderStatusHandler>();
         builder.Services.AddScoped<IShippingQuoteService, ShippingQuoteService>();

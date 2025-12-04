@@ -5,6 +5,8 @@ import type { OrderListItemDto, OrderStatsDto, OrderListParams } from "../types/
 import { InvoicePaymentStatus } from "../types/order.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatCurrency, formatRelativeDate } from "@shared/utils/formatting.js";
+import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
+import "@shared/components/pagination.element.js";
 
 @customElement("merchello-orders-list")
 export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
@@ -18,11 +20,22 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
   @state() private _activeTab: string = "all";
   @state() private _selectedOrders: Set<string> = new Set();
   @state() private _stats: OrderStatsDto | null = null;
+  @state() private _searchTerm: string = "";
+  @state() private _isDeleting: boolean = false;
+
+  private _searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   connectedCallback(): void {
     super.connectedCallback();
     this._loadOrders();
     this._loadStats();
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this._searchDebounceTimer) {
+      clearTimeout(this._searchDebounceTimer);
+    }
   }
 
   private async _loadOrders(): Promise<void> {
@@ -35,6 +48,11 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       sortBy: "date",
       sortDir: "desc",
     };
+
+    // Apply search filter
+    if (this._searchTerm.trim()) {
+      params.search = this._searchTerm.trim();
+    }
 
     // Apply tab filters
     if (this._activeTab === "unfulfilled") {
@@ -73,6 +91,42 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     this._loadOrders();
   }
 
+  private _handleSearchInput(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    const value = input.value;
+
+    // Debounce search to avoid excessive API calls
+    if (this._searchDebounceTimer) {
+      clearTimeout(this._searchDebounceTimer);
+    }
+
+    this._searchDebounceTimer = setTimeout(() => {
+      this._searchTerm = value;
+      this._page = 1;
+      this._loadOrders();
+    }, 300);
+  }
+
+  private _handleSearchClear(): void {
+    this._searchTerm = "";
+    this._page = 1;
+    this._loadOrders();
+  }
+
+  private _handlePageChange(e: CustomEvent<PageChangeEventDetail>): void {
+    this._page = e.detail.page;
+    this._loadOrders();
+  }
+
+  private _getPaginationState(): PaginationState {
+    return {
+      page: this._page,
+      pageSize: this._pageSize,
+      totalItems: this._totalItems,
+      totalPages: this._totalPages,
+    };
+  }
+
   private _handleSelectAll(e: Event): void {
     const checkbox = e.target as HTMLInputElement;
     if (checkbox.checked) {
@@ -93,6 +147,33 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     this.requestUpdate();
   }
 
+  private async _handleDeleteSelected(): Promise<void> {
+    const count = this._selectedOrders.size;
+    if (count === 0) return;
+
+    const confirmed = confirm(
+      `Are you sure you want to delete ${count} order${count !== 1 ? "s" : ""}? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    this._isDeleting = true;
+
+    const ids = Array.from(this._selectedOrders);
+    const { error } = await MerchelloApi.deleteOrders(ids);
+
+    this._isDeleting = false;
+
+    if (error) {
+      this._errorMessage = `Failed to delete orders: ${error.message}`;
+      return;
+    }
+
+    // Clear selection and reload
+    this._selectedOrders = new Set();
+    this._loadOrders();
+    this._loadStats();
+  }
 
   private _getPaymentStatusBadgeClass(status: InvoicePaymentStatus): string {
     switch (status) {
@@ -193,31 +274,11 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       </div>
 
       <!-- Pagination -->
-      <div class="pagination">
-        <span>
-          ${(this._page - 1) * this._pageSize + 1}-${Math.min(this._page * this._pageSize, this._totalItems)} of ${this._totalItems}
-        </span>
-        <div class="pagination-controls">
-          <button
-            ?disabled=${this._page === 1}
-            @click=${() => {
-              this._page--;
-              this._loadOrders();
-            }}
-          >
-            &lt;
-          </button>
-          <button
-            ?disabled=${this._page >= this._totalPages}
-            @click=${() => {
-              this._page++;
-              this._loadOrders();
-            }}
-          >
-            &gt;
-          </button>
-        </div>
-      </div>
+      <merchello-pagination
+        .state=${this._getPaginationState()}
+        .disabled=${this._isLoading}
+        @page-change=${this._handlePageChange}
+      ></merchello-pagination>
     `;
   }
 
@@ -241,8 +302,20 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
         <div class="orders-header">
           <h1>Orders</h1>
           <div class="header-actions">
+            ${this._selectedOrders.size > 0
+              ? html`
+                  <uui-button
+                    look="primary"
+                    color="danger"
+                    label="Delete"
+                    ?disabled=${this._isDeleting}
+                    @click=${this._handleDeleteSelected}
+                  >
+                    ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedOrders.size})`}
+                  </uui-button>
+                `
+              : ""}
             <uui-button look="secondary" label="Export">Export</uui-button>
-            <uui-button look="secondary" label="More actions">More actions</uui-button>
             <uui-button look="primary" color="positive" label="Create order">Create order</uui-button>
           </div>
         </div>
@@ -268,26 +341,53 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
           </div>
         </div>
 
-        <!-- Tabs -->
-        <div class="tabs">
-          <button
-            class="tab ${this._activeTab === "all" ? "active" : ""}"
-            @click=${() => this._handleTabClick("all")}
-          >
-            All
-          </button>
-          <button
-            class="tab ${this._activeTab === "unfulfilled" ? "active" : ""}"
-            @click=${() => this._handleTabClick("unfulfilled")}
-          >
-            Unfulfilled
-          </button>
-          <button
-            class="tab ${this._activeTab === "unpaid" ? "active" : ""}"
-            @click=${() => this._handleTabClick("unpaid")}
-          >
-            Unpaid
-          </button>
+        <!-- Search and Tabs Row -->
+        <div class="search-tabs-row">
+          <!-- Search Box -->
+          <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              type="text"
+              placeholder="Search orders by invoice #, name, postcode, or email..."
+              .value=${this._searchTerm}
+              @input=${this._handleSearchInput}
+            />
+            ${this._searchTerm
+              ? html`
+                  <button class="search-clear" @click=${this._handleSearchClear} aria-label="Clear search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                `
+              : ""}
+          </div>
+
+          <!-- Tabs -->
+          <div class="tabs">
+            <button
+              class="tab ${this._activeTab === "all" ? "active" : ""}"
+              @click=${() => this._handleTabClick("all")}
+            >
+              All
+            </button>
+            <button
+              class="tab ${this._activeTab === "unfulfilled" ? "active" : ""}"
+              @click=${() => this._handleTabClick("unfulfilled")}
+            >
+              Unfulfilled
+            </button>
+            <button
+              class="tab ${this._activeTab === "unpaid" ? "active" : ""}"
+              @click=${() => this._handleTabClick("unpaid")}
+            >
+              Unpaid
+            </button>
+          </div>
         </div>
 
         <!-- Orders Table -->
@@ -357,11 +457,93 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       color: var(--uui-color-text-alt);
     }
 
+    .search-tabs-row {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-3);
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    @media (min-width: 768px) {
+      .search-tabs-row {
+        flex-direction: row;
+        align-items: flex-end;
+        justify-content: space-between;
+      }
+    }
+
+    .search-box {
+      position: relative;
+      flex: 1;
+      max-width: 400px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: var(--uui-size-space-2) var(--uui-size-space-3);
+      padding-left: 36px;
+      padding-right: 36px;
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      font-size: 0.875rem;
+      background: var(--uui-color-surface);
+      color: var(--uui-color-text);
+    }
+
+    .search-box input:focus {
+      outline: none;
+      border-color: var(--uui-color-interactive);
+      box-shadow: 0 0 0 1px var(--uui-color-interactive);
+    }
+
+    .search-box input::placeholder {
+      color: var(--uui-color-text-alt);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 18px;
+      color: var(--uui-color-text-alt);
+      pointer-events: none;
+    }
+
+    .search-clear {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: none;
+      background: transparent;
+      color: var(--uui-color-text-alt);
+      cursor: pointer;
+      border-radius: 50%;
+      transition: all 120ms ease;
+    }
+
+    .search-clear:hover {
+      background: var(--uui-color-surface-emphasis);
+      color: var(--uui-color-text);
+    }
+
+    .search-clear svg {
+      width: 14px;
+      height: 14px;
+    }
+
     .tabs {
       display: flex;
       gap: var(--uui-size-space-1);
       border-bottom: 1px solid var(--uui-color-border);
-      margin-bottom: var(--uui-size-space-4);
     }
 
     .tab {
@@ -495,31 +677,9 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       color: var(--uui-color-text);
     }
 
-    .pagination {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    merchello-pagination {
       padding: var(--uui-size-space-3);
       border-top: 1px solid var(--uui-color-border);
-      font-size: 0.875rem;
-    }
-
-    .pagination-controls {
-      display: flex;
-      gap: var(--uui-size-space-2);
-    }
-
-    .pagination-controls button {
-      padding: var(--uui-size-space-2) var(--uui-size-space-3);
-      border: 1px solid var(--uui-color-border);
-      background: var(--uui-color-surface);
-      border-radius: var(--uui-border-radius);
-      cursor: pointer;
-    }
-
-    .pagination-controls button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
     }
   `;
 }

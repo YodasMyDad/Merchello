@@ -48,6 +48,9 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DateDeleted")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("DateUpdated")
                         .HasColumnType("datetime2");
 
@@ -59,6 +62,11 @@ namespace Merchello.Core.SqlServer.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Notes")
                         .IsRequired()
@@ -78,6 +86,8 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IsDeleted");
 
                     b.ToTable("merchelloInvoices", (string)null);
                 });
@@ -268,9 +278,9 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("InvoiceId");
-
                     b.HasIndex("ParentPaymentId");
+
+                    b.HasIndex("InvoiceId", "PaymentSuccess");
 
                     b.ToTable("merchelloPayments", (string)null);
                 });

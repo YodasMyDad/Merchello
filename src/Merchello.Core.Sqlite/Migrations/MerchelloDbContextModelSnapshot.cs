@@ -43,6 +43,9 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("DateDeleted")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("DateUpdated")
                         .HasColumnType("TEXT");
 
@@ -54,6 +57,11 @@ namespace Merchello.Core.Sqlite.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Notes")
                         .IsRequired()
@@ -73,6 +81,8 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IsDeleted");
 
                     b.ToTable("merchelloInvoices", (string)null);
                 });
@@ -263,9 +273,9 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("InvoiceId");
-
                     b.HasIndex("ParentPaymentId");
+
+                    b.HasIndex("InvoiceId", "PaymentSuccess");
 
                     b.ToTable("merchelloPayments", (string)null);
                 });

@@ -240,7 +240,7 @@ public class InventoryService(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
-            var validationErrors = new List<string>();
+            List<string> validationErrors = [];
 
             foreach (var lineItem in order.LineItems.Where(li => li.ProductId.HasValue))
             {
