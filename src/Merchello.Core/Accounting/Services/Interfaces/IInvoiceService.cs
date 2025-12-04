@@ -50,6 +50,18 @@ public interface IInvoiceService
     Task<DashboardStatsDto> GetDashboardStatsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Get orders for export within a date range
+    /// </summary>
+    /// <param name="fromDate">Start date (inclusive)</param>
+    /// <param name="toDate">End date (inclusive)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of order export items for CSV generation</returns>
+    Task<List<OrderExportItemDto>> GetOrdersForExportAsync(
+        DateTime fromDate,
+        DateTime toDate,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Add a note to an invoice
     /// </summary>
     Task<CrudResult<InvoiceNote>> AddNoteAsync(Guid invoiceId, string text, bool visibleToCustomer, CancellationToken cancellationToken = default);

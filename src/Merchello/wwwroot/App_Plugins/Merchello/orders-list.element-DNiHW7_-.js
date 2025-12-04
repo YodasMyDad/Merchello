@@ -1,230 +1,275 @@
-import { LitElement, html, css } from "@umbraco-cms/backoffice/external/lit";
-import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
-import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
-import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
-import type { OrderListItemDto, OrderStatsDto, OrderListParams } from "@orders/types/order.types.js";
-import { InvoicePaymentStatus } from "@orders/types/order.types.js";
-import { MerchelloApi } from "@api/merchello-api.js";
-import { formatCurrency, formatRelativeDate } from "@shared/utils/formatting.js";
-import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
-import "@shared/components/pagination.element.js";
-import { MERCHELLO_EXPORT_MODAL } from "@orders/modals/export-modal.token.js";
-
-@customElement("merchello-orders-list")
-export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
-  @state() private _orders: OrderListItemDto[] = [];
-  @state() private _isLoading = true;
-  @state() private _errorMessage: string | null = null;
-  @state() private _page: number = 1;
-  @state() private _pageSize: number = 50;
-  @state() private _totalItems: number = 0;
-  @state() private _totalPages: number = 0;
-  @state() private _activeTab: string = "all";
-  @state() private _selectedOrders: Set<string> = new Set();
-  @state() private _stats: OrderStatsDto | null = null;
-  @state() private _searchTerm: string = "";
-  @state() private _isDeleting: boolean = false;
-
-  private _searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-  #modalManager?: UmbModalManagerContext;
-
+import { LitElement as f, nothing as z, html as n, css as x, property as y, customElement as w, state as l } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as $ } from "@umbraco-cms/backoffice/element-api";
+import { UmbModalToken as S, UMB_MODAL_MANAGER_CONTEXT as T } from "@umbraco-cms/backoffice/modal";
+import { I as u } from "./order.types-FU1fblt8.js";
+import { M as g } from "./merchello-api-TrKABjdM.js";
+import { c as P, a as C } from "./formatting-Cv63Ksgk.js";
+function D(e) {
+  if (e.totalItems === 0)
+    return "0 items";
+  const t = (e.page - 1) * e.pageSize + 1, a = Math.min(e.page * e.pageSize, e.totalItems);
+  return `${t}-${a} of ${e.totalItems}`;
+}
+function v(e) {
+  return e.page > 1;
+}
+function m(e) {
+  return e.page < e.totalPages;
+}
+var M = Object.defineProperty, E = Object.getOwnPropertyDescriptor, b = (e, t, a, i) => {
+  for (var s = i > 1 ? void 0 : i ? E(t, a) : t, d = e.length - 1, c; d >= 0; d--)
+    (c = e[d]) && (s = (i ? c(t, a, s) : c(s)) || s);
+  return i && s && M(t, a, s), s;
+};
+let p = class extends $(f) {
   constructor() {
-    super();
-    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
-      this.#modalManager = context;
+    super(...arguments), this.state = {
+      page: 1,
+      pageSize: 50,
+      totalItems: 0,
+      totalPages: 0
+    }, this.disabled = !1;
+  }
+  _handlePrevious() {
+    v(this.state) && !this.disabled && this._dispatchPageChange(this.state.page - 1);
+  }
+  _handleNext() {
+    m(this.state) && !this.disabled && this._dispatchPageChange(this.state.page + 1);
+  }
+  _dispatchPageChange(e) {
+    const t = { page: e };
+    this.dispatchEvent(
+      new CustomEvent("page-change", {
+        detail: t,
+        bubbles: !0,
+        composed: !0
+      })
+    );
+  }
+  render() {
+    if (this.state.totalItems === 0)
+      return z;
+    const e = v(this.state), t = m(this.state);
+    return n`
+      <div class="pagination">
+        <span class="pagination-info">${D(this.state)}</span>
+        <div class="pagination-controls">
+          <button
+            class="pagination-button"
+            ?disabled=${!e || this.disabled}
+            @click=${this._handlePrevious}
+            aria-label="Previous page"
+            title="Previous page"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15,18 9,12 15,6" />
+            </svg>
+          </button>
+          <span class="pagination-page">${this.state.page} / ${this.state.totalPages}</span>
+          <button
+            class="pagination-button"
+            ?disabled=${!t || this.disabled}
+            @click=${this._handleNext}
+            aria-label="Next page"
+            title="Next page"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9,6 15,12 9,18" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+};
+p.styles = x`
+    :host {
+      display: block;
+    }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--uui-size-space-4);
+      padding: var(--uui-size-space-3) 0;
+    }
+
+    .pagination-info {
+      color: var(--uui-color-text-alt);
+      font-size: var(--uui-type-small-size);
+    }
+
+    .pagination-controls {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+    }
+
+    .pagination-page {
+      font-size: var(--uui-type-small-size);
+      color: var(--uui-color-text);
+      min-width: 60px;
+      text-align: center;
+    }
+
+    .pagination-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      background: var(--uui-color-surface);
+      color: var(--uui-color-text);
+      cursor: pointer;
+      transition: all 120ms ease;
+    }
+
+    .pagination-button:hover:not(:disabled) {
+      background: var(--uui-color-surface-emphasis);
+      border-color: var(--uui-color-border-emphasis);
+    }
+
+    .pagination-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .pagination-button svg {
+      width: 16px;
+      height: 16px;
+    }
+  `;
+b([
+  y({ type: Object })
+], p.prototype, "state", 2);
+b([
+  y({ type: Boolean })
+], p.prototype, "disabled", 2);
+p = b([
+  w("merchello-pagination")
+], p);
+const I = new S("Merchello.Export.Modal", {
+  modal: {
+    type: "sidebar",
+    size: "small"
+  }
+});
+var L = Object.defineProperty, A = Object.getOwnPropertyDescriptor, k = (e) => {
+  throw TypeError(e);
+}, o = (e, t, a, i) => {
+  for (var s = i > 1 ? void 0 : i ? A(t, a) : t, d = e.length - 1, c; d >= 0; d--)
+    (c = e[d]) && (s = (i ? c(t, a, s) : c(s)) || s);
+  return i && s && L(t, a, s), s;
+}, O = (e, t, a) => t.has(e) || k("Cannot " + a), _ = (e, t, a) => (O(e, t, "read from private field"), t.get(e)), B = (e, t, a) => t.has(e) ? k("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, a), N = (e, t, a, i) => (O(e, t, "write to private field"), t.set(e, a), a), h;
+let r = class extends $(f) {
+  constructor() {
+    super(), this._orders = [], this._isLoading = !0, this._errorMessage = null, this._page = 1, this._pageSize = 50, this._totalItems = 0, this._totalPages = 0, this._activeTab = "all", this._selectedOrders = /* @__PURE__ */ new Set(), this._stats = null, this._searchTerm = "", this._isDeleting = !1, this._searchDebounceTimer = null, B(this, h), this.consumeContext(T, (e) => {
+      N(this, h, e);
     });
   }
-
-  connectedCallback(): void {
-    super.connectedCallback();
-    this._loadOrders();
-    this._loadStats();
+  connectedCallback() {
+    super.connectedCallback(), this._loadOrders(), this._loadStats();
   }
-
-  disconnectedCallback(): void {
-    super.disconnectedCallback();
-    if (this._searchDebounceTimer) {
-      clearTimeout(this._searchDebounceTimer);
-    }
+  disconnectedCallback() {
+    super.disconnectedCallback(), this._searchDebounceTimer && clearTimeout(this._searchDebounceTimer);
   }
-
-  private async _loadOrders(): Promise<void> {
-    this._isLoading = true;
-    this._errorMessage = null;
-
-    const params: OrderListParams = {
+  async _loadOrders() {
+    this._isLoading = !0, this._errorMessage = null;
+    const e = {
       page: this._page,
       pageSize: this._pageSize,
       sortBy: "date",
-      sortDir: "desc",
+      sortDir: "desc"
     };
-
-    // Apply search filter
-    if (this._searchTerm.trim()) {
-      params.search = this._searchTerm.trim();
-    }
-
-    // Apply tab filters
-    if (this._activeTab === "unfulfilled") {
-      params.fulfillmentStatus = "unfulfilled";
-    } else if (this._activeTab === "unpaid") {
-      params.paymentStatus = "unpaid";
-    }
-
-    const { data, error } = await MerchelloApi.getOrders(params);
-
-    if (error) {
-      this._errorMessage = error.message;
-      this._isLoading = false;
+    this._searchTerm.trim() && (e.search = this._searchTerm.trim()), this._activeTab === "unfulfilled" ? e.fulfillmentStatus = "unfulfilled" : this._activeTab === "unpaid" && (e.paymentStatus = "unpaid");
+    const { data: t, error: a } = await g.getOrders(e);
+    if (a) {
+      this._errorMessage = a.message, this._isLoading = !1;
       return;
     }
-
-    if (data) {
-      this._orders = data.items;
-      this._totalItems = data.totalItems;
-      this._totalPages = data.totalPages;
-    }
-
-    this._isLoading = false;
+    t && (this._orders = t.items, this._totalItems = t.totalItems, this._totalPages = t.totalPages), this._isLoading = !1;
   }
-
-  private async _loadStats(): Promise<void> {
-    const { data } = await MerchelloApi.getOrderStats();
-    if (data) {
-      this._stats = data;
-    }
+  async _loadStats() {
+    const { data: e } = await g.getOrderStats();
+    e && (this._stats = e);
   }
-
-  private _handleTabClick(tab: string): void {
-    this._activeTab = tab;
-    this._page = 1;
-    this._loadOrders();
+  _handleTabClick(e) {
+    this._activeTab = e, this._page = 1, this._loadOrders();
   }
-
-  private _handleSearchInput(e: Event): void {
-    const input = e.target as HTMLInputElement;
-    const value = input.value;
-
-    // Debounce search to avoid excessive API calls
-    if (this._searchDebounceTimer) {
-      clearTimeout(this._searchDebounceTimer);
-    }
-
-    this._searchDebounceTimer = setTimeout(() => {
-      this._searchTerm = value;
-      this._page = 1;
-      this._loadOrders();
+  _handleSearchInput(e) {
+    const a = e.target.value;
+    this._searchDebounceTimer && clearTimeout(this._searchDebounceTimer), this._searchDebounceTimer = setTimeout(() => {
+      this._searchTerm = a, this._page = 1, this._loadOrders();
     }, 300);
   }
-
-  private _handleSearchClear(): void {
-    this._searchTerm = "";
-    this._page = 1;
-    this._loadOrders();
+  _handleSearchClear() {
+    this._searchTerm = "", this._page = 1, this._loadOrders();
   }
-
-  private _handlePageChange(e: CustomEvent<PageChangeEventDetail>): void {
-    this._page = e.detail.page;
-    this._loadOrders();
+  _handlePageChange(e) {
+    this._page = e.detail.page, this._loadOrders();
   }
-
-  private _getPaginationState(): PaginationState {
+  _getPaginationState() {
     return {
       page: this._page,
       pageSize: this._pageSize,
       totalItems: this._totalItems,
-      totalPages: this._totalPages,
+      totalPages: this._totalPages
     };
   }
-
-  private _handleSelectAll(e: Event): void {
-    const checkbox = e.target as HTMLInputElement;
-    if (checkbox.checked) {
-      this._selectedOrders = new Set(this._orders.map((o) => o.id));
-    } else {
-      this._selectedOrders = new Set();
-    }
-    this.requestUpdate();
+  _handleSelectAll(e) {
+    e.target.checked ? this._selectedOrders = new Set(this._orders.map((a) => a.id)) : this._selectedOrders = /* @__PURE__ */ new Set(), this.requestUpdate();
   }
-
-  private _handleSelectOrder(id: string, e: Event): void {
-    const checkbox = e.target as HTMLInputElement;
-    if (checkbox.checked) {
-      this._selectedOrders.add(id);
-    } else {
-      this._selectedOrders.delete(id);
-    }
-    this.requestUpdate();
+  _handleSelectOrder(e, t) {
+    t.target.checked ? this._selectedOrders.add(e) : this._selectedOrders.delete(e), this.requestUpdate();
   }
-
-  private async _handleDeleteSelected(): Promise<void> {
-    const count = this._selectedOrders.size;
-    if (count === 0) return;
-
-    const confirmed = confirm(
-      `Are you sure you want to delete ${count} order${count !== 1 ? "s" : ""}? This action cannot be undone.`
-    );
-
-    if (!confirmed) return;
-
-    this._isDeleting = true;
-
-    const ids = Array.from(this._selectedOrders);
-    const { error } = await MerchelloApi.deleteOrders(ids);
-
-    this._isDeleting = false;
-
-    if (error) {
-      this._errorMessage = `Failed to delete orders: ${error.message}`;
+  async _handleDeleteSelected() {
+    const e = this._selectedOrders.size;
+    if (e === 0 || !confirm(
+      `Are you sure you want to delete ${e} order${e !== 1 ? "s" : ""}? This action cannot be undone.`
+    )) return;
+    this._isDeleting = !0;
+    const a = Array.from(this._selectedOrders), { error: i } = await g.deleteOrders(a);
+    if (this._isDeleting = !1, i) {
+      this._errorMessage = `Failed to delete orders: ${i.message}`;
       return;
     }
-
-    // Clear selection and reload
-    this._selectedOrders = new Set();
-    this._loadOrders();
-    this._loadStats();
+    this._selectedOrders = /* @__PURE__ */ new Set(), this._loadOrders(), this._loadStats();
   }
-
-  private async _handleExport(): Promise<void> {
-    if (!this.#modalManager) return;
-
-    this.#modalManager.open(this, MERCHELLO_EXPORT_MODAL, {
-      data: {},
+  async _handleExport() {
+    _(this, h) && _(this, h).open(this, I, {
+      data: {}
     });
   }
-
-  private _getPaymentStatusBadgeClass(status: InvoicePaymentStatus): string {
-    switch (status) {
-      case InvoicePaymentStatus.Paid:
+  _getPaymentStatusBadgeClass(e) {
+    switch (e) {
+      case u.Paid:
         return "paid";
-      case InvoicePaymentStatus.PartiallyPaid:
+      case u.PartiallyPaid:
         return "partial";
-      case InvoicePaymentStatus.Refunded:
-      case InvoicePaymentStatus.PartiallyRefunded:
+      case u.Refunded:
+      case u.PartiallyRefunded:
         return "refunded";
-      case InvoicePaymentStatus.AwaitingPayment:
+      case u.AwaitingPayment:
         return "awaiting";
       default:
         return "unpaid";
     }
   }
-
-  private _getOrderHref(id: string): string {
-    // Pattern: section/{sectionPathname}/workspace/{entityType}/{routePath}
-    return `section/merchello/workspace/merchello-order/edit/${id}`;
+  _getOrderHref(e) {
+    return `section/merchello/workspace/merchello-order/edit/${e}`;
   }
-
-  private _renderLoadingState(): unknown {
-    return html`<div class="loading"><uui-loader></uui-loader></div>`;
+  _renderLoadingState() {
+    return n`<div class="loading"><uui-loader></uui-loader></div>`;
   }
-
-  private _renderErrorState(): unknown {
-    return html`<div class="error">${this._errorMessage}</div>`;
+  _renderErrorState() {
+    return n`<div class="error">${this._errorMessage}</div>`;
   }
-
-  private _renderEmptyState(): unknown {
-    return html`
+  _renderEmptyState() {
+    return n`
       <div class="empty-state">
         <uui-icon name="icon-receipt-dollar"></uui-icon>
         <h3>No orders found</h3>
@@ -232,9 +277,8 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       </div>
     `;
   }
-
-  private _renderOrdersTable(): unknown {
-    return html`
+  _renderOrdersTable() {
+    return n`
       <div class="table-container">
         <table class="orders-table">
           <thead>
@@ -259,35 +303,35 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
           </thead>
           <tbody>
             ${this._orders.map(
-              (order) => html`
+      (e) => n`
                 <tr>
                   <td class="checkbox-col">
                     <input
                       type="checkbox"
-                      .checked=${this._selectedOrders.has(order.id)}
-                      @change=${(e: Event) => this._handleSelectOrder(order.id, e)}
+                      .checked=${this._selectedOrders.has(e.id)}
+                      @change=${(t) => this._handleSelectOrder(e.id, t)}
                     />
                   </td>
                   <td class="order-number">
-                    <a href=${this._getOrderHref(order.id)}>${order.invoiceNumber || order.id.substring(0, 8)}</a>
+                    <a href=${this._getOrderHref(e.id)}>${e.invoiceNumber || e.id.substring(0, 8)}</a>
                   </td>
-                  <td>${formatRelativeDate(order.dateCreated)}</td>
-                  <td>${order.customerName}</td>
-                  <td>${order.channel}</td>
-                  <td>${formatCurrency(order.total)}</td>
+                  <td>${P(e.dateCreated)}</td>
+                  <td>${e.customerName}</td>
+                  <td>${e.channel}</td>
+                  <td>${C(e.total)}</td>
                   <td>
-                    <span class="badge ${this._getPaymentStatusBadgeClass(order.paymentStatus)}">${order.paymentStatusDisplay}</span>
+                    <span class="badge ${this._getPaymentStatusBadgeClass(e.paymentStatus)}">${e.paymentStatusDisplay}</span>
                   </td>
                   <td>
-                    <span class="badge ${order.fulfillmentStatus.toLowerCase().replace(" ", "-")}">
-                      ${order.fulfillmentStatus}
+                    <span class="badge ${e.fulfillmentStatus.toLowerCase().replace(" ", "-")}">
+                      ${e.fulfillmentStatus}
                     </span>
                   </td>
-                  <td>${order.itemCount} item${order.itemCount !== 1 ? "s" : ""}</td>
-                  <td>${order.deliveryMethod}</td>
+                  <td>${e.itemCount} item${e.itemCount !== 1 ? "s" : ""}</td>
+                  <td>${e.deliveryMethod}</td>
                 </tr>
               `
-            )}
+    )}
           </tbody>
         </table>
       </div>
@@ -300,29 +344,17 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       ></merchello-pagination>
     `;
   }
-
-  private _renderOrdersContent(): unknown {
-    if (this._isLoading) {
-      return this._renderLoadingState();
-    }
-    if (this._errorMessage) {
-      return this._renderErrorState();
-    }
-    if (this._orders.length === 0) {
-      return this._renderEmptyState();
-    }
-    return this._renderOrdersTable();
+  _renderOrdersContent() {
+    return this._isLoading ? this._renderLoadingState() : this._errorMessage ? this._renderErrorState() : this._orders.length === 0 ? this._renderEmptyState() : this._renderOrdersTable();
   }
-
   render() {
-    return html`
+    return n`
       <div class="orders-container">
         <!-- Header -->
         <div class="orders-header">
           <h1>Orders</h1>
           <div class="header-actions">
-            ${this._selectedOrders.size > 0
-              ? html`
+            ${this._selectedOrders.size > 0 ? n`
                   <uui-button
                     look="primary"
                     color="danger"
@@ -332,8 +364,7 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
                   >
                     ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedOrders.size})`}
                   </uui-button>
-                `
-              : ""}
+                ` : ""}
             <uui-button look="secondary" label="Export" @click=${this._handleExport}>Export</uui-button>
             <uui-button look="primary" color="positive" label="Create order">Create order</uui-button>
           </div>
@@ -374,16 +405,14 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
               .value=${this._searchTerm}
               @input=${this._handleSearchInput}
             />
-            ${this._searchTerm
-              ? html`
+            ${this._searchTerm ? n`
                   <button class="search-clear" @click=${this._handleSearchClear} aria-label="Clear search">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <line x1="18" y1="6" x2="6" y2="18"></line>
                       <line x1="6" y1="6" x2="18" y2="18"></line>
                     </svg>
                   </button>
-                `
-              : ""}
+                ` : ""}
           </div>
 
           <!-- Tabs -->
@@ -414,8 +443,9 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       </div>
     `;
   }
-
-  static styles = css`
+};
+h = /* @__PURE__ */ new WeakMap();
+r.styles = x`
     :host {
       display: block;
       padding: var(--uui-size-layout-1);
@@ -701,12 +731,48 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       border-top: 1px solid var(--uui-color-border);
     }
   `;
-}
-
-export default MerchelloOrdersListElement;
-
-declare global {
-  interface HTMLElementTagNameMap {
-    "merchello-orders-list": MerchelloOrdersListElement;
-  }
-}
+o([
+  l()
+], r.prototype, "_orders", 2);
+o([
+  l()
+], r.prototype, "_isLoading", 2);
+o([
+  l()
+], r.prototype, "_errorMessage", 2);
+o([
+  l()
+], r.prototype, "_page", 2);
+o([
+  l()
+], r.prototype, "_pageSize", 2);
+o([
+  l()
+], r.prototype, "_totalItems", 2);
+o([
+  l()
+], r.prototype, "_totalPages", 2);
+o([
+  l()
+], r.prototype, "_activeTab", 2);
+o([
+  l()
+], r.prototype, "_selectedOrders", 2);
+o([
+  l()
+], r.prototype, "_stats", 2);
+o([
+  l()
+], r.prototype, "_searchTerm", 2);
+o([
+  l()
+], r.prototype, "_isDeleting", 2);
+r = o([
+  w("merchello-orders-list")
+], r);
+const q = r;
+export {
+  r as MerchelloOrdersListElement,
+  q as default
+};
+//# sourceMappingURL=orders-list.element-DNiHW7_-.js.map

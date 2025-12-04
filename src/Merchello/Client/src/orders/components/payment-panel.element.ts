@@ -5,10 +5,10 @@ import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatCurrency, formatShortDate } from "@shared/utils/formatting.js";
-import type { PaymentDto, PaymentStatusDto, PaymentRecordedDetail, RefundProcessedDetail } from "../types/order.types.js";
-import { PaymentType, InvoicePaymentStatus } from "../types/order.types.js";
-import { MERCHELLO_MANUAL_PAYMENT_MODAL } from "../modals/manual-payment-modal.token.js";
-import { MERCHELLO_REFUND_MODAL } from "../modals/refund-modal.token.js";
+import type { PaymentDto, PaymentStatusDto, PaymentRecordedDetail, RefundProcessedDetail } from "@orders/types/order.types.js";
+import { PaymentType, InvoicePaymentStatus } from "@orders/types/order.types.js";
+import { MERCHELLO_MANUAL_PAYMENT_MODAL } from "@orders/modals/manual-payment-modal.token.js";
+import { MERCHELLO_REFUND_MODAL } from "@orders/modals/refund-modal.token.js";
 
 @customElement("merchello-payment-panel")
 export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {

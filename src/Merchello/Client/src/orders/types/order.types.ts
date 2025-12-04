@@ -316,3 +316,25 @@ export interface PendingShipmentItem {
   maxQuantity: number;
   imageUrl: string | null;
 }
+
+// ============================================
+// Export Types
+// ============================================
+
+/** Request to export orders within a date range */
+export interface OrderExportRequest {
+  fromDate: string;
+  toDate: string;
+}
+
+/** Order export item for CSV generation */
+export interface OrderExportItemDto {
+  invoiceNumber: string;
+  invoiceDate: string;
+  paymentStatus: string;
+  billingName: string;
+  subTotal: number;
+  tax: number;
+  shipping: number;
+  total: number;
+}
