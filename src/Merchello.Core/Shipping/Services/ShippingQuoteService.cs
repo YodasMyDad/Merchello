@@ -3,6 +3,7 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.ExtensionMethods;
+using Merchello.Core.Shared.Services;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Services.Interfaces;
@@ -15,8 +16,12 @@ namespace Merchello.Core.Shipping.Services;
 public class ShippingQuoteService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IShippingProviderManager providerRegistry,
+    CacheService cacheService,
     ILogger<ShippingQuoteService> logger) : IShippingQuoteService
 {
+    private static readonly TimeSpan _quoteCacheTtl = TimeSpan.FromMinutes(10);
+    private const string CacheTag = "shipping-quotes";
+
     public async Task<IReadOnlyCollection<ShippingRateQuote>> GetQuotesAsync(
         Basket basket,
         string countryCode,
@@ -35,6 +40,38 @@ public class ShippingQuoteService(
             return [];
         }
 
+        // Build cache key from basket contents and destination
+        var cacheKey = BuildCacheKey(basket, countryCode, stateOrProvinceCode);
+
+        var quotes = await cacheService.GetOrCreateAsync(
+            cacheKey,
+            async ct => await FetchQuotesFromProvidersAsync(request, ct),
+            _quoteCacheTtl,
+            [CacheTag],
+            cancellationToken);
+
+        return quotes;
+    }
+
+    private static string BuildCacheKey(Basket basket, string countryCode, string? stateOrProvinceCode)
+    {
+        // Create a deterministic key based on basket contents and destination
+        var productIds = string.Join("-", basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Product && li.ProductId.HasValue)
+            .OrderBy(li => li.ProductId)
+            .Select(li => $"{li.ProductId}:{li.Quantity}"));
+
+        var destination = string.IsNullOrEmpty(stateOrProvinceCode)
+            ? countryCode
+            : $"{countryCode}-{stateOrProvinceCode}";
+
+        return $"shipping-quote:{basket.Id}:{destination}:{productIds}";
+    }
+
+    private async Task<List<ShippingRateQuote>> FetchQuotesFromProvidersAsync(
+        ShippingQuoteRequest request,
+        CancellationToken cancellationToken)
+    {
         IReadOnlyCollection<RegisteredShippingProvider> providers = await providerRegistry.GetEnabledProvidersAsync(cancellationToken);
         List<ShippingRateQuote> quotes = [];
 
@@ -143,7 +180,7 @@ public class ShippingQuoteService(
             }
 
             var snapshot = BuildProductSnapshot(product, countryCode, stateOrProvinceCode);
-            var weightPerItem = product.ProductRoot?.Weight ?? 0;
+            var weightPerItem = product.Weight ?? 0;
             totalWeight += weightPerItem * Math.Max(lineItem.Quantity, 1);
 
             items.Add(new ShippingQuoteItem
@@ -222,7 +259,7 @@ public class ShippingQuoteService(
         {
             ProductId = product.Id,
             Name = product.Name,
-            WeightKg = product.ProductRoot?.Weight,
+            WeightKg = product.Weight,
             ShippingOptions = options
         };
     }

@@ -22,10 +22,18 @@ public class ShippingProviderConfigurationDbMapping : IEntityTypeConfiguration<S
         builder.Property(x => x.SettingsJson)
             .HasMaxLength(4000);
 
+        builder.Property(x => x.IsTestMode)
+            .HasDefaultValue(true);
+
+        builder.Property(x => x.SortOrder)
+            .HasDefaultValue(0);
+
         builder.Property(x => x.CreateDate)
             .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
         builder.Property(x => x.UpdateDate)
             .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+        builder.HasIndex(x => x.ProviderKey).IsUnique();
     }
 }

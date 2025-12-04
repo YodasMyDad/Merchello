@@ -178,6 +178,15 @@ import type {
   UpdatePaymentProviderSettingDto,
 } from '../payment-providers/types.js';
 
+// Import shipping provider types
+import type {
+  ShippingProviderDto,
+  ShippingProviderConfigurationDto,
+  ShippingProviderFieldDto,
+  CreateShippingProviderConfigurationDto,
+  UpdateShippingProviderConfigurationDto,
+} from '../shipping/types.js';
+
 // Helper to build query string from params
 function buildQueryString(params?: Record<string, unknown>): string {
   if (!params) return '';
@@ -317,4 +326,44 @@ export const MerchelloApi = {
   /** Process a refund */
   processRefund: (paymentId: string, data: ProcessRefundDto) =>
     apiPost<PaymentDto>(`payments/${paymentId}/refund`, data),
+
+  // ============================================
+  // Shipping Providers API
+  // ============================================
+
+  /** Get all available shipping providers (discovered from assemblies) */
+  getAvailableShippingProviders: () =>
+    apiGet<ShippingProviderDto[]>('shipping-providers/available'),
+
+  /** Get all configured shipping provider settings */
+  getShippingProviders: () =>
+    apiGet<ShippingProviderConfigurationDto[]>('shipping-providers'),
+
+  /** Get a specific shipping provider configuration by ID */
+  getShippingProvider: (id: string) =>
+    apiGet<ShippingProviderConfigurationDto>(`shipping-providers/${id}`),
+
+  /** Get configuration fields for a shipping provider */
+  getShippingProviderFields: (key: string) =>
+    apiGet<ShippingProviderFieldDto[]>(`shipping-providers/${key}/fields`),
+
+  /** Create/enable a shipping provider */
+  createShippingProvider: (data: CreateShippingProviderConfigurationDto) =>
+    apiPost<ShippingProviderConfigurationDto>('shipping-providers', data),
+
+  /** Update a shipping provider configuration */
+  updateShippingProvider: (id: string, data: UpdateShippingProviderConfigurationDto) =>
+    apiPut<ShippingProviderConfigurationDto>(`shipping-providers/${id}`, data),
+
+  /** Delete a shipping provider configuration */
+  deleteShippingProvider: (id: string) =>
+    apiDelete(`shipping-providers/${id}`),
+
+  /** Toggle shipping provider enabled status */
+  toggleShippingProvider: (id: string, isEnabled: boolean) =>
+    apiPut<ShippingProviderConfigurationDto>(`shipping-providers/${id}/toggle`, { isEnabled }),
+
+  /** Reorder shipping providers */
+  reorderShippingProviders: (orderedIds: string[]) =>
+    apiPut<void>('shipping-providers/reorder', { orderedIds }),
 };

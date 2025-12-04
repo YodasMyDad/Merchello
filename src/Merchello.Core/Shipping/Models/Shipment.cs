@@ -25,7 +25,7 @@ public class Shipment
     /// <summary>
     /// Line items shipped in this shipment
     /// </summary>
-    public List<LineItem> LineItems { get; set; } = new();
+    public List<LineItem> LineItems { get; set; } = [];
 
     /// <summary>
     /// Address this shipment was sent to

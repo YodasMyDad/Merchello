@@ -5,10 +5,10 @@ export const manifests: Array<UmbExtensionManifest> = [
     alias: "Merchello.Providers.PaymentProviders.View",
     name: "Payment Providers View",
     js: () => import("./payment-providers-list.element.js"),
-    weight: 90,
+    weight: 100,
     meta: {
-      label: "Payment Providers",
-      pathname: "payment-providers",
+      label: "Payments",
+      pathname: "payments",
       icon: "icon-credit-card",
     },
     conditions: [

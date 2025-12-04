@@ -464,10 +464,18 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<decimal?>("HeightCm")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("Images")
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<decimal?>("LengthCm")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("MetaDescription")
                         .HasMaxLength(200)
@@ -486,6 +494,11 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("OpenGraphImage")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PackageConfigurations")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<string>("PageTitle")
                         .HasMaxLength(100)
@@ -545,6 +558,14 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<string>("VariantOptionsKey")
                         .HasMaxLength(1500)
                         .HasColumnType("nvarchar(1500)");
+
+                    b.Property<decimal?>("Weight")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("WidthCm")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
 
@@ -668,10 +689,6 @@ namespace Merchello.Core.SqlServer.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
-
-                    b.Property<decimal>("Weight")
-                        .HasPrecision(10, 2)
-                        .HasColumnType("decimal(10,2)");
 
                     b.HasKey("Id");
 
@@ -955,6 +972,11 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsTestMode")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("ProviderKey")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -964,10 +986,18 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
+                    b.Property<int>("SortOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<DateTime>("UpdateDate")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ProviderKey")
+                        .IsUnique();
 
                     b.ToTable("merchelloShippingProviderConfigurations", (string)null);
                 });

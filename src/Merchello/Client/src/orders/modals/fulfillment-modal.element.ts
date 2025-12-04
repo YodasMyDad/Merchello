@@ -374,7 +374,7 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
                           <div class="form-row">
                             <label>
                               Carrier
-                              <input
+                              <uui-input
                                 type="text"
                                 placeholder="e.g., UPS, FedEx, DHL"
                                 .value=${trackingInfo?.carrier ?? ""}
@@ -384,11 +384,11 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
                                     "carrier",
                                     (e.target as HTMLInputElement).value
                                   )}
-                              />
+                              ></uui-input>
                             </label>
                             <label>
                               Tracking Number
-                              <input
+                              <uui-input
                                 type="text"
                                 placeholder="e.g., 1Z999AA10123456784"
                                 .value=${trackingInfo?.trackingNumber ?? ""}
@@ -398,13 +398,13 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
                                     "trackingNumber",
                                     (e.target as HTMLInputElement).value
                                   )}
-                              />
+                              ></uui-input>
                             </label>
                           </div>
                           <div class="form-row">
                             <label class="full-width">
                               Tracking URL
-                              <input
+                              <uui-input
                                 type="text"
                                 placeholder="https://..."
                                 .value=${trackingInfo?.trackingUrl ?? ""}
@@ -414,7 +414,7 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
                                     "trackingUrl",
                                     (e.target as HTMLInputElement).value
                                   )}
-                              />
+                              ></uui-input>
                             </label>
                           </div>
                         </div>
@@ -438,11 +438,11 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
 
     return html`
       <div class="item-row ${isSelected ? "selected" : ""}">
-        <input
-          type="checkbox"
-          .checked=${isSelected}
+        <uui-checkbox
+          ?checked=${isSelected}
           @change=${() => this._toggleItemSelection(orderId, item)}
-        />
+          aria-label="Select ${item.name || 'item'}"
+        ></uui-checkbox>
         <div class="item-image">
           ${item.imageUrl
             ? html`<img src="${item.imageUrl}" alt="${item.name}" />`
@@ -455,7 +455,7 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
         <div class="item-quantity">
           ${isSelected
             ? html`
-                <input
+                <uui-input
                   type="number"
                   min="1"
                   max="${item.remainingQuantity}"
@@ -467,7 +467,8 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
                       parseInt((e.target as HTMLInputElement).value) || 1
                     )}
                   @click=${(e: Event) => e.stopPropagation()}
-                />
+                  label="Quantity"
+                ></uui-input>
                 <span class="qty-label">/ ${item.remainingQuantity}</span>
               `
             : html`<span class="qty-available">${item.remainingQuantity} available</span>`}

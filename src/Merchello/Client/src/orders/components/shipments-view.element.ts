@@ -130,13 +130,15 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
                           >${shipment.trackingNumber}</a
                         >`
                       : shipment.trackingNumber}
-                    <button
-                      class="copy-btn"
+                    <uui-button
+                      look="secondary"
+                      compact
+                      label="Copy tracking number"
                       title="Copy tracking number"
                       @click=${() => this._copyToClipboard(shipment.trackingNumber!)}
                     >
                       <uui-icon name="icon-documents"></uui-icon>
-                    </button>
+                    </uui-button>
                   </span>
                 </div>
               `

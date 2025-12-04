@@ -1,6 +1,4 @@
-﻿using Merchello.Core.Accounting.Models;
-using Merchello.Core.Shipping.Models;
-using Merchello.Core.Warehouses.Models;
+using Merchello.Core.Accounting.Models;
 
 namespace Merchello.Core.Products.Models;
 
@@ -19,7 +17,7 @@ public class ProductRoot
     /// <summary>
     /// Product Options which generate the variants
     /// </summary>
-    public List<ProductOption> ProductOptions { get; set; } = new();
+    public List<ProductOption> ProductOptions { get; set; } = [];
 
     /// <summary>
     /// The tax group for this product
@@ -50,7 +48,7 @@ public class ProductRoot
     /// <summary>
     /// The product images, these are appended to the end of the main product
     /// </summary>
-    public List<string> RootImages { get; set; } = new();
+    public List<string> RootImages { get; set; } = [];
 
     /// <summary>
     /// The url for the product
@@ -62,7 +60,7 @@ public class ProductRoot
     /// <summary>
     /// The list of selling points
     /// </summary>
-    public List<string> SellingPoints { get; set; } = new();
+    public List<string> SellingPoints { get; set; } = [];
 
     /// <summary>
     /// YouTube video urls for the product
@@ -79,11 +77,6 @@ public class ProductRoot
     /// The main products (Variants or default product)
     /// </summary>
     public virtual ICollection<Product> Products { get; set; } = new HashSet<Product>();
-
-    /// <summary>
-    /// Product root weight, can be overridden at product level
-    /// </summary>
-    public decimal Weight { get; set; }
 
     /// <summary>
     /// Optional: Harmonized System (HS) code

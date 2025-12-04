@@ -52,7 +52,6 @@ public static class ProductServiceDbSeedExtensions
             TaxGroupId = taxGroup.Id,
             ProductType = productType,
             ProductTypeId = productType.Id,
-            Weight = weight ?? 0m,
             RootImages = images ?? [],
             SellingPoints = sellingPoints ?? [],
             GoogleShoppingFeedCategory = googleShoppingCategory
@@ -154,6 +153,7 @@ public static class ProductServiceDbSeedExtensions
                 product.AvailableForPurchase = true;
                 product.Images = [$"https://prd.place/600/800?seed={product.Id}"];
                 product.Description = description ?? $"High quality {name}";
+                product.Weight = weight;
 
                 // Add filters
                 if (color != "Default" && colorFilters != null)

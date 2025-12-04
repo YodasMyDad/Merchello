@@ -138,9 +138,9 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     };
   }
 
-  private _handleSelectAll(e: Event): void {
-    const checkbox = e.target as HTMLInputElement;
-    if (checkbox.checked) {
+  private _handleSelectAll(e: CustomEvent): void {
+    const checked = (e.target as HTMLInputElement).checked;
+    if (checked) {
       this._selectedOrders = new Set(this._orders.map((o) => o.id));
     } else {
       this._selectedOrders = new Set();
@@ -148,9 +148,9 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     this.requestUpdate();
   }
 
-  private _handleSelectOrder(id: string, e: Event): void {
-    const checkbox = e.target as HTMLInputElement;
-    if (checkbox.checked) {
+  private _handleSelectOrder(id: string, e: CustomEvent): void {
+    const checked = (e.target as HTMLInputElement).checked;
+    if (checked) {
       this._selectedOrders.add(id);
     } else {
       this._selectedOrders.delete(id);
@@ -236,60 +236,56 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
   private _renderOrdersTable(): unknown {
     return html`
       <div class="table-container">
-        <table class="orders-table">
-          <thead>
-            <tr>
-              <th class="checkbox-col">
-                <input
-                  type="checkbox"
-                  @change=${this._handleSelectAll}
-                  .checked=${this._selectedOrders.size === this._orders.length && this._orders.length > 0}
-                />
-              </th>
-              <th>Order</th>
-              <th>Date</th>
-              <th>Customer</th>
-              <th>Channel</th>
-              <th>Total</th>
-              <th>Payment status</th>
-              <th>Fulfillment status</th>
-              <th>Items</th>
-              <th>Delivery method</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${this._orders.map(
-              (order) => html`
-                <tr>
-                  <td class="checkbox-col">
-                    <input
-                      type="checkbox"
-                      .checked=${this._selectedOrders.has(order.id)}
-                      @change=${(e: Event) => this._handleSelectOrder(order.id, e)}
-                    />
-                  </td>
-                  <td class="order-number">
-                    <a href=${this._getOrderHref(order.id)}>${order.invoiceNumber || order.id.substring(0, 8)}</a>
-                  </td>
-                  <td>${formatRelativeDate(order.dateCreated)}</td>
-                  <td>${order.customerName}</td>
-                  <td>${order.channel}</td>
-                  <td>${formatCurrency(order.total)}</td>
-                  <td>
-                    <span class="badge ${this._getPaymentStatusBadgeClass(order.paymentStatus)}">${order.paymentStatusDisplay}</span>
-                  </td>
-                  <td>
-                    <span class="badge ${order.fulfillmentStatus.toLowerCase().replace(" ", "-")}">
-                      ${order.fulfillmentStatus}
-                    </span>
-                  </td>
-                  <td>${order.itemCount} item${order.itemCount !== 1 ? "s" : ""}</td>
-                  <td>${order.deliveryMethod}</td>
-                </tr>
-              `
-            )}
-          </tbody>
-        </table>
+        <uui-table class="orders-table">
+          <uui-table-head>
+            <uui-table-head-cell class="checkbox-col">
+              <uui-checkbox
+                aria-label="Select all orders"
+                @change=${this._handleSelectAll}
+                ?checked=${this._selectedOrders.size === this._orders.length && this._orders.length > 0}
+              ></uui-checkbox>
+            </uui-table-head-cell>
+            <uui-table-head-cell>Order</uui-table-head-cell>
+            <uui-table-head-cell>Date</uui-table-head-cell>
+            <uui-table-head-cell>Customer</uui-table-head-cell>
+            <uui-table-head-cell>Channel</uui-table-head-cell>
+            <uui-table-head-cell>Total</uui-table-head-cell>
+            <uui-table-head-cell>Payment status</uui-table-head-cell>
+            <uui-table-head-cell>Fulfillment status</uui-table-head-cell>
+            <uui-table-head-cell>Items</uui-table-head-cell>
+            <uui-table-head-cell>Delivery method</uui-table-head-cell>
+          </uui-table-head>
+          ${this._orders.map(
+            (order) => html`
+              <uui-table-row>
+                <uui-table-cell class="checkbox-col">
+                  <uui-checkbox
+                    aria-label="Select order ${order.invoiceNumber || order.id}"
+                    ?checked=${this._selectedOrders.has(order.id)}
+                    @change=${(e: CustomEvent) => this._handleSelectOrder(order.id, e)}
+                  ></uui-checkbox>
+                </uui-table-cell>
+                <uui-table-cell class="order-number">
+                  <a href=${this._getOrderHref(order.id)}>${order.invoiceNumber || order.id.substring(0, 8)}</a>
+                </uui-table-cell>
+                <uui-table-cell>${formatRelativeDate(order.dateCreated)}</uui-table-cell>
+                <uui-table-cell>${order.customerName}</uui-table-cell>
+                <uui-table-cell>${order.channel}</uui-table-cell>
+                <uui-table-cell>${formatCurrency(order.total)}</uui-table-cell>
+                <uui-table-cell>
+                  <span class="badge ${this._getPaymentStatusBadgeClass(order.paymentStatus)}">${order.paymentStatusDisplay}</span>
+                </uui-table-cell>
+                <uui-table-cell>
+                  <span class="badge ${order.fulfillmentStatus.toLowerCase().replace(" ", "-")}">
+                    ${order.fulfillmentStatus}
+                  </span>
+                </uui-table-cell>
+                <uui-table-cell>${order.itemCount} item${order.itemCount !== 1 ? "s" : ""}</uui-table-cell>
+                <uui-table-cell>${order.deliveryMethod}</uui-table-cell>
+              </uui-table-row>
+            `
+          )}
+        </uui-table>
       </div>
 
       <!-- Pagination -->
@@ -364,26 +360,28 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
         <div class="search-tabs-row">
           <!-- Search Box -->
           <div class="search-box">
-            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input
+            <uui-input
               type="text"
               placeholder="Search orders by invoice #, name, postcode, or email..."
               .value=${this._searchTerm}
               @input=${this._handleSearchInput}
-            />
-            ${this._searchTerm
-              ? html`
-                  <button class="search-clear" @click=${this._handleSearchClear} aria-label="Clear search">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                  </button>
-                `
-              : ""}
+              label="Search orders"
+            >
+              <uui-icon name="icon-search" slot="prepend"></uui-icon>
+              ${this._searchTerm
+                ? html`
+                    <uui-button
+                      slot="append"
+                      compact
+                      look="secondary"
+                      label="Clear search"
+                      @click=${this._handleSearchClear}
+                    >
+                      <uui-icon name="icon-wrong"></uui-icon>
+                    </uui-button>
+                  `
+                : ""}
+            </uui-input>
           </div>
 
           <!-- Tabs -->
@@ -492,71 +490,16 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     }
 
     .search-box {
-      position: relative;
       flex: 1;
       max-width: 400px;
     }
 
-    .search-box input {
+    .search-box uui-input {
       width: 100%;
-      padding: var(--uui-size-space-2) var(--uui-size-space-3);
-      padding-left: 36px;
-      padding-right: 36px;
-      border: 1px solid var(--uui-color-border);
-      border-radius: var(--uui-border-radius);
-      font-size: 0.875rem;
-      background: var(--uui-color-surface);
-      color: var(--uui-color-text);
     }
 
-    .search-box input:focus {
-      outline: none;
-      border-color: var(--uui-color-interactive);
-      box-shadow: 0 0 0 1px var(--uui-color-interactive);
-    }
-
-    .search-box input::placeholder {
+    .search-box uui-icon[slot="prepend"] {
       color: var(--uui-color-text-alt);
-    }
-
-    .search-icon {
-      position: absolute;
-      left: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 18px;
-      height: 18px;
-      color: var(--uui-color-text-alt);
-      pointer-events: none;
-    }
-
-    .search-clear {
-      position: absolute;
-      right: 6px;
-      top: 50%;
-      transform: translateY(-50%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 24px;
-      height: 24px;
-      padding: 0;
-      border: none;
-      background: transparent;
-      color: var(--uui-color-text-alt);
-      cursor: pointer;
-      border-radius: 50%;
-      transition: all 120ms ease;
-    }
-
-    .search-clear:hover {
-      background: var(--uui-color-surface-emphasis);
-      color: var(--uui-color-text);
-    }
-
-    .search-clear svg {
-      width: 14px;
-      height: 14px;
     }
 
     .tabs {
@@ -598,40 +541,29 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
 
     .orders-table {
       width: 100%;
-      border-collapse: collapse;
-      font-size: 0.875rem;
     }
 
-    .orders-table th,
-    .orders-table td {
-      padding: var(--uui-size-space-3);
-      text-align: left;
-      border-bottom: 1px solid var(--uui-color-border);
+    uui-table-head-cell,
+    uui-table-cell {
       white-space: nowrap;
     }
 
-    .orders-table th {
-      font-weight: 500;
-      color: var(--uui-color-text-alt);
-      background: var(--uui-color-surface-alt);
-    }
-
-    .orders-table tbody tr {
+    uui-table-row {
       cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .orders-table tbody tr:hover {
-      background: var(--uui-color-surface-emphasis);
     }
 
     .checkbox-col {
       width: 40px;
     }
 
-    .order-number {
+    .order-number a {
       font-weight: 500;
       color: var(--uui-color-interactive);
+      text-decoration: none;
+    }
+
+    .order-number a:hover {
+      text-decoration: underline;
     }
 
     .badge {

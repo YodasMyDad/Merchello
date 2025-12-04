@@ -209,4 +209,29 @@ public class Product
     /// </summary>
     public virtual ICollection<ShippingOption> ExcludedShippingOptions { get; set; } = [];
 
+    /// <summary>
+    /// Product weight in kilograms for shipping calculations
+    /// </summary>
+    public decimal? Weight { get; set; }
+
+    /// <summary>
+    /// Product length in centimeters for shipping calculations
+    /// </summary>
+    public decimal? LengthCm { get; set; }
+
+    /// <summary>
+    /// Product width in centimeters for shipping calculations
+    /// </summary>
+    public decimal? WidthCm { get; set; }
+
+    /// <summary>
+    /// Product height in centimeters for shipping calculations
+    /// </summary>
+    public decimal? HeightCm { get; set; }
+
+    /// <summary>
+    /// Package configurations for items shipped in multiple boxes.
+    /// When populated, these override the single Weight/Dimensions for shipping calculations.
+    /// </summary>
+    public List<ProductPackage> PackageConfigurations { get; set; } = [];
 }

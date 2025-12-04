@@ -20,12 +20,12 @@ public class Basket
     /// <summary>
     /// Line items in the basket
     /// </summary>
-    public List<LineItem> LineItems { get; set; } = new();
+    public List<LineItem> LineItems { get; set; } = [];
 
     /// <summary>
     /// Adjustments for this basket (I.e. Discounts)
     /// </summary>
-    public List<Adjustment> Adjustments { get; set; } = new();
+    public List<Adjustment> Adjustments { get; set; } = [];
 
     /// <summary>
     /// Date basket was created
@@ -80,7 +80,7 @@ public class Basket
     /// <summary>
     /// Holds a list of errors
     /// </summary>
-    public List<BasketError> Errors { get; set; } = new();
+    public List<BasketError> Errors { get; set; } = [];
 
     /// <summary>
     /// Billing address used during checkout
@@ -95,5 +95,5 @@ public class Basket
     /// <summary>
     /// Shipping quotes returned by enabled providers during basket calculation.
     /// </summary>
-    public List<ShippingRateQuote> AvailableShippingQuotes { get; set; } = new();
+    public List<ShippingRateQuote> AvailableShippingQuotes { get; set; } = [];
 }

@@ -1,10 +1,13 @@
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Strategies;
+using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
-using Merchello.Core.Products.Models;
+using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.OrderGrouping;
+using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
-using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
@@ -13,13 +16,13 @@ namespace Merchello.Core.Shipping.Services;
 
 public class ShippingService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
-    IWarehouseService warehouseService,
+    IOrderGroupingStrategyResolver strategyResolver,
+    IMerchelloNotificationPublisher notificationPublisher,
     ILogger<ShippingService> logger) : IShippingService
 {
     /// <summary>
     /// Gets shipping options for a basket, grouping products by warehouse and shipping option availability.
-    /// Products from the same warehouse with different shipping restrictions are split into separate groups,
-    /// allowing customers to choose different shipping methods for different products.
+    /// Delegates to the configured order grouping strategy for custom grouping logic.
     /// </summary>
     /// <param name="basket">The shopping basket</param>
     /// <param name="shippingAddress">The shipping destination address</param>
@@ -53,8 +56,9 @@ public class ShippingService(
 
         // Load products with necessary relationships for warehouse selection
         using var scope = efCoreScopeProvider.CreateScope();
-        var products = await scope.ExecuteWithContextAsync(async db =>
-            await db.Products
+        var (products, warehouses) = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var loadedProducts = await db.Products
                 .Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
                         .ThenInclude(prw => prw.Warehouse)
@@ -71,196 +75,87 @@ public class ShippingService(
                 .Include(p => p.ExcludedShippingOptions)
                 .Where(p => productIds.Contains(p.Id))
                 .AsSplitQuery()
-                .ToDictionaryAsync(p => p.Id, cancellationToken));
+                .ToDictionaryAsync(p => p.Id, cancellationToken);
+
+            // Load all warehouses for the context
+            var loadedWarehouses = await db.Warehouses
+                .Include(w => w.ShippingOptions)
+                    .ThenInclude(so => so.ShippingCosts)
+                .Include(w => w.ServiceRegions)
+                .ToDictionaryAsync(w => w.Id, cancellationToken);
+
+            return (loadedProducts, loadedWarehouses);
+        });
         scope.Complete();
 
-        List<WarehouseShippingGroup> warehouseGroups = [];
-        List<string> warehouseSelectionFailures = [];
-
-        // For each line item, select the best warehouse and determine shipping options
-        foreach (var lineItem in basket.LineItems.Where(li => li.ProductId.HasValue))
+        // Build the grouping context
+        var context = new OrderGroupingContext
         {
-            if (!products.TryGetValue(lineItem.ProductId!.Value, out var product))
-            {
-                warehouseSelectionFailures.Add($"Product {lineItem.Name} not found");
-                continue;
-            }
+            Basket = basket,
+            BillingAddress = basket.BillingAddress,
+            ShippingAddress = shippingAddress,
+            CustomerId = basket.CustomerId,
+            CustomerEmail = basket.BillingAddress?.Email,
+            Products = products,
+            Warehouses = warehouses,
+            SelectedShippingOptions = selectedShippingOptions
+        };
 
-            // Use WarehouseService to select best warehouse based on priority, region, and stock
-            var selectionResult = await warehouseService.SelectWarehouseForProduct(
-                product,
-                shippingAddress,
-                lineItem.Quantity,
-                cancellationToken);
+        // Get the configured strategy and execute grouping
+        var strategy = strategyResolver.GetStrategy();
+        logger.LogDebug("Using order grouping strategy: {StrategyKey}", strategy.Metadata.Key);
 
-            if (!selectionResult.Success)
-            {
-                logger.LogWarning(
-                    "Failed to select warehouse for product {ProductId} ({ProductName}): {Reason}",
-                    product.Id,
-                    product.Name,
-                    selectionResult.FailureReason);
+        var groupingResult = await strategy.GroupItemsAsync(context, cancellationToken);
 
-                warehouseSelectionFailures.Add($"{lineItem.Name}: {selectionResult.FailureReason}");
-                continue;
-            }
-
-            // Handle single warehouse fulfillment
-            if (selectionResult.Warehouse != null)
-            {
-                var warehouseId = selectionResult.Warehouse.Id;
-
-                // Get allowed shipping options for this product based on restrictions
-                // Use product's shipping options as base, or fall back to warehouse options if not configured
-                var baseShippingOptions = product.ShippingOptions.Any()
-                    ? product.ShippingOptions
-                    : selectionResult.Warehouse.ShippingOptions;
-
-                var allowedShippingOptions = GetAllowedShippingOptionsForProduct(
-                    product,
-                    baseShippingOptions).ToList();
-
-                var allowedShippingOptionIds = allowedShippingOptions.Select(so => so.Id).OrderBy(id => id).ToList();
-
-                // Find or create a group for this warehouse + shipping options combination
-                // Products are grouped together ONLY if they have the same set of available shipping options
-                // This allows products with different restrictions to be shipped separately with different methods
-                var group = warehouseGroups.FirstOrDefault(g =>
-                    g.WarehouseId == warehouseId &&
-                    g.AvailableShippingOptions.Select(so => so.ShippingOptionId).OrderBy(id => id).SequenceEqual(allowedShippingOptionIds));
-
-                if (group == null)
-                {
-                    // Create new group for this warehouse + shipping options profile
-                    group = new WarehouseShippingGroup
-                    {
-                        GroupId = GenerateDeterministicGroupId(warehouseId, allowedShippingOptionIds),
-                        WarehouseId = warehouseId,
-                        AvailableShippingOptions = allowedShippingOptions.Select(so => new ShippingOptionInfo
-                        {
-                            ShippingOptionId = so.Id,
-                            Name = so.Name ?? string.Empty,
-                            DaysFrom = so.DaysFrom,
-                            DaysTo = so.DaysTo,
-                            IsNextDay = so.IsNextDay,
-                            Cost = so.FixedCost ?? 0
-                        }).ToList()
-                    };
-
-                    // Set selected option if provided (warehouse-level selection for backward compatibility)
-                    // When there are multiple groups from same warehouse, all groups inherit the warehouse selection
-                    var selectedOptionId = selectedShippingOptions.GetValueOrDefault(warehouseId);
-                    if (selectedOptionId != Guid.Empty)
-                    {
-                        group.SelectedShippingOptionId = selectedOptionId;
-                    }
-
-                    warehouseGroups.Add(group);
-                }
-
-                // Add line item to this group
-                var shippingLineItem = new ShippingLineItem
-                {
-                    LineItemId = lineItem.Id,
-                    Name = lineItem.Name ?? string.Empty,
-                    Sku = lineItem.Sku,
-                    Quantity = lineItem.Quantity,
-                    Amount = lineItem.Amount
-                };
-
-                if (!group.LineItems.Any(li => li.LineItemId == lineItem.Id))
-                {
-                    group.LineItems.Add(shippingLineItem);
-                }
-            }
-            // Handle multi-warehouse fulfillment (split across multiple warehouses)
-            else if (selectionResult.WarehouseAllocations.Any())
-            {
-                logger.LogInformation(
-                    "Splitting line item {LineItemId} ({ProductName}) across {WarehouseCount} warehouses",
-                    lineItem.Id,
-                    lineItem.Name,
-                    selectionResult.WarehouseAllocations.Count);
-
-                foreach (var allocation in selectionResult.WarehouseAllocations)
-                {
-                    var warehouse = allocation.Warehouse;
-                    var allocatedQuantity = allocation.AllocatedQuantity;
-
-                    // Calculate proportional amount for this allocation
-                    var proportionalAmount = (lineItem.Amount / lineItem.Quantity) * allocatedQuantity;
-
-                    // Get allowed shipping options for this warehouse
-                    var baseShippingOptions = product.ShippingOptions.Any()
-                        ? product.ShippingOptions
-                        : warehouse.ShippingOptions;
-
-                    var allowedShippingOptions = GetAllowedShippingOptionsForProduct(
-                        product,
-                        baseShippingOptions).ToList();
-
-                    var allowedShippingOptionIds = allowedShippingOptions.Select(so => so.Id).OrderBy(id => id).ToList();
-
-                    // Find or create a group for this warehouse
-                    var group = warehouseGroups.FirstOrDefault(g =>
-                        g.WarehouseId == warehouse.Id &&
-                        g.AvailableShippingOptions.Select(so => so.ShippingOptionId).OrderBy(id => id).SequenceEqual(allowedShippingOptionIds));
-
-                    if (group == null)
-                    {
-                        group = new WarehouseShippingGroup
-                        {
-                            GroupId = GenerateDeterministicGroupId(warehouse.Id, allowedShippingOptionIds),
-                            WarehouseId = warehouse.Id,
-                            AvailableShippingOptions = allowedShippingOptions.Select(so => new ShippingOptionInfo
-                            {
-                                ShippingOptionId = so.Id,
-                                Name = so.Name ?? string.Empty,
-                                DaysFrom = so.DaysFrom,
-                                DaysTo = so.DaysTo,
-                                IsNextDay = so.IsNextDay,
-                                Cost = so.FixedCost ?? 0
-                            }).ToList()
-                        };
-
-                        var selectedOptionId = selectedShippingOptions.GetValueOrDefault(warehouse.Id);
-                        if (selectedOptionId != Guid.Empty)
-                        {
-                            group.SelectedShippingOptionId = selectedOptionId;
-                        }
-
-                        warehouseGroups.Add(group);
-                    }
-
-                    // Add allocated portion to this group
-                    var shippingLineItem = new ShippingLineItem
-                    {
-                        LineItemId = lineItem.Id,
-                        Name = lineItem.Name ?? string.Empty,
-                        Sku = lineItem.Sku,
-                        Quantity = allocatedQuantity,
-                        Amount = proportionalAmount
-                    };
-
-                    group.LineItems.Add(shippingLineItem);
-                }
-            }
-        }
-
-        if (warehouseSelectionFailures.Any())
+        if (!groupingResult.Success)
         {
             logger.LogWarning(
-                "Warehouse selection failures for basket {BasketId}: {Failures}",
+                "Order grouping failed for basket {BasketId}: {Errors}",
                 basket.Id,
-                string.Join("; ", warehouseSelectionFailures));
+                string.Join("; ", groupingResult.Errors));
         }
+
+        // Publish modifying notification - handlers can modify the result
+        var modifyingNotification = new OrderGroupingModifyingNotification(context, groupingResult, strategy.Metadata.Key);
+        if (await notificationPublisher.PublishCancelableAsync(modifyingNotification, cancellationToken))
+        {
+            logger.LogWarning(
+                "Order grouping cancelled for basket {BasketId}: {Reason}",
+                basket.Id,
+                modifyingNotification.CancelReason);
+
+            return new ShippingSelectionResult
+            {
+                WarehouseGroups = [],
+                SubTotal = basket.SubTotal,
+                Tax = basket.Tax,
+                Total = basket.Total
+            };
+        }
+
+        // Publish completed notification for observation
+        await notificationPublisher.PublishAsync(
+            new OrderGroupingNotification(context, groupingResult, strategy.Metadata.Key),
+            cancellationToken);
+
+        // Map OrderGroup to WarehouseShippingGroup for backward compatibility
+        var warehouseGroups = groupingResult.Groups
+            .Select(g => new WarehouseShippingGroup
+            {
+                GroupId = g.GroupId,
+                WarehouseId = g.WarehouseId ?? Guid.Empty,
+                LineItems = g.LineItems,
+                AvailableShippingOptions = g.AvailableShippingOptions,
+                SelectedShippingOptionId = g.SelectedShippingOptionId
+            })
+            .ToList();
 
         return new ShippingSelectionResult
         {
             WarehouseGroups = warehouseGroups,
-            SubTotal = basket.SubTotal,
-            Tax = basket.Tax,
-            Total = basket.Total
+            SubTotal = groupingResult.SubTotal,
+            Tax = groupingResult.Tax,
+            Total = groupingResult.Total
         };
     }
 
@@ -355,36 +250,176 @@ public class ShippingService(
         return result;
     }
 
-    /// <summary>
-    /// Generates a deterministic GroupId based on warehouse and available shipping options
-    /// This ensures the same combination always produces the same GroupId across requests
-    /// </summary>
-    private static Guid GenerateDeterministicGroupId(Guid warehouseId, List<Guid> shippingOptionIds)
+    /// <inheritdoc />
+    public async Task<ProductShippingOptionsResult> GetShippingOptionsForProductAsync(
+        Guid productId,
+        string countryCode,
+        string? stateOrProvinceCode = null,
+        CancellationToken cancellationToken = default)
     {
-        // Create a deterministic string from warehouse + sorted shipping option IDs
-        var combinedString = $"{warehouseId}|{string.Join(",", shippingOptionIds)}";
-
-        // Generate a deterministic GUID from the string using MD5 hash
-        using var md5 = System.Security.Cryptography.MD5.Create();
-        var hash = md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(combinedString));
-        return new Guid(hash);
-    }
-
-    /// <summary>
-    /// Gets the allowed shipping options for a product based on its restriction mode from a given set of warehouse options
-    /// </summary>
-    private static IEnumerable<ShippingOption> GetAllowedShippingOptionsForProduct(
-        Product product,
-        ICollection<ShippingOption> warehouseShippingOptions)
-    {
-        return product.ShippingRestrictionMode switch
+        if (string.IsNullOrWhiteSpace(countryCode))
         {
-            ShippingRestrictionMode.AllowList => warehouseShippingOptions
-                .Where(wso => product.AllowedShippingOptions.Any(aso => aso.Id == wso.Id)),
-            ShippingRestrictionMode.ExcludeList => warehouseShippingOptions
-                .Where(wso => !product.ExcludedShippingOptions.Any(eso => eso.Id == wso.Id)),
-            _ => warehouseShippingOptions
-        };
+            return new ProductShippingOptionsResult
+            {
+                CanShipToLocation = false,
+                Message = "Country code is required"
+            };
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            // Load the product with shipping options
+            var product = await db.Products
+                .Include(p => p.ProductRoot)
+                    .ThenInclude(pr => pr!.ProductRootWarehouses)
+                        .ThenInclude(prw => prw.Warehouse)
+                            .ThenInclude(w => w!.ShippingOptions)
+                                .ThenInclude(so => so.ShippingCosts)
+                .Include(p => p.ProductRoot)
+                    .ThenInclude(pr => pr!.ProductRootWarehouses)
+                        .ThenInclude(prw => prw.Warehouse)
+                            .ThenInclude(w => w!.ServiceRegions)
+                .Include(p => p.AllowedShippingOptions)
+                .Include(p => p.ExcludedShippingOptions)
+                .AsSplitQuery()
+                .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken);
+
+            if (product == null)
+            {
+                return new ProductShippingOptionsResult
+                {
+                    CanShipToLocation = false,
+                    Message = "Product not found"
+                };
+            }
+
+            // Get warehouses that can service this location
+            var productRootWarehouses = product.ProductRoot?.ProductRootWarehouses ?? [];
+            var serviceableWarehouses = productRootWarehouses
+                .Where(prw => prw.Warehouse != null &&
+                              CanWarehouseServiceLocation(prw.Warehouse, countryCode, stateOrProvinceCode))
+                .Select(prw => prw.Warehouse!)
+                .ToList();
+
+            if (serviceableWarehouses.Count == 0)
+            {
+                return new ProductShippingOptionsResult
+                {
+                    CanShipToLocation = false,
+                    Message = "This product cannot be shipped to your location"
+                };
+            }
+
+            // Get allowed shipping option IDs for this product
+            var allowedOptionIds = product.AllowedShippingOptions?.Select(so => so.Id).ToHashSet();
+            var excludedOptionIds = product.ExcludedShippingOptions?.Select(so => so.Id).ToHashSet() ?? [];
+
+            // Collect all available shipping options from serviceable warehouses
+            List<ProductShippingMethod> methods = [];
+            var sortOrder = 0;
+
+            foreach (var warehouse in serviceableWarehouses)
+            {
+                foreach (var shippingOption in warehouse.ShippingOptions ?? [])
+                {
+                    // Skip if excluded
+                    if (excludedOptionIds.Contains(shippingOption.Id))
+                        continue;
+
+                    // Skip if not in allowed list (when allowlist is specified)
+                    if (allowedOptionIds != null && allowedOptionIds.Count > 0 && !allowedOptionIds.Contains(shippingOption.Id))
+                        continue;
+
+                    // Check if this option can ship to the destination
+                    var cost = GetShippingCostForDestination(shippingOption, countryCode, stateOrProvinceCode);
+                    if (cost == null && shippingOption.FixedCost == null)
+                        continue; // No rate available for this destination
+
+                    var deliveryTime = shippingOption.IsNextDay
+                        ? "Next Day Delivery"
+                        : shippingOption.DaysFrom > 0 && shippingOption.DaysTo > 0
+                            ? $"{shippingOption.DaysFrom}-{shippingOption.DaysTo} business days"
+                            : null;
+
+                    methods.Add(new ProductShippingMethod
+                    {
+                        Name = shippingOption.Name ?? "Standard Shipping",
+                        DeliveryTimeDescription = deliveryTime,
+                        EstimatedCost = cost ?? shippingOption.FixedCost,
+                        IsEstimate = true, // Flat rate estimates - actual cost calculated at checkout
+                        ServiceLevel = shippingOption.IsNextDay ? "express" : "standard",
+                        SortOrder = sortOrder++
+                    });
+                }
+            }
+
+            // Remove duplicates (same name) keeping lowest cost
+            var uniqueMethods = methods
+                .GroupBy(m => m.Name)
+                .Select(g => g.OrderBy(m => m.EstimatedCost ?? decimal.MaxValue).First())
+                .OrderBy(m => m.SortOrder)
+                .ToList();
+
+            return new ProductShippingOptionsResult
+            {
+                CanShipToLocation = uniqueMethods.Count > 0,
+                AvailableMethods = uniqueMethods,
+                RequiresCheckoutForRates = false, // Flat rate provider doesn't need checkout
+                Message = uniqueMethods.Count == 0 ? "No shipping options available for your location" : null
+            };
+        });
+
+        scope.Complete();
+        return result;
     }
 
+    private static bool CanWarehouseServiceLocation(
+        Warehouses.Models.Warehouse warehouse,
+        string countryCode,
+        string? stateOrProvinceCode)
+    {
+        var serviceRegions = warehouse.ServiceRegions;
+        if (serviceRegions == null || serviceRegions.Count == 0)
+        {
+            // No service regions defined means warehouse services everywhere
+            return true;
+        }
+
+        // Check if any service region matches
+        return serviceRegions.Any(sr =>
+            string.Equals(sr.CountryCode, countryCode, StringComparison.OrdinalIgnoreCase) &&
+            (string.IsNullOrEmpty(sr.StateOrProvinceCode) ||
+             string.Equals(sr.StateOrProvinceCode, stateOrProvinceCode, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static decimal? GetShippingCostForDestination(
+        ShippingOption shippingOption,
+        string countryCode,
+        string? stateOrProvinceCode)
+    {
+        var costs = shippingOption.ShippingCosts;
+        if (costs == null || costs.Count == 0)
+            return shippingOption.FixedCost;
+
+        // Try to find exact match (country + state)
+        var exactMatch = costs.FirstOrDefault(c =>
+            string.Equals(c.CountryCode, countryCode, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(c.StateOrProvinceCode, stateOrProvinceCode, StringComparison.OrdinalIgnoreCase));
+
+        if (exactMatch != null)
+            return exactMatch.Cost;
+
+        // Try country-only match
+        var countryMatch = costs.FirstOrDefault(c =>
+            string.Equals(c.CountryCode, countryCode, StringComparison.OrdinalIgnoreCase) &&
+            string.IsNullOrEmpty(c.StateOrProvinceCode));
+
+        if (countryMatch != null)
+            return countryMatch.Cost;
+
+        // Fall back to fixed cost
+        return shippingOption.FixedCost;
+    }
 }

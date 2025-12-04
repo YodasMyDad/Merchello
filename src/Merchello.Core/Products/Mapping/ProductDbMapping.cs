@@ -51,6 +51,13 @@ public class ProductDbMapping : IEntityTypeConfiguration<Product>
 
         builder.Property(x => x.Url).HasMaxLength(1000);
 
+        // Shipping dimensions
+        builder.Property(x => x.Weight).HasPrecision(18, 4);
+        builder.Property(x => x.LengthCm).HasPrecision(18, 2);
+        builder.Property(x => x.WidthCm).HasPrecision(18, 2);
+        builder.Property(x => x.HeightCm).HasPrecision(18, 2);
+        builder.Property(x => x.PackageConfigurations).ToJsonConversion(4000);
+
         builder.HasIndex(e => e.Price);
 
         // Configure shipping restriction mode

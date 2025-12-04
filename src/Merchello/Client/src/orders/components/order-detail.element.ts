@@ -10,6 +10,7 @@ import { UMB_CURRENT_USER_CONTEXT, type UmbCurrentUserModel } from "@umbraco-cms
 import type { OrderDetailDto, AddressDto, FulfillmentOrderDto, InvoicePaymentStatus, InvoiceNoteDto } from "@orders/types/order.types.js";
 import type { MerchelloOrderDetailWorkspaceContext } from "@orders/contexts/order-detail-workspace.context.js";
 import { MERCHELLO_FULFILLMENT_MODAL } from "@orders/modals/fulfillment-modal.token.js";
+import { MERCHELLO_EDIT_ORDER_MODAL } from "@orders/modals/edit-order-modal.token.js";
 import { formatCurrency, formatDateTime } from "@shared/utils/formatting.js";
 import { MerchelloApi, type CountryDto } from "@api/merchello-api.js";
 
@@ -103,6 +104,20 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     await modal.onSubmit().catch(() => undefined);
 
     // Always refresh the order data when modal closes to ensure status is up to date
+    this.#workspaceContext?.load(this._order.id);
+  }
+
+  private async _openEditOrderModal(): Promise<void> {
+    if (!this._order || !this.#modalManager) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_EDIT_ORDER_MODAL, {
+      data: { invoiceId: this._order.id },
+    });
+
+    // Wait for modal to close (submit or reject)
+    await modal.onSubmit().catch(() => undefined);
+
+    // Refresh the order data when modal closes
     this.#workspaceContext?.load(this._order.id);
   }
 
@@ -490,9 +505,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <span class="badge ${order.fulfillmentStatus.toLowerCase().replace(" ", "-")}">${order.fulfillmentStatus}</span>
           </div>
           <div class="header-right">
-            <uui-button look="secondary" label="Refund">Refund</uui-button>
-            <uui-button look="secondary" label="Edit">Edit</uui-button>
-            <uui-button look="secondary" label="More actions">More actions</uui-button>
+            <uui-button look="primary" label="Edit" @click=${this._openEditOrderModal}>Edit</uui-button>
           </div>
         </div>
         <div class="order-meta">
@@ -543,7 +556,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <!-- Payment Summary -->
             <div class="card payment-card">
               <div class="card-header">
-                <input type="checkbox" checked disabled />
+                <uui-checkbox checked disabled aria-label="Payment status"></uui-checkbox>
                 <span>${order.paymentStatusDisplay}</span>
               </div>
               <div class="payment-summary">
@@ -580,15 +593,14 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                     : html`<uui-icon name="icon-user"></uui-icon>`}
                 </div>
                 <div class="timeline-input-wrapper">
-                  <textarea
+                  <uui-textarea
                     placeholder="Leave a comment..."
                     .value=${this._newNoteText}
                     @input=${(e: Event) => {
                       this._newNoteText = (e.target as HTMLTextAreaElement).value;
                       this._noteError = null;
                     }}
-                    rows="2"
-                  ></textarea>
+                  ></uui-textarea>
                   <div class="timeline-toolbar">
                     <uui-button
                       look="primary"
@@ -603,14 +615,12 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                 </div>
               </div>
               <div class="timeline-visibility-note">
-                <label class="customer-visible-checkbox">
-                  <input
-                    type="checkbox"
-                    .checked=${this._visibleToCustomer}
-                    @change=${(e: Event) => this._visibleToCustomer = (e.target as HTMLInputElement).checked}
-                  />
+                <uui-checkbox
+                  ?checked=${this._visibleToCustomer}
+                  @change=${(e: CustomEvent) => this._visibleToCustomer = (e.target as HTMLInputElement).checked}
+                >
                   Visible to customer
-                </label>
+                </uui-checkbox>
                 <span class="visibility-hint">Only you and other staff can see comments</span>
               </div>
               <div class="timeline-events-container">
@@ -655,9 +665,9 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                 <div class="section-header">
                   <span>Contact information</span>
                   ${this._editingSection !== 'contact' ? html`
-                    <button class="edit-btn" title="Edit" @click=${() => this._startEditing('contact')}>
+                    <uui-button look="secondary" compact label="Edit contact" @click=${() => this._startEditing('contact')}>
                       <uui-icon name="icon-edit"></uui-icon>
-                    </button>
+                    </uui-button>
                   ` : nothing}
                 </div>
                 ${this._editingSection === 'contact' ? html`
@@ -680,9 +690,9 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                 <div class="section-header">
                   <span>Shipping address</span>
                   ${this._editingSection !== 'shipping' ? html`
-                    <button class="edit-btn" title="Edit" @click=${() => this._startEditing('shipping')}>
+                    <uui-button look="secondary" compact label="Edit shipping address" @click=${() => this._startEditing('shipping')}>
                       <uui-icon name="icon-edit"></uui-icon>
-                    </button>
+                    </uui-button>
                   ` : nothing}
                 </div>
                 ${this._editingSection === 'shipping' ? html`
@@ -716,9 +726,9 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                 <div class="section-header">
                   <span>Billing address</span>
                   ${this._editingSection !== 'billing' ? html`
-                    <button class="edit-btn" title="Edit" @click=${() => this._startEditing('billing')}>
+                    <uui-button look="secondary" compact label="Edit billing address" @click=${() => this._startEditing('billing')}>
                       <uui-icon name="icon-edit"></uui-icon>
-                    </button>
+                    </uui-button>
                   ` : nothing}
                 </div>
                 ${this._editingSection === 'billing' ? html`
@@ -755,11 +765,11 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <div class="card">
               <div class="card-header-with-action">
                 <h3>Tags</h3>
-                <button class="edit-btn" title="Edit">
+                <uui-button look="secondary" compact label="Edit tags">
                   <uui-icon name="icon-edit"></uui-icon>
-                </button>
+                </uui-button>
               </div>
-              <input type="text" placeholder="Add tags..." class="tags-input" />
+              <uui-input type="text" placeholder="Add tags..." label="Tags"></uui-input>
             </div>
           </div>
         </div>

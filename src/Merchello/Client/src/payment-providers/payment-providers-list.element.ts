@@ -197,13 +197,15 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
           </div>
           ${provider?.setupInstructions
             ? html`
-                <button
-                  class="help-button"
+                <uui-button
+                  look="secondary"
+                  compact
+                  label="Setup Instructions"
                   title="Setup Instructions"
                   @click=${() => this._openSetupInstructions(provider)}
                 >
                   <uui-icon name="icon-help-alt"></uui-icon>
-                </button>
+                </uui-button>
               `
             : nothing}
         </div>
@@ -238,13 +240,15 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
             : nothing}
           ${provider.setupInstructions
             ? html`
-                <button
-                  class="help-button"
+                <uui-button
+                  look="secondary"
+                  compact
+                  label="Setup Instructions"
                   title="Setup Instructions"
                   @click=${() => this._openSetupInstructions(provider)}
                 >
                   <uui-icon name="icon-help-alt"></uui-icon>
-                </button>
+                </uui-button>
               `
             : nothing}
         </div>

@@ -33,4 +33,3 @@ export const MERCHELLO_SETTINGS_ENTITY_TYPE = "merchello-settings";
 
 // Settings child entity types
 export const MERCHELLO_WAREHOUSES_ENTITY_TYPE = "merchello-warehouses";
-export const MERCHELLO_SHIPPING_ENTITY_TYPE = "merchello-shipping";

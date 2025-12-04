@@ -1,23 +1,11 @@
 export const manifests: Array<UmbExtensionManifest> = [
-  // Workspace for shipping (child of Settings in tree)
-  {
-    type: "workspace",
-    kind: "default",
-    alias: "Merchello.Shipping.Workspace",
-    name: "Merchello Shipping Workspace",
-    meta: {
-      entityType: "merchello-shipping",
-      headline: "Shipping",
-    },
-  },
-
-  // Workspace view for shipping
+  // Workspace view for shipping providers (under Providers workspace)
   {
     type: "workspaceView",
-    alias: "Merchello.Shipping.Workspace.View",
-    name: "Merchello Shipping View",
-    js: () => import("./shipping-workspace.element.js"),
-    weight: 100,
+    alias: "Merchello.Providers.ShippingProviders.View",
+    name: "Shipping Providers View",
+    js: () => import("./shipping-providers-list.element.js"),
+    weight: 90,
     meta: {
       label: "Shipping",
       pathname: "shipping",
@@ -26,9 +14,17 @@ export const manifests: Array<UmbExtensionManifest> = [
     conditions: [
       {
         alias: "Umb.Condition.WorkspaceAlias",
-        match: "Merchello.Shipping.Workspace",
+        match: "Merchello.Providers.Workspace",
       },
     ],
+  },
+
+  // Shipping provider configuration modal
+  {
+    type: "modal",
+    alias: "Merchello.ShippingProvider.Config.Modal",
+    name: "Shipping Provider Config Modal",
+    js: () => import("./shipping-provider-config-modal.element.js"),
   },
 ];
 

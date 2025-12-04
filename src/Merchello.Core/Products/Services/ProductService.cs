@@ -341,9 +341,10 @@ public class ProductService(
                 TaxGroupId = taxGroupId,
                 ProductType = productType,
                 ProductTypeId = productTypeId,
-                Weight = weight,
                 Categories = categories
             };
+
+            // Note: weight parameter will be applied to Product variants when they are created
 
             db.RootProducts.Add(productRoot);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
