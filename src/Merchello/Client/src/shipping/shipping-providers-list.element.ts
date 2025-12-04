@@ -97,7 +97,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     this.#notificationContext?.peek("positive", {
       data: {
         headline: "Success",
-        message: `${configuration.displayName} ${configuration.isEnabled ? "hidden from checkout" : "now showing in checkout"}`,
+        message: `${configuration.displayName} ${configuration.isEnabled ? "disabled" : "enabled"}`,
       },
     });
 
@@ -155,7 +155,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
             <uui-toggle
               .checked=${configuration.isEnabled}
               @change=${() => this._toggleProvider(configuration)}
-              label="${configuration.isEnabled ? 'In Checkout' : 'Hidden'}"
+              label="${configuration.isEnabled ? 'Enabled' : 'Disabled'}"
             ></uui-toggle>
             <uui-button
               look="secondary"
@@ -177,32 +177,9 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
         ${provider?.description
           ? html`<p class="provider-description">${provider.description}</p>`
           : nothing}
-        <div class="provider-footer">
-          <div class="provider-features">
-            ${configuration.isTestMode
-              ? html`<span class="feature-badge test-mode">Test Mode</span>`
-              : html`<span class="feature-badge live-mode">Live</span>`}
-            ${provider?.supportsRealTimeRates
-              ? html`<span class="feature-badge">Real-Time Rates</span>`
-              : nothing}
-            ${provider?.supportsTracking
-              ? html`<span class="feature-badge">Tracking</span>`
-              : nothing}
-            ${provider?.supportsLabelGeneration
-              ? html`<span class="feature-badge">Label Generation</span>`
-              : nothing}
-            ${provider?.supportsDeliveryDateSelection
-              ? html`<span class="feature-badge">Delivery Date Selection</span>`
-              : nothing}
-            ${provider?.supportsInternational
-              ? html`<span class="feature-badge">International</span>`
-              : nothing}
-            ${provider?.requiresFullAddress
-              ? html`<span class="feature-badge">Requires Full Address</span>`
-              : nothing}
-          </div>
-          ${provider?.setupInstructions
-            ? html`
+        ${provider?.setupInstructions
+          ? html`
+              <div class="provider-footer">
                 <uui-button
                   look="secondary"
                   compact
@@ -211,10 +188,11 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
                   @click=${() => this._openSetupInstructions(provider)}
                 >
                   <uui-icon name="icon-help-alt"></uui-icon>
+                  Setup Instructions
                 </uui-button>
-              `
-            : nothing}
-        </div>
+              </div>
+            `
+          : nothing}
       </div>
     `;
   }
@@ -292,7 +270,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
       <uui-box headline="Configured Shipping Providers">
         <p class="section-description">
           These shipping providers are installed and configured.
-          Toggle the switch to show or hide a provider from checkout.
+          Toggle the switch to enable or disable a provider.
         </p>
         ${this._configuredProviders.length === 0
           ? html`<p class="no-items">No shipping providers configured yet.</p>`
@@ -431,62 +409,10 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
 
     .provider-footer {
       display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
+      justify-content: flex-start;
+      align-items: center;
       margin-top: var(--uui-size-space-3);
       gap: var(--uui-size-space-3);
-    }
-
-    .provider-features {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--uui-size-space-2);
-      flex: 1;
-    }
-
-    .help-button {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      padding: 0;
-      border: 1px solid var(--uui-color-border);
-      border-radius: 50%;
-      background: var(--uui-color-surface);
-      color: var(--uui-color-text-alt);
-      cursor: pointer;
-      transition: all 120ms ease;
-      flex-shrink: 0;
-    }
-
-    .help-button:hover {
-      background: var(--uui-color-surface-emphasis);
-      color: var(--uui-color-interactive);
-      border-color: var(--uui-color-interactive);
-    }
-
-    .help-button uui-icon {
-      font-size: 16px;
-    }
-
-    .feature-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      background: var(--uui-color-surface-alt);
-      border-radius: 12px;
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
-    }
-
-    .feature-badge.test-mode {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
-    }
-
-    .feature-badge.live-mode {
-      background: var(--uui-color-positive-standalone);
-      color: var(--uui-color-positive-contrast);
     }
   `;
 }

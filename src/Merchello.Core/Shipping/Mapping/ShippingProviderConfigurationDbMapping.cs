@@ -22,9 +22,6 @@ public class ShippingProviderConfigurationDbMapping : IEntityTypeConfiguration<S
         builder.Property(x => x.SettingsJson)
             .HasMaxLength(4000);
 
-        builder.Property(x => x.IsTestMode)
-            .HasDefaultValue(true);
-
         builder.Property(x => x.SortOrder)
             .HasDefaultValue(0);
 

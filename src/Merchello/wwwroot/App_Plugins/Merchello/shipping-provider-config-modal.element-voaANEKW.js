@@ -1,14 +1,14 @@
-import { nothing as r, html as a, css as h, state as n, customElement as v } from "@umbraco-cms/backoffice/external/lit";
+import { nothing as t, html as a, css as h, state as d, customElement as v } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement as g } from "@umbraco-cms/backoffice/modal";
 import { M as p } from "./merchello-api-CZ7Bv6Up.js";
-var _ = Object.defineProperty, m = Object.getOwnPropertyDescriptor, l = (e, s, i, d) => {
-  for (var o = d > 1 ? void 0 : d ? m(s, i) : s, u = e.length - 1, c; u >= 0; u--)
-    (c = e[u]) && (o = (d ? c(s, i, o) : c(o)) || o);
-  return d && o && _(s, i, o), o;
+var _ = Object.defineProperty, m = Object.getOwnPropertyDescriptor, l = (e, s, i, n) => {
+  for (var o = n > 1 ? void 0 : n ? m(s, i) : s, u = e.length - 1, c; u >= 0; u--)
+    (c = e[u]) && (o = (n ? c(s, i, o) : c(o)) || o);
+  return n && o && _(s, i, o), o;
 };
-let t = class extends g {
+let r = class extends g {
   constructor() {
-    super(...arguments), this._fields = [], this._values = {}, this._displayName = "", this._isEnabled = !0, this._isTestMode = !0, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null;
+    super(...arguments), this._fields = [], this._values = {}, this._displayName = "", this._isEnabled = !0, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null;
   }
   connectedCallback() {
     super.connectedCallback(), this._loadFields();
@@ -20,10 +20,10 @@ let t = class extends g {
       this._errorMessage = "No provider specified", this._isLoading = !1;
       return;
     }
-    this._displayName = s?.displayName ?? e.displayName, this._isEnabled = s?.isEnabled ?? !0, this._isTestMode = s?.isTestMode ?? !0;
-    const { data: i, error: d } = await p.getShippingProviderFields(e.key);
-    if (d) {
-      this._errorMessage = d.message, this._isLoading = !1;
+    this._displayName = s?.displayName ?? e.displayName, this._isEnabled = s?.isEnabled ?? !0;
+    const { data: i, error: n } = await p.getShippingProviderFields(e.key);
+    if (n) {
+      this._errorMessage = n.message, this._isLoading = !1;
       return;
     }
     this._fields = i ?? [];
@@ -53,7 +53,6 @@ let t = class extends g {
           const { error: i } = await p.updateShippingProvider(s.id, {
             displayName: this._displayName,
             isEnabled: this._isEnabled,
-            isTestMode: this._isTestMode,
             configuration: this._values
           });
           if (i) {
@@ -65,7 +64,6 @@ let t = class extends g {
             providerKey: e.key,
             displayName: this._displayName,
             isEnabled: this._isEnabled,
-            isTestMode: this._isTestMode,
             configuration: this._values
           });
           if (i) {
@@ -90,7 +88,7 @@ let t = class extends g {
         return a`
           <div class="form-field">
             <label for="${e.key}">${e.label}${e.isRequired ? " *" : ""}</label>
-            ${e.description ? a`<p class="field-description">${e.description}</p>` : r}
+            ${e.description ? a`<p class="field-description">${e.description}</p>` : t}
             <uui-input
               id="${e.key}"
               type="${e.fieldType === "Url" ? "url" : "text"}"
@@ -105,7 +103,7 @@ let t = class extends g {
         return a`
           <div class="form-field">
             <label for="${e.key}">${e.label}${e.isRequired ? " *" : ""}</label>
-            ${e.description ? a`<p class="field-description">${e.description}</p>` : r}
+            ${e.description ? a`<p class="field-description">${e.description}</p>` : t}
             <uui-input
               id="${e.key}"
               type="password"
@@ -114,14 +112,14 @@ let t = class extends g {
               ?required=${e.isRequired}
               @input=${(i) => this._handleValueChange(e.key, i.target.value)}
             ></uui-input>
-            ${e.isSensitive && s ? a`<small class="sensitive-note">Value is stored securely</small>` : r}
+            ${e.isSensitive && s ? a`<small class="sensitive-note">Value is stored securely</small>` : t}
           </div>
         `;
       case "Textarea":
         return a`
           <div class="form-field">
             <label for="${e.key}">${e.label}${e.isRequired ? " *" : ""}</label>
-            ${e.description ? a`<p class="field-description">${e.description}</p>` : r}
+            ${e.description ? a`<p class="field-description">${e.description}</p>` : t}
             <uui-textarea
               id="${e.key}"
               .value=${s}
@@ -141,14 +139,14 @@ let t = class extends g {
             >
               ${e.label}
             </uui-checkbox>
-            ${e.description ? a`<p class="field-description">${e.description}</p>` : r}
+            ${e.description ? a`<p class="field-description">${e.description}</p>` : t}
           </div>
         `;
       case "Select":
         return a`
           <div class="form-field">
             <label for="${e.key}">${e.label}${e.isRequired ? " *" : ""}</label>
-            ${e.description ? a`<p class="field-description">${e.description}</p>` : r}
+            ${e.description ? a`<p class="field-description">${e.description}</p>` : t}
             <uui-select
               id="${e.key}"
               .value=${s}
@@ -167,7 +165,7 @@ let t = class extends g {
           </div>
         `;
       default:
-        return r;
+        return t;
     }
   }
   render() {
@@ -186,7 +184,7 @@ let t = class extends g {
                         <uui-icon name="icon-alert"></uui-icon>
                         ${this._errorMessage}
                       </div>
-                    ` : r}
+                    ` : t}
 
                 <div class="form-field">
                   <label for="displayName">Display Name *</label>
@@ -207,24 +205,10 @@ let t = class extends g {
                     ?checked=${this._isEnabled}
                     @change=${(i) => this._isEnabled = i.target.checked}
                   >
-                    Show In Checkout
+                    Enabled
                   </uui-checkbox>
                   <p class="field-description">
-                    When checked, this shipping provider will be available as an option for customers during checkout.
-                    Uncheck to keep the provider installed but hidden from customers.
-                  </p>
-                </div>
-
-                <div class="form-field checkbox-field">
-                  <uui-checkbox
-                    id="isTestMode"
-                    ?checked=${this._isTestMode}
-                    @change=${(i) => this._isTestMode = i.target.checked}
-                  >
-                    Test Mode
-                  </uui-checkbox>
-                  <p class="field-description">
-                    When enabled, the provider operates in test/sandbox mode. Disable for live/production rates.
+                    When enabled, this shipping provider will be active and available for use.
                   </p>
                 </div>
 
@@ -232,7 +216,7 @@ let t = class extends g {
                       <hr />
                       <h3>Provider Configuration</h3>
                       ${this._fields.map((i) => this._renderField(i))}
-                    ` : r}
+                    ` : t}
               `}
         </div>
 
@@ -252,7 +236,7 @@ let t = class extends g {
             @click=${this._handleSave}
             ?disabled=${this._isLoading || this._isSaving}
           >
-            ${this._isSaving ? a`<uui-loader-circle></uui-loader-circle>` : r}
+            ${this._isSaving ? a`<uui-loader-circle></uui-loader-circle>` : t}
             ${s ? "Save" : "Install Provider"}
           </uui-button>
         </div>
@@ -260,7 +244,7 @@ let t = class extends g {
     `;
   }
 };
-t.styles = h`
+r.styles = h`
     #main {
       padding: var(--uui-size-space-4);
     }
@@ -337,35 +321,32 @@ t.styles = h`
     }
   `;
 l([
-  n()
-], t.prototype, "_fields", 2);
+  d()
+], r.prototype, "_fields", 2);
 l([
-  n()
-], t.prototype, "_values", 2);
+  d()
+], r.prototype, "_values", 2);
 l([
-  n()
-], t.prototype, "_displayName", 2);
+  d()
+], r.prototype, "_displayName", 2);
 l([
-  n()
-], t.prototype, "_isEnabled", 2);
+  d()
+], r.prototype, "_isEnabled", 2);
 l([
-  n()
-], t.prototype, "_isTestMode", 2);
+  d()
+], r.prototype, "_isLoading", 2);
 l([
-  n()
-], t.prototype, "_isLoading", 2);
+  d()
+], r.prototype, "_isSaving", 2);
 l([
-  n()
-], t.prototype, "_isSaving", 2);
-l([
-  n()
-], t.prototype, "_errorMessage", 2);
-t = l([
+  d()
+], r.prototype, "_errorMessage", 2);
+r = l([
   v("merchello-shipping-provider-config-modal")
-], t);
-const y = t;
+], r);
+const y = r;
 export {
-  t as MerchelloShippingProviderConfigModalElement,
+  r as MerchelloShippingProviderConfigModalElement,
   y as default
 };
-//# sourceMappingURL=shipping-provider-config-modal.element-0hfY8lFO.js.map
+//# sourceMappingURL=shipping-provider-config-modal.element-voaANEKW.js.map

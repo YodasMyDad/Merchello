@@ -17,7 +17,6 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
   @state() private _values: Record<string, string> = {};
   @state() private _displayName: string = "";
   @state() private _isEnabled: boolean = true;
-  @state() private _isTestMode: boolean = true;
   @state() private _isLoading = true;
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
@@ -40,10 +39,9 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
       return;
     }
 
-    // Initialize display name, enabled state, and test mode
+    // Initialize display name and enabled state
     this._displayName = configuration?.displayName ?? provider.displayName;
     this._isEnabled = configuration?.isEnabled ?? true;
-    this._isTestMode = configuration?.isTestMode ?? true;
 
     // Load configuration fields
     const { data, error } = await MerchelloApi.getShippingProviderFields(provider.key);
@@ -99,7 +97,6 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
         const { error } = await MerchelloApi.updateShippingProvider(configuration.id, {
           displayName: this._displayName,
           isEnabled: this._isEnabled,
-          isTestMode: this._isTestMode,
           configuration: this._values,
         });
 
@@ -114,7 +111,6 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
           providerKey: provider.key,
           displayName: this._displayName,
           isEnabled: this._isEnabled,
-          isTestMode: this._isTestMode,
           configuration: this._values,
         });
 
@@ -295,25 +291,10 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
                     @change=${(e: Event) =>
                       (this._isEnabled = (e.target as HTMLInputElement).checked)}
                   >
-                    Show In Checkout
+                    Enabled
                   </uui-checkbox>
                   <p class="field-description">
-                    When checked, this shipping provider will be available as an option for customers during checkout.
-                    Uncheck to keep the provider installed but hidden from customers.
-                  </p>
-                </div>
-
-                <div class="form-field checkbox-field">
-                  <uui-checkbox
-                    id="isTestMode"
-                    ?checked=${this._isTestMode}
-                    @change=${(e: Event) =>
-                      (this._isTestMode = (e.target as HTMLInputElement).checked)}
-                  >
-                    Test Mode
-                  </uui-checkbox>
-                  <p class="field-description">
-                    When enabled, the provider operates in test/sandbox mode. Disable for live/production rates.
+                    When enabled, this shipping provider will be active and available for use.
                   </p>
                 </div>
 

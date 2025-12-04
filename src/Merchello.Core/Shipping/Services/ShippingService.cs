@@ -59,6 +59,7 @@ public class ShippingService(
         var (products, warehouses) = await scope.ExecuteWithContextAsync(async db =>
         {
             var loadedProducts = await db.Products
+                .AsNoTracking()
                 .Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
                         .ThenInclude(prw => prw.Warehouse)
@@ -79,6 +80,7 @@ public class ShippingService(
 
             // Load all warehouses for the context
             var loadedWarehouses = await db.Warehouses
+                .AsNoTracking()
                 .Include(w => w.ShippingOptions)
                     .ThenInclude(so => so.ShippingCosts)
                 .Include(w => w.ServiceRegions)
@@ -177,6 +179,7 @@ public class ShippingService(
         using var scope = efCoreScopeProvider.CreateScope();
         var shippingOptions = await scope.ExecuteWithContextAsync(async db =>
             await db.ShippingOptions
+                .AsNoTracking()
                 .Where(so => shippingOptionIds.Contains(so.Id))
                 .ToDictionaryAsync(so => so.Id, cancellationToken));
         scope.Complete();
@@ -244,6 +247,7 @@ public class ShippingService(
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.ShippingOptions
+                .AsNoTracking()
                 .OrderBy(so => so.Name)
                 .ToListAsync(cancellationToken));
         scope.Complete();
@@ -272,6 +276,7 @@ public class ShippingService(
         {
             // Load the product with shipping options
             var product = await db.Products
+                .AsNoTracking()
                 .Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)

@@ -62,8 +62,16 @@ public class OrdersApiController(
         // Execute query using service with real DB paging
         var result = await invoiceService.QueryInvoices(parameters);
 
+        // Lookup shipping option names for delivery method display
+        var shippingOptionIds = result.Items
+            .SelectMany(i => i.Orders ?? [])
+            .Select(o => o.ShippingOptionId)
+            .Distinct()
+            .ToList();
+        var shippingOptionNames = await invoiceService.GetShippingOptionNamesAsync(shippingOptionIds);
+
         // Map to DTOs
-        var items = result.Items.Select(MapToListItem).ToList();
+        var items = result.Items.Select(i => MapToListItem(i, shippingOptionNames)).ToList();
 
         return new OrderListResponse
         {
@@ -145,7 +153,11 @@ public class OrdersApiController(
             return NotFound();
         }
 
-        var detail = MapToDetail(invoice);
+        // Lookup shipping option names for delivery method display
+        var shippingOptionIds = invoice.Orders?.Select(o => o.ShippingOptionId).Distinct().ToList() ?? [];
+        var shippingOptionNames = await invoiceService.GetShippingOptionNamesAsync(shippingOptionIds);
+
+        var detail = MapToDetail(invoice, shippingOptionNames);
 
         // Get customer order count by billing email
         var billingEmail = invoice.BillingAddress?.Email;
@@ -276,7 +288,7 @@ public class OrdersApiController(
         };
     }
 
-    private OrderListItemDto MapToListItem(Invoice invoice)
+    private OrderListItemDto MapToListItem(Invoice invoice, Dictionary<Guid, string> shippingOptionNames)
     {
         var orders = invoice.Orders?.ToList() ?? [];
         var payments = invoice.Payments?.ToList() ?? [];
@@ -288,7 +300,13 @@ public class OrdersApiController(
 
         var fulfillmentStatus = GetFulfillmentStatus(orders);
         var deliveryStatus = GetDeliveryStatus(orders);
-        var deliveryMethod = "Standard"; // TODO: This should come from ShippingOption lookup
+
+        // Get delivery method from first order's shipping option (fallback to "Unknown")
+        var firstOrderShippingOptionId = orders.FirstOrDefault()?.ShippingOptionId;
+        var deliveryMethod = firstOrderShippingOptionId.HasValue
+            && shippingOptionNames.TryGetValue(firstOrderShippingOptionId.Value, out var name)
+            ? name
+            : "Unknown";
 
         return new OrderListItemDto
         {
@@ -308,7 +326,7 @@ public class OrdersApiController(
         };
     }
 
-    private OrderDetailDto MapToDetail(Invoice invoice)
+    private OrderDetailDto MapToDetail(Invoice invoice, Dictionary<Guid, string> shippingOptionNames)
     {
         var orders = invoice.Orders?.ToList() ?? [];
         var payments = invoice.Payments?.ToList() ?? [];
@@ -334,7 +352,7 @@ public class OrdersApiController(
             FulfillmentStatus = GetFulfillmentStatus(orders),
             BillingAddress = MapAddress(invoice.BillingAddress),
             ShippingAddress = MapAddress(invoice.ShippingAddress),
-            Orders = orders.Select(MapFulfillmentOrder).ToList(),
+            Orders = orders.Select(o => MapFulfillmentOrder(o, shippingOptionNames)).ToList(),
             Notes = invoice.Notes?.Select(n => new InvoiceNoteDto
             {
                 Date = n.DateCreated,
@@ -366,13 +384,17 @@ public class OrdersApiController(
         };
     }
 
-    private static FulfillmentOrderDto MapFulfillmentOrder(Order order)
+    private static FulfillmentOrderDto MapFulfillmentOrder(Order order, Dictionary<Guid, string> shippingOptionNames)
     {
+        var deliveryMethod = shippingOptionNames.TryGetValue(order.ShippingOptionId, out var name)
+            ? name
+            : "Unknown";
+
         return new FulfillmentOrderDto
         {
             Id = order.Id,
             Status = order.Status,
-            DeliveryMethod = "Standard", // Would come from ShippingOption lookup
+            DeliveryMethod = deliveryMethod,
             ShippingCost = order.ShippingCost,
             LineItems = order.LineItems?
                 .Where(li => li.LineItemType == LineItemType.Product)

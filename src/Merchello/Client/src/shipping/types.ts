@@ -54,8 +54,6 @@ export interface ShippingProviderConfigurationDto {
   providerKey: string;
   displayName: string;
   isEnabled: boolean;
-  /** Whether the provider is in test/sandbox mode */
-  isTestMode: boolean;
   configuration?: Record<string, string>;
   sortOrder: number;
   dateCreated: string;
@@ -72,8 +70,6 @@ export interface CreateShippingProviderConfigurationDto {
   displayName?: string;
   /** Whether to enable immediately */
   isEnabled?: boolean;
-  /** Whether the provider is in test/sandbox mode */
-  isTestMode?: boolean;
   /** Configuration values (key-value pairs) */
   configuration?: Record<string, string>;
 }
@@ -84,8 +80,6 @@ export interface UpdateShippingProviderConfigurationDto {
   displayName?: string;
   /** Whether the provider is enabled */
   isEnabled?: boolean;
-  /** Whether the provider is in test/sandbox mode */
-  isTestMode?: boolean;
   /** Configuration values (key-value pairs) */
   configuration?: Record<string, string>;
 }

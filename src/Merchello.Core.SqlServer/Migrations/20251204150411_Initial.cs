@@ -151,7 +151,6 @@ namespace Merchello.Core.SqlServer.Migrations
                     ProviderKey = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
                     DisplayName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     IsEnabled = table.Column<bool>(type: "bit", nullable: false),
-                    IsTestMode = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
                     SettingsJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
                     SortOrder = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
                     UpdateDate = table.Column<DateTime>(type: "datetime2", nullable: false),

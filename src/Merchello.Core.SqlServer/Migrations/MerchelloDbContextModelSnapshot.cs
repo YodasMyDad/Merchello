@@ -972,11 +972,6 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("IsTestMode")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(true);
-
                     b.Property<string>("ProviderKey")
                         .IsRequired()
                         .HasMaxLength(256)

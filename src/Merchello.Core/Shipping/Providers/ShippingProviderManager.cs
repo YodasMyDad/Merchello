@@ -120,7 +120,6 @@ public class ShippingProviderManager(
             {
                 existing.DisplayName = configuration.DisplayName;
                 existing.IsEnabled = configuration.IsEnabled;
-                existing.IsTestMode = configuration.IsTestMode;
                 existing.SettingsJson = configuration.SettingsJson;
                 existing.SortOrder = configuration.SortOrder;
                 existing.UpdateDate = DateTime.UtcNow;

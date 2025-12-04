@@ -6,6 +6,7 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Payments.Services;
@@ -16,8 +17,10 @@ namespace Merchello.Core.Payments.Services;
 public class PaymentService(
     IPaymentProviderManager providerManager,
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    IOptions<MerchelloSettings> settings,
     ILogger<PaymentService> logger) : IPaymentService
 {
+    private readonly MerchelloSettings _settings = settings.Value;
 
     /// <inheritdoc />
     public async Task<PaymentSessionResult> CreatePaymentSessionAsync(
@@ -53,7 +56,7 @@ public class PaymentService(
         {
             InvoiceId = invoiceId,
             Amount = invoice.Total,
-            Currency = "GBP", // TODO: Get from store/invoice settings
+            Currency = _settings.StoreCurrencyCode,
             ReturnUrl = returnUrl,
             CancelUrl = cancelUrl,
             Description = $"Payment for Invoice {invoice.InvoiceNumber}",

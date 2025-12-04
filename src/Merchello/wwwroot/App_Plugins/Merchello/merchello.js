@@ -429,7 +429,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Providers.ShippingProviders.View",
     name: "Shipping Providers View",
-    js: () => import("./shipping-providers-list.element-okLNtaX4.js"),
+    js: () => import("./shipping-providers-list.element-BDcBS35u.js"),
     weight: 90,
     meta: {
       label: "Shipping",
@@ -448,7 +448,7 @@ const e = [
     type: "modal",
     alias: "Merchello.ShippingProvider.Config.Modal",
     name: "Shipping Provider Config Modal",
-    js: () => import("./shipping-provider-config-modal.element-0hfY8lFO.js")
+    js: () => import("./shipping-provider-config-modal.element-voaANEKW.js")
   }
 ], d = [
   // Workspace view for payment providers (under Providers workspace)
