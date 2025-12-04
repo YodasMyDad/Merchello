@@ -116,7 +116,6 @@ public class ShippingProvidersApiController(
             ProviderKey = request.ProviderKey,
             DisplayName = request.DisplayName ?? provider.Metadata.DisplayName,
             IsEnabled = request.IsEnabled,
-            IsTestMode = request.IsTestMode,
             SettingsJson = request.Configuration != null ? JsonSerializer.Serialize(request.Configuration) : null,
             SortOrder = maxSortOrder + 1
         };
@@ -157,11 +156,6 @@ public class ShippingProvidersApiController(
         if (request.IsEnabled.HasValue)
         {
             configuration.IsEnabled = request.IsEnabled.Value;
-        }
-
-        if (request.IsTestMode.HasValue)
-        {
-            configuration.IsTestMode = request.IsTestMode.Value;
         }
 
         if (request.Configuration != null)
@@ -287,7 +281,6 @@ public class ShippingProvidersApiController(
             ProviderKey = configuration.ProviderKey,
             DisplayName = configuration.DisplayName ?? provider?.Metadata.DisplayName ?? configuration.ProviderKey,
             IsEnabled = configuration.IsEnabled,
-            IsTestMode = configuration.IsTestMode,
             Configuration = config,
             SortOrder = configuration.SortOrder,
             DateCreated = configuration.CreateDate,

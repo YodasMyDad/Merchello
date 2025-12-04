@@ -3,8 +3,10 @@ using Merchello.Core.Data;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Services;
+using Merchello.Core.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
@@ -16,17 +18,20 @@ public class PaymentServiceTests
 {
     private readonly Mock<IPaymentProviderManager> _providerManagerMock;
     private readonly Mock<IEFCoreScopeProvider<MerchelloDbContext>> _scopeProviderMock;
+    private readonly Mock<IOptions<MerchelloSettings>> _settingsMock;
     private readonly Mock<ILogger<PaymentService>> _loggerMock;
 
     public PaymentServiceTests()
     {
         _providerManagerMock = new Mock<IPaymentProviderManager>();
         _scopeProviderMock = new Mock<IEFCoreScopeProvider<MerchelloDbContext>>();
+        _settingsMock = new Mock<IOptions<MerchelloSettings>>();
+        _settingsMock.Setup(s => s.Value).Returns(new MerchelloSettings());
         _loggerMock = new Mock<ILogger<PaymentService>>();
     }
 
     private PaymentService CreateService() =>
-        new(_providerManagerMock.Object, _scopeProviderMock.Object, _loggerMock.Object);
+        new(_providerManagerMock.Object, _scopeProviderMock.Object, _settingsMock.Object, _loggerMock.Object);
 
     #region ProcessRefundAsync Tests
 

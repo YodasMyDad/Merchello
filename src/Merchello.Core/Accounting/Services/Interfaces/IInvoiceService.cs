@@ -106,5 +106,10 @@ public interface IInvoiceService
     /// Get count of invoices by billing email address
     /// </summary>
     Task<int> GetInvoiceCountByBillingEmailAsync(string email, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get shipping option names by their IDs for display purposes
+    /// </summary>
+    Task<Dictionary<Guid, string>> GetShippingOptionNamesAsync(IEnumerable<Guid> shippingOptionIds, CancellationToken cancellationToken = default);
 }
 

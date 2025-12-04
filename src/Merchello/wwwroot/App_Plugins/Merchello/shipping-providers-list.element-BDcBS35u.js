@@ -1,28 +1,28 @@
-import { LitElement as y, nothing as o, html as r, css as x, state as v, customElement as P } from "@umbraco-cms/backoffice/external/lit";
-import { UmbElementMixin as k } from "@umbraco-cms/backoffice/element-api";
-import { UmbModalToken as $, UMB_MODAL_MANAGER_CONTEXT as M } from "@umbraco-cms/backoffice/modal";
-import { UMB_NOTIFICATION_CONTEXT as w } from "@umbraco-cms/backoffice/notification";
+import { LitElement as y, nothing as c, html as r, css as P, state as v, customElement as x } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as $ } from "@umbraco-cms/backoffice/element-api";
+import { UmbModalToken as M, UMB_MODAL_MANAGER_CONTEXT as k } from "@umbraco-cms/backoffice/modal";
+import { UMB_NOTIFICATION_CONTEXT as S } from "@umbraco-cms/backoffice/notification";
 import { M as p } from "./merchello-api-CZ7Bv6Up.js";
-import { M as S } from "./setup-instructions-modal.token-CR5MFRlI.js";
-const C = new $("Merchello.ShippingProvider.Config.Modal", {
+import { M as C } from "./setup-instructions-modal.token-CR5MFRlI.js";
+const E = new M("Merchello.ShippingProvider.Config.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
   }
 });
-var I = Object.defineProperty, z = Object.getOwnPropertyDescriptor, b = (e) => {
+var I = Object.defineProperty, z = Object.getOwnPropertyDescriptor, _ = (e) => {
   throw TypeError(e);
-}, c = (e, i, s, u) => {
-  for (var n = u > 1 ? void 0 : u ? z(i, s) : i, g = e.length - 1, h; g >= 0; g--)
-    (h = e[g]) && (n = (u ? h(i, s, n) : h(n)) || n);
-  return u && n && I(i, s, n), n;
-}, _ = (e, i, s) => i.has(e) || b("Cannot " + s), a = (e, i, s) => (_(e, i, "read from private field"), i.get(e)), f = (e, i, s) => i.has(e) ? b("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, s), m = (e, i, s, u) => (_(e, i, "write to private field"), i.set(e, s), s), d, l;
-let t = class extends k(y) {
+}, u = (e, i, s, l) => {
+  for (var t = l > 1 ? void 0 : l ? z(i, s) : i, g = e.length - 1, h; g >= 0; g--)
+    (h = e[g]) && (t = (l ? h(i, s, t) : h(t)) || t);
+  return l && t && I(i, s, t), t;
+}, b = (e, i, s) => i.has(e) || _("Cannot " + s), o = (e, i, s) => (b(e, i, "read from private field"), i.get(e)), m = (e, i, s) => i.has(e) ? _("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, s), f = (e, i, s, l) => (b(e, i, "write to private field"), i.set(e, s), s), n, d;
+let a = class extends $(y) {
   constructor() {
-    super(), this._availableProviders = [], this._configuredProviders = [], this._isLoading = !0, this._errorMessage = null, f(this, d), f(this, l), this.consumeContext(M, (e) => {
-      m(this, d, e);
-    }), this.consumeContext(w, (e) => {
-      m(this, l, e);
+    super(), this._availableProviders = [], this._configuredProviders = [], this._isLoading = !0, this._errorMessage = null, m(this, n), m(this, d), this.consumeContext(k, (e) => {
+      f(this, n, e);
+    }), this.consumeContext(S, (e) => {
+      f(this, d, e);
     });
   }
   connectedCallback() {
@@ -54,8 +54,8 @@ let t = class extends k(y) {
     return this._availableProviders.filter((i) => !e.has(i.key));
   }
   async _openConfigModal(e, i) {
-    if (!a(this, d)) return;
-    (await a(this, d).open(this, C, {
+    if (!o(this, n)) return;
+    (await o(this, n).open(this, E, {
       data: { provider: e, configuration: i }
     }).onSubmit().catch(() => {
     }))?.saved && await this._loadProviders();
@@ -63,15 +63,15 @@ let t = class extends k(y) {
   async _toggleProvider(e) {
     const { error: i } = await p.toggleShippingProvider(e.id, !e.isEnabled);
     if (i) {
-      a(this, l)?.peek("danger", {
+      o(this, d)?.peek("danger", {
         data: { headline: "Error", message: i.message }
       });
       return;
     }
-    a(this, l)?.peek("positive", {
+    o(this, d)?.peek("positive", {
       data: {
         headline: "Success",
-        message: `${e.displayName} ${e.isEnabled ? "hidden from checkout" : "now showing in checkout"}`
+        message: `${e.displayName} ${e.isEnabled ? "disabled" : "enabled"}`
       }
     }), await this._loadProviders();
   }
@@ -80,17 +80,17 @@ let t = class extends k(y) {
       return;
     const { error: i } = await p.deleteShippingProvider(e.id);
     if (i) {
-      a(this, l)?.peek("danger", {
+      o(this, d)?.peek("danger", {
         data: { headline: "Error", message: i.message }
       });
       return;
     }
-    a(this, l)?.peek("positive", {
+    o(this, d)?.peek("positive", {
       data: { headline: "Success", message: `${e.displayName} removed` }
     }), await this._loadProviders();
   }
   _openSetupInstructions(e) {
-    !a(this, d) || !e.setupInstructions || a(this, d).open(this, S, {
+    !o(this, n) || !e.setupInstructions || o(this, n).open(this, C, {
       data: {
         providerName: e.displayName,
         instructions: e.setupInstructions
@@ -113,7 +113,7 @@ let t = class extends k(y) {
             <uui-toggle
               .checked=${e.isEnabled}
               @change=${() => this._toggleProvider(e)}
-              label="${e.isEnabled ? "In Checkout" : "Hidden"}"
+              label="${e.isEnabled ? "Enabled" : "Disabled"}"
             ></uui-toggle>
             <uui-button
               look="secondary"
@@ -132,18 +132,9 @@ let t = class extends k(y) {
             </uui-button>
           </div>
         </div>
-        ${i?.description ? r`<p class="provider-description">${i.description}</p>` : o}
-        <div class="provider-footer">
-          <div class="provider-features">
-            ${e.isTestMode ? r`<span class="feature-badge test-mode">Test Mode</span>` : r`<span class="feature-badge live-mode">Live</span>`}
-            ${i?.supportsRealTimeRates ? r`<span class="feature-badge">Real-Time Rates</span>` : o}
-            ${i?.supportsTracking ? r`<span class="feature-badge">Tracking</span>` : o}
-            ${i?.supportsLabelGeneration ? r`<span class="feature-badge">Label Generation</span>` : o}
-            ${i?.supportsDeliveryDateSelection ? r`<span class="feature-badge">Delivery Date Selection</span>` : o}
-            ${i?.supportsInternational ? r`<span class="feature-badge">International</span>` : o}
-            ${i?.requiresFullAddress ? r`<span class="feature-badge">Requires Full Address</span>` : o}
-          </div>
-          ${i?.setupInstructions ? r`
+        ${i?.description ? r`<p class="provider-description">${i.description}</p>` : c}
+        ${i?.setupInstructions ? r`
+              <div class="provider-footer">
                 <uui-button
                   look="secondary"
                   compact
@@ -152,9 +143,10 @@ let t = class extends k(y) {
                   @click=${() => this._openSetupInstructions(i)}
                 >
                   <uui-icon name="icon-help-alt"></uui-icon>
+                  Setup Instructions
                 </uui-button>
-              ` : o}
-        </div>
+              </div>
+            ` : c}
       </div>
     `;
   }
@@ -178,7 +170,7 @@ let t = class extends k(y) {
           </uui-button>
         </div>
         <div class="provider-footer">
-          ${e.description ? r`<p class="provider-description">${e.description}</p>` : o}
+          ${e.description ? r`<p class="provider-description">${e.description}</p>` : c}
           ${e.setupInstructions ? r`
                 <uui-button
                   look="secondary"
@@ -189,7 +181,7 @@ let t = class extends k(y) {
                 >
                   <uui-icon name="icon-help-alt"></uui-icon>
                 </uui-button>
-              ` : o}
+              ` : c}
         </div>
       </div>
     `;
@@ -219,7 +211,7 @@ let t = class extends k(y) {
       <uui-box headline="Configured Shipping Providers">
         <p class="section-description">
           These shipping providers are installed and configured.
-          Toggle the switch to show or hide a provider from checkout.
+          Toggle the switch to enable or disable a provider.
         </p>
         ${this._configuredProviders.length === 0 ? r`<p class="no-items">No shipping providers configured yet.</p>` : r`
               <div class="providers-list">
@@ -246,9 +238,9 @@ let t = class extends k(y) {
     `;
   }
 };
+n = /* @__PURE__ */ new WeakMap();
 d = /* @__PURE__ */ new WeakMap();
-l = /* @__PURE__ */ new WeakMap();
-t.styles = x`
+a.styles = P`
     :host {
       display: block;
       padding: var(--uui-size-layout-1);
@@ -356,82 +348,30 @@ t.styles = x`
 
     .provider-footer {
       display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
+      justify-content: flex-start;
+      align-items: center;
       margin-top: var(--uui-size-space-3);
       gap: var(--uui-size-space-3);
     }
-
-    .provider-features {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--uui-size-space-2);
-      flex: 1;
-    }
-
-    .help-button {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      padding: 0;
-      border: 1px solid var(--uui-color-border);
-      border-radius: 50%;
-      background: var(--uui-color-surface);
-      color: var(--uui-color-text-alt);
-      cursor: pointer;
-      transition: all 120ms ease;
-      flex-shrink: 0;
-    }
-
-    .help-button:hover {
-      background: var(--uui-color-surface-emphasis);
-      color: var(--uui-color-interactive);
-      border-color: var(--uui-color-interactive);
-    }
-
-    .help-button uui-icon {
-      font-size: 16px;
-    }
-
-    .feature-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      background: var(--uui-color-surface-alt);
-      border-radius: 12px;
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
-    }
-
-    .feature-badge.test-mode {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
-    }
-
-    .feature-badge.live-mode {
-      background: var(--uui-color-positive-standalone);
-      color: var(--uui-color-positive-contrast);
-    }
   `;
-c([
+u([
   v()
-], t.prototype, "_availableProviders", 2);
-c([
+], a.prototype, "_availableProviders", 2);
+u([
   v()
-], t.prototype, "_configuredProviders", 2);
-c([
+], a.prototype, "_configuredProviders", 2);
+u([
   v()
-], t.prototype, "_isLoading", 2);
-c([
+], a.prototype, "_isLoading", 2);
+u([
   v()
-], t.prototype, "_errorMessage", 2);
-t = c([
-  P("merchello-shipping-providers-list")
-], t);
-const R = t;
+], a.prototype, "_errorMessage", 2);
+a = u([
+  x("merchello-shipping-providers-list")
+], a);
+const R = a;
 export {
-  t as MerchelloShippingProvidersListElement,
+  a as MerchelloShippingProvidersListElement,
   R as default
 };
-//# sourceMappingURL=shipping-providers-list.element-okLNtaX4.js.map
+//# sourceMappingURL=shipping-providers-list.element-BDcBS35u.js.map

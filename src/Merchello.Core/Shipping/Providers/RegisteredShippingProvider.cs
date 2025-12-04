@@ -42,9 +42,4 @@ public sealed class RegisteredShippingProvider
     /// Sort order for checkout display.
     /// </summary>
     public int SortOrder => Configuration?.SortOrder ?? 0;
-
-    /// <summary>
-    /// Whether this provider is in test mode.
-    /// </summary>
-    public bool IsTestMode => Configuration?.IsTestMode ?? true;
 }

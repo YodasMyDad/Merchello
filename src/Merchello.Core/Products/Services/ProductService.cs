@@ -654,7 +654,7 @@ public class ProductService(
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductTypes.OrderBy(pt => pt.Name).ToListAsync(cancellationToken));
+            await db.ProductTypes.AsNoTracking().OrderBy(pt => pt.Name).ToListAsync(cancellationToken));
         scope.Complete();
         return result;
     }
@@ -666,7 +666,7 @@ public class ProductService(
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductCategories.OrderBy(pc => pc.Name).ToListAsync(cancellationToken));
+            await db.ProductCategories.AsNoTracking().OrderBy(pc => pc.Name).ToListAsync(cancellationToken));
         scope.Complete();
         return result;
     }
@@ -709,6 +709,7 @@ public class ProductService(
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             IQueryable<ProductRoot> query = db.RootProducts
+                .AsNoTracking()
                 .Include(pr => pr.Categories)
                 .Include(pr => pr.ProductType)
                 .Include(pr => pr.TaxGroup);

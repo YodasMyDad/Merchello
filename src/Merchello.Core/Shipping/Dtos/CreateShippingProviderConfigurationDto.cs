@@ -21,11 +21,6 @@ public class CreateShippingProviderConfigurationDto
     public bool IsEnabled { get; set; } = true;
 
     /// <summary>
-    /// Whether the provider is in test/sandbox mode
-    /// </summary>
-    public bool IsTestMode { get; set; } = true;
-
-    /// <summary>
     /// Configuration values (key-value pairs)
     /// </summary>
     public Dictionary<string, string>? Configuration { get; set; }

@@ -155,7 +155,7 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
             <uui-toggle
               .checked=${setting.isEnabled}
               @change=${() => this._toggleProvider(setting)}
-              label="${setting.isEnabled ? 'In Checkout' : 'Hidden'}"
+              label="${setting.isEnabled ? 'In Checkout' : 'Hide From Checkout'}"
             ></uui-toggle>
             <uui-button
               look="secondary"
@@ -474,8 +474,8 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     }
 
     .feature-badge.test-mode {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
+      background: #f97316;
+      color: #fff;
     }
 
     .feature-badge.live-mode {

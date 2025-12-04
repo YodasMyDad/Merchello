@@ -43,6 +43,7 @@ public class WarehouseService(
             using var scope = efCoreScopeProvider.CreateScope();
             var loadedProduct = await scope.ExecuteWithContextAsync(async db =>
                 await db.Products
+                    .AsNoTracking()
                     .Include(p => p.ProductRoot)
                         .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
                             .ThenInclude(prw => prw.Warehouse)
@@ -839,6 +840,7 @@ public class WarehouseService(
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.Warehouses
+                .AsNoTracking()
                 .OrderBy(w => w.Name)
                 .ToListAsync(cancellationToken));
         scope.Complete();
@@ -855,6 +857,7 @@ public class WarehouseService(
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.ProductWarehouses
+                .AsNoTracking()
                 .Where(pw => pw.ProductId == productId)
                 .Include(pw => pw.Warehouse)
                 .Select(pw => new ProductStockLevel
@@ -885,6 +888,7 @@ public class WarehouseService(
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             IQueryable<ProductWarehouse> query = db.ProductWarehouses
+                .AsNoTracking()
                 .Where(pw => pw.WarehouseId == warehouseId);
 
             if (lowStockOnly)
@@ -927,6 +931,7 @@ public class WarehouseService(
         {
             // Check available stock (Stock - ReservedStock) for tracked items, total Stock for untracked
             IQueryable<ProductWarehouse> query = db.ProductWarehouses
+                .AsNoTracking()
                 .Where(pw => pw.ReorderPoint.HasValue &&
                     (pw.TrackStock
                         ? (pw.Stock - pw.ReservedStock) <= pw.ReorderPoint.Value

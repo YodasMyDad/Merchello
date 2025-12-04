@@ -967,11 +967,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsTestMode")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(true);
-
                     b.Property<string>("ProviderKey")
                         .IsRequired()
                         .HasMaxLength(256)

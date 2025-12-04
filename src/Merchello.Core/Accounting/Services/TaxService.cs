@@ -21,6 +21,7 @@ public class TaxService(
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.TaxGroups
+                .AsNoTracking()
                 .OrderBy(tg => tg.Name)
                 .ToListAsync(cancellationToken));
         scope.Complete();
@@ -35,6 +36,7 @@ public class TaxService(
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.TaxGroups
+                .AsNoTracking()
                 .FirstOrDefaultAsync(tg => tg.Id == taxGroupId, cancellationToken));
         scope.Complete();
         return result;

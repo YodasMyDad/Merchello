@@ -151,7 +151,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     ProviderKey = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
                     DisplayName = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
                     IsEnabled = table.Column<bool>(type: "INTEGER", nullable: false),
-                    IsTestMode = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true),
                     SettingsJson = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: true),
                     SortOrder = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
                     UpdateDate = table.Column<DateTime>(type: "TEXT", nullable: false),

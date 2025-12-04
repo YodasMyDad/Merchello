@@ -713,6 +713,7 @@ public class InvoiceService(
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.Orders
+                .AsNoTracking()
                 .Include(o => o.Invoice)
                 .Include(o => o.LineItems)
                 .Include(o => o.Shipments)
@@ -907,6 +908,7 @@ public class InvoiceService(
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.Invoices
+                .AsNoTracking()
                 .Include(i => i.Orders)!
                     .ThenInclude(o => o.LineItems)
                 .Include(i => i.Orders)!
@@ -971,6 +973,7 @@ public class InvoiceService(
         var stats = await scope.ExecuteWithContextAsync(async db =>
         {
             var todaysInvoices = await db.Invoices
+                .AsNoTracking()
                 .Include(i => i.Orders)!
                     .ThenInclude(o => o.LineItems)
                 .Include(i => i.Orders)!
@@ -1022,10 +1025,12 @@ public class InvoiceService(
         var stats = await scope.ExecuteWithContextAsync(async db =>
         {
             var thisMonthInvoices = await db.Invoices
+                .AsNoTracking()
                 .Where(i => !i.IsDeleted && i.DateCreated >= thisMonthStart)
                 .ToListAsync(cancellationToken);
 
             var lastMonthInvoices = await db.Invoices
+                .AsNoTracking()
                 .Where(i => !i.IsDeleted && i.DateCreated >= lastMonthStart && i.DateCreated < lastMonthEnd)
                 .ToListAsync(cancellationToken);
 
@@ -1049,6 +1054,7 @@ public class InvoiceService(
 
             // Customer count (unique billing emails)
             var allEmails = await db.Invoices
+                .AsNoTracking()
                 .Where(i => !i.IsDeleted && i.BillingAddress.Email != null)
                 .Select(i => i.BillingAddress.Email)
                 .Distinct()
@@ -1057,6 +1063,7 @@ public class InvoiceService(
 
             // New customers this month
             var emailsBeforeThisMonth = await db.Invoices
+                .AsNoTracking()
                 .Where(i => !i.IsDeleted && i.DateCreated < thisMonthStart && i.BillingAddress.Email != null)
                 .Select(i => i.BillingAddress.Email)
                 .Distinct()
@@ -1257,6 +1264,7 @@ public class InvoiceService(
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             var invoice = await db.Invoices
+                .AsNoTracking()
                 .Include(i => i.Orders)!
                     .ThenInclude(o => o.LineItems)
                 .Include(i => i.Orders)!
@@ -1271,10 +1279,18 @@ public class InvoiceService(
             // Load warehouse names
             var warehouseIds = invoice.Orders?.Select(o => o.WarehouseId).Distinct().ToList() ?? [];
             var warehouseNames = await db.Warehouses
+                .AsNoTracking()
                 .Where(w => warehouseIds.Contains(w.Id))
                 .ToDictionaryAsync(w => w.Id, w => w.Name ?? "Unknown Warehouse", cancellationToken);
 
-            return MapToFulfillmentSummary(invoice, warehouseNames);
+            // Load shipping option names
+            var shippingOptionIds = invoice.Orders?.Select(o => o.ShippingOptionId).Distinct().ToList() ?? [];
+            var shippingOptionNames = await db.ShippingOptions
+                .AsNoTracking()
+                .Where(so => shippingOptionIds.Contains(so.Id))
+                .ToDictionaryAsync(so => so.Id, so => so.Name ?? "Unknown", cancellationToken);
+
+            return MapToFulfillmentSummary(invoice, warehouseNames, shippingOptionNames);
         });
         scope.Complete();
 
@@ -1506,7 +1522,7 @@ public class InvoiceService(
         return success;
     }
 
-    private static FulfillmentSummaryDto MapToFulfillmentSummary(Invoice invoice, Dictionary<Guid, string> warehouseNames)
+    private static FulfillmentSummaryDto MapToFulfillmentSummary(Invoice invoice, Dictionary<Guid, string> warehouseNames, Dictionary<Guid, string> shippingOptionNames)
     {
         var orders = invoice.Orders?.ToList() ?? [];
 
@@ -1515,11 +1531,11 @@ public class InvoiceService(
             InvoiceId = invoice.Id,
             InvoiceNumber = invoice.InvoiceNumber,
             OverallStatus = GetFulfillmentStatus(orders),
-            Orders = orders.Select(o => MapToOrderFulfillment(o, warehouseNames)).ToList()
+            Orders = orders.Select(o => MapToOrderFulfillment(o, warehouseNames, shippingOptionNames)).ToList()
         };
     }
 
-    private static OrderFulfillmentDto MapToOrderFulfillment(Order order, Dictionary<Guid, string> warehouseNames)
+    private static OrderFulfillmentDto MapToOrderFulfillment(Order order, Dictionary<Guid, string> warehouseNames, Dictionary<Guid, string> shippingOptionNames)
     {
         var lineItems = order.LineItems?
             .Where(li => li.LineItemType == LineItemType.Product)
@@ -1540,13 +1556,17 @@ public class InvoiceService(
             }
         }
 
+        var deliveryMethod = shippingOptionNames.TryGetValue(order.ShippingOptionId, out var shippingName)
+            ? shippingName
+            : "Unknown";
+
         return new OrderFulfillmentDto
         {
             OrderId = order.Id,
             WarehouseId = order.WarehouseId,
             WarehouseName = warehouseNames.TryGetValue(order.WarehouseId, out var name) ? name : "Unknown Warehouse",
             Status = order.Status,
-            DeliveryMethod = "Standard",
+            DeliveryMethod = deliveryMethod,
             LineItems = lineItems.Select(li => new FulfillmentLineItemDto
             {
                 Id = li.Id,
@@ -1619,6 +1639,25 @@ public class InvoiceService(
         scope.Complete();
 
         return count;
+    }
+
+    /// <inheritdoc />
+    public async Task<Dictionary<Guid, string>> GetShippingOptionNamesAsync(
+        IEnumerable<Guid> shippingOptionIds,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = shippingOptionIds.ToList();
+        if (ids.Count == 0) return [];
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.ShippingOptions
+                .AsNoTracking()
+                .Where(so => ids.Contains(so.Id))
+                .Select(so => new { so.Id, so.Name })
+                .ToDictionaryAsync(x => x.Id, x => x.Name ?? "Unknown", cancellationToken));
+        scope.Complete();
+        return result;
     }
 }
 
