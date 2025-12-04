@@ -34,4 +34,9 @@ public class OrderDetailDto
 
     // Timeline/Notes
     public List<InvoiceNoteDto> Notes { get; set; } = [];
+
+    /// <summary>
+    /// Count of orders with the same billing email (for customer order history)
+    /// </summary>
+    public int CustomerOrderCount { get; set; }
 }

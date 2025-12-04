@@ -203,7 +203,7 @@ const e = [
     kind: "routable",
     alias: "Merchello.Order.Detail.Workspace",
     name: "Order Detail Workspace",
-    api: () => import("./order-detail-workspace.context-CZRVMfVk.js"),
+    api: () => import("./order-detail-workspace.context-de2-Lf5u.js"),
     meta: {
       entityType: "merchello-order"
     }

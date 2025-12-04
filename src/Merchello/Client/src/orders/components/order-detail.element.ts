@@ -6,7 +6,8 @@ import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
 import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
-import type { OrderDetailDto, AddressDto, FulfillmentOrderDto, InvoicePaymentStatus } from "@orders/types/order.types.js";
+import { UMB_CURRENT_USER_CONTEXT, type UmbCurrentUserModel } from "@umbraco-cms/backoffice/current-user";
+import type { OrderDetailDto, AddressDto, FulfillmentOrderDto, InvoicePaymentStatus, InvoiceNoteDto } from "@orders/types/order.types.js";
 import type { MerchelloOrderDetailWorkspaceContext } from "@orders/contexts/order-detail-workspace.context.js";
 import { MERCHELLO_FULFILLMENT_MODAL } from "@orders/modals/fulfillment-modal.token.js";
 import { formatCurrency, formatDateTime } from "@shared/utils/formatting.js";
@@ -27,6 +28,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
   @state() private _visibleToCustomer: boolean = false;
   @state() private _isPostingNote: boolean = false;
   @state() private _noteError: string | null = null;
+  @state() private _currentUser: UmbCurrentUserModel | undefined;
 
   // Inline editing state
   @state() private _editingSection: 'contact' | 'shipping' | 'billing' | null = null;
@@ -52,6 +54,11 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
       this.#modalManager = context;
     });
+    this.consumeContext(UMB_CURRENT_USER_CONTEXT, (context) => {
+      this.observe(context?.currentUser, (currentUser) => {
+        this._currentUser = currentUser;
+      });
+    });
     this._loadCountries();
   }
 
@@ -60,6 +67,29 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     if (data) {
       this._countries = data;
     }
+  }
+
+  private _getGravatarUrl(email: string | undefined, size: number = 40): string | null {
+    if (!email) return null;
+    // Simple hash function for Gravatar (not cryptographically secure, just for avatar)
+    const hash = this._simpleHash(email.toLowerCase().trim());
+    return `https://www.gravatar.com/avatar/${hash}?d=mp&s=${size}`;
+  }
+
+  private _simpleHash(str: string): string {
+    // Simple hash using cyrb53 algorithm - sufficient for Gravatar
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+    h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+    h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    const hash = 4294967296 * (2097151 & h2) + (h1 >>> 0);
+    return hash.toString(16).padStart(32, '0');
   }
 
   private async _openFulfillmentModal(): Promise<void> {
@@ -97,6 +127,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     if (!address) return ["No address"];
     const lines: string[] = [];
     if (address.name) lines.push(address.name);
+    if (address.company) lines.push(address.company);
     if (address.addressOne) lines.push(address.addressOne);
     if (address.addressTwo) lines.push(address.addressTwo);
     const cityLine = [address.townCity, address.countyState, address.postalCode].filter(Boolean).join(" ");
@@ -197,9 +228,19 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       } as AddressDto;
       result = await MerchelloApi.updateBillingAddress(this._order.id, updatedAddress);
     } else if (this._editingSection === 'shipping') {
-      result = await MerchelloApi.updateShippingAddress(this._order.id, this._editFormData as AddressDto);
+      // Merge form data with existing address to ensure complete data is sent
+      const completeAddress: AddressDto = {
+        ...this._order.shippingAddress,
+        ...this._editFormData
+      } as AddressDto;
+      result = await MerchelloApi.updateShippingAddress(this._order.id, completeAddress);
     } else {
-      result = await MerchelloApi.updateBillingAddress(this._order.id, this._editFormData as AddressDto);
+      // Merge form data with existing billing address
+      const completeAddress: AddressDto = {
+        ...this._order.billingAddress,
+        ...this._editFormData
+      } as AddressDto;
+      result = await MerchelloApi.updateBillingAddress(this._order.id, completeAddress);
     }
 
     this._isSavingAddress = false;
@@ -280,38 +321,53 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     return html`
       <div class="card fulfillment-card">
-        <div class="card-header">
-          <span class="status-badge ${statusClass}">${statusLabel}</span>
-          <span class="shipping-method">${fulfillmentOrder.deliveryMethod}</span>
+        <div class="fulfillment-header">
+          <span class="fulfillment-status-badge ${statusClass}">
+            <uui-icon name="icon-box"></uui-icon>
+            ${statusLabel}
+          </span>
         </div>
-        <div class="line-items">
+        <div class="fulfillment-shipping-method">
+          <uui-icon name="icon-truck"></uui-icon>
+          <span>${fulfillmentOrder.deliveryMethod}</span>
+        </div>
+        <div class="fulfillment-line-items">
           ${fulfillmentOrder.lineItems.map(
             (item) => html`
-              <div class="line-item">
-                <div class="item-image">
+              <div class="fulfillment-line-item">
+                <div class="fulfillment-item-image">
                   ${item.imageUrl
                     ? html`<img src="${item.imageUrl}" alt="${item.name}" />`
-                    : html`<div class="placeholder-image"></div>`}
+                    : html`<div class="fulfillment-placeholder-image"></div>`}
                 </div>
-                <div class="item-details">
-                  <div class="item-name">${item.name}</div>
-                  <div class="item-sku">${item.sku}</div>
+                <div class="fulfillment-item-details">
+                  <div class="fulfillment-item-name">${item.name}</div>
+                  <div class="fulfillment-item-variant">${item.sku || ''}</div>
                 </div>
-                <div class="item-price">${formatCurrency(item.amount)} x ${item.quantity}</div>
-                <div class="item-total">${formatCurrency(item.amount * item.quantity)}</div>
+                <div class="fulfillment-item-pricing">
+                  <span class="fulfillment-item-price">${formatCurrency(item.amount)}</span>
+                  <span class="fulfillment-item-multiply">×</span>
+                  <span class="fulfillment-item-qty">${item.quantity}</span>
+                </div>
+                <div class="fulfillment-item-total">${formatCurrency(item.amount * item.quantity)}</div>
               </div>
             `
           )}
         </div>
-        <div class="card-footer">
-          <uui-button
-            look="${isFulfilled ? 'secondary' : 'primary'}"
-            label="${isFulfilled ? 'Fulfilled' : 'Fulfil'}"
-            ?disabled=${isFulfilled}
-            @click=${isFulfilled ? nothing : this._openFulfillmentModal}
-          >
-            ${isFulfilled ? "Fulfilled" : "Fulfil"}
-          </uui-button>
+        <div class="fulfillment-footer">
+          <div class="fulfillment-actions">
+            <uui-button
+              look="${isFulfilled ? 'secondary' : 'primary'}"
+              label="${isFulfilled ? 'Fulfilled' : 'Fulfil'}"
+              ?disabled=${isFulfilled}
+              @click=${isFulfilled ? nothing : this._openFulfillmentModal}
+            >
+              ${isFulfilled ? "Fulfilled" : "Fulfil"}
+            </uui-button>
+            <uui-button look="outline" label="Create shipping label">
+              Create shipping label
+            </uui-button>
+          </div>
         </div>
       </div>
     `;
@@ -330,6 +386,43 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       80: "On Hold",
     };
     return statusMap[status] || "Unknown";
+  }
+
+  private _getDateGroupLabel(date: Date): string {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const isToday = date.toDateString() === today.toDateString();
+    const isYesterday = date.toDateString() === yesterday.toDateString();
+
+    if (isToday) return "Today";
+    if (isYesterday) return "Yesterday";
+
+    return date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  private _formatTimeOnly(dateStr: string): string {
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+
+  private _groupNotesByDate(notes: InvoiceNoteDto[]): Map<string, InvoiceNoteDto[]> {
+    const groups = new Map<string, InvoiceNoteDto[]>();
+    
+    const sortedNotes = [...notes].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    for (const note of sortedNotes) {
+      const date = new Date(note.date);
+      const groupKey = this._getDateGroupLabel(date);
+      
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, []);
+      }
+      groups.get(groupKey)!.push(note);
+    }
+    
+    return groups;
   }
 
   private _handleTabClick(tab: "details" | "shipments" | "payments"): void {
@@ -480,51 +573,71 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <!-- Timeline -->
             <div class="card timeline-card">
               <h3>Timeline</h3>
-              <div class="timeline-input">
-                <textarea
-                  placeholder="Leave a comment..."
-                  .value=${this._newNoteText}
-                  @input=${(e: Event) => {
-                    this._newNoteText = (e.target as HTMLTextAreaElement).value;
-                    this._noteError = null;
-                  }}
-                  rows="2"
-                ></textarea>
-                <div class="timeline-actions">
-                  <label class="customer-visible-checkbox">
-                    <input
-                      type="checkbox"
-                      .checked=${this._visibleToCustomer}
-                      @change=${(e: Event) => this._visibleToCustomer = (e.target as HTMLInputElement).checked}
-                    />
-                    Visible to customer
-                  </label>
-                  <uui-button
-                    look="primary"
-                    label="Post"
-                    ?disabled=${!this._newNoteText.trim() || this._isPostingNote}
-                    @click=${this._handlePostNote}
-                  >
-                    ${this._isPostingNote ? "Posting..." : "Post"}
-                  </uui-button>
+              <div class="timeline-comment-box">
+                <div class="timeline-avatar">
+                  ${this._currentUser?.email
+                    ? html`<img src="${this._getGravatarUrl(this._currentUser.email)}" alt="Avatar" />`
+                    : html`<uui-icon name="icon-user"></uui-icon>`}
                 </div>
-                ${this._noteError ? html`<div class="note-error">${this._noteError}</div>` : nothing}
+                <div class="timeline-input-wrapper">
+                  <textarea
+                    placeholder="Leave a comment..."
+                    .value=${this._newNoteText}
+                    @input=${(e: Event) => {
+                      this._newNoteText = (e.target as HTMLTextAreaElement).value;
+                      this._noteError = null;
+                    }}
+                    rows="2"
+                  ></textarea>
+                  <div class="timeline-toolbar">
+                    <uui-button
+                      look="primary"
+                      label="Post"
+                      ?disabled=${!this._newNoteText.trim() || this._isPostingNote}
+                      @click=${this._handlePostNote}
+                    >
+                      ${this._isPostingNote ? "Posting..." : "Post"}
+                    </uui-button>
+                  </div>
+                  ${this._noteError ? html`<div class="note-error">${this._noteError}</div>` : nothing}
+                </div>
               </div>
-              <div class="timeline-events">
+              <div class="timeline-visibility-note">
+                <label class="customer-visible-checkbox">
+                  <input
+                    type="checkbox"
+                    .checked=${this._visibleToCustomer}
+                    @change=${(e: Event) => this._visibleToCustomer = (e.target as HTMLInputElement).checked}
+                  />
+                  Visible to customer
+                </label>
+                <span class="visibility-hint">Only you and other staff can see comments</span>
+              </div>
+              <div class="timeline-events-container">
                 ${order.notes.length === 0
                   ? html`<div class="no-notes">No timeline events yet</div>`
-                  : [...order.notes]
-                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                      .map(
-                        (note) => html`
-                          <div class="timeline-event ${note.visibleToCustomer ? 'customer-visible' : ''}">
-                            ${note.visibleToCustomer ? html`<span class="customer-badge">Customer visible</span>` : nothing}
-                            <div class="event-time">${formatDateTime(note.date)}</div>
-                            <div class="event-text markdown-content">${this._renderMarkdown(note.text)}</div>
-                            ${note.author ? html`<div class="event-author">by ${note.author}</div>` : nothing}
+                  : Array.from(this._groupNotesByDate(order.notes).entries()).map(
+                      ([dateGroup, notes]) => html`
+                        <div class="timeline-date-group">
+                          <div class="timeline-date-header">${dateGroup}</div>
+                          <div class="timeline-events">
+                            ${notes.map(
+                              (note) => html`
+                                <div class="timeline-event ${note.visibleToCustomer ? 'customer-visible' : ''}">
+                                  <div class="timeline-event-dot"></div>
+                                  <div class="timeline-event-content">
+                                    ${note.visibleToCustomer ? html`<span class="customer-badge">Customer visible</span>` : nothing}
+                                    <div class="event-text markdown-content">${this._renderMarkdown(note.text)}</div>
+                                    ${note.author ? html`<span class="event-author">by ${note.author}</span>` : nothing}
+                                  </div>
+                                  <div class="timeline-event-time">${this._formatTimeOnly(note.date)}</div>
+                                </div>
+                              `
+                            )}
                           </div>
-                        `
-                      )}
+                        </div>
+                      `
+                    )}
               </div>
             </div>
           </div>
@@ -536,7 +649,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
               <h3>Customer</h3>
               <div class="customer-info">
                 <a href="#" class="customer-name">${order.billingAddress?.name || "Unknown"}</a>
-                <div class="muted">1 order</div>
+                <div class="muted">${order.customerOrderCount} ${order.customerOrderCount === 1 ? 'order' : 'orders'}</div>
               </div>
               <div class="section">
                 <div class="section-header">
@@ -810,6 +923,155 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       border-top: 1px solid var(--uui-color-border);
     }
 
+    /* Fulfillment Card - Shopify-like styling */
+    .fulfillment-card {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .fulfillment-header {
+      padding: var(--uui-size-space-4);
+      border-bottom: 1px solid var(--uui-color-border);
+    }
+
+    .fulfillment-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .fulfillment-status-badge uui-icon {
+      font-size: 1rem;
+    }
+
+    .fulfillment-status-badge.shipped {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .fulfillment-shipping-method {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3) var(--uui-size-space-4);
+      border-bottom: 1px solid var(--uui-color-border);
+      font-size: 0.875rem;
+      color: var(--uui-color-text);
+    }
+
+    .fulfillment-shipping-method uui-icon {
+      color: var(--uui-color-text-alt);
+    }
+
+    .fulfillment-line-items {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .fulfillment-line-item {
+      display: grid;
+      grid-template-columns: 56px 1fr auto auto;
+      gap: var(--uui-size-space-4);
+      align-items: center;
+      padding: var(--uui-size-space-4);
+      border-bottom: 1px solid var(--uui-color-border);
+    }
+
+    .fulfillment-line-item:last-child {
+      border-bottom: none;
+    }
+
+    .fulfillment-item-image img,
+    .fulfillment-placeholder-image {
+      width: 56px;
+      height: 56px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1px solid var(--uui-color-border);
+    }
+
+    .fulfillment-placeholder-image {
+      background: var(--uui-color-surface-alt);
+    }
+
+    .fulfillment-item-details {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .fulfillment-item-name {
+      font-weight: 500;
+      font-size: 0.875rem;
+      color: var(--uui-color-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .fulfillment-item-variant {
+      font-size: 0.8125rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .fulfillment-item-pricing {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      font-size: 0.875rem;
+      color: var(--uui-color-text-alt);
+      white-space: nowrap;
+    }
+
+    .fulfillment-item-multiply {
+      color: var(--uui-color-text-alt);
+    }
+
+    .fulfillment-item-qty {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      height: 24px;
+      padding: 0 6px;
+      background: var(--uui-color-surface-alt);
+      border-radius: 4px;
+      font-size: 0.8125rem;
+      font-weight: 500;
+    }
+
+    .fulfillment-item-total {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--uui-color-text);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .fulfillment-footer {
+      padding: var(--uui-size-space-4);
+      border-top: 1px solid var(--uui-color-border);
+      background: var(--uui-color-surface);
+    }
+
+    .fulfillment-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--uui-size-space-3);
+    }
+
+    .fulfillment-actions uui-button-group {
+      display: flex;
+    }
+
+    /* Legacy styles for backward compatibility */
     .status-badge {
       padding: 2px 8px;
       border-radius: 12px;
@@ -887,35 +1149,91 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       border-top: 1px solid var(--uui-color-border);
     }
 
-    .timeline-input {
-      margin-bottom: var(--uui-size-space-4);
+    /* Timeline - Shopify-like styling */
+    .timeline-card {
+      padding: var(--uui-size-space-4);
     }
 
-    .timeline-input textarea {
+    .timeline-comment-box {
+      display: flex;
+      gap: var(--uui-size-space-3);
+      margin-bottom: var(--uui-size-space-3);
+    }
+
+    .timeline-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--uui-color-surface-alt);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--uui-color-text-alt);
+      overflow: hidden;
+    }
+
+    .timeline-avatar img {
       width: 100%;
-      padding: var(--uui-size-space-2);
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .timeline-avatar uui-icon {
+      font-size: 1.25rem;
+    }
+
+    .timeline-input-wrapper {
+      flex: 1;
       border: 1px solid var(--uui-color-border);
       border-radius: var(--uui-border-radius);
-      margin-bottom: var(--uui-size-space-2);
-      box-sizing: border-box;
-      resize: vertical;
-      font-family: inherit;
-      font-size: inherit;
+      overflow: hidden;
     }
 
-    .timeline-actions {
+    .timeline-input-wrapper textarea {
+      width: 100%;
+      padding: var(--uui-size-space-3);
+      border: none;
+      box-sizing: border-box;
+      resize: none;
+      font-family: inherit;
+      font-size: 0.875rem;
+      min-height: 60px;
+    }
+
+    .timeline-input-wrapper textarea:focus {
+      outline: none;
+    }
+
+    .timeline-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding: var(--uui-size-space-2) var(--uui-size-space-3);
+      background: var(--uui-color-surface);
+      border-top: 1px solid var(--uui-color-border);
+    }
+
+    .note-error {
+      color: #dc3545;
+      font-size: 0.875rem;
+      padding: var(--uui-size-space-2) var(--uui-size-space-3);
+    }
+
+    .timeline-visibility-note {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: var(--uui-size-space-2);
+      margin-bottom: var(--uui-size-space-4);
+      padding-left: 52px; /* Align with input (40px avatar + 12px gap) */
     }
 
     .customer-visible-checkbox {
       display: flex;
       align-items: center;
-      gap: var(--uui-size-space-1);
-      font-size: 0.875rem;
-      color: var(--uui-color-text-alt);
+      gap: var(--uui-size-space-2);
+      font-size: 0.8125rem;
+      color: var(--uui-color-text);
       cursor: pointer;
     }
 
@@ -923,28 +1241,68 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       cursor: pointer;
     }
 
-    .note-error {
-      color: #dc3545;
-      font-size: 0.875rem;
-      margin-top: var(--uui-size-space-2);
+    .visibility-hint {
+      font-size: 0.8125rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .timeline-events-container {
+      border-top: 1px solid var(--uui-color-border);
+      padding-top: var(--uui-size-space-4);
+    }
+
+    .timeline-date-group {
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .timeline-date-header {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--uui-color-text-alt);
+      margin-bottom: var(--uui-size-space-3);
     }
 
     .timeline-events {
-      border-top: 1px solid var(--uui-color-border);
-      padding-top: var(--uui-size-space-3);
+      position: relative;
+      padding-left: var(--uui-size-space-5);
+    }
+
+    .timeline-events::before {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 8px;
+      bottom: 8px;
+      width: 1px;
+      background: var(--uui-color-border);
     }
 
     .timeline-event {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--uui-size-space-3);
       padding: var(--uui-size-space-2) 0;
-      border-bottom: 1px solid var(--uui-color-border);
+      position: relative;
     }
 
-    .timeline-event.customer-visible {
-      background: #e8f4fd;
-      border-left: 3px solid #0078d4;
-      padding-left: var(--uui-size-space-3);
-      margin-left: calc(-1 * var(--uui-size-space-2));
-      padding-right: var(--uui-size-space-2);
+    .timeline-event-dot {
+      position: absolute;
+      left: calc(-1 * var(--uui-size-space-5) + 2px);
+      top: 10px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--uui-color-text-alt);
+    }
+
+    .timeline-event.customer-visible .timeline-event-dot {
+      background: #0078d4;
+    }
+
+    .timeline-event-content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
 
     .customer-badge {
@@ -953,19 +1311,32 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       font-weight: 500;
       color: #0078d4;
       background: #cce5ff;
-      padding: 2px 6px;
+      padding: 2px 8px;
       border-radius: 10px;
-      margin-bottom: var(--uui-size-space-1);
+      width: fit-content;
     }
 
-    .event-time {
+    .event-text {
+      font-size: 0.875rem;
+      color: var(--uui-color-text);
+      line-height: 1.5;
+    }
+
+    .event-author {
       font-size: 0.75rem;
       color: var(--uui-color-text-alt);
+    }
+
+    .timeline-event-time {
+      font-size: 0.8125rem;
+      color: var(--uui-color-text-alt);
+      white-space: nowrap;
     }
 
     .no-notes {
       color: var(--uui-color-text-alt);
       font-style: italic;
+      padding: var(--uui-size-space-2);
     }
 
     .sidebar .card {

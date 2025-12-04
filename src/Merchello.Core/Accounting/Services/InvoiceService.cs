@@ -1126,6 +1126,8 @@ public class InvoiceService(
         Guid invoiceId,
         string text,
         bool visibleToCustomer,
+        Guid? authorId = null,
+        string? authorName = null,
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<InvoiceNote>();
@@ -1148,7 +1150,8 @@ public class InvoiceService(
             {
                 DateCreated = DateTime.UtcNow,
                 Description = text.Trim(),
-                Author = "Staff",
+                AuthorId = authorId,
+                Author = authorName ?? "System",
                 VisibleToCustomer = visibleToCustomer
             };
 
@@ -1557,6 +1560,26 @@ public class InvoiceService(
             o.Status == OrderStatus.Completed);
 
         return anyShipped ? "Partial" : "Unfulfilled";
+    }
+
+    /// <inheritdoc />
+    public async Task<int> GetInvoiceCountByBillingEmailAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return 0;
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var count = await scope.ExecuteWithContextAsync(async db =>
+            await db.Invoices
+                .AsNoTracking()
+                .CountAsync(i => !i.IsDeleted && i.BillingAddress.Email == email, cancellationToken));
+        scope.Complete();
+
+        return count;
     }
 }
 

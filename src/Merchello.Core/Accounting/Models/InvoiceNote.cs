@@ -8,7 +8,12 @@ public class InvoiceNote
     public DateTime DateCreated { get; set; }
 
     /// <summary>
-    /// Optional author of the note if available
+    /// Optional author ID if created by a backoffice user
+    /// </summary>
+    public Guid? AuthorId { get; set; }
+
+    /// <summary>
+    /// Optional author name of the note if available
     /// </summary>
     public string? Author { get; set; }
 

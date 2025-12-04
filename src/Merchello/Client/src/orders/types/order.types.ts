@@ -121,6 +121,7 @@ export interface OrderDetailDto {
   shippingAddress: AddressDto | null;
   orders: FulfillmentOrderDto[];
   notes: InvoiceNoteDto[];
+  customerOrderCount: number;
 }
 
 export interface AddressDto {
@@ -167,6 +168,7 @@ export interface ShipmentDto {
 export interface InvoiceNoteDto {
   date: string;
   text: string;
+  authorId: string | null;
   author: string | null;
   visibleToCustomer: boolean;
 }

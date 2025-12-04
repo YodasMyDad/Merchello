@@ -1,21 +1,22 @@
-import { LitElement as st, nothing as m, html as n, css as nt, state as g, customElement as ot, property as Mi, unsafeHTML as Li } from "@umbraco-cms/backoffice/external/lit";
+import { LitElement as nt, nothing as m, html as s, css as ot, state as h, customElement as st, property as $i, unsafeHTML as zi } from "@umbraco-cms/backoffice/external/lit";
 import { d as Ot } from "./marked.esm-B6IoMkOX.js";
 import { UmbElementMixin as lt } from "@umbraco-cms/backoffice/element-api";
-import { UMB_WORKSPACE_CONTEXT as Zt } from "@umbraco-cms/backoffice/workspace";
-import { UmbModalToken as Le, UMB_MODAL_MANAGER_CONTEXT as dt } from "@umbraco-cms/backoffice/modal";
-import { b as tt, a as R, d as Nt } from "./formatting-Cv63Ksgk.js";
+import { UMB_WORKSPACE_CONTEXT as Kt } from "@umbraco-cms/backoffice/workspace";
+import { UmbModalToken as Me, UMB_MODAL_MANAGER_CONTEXT as dt } from "@umbraco-cms/backoffice/modal";
+import { UMB_CURRENT_USER_CONTEXT as Mi } from "@umbraco-cms/backoffice/current-user";
+import { b as tt, a as L, d as Li } from "./formatting-Cv63Ksgk.js";
 import { M as U } from "./merchello-api-TrKABjdM.js";
-import { I as le, P as Pt } from "./order.types-FU1fblt8.js";
+import { I as le, P as Nt } from "./order.types-FU1fblt8.js";
 const {
-  entries: Jt,
-  setPrototypeOf: Ft,
+  entries: Zt,
+  setPrototypeOf: Pt,
   isFrozen: Ri,
   getPrototypeOf: Ii,
-  getOwnPropertyDescriptor: zi
+  getOwnPropertyDescriptor: Oi
 } = Object;
 let {
   freeze: C,
-  seal: M,
+  seal: z,
   create: it
 } = Object, {
   apply: at,
@@ -24,68 +25,68 @@ let {
 C || (C = function(t) {
   return t;
 });
-M || (M = function(t) {
+z || (z = function(t) {
   return t;
 });
 at || (at = function(t, a) {
-  for (var s = arguments.length, o = new Array(s > 2 ? s - 2 : 0), u = 2; u < s; u++)
+  for (var r = arguments.length, o = new Array(r > 2 ? r - 2 : 0), u = 2; u < r; u++)
     o[u - 2] = arguments[u];
   return t.apply(a, o);
 });
 rt || (rt = function(t) {
-  for (var a = arguments.length, s = new Array(a > 1 ? a - 1 : 0), o = 1; o < a; o++)
-    s[o - 1] = arguments[o];
-  return new t(...s);
+  for (var a = arguments.length, r = new Array(a > 1 ? a - 1 : 0), o = 1; o < a; o++)
+    r[o - 1] = arguments[o];
+  return new t(...r);
 });
-const Ce = k(Array.prototype.forEach), Oi = k(Array.prototype.lastIndexOf), Ut = k(Array.prototype.pop), de = k(Array.prototype.push), Ni = k(Array.prototype.splice), Me = k(String.prototype.toLowerCase), Ve = k(String.prototype.toString), Ke = k(String.prototype.match), ce = k(String.prototype.replace), Pi = k(String.prototype.indexOf), Fi = k(String.prototype.trim), L = k(Object.prototype.hasOwnProperty), x = k(RegExp.prototype.test), ue = Ui(TypeError);
+const Ce = k(Array.prototype.forEach), Ni = k(Array.prototype.lastIndexOf), Ft = k(Array.prototype.pop), de = k(Array.prototype.push), Pi = k(Array.prototype.splice), ze = k(String.prototype.toLowerCase), Ve = k(String.prototype.toString), Ke = k(String.prototype.match), ue = k(String.prototype.replace), Fi = k(String.prototype.indexOf), Ui = k(String.prototype.trim), M = k(Object.prototype.hasOwnProperty), S = k(RegExp.prototype.test), ce = Hi(TypeError);
 function k(e) {
   return function(t) {
     t instanceof RegExp && (t.lastIndex = 0);
-    for (var a = arguments.length, s = new Array(a > 1 ? a - 1 : 0), o = 1; o < a; o++)
-      s[o - 1] = arguments[o];
-    return at(e, t, s);
+    for (var a = arguments.length, r = new Array(a > 1 ? a - 1 : 0), o = 1; o < a; o++)
+      r[o - 1] = arguments[o];
+    return at(e, t, r);
   };
 }
-function Ui(e) {
+function Hi(e) {
   return function() {
-    for (var t = arguments.length, a = new Array(t), s = 0; s < t; s++)
-      a[s] = arguments[s];
+    for (var t = arguments.length, a = new Array(t), r = 0; r < t; r++)
+      a[r] = arguments[r];
     return rt(e, a);
   };
 }
 function c(e, t) {
-  let a = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : Me;
-  Ft && Ft(e, null);
-  let s = t.length;
-  for (; s--; ) {
-    let o = t[s];
+  let a = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : ze;
+  Pt && Pt(e, null);
+  let r = t.length;
+  for (; r--; ) {
+    let o = t[r];
     if (typeof o == "string") {
       const u = a(o);
-      u !== o && (Ri(t) || (t[s] = u), o = u);
+      u !== o && (Ri(t) || (t[r] = u), o = u);
     }
     e[o] = !0;
   }
   return e;
 }
-function Hi(e) {
+function Gi(e) {
   for (let t = 0; t < e.length; t++)
-    L(e, t) || (e[t] = null);
+    M(e, t) || (e[t] = null);
   return e;
 }
 function P(e) {
   const t = it(null);
-  for (const [a, s] of Jt(e))
-    L(e, a) && (Array.isArray(s) ? t[a] = Hi(s) : s && typeof s == "object" && s.constructor === Object ? t[a] = P(s) : t[a] = s);
+  for (const [a, r] of Zt(e))
+    M(e, a) && (Array.isArray(r) ? t[a] = Gi(r) : r && typeof r == "object" && r.constructor === Object ? t[a] = P(r) : t[a] = r);
   return t;
 }
 function pe(e, t) {
   for (; e !== null; ) {
-    const s = zi(e, t);
-    if (s) {
-      if (s.get)
-        return k(s.get);
-      if (typeof s.value == "function")
-        return k(s.value);
+    const r = Oi(e, t);
+    if (r) {
+      if (r.get)
+        return k(r.get);
+      if (typeof r.value == "function")
+        return k(r.value);
     }
     e = Ii(e);
   }
@@ -94,25 +95,25 @@ function pe(e, t) {
   }
   return a;
 }
-const Ht = C(["a", "abbr", "acronym", "address", "area", "article", "aside", "audio", "b", "bdi", "bdo", "big", "blink", "blockquote", "body", "br", "button", "canvas", "caption", "center", "cite", "code", "col", "colgroup", "content", "data", "datalist", "dd", "decorator", "del", "details", "dfn", "dialog", "dir", "div", "dl", "dt", "element", "em", "fieldset", "figcaption", "figure", "font", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html", "i", "img", "input", "ins", "kbd", "label", "legend", "li", "main", "map", "mark", "marquee", "menu", "menuitem", "meter", "nav", "nobr", "ol", "optgroup", "option", "output", "p", "picture", "pre", "progress", "q", "rp", "rt", "ruby", "s", "samp", "search", "section", "select", "shadow", "slot", "small", "source", "spacer", "span", "strike", "strong", "style", "sub", "summary", "sup", "table", "tbody", "td", "template", "textarea", "tfoot", "th", "thead", "time", "tr", "track", "tt", "u", "ul", "var", "video", "wbr"]), Ze = C(["svg", "a", "altglyph", "altglyphdef", "altglyphitem", "animatecolor", "animatemotion", "animatetransform", "circle", "clippath", "defs", "desc", "ellipse", "enterkeyhint", "exportparts", "filter", "font", "g", "glyph", "glyphref", "hkern", "image", "inputmode", "line", "lineargradient", "marker", "mask", "metadata", "mpath", "part", "path", "pattern", "polygon", "polyline", "radialgradient", "rect", "stop", "style", "switch", "symbol", "text", "textpath", "title", "tref", "tspan", "view", "vkern"]), Je = C(["feBlend", "feColorMatrix", "feComponentTransfer", "feComposite", "feConvolveMatrix", "feDiffuseLighting", "feDisplacementMap", "feDistantLight", "feDropShadow", "feFlood", "feFuncA", "feFuncB", "feFuncG", "feFuncR", "feGaussianBlur", "feImage", "feMerge", "feMergeNode", "feMorphology", "feOffset", "fePointLight", "feSpecularLighting", "feSpotLight", "feTile", "feTurbulence"]), Gi = C(["animate", "color-profile", "cursor", "discard", "font-face", "font-face-format", "font-face-name", "font-face-src", "font-face-uri", "foreignobject", "hatch", "hatchpath", "mesh", "meshgradient", "meshpatch", "meshrow", "missing-glyph", "script", "set", "solidcolor", "unknown", "use"]), Qe = C(["math", "menclose", "merror", "mfenced", "mfrac", "mglyph", "mi", "mlabeledtr", "mmultiscripts", "mn", "mo", "mover", "mpadded", "mphantom", "mroot", "mrow", "ms", "mspace", "msqrt", "mstyle", "msub", "msup", "msubsup", "mtable", "mtd", "mtext", "mtr", "munder", "munderover", "mprescripts"]), Wi = C(["maction", "maligngroup", "malignmark", "mlongdiv", "mscarries", "mscarry", "msgroup", "mstack", "msline", "msrow", "semantics", "annotation", "annotation-xml", "mprescripts", "none"]), Gt = C(["#text"]), Wt = C(["accept", "action", "align", "alt", "autocapitalize", "autocomplete", "autopictureinpicture", "autoplay", "background", "bgcolor", "border", "capture", "cellpadding", "cellspacing", "checked", "cite", "class", "clear", "color", "cols", "colspan", "controls", "controlslist", "coords", "crossorigin", "datetime", "decoding", "default", "dir", "disabled", "disablepictureinpicture", "disableremoteplayback", "download", "draggable", "enctype", "enterkeyhint", "exportparts", "face", "for", "headers", "height", "hidden", "high", "href", "hreflang", "id", "inert", "inputmode", "integrity", "ismap", "kind", "label", "lang", "list", "loading", "loop", "low", "max", "maxlength", "media", "method", "min", "minlength", "multiple", "muted", "name", "nonce", "noshade", "novalidate", "nowrap", "open", "optimum", "part", "pattern", "placeholder", "playsinline", "popover", "popovertarget", "popovertargetaction", "poster", "preload", "pubdate", "radiogroup", "readonly", "rel", "required", "rev", "reversed", "role", "rows", "rowspan", "spellcheck", "scope", "selected", "shape", "size", "sizes", "slot", "span", "srclang", "start", "src", "srcset", "step", "style", "summary", "tabindex", "title", "translate", "type", "usemap", "valign", "value", "width", "wrap", "xmlns", "slot"]), et = C(["accent-height", "accumulate", "additive", "alignment-baseline", "amplitude", "ascent", "attributename", "attributetype", "azimuth", "basefrequency", "baseline-shift", "begin", "bias", "by", "class", "clip", "clippathunits", "clip-path", "clip-rule", "color", "color-interpolation", "color-interpolation-filters", "color-profile", "color-rendering", "cx", "cy", "d", "dx", "dy", "diffuseconstant", "direction", "display", "divisor", "dur", "edgemode", "elevation", "end", "exponent", "fill", "fill-opacity", "fill-rule", "filter", "filterunits", "flood-color", "flood-opacity", "font-family", "font-size", "font-size-adjust", "font-stretch", "font-style", "font-variant", "font-weight", "fx", "fy", "g1", "g2", "glyph-name", "glyphref", "gradientunits", "gradienttransform", "height", "href", "id", "image-rendering", "in", "in2", "intercept", "k", "k1", "k2", "k3", "k4", "kerning", "keypoints", "keysplines", "keytimes", "lang", "lengthadjust", "letter-spacing", "kernelmatrix", "kernelunitlength", "lighting-color", "local", "marker-end", "marker-mid", "marker-start", "markerheight", "markerunits", "markerwidth", "maskcontentunits", "maskunits", "max", "mask", "mask-type", "media", "method", "mode", "min", "name", "numoctaves", "offset", "operator", "opacity", "order", "orient", "orientation", "origin", "overflow", "paint-order", "path", "pathlength", "patterncontentunits", "patterntransform", "patternunits", "points", "preservealpha", "preserveaspectratio", "primitiveunits", "r", "rx", "ry", "radius", "refx", "refy", "repeatcount", "repeatdur", "restart", "result", "rotate", "scale", "seed", "shape-rendering", "slope", "specularconstant", "specularexponent", "spreadmethod", "startoffset", "stddeviation", "stitchtiles", "stop-color", "stop-opacity", "stroke-dasharray", "stroke-dashoffset", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-opacity", "stroke", "stroke-width", "style", "surfacescale", "systemlanguage", "tabindex", "tablevalues", "targetx", "targety", "transform", "transform-origin", "text-anchor", "text-decoration", "text-rendering", "textlength", "type", "u1", "u2", "unicode", "values", "viewbox", "visibility", "version", "vert-adv-y", "vert-origin-x", "vert-origin-y", "width", "word-spacing", "wrap", "writing-mode", "xchannelselector", "ychannelselector", "x", "x1", "x2", "xmlns", "y", "y1", "y2", "z", "zoomandpan"]), Bt = C(["accent", "accentunder", "align", "bevelled", "close", "columnsalign", "columnlines", "columnspan", "denomalign", "depth", "dir", "display", "displaystyle", "encoding", "fence", "frame", "height", "href", "id", "largeop", "length", "linethickness", "lspace", "lquote", "mathbackground", "mathcolor", "mathsize", "mathvariant", "maxsize", "minsize", "movablelimits", "notation", "numalign", "open", "rowalign", "rowlines", "rowspacing", "rowspan", "rspace", "rquote", "scriptlevel", "scriptminsize", "scriptsizemultiplier", "selection", "separator", "separators", "stretchy", "subscriptshift", "supscriptshift", "symmetric", "voffset", "width", "xmlns"]), ke = C(["xlink:href", "xml:id", "xlink:title", "xml:space", "xmlns:xlink"]), Bi = M(/\{\{[\w\W]*|[\w\W]*\}\}/gm), Yi = M(/<%[\w\W]*|[\w\W]*%>/gm), ji = M(/\$\{[\w\W]*/gm), qi = M(/^data-[\-\w.\u00B7-\uFFFF]+$/), Xi = M(/^aria-[\-\w]+$/), Qt = M(
+const Ut = C(["a", "abbr", "acronym", "address", "area", "article", "aside", "audio", "b", "bdi", "bdo", "big", "blink", "blockquote", "body", "br", "button", "canvas", "caption", "center", "cite", "code", "col", "colgroup", "content", "data", "datalist", "dd", "decorator", "del", "details", "dfn", "dialog", "dir", "div", "dl", "dt", "element", "em", "fieldset", "figcaption", "figure", "font", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html", "i", "img", "input", "ins", "kbd", "label", "legend", "li", "main", "map", "mark", "marquee", "menu", "menuitem", "meter", "nav", "nobr", "ol", "optgroup", "option", "output", "p", "picture", "pre", "progress", "q", "rp", "rt", "ruby", "s", "samp", "search", "section", "select", "shadow", "slot", "small", "source", "spacer", "span", "strike", "strong", "style", "sub", "summary", "sup", "table", "tbody", "td", "template", "textarea", "tfoot", "th", "thead", "time", "tr", "track", "tt", "u", "ul", "var", "video", "wbr"]), Ze = C(["svg", "a", "altglyph", "altglyphdef", "altglyphitem", "animatecolor", "animatemotion", "animatetransform", "circle", "clippath", "defs", "desc", "ellipse", "enterkeyhint", "exportparts", "filter", "font", "g", "glyph", "glyphref", "hkern", "image", "inputmode", "line", "lineargradient", "marker", "mask", "metadata", "mpath", "part", "path", "pattern", "polygon", "polyline", "radialgradient", "rect", "stop", "style", "switch", "symbol", "text", "textpath", "title", "tref", "tspan", "view", "vkern"]), Je = C(["feBlend", "feColorMatrix", "feComponentTransfer", "feComposite", "feConvolveMatrix", "feDiffuseLighting", "feDisplacementMap", "feDistantLight", "feDropShadow", "feFlood", "feFuncA", "feFuncB", "feFuncG", "feFuncR", "feGaussianBlur", "feImage", "feMerge", "feMergeNode", "feMorphology", "feOffset", "fePointLight", "feSpecularLighting", "feSpotLight", "feTile", "feTurbulence"]), Bi = C(["animate", "color-profile", "cursor", "discard", "font-face", "font-face-format", "font-face-name", "font-face-src", "font-face-uri", "foreignobject", "hatch", "hatchpath", "mesh", "meshgradient", "meshpatch", "meshrow", "missing-glyph", "script", "set", "solidcolor", "unknown", "use"]), Qe = C(["math", "menclose", "merror", "mfenced", "mfrac", "mglyph", "mi", "mlabeledtr", "mmultiscripts", "mn", "mo", "mover", "mpadded", "mphantom", "mroot", "mrow", "ms", "mspace", "msqrt", "mstyle", "msub", "msup", "msubsup", "mtable", "mtd", "mtext", "mtr", "munder", "munderover", "mprescripts"]), Wi = C(["maction", "maligngroup", "malignmark", "mlongdiv", "mscarries", "mscarry", "msgroup", "mstack", "msline", "msrow", "semantics", "annotation", "annotation-xml", "mprescripts", "none"]), Ht = C(["#text"]), Gt = C(["accept", "action", "align", "alt", "autocapitalize", "autocomplete", "autopictureinpicture", "autoplay", "background", "bgcolor", "border", "capture", "cellpadding", "cellspacing", "checked", "cite", "class", "clear", "color", "cols", "colspan", "controls", "controlslist", "coords", "crossorigin", "datetime", "decoding", "default", "dir", "disabled", "disablepictureinpicture", "disableremoteplayback", "download", "draggable", "enctype", "enterkeyhint", "exportparts", "face", "for", "headers", "height", "hidden", "high", "href", "hreflang", "id", "inert", "inputmode", "integrity", "ismap", "kind", "label", "lang", "list", "loading", "loop", "low", "max", "maxlength", "media", "method", "min", "minlength", "multiple", "muted", "name", "nonce", "noshade", "novalidate", "nowrap", "open", "optimum", "part", "pattern", "placeholder", "playsinline", "popover", "popovertarget", "popovertargetaction", "poster", "preload", "pubdate", "radiogroup", "readonly", "rel", "required", "rev", "reversed", "role", "rows", "rowspan", "spellcheck", "scope", "selected", "shape", "size", "sizes", "slot", "span", "srclang", "start", "src", "srcset", "step", "style", "summary", "tabindex", "title", "translate", "type", "usemap", "valign", "value", "width", "wrap", "xmlns", "slot"]), et = C(["accent-height", "accumulate", "additive", "alignment-baseline", "amplitude", "ascent", "attributename", "attributetype", "azimuth", "basefrequency", "baseline-shift", "begin", "bias", "by", "class", "clip", "clippathunits", "clip-path", "clip-rule", "color", "color-interpolation", "color-interpolation-filters", "color-profile", "color-rendering", "cx", "cy", "d", "dx", "dy", "diffuseconstant", "direction", "display", "divisor", "dur", "edgemode", "elevation", "end", "exponent", "fill", "fill-opacity", "fill-rule", "filter", "filterunits", "flood-color", "flood-opacity", "font-family", "font-size", "font-size-adjust", "font-stretch", "font-style", "font-variant", "font-weight", "fx", "fy", "g1", "g2", "glyph-name", "glyphref", "gradientunits", "gradienttransform", "height", "href", "id", "image-rendering", "in", "in2", "intercept", "k", "k1", "k2", "k3", "k4", "kerning", "keypoints", "keysplines", "keytimes", "lang", "lengthadjust", "letter-spacing", "kernelmatrix", "kernelunitlength", "lighting-color", "local", "marker-end", "marker-mid", "marker-start", "markerheight", "markerunits", "markerwidth", "maskcontentunits", "maskunits", "max", "mask", "mask-type", "media", "method", "mode", "min", "name", "numoctaves", "offset", "operator", "opacity", "order", "orient", "orientation", "origin", "overflow", "paint-order", "path", "pathlength", "patterncontentunits", "patterntransform", "patternunits", "points", "preservealpha", "preserveaspectratio", "primitiveunits", "r", "rx", "ry", "radius", "refx", "refy", "repeatcount", "repeatdur", "restart", "result", "rotate", "scale", "seed", "shape-rendering", "slope", "specularconstant", "specularexponent", "spreadmethod", "startoffset", "stddeviation", "stitchtiles", "stop-color", "stop-opacity", "stroke-dasharray", "stroke-dashoffset", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-opacity", "stroke", "stroke-width", "style", "surfacescale", "systemlanguage", "tabindex", "tablevalues", "targetx", "targety", "transform", "transform-origin", "text-anchor", "text-decoration", "text-rendering", "textlength", "type", "u1", "u2", "unicode", "values", "viewbox", "visibility", "version", "vert-adv-y", "vert-origin-x", "vert-origin-y", "width", "word-spacing", "wrap", "writing-mode", "xchannelselector", "ychannelselector", "x", "x1", "x2", "xmlns", "y", "y1", "y2", "z", "zoomandpan"]), Bt = C(["accent", "accentunder", "align", "bevelled", "close", "columnsalign", "columnlines", "columnspan", "denomalign", "depth", "dir", "display", "displaystyle", "encoding", "fence", "frame", "height", "href", "id", "largeop", "length", "linethickness", "lspace", "lquote", "mathbackground", "mathcolor", "mathsize", "mathvariant", "maxsize", "minsize", "movablelimits", "notation", "numalign", "open", "rowalign", "rowlines", "rowspacing", "rowspan", "rspace", "rquote", "scriptlevel", "scriptminsize", "scriptsizemultiplier", "selection", "separator", "separators", "stretchy", "subscriptshift", "supscriptshift", "symmetric", "voffset", "width", "xmlns"]), ke = C(["xlink:href", "xml:id", "xlink:title", "xml:space", "xmlns:xlink"]), ji = z(/\{\{[\w\W]*|[\w\W]*\}\}/gm), Yi = z(/<%[\w\W]*|[\w\W]*%>/gm), qi = z(/\$\{[\w\W]*/gm), Xi = z(/^data-[\-\w.\u00B7-\uFFFF]+$/), Vi = z(/^aria-[\-\w]+$/), Jt = z(
   /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
   // eslint-disable-line no-useless-escape
-), Vi = M(/^(?:\w+script|data):/i), Ki = M(
+), Ki = z(/^(?:\w+script|data):/i), Zi = z(
   /[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g
   // eslint-disable-line no-control-regex
-), ei = M(/^html$/i), Zi = M(/^[a-z][.\w]*(-[.\w]+)+$/i);
-var Yt = /* @__PURE__ */ Object.freeze({
+), Qt = z(/^html$/i), Ji = z(/^[a-z][.\w]*(-[.\w]+)+$/i);
+var Wt = /* @__PURE__ */ Object.freeze({
   __proto__: null,
-  ARIA_ATTR: Xi,
-  ATTR_WHITESPACE: Ki,
-  CUSTOM_ELEMENT: Zi,
-  DATA_ATTR: qi,
-  DOCTYPE_NAME: ei,
+  ARIA_ATTR: Vi,
+  ATTR_WHITESPACE: Zi,
+  CUSTOM_ELEMENT: Ji,
+  DATA_ATTR: Xi,
+  DOCTYPE_NAME: Qt,
   ERB_EXPR: Yi,
-  IS_ALLOWED_URI: Qt,
-  IS_SCRIPT_OR_DATA: Vi,
-  MUSTACHE_EXPR: Bi,
-  TMPLIT_EXPR: ji
+  IS_ALLOWED_URI: Jt,
+  IS_SCRIPT_OR_DATA: Ki,
+  MUSTACHE_EXPR: ji,
+  TMPLIT_EXPR: qi
 });
 const me = {
   element: 1,
@@ -121,15 +122,15 @@ const me = {
   progressingInstruction: 7,
   comment: 8,
   document: 9
-}, Ji = function() {
+}, Qi = function() {
   return typeof window > "u" ? null : window;
-}, Qi = function(t, a) {
+}, ea = function(t, a) {
   if (typeof t != "object" || typeof t.createPolicy != "function")
     return null;
-  let s = null;
+  let r = null;
   const o = "data-tt-policy-suffix";
-  a && a.hasAttribute(o) && (s = a.getAttribute(o));
-  const u = "dompurify" + (s ? "#" + s : "");
+  a && a.hasAttribute(o) && (r = a.getAttribute(o));
+  const u = "dompurify" + (r ? "#" + r : "");
   try {
     return t.createPolicy(u, {
       createHTML(v) {
@@ -155,56 +156,56 @@ const me = {
     uponSanitizeShadowNode: []
   };
 };
-function ti() {
-  let e = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : Ji();
-  const t = (d) => ti(d);
+function ei() {
+  let e = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : Qi();
+  const t = (d) => ei(d);
   if (t.version = "3.3.0", t.removed = [], !e || !e.document || e.document.nodeType !== me.document || !e.Element)
     return t.isSupported = !1, t;
   let {
     document: a
   } = e;
-  const s = a, o = s.currentScript, {
+  const r = a, o = r.currentScript, {
     DocumentFragment: u,
     HTMLTemplateElement: v,
-    Node: Re,
-    Element: ct,
+    Node: Le,
+    Element: ut,
     NodeFilter: ie,
-    NamedNodeMap: li = e.NamedNodeMap || e.MozNamedAttrMap,
-    HTMLFormElement: di,
-    DOMParser: ci,
+    NamedNodeMap: si = e.NamedNodeMap || e.MozNamedAttrMap,
+    HTMLFormElement: li,
+    DOMParser: di,
     trustedTypes: _e
-  } = e, ae = ct.prototype, ui = pe(ae, "cloneNode"), pi = pe(ae, "remove"), mi = pe(ae, "nextSibling"), fi = pe(ae, "childNodes"), be = pe(ae, "parentNode");
+  } = e, ae = ut.prototype, ui = pe(ae, "cloneNode"), ci = pe(ae, "remove"), pi = pe(ae, "nextSibling"), mi = pe(ae, "childNodes"), be = pe(ae, "parentNode");
   if (typeof v == "function") {
     const d = a.createElement("template");
     d.content && d.content.ownerDocument && (a = d.content.ownerDocument);
   }
-  let S, re = "";
+  let w, re = "";
   const {
-    implementation: Ie,
-    createNodeIterator: hi,
-    createDocumentFragment: gi,
-    getElementsByTagName: vi
+    implementation: Re,
+    createNodeIterator: fi,
+    createDocumentFragment: hi,
+    getElementsByTagName: gi
   } = a, {
-    importNode: _i
-  } = s;
-  let w = jt();
-  t.isSupported = typeof Jt == "function" && typeof be == "function" && Ie && Ie.createHTMLDocument !== void 0;
+    importNode: vi
+  } = r;
+  let A = jt();
+  t.isSupported = typeof Zt == "function" && typeof be == "function" && Re && Re.createHTMLDocument !== void 0;
   const {
-    MUSTACHE_EXPR: ze,
+    MUSTACHE_EXPR: Ie,
     ERB_EXPR: Oe,
     TMPLIT_EXPR: Ne,
-    DATA_ATTR: bi,
-    ARIA_ATTR: yi,
-    IS_SCRIPT_OR_DATA: Ti,
-    ATTR_WHITESPACE: ut,
-    CUSTOM_ELEMENT: Ei
-  } = Yt;
+    DATA_ATTR: _i,
+    ARIA_ATTR: bi,
+    IS_SCRIPT_OR_DATA: yi,
+    ATTR_WHITESPACE: ct,
+    CUSTOM_ELEMENT: Ti
+  } = Wt;
   let {
     IS_ALLOWED_URI: pt
-  } = Yt, _ = null;
-  const mt = c({}, [...Ht, ...Ze, ...Je, ...Qe, ...Gt]);
+  } = Wt, _ = null;
+  const mt = c({}, [...Ut, ...Ze, ...Je, ...Qe, ...Ht]);
   let y = null;
-  const ft = c({}, [...Wt, ...et, ...Bt, ...ke]);
+  const ft = c({}, [...Gt, ...et, ...Bt, ...ke]);
   let f = Object.seal(it(null, {
     tagNameCheck: {
       writable: !0,
@@ -224,7 +225,7 @@ function ti() {
       enumerable: !0,
       value: !1
     }
-  })), se = null, Pe = null;
+  })), ne = null, Pe = null;
   const q = Object.seal(it(null, {
     tagCheck: {
       writable: !0,
@@ -239,103 +240,103 @@ function ti() {
       value: null
     }
   }));
-  let ht = !0, Fe = !0, gt = !1, vt = !0, X = !1, ye = !0, W = !1, Ue = !1, He = !1, V = !1, Te = !1, Ee = !1, _t = !0, bt = !1;
-  const Ai = "user-content-";
-  let Ge = !0, ne = !1, K = {}, Z = null;
+  let ht = !0, Fe = !0, gt = !1, vt = !0, X = !1, ye = !0, B = !1, Ue = !1, He = !1, V = !1, Te = !1, Ee = !1, _t = !0, bt = !1;
+  const Ei = "user-content-";
+  let Ge = !0, oe = !1, K = {}, Z = null;
   const yt = c({}, ["annotation-xml", "audio", "colgroup", "desc", "foreignobject", "head", "iframe", "math", "mi", "mn", "mo", "ms", "mtext", "noembed", "noframes", "noscript", "plaintext", "script", "style", "svg", "template", "thead", "title", "video", "xmp"]);
   let Tt = null;
   const Et = c({}, ["audio", "video", "img", "source", "image", "track"]);
-  let We = null;
-  const At = c({}, ["alt", "class", "for", "id", "label", "name", "pattern", "placeholder", "role", "summary", "title", "value", "style", "xmlns"]), Ae = "http://www.w3.org/1998/Math/MathML", Se = "http://www.w3.org/2000/svg", z = "http://www.w3.org/1999/xhtml";
-  let J = z, Be = !1, Ye = null;
-  const Si = c({}, [Ae, Se, z], Ve);
-  let we = c({}, ["mi", "mo", "mn", "ms", "mtext"]), xe = c({}, ["annotation-xml"]);
+  let Be = null;
+  const xt = c({}, ["alt", "class", "for", "id", "label", "name", "pattern", "placeholder", "role", "summary", "title", "value", "style", "xmlns"]), xe = "http://www.w3.org/1998/Math/MathML", we = "http://www.w3.org/2000/svg", I = "http://www.w3.org/1999/xhtml";
+  let J = I, We = !1, je = null;
+  const xi = c({}, [xe, we, I], Ve);
+  let Ae = c({}, ["mi", "mo", "mn", "ms", "mtext"]), Se = c({}, ["annotation-xml"]);
   const wi = c({}, ["title", "style", "font", "a", "script"]);
-  let oe = null;
-  const xi = ["application/xhtml+xml", "text/html"], Ci = "text/html";
+  let se = null;
+  const Ai = ["application/xhtml+xml", "text/html"], Si = "text/html";
   let b = null, Q = null;
-  const ki = a.createElement("form"), St = function(i) {
+  const Ci = a.createElement("form"), wt = function(i) {
     return i instanceof RegExp || i instanceof Function;
-  }, je = function() {
+  }, Ye = function() {
     let i = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
     if (!(Q && Q === i)) {
-      if ((!i || typeof i != "object") && (i = {}), i = P(i), oe = // eslint-disable-next-line unicorn/prefer-includes
-      xi.indexOf(i.PARSER_MEDIA_TYPE) === -1 ? Ci : i.PARSER_MEDIA_TYPE, b = oe === "application/xhtml+xml" ? Ve : Me, _ = L(i, "ALLOWED_TAGS") ? c({}, i.ALLOWED_TAGS, b) : mt, y = L(i, "ALLOWED_ATTR") ? c({}, i.ALLOWED_ATTR, b) : ft, Ye = L(i, "ALLOWED_NAMESPACES") ? c({}, i.ALLOWED_NAMESPACES, Ve) : Si, We = L(i, "ADD_URI_SAFE_ATTR") ? c(P(At), i.ADD_URI_SAFE_ATTR, b) : At, Tt = L(i, "ADD_DATA_URI_TAGS") ? c(P(Et), i.ADD_DATA_URI_TAGS, b) : Et, Z = L(i, "FORBID_CONTENTS") ? c({}, i.FORBID_CONTENTS, b) : yt, se = L(i, "FORBID_TAGS") ? c({}, i.FORBID_TAGS, b) : P({}), Pe = L(i, "FORBID_ATTR") ? c({}, i.FORBID_ATTR, b) : P({}), K = L(i, "USE_PROFILES") ? i.USE_PROFILES : !1, ht = i.ALLOW_ARIA_ATTR !== !1, Fe = i.ALLOW_DATA_ATTR !== !1, gt = i.ALLOW_UNKNOWN_PROTOCOLS || !1, vt = i.ALLOW_SELF_CLOSE_IN_ATTR !== !1, X = i.SAFE_FOR_TEMPLATES || !1, ye = i.SAFE_FOR_XML !== !1, W = i.WHOLE_DOCUMENT || !1, V = i.RETURN_DOM || !1, Te = i.RETURN_DOM_FRAGMENT || !1, Ee = i.RETURN_TRUSTED_TYPE || !1, He = i.FORCE_BODY || !1, _t = i.SANITIZE_DOM !== !1, bt = i.SANITIZE_NAMED_PROPS || !1, Ge = i.KEEP_CONTENT !== !1, ne = i.IN_PLACE || !1, pt = i.ALLOWED_URI_REGEXP || Qt, J = i.NAMESPACE || z, we = i.MATHML_TEXT_INTEGRATION_POINTS || we, xe = i.HTML_INTEGRATION_POINTS || xe, f = i.CUSTOM_ELEMENT_HANDLING || {}, i.CUSTOM_ELEMENT_HANDLING && St(i.CUSTOM_ELEMENT_HANDLING.tagNameCheck) && (f.tagNameCheck = i.CUSTOM_ELEMENT_HANDLING.tagNameCheck), i.CUSTOM_ELEMENT_HANDLING && St(i.CUSTOM_ELEMENT_HANDLING.attributeNameCheck) && (f.attributeNameCheck = i.CUSTOM_ELEMENT_HANDLING.attributeNameCheck), i.CUSTOM_ELEMENT_HANDLING && typeof i.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements == "boolean" && (f.allowCustomizedBuiltInElements = i.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements), X && (Fe = !1), Te && (V = !0), K && (_ = c({}, Gt), y = [], K.html === !0 && (c(_, Ht), c(y, Wt)), K.svg === !0 && (c(_, Ze), c(y, et), c(y, ke)), K.svgFilters === !0 && (c(_, Je), c(y, et), c(y, ke)), K.mathMl === !0 && (c(_, Qe), c(y, Bt), c(y, ke))), i.ADD_TAGS && (typeof i.ADD_TAGS == "function" ? q.tagCheck = i.ADD_TAGS : (_ === mt && (_ = P(_)), c(_, i.ADD_TAGS, b))), i.ADD_ATTR && (typeof i.ADD_ATTR == "function" ? q.attributeCheck = i.ADD_ATTR : (y === ft && (y = P(y)), c(y, i.ADD_ATTR, b))), i.ADD_URI_SAFE_ATTR && c(We, i.ADD_URI_SAFE_ATTR, b), i.FORBID_CONTENTS && (Z === yt && (Z = P(Z)), c(Z, i.FORBID_CONTENTS, b)), Ge && (_["#text"] = !0), W && c(_, ["html", "head", "body"]), _.table && (c(_, ["tbody"]), delete se.tbody), i.TRUSTED_TYPES_POLICY) {
+      if ((!i || typeof i != "object") && (i = {}), i = P(i), se = // eslint-disable-next-line unicorn/prefer-includes
+      Ai.indexOf(i.PARSER_MEDIA_TYPE) === -1 ? Si : i.PARSER_MEDIA_TYPE, b = se === "application/xhtml+xml" ? Ve : ze, _ = M(i, "ALLOWED_TAGS") ? c({}, i.ALLOWED_TAGS, b) : mt, y = M(i, "ALLOWED_ATTR") ? c({}, i.ALLOWED_ATTR, b) : ft, je = M(i, "ALLOWED_NAMESPACES") ? c({}, i.ALLOWED_NAMESPACES, Ve) : xi, Be = M(i, "ADD_URI_SAFE_ATTR") ? c(P(xt), i.ADD_URI_SAFE_ATTR, b) : xt, Tt = M(i, "ADD_DATA_URI_TAGS") ? c(P(Et), i.ADD_DATA_URI_TAGS, b) : Et, Z = M(i, "FORBID_CONTENTS") ? c({}, i.FORBID_CONTENTS, b) : yt, ne = M(i, "FORBID_TAGS") ? c({}, i.FORBID_TAGS, b) : P({}), Pe = M(i, "FORBID_ATTR") ? c({}, i.FORBID_ATTR, b) : P({}), K = M(i, "USE_PROFILES") ? i.USE_PROFILES : !1, ht = i.ALLOW_ARIA_ATTR !== !1, Fe = i.ALLOW_DATA_ATTR !== !1, gt = i.ALLOW_UNKNOWN_PROTOCOLS || !1, vt = i.ALLOW_SELF_CLOSE_IN_ATTR !== !1, X = i.SAFE_FOR_TEMPLATES || !1, ye = i.SAFE_FOR_XML !== !1, B = i.WHOLE_DOCUMENT || !1, V = i.RETURN_DOM || !1, Te = i.RETURN_DOM_FRAGMENT || !1, Ee = i.RETURN_TRUSTED_TYPE || !1, He = i.FORCE_BODY || !1, _t = i.SANITIZE_DOM !== !1, bt = i.SANITIZE_NAMED_PROPS || !1, Ge = i.KEEP_CONTENT !== !1, oe = i.IN_PLACE || !1, pt = i.ALLOWED_URI_REGEXP || Jt, J = i.NAMESPACE || I, Ae = i.MATHML_TEXT_INTEGRATION_POINTS || Ae, Se = i.HTML_INTEGRATION_POINTS || Se, f = i.CUSTOM_ELEMENT_HANDLING || {}, i.CUSTOM_ELEMENT_HANDLING && wt(i.CUSTOM_ELEMENT_HANDLING.tagNameCheck) && (f.tagNameCheck = i.CUSTOM_ELEMENT_HANDLING.tagNameCheck), i.CUSTOM_ELEMENT_HANDLING && wt(i.CUSTOM_ELEMENT_HANDLING.attributeNameCheck) && (f.attributeNameCheck = i.CUSTOM_ELEMENT_HANDLING.attributeNameCheck), i.CUSTOM_ELEMENT_HANDLING && typeof i.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements == "boolean" && (f.allowCustomizedBuiltInElements = i.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements), X && (Fe = !1), Te && (V = !0), K && (_ = c({}, Ht), y = [], K.html === !0 && (c(_, Ut), c(y, Gt)), K.svg === !0 && (c(_, Ze), c(y, et), c(y, ke)), K.svgFilters === !0 && (c(_, Je), c(y, et), c(y, ke)), K.mathMl === !0 && (c(_, Qe), c(y, Bt), c(y, ke))), i.ADD_TAGS && (typeof i.ADD_TAGS == "function" ? q.tagCheck = i.ADD_TAGS : (_ === mt && (_ = P(_)), c(_, i.ADD_TAGS, b))), i.ADD_ATTR && (typeof i.ADD_ATTR == "function" ? q.attributeCheck = i.ADD_ATTR : (y === ft && (y = P(y)), c(y, i.ADD_ATTR, b))), i.ADD_URI_SAFE_ATTR && c(Be, i.ADD_URI_SAFE_ATTR, b), i.FORBID_CONTENTS && (Z === yt && (Z = P(Z)), c(Z, i.FORBID_CONTENTS, b)), Ge && (_["#text"] = !0), B && c(_, ["html", "head", "body"]), _.table && (c(_, ["tbody"]), delete ne.tbody), i.TRUSTED_TYPES_POLICY) {
         if (typeof i.TRUSTED_TYPES_POLICY.createHTML != "function")
-          throw ue('TRUSTED_TYPES_POLICY configuration option must provide a "createHTML" hook.');
+          throw ce('TRUSTED_TYPES_POLICY configuration option must provide a "createHTML" hook.');
         if (typeof i.TRUSTED_TYPES_POLICY.createScriptURL != "function")
-          throw ue('TRUSTED_TYPES_POLICY configuration option must provide a "createScriptURL" hook.');
-        S = i.TRUSTED_TYPES_POLICY, re = S.createHTML("");
+          throw ce('TRUSTED_TYPES_POLICY configuration option must provide a "createScriptURL" hook.');
+        w = i.TRUSTED_TYPES_POLICY, re = w.createHTML("");
       } else
-        S === void 0 && (S = Qi(_e, o)), S !== null && typeof re == "string" && (re = S.createHTML(""));
+        w === void 0 && (w = ea(_e, o)), w !== null && typeof re == "string" && (re = w.createHTML(""));
       C && C(i), Q = i;
     }
-  }, wt = c({}, [...Ze, ...Je, ...Gi]), xt = c({}, [...Qe, ...Wi]), $i = function(i) {
-    let r = be(i);
-    (!r || !r.tagName) && (r = {
+  }, At = c({}, [...Ze, ...Je, ...Bi]), St = c({}, [...Qe, ...Wi]), ki = function(i) {
+    let n = be(i);
+    (!n || !n.tagName) && (n = {
       namespaceURI: J,
       tagName: "template"
     });
-    const l = Me(i.tagName), p = Me(r.tagName);
-    return Ye[i.namespaceURI] ? i.namespaceURI === Se ? r.namespaceURI === z ? l === "svg" : r.namespaceURI === Ae ? l === "svg" && (p === "annotation-xml" || we[p]) : !!wt[l] : i.namespaceURI === Ae ? r.namespaceURI === z ? l === "math" : r.namespaceURI === Se ? l === "math" && xe[p] : !!xt[l] : i.namespaceURI === z ? r.namespaceURI === Se && !xe[p] || r.namespaceURI === Ae && !we[p] ? !1 : !xt[l] && (wi[l] || !wt[l]) : !!(oe === "application/xhtml+xml" && Ye[i.namespaceURI]) : !1;
-  }, I = function(i) {
+    const l = ze(i.tagName), p = ze(n.tagName);
+    return je[i.namespaceURI] ? i.namespaceURI === we ? n.namespaceURI === I ? l === "svg" : n.namespaceURI === xe ? l === "svg" && (p === "annotation-xml" || Ae[p]) : !!At[l] : i.namespaceURI === xe ? n.namespaceURI === I ? l === "math" : n.namespaceURI === we ? l === "math" && Se[p] : !!St[l] : i.namespaceURI === I ? n.namespaceURI === we && !Se[p] || n.namespaceURI === xe && !Ae[p] ? !1 : !St[l] && (wi[l] || !At[l]) : !!(se === "application/xhtml+xml" && je[i.namespaceURI]) : !1;
+  }, R = function(i) {
     de(t.removed, {
       element: i
     });
     try {
       be(i).removeChild(i);
     } catch {
-      pi(i);
+      ci(i);
     }
-  }, B = function(i, r) {
+  }, W = function(i, n) {
     try {
       de(t.removed, {
-        attribute: r.getAttributeNode(i),
-        from: r
+        attribute: n.getAttributeNode(i),
+        from: n
       });
     } catch {
       de(t.removed, {
         attribute: null,
-        from: r
+        from: n
       });
     }
-    if (r.removeAttribute(i), i === "is")
+    if (n.removeAttribute(i), i === "is")
       if (V || Te)
         try {
-          I(r);
+          R(n);
         } catch {
         }
       else
         try {
-          r.setAttribute(i, "");
+          n.setAttribute(i, "");
         } catch {
         }
   }, Ct = function(i) {
-    let r = null, l = null;
+    let n = null, l = null;
     if (He)
       i = "<remove></remove>" + i;
     else {
-      const h = Ke(i, /^[\r\n\t ]+/);
-      l = h && h[0];
+      const g = Ke(i, /^[\r\n\t ]+/);
+      l = g && g[0];
     }
-    oe === "application/xhtml+xml" && J === z && (i = '<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>' + i + "</body></html>");
-    const p = S ? S.createHTML(i) : i;
-    if (J === z)
+    se === "application/xhtml+xml" && J === I && (i = '<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>' + i + "</body></html>");
+    const p = w ? w.createHTML(i) : i;
+    if (J === I)
       try {
-        r = new ci().parseFromString(p, oe);
+        n = new di().parseFromString(p, se);
       } catch {
       }
-    if (!r || !r.documentElement) {
-      r = Ie.createDocument(J, "template", null);
+    if (!n || !n.documentElement) {
+      n = Re.createDocument(J, "template", null);
       try {
-        r.documentElement.innerHTML = Be ? re : p;
+        n.documentElement.innerHTML = We ? re : p;
       } catch {
       }
     }
-    const E = r.body || r.documentElement;
-    return i && l && E.insertBefore(a.createTextNode(l), E.childNodes[0] || null), J === z ? vi.call(r, W ? "html" : "body")[0] : W ? r.documentElement : E;
+    const x = n.body || n.documentElement;
+    return i && l && x.insertBefore(a.createTextNode(l), x.childNodes[0] || null), J === I ? gi.call(n, B ? "html" : "body")[0] : B ? n.documentElement : x;
   }, kt = function(i) {
-    return hi.call(
+    return fi.call(
       i.ownerDocument || i,
       i,
       // eslint-disable-next-line no-bitwise
@@ -343,64 +344,64 @@ function ti() {
       null
     );
   }, qe = function(i) {
-    return i instanceof di && (typeof i.nodeName != "string" || typeof i.textContent != "string" || typeof i.removeChild != "function" || !(i.attributes instanceof li) || typeof i.removeAttribute != "function" || typeof i.setAttribute != "function" || typeof i.namespaceURI != "string" || typeof i.insertBefore != "function" || typeof i.hasChildNodes != "function");
-  }, $t = function(i) {
-    return typeof Re == "function" && i instanceof Re;
+    return i instanceof li && (typeof i.nodeName != "string" || typeof i.textContent != "string" || typeof i.removeChild != "function" || !(i.attributes instanceof si) || typeof i.removeAttribute != "function" || typeof i.setAttribute != "function" || typeof i.namespaceURI != "string" || typeof i.insertBefore != "function" || typeof i.hasChildNodes != "function");
+  }, Dt = function(i) {
+    return typeof Le == "function" && i instanceof Le;
   };
-  function O(d, i, r) {
+  function O(d, i, n) {
     Ce(d, (l) => {
-      l.call(t, i, r, Q);
+      l.call(t, i, n, Q);
     });
   }
-  const Dt = function(i) {
-    let r = null;
-    if (O(w.beforeSanitizeElements, i, null), qe(i))
-      return I(i), !0;
+  const $t = function(i) {
+    let n = null;
+    if (O(A.beforeSanitizeElements, i, null), qe(i))
+      return R(i), !0;
     const l = b(i.nodeName);
-    if (O(w.uponSanitizeElement, i, {
+    if (O(A.uponSanitizeElement, i, {
       tagName: l,
       allowedTags: _
-    }), ye && i.hasChildNodes() && !$t(i.firstElementChild) && x(/<[/\w!]/g, i.innerHTML) && x(/<[/\w!]/g, i.textContent) || i.nodeType === me.progressingInstruction || ye && i.nodeType === me.comment && x(/<[/\w]/g, i.data))
-      return I(i), !0;
-    if (!(q.tagCheck instanceof Function && q.tagCheck(l)) && (!_[l] || se[l])) {
-      if (!se[l] && Lt(l) && (f.tagNameCheck instanceof RegExp && x(f.tagNameCheck, l) || f.tagNameCheck instanceof Function && f.tagNameCheck(l)))
+    }), ye && i.hasChildNodes() && !Dt(i.firstElementChild) && S(/<[/\w!]/g, i.innerHTML) && S(/<[/\w!]/g, i.textContent) || i.nodeType === me.progressingInstruction || ye && i.nodeType === me.comment && S(/<[/\w]/g, i.data))
+      return R(i), !0;
+    if (!(q.tagCheck instanceof Function && q.tagCheck(l)) && (!_[l] || ne[l])) {
+      if (!ne[l] && Mt(l) && (f.tagNameCheck instanceof RegExp && S(f.tagNameCheck, l) || f.tagNameCheck instanceof Function && f.tagNameCheck(l)))
         return !1;
       if (Ge && !Z[l]) {
-        const p = be(i) || i.parentNode, E = fi(i) || i.childNodes;
-        if (E && p) {
-          const h = E.length;
-          for (let $ = h - 1; $ >= 0; --$) {
-            const N = ui(E[$], !0);
-            N.__removalCount = (i.__removalCount || 0) + 1, p.insertBefore(N, mi(i));
+        const p = be(i) || i.parentNode, x = mi(i) || i.childNodes;
+        if (x && p) {
+          const g = x.length;
+          for (let D = g - 1; D >= 0; --D) {
+            const N = ui(x[D], !0);
+            N.__removalCount = (i.__removalCount || 0) + 1, p.insertBefore(N, pi(i));
           }
         }
       }
-      return I(i), !0;
+      return R(i), !0;
     }
-    return i instanceof ct && !$i(i) || (l === "noscript" || l === "noembed" || l === "noframes") && x(/<\/no(script|embed|frames)/i, i.innerHTML) ? (I(i), !0) : (X && i.nodeType === me.text && (r = i.textContent, Ce([ze, Oe, Ne], (p) => {
-      r = ce(r, p, " ");
-    }), i.textContent !== r && (de(t.removed, {
+    return i instanceof ut && !ki(i) || (l === "noscript" || l === "noembed" || l === "noframes") && S(/<\/no(script|embed|frames)/i, i.innerHTML) ? (R(i), !0) : (X && i.nodeType === me.text && (n = i.textContent, Ce([Ie, Oe, Ne], (p) => {
+      n = ue(n, p, " ");
+    }), i.textContent !== n && (de(t.removed, {
       element: i.cloneNode()
-    }), i.textContent = r)), O(w.afterSanitizeElements, i, null), !1);
-  }, Mt = function(i, r, l) {
-    if (_t && (r === "id" || r === "name") && (l in a || l in ki))
+    }), i.textContent = n)), O(A.afterSanitizeElements, i, null), !1);
+  }, zt = function(i, n, l) {
+    if (_t && (n === "id" || n === "name") && (l in a || l in Ci))
       return !1;
-    if (!(Fe && !Pe[r] && x(bi, r))) {
-      if (!(ht && x(yi, r))) {
-        if (!(q.attributeCheck instanceof Function && q.attributeCheck(r, i))) {
-          if (!y[r] || Pe[r]) {
+    if (!(Fe && !Pe[n] && S(_i, n))) {
+      if (!(ht && S(bi, n))) {
+        if (!(q.attributeCheck instanceof Function && q.attributeCheck(n, i))) {
+          if (!y[n] || Pe[n]) {
             if (
               // First condition does a very basic check if a) it's basically a valid custom element tagname AND
               // b) if the tagName passes whatever the user has configured for CUSTOM_ELEMENT_HANDLING.tagNameCheck
               // and c) if the attribute name passes whatever the user has configured for CUSTOM_ELEMENT_HANDLING.attributeNameCheck
-              !(Lt(i) && (f.tagNameCheck instanceof RegExp && x(f.tagNameCheck, i) || f.tagNameCheck instanceof Function && f.tagNameCheck(i)) && (f.attributeNameCheck instanceof RegExp && x(f.attributeNameCheck, r) || f.attributeNameCheck instanceof Function && f.attributeNameCheck(r, i)) || // Alternative, second condition checks if it's an `is`-attribute, AND
+              !(Mt(i) && (f.tagNameCheck instanceof RegExp && S(f.tagNameCheck, i) || f.tagNameCheck instanceof Function && f.tagNameCheck(i)) && (f.attributeNameCheck instanceof RegExp && S(f.attributeNameCheck, n) || f.attributeNameCheck instanceof Function && f.attributeNameCheck(n, i)) || // Alternative, second condition checks if it's an `is`-attribute, AND
               // the value passes whatever the user has configured for CUSTOM_ELEMENT_HANDLING.tagNameCheck
-              r === "is" && f.allowCustomizedBuiltInElements && (f.tagNameCheck instanceof RegExp && x(f.tagNameCheck, l) || f.tagNameCheck instanceof Function && f.tagNameCheck(l)))
+              n === "is" && f.allowCustomizedBuiltInElements && (f.tagNameCheck instanceof RegExp && S(f.tagNameCheck, l) || f.tagNameCheck instanceof Function && f.tagNameCheck(l)))
             ) return !1;
-          } else if (!We[r]) {
-            if (!x(pt, ce(l, ut, ""))) {
-              if (!((r === "src" || r === "xlink:href" || r === "href") && i !== "script" && Pi(l, "data:") === 0 && Tt[i])) {
-                if (!(gt && !x(Ti, ce(l, ut, "")))) {
+          } else if (!Be[n]) {
+            if (!S(pt, ue(l, ct, ""))) {
+              if (!((n === "src" || n === "xlink:href" || n === "href") && i !== "script" && Fi(l, "data:") === 0 && Tt[i])) {
+                if (!(gt && !S(yi, ue(l, ct, "")))) {
                   if (l)
                     return !1;
                 }
@@ -411,14 +412,14 @@ function ti() {
       }
     }
     return !0;
+  }, Mt = function(i) {
+    return i !== "annotation-xml" && Ke(i, Ti);
   }, Lt = function(i) {
-    return i !== "annotation-xml" && Ke(i, Ei);
-  }, Rt = function(i) {
-    O(w.beforeSanitizeAttributes, i, null);
+    O(A.beforeSanitizeAttributes, i, null);
     const {
-      attributes: r
+      attributes: n
     } = i;
-    if (!r || qe(i))
+    if (!n || qe(i))
       return;
     const l = {
       attrName: "",
@@ -427,160 +428,160 @@ function ti() {
       allowedAttributes: y,
       forceKeepAttr: void 0
     };
-    let p = r.length;
+    let p = n.length;
     for (; p--; ) {
-      const E = r[p], {
-        name: h,
-        namespaceURI: $,
+      const x = n[p], {
+        name: g,
+        namespaceURI: D,
         value: N
-      } = E, ee = b(h), Xe = N;
-      let T = h === "value" ? Xe : Fi(Xe);
-      if (l.attrName = ee, l.attrValue = T, l.keepAttr = !0, l.forceKeepAttr = void 0, O(w.uponSanitizeAttribute, i, l), T = l.attrValue, bt && (ee === "id" || ee === "name") && (B(h, i), T = Ai + T), ye && x(/((--!?|])>)|<\/(style|title|textarea)/i, T)) {
-        B(h, i);
+      } = x, ee = b(g), Xe = N;
+      let T = g === "value" ? Xe : Ui(Xe);
+      if (l.attrName = ee, l.attrValue = T, l.keepAttr = !0, l.forceKeepAttr = void 0, O(A.uponSanitizeAttribute, i, l), T = l.attrValue, bt && (ee === "id" || ee === "name") && (W(g, i), T = Ei + T), ye && S(/((--!?|])>)|<\/(style|title|textarea)/i, T)) {
+        W(g, i);
         continue;
       }
       if (ee === "attributename" && Ke(T, "href")) {
-        B(h, i);
+        W(g, i);
         continue;
       }
       if (l.forceKeepAttr)
         continue;
       if (!l.keepAttr) {
-        B(h, i);
+        W(g, i);
         continue;
       }
-      if (!vt && x(/\/>/i, T)) {
-        B(h, i);
+      if (!vt && S(/\/>/i, T)) {
+        W(g, i);
         continue;
       }
-      X && Ce([ze, Oe, Ne], (zt) => {
-        T = ce(T, zt, " ");
+      X && Ce([Ie, Oe, Ne], (It) => {
+        T = ue(T, It, " ");
       });
-      const It = b(i.nodeName);
-      if (!Mt(It, ee, T)) {
-        B(h, i);
+      const Rt = b(i.nodeName);
+      if (!zt(Rt, ee, T)) {
+        W(g, i);
         continue;
       }
-      if (S && typeof _e == "object" && typeof _e.getAttributeType == "function" && !$)
-        switch (_e.getAttributeType(It, ee)) {
+      if (w && typeof _e == "object" && typeof _e.getAttributeType == "function" && !D)
+        switch (_e.getAttributeType(Rt, ee)) {
           case "TrustedHTML": {
-            T = S.createHTML(T);
+            T = w.createHTML(T);
             break;
           }
           case "TrustedScriptURL": {
-            T = S.createScriptURL(T);
+            T = w.createScriptURL(T);
             break;
           }
         }
       if (T !== Xe)
         try {
-          $ ? i.setAttributeNS($, h, T) : i.setAttribute(h, T), qe(i) ? I(i) : Ut(t.removed);
+          D ? i.setAttributeNS(D, g, T) : i.setAttribute(g, T), qe(i) ? R(i) : Ft(t.removed);
         } catch {
-          B(h, i);
+          W(g, i);
         }
     }
-    O(w.afterSanitizeAttributes, i, null);
+    O(A.afterSanitizeAttributes, i, null);
   }, Di = function d(i) {
-    let r = null;
+    let n = null;
     const l = kt(i);
-    for (O(w.beforeSanitizeShadowDOM, i, null); r = l.nextNode(); )
-      O(w.uponSanitizeShadowNode, r, null), Dt(r), Rt(r), r.content instanceof u && d(r.content);
-    O(w.afterSanitizeShadowDOM, i, null);
+    for (O(A.beforeSanitizeShadowDOM, i, null); n = l.nextNode(); )
+      O(A.uponSanitizeShadowNode, n, null), $t(n), Lt(n), n.content instanceof u && d(n.content);
+    O(A.afterSanitizeShadowDOM, i, null);
   };
   return t.sanitize = function(d) {
-    let i = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {}, r = null, l = null, p = null, E = null;
-    if (Be = !d, Be && (d = "<!-->"), typeof d != "string" && !$t(d))
+    let i = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {}, n = null, l = null, p = null, x = null;
+    if (We = !d, We && (d = "<!-->"), typeof d != "string" && !Dt(d))
       if (typeof d.toString == "function") {
         if (d = d.toString(), typeof d != "string")
-          throw ue("dirty is not a string, aborting");
+          throw ce("dirty is not a string, aborting");
       } else
-        throw ue("toString is not a function");
+        throw ce("toString is not a function");
     if (!t.isSupported)
       return d;
-    if (Ue || je(i), t.removed = [], typeof d == "string" && (ne = !1), ne) {
+    if (Ue || Ye(i), t.removed = [], typeof d == "string" && (oe = !1), oe) {
       if (d.nodeName) {
         const N = b(d.nodeName);
-        if (!_[N] || se[N])
-          throw ue("root node is forbidden and cannot be sanitized in-place");
+        if (!_[N] || ne[N])
+          throw ce("root node is forbidden and cannot be sanitized in-place");
       }
-    } else if (d instanceof Re)
-      r = Ct("<!---->"), l = r.ownerDocument.importNode(d, !0), l.nodeType === me.element && l.nodeName === "BODY" || l.nodeName === "HTML" ? r = l : r.appendChild(l);
+    } else if (d instanceof Le)
+      n = Ct("<!---->"), l = n.ownerDocument.importNode(d, !0), l.nodeType === me.element && l.nodeName === "BODY" || l.nodeName === "HTML" ? n = l : n.appendChild(l);
     else {
-      if (!V && !X && !W && // eslint-disable-next-line unicorn/prefer-includes
+      if (!V && !X && !B && // eslint-disable-next-line unicorn/prefer-includes
       d.indexOf("<") === -1)
-        return S && Ee ? S.createHTML(d) : d;
-      if (r = Ct(d), !r)
+        return w && Ee ? w.createHTML(d) : d;
+      if (n = Ct(d), !n)
         return V ? null : Ee ? re : "";
     }
-    r && He && I(r.firstChild);
-    const h = kt(ne ? d : r);
-    for (; p = h.nextNode(); )
-      Dt(p), Rt(p), p.content instanceof u && Di(p.content);
-    if (ne)
+    n && He && R(n.firstChild);
+    const g = kt(oe ? d : n);
+    for (; p = g.nextNode(); )
+      $t(p), Lt(p), p.content instanceof u && Di(p.content);
+    if (oe)
       return d;
     if (V) {
       if (Te)
-        for (E = gi.call(r.ownerDocument); r.firstChild; )
-          E.appendChild(r.firstChild);
+        for (x = hi.call(n.ownerDocument); n.firstChild; )
+          x.appendChild(n.firstChild);
       else
-        E = r;
-      return (y.shadowroot || y.shadowrootmode) && (E = _i.call(s, E, !0)), E;
+        x = n;
+      return (y.shadowroot || y.shadowrootmode) && (x = vi.call(r, x, !0)), x;
     }
-    let $ = W ? r.outerHTML : r.innerHTML;
-    return W && _["!doctype"] && r.ownerDocument && r.ownerDocument.doctype && r.ownerDocument.doctype.name && x(ei, r.ownerDocument.doctype.name) && ($ = "<!DOCTYPE " + r.ownerDocument.doctype.name + `>
-` + $), X && Ce([ze, Oe, Ne], (N) => {
-      $ = ce($, N, " ");
-    }), S && Ee ? S.createHTML($) : $;
+    let D = B ? n.outerHTML : n.innerHTML;
+    return B && _["!doctype"] && n.ownerDocument && n.ownerDocument.doctype && n.ownerDocument.doctype.name && S(Qt, n.ownerDocument.doctype.name) && (D = "<!DOCTYPE " + n.ownerDocument.doctype.name + `>
+` + D), X && Ce([Ie, Oe, Ne], (N) => {
+      D = ue(D, N, " ");
+    }), w && Ee ? w.createHTML(D) : D;
   }, t.setConfig = function() {
     let d = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
-    je(d), Ue = !0;
+    Ye(d), Ue = !0;
   }, t.clearConfig = function() {
     Q = null, Ue = !1;
-  }, t.isValidAttribute = function(d, i, r) {
-    Q || je({});
+  }, t.isValidAttribute = function(d, i, n) {
+    Q || Ye({});
     const l = b(d), p = b(i);
-    return Mt(l, p, r);
+    return zt(l, p, n);
   }, t.addHook = function(d, i) {
-    typeof i == "function" && de(w[d], i);
+    typeof i == "function" && de(A[d], i);
   }, t.removeHook = function(d, i) {
     if (i !== void 0) {
-      const r = Oi(w[d], i);
-      return r === -1 ? void 0 : Ni(w[d], r, 1)[0];
+      const n = Ni(A[d], i);
+      return n === -1 ? void 0 : Pi(A[d], n, 1)[0];
     }
-    return Ut(w[d]);
+    return Ft(A[d]);
   }, t.removeHooks = function(d) {
-    w[d] = [];
+    A[d] = [];
   }, t.removeAllHooks = function() {
-    w = jt();
+    A = jt();
   }, t;
 }
-var ea = ti();
-const ta = new Le("Merchello.Fulfillment.Modal", {
+var ta = ei();
+const ia = new Me("Merchello.Fulfillment.Modal", {
   modal: {
     type: "sidebar",
     size: "large"
   }
-}), ia = new Le("Merchello.ShipmentEdit.Modal", {
+}), aa = new Me("Merchello.ShipmentEdit.Modal", {
   modal: {
     type: "sidebar",
     size: "small"
   }
 });
-var aa = Object.defineProperty, ra = Object.getOwnPropertyDescriptor, ii = (e) => {
+var ra = Object.defineProperty, na = Object.getOwnPropertyDescriptor, ti = (e) => {
   throw TypeError(e);
-}, ve = (e, t, a, s) => {
-  for (var o = s > 1 ? void 0 : s ? ra(t, a) : t, u = e.length - 1, v; u >= 0; u--)
-    (v = e[u]) && (o = (s ? v(t, a, o) : v(o)) || o);
-  return s && o && aa(t, a, o), o;
-}, ai = (e, t, a) => t.has(e) || ii("Cannot " + a), $e = (e, t, a) => (ai(e, t, "read from private field"), a ? a.call(e) : t.get(e)), qt = (e, t, a) => t.has(e) ? ii("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, a), Xt = (e, t, a, s) => (ai(e, t, "write to private field"), t.set(e, a), a), fe, he;
-let j = class extends lt(st) {
+}, ve = (e, t, a, r) => {
+  for (var o = r > 1 ? void 0 : r ? na(t, a) : t, u = e.length - 1, v; u >= 0; u--)
+    (v = e[u]) && (o = (r ? v(t, a, o) : v(o)) || o);
+  return r && o && ra(t, a, o), o;
+}, ii = (e, t, a) => t.has(e) || ti("Cannot " + a), De = (e, t, a) => (ii(e, t, "read from private field"), a ? a.call(e) : t.get(e)), Yt = (e, t, a) => t.has(e) ? ti("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, a), qt = (e, t, a, r) => (ii(e, t, "write to private field"), t.set(e, a), a), fe, he;
+let Y = class extends lt(nt) {
   constructor() {
-    super(), this._invoiceId = null, this._fulfillmentData = null, this._isLoading = !0, this._errorMessage = null, qt(this, fe), qt(this, he), this.consumeContext(Zt, (e) => {
-      Xt(this, fe, e), this.observe($e(this, fe).order, (t) => {
+    super(), this._invoiceId = null, this._fulfillmentData = null, this._isLoading = !0, this._errorMessage = null, Yt(this, fe), Yt(this, he), this.consumeContext(Kt, (e) => {
+      qt(this, fe, e), this.observe(De(this, fe).order, (t) => {
         t?.id && t.id !== this._invoiceId && (this._invoiceId = t.id, this._loadShipments());
       });
     }), this.consumeContext(dt, (e) => {
-      Xt(this, he, e);
+      qt(this, he, e);
     });
   }
   async _loadShipments() {
@@ -590,8 +591,8 @@ let j = class extends lt(st) {
     t ? this._errorMessage = t.message : this._fulfillmentData = e ?? null, this._isLoading = !1;
   }
   async _handleEditShipment(e) {
-    if (!$e(this, he)) return;
-    (await $e(this, he).open(this, ia, {
+    if (!De(this, he)) return;
+    (await De(this, he).open(this, aa, {
       data: { shipment: e }
     }).onSubmit().catch(() => {
     }))?.updated && this._loadShipments();
@@ -605,15 +606,15 @@ let j = class extends lt(st) {
       alert(a.message);
       return;
     }
-    this._loadShipments(), this._invoiceId && $e(this, fe)?.load(this._invoiceId);
+    this._loadShipments(), this._invoiceId && De(this, fe)?.load(this._invoiceId);
   }
   _renderShipmentCard(e, t) {
     const a = this._getCarrierClass(e.carrier);
-    return n`
+    return s`
       <div class="shipment-card">
         <div class="shipment-header">
           <div class="header-left">
-            ${e.carrier ? n`<span class="carrier-badge ${a}">${e.carrier}</span>` : n`<span class="carrier-badge">No carrier</span>`}
+            ${e.carrier ? s`<span class="carrier-badge ${a}">${e.carrier}</span>` : s`<span class="carrier-badge">No carrier</span>`}
             <span class="shipment-date">Created ${tt(e.dateCreated)}</span>
           </div>
           <div class="header-right">
@@ -638,11 +639,11 @@ let j = class extends lt(st) {
             <span class="label">Warehouse:</span>
             <span class="value">${t}</span>
           </div>
-          ${e.trackingNumber ? n`
+          ${e.trackingNumber ? s`
                 <div class="detail-row">
                   <span class="label">Tracking:</span>
                   <span class="value tracking-value">
-                    ${e.trackingUrl ? n`<a href="${e.trackingUrl}" target="_blank" rel="noopener"
+                    ${e.trackingUrl ? s`<a href="${e.trackingUrl}" target="_blank" rel="noopener"
                           >${e.trackingNumber}</a
                         >` : e.trackingNumber}
                     <button
@@ -655,7 +656,7 @@ let j = class extends lt(st) {
                   </span>
                 </div>
               ` : m}
-          ${e.actualDeliveryDate ? n`
+          ${e.actualDeliveryDate ? s`
                 <div class="detail-row">
                   <span class="label">Delivered:</span>
                   <span class="value delivered">${tt(e.actualDeliveryDate)}</span>
@@ -666,16 +667,16 @@ let j = class extends lt(st) {
         <div class="shipment-items">
           <h4>Items in shipment</h4>
           ${e.lineItems.map(
-      (s) => n`
+      (r) => s`
               <div class="item-row">
                 <div class="item-image">
-                  ${s.imageUrl ? n`<img src="${s.imageUrl}" alt="${s.name}" />` : n`<div class="placeholder-image"></div>`}
+                  ${r.imageUrl ? s`<img src="${r.imageUrl}" alt="${r.name}" />` : s`<div class="placeholder-image"></div>`}
                 </div>
                 <div class="item-info">
-                  <div class="item-name">${s.name || "Unknown item"}</div>
-                  ${s.sku ? n`<div class="item-sku">${s.sku}</div>` : m}
+                  <div class="item-name">${r.name || "Unknown item"}</div>
+                  ${r.sku ? s`<div class="item-sku">${r.sku}</div>` : m}
                 </div>
-                <div class="item-qty">x${s.quantity}</div>
+                <div class="item-qty">x${r.quantity}</div>
               </div>
             `
     )}
@@ -697,27 +698,27 @@ let j = class extends lt(st) {
   }
   render() {
     if (this._isLoading)
-      return n`<div class="loading"><uui-loader></uui-loader></div>`;
+      return s`<div class="loading"><uui-loader></uui-loader></div>`;
     if (this._errorMessage)
-      return n`
+      return s`
         <div class="error">
           <uui-icon name="icon-alert"></uui-icon>
           ${this._errorMessage}
         </div>
       `;
     if (!this._fulfillmentData)
-      return n`<div class="empty">No order data available</div>`;
+      return s`<div class="empty">No order data available</div>`;
     const e = [];
     for (const t of this._fulfillmentData.orders)
       for (const a of t.shipments)
         e.push({ shipment: a, warehouseName: t.warehouseName });
-    return e.length === 0 ? n`
+    return e.length === 0 ? s`
         <div class="empty-state">
           <uui-icon name="icon-box"></uui-icon>
           <h3>No shipments yet</h3>
           <p>Use the "Fulfil" button on the Details tab to create shipments for this order.</p>
         </div>
-      ` : n`
+      ` : s`
       <div class="shipments-view">
         <div class="header">
           <h2>Shipments</h2>
@@ -738,7 +739,7 @@ let j = class extends lt(st) {
 };
 fe = /* @__PURE__ */ new WeakMap();
 he = /* @__PURE__ */ new WeakMap();
-j.styles = nt`
+Y.styles = ot`
     :host {
       display: block;
       padding: var(--uui-size-layout-1);
@@ -1010,42 +1011,42 @@ j.styles = nt`
     }
   `;
 ve([
-  g()
-], j.prototype, "_invoiceId", 2);
+  h()
+], Y.prototype, "_invoiceId", 2);
 ve([
-  g()
-], j.prototype, "_fulfillmentData", 2);
+  h()
+], Y.prototype, "_fulfillmentData", 2);
 ve([
-  g()
-], j.prototype, "_isLoading", 2);
+  h()
+], Y.prototype, "_isLoading", 2);
 ve([
-  g()
-], j.prototype, "_errorMessage", 2);
-j = ve([
-  ot("merchello-shipments-view")
-], j);
-const sa = new Le("Merchello.ManualPayment.Modal", {
+  h()
+], Y.prototype, "_errorMessage", 2);
+Y = ve([
+  st("merchello-shipments-view")
+], Y);
+const oa = new Me("Merchello.ManualPayment.Modal", {
   modal: {
     type: "sidebar",
     size: "small"
   }
-}), na = new Le("Merchello.Refund.Modal", {
+}), sa = new Me("Merchello.Refund.Modal", {
   modal: {
     type: "sidebar",
     size: "small"
   }
 });
-var oa = Object.defineProperty, la = Object.getOwnPropertyDescriptor, ri = (e) => {
+var la = Object.defineProperty, da = Object.getOwnPropertyDescriptor, ai = (e) => {
   throw TypeError(e);
-}, te = (e, t, a, s) => {
-  for (var o = s > 1 ? void 0 : s ? la(t, a) : t, u = e.length - 1, v; u >= 0; u--)
-    (v = e[u]) && (o = (s ? v(t, a, o) : v(o)) || o);
-  return s && o && oa(t, a, o), o;
-}, si = (e, t, a) => t.has(e) || ri("Cannot " + a), De = (e, t, a) => (si(e, t, "read from private field"), t.get(e)), da = (e, t, a) => t.has(e) ? ri("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, a), ca = (e, t, a, s) => (si(e, t, "write to private field"), t.set(e, a), a), Y;
-let G = class extends lt(st) {
+}, te = (e, t, a, r) => {
+  for (var o = r > 1 ? void 0 : r ? da(t, a) : t, u = e.length - 1, v; u >= 0; u--)
+    (v = e[u]) && (o = (r ? v(t, a, o) : v(o)) || o);
+  return r && o && la(t, a, o), o;
+}, ri = (e, t, a) => t.has(e) || ai("Cannot " + a), $e = (e, t, a) => (ri(e, t, "read from private field"), t.get(e)), ua = (e, t, a) => t.has(e) ? ai("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, a), ca = (e, t, a, r) => (ri(e, t, "write to private field"), t.set(e, a), a), j;
+let G = class extends lt(nt) {
   constructor() {
-    super(), this.invoiceId = "", this._payments = [], this._status = null, this._isLoading = !0, this._errorMessage = null, da(this, Y), this.consumeContext(dt, (e) => {
-      ca(this, Y, e);
+    super(), this.invoiceId = "", this._payments = [], this._status = null, this._isLoading = !0, this._errorMessage = null, ua(this, j), this.consumeContext(dt, (e) => {
+      ca(this, j, e);
     });
   }
   connectedCallback() {
@@ -1078,8 +1079,8 @@ let G = class extends lt(st) {
     }
   }
   async _openManualPaymentModal() {
-    if (!De(this, Y) || !this._status) return;
-    (await De(this, Y).open(this, sa, {
+    if (!$e(this, j) || !this._status) return;
+    (await $e(this, j).open(this, oa, {
       data: {
         invoiceId: this.invoiceId,
         balanceDue: this._status.balanceDue
@@ -1092,8 +1093,8 @@ let G = class extends lt(st) {
     })));
   }
   async _openRefundModal(e) {
-    if (!De(this, Y)) return;
-    (await De(this, Y).open(this, na, {
+    if (!$e(this, j)) return;
+    (await $e(this, j).open(this, sa, {
       data: { payment: e }
     }).onSubmit().catch(() => {
     }))?.refunded && (await this._loadPayments(), this.dispatchEvent(new CustomEvent("refund-processed", {
@@ -1118,26 +1119,26 @@ let G = class extends lt(st) {
     }
   }
   _renderPayment(e) {
-    const t = e.paymentType === Pt.Refund || e.paymentType === Pt.PartialRefund;
-    return n`
+    const t = e.paymentType === Nt.Refund || e.paymentType === Nt.PartialRefund;
+    return s`
       <div class="payment-item ${t ? "refund" : ""}">
         <div class="payment-main">
           <div class="payment-info">
             <div class="payment-method">
-              ${t ? n`<uui-icon name="icon-undo"></uui-icon>` : n`<uui-icon name="icon-credit-card"></uui-icon>`}
+              ${t ? s`<uui-icon name="icon-undo"></uui-icon>` : s`<uui-icon name="icon-credit-card"></uui-icon>`}
               <span>${e.paymentMethod ?? "Payment"}</span>
-              ${e.paymentProviderAlias ? n`<span class="provider-badge">${e.paymentProviderAlias}</span>` : m}
+              ${e.paymentProviderAlias ? s`<span class="provider-badge">${e.paymentProviderAlias}</span>` : m}
             </div>
             <div class="payment-date">${tt(e.dateCreated)}</div>
-            ${e.transactionId ? n`<div class="transaction-id">ID: ${e.transactionId}</div>` : m}
-            ${e.description ? n`<div class="payment-description">${e.description}</div>` : m}
-            ${e.refundReason ? n`<div class="refund-reason">Reason: ${e.refundReason}</div>` : m}
+            ${e.transactionId ? s`<div class="transaction-id">ID: ${e.transactionId}</div>` : m}
+            ${e.description ? s`<div class="payment-description">${e.description}</div>` : m}
+            ${e.refundReason ? s`<div class="refund-reason">Reason: ${e.refundReason}</div>` : m}
           </div>
           <div class="payment-amount ${t ? "negative" : ""}">
-            ${t ? "-" : ""}${R(Math.abs(e.amount))}
+            ${t ? "-" : ""}${L(Math.abs(e.amount))}
           </div>
           <div class="payment-actions">
-            ${!t && e.refundableAmount > 0 ? n`
+            ${!t && e.refundableAmount > 0 ? s`
                   <uui-button
                     look="secondary"
                     label="Refund"
@@ -1148,7 +1149,7 @@ let G = class extends lt(st) {
                 ` : m}
           </div>
         </div>
-        ${e.refunds && e.refunds.length > 0 ? n`
+        ${e.refunds && e.refunds.length > 0 ? s`
               <div class="refunds-list">
                 ${e.refunds.map((a) => this._renderPayment(a))}
               </div>
@@ -1158,20 +1159,20 @@ let G = class extends lt(st) {
   }
   render() {
     if (this._isLoading)
-      return n`
+      return s`
         <div class="loading">
           <uui-loader></uui-loader>
         </div>
       `;
     if (this._errorMessage)
-      return n`
+      return s`
         <div class="error">
           <uui-icon name="icon-alert"></uui-icon>
           <span>${this._errorMessage}</span>
         </div>
       `;
     const e = this._status;
-    return n`
+    return s`
       <div class="payment-panel">
         <!-- Payment Status Summary -->
         <div class="status-summary">
@@ -1179,7 +1180,7 @@ let G = class extends lt(st) {
             <span class="status-badge ${e ? this._getStatusBadgeClass(e.status) : "unpaid"}">
               ${e?.statusDisplay ?? "Unknown"}
             </span>
-            ${e && e.balanceDue > 0 ? n`
+            ${e && e.balanceDue > 0 ? s`
                   <uui-button
                     look="primary"
                     label="Record Payment"
@@ -1191,26 +1192,26 @@ let G = class extends lt(st) {
                 ` : m}
           </div>
 
-          ${e ? n`
+          ${e ? s`
                 <div class="status-details">
                   <div class="status-row">
                     <span>Invoice Total</span>
-                    <span>${R(e.invoiceTotal)}</span>
+                    <span>${L(e.invoiceTotal)}</span>
                   </div>
                   <div class="status-row">
                     <span>Total Paid</span>
-                    <span class="positive">${R(e.totalPaid)}</span>
+                    <span class="positive">${L(e.totalPaid)}</span>
                   </div>
-                  ${e.totalRefunded > 0 ? n`
+                  ${e.totalRefunded > 0 ? s`
                         <div class="status-row">
                           <span>Total Refunded</span>
-                          <span class="negative">-${R(e.totalRefunded)}</span>
+                          <span class="negative">-${L(e.totalRefunded)}</span>
                         </div>
                       ` : m}
                   <div class="status-row total">
                     <span>Balance Due</span>
                     <span class="${e.balanceDue > 0 ? "negative" : ""}">
-                      ${R(e.balanceDue)}
+                      ${L(e.balanceDue)}
                     </span>
                   </div>
                 </div>
@@ -1220,7 +1221,7 @@ let G = class extends lt(st) {
         <!-- Payments List -->
         <div class="payments-section">
           <h3>Payment History</h3>
-          ${this._payments.length === 0 ? n`<p class="no-payments">No payments recorded yet.</p>` : n`
+          ${this._payments.length === 0 ? s`<p class="no-payments">No payments recorded yet.</p>` : s`
                 <div class="payments-list">
                   ${this._payments.map((t) => this._renderPayment(t))}
                 </div>
@@ -1230,8 +1231,8 @@ let G = class extends lt(st) {
     `;
   }
 };
-Y = /* @__PURE__ */ new WeakMap();
-G.styles = nt`
+j = /* @__PURE__ */ new WeakMap();
+G.styles = ot`
     :host {
       display: block;
     }
@@ -1424,47 +1425,62 @@ G.styles = nt`
     }
   `;
 te([
-  Mi({ type: String })
+  $i({ type: String })
 ], G.prototype, "invoiceId", 2);
 te([
-  g()
+  h()
 ], G.prototype, "_payments", 2);
 te([
-  g()
+  h()
 ], G.prototype, "_status", 2);
 te([
-  g()
+  h()
 ], G.prototype, "_isLoading", 2);
 te([
-  g()
+  h()
 ], G.prototype, "_errorMessage", 2);
 G = te([
-  ot("merchello-payment-panel")
+  st("merchello-payment-panel")
 ], G);
-var ua = Object.defineProperty, pa = Object.getOwnPropertyDescriptor, ni = (e) => {
+var pa = Object.defineProperty, ma = Object.getOwnPropertyDescriptor, ni = (e) => {
   throw TypeError(e);
-}, D = (e, t, a, s) => {
-  for (var o = s > 1 ? void 0 : s ? pa(t, a) : t, u = e.length - 1, v; u >= 0; u--)
-    (v = e[u]) && (o = (s ? v(t, a, o) : v(o)) || o);
-  return s && o && ua(t, a, o), o;
-}, oi = (e, t, a) => t.has(e) || ni("Cannot " + a), H = (e, t, a) => (oi(e, t, "read from private field"), t.get(e)), Vt = (e, t, a) => t.has(e) ? ni("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, a), Kt = (e, t, a, s) => (oi(e, t, "write to private field"), t.set(e, a), a), F, ge;
-let A = class extends lt(st) {
+}, $ = (e, t, a, r) => {
+  for (var o = r > 1 ? void 0 : r ? ma(t, a) : t, u = e.length - 1, v; u >= 0; u--)
+    (v = e[u]) && (o = (r ? v(t, a, o) : v(o)) || o);
+  return r && o && pa(t, a, o), o;
+}, oi = (e, t, a) => t.has(e) || ni("Cannot " + a), H = (e, t, a) => (oi(e, t, "read from private field"), t.get(e)), Xt = (e, t, a) => t.has(e) ? ni("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, a), Vt = (e, t, a, r) => (oi(e, t, "write to private field"), t.set(e, a), a), F, ge;
+let E = class extends lt(nt) {
   constructor() {
-    super(), this._order = null, this._isLoading = !0, this._activeTab = "details", this._newNoteText = "", this._visibleToCustomer = !1, this._isPostingNote = !1, this._noteError = null, this._editingSection = null, this._editFormData = {}, this._isSavingAddress = !1, this._validationErrors = {}, this._countries = [], Vt(this, F), Vt(this, ge), this.consumeContext(Zt, (e) => {
-      Kt(this, F, e), H(this, F) && this.observe(H(this, F).order, (t) => {
+    super(), this._order = null, this._isLoading = !0, this._activeTab = "details", this._newNoteText = "", this._visibleToCustomer = !1, this._isPostingNote = !1, this._noteError = null, this._editingSection = null, this._editFormData = {}, this._isSavingAddress = !1, this._validationErrors = {}, this._countries = [], Xt(this, F), Xt(this, ge), this.consumeContext(Kt, (e) => {
+      Vt(this, F, e), H(this, F) && this.observe(H(this, F).order, (t) => {
         this._order = t ?? null, this._isLoading = !t;
       });
     }), this.consumeContext(dt, (e) => {
-      Kt(this, ge, e);
+      Vt(this, ge, e);
+    }), this.consumeContext(Mi, (e) => {
+      this.observe(e?.currentUser, (t) => {
+        this._currentUser = t;
+      });
     }), this._loadCountries();
   }
   async _loadCountries() {
     const { data: e } = await U.getCountries();
     e && (this._countries = e);
   }
+  _getGravatarUrl(e, t = 40) {
+    return e ? `https://www.gravatar.com/avatar/${this._simpleHash(e.toLowerCase().trim())}?d=mp&s=${t}` : null;
+  }
+  _simpleHash(e) {
+    let t = 3735928559, a = 1103547991;
+    for (let o = 0; o < e.length; o++) {
+      const u = e.charCodeAt(o);
+      t = Math.imul(t ^ u, 2654435761), a = Math.imul(a ^ u, 1597334677);
+    }
+    return t = Math.imul(t ^ t >>> 16, 2246822507), t ^= Math.imul(a ^ a >>> 13, 3266489909), a = Math.imul(a ^ a >>> 16, 2246822507), a ^= Math.imul(t ^ t >>> 13, 3266489909), (4294967296 * (2097151 & a) + (t >>> 0)).toString(16).padStart(32, "0");
+  }
   async _openFulfillmentModal() {
     if (!this._order || !H(this, ge)) return;
-    await H(this, ge).open(this, ta, {
+    await H(this, ge).open(this, ia, {
       data: { invoiceId: this._order.id }
     }).onSubmit().catch(() => {
     }), H(this, F)?.load(this._order.id);
@@ -1488,14 +1504,14 @@ let A = class extends lt(st) {
   _formatAddress(e) {
     if (!e) return ["No address"];
     const t = [];
-    e.name && t.push(e.name), e.addressOne && t.push(e.addressOne), e.addressTwo && t.push(e.addressTwo);
+    e.name && t.push(e.name), e.company && t.push(e.company), e.addressOne && t.push(e.addressOne), e.addressTwo && t.push(e.addressTwo);
     const a = [e.townCity, e.countyState, e.postalCode].filter(Boolean).join(" ");
     return a && t.push(a), e.country && t.push(e.country), e.phone && t.push(e.phone), t;
   }
   _renderMarkdown(e) {
     Ot.setOptions({ breaks: !0, gfm: !0 });
-    const t = Ot.parse(e), a = ea.sanitize(t);
-    return Li(a);
+    const t = Ot.parse(e), a = ta.sanitize(t);
+    return zi(a);
   }
   _getGoogleMapsUrl(e) {
     if (!e) return "";
@@ -1526,7 +1542,19 @@ let A = class extends lt(st) {
         email: this._editFormData.email || null
       };
       e = await U.updateBillingAddress(this._order.id, t);
-    } else this._editingSection === "shipping" ? e = await U.updateShippingAddress(this._order.id, this._editFormData) : e = await U.updateBillingAddress(this._order.id, this._editFormData);
+    } else if (this._editingSection === "shipping") {
+      const t = {
+        ...this._order.shippingAddress,
+        ...this._editFormData
+      };
+      e = await U.updateShippingAddress(this._order.id, t);
+    } else {
+      const t = {
+        ...this._order.billingAddress,
+        ...this._editFormData
+      };
+      e = await U.updateBillingAddress(this._order.id, t);
+    }
     if (this._isSavingAddress = !1, e.error) {
       console.error("Failed to save address:", e.error);
       return;
@@ -1535,39 +1563,39 @@ let A = class extends lt(st) {
   }
   _updateFormField(e, t) {
     if (this._editFormData = { ...this._editFormData, [e]: t || null }, this._validationErrors[e]) {
-      const { [e]: a, ...s } = this._validationErrors;
-      this._validationErrors = s;
+      const { [e]: a, ...r } = this._validationErrors;
+      this._validationErrors = r;
     }
   }
-  _renderInput(e, t, a, s = "text") {
+  _renderInput(e, t, a, r = "text") {
     const o = !!this._validationErrors[e];
-    return n`
+    return s`
       <div class="form-field ${o ? "has-error" : ""}">
         <uui-input
-          type=${s}
+          type=${r}
           label=${t}
           placeholder=${a}
           .value=${this._editFormData[e] || ""}
           @input=${(u) => this._updateFormField(e, u.target.value)}
         ></uui-input>
-        ${o ? n`<span class="field-error">${this._validationErrors[e]}</span>` : m}
+        ${o ? s`<span class="field-error">${this._validationErrors[e]}</span>` : m}
       </div>
     `;
   }
   _renderCountrySelect() {
     const e = !!this._validationErrors.countryCode;
-    return n`
+    return s`
       <div class="form-field ${e ? "has-error" : ""}">
         <uui-select
           label="Country"
           placeholder="Select country"
           .value=${this._editFormData.countryCode || ""}
           @change=${(t) => {
-      const a = t.target, s = this._countries.find((o) => o.code === a.value);
+      const a = t.target, r = this._countries.find((o) => o.code === a.value);
       if (this._editFormData = {
         ...this._editFormData,
         countryCode: a.value || null,
-        country: s?.name || null
+        country: r?.name || null
       }, this._validationErrors.countryCode) {
         const { countryCode: o, ...u } = this._validationErrors;
         this._validationErrors = u;
@@ -1575,48 +1603,63 @@ let A = class extends lt(st) {
     }}
         >
           <option value="">Select country...</option>
-          ${this._countries.map((t) => n`
+          ${this._countries.map((t) => s`
             <option value=${t.code} ?selected=${this._editFormData.countryCode === t.code}>${t.name}</option>
           `)}
         </uui-select>
-        ${e ? n`<span class="field-error">${this._validationErrors.countryCode}</span>` : m}
+        ${e ? s`<span class="field-error">${this._validationErrors.countryCode}</span>` : m}
       </div>
     `;
   }
   _renderFulfillmentCard(e) {
-    const t = this._getStatusLabel(e.status), a = this._order?.fulfillmentStatus === "Fulfilled", s = e.status >= 50 ? "shipped" : "unfulfilled";
-    return n`
+    const t = this._getStatusLabel(e.status), a = this._order?.fulfillmentStatus === "Fulfilled", r = e.status >= 50 ? "shipped" : "unfulfilled";
+    return s`
       <div class="card fulfillment-card">
-        <div class="card-header">
-          <span class="status-badge ${s}">${t}</span>
-          <span class="shipping-method">${e.deliveryMethod}</span>
+        <div class="fulfillment-header">
+          <span class="fulfillment-status-badge ${r}">
+            <uui-icon name="icon-box"></uui-icon>
+            ${t}
+          </span>
         </div>
-        <div class="line-items">
+        <div class="fulfillment-shipping-method">
+          <uui-icon name="icon-truck"></uui-icon>
+          <span>${e.deliveryMethod}</span>
+        </div>
+        <div class="fulfillment-line-items">
           ${e.lineItems.map(
-      (o) => n`
-              <div class="line-item">
-                <div class="item-image">
-                  ${o.imageUrl ? n`<img src="${o.imageUrl}" alt="${o.name}" />` : n`<div class="placeholder-image"></div>`}
+      (o) => s`
+              <div class="fulfillment-line-item">
+                <div class="fulfillment-item-image">
+                  ${o.imageUrl ? s`<img src="${o.imageUrl}" alt="${o.name}" />` : s`<div class="fulfillment-placeholder-image"></div>`}
                 </div>
-                <div class="item-details">
-                  <div class="item-name">${o.name}</div>
-                  <div class="item-sku">${o.sku}</div>
+                <div class="fulfillment-item-details">
+                  <div class="fulfillment-item-name">${o.name}</div>
+                  <div class="fulfillment-item-variant">${o.sku || ""}</div>
                 </div>
-                <div class="item-price">${R(o.amount)} x ${o.quantity}</div>
-                <div class="item-total">${R(o.amount * o.quantity)}</div>
+                <div class="fulfillment-item-pricing">
+                  <span class="fulfillment-item-price">${L(o.amount)}</span>
+                  <span class="fulfillment-item-multiply">×</span>
+                  <span class="fulfillment-item-qty">${o.quantity}</span>
+                </div>
+                <div class="fulfillment-item-total">${L(o.amount * o.quantity)}</div>
               </div>
             `
     )}
         </div>
-        <div class="card-footer">
-          <uui-button
-            look="${a ? "secondary" : "primary"}"
-            label="${a ? "Fulfilled" : "Fulfil"}"
-            ?disabled=${a}
-            @click=${a ? m : this._openFulfillmentModal}
-          >
-            ${a ? "Fulfilled" : "Fulfil"}
-          </uui-button>
+        <div class="fulfillment-footer">
+          <div class="fulfillment-actions">
+            <uui-button
+              look="${a ? "secondary" : "primary"}"
+              label="${a ? "Fulfilled" : "Fulfil"}"
+              ?disabled=${a}
+              @click=${a ? m : this._openFulfillmentModal}
+            >
+              ${a ? "Fulfilled" : "Fulfil"}
+            </uui-button>
+            <uui-button look="outline" label="Create shipping label">
+              Create shipping label
+            </uui-button>
+          </div>
         </div>
       </div>
     `;
@@ -1633,6 +1676,23 @@ let A = class extends lt(st) {
       70: "Cancelled",
       80: "On Hold"
     }[e] || "Unknown";
+  }
+  _getDateGroupLabel(e) {
+    const t = /* @__PURE__ */ new Date(), a = new Date(t);
+    a.setDate(a.getDate() - 1);
+    const r = e.toDateString() === t.toDateString(), o = e.toDateString() === a.toDateString();
+    return r ? "Today" : o ? "Yesterday" : e.toLocaleDateString(void 0, { weekday: "long", month: "long", day: "numeric" });
+  }
+  _formatTimeOnly(e) {
+    return new Date(e).toLocaleTimeString(void 0, { hour: "2-digit", minute: "2-digit" });
+  }
+  _groupNotesByDate(e) {
+    const t = /* @__PURE__ */ new Map(), a = [...e].sort((r, o) => new Date(o.date).getTime() - new Date(r.date).getTime());
+    for (const r of a) {
+      const o = new Date(r.date), u = this._getDateGroupLabel(o);
+      t.has(u) || t.set(u, []), t.get(u).push(r);
+    }
+    return t;
   }
   _handleTabClick(e) {
     this._activeTab = e;
@@ -1654,10 +1714,10 @@ let A = class extends lt(st) {
     this._newNoteText = "", this._visibleToCustomer = !1, H(this, F)?.load(this._order.id);
   }
   _renderLoadingState() {
-    return n`<div class="loading"><uui-loader></uui-loader></div>`;
+    return s`<div class="loading"><uui-loader></uui-loader></div>`;
   }
   _renderNotFoundState() {
-    return n`<div class="error">Order not found</div>`;
+    return s`<div class="error">Order not found</div>`;
   }
   render() {
     if (this._isLoading)
@@ -1665,7 +1725,7 @@ let A = class extends lt(st) {
     if (!this._order)
       return this._renderNotFoundState();
     const e = this._order;
-    return n`
+    return s`
       <div class="order-detail">
         <!-- Header -->
         <div class="order-header">
@@ -1681,7 +1741,7 @@ let A = class extends lt(st) {
           </div>
         </div>
         <div class="order-meta">
-          ${Nt(e.dateCreated)} from ${e.channel}
+          ${Li(e.dateCreated)} from ${e.channel}
         </div>
 
         <!-- Tabs -->
@@ -1707,13 +1767,13 @@ let A = class extends lt(st) {
         </div>
 
         <!-- Tab Content -->
-        ${this._activeTab === "shipments" ? n`<merchello-shipments-view></merchello-shipments-view>` : this._activeTab === "payments" ? n`
+        ${this._activeTab === "shipments" ? s`<merchello-shipments-view></merchello-shipments-view>` : this._activeTab === "payments" ? s`
               <merchello-payment-panel
                 invoiceId=${e.id}
                 @payment-recorded=${this._handlePaymentChange}
                 @refund-processed=${this._handlePaymentChange}
               ></merchello-payment-panel>
-            ` : n`
+            ` : s`
         <!-- Main Content -->
         <div class="order-content">
           <!-- Left Column -->
@@ -1730,23 +1790,23 @@ let A = class extends lt(st) {
               <div class="payment-summary">
                 <div class="summary-row">
                   <span>Subtotal</span>
-                  <span>${e.orders.reduce((t, a) => t + a.lineItems.reduce((s, o) => s + o.quantity, 0), 0)} items</span>
-                  <span>${R(e.subTotal)}</span>
+                  <span>${e.orders.reduce((t, a) => t + a.lineItems.reduce((r, o) => r + o.quantity, 0), 0)} items</span>
+                  <span>${L(e.subTotal)}</span>
                 </div>
                 <div class="summary-row">
                   <span>Shipping</span>
                   <span>${e.orders[0]?.deliveryMethod || "Standard"}</span>
-                  <span>${R(e.shippingCost)}</span>
+                  <span>${L(e.shippingCost)}</span>
                 </div>
                 <div class="summary-row total">
                   <span>Total</span>
                   <span></span>
-                  <span>${R(e.total)}</span>
+                  <span>${L(e.total)}</span>
                 </div>
                 <div class="summary-row">
                   <span>Paid</span>
                   <span></span>
-                  <span>${R(e.amountPaid)}</span>
+                  <span>${L(e.amountPaid)}</span>
                 </div>
               </div>
             </div>
@@ -1754,45 +1814,65 @@ let A = class extends lt(st) {
             <!-- Timeline -->
             <div class="card timeline-card">
               <h3>Timeline</h3>
-              <div class="timeline-input">
-                <textarea
-                  placeholder="Leave a comment..."
-                  .value=${this._newNoteText}
-                  @input=${(t) => {
+              <div class="timeline-comment-box">
+                <div class="timeline-avatar">
+                  ${this._currentUser?.email ? s`<img src="${this._getGravatarUrl(this._currentUser.email)}" alt="Avatar" />` : s`<uui-icon name="icon-user"></uui-icon>`}
+                </div>
+                <div class="timeline-input-wrapper">
+                  <textarea
+                    placeholder="Leave a comment..."
+                    .value=${this._newNoteText}
+                    @input=${(t) => {
       this._newNoteText = t.target.value, this._noteError = null;
     }}
-                  rows="2"
-                ></textarea>
-                <div class="timeline-actions">
-                  <label class="customer-visible-checkbox">
-                    <input
-                      type="checkbox"
-                      .checked=${this._visibleToCustomer}
-                      @change=${(t) => this._visibleToCustomer = t.target.checked}
-                    />
-                    Visible to customer
-                  </label>
-                  <uui-button
-                    look="primary"
-                    label="Post"
-                    ?disabled=${!this._newNoteText.trim() || this._isPostingNote}
-                    @click=${this._handlePostNote}
-                  >
-                    ${this._isPostingNote ? "Posting..." : "Post"}
-                  </uui-button>
+                    rows="2"
+                  ></textarea>
+                  <div class="timeline-toolbar">
+                    <uui-button
+                      look="primary"
+                      label="Post"
+                      ?disabled=${!this._newNoteText.trim() || this._isPostingNote}
+                      @click=${this._handlePostNote}
+                    >
+                      ${this._isPostingNote ? "Posting..." : "Post"}
+                    </uui-button>
+                  </div>
+                  ${this._noteError ? s`<div class="note-error">${this._noteError}</div>` : m}
                 </div>
-                ${this._noteError ? n`<div class="note-error">${this._noteError}</div>` : m}
               </div>
-              <div class="timeline-events">
-                ${e.notes.length === 0 ? n`<div class="no-notes">No timeline events yet</div>` : [...e.notes].sort((t, a) => new Date(a.date).getTime() - new Date(t.date).getTime()).map(
-      (t) => n`
-                          <div class="timeline-event ${t.visibleToCustomer ? "customer-visible" : ""}">
-                            ${t.visibleToCustomer ? n`<span class="customer-badge">Customer visible</span>` : m}
-                            <div class="event-time">${Nt(t.date)}</div>
-                            <div class="event-text markdown-content">${this._renderMarkdown(t.text)}</div>
-                            ${t.author ? n`<div class="event-author">by ${t.author}</div>` : m}
+              <div class="timeline-visibility-note">
+                <label class="customer-visible-checkbox">
+                  <input
+                    type="checkbox"
+                    .checked=${this._visibleToCustomer}
+                    @change=${(t) => this._visibleToCustomer = t.target.checked}
+                  />
+                  Visible to customer
+                </label>
+                <span class="visibility-hint">Only you and other staff can see comments</span>
+              </div>
+              <div class="timeline-events-container">
+                ${e.notes.length === 0 ? s`<div class="no-notes">No timeline events yet</div>` : Array.from(this._groupNotesByDate(e.notes).entries()).map(
+      ([t, a]) => s`
+                        <div class="timeline-date-group">
+                          <div class="timeline-date-header">${t}</div>
+                          <div class="timeline-events">
+                            ${a.map(
+        (r) => s`
+                                <div class="timeline-event ${r.visibleToCustomer ? "customer-visible" : ""}">
+                                  <div class="timeline-event-dot"></div>
+                                  <div class="timeline-event-content">
+                                    ${r.visibleToCustomer ? s`<span class="customer-badge">Customer visible</span>` : m}
+                                    <div class="event-text markdown-content">${this._renderMarkdown(r.text)}</div>
+                                    ${r.author ? s`<span class="event-author">by ${r.author}</span>` : m}
+                                  </div>
+                                  <div class="timeline-event-time">${this._formatTimeOnly(r.date)}</div>
+                                </div>
+                              `
+      )}
                           </div>
-                        `
+                        </div>
+                      `
     )}
               </div>
             </div>
@@ -1805,18 +1885,18 @@ let A = class extends lt(st) {
               <h3>Customer</h3>
               <div class="customer-info">
                 <a href="#" class="customer-name">${e.billingAddress?.name || "Unknown"}</a>
-                <div class="muted">1 order</div>
+                <div class="muted">${e.customerOrderCount} ${e.customerOrderCount === 1 ? "order" : "orders"}</div>
               </div>
               <div class="section">
                 <div class="section-header">
                   <span>Contact information</span>
-                  ${this._editingSection !== "contact" ? n`
+                  ${this._editingSection !== "contact" ? s`
                     <button class="edit-btn" title="Edit" @click=${() => this._startEditing("contact")}>
                       <uui-icon name="icon-edit"></uui-icon>
                     </button>
                   ` : m}
                 </div>
-                ${this._editingSection === "contact" ? n`
+                ${this._editingSection === "contact" ? s`
                   <div class="edit-form">
                     ${this._renderInput("email", "Email", "Email address", "email")}
                     <div class="edit-actions">
@@ -1826,20 +1906,20 @@ let A = class extends lt(st) {
                       </uui-button>
                     </div>
                   </div>
-                ` : n`
-                  ${e.billingAddress?.email ? n`<a href="mailto:${e.billingAddress.email}">${e.billingAddress.email}</a>` : n`<span class="muted">No email</span>`}
+                ` : s`
+                  ${e.billingAddress?.email ? s`<a href="mailto:${e.billingAddress.email}">${e.billingAddress.email}</a>` : s`<span class="muted">No email</span>`}
                 `}
               </div>
               <div class="section">
                 <div class="section-header">
                   <span>Shipping address</span>
-                  ${this._editingSection !== "shipping" ? n`
+                  ${this._editingSection !== "shipping" ? s`
                     <button class="edit-btn" title="Edit" @click=${() => this._startEditing("shipping")}>
                       <uui-icon name="icon-edit"></uui-icon>
                     </button>
                   ` : m}
                 </div>
-                ${this._editingSection === "shipping" ? n`
+                ${this._editingSection === "shipping" ? s`
                   <div class="edit-form">
                     ${this._renderInput("name", "Name", "Name")}
                     ${this._renderInput("company", "Company", "Company")}
@@ -1857,23 +1937,23 @@ let A = class extends lt(st) {
                       </uui-button>
                     </div>
                   </div>
-                ` : n`
+                ` : s`
                   <div class="address">
-                    ${this._formatAddress(e.shippingAddress).map((t) => n`<div>${t}</div>`)}
+                    ${this._formatAddress(e.shippingAddress).map((t) => s`<div>${t}</div>`)}
                   </div>
-                  ${this._getGoogleMapsUrl(e.shippingAddress) ? n`<a href=${this._getGoogleMapsUrl(e.shippingAddress)} target="_blank" rel="noopener noreferrer" class="view-map">View map</a>` : m}
+                  ${this._getGoogleMapsUrl(e.shippingAddress) ? s`<a href=${this._getGoogleMapsUrl(e.shippingAddress)} target="_blank" rel="noopener noreferrer" class="view-map">View map</a>` : m}
                 `}
               </div>
               <div class="section">
                 <div class="section-header">
                   <span>Billing address</span>
-                  ${this._editingSection !== "billing" ? n`
+                  ${this._editingSection !== "billing" ? s`
                     <button class="edit-btn" title="Edit" @click=${() => this._startEditing("billing")}>
                       <uui-icon name="icon-edit"></uui-icon>
                     </button>
                   ` : m}
                 </div>
-                ${this._editingSection === "billing" ? n`
+                ${this._editingSection === "billing" ? s`
                   <div class="edit-form">
                     ${this._renderInput("name", "Name", "Name")}
                     ${this._renderInput("company", "Company", "Company")}
@@ -1891,10 +1971,10 @@ let A = class extends lt(st) {
                       </uui-button>
                     </div>
                   </div>
-                ` : n`
-                  ${e.billingAddress === e.shippingAddress ? n`<span class="muted">Same as shipping address</span>` : n`
+                ` : s`
+                  ${e.billingAddress === e.shippingAddress ? s`<span class="muted">Same as shipping address</span>` : s`
                         <div class="address">
-                          ${this._formatAddress(e.billingAddress).map((t) => n`<div>${t}</div>`)}
+                          ${this._formatAddress(e.billingAddress).map((t) => s`<div>${t}</div>`)}
                         </div>
                       `}
                 `}
@@ -1920,7 +2000,7 @@ let A = class extends lt(st) {
 };
 F = /* @__PURE__ */ new WeakMap();
 ge = /* @__PURE__ */ new WeakMap();
-A.styles = nt`
+E.styles = ot`
     :host {
       display: block;
       padding: var(--uui-size-layout-1);
@@ -2075,6 +2155,155 @@ A.styles = nt`
       border-top: 1px solid var(--uui-color-border);
     }
 
+    /* Fulfillment Card - Shopify-like styling */
+    .fulfillment-card {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .fulfillment-header {
+      padding: var(--uui-size-space-4);
+      border-bottom: 1px solid var(--uui-color-border);
+    }
+
+    .fulfillment-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .fulfillment-status-badge uui-icon {
+      font-size: 1rem;
+    }
+
+    .fulfillment-status-badge.shipped {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .fulfillment-shipping-method {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3) var(--uui-size-space-4);
+      border-bottom: 1px solid var(--uui-color-border);
+      font-size: 0.875rem;
+      color: var(--uui-color-text);
+    }
+
+    .fulfillment-shipping-method uui-icon {
+      color: var(--uui-color-text-alt);
+    }
+
+    .fulfillment-line-items {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .fulfillment-line-item {
+      display: grid;
+      grid-template-columns: 56px 1fr auto auto;
+      gap: var(--uui-size-space-4);
+      align-items: center;
+      padding: var(--uui-size-space-4);
+      border-bottom: 1px solid var(--uui-color-border);
+    }
+
+    .fulfillment-line-item:last-child {
+      border-bottom: none;
+    }
+
+    .fulfillment-item-image img,
+    .fulfillment-placeholder-image {
+      width: 56px;
+      height: 56px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1px solid var(--uui-color-border);
+    }
+
+    .fulfillment-placeholder-image {
+      background: var(--uui-color-surface-alt);
+    }
+
+    .fulfillment-item-details {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .fulfillment-item-name {
+      font-weight: 500;
+      font-size: 0.875rem;
+      color: var(--uui-color-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .fulfillment-item-variant {
+      font-size: 0.8125rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .fulfillment-item-pricing {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      font-size: 0.875rem;
+      color: var(--uui-color-text-alt);
+      white-space: nowrap;
+    }
+
+    .fulfillment-item-multiply {
+      color: var(--uui-color-text-alt);
+    }
+
+    .fulfillment-item-qty {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      height: 24px;
+      padding: 0 6px;
+      background: var(--uui-color-surface-alt);
+      border-radius: 4px;
+      font-size: 0.8125rem;
+      font-weight: 500;
+    }
+
+    .fulfillment-item-total {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--uui-color-text);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .fulfillment-footer {
+      padding: var(--uui-size-space-4);
+      border-top: 1px solid var(--uui-color-border);
+      background: var(--uui-color-surface);
+    }
+
+    .fulfillment-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--uui-size-space-3);
+    }
+
+    .fulfillment-actions uui-button-group {
+      display: flex;
+    }
+
+    /* Legacy styles for backward compatibility */
     .status-badge {
       padding: 2px 8px;
       border-radius: 12px;
@@ -2152,35 +2381,91 @@ A.styles = nt`
       border-top: 1px solid var(--uui-color-border);
     }
 
-    .timeline-input {
-      margin-bottom: var(--uui-size-space-4);
+    /* Timeline - Shopify-like styling */
+    .timeline-card {
+      padding: var(--uui-size-space-4);
     }
 
-    .timeline-input textarea {
+    .timeline-comment-box {
+      display: flex;
+      gap: var(--uui-size-space-3);
+      margin-bottom: var(--uui-size-space-3);
+    }
+
+    .timeline-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--uui-color-surface-alt);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--uui-color-text-alt);
+      overflow: hidden;
+    }
+
+    .timeline-avatar img {
       width: 100%;
-      padding: var(--uui-size-space-2);
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .timeline-avatar uui-icon {
+      font-size: 1.25rem;
+    }
+
+    .timeline-input-wrapper {
+      flex: 1;
       border: 1px solid var(--uui-color-border);
       border-radius: var(--uui-border-radius);
-      margin-bottom: var(--uui-size-space-2);
-      box-sizing: border-box;
-      resize: vertical;
-      font-family: inherit;
-      font-size: inherit;
+      overflow: hidden;
     }
 
-    .timeline-actions {
+    .timeline-input-wrapper textarea {
+      width: 100%;
+      padding: var(--uui-size-space-3);
+      border: none;
+      box-sizing: border-box;
+      resize: none;
+      font-family: inherit;
+      font-size: 0.875rem;
+      min-height: 60px;
+    }
+
+    .timeline-input-wrapper textarea:focus {
+      outline: none;
+    }
+
+    .timeline-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding: var(--uui-size-space-2) var(--uui-size-space-3);
+      background: var(--uui-color-surface);
+      border-top: 1px solid var(--uui-color-border);
+    }
+
+    .note-error {
+      color: #dc3545;
+      font-size: 0.875rem;
+      padding: var(--uui-size-space-2) var(--uui-size-space-3);
+    }
+
+    .timeline-visibility-note {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: var(--uui-size-space-2);
+      margin-bottom: var(--uui-size-space-4);
+      padding-left: 52px; /* Align with input (40px avatar + 12px gap) */
     }
 
     .customer-visible-checkbox {
       display: flex;
       align-items: center;
-      gap: var(--uui-size-space-1);
-      font-size: 0.875rem;
-      color: var(--uui-color-text-alt);
+      gap: var(--uui-size-space-2);
+      font-size: 0.8125rem;
+      color: var(--uui-color-text);
       cursor: pointer;
     }
 
@@ -2188,28 +2473,68 @@ A.styles = nt`
       cursor: pointer;
     }
 
-    .note-error {
-      color: #dc3545;
-      font-size: 0.875rem;
-      margin-top: var(--uui-size-space-2);
+    .visibility-hint {
+      font-size: 0.8125rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .timeline-events-container {
+      border-top: 1px solid var(--uui-color-border);
+      padding-top: var(--uui-size-space-4);
+    }
+
+    .timeline-date-group {
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .timeline-date-header {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--uui-color-text-alt);
+      margin-bottom: var(--uui-size-space-3);
     }
 
     .timeline-events {
-      border-top: 1px solid var(--uui-color-border);
-      padding-top: var(--uui-size-space-3);
+      position: relative;
+      padding-left: var(--uui-size-space-5);
+    }
+
+    .timeline-events::before {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 8px;
+      bottom: 8px;
+      width: 1px;
+      background: var(--uui-color-border);
     }
 
     .timeline-event {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--uui-size-space-3);
       padding: var(--uui-size-space-2) 0;
-      border-bottom: 1px solid var(--uui-color-border);
+      position: relative;
     }
 
-    .timeline-event.customer-visible {
-      background: #e8f4fd;
-      border-left: 3px solid #0078d4;
-      padding-left: var(--uui-size-space-3);
-      margin-left: calc(-1 * var(--uui-size-space-2));
-      padding-right: var(--uui-size-space-2);
+    .timeline-event-dot {
+      position: absolute;
+      left: calc(-1 * var(--uui-size-space-5) + 2px);
+      top: 10px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--uui-color-text-alt);
+    }
+
+    .timeline-event.customer-visible .timeline-event-dot {
+      background: #0078d4;
+    }
+
+    .timeline-event-content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
 
     .customer-badge {
@@ -2218,19 +2543,32 @@ A.styles = nt`
       font-weight: 500;
       color: #0078d4;
       background: #cce5ff;
-      padding: 2px 6px;
+      padding: 2px 8px;
       border-radius: 10px;
-      margin-bottom: var(--uui-size-space-1);
+      width: fit-content;
     }
 
-    .event-time {
+    .event-text {
+      font-size: 0.875rem;
+      color: var(--uui-color-text);
+      line-height: 1.5;
+    }
+
+    .event-author {
       font-size: 0.75rem;
       color: var(--uui-color-text-alt);
+    }
+
+    .timeline-event-time {
+      font-size: 0.8125rem;
+      color: var(--uui-color-text-alt);
+      white-space: nowrap;
     }
 
     .no-notes {
       color: var(--uui-color-text-alt);
       font-style: italic;
+      padding: var(--uui-size-space-2);
     }
 
     .sidebar .card {
@@ -2388,48 +2726,51 @@ A.styles = nt`
       color: var(--uui-color-text-alt);
     }
   `;
-D([
-  g()
-], A.prototype, "_order", 2);
-D([
-  g()
-], A.prototype, "_isLoading", 2);
-D([
-  g()
-], A.prototype, "_activeTab", 2);
-D([
-  g()
-], A.prototype, "_newNoteText", 2);
-D([
-  g()
-], A.prototype, "_visibleToCustomer", 2);
-D([
-  g()
-], A.prototype, "_isPostingNote", 2);
-D([
-  g()
-], A.prototype, "_noteError", 2);
-D([
-  g()
-], A.prototype, "_editingSection", 2);
-D([
-  g()
-], A.prototype, "_editFormData", 2);
-D([
-  g()
-], A.prototype, "_isSavingAddress", 2);
-D([
-  g()
-], A.prototype, "_validationErrors", 2);
-D([
-  g()
-], A.prototype, "_countries", 2);
-A = D([
-  ot("merchello-order-detail")
-], A);
-const Ta = A;
+$([
+  h()
+], E.prototype, "_order", 2);
+$([
+  h()
+], E.prototype, "_isLoading", 2);
+$([
+  h()
+], E.prototype, "_activeTab", 2);
+$([
+  h()
+], E.prototype, "_newNoteText", 2);
+$([
+  h()
+], E.prototype, "_visibleToCustomer", 2);
+$([
+  h()
+], E.prototype, "_isPostingNote", 2);
+$([
+  h()
+], E.prototype, "_noteError", 2);
+$([
+  h()
+], E.prototype, "_currentUser", 2);
+$([
+  h()
+], E.prototype, "_editingSection", 2);
+$([
+  h()
+], E.prototype, "_editFormData", 2);
+$([
+  h()
+], E.prototype, "_isSavingAddress", 2);
+$([
+  h()
+], E.prototype, "_validationErrors", 2);
+$([
+  h()
+], E.prototype, "_countries", 2);
+E = $([
+  st("merchello-order-detail")
+], E);
+const xa = E;
 export {
-  A as MerchelloOrderDetailElement,
-  Ta as default
+  E as MerchelloOrderDetailElement,
+  xa as default
 };
-//# sourceMappingURL=order-detail.element-DH81yrq6.js.map
+//# sourceMappingURL=order-detail.element-DsHU4Iwv.js.map

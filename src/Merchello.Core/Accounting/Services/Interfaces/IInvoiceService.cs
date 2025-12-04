@@ -64,7 +64,13 @@ public interface IInvoiceService
     /// <summary>
     /// Add a note to an invoice
     /// </summary>
-    Task<CrudResult<InvoiceNote>> AddNoteAsync(Guid invoiceId, string text, bool visibleToCustomer, CancellationToken cancellationToken = default);
+    /// <param name="invoiceId">The invoice ID</param>
+    /// <param name="text">The note text</param>
+    /// <param name="visibleToCustomer">Whether the note is visible to the customer</param>
+    /// <param name="authorId">Optional author user ID</param>
+    /// <param name="authorName">Optional author name (defaults to "System" if not provided)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task<CrudResult<InvoiceNote>> AddNoteAsync(Guid invoiceId, string text, bool visibleToCustomer, Guid? authorId = null, string? authorName = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Update the billing address for an invoice
@@ -95,5 +101,10 @@ public interface IInvoiceService
     /// Delete a shipment (releases items back to unfulfilled)
     /// </summary>
     Task<bool> DeleteShipmentAsync(Guid shipmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get count of invoices by billing email address
+    /// </summary>
+    Task<int> GetInvoiceCountByBillingEmailAsync(string email, CancellationToken cancellationToken = default);
 }
 

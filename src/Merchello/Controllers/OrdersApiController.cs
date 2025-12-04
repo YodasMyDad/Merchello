@@ -10,6 +10,7 @@ using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Umbraco.Cms.Core.Security;
 
 namespace Merchello.Controllers;
 
@@ -17,7 +18,8 @@ namespace Merchello.Controllers;
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class OrdersApiController(
     IPaymentService paymentService,
-    IInvoiceService invoiceService) : MerchelloApiControllerBase
+    IInvoiceService invoiceService,
+    IBackOfficeSecurityAccessor backOfficeSecurityAccessor) : MerchelloApiControllerBase
 {
     /// <summary>
     /// Get paginated list of orders/invoices
@@ -143,7 +145,16 @@ public class OrdersApiController(
             return NotFound();
         }
 
-        return Ok(MapToDetail(invoice));
+        var detail = MapToDetail(invoice);
+
+        // Get customer order count by billing email
+        var billingEmail = invoice.BillingAddress?.Email;
+        if (!string.IsNullOrWhiteSpace(billingEmail))
+        {
+            detail.CustomerOrderCount = await invoiceService.GetInvoiceCountByBillingEmailAsync(billingEmail);
+        }
+
+        return Ok(detail);
     }
 
     /// <summary>
@@ -181,7 +192,17 @@ public class OrdersApiController(
             return BadRequest("Note text is required");
         }
 
-        var result = await invoiceService.AddNoteAsync(invoiceId, request.Text, request.VisibleToCustomer);
+        // Get current backoffice user if available
+        var currentUser = backOfficeSecurityAccessor.BackOfficeSecurity?.CurrentUser;
+        var authorId = currentUser?.Key;
+        var authorName = currentUser?.Name;
+
+        var result = await invoiceService.AddNoteAsync(
+            invoiceId,
+            request.Text,
+            request.VisibleToCustomer,
+            authorId,
+            authorName);
 
         if (result.ResultObject == null)
         {
@@ -193,6 +214,7 @@ public class OrdersApiController(
         {
             Date = result.ResultObject.DateCreated,
             Text = result.ResultObject.Description ?? string.Empty,
+            AuthorId = result.ResultObject.AuthorId,
             Author = result.ResultObject.Author,
             VisibleToCustomer = result.ResultObject.VisibleToCustomer
         });
@@ -317,6 +339,7 @@ public class OrdersApiController(
             {
                 Date = n.DateCreated,
                 Text = n.Description ?? string.Empty,
+                AuthorId = n.AuthorId,
                 Author = n.Author,
                 VisibleToCustomer = n.VisibleToCustomer
             }).ToList() ?? []
@@ -351,7 +374,9 @@ public class OrdersApiController(
             Status = order.Status,
             DeliveryMethod = "Standard", // Would come from ShippingOption lookup
             ShippingCost = order.ShippingCost,
-            LineItems = order.LineItems?.Select(li => new LineItemDto
+            LineItems = order.LineItems?
+                .Where(li => li.LineItemType == LineItemType.Product)
+                .Select(li => new LineItemDto
             {
                 Id = li.Id,
                 Sku = li.Sku,
