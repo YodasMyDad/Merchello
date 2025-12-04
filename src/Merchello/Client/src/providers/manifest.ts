@@ -10,25 +10,5 @@ export const manifests: Array<UmbExtensionManifest> = [
       headline: "Providers",
     },
   },
-
-  // Workspace view for providers overview
-  {
-    type: "workspaceView",
-    alias: "Merchello.Providers.Workspace.View",
-    name: "Merchello Providers View",
-    js: () => import("./providers-workspace.element.js"),
-    weight: 100,
-    meta: {
-      label: "Overview",
-      pathname: "overview",
-      icon: "icon-nodes",
-    },
-    conditions: [
-      {
-        alias: "Umb.Condition.WorkspaceAlias",
-        match: "Merchello.Providers.Workspace",
-      },
-    ],
-  },
 ];
 

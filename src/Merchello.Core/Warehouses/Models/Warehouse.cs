@@ -74,7 +74,7 @@ public class Warehouse
     /// <summary>
     ///     General use extended data, for storing data related to this basket
     /// </summary>
-    public Dictionary<string, object> ExtendedData { get; set; } = new();
+    public Dictionary<string, object> ExtendedData { get; set; } = [];
 
     public bool CanServeRegion(string countryCode, string? stateOrProvinceCode = null)
     {

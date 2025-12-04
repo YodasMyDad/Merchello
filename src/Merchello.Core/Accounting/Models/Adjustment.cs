@@ -20,5 +20,5 @@ public class Adjustment
     /// <summary>
     ///     General use extended data, for storing data related to this line item
     /// </summary>
-    public Dictionary<string, object> ExtendedData { get; set; } = new();
+    public Dictionary<string, object> ExtendedData { get; set; } = [];
 }

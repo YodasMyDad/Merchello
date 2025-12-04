@@ -459,9 +459,17 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal?>("HeightCm")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Images")
                         .IsRequired()
                         .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("LengthCm")
+                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("MetaDescription")
@@ -480,6 +488,11 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("OpenGraphImage")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PackageConfigurations")
+                        .IsRequired()
+                        .HasMaxLength(4000)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("PageTitle")
@@ -539,6 +552,14 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("VariantOptionsKey")
                         .HasMaxLength(1500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("Weight")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("WidthCm")
+                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -662,10 +683,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<string>("Videos")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("Weight")
-                        .HasPrecision(10, 2)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -950,6 +967,11 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsTestMode")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("ProviderKey")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -959,10 +981,18 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("SortOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
                     b.Property<DateTime>("UpdateDate")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ProviderKey")
+                        .IsUnique();
 
                     b.ToTable("merchelloShippingProviderConfigurations", (string)null);
                 });

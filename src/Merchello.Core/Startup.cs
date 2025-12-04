@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Services;
 using Merchello.Core.Locality.Services.Interfaces;
@@ -18,6 +19,11 @@ using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Services;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.Handlers;
+using Merchello.Core.Notifications.Order;
+using Merchello.Core.Notifications.Payment;
+using Merchello.Core.Notifications.Shipment;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Services;
 using Merchello.Core.Warehouses.Services;
@@ -87,8 +93,6 @@ public static class Startup
         builder.Services.AddScoped<IShippingQuoteService, ShippingQuoteService>();
         builder.Services.AddScoped<IShippingProviderManager, ShippingProviderManager>();
         builder.Services.AddScoped<IShippingService, ShippingService>();
-        builder.Services.AddScoped<IDeliveryDateService, DeliveryDateService>();
-        builder.Services.AddScoped<IDeliveryDateProvider, DefaultDeliveryDateProvider>();
         builder.Services.AddScoped<IWarehouseService, WarehouseService>();
         builder.Services.AddScoped<ILocationsService, LocationsService>();
         builder.Services.AddSingleton<ILocalityCatalog, DefaultLocalityCatalog>();
@@ -100,6 +104,19 @@ public static class Startup
         // Payment services
         builder.Services.AddScoped<IPaymentProviderManager, PaymentProviderManager>();
         builder.Services.AddScoped<IPaymentService, PaymentService>();
+
+        // Order grouping strategy
+        builder.Services.AddScoped<IOrderGroupingStrategyResolver, OrderGroupingStrategyResolver>();
+        builder.Services.AddScoped<DefaultOrderGroupingStrategy>();
+
+        // Notification publisher
+        builder.Services.AddScoped<IMerchelloNotificationPublisher, MerchelloNotificationPublisher>();
+
+        // Internal notification handlers for invoice timeline (dogfooding)
+        builder.AddNotificationAsyncHandler<OrderStatusChangedNotification, InvoiceTimelineHandler>();
+        builder.AddNotificationAsyncHandler<ShipmentCreatedNotification, InvoiceTimelineHandler>();
+        builder.AddNotificationAsyncHandler<PaymentCreatedNotification, InvoiceTimelineHandler>();
+        builder.AddNotificationAsyncHandler<PaymentRefundedNotification, InvoiceTimelineHandler>();
 
         // Plugin assemblies for extension scanning
         // Start with explicitly passed assemblies
@@ -121,13 +138,14 @@ public static class Startup
     }
 
     /// <summary>
-    /// Discovers assemblies containing payment or shipping provider implementations.
-    /// Scans all loaded assemblies for types implementing IPaymentProvider or IShippingProvider.
+    /// Discovers assemblies containing payment, shipping, or order grouping strategy implementations.
+    /// Scans all loaded assemblies for types implementing IPaymentProvider, IShippingProvider, or IOrderGroupingStrategy.
     /// </summary>
     private static IEnumerable<Assembly> DiscoverProviderAssemblies()
     {
         var paymentProviderType = typeof(IPaymentProvider);
         var shippingProviderType = typeof(IShippingProvider);
+        var orderGroupingStrategyType = typeof(IOrderGroupingStrategy);
 
         var discoveredAssemblies = new HashSet<Assembly>();
 
@@ -149,7 +167,9 @@ public static class Startup
                 var types = assembly.GetExportedTypes();
                 var hasProviders = types.Any(t =>
                     t.IsClass && !t.IsAbstract &&
-                    (paymentProviderType.IsAssignableFrom(t) || shippingProviderType.IsAssignableFrom(t)));
+                    (paymentProviderType.IsAssignableFrom(t) ||
+                     shippingProviderType.IsAssignableFrom(t) ||
+                     orderGroupingStrategyType.IsAssignableFrom(t)));
 
                 if (hasProviders)
                 {

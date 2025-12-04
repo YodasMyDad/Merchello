@@ -1,36 +1,36 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
 
 namespace Merchello.Core.Shipping.Providers.BuiltIn;
 
 /// <summary>
 /// Built-in provider that reproduces the legacy flat-rate shipping behaviour.
+/// Uses ShippingOption and ShippingCost tables for rate calculations.
 /// </summary>
-public class FlatRateShippingProvider : IShippingProvider
+public class FlatRateShippingProvider : ShippingProviderBase
 {
-    private ShippingProviderConfiguration? _configuration;
-
-    public ShippingProviderMetadata Metadata { get; } = new(
-        Key: "flat-rate",
-        DisplayName: "Flat Rate Shipping",
-        EnabledByDefault: true);
-
-    public ValueTask ConfigureAsync(ShippingProviderConfiguration? configuration, CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public override ShippingProviderMetadata Metadata { get; } = new()
     {
-        _configuration = configuration;
-        return ValueTask.CompletedTask;
-    }
+        Key = "flat-rate",
+        DisplayName = "Flat Rate Shipping",
+        Icon = "icon-truck",
+        Description = "Configure flat shipping rates based on destination country and region.",
+        SupportsRealTimeRates = false,
+        SupportsTracking = false,
+        SupportsLabelGeneration = false,
+        SupportsDeliveryDateSelection = true,
+        SupportsInternational = true,
+        RequiresFullAddress = false
+    };
 
-    public bool IsAvailableFor(ShippingQuoteRequest request)
+    /// <inheritdoc />
+    public override bool IsAvailableFor(ShippingQuoteRequest request)
     {
         return request.Items.Any(item => item.IsShippable);
     }
 
-    public Task<ShippingRateQuote?> GetRatesAsync(ShippingQuoteRequest request, CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public override Task<ShippingRateQuote?> GetRatesAsync(ShippingQuoteRequest request, CancellationToken cancellationToken = default)
     {
         if (!IsAvailableFor(request))
         {

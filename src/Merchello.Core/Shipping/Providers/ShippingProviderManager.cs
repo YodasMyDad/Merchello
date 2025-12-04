@@ -1,9 +1,6 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Merchello.Core.Data;
 using Merchello.Core.Shared.Reflection;
+using Merchello.Core.Shipping.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
@@ -13,22 +10,12 @@ namespace Merchello.Core.Shipping.Providers;
 /// <summary>
 /// Discovers and configures shipping provider implementations.
 /// </summary>
-public class ShippingProviderManager : IShippingProviderManager
+public class ShippingProviderManager(
+    ExtensionManager extensionManager,
+    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    ILogger<ShippingProviderManager> logger) : IShippingProviderManager
 {
-    private readonly ExtensionManager _extensionManager;
-    private readonly IEFCoreScopeProvider<MerchelloDbContext> _efCoreScopeProvider;
-    private readonly ILogger<ShippingProviderManager> _logger;
     private IReadOnlyCollection<RegisteredShippingProvider>? _cachedProviders;
-
-    public ShippingProviderManager(
-        ExtensionManager extensionManager,
-        IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
-        ILogger<ShippingProviderManager> logger)
-    {
-        _extensionManager = extensionManager;
-        _efCoreScopeProvider = efCoreScopeProvider;
-        _logger = logger;
-    }
 
     public async Task<IReadOnlyCollection<RegisteredShippingProvider>> GetProvidersAsync(CancellationToken cancellationToken = default)
     {
@@ -37,12 +24,12 @@ public class ShippingProviderManager : IShippingProviderManager
             return _cachedProviders;
         }
 
-        var providerInstances = _extensionManager.GetInstances<IShippingProvider>(useCaching: true)
+        var providerInstances = extensionManager.GetInstances<IShippingProvider>(useCaching: true)
             .Where(p => p != null)
             .Cast<IShippingProvider>()
             .ToList();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var configurations = await scope.ExecuteWithContextAsync(async db =>
             await db.ShippingProviderConfigurations
                 .AsNoTracking()
@@ -57,13 +44,13 @@ public class ShippingProviderManager : IShippingProviderManager
             var metadata = provider.Metadata;
             if (string.IsNullOrWhiteSpace(metadata.Key))
             {
-                _logger.LogWarning("Shipping provider {ProviderType} has an empty metadata key and will be ignored.", provider.GetType().FullName);
+                logger.LogWarning("Shipping provider {ProviderType} has an empty metadata key and will be ignored.", provider.GetType().FullName);
                 continue;
             }
 
             if (!keys.Add(metadata.Key))
             {
-                _logger.LogWarning("Duplicate shipping provider key '{ProviderKey}' detected. Provider {ProviderType} will be skipped.", metadata.Key, provider.GetType().FullName);
+                logger.LogWarning("Duplicate shipping provider key '{ProviderKey}' detected. Provider {ProviderType} will be skipped.", metadata.Key, provider.GetType().FullName);
                 continue;
             }
 
@@ -76,7 +63,7 @@ public class ShippingProviderManager : IShippingProviderManager
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to configure shipping provider {ProviderKey}. Provider will be skipped.", metadata.Key);
+                logger.LogError(ex, "Failed to configure shipping provider {ProviderKey}. Provider will be skipped.", metadata.Key);
                 continue;
             }
 
@@ -91,7 +78,8 @@ public class ShippingProviderManager : IShippingProviderManager
     {
         var providers = await GetProvidersAsync(cancellationToken);
         return providers
-            .Where(IsProviderEnabled)
+            .Where(p => p.IsEnabled)
+            .OrderBy(p => p.SortOrder)
             .ToList();
     }
 
@@ -111,7 +99,7 @@ public class ShippingProviderManager : IShippingProviderManager
             return null;
         }
 
-        if (requireEnabled && !IsProviderEnabled(provider))
+        if (requireEnabled && !provider.IsEnabled)
         {
             return null;
         }
@@ -119,14 +107,120 @@ public class ShippingProviderManager : IShippingProviderManager
         return provider;
     }
 
-    private static bool IsProviderEnabled(RegisteredShippingProvider registeredProvider)
+    public async Task<ShippingProviderConfiguration> SaveConfigurationAsync(ShippingProviderConfiguration configuration, CancellationToken cancellationToken = default)
     {
-        var config = registeredProvider.Configuration;
-        if (config == null)
-        {
-            return registeredProvider.Metadata.EnabledByDefault;
-        }
+        using var scope = efCoreScopeProvider.CreateScope();
 
-        return config.IsEnabled;
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var existing = await db.ShippingProviderConfigurations
+                .FirstOrDefaultAsync(c => c.Id == configuration.Id, cancellationToken);
+
+            if (existing != null)
+            {
+                existing.DisplayName = configuration.DisplayName;
+                existing.IsEnabled = configuration.IsEnabled;
+                existing.IsTestMode = configuration.IsTestMode;
+                existing.SettingsJson = configuration.SettingsJson;
+                existing.SortOrder = configuration.SortOrder;
+                existing.UpdateDate = DateTime.UtcNow;
+                await db.SaveChangesAsync(cancellationToken);
+                return existing;
+            }
+
+            configuration.CreateDate = DateTime.UtcNow;
+            configuration.UpdateDate = DateTime.UtcNow;
+            db.ShippingProviderConfigurations.Add(configuration);
+            await db.SaveChangesAsync(cancellationToken);
+            return configuration;
+        });
+
+        scope.Complete();
+        ClearCache();
+        return result;
+    }
+
+    public async Task<bool> SetProviderEnabledAsync(Guid configurationId, bool enabled, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        var success = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var config = await db.ShippingProviderConfigurations
+                .FirstOrDefaultAsync(c => c.Id == configurationId, cancellationToken);
+
+            if (config == null)
+            {
+                return false;
+            }
+
+            config.IsEnabled = enabled;
+            config.UpdateDate = DateTime.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
+
+        scope.Complete();
+        ClearCache();
+        return success;
+    }
+
+    public async Task UpdateSortOrderAsync(IEnumerable<Guid> orderedIds, CancellationToken cancellationToken = default)
+    {
+        var idList = orderedIds.ToList();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            var configurations = await db.ShippingProviderConfigurations
+                .Where(c => idList.Contains(c.Id))
+                .ToListAsync(cancellationToken);
+
+            for (var i = 0; i < idList.Count; i++)
+            {
+                var config = configurations.FirstOrDefault(c => c.Id == idList[i]);
+                if (config != null)
+                {
+                    config.SortOrder = i;
+                    config.UpdateDate = DateTime.UtcNow;
+                }
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
+
+        scope.Complete();
+        ClearCache();
+    }
+
+    public async Task<bool> DeleteConfigurationAsync(Guid configurationId, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        var success = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var config = await db.ShippingProviderConfigurations
+                .FirstOrDefaultAsync(c => c.Id == configurationId, cancellationToken);
+
+            if (config == null)
+            {
+                return false;
+            }
+
+            db.ShippingProviderConfigurations.Remove(config);
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
+
+        scope.Complete();
+        ClearCache();
+        return success;
+    }
+
+    public void ClearCache()
+    {
+        _cachedProviders = null;
     }
 }

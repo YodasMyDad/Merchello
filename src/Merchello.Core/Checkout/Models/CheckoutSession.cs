@@ -29,14 +29,14 @@ public class CheckoutSession
     /// Key: GroupId (or WarehouseId for backward compatibility), Value: ShippingOptionId
     /// Note: Multiple groups can exist for the same warehouse when products have different shipping restrictions
     /// </summary>
-    public Dictionary<Guid, Guid> SelectedShippingOptions { get; set; } = new();
+    public Dictionary<Guid, Guid> SelectedShippingOptions { get; set; } = [];
 
     /// <summary>
     /// Selected delivery date per warehouse shipping group (if applicable)
     /// Key: GroupId, Value: Requested delivery date
     /// Only populated for shipping options that allow delivery date selection
     /// </summary>
-    public Dictionary<Guid, DateTime> SelectedDeliveryDates { get; set; } = new();
+    public Dictionary<Guid, DateTime> SelectedDeliveryDates { get; set; } = [];
 
     /// <summary>
     /// Current step in checkout process

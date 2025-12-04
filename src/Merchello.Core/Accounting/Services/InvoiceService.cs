@@ -5,6 +5,11 @@ using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.Aggregate;
+using Merchello.Core.Notifications.Invoice;
+using Merchello.Core.Notifications.Order;
+using Merchello.Core.Notifications.Shipment;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services;
 using Merchello.Core.Products.Services.Interfaces;
@@ -24,8 +29,8 @@ public class InvoiceService(
     IShippingService shippingService,
     IInventoryService inventoryService,
     IOrderStatusHandler statusHandler,
-    IDeliveryDateService deliveryDateService,
     IPaymentService paymentService,
+    IMerchelloNotificationPublisher notificationPublisher,
     ILogger<InvoiceService> logger) : IInvoiceService
 {
     public async Task<Invoice> CreateOrderFromBasketAsync(
@@ -101,25 +106,9 @@ public class InvoiceService(
                     requestedDeliveryDate = selectedDate;
                     isDeliveryDateGuaranteed = shippingOption.IsDeliveryDateGuaranteed;
 
-                    // Map the basket line items to order line items for surcharge calculation
-                    List<LineItem> lineItemsForSurcharge = [];
-                    foreach (var shippingLineItem in group.LineItems)
-                    {
-                        var basketLineItem = basket.LineItems.FirstOrDefault(li => li.Id == shippingLineItem.LineItemId);
-                        if (basketLineItem != null)
-                        {
-                            lineItemsForSurcharge.Add(basketLineItem);
-                        }
-                    }
-
-                    // Calculate delivery date surcharge
-                    deliveryDateSurcharge = await deliveryDateService.CalculateDeliveryDateSurchargeAsync(
-                        shippingOption,
-                        selectedDate,
-                        checkoutSession.ShippingAddress,
-                        lineItemsForSurcharge,
-                        baseShippingCost,
-                        cancellationToken);
+                    // TODO: Delivery date surcharge calculation can be implemented through shipping providers
+                    // For now, surcharge is 0 - can be extended when carrier APIs support date-based pricing
+                    deliveryDateSurcharge = 0m;
                 }
 
                 var totalShippingCost = baseShippingCost + (deliveryDateSurcharge ?? 0);
@@ -557,6 +546,7 @@ public class InvoiceService(
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var order = await db.Orders
+                .Include(o => o.Invoice)
                 .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
 
             if (order == null)
@@ -582,6 +572,19 @@ public class InvoiceService(
             }
 
             var oldStatus = order.Status;
+
+            // Publish "Before" notification - handlers can modify order or cancel
+            var changingNotification = new OrderStatusChangingNotification(order, oldStatus, newStatus, reason);
+            if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = changingNotification.CancelReason ?? "Operation cancelled",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
             await statusHandler.OnStatusChangingAsync(order, oldStatus, newStatus, cancellationToken);
 
             order.Status = newStatus;
@@ -596,6 +599,18 @@ public class InvoiceService(
 
             await db.SaveChangesAsync(cancellationToken);
             await statusHandler.OnStatusChangedAsync(order, oldStatus, newStatus, cancellationToken);
+
+            // Publish "After" notification
+            await notificationPublisher.PublishAsync(
+                new OrderStatusChangedNotification(order, oldStatus, newStatus, reason), cancellationToken);
+
+            // Publish aggregate notification
+            if (order.Invoice != null)
+            {
+                await notificationPublisher.PublishAsync(
+                    new InvoiceAggregateChangedNotification(order.Invoice, AggregateChangeType.Updated, AggregateChangeSource.Order, order),
+                    cancellationToken);
+            }
 
             logger.LogInformation("Order {OrderId} status updated from {OldStatus} to {NewStatus}",
                 orderId, oldStatus, newStatus);
@@ -1093,7 +1108,7 @@ public class InvoiceService(
                 .OrderBy(i => i.DateCreated)
                 .ToListAsync(cancellationToken);
 
-            var result = new List<OrderExportItemDto>();
+            List<OrderExportItemDto> result = [];
 
             foreach (var invoice in invoices)
             {
@@ -1354,6 +1369,18 @@ public class InvoiceService(
                 DateCreated = DateTime.UtcNow
             };
 
+            // Publish "Before" notification - handlers can modify shipment or cancel
+            var creatingNotification = new ShipmentCreatingNotification(shipment);
+            if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = creatingNotification.CancelReason ?? "Shipment creation cancelled",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
             db.Shipments.Add(shipment);
 
             // Update order status
@@ -1374,6 +1401,18 @@ public class InvoiceService(
             order.DateUpdated = DateTime.UtcNow;
 
             await db.SaveChangesAsync(cancellationToken);
+
+            // Publish "After" notification
+            await notificationPublisher.PublishAsync(new ShipmentCreatedNotification(shipment), cancellationToken);
+
+            // Publish aggregate notification
+            if (order.Invoice != null)
+            {
+                await notificationPublisher.PublishAsync(
+                    new InvoiceAggregateChangedNotification(order.Invoice, AggregateChangeType.Created, AggregateChangeSource.Shipment, shipment),
+                    cancellationToken);
+            }
+
             result.ResultObject = shipment;
         });
         scope.Complete();

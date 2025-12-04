@@ -65,29 +65,27 @@ export class MerchelloPaginationElement extends UmbElementMixin(LitElement) {
       <div class="pagination">
         <span class="pagination-info">${getPaginationRangeText(this.state)}</span>
         <div class="pagination-controls">
-          <button
-            class="pagination-button"
+          <uui-button
+            look="secondary"
+            compact
             ?disabled=${!canGoPrevious || this.disabled}
             @click=${this._handlePrevious}
-            aria-label="Previous page"
+            label="Previous page"
             title="Previous page"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="15,18 9,12 15,6" />
-            </svg>
-          </button>
+            <uui-icon name="icon-navigation-left"></uui-icon>
+          </uui-button>
           <span class="pagination-page">${this.state.page} / ${this.state.totalPages}</span>
-          <button
-            class="pagination-button"
+          <uui-button
+            look="secondary"
+            compact
             ?disabled=${!canGoNext || this.disabled}
             @click=${this._handleNext}
-            aria-label="Next page"
+            label="Next page"
             title="Next page"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="9,6 15,12 9,18" />
-            </svg>
-          </button>
+            <uui-icon name="icon-navigation-right"></uui-icon>
+          </uui-button>
         </div>
       </div>
     `;

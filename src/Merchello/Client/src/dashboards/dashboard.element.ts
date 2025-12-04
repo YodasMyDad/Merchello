@@ -6,10 +6,12 @@ import {
   state,
 } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import { UUIButtonElement } from "@umbraco-cms/backoffice/external/uui";
+import type { UUIButtonElement } from "@umbraco-cms/backoffice/external/uui";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
-import { UMB_CURRENT_USER_CONTEXT, UmbCurrentUserModel } from "@umbraco-cms/backoffice/current-user";
-import { MerchelloApi, UserModel } from "@api/merchello-api.js";
+import { UMB_CURRENT_USER_CONTEXT } from "@umbraco-cms/backoffice/current-user";
+import type { UmbCurrentUserModel } from "@umbraco-cms/backoffice/current-user";
+import { MerchelloApi } from "@api/merchello-api.js";
+import type { UserModel } from "@api/merchello-api.js";
 
 @customElement("merchello-dashboard")
 export class MerchelloDashboardElement extends UmbElementMixin(LitElement) {
@@ -56,7 +58,6 @@ export class MerchelloDashboardElement extends UmbElementMixin(LitElement) {
 
     if (error) {
       buttonElement.state = "failed";
-      console.error(error);
       return;
     }
 
@@ -84,7 +85,6 @@ export class MerchelloDashboardElement extends UmbElementMixin(LitElement) {
 
     if (error) {
       buttonElement.state = "failed";
-      console.error(error);
       return;
     }
 
@@ -102,7 +102,6 @@ export class MerchelloDashboardElement extends UmbElementMixin(LitElement) {
 
     if (error) {
       buttonElement.state = "failed";
-      console.error(error);
       return;
     }
 

@@ -16,7 +16,6 @@ import {
   MERCHELLO_MARKETING_ENTITY_TYPE,
   MERCHELLO_SETTINGS_ENTITY_TYPE,
   MERCHELLO_WAREHOUSES_ENTITY_TYPE,
-  MERCHELLO_SHIPPING_ENTITY_TYPE,
 } from "./types.js";
 
 export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTreeDataSource<MerchelloTreeItemModel> {
@@ -91,7 +90,7 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
   }
 
   async getChildrenOf(args: UmbTreeChildrenOfRequestArgs) {
-    // Settings has child items: Warehouses and Shipping
+    // Settings has child items: Warehouses
     if (args.parent.unique === "settings") {
       const children: Array<MerchelloTreeItemModel> = [
         {
@@ -101,15 +100,6 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
           hasChildren: false,
           isFolder: false,
           icon: "icon-store",
-          parent: { unique: "settings", entityType: MERCHELLO_SETTINGS_ENTITY_TYPE },
-        },
-        {
-          entityType: MERCHELLO_SHIPPING_ENTITY_TYPE,
-          unique: "shipping",
-          name: "Shipping",
-          hasChildren: false,
-          isFolder: false,
-          icon: "icon-truck",
           parent: { unique: "settings", entityType: MERCHELLO_SETTINGS_ENTITY_TYPE },
         },
       ];
