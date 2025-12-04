@@ -6,9 +6,9 @@ import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatShortDate } from "@shared/utils/formatting.js";
-import type { FulfillmentSummaryDto, ShipmentDetailDto } from "../types/order.types.js";
-import type { MerchelloOrderDetailWorkspaceContext } from "../contexts/order-detail-workspace.context.js";
-import { MERCHELLO_SHIPMENT_EDIT_MODAL } from "../modals/shipment-edit-modal.token.js";
+import type { FulfillmentSummaryDto, ShipmentDetailDto } from "@orders/types/order.types.js";
+import type { MerchelloOrderDetailWorkspaceContext } from "@orders/contexts/order-detail-workspace.context.js";
+import { MERCHELLO_SHIPMENT_EDIT_MODAL } from "@orders/modals/shipment-edit-modal.token.js";
 
 @customElement("merchello-shipments-view")
 export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {

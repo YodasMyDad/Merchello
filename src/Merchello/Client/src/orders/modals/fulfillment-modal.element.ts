@@ -9,7 +9,7 @@ import type {
   FulfillmentLineItemDto,
   CreateShipmentRequest,
   ShipmentDetailDto,
-} from "../types/order.types.js";
+} from "@orders/types/order.types.js";
 import type { FulfillmentModalData, FulfillmentModalValue } from "./fulfillment-modal.token.js";
 
 interface SelectedItem {

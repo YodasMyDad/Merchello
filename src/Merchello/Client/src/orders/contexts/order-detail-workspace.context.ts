@@ -3,7 +3,7 @@ import { UmbControllerBase } from "@umbraco-cms/backoffice/class-api";
 import type { UmbRoutableWorkspaceContext } from "@umbraco-cms/backoffice/workspace";
 import { UMB_WORKSPACE_CONTEXT, UmbWorkspaceRouteManager } from "@umbraco-cms/backoffice/workspace";
 import { UmbObjectState } from "@umbraco-cms/backoffice/observable-api";
-import type { OrderDetailDto } from "../types/order.types.js";
+import type { OrderDetailDto } from "@orders/types/order.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
 export class MerchelloOrderDetailWorkspaceContext extends UmbControllerBase implements UmbRoutableWorkspaceContext {
@@ -23,7 +23,7 @@ export class MerchelloOrderDetailWorkspaceContext extends UmbControllerBase impl
     this.routes.setRoutes([
       {
         path: "edit/:id",
-        component: () => import("../components/order-detail.element.js"),
+        component: () => import("@orders/components/order-detail.element.js"),
         setup: (_component, info) => {
           const id = info.match.params.id;
           this.load(id);

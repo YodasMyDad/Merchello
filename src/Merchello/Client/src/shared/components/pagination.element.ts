@@ -1,8 +1,8 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import type { PaginationState, PageChangeEventDetail } from "../types/pagination.types.js";
-import { getPaginationRangeText, hasPreviousPage, hasNextPage } from "../types/pagination.types.js";
+import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
+import { getPaginationRangeText, hasPreviousPage, hasNextPage } from "@shared/types/pagination.types.js";
 
 /**
  * Reusable pagination component for paginated lists.

@@ -31,6 +31,14 @@ export const manifests: Array<UmbExtensionManifest> = [
     js: () => import("./modals/refund-modal.element.js"),
   },
 
+  // Export modal for exporting orders to CSV
+  {
+    type: "modal",
+    alias: "Merchello.Export.Modal",
+    name: "Merchello Export Modal",
+    js: () => import("./modals/export-modal.element.js"),
+  },
+
   // Workspace for orders list (when clicking "Orders" in tree)
   {
     type: "workspace",

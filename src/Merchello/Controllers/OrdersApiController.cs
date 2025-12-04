@@ -106,6 +106,29 @@ public class OrdersApiController(
     }
 
     /// <summary>
+    /// Export orders within a date range for CSV generation
+    /// </summary>
+    [HttpPost("orders/export")]
+    [ProducesResponseType<List<OrderExportItemDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ExportOrders(
+        [FromBody] OrderExportRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (request.FromDate > request.ToDate)
+        {
+            return BadRequest("From date must be before or equal to To date");
+        }
+
+        var exportItems = await invoiceService.GetOrdersForExportAsync(
+            request.FromDate,
+            request.ToDate,
+            cancellationToken);
+
+        return Ok(exportItems);
+    }
+
+    /// <summary>
     /// Get order/invoice details by ID
     /// </summary>
     [HttpGet("orders/{id:guid}")]

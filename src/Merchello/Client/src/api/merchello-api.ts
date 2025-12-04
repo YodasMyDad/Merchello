@@ -165,6 +165,8 @@ import type {
   InvoiceNoteDto,
   AddInvoiceNoteRequest,
   AddressDto,
+  OrderExportRequest,
+  OrderExportItemDto,
 } from '../orders/types/order.types.js';
 
 // Import payment provider types
@@ -226,6 +228,10 @@ export const MerchelloApi = {
     apiPut<AddressDto>(`orders/${invoiceId}/shipping-address`, address),
   getOrderStats: () => apiGet<OrderStatsDto>('orders/stats'),
   getDashboardStats: () => apiGet<DashboardStatsDto>('orders/dashboard-stats'),
+
+  /** Export orders within a date range for CSV generation */
+  exportOrders: (request: OrderExportRequest) =>
+    apiPost<OrderExportItemDto[]>('orders/export', request),
 
   /** Soft-delete multiple orders/invoices */
   deleteOrders: (ids: string[]) =>

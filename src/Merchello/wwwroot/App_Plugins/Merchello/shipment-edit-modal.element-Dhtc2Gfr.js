@@ -1,89 +1,63 @@
-import { html, css } from "@umbraco-cms/backoffice/external/lit";
-import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
-import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import { MerchelloApi } from "@api/merchello-api.js";
-import { formatShortDate } from "@shared/utils/formatting.js";
-import type { ShipmentEditModalData, ShipmentEditModalValue } from "./shipment-edit-modal.token.js";
-import type { UpdateShipmentRequest } from "@orders/types/order.types.js";
-
-@customElement("merchello-shipment-edit-modal")
-export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
-  ShipmentEditModalData,
-  ShipmentEditModalValue
-> {
-  @state() private _carrier: string = "";
-  @state() private _trackingNumber: string = "";
-  @state() private _trackingUrl: string = "";
-  @state() private _actualDeliveryDate: string = "";
-  @state() private _isSaving: boolean = false;
-  @state() private _errorMessage: string | null = null;
-
-  connectedCallback(): void {
+import { html as r, css as d, state as l, customElement as m } from "@umbraco-cms/backoffice/external/lit";
+import { UmbModalBaseElement as p } from "@umbraco-cms/backoffice/modal";
+import { M as v } from "./merchello-api-TrKABjdM.js";
+import { b as h } from "./formatting-Cv63Ksgk.js";
+var g = Object.defineProperty, b = Object.getOwnPropertyDescriptor, s = (i, e, u, o) => {
+  for (var t = o > 1 ? void 0 : o ? b(e, u) : e, n = i.length - 1, c; n >= 0; n--)
+    (c = i[n]) && (t = (o ? c(e, u, t) : c(t)) || t);
+  return o && t && g(e, u, t), t;
+};
+let a = class extends p {
+  constructor() {
+    super(...arguments), this._carrier = "", this._trackingNumber = "", this._trackingUrl = "", this._actualDeliveryDate = "", this._isSaving = !1, this._errorMessage = null;
+  }
+  connectedCallback() {
     super.connectedCallback();
-    const shipment = this.data?.shipment;
-    if (shipment) {
-      this._carrier = shipment.carrier || "";
-      this._trackingNumber = shipment.trackingNumber || "";
-      this._trackingUrl = shipment.trackingUrl || "";
-      this._actualDeliveryDate = shipment.actualDeliveryDate
-        ? shipment.actualDeliveryDate.split("T")[0]
-        : "";
-    }
+    const i = this.data?.shipment;
+    i && (this._carrier = i.carrier || "", this._trackingNumber = i.trackingNumber || "", this._trackingUrl = i.trackingUrl || "", this._actualDeliveryDate = i.actualDeliveryDate ? i.actualDeliveryDate.split("T")[0] : "");
   }
-
-  private async _handleSave(): Promise<void> {
-    if (!this.data?.shipment) return;
-
-    this._isSaving = true;
-    this._errorMessage = null;
-
-    try {
-      const request: UpdateShipmentRequest = {
-        carrier: this._carrier || undefined,
-        trackingNumber: this._trackingNumber || undefined,
-        trackingUrl: this._trackingUrl || undefined,
-        actualDeliveryDate: this._actualDeliveryDate || undefined,
-      };
-
-      const { error } = await MerchelloApi.updateShipment(this.data.shipment.id, request);
-      if (error) {
-        this._errorMessage = error.message;
-        return;
+  async _handleSave() {
+    if (this.data?.shipment) {
+      this._isSaving = !0, this._errorMessage = null;
+      try {
+        const i = {
+          carrier: this._carrier || void 0,
+          trackingNumber: this._trackingNumber || void 0,
+          trackingUrl: this._trackingUrl || void 0,
+          actualDeliveryDate: this._actualDeliveryDate || void 0
+        }, { error: e } = await v.updateShipment(this.data.shipment.id, i);
+        if (e) {
+          this._errorMessage = e.message;
+          return;
+        }
+        this.modalContext?.setValue({ updated: !0 }), this.modalContext?.submit();
+      } catch (i) {
+        this._errorMessage = i instanceof Error ? i.message : "Failed to update shipment";
+      } finally {
+        this._isSaving = !1;
       }
-      this.modalContext?.setValue({ updated: true });
-      this.modalContext?.submit();
-    } catch (e) {
-      this._errorMessage = e instanceof Error ? e.message : "Failed to update shipment";
-    } finally {
-      this._isSaving = false;
     }
   }
-
-  private _handleClose(): void {
+  _handleClose() {
     this.modalContext?.reject();
   }
-
   render() {
-    const shipment = this.data?.shipment;
-    if (!shipment) return html`<div class="error">No shipment data</div>`;
-
-    return html`
+    const i = this.data?.shipment;
+    return i ? r`
       <umb-body-layout headline="Edit Shipment">
         <div id="main">
           <div class="shipment-summary">
             <div class="summary-row">
               <span class="label">Created:</span>
-              <span>${formatShortDate(shipment.dateCreated)}</span>
+              <span>${h(i.dateCreated)}</span>
             </div>
             <div class="summary-row">
               <span class="label">Items:</span>
-              <span>${shipment.lineItems.length} item${shipment.lineItems.length !== 1 ? "s" : ""}</span>
+              <span>${i.lineItems.length} item${i.lineItems.length !== 1 ? "s" : ""}</span>
             </div>
           </div>
 
-          ${this._errorMessage
-            ? html`<div class="error-message"><uui-icon name="icon-alert"></uui-icon> ${this._errorMessage}</div>`
-            : ""}
+          ${this._errorMessage ? r`<div class="error-message"><uui-icon name="icon-alert"></uui-icon> ${this._errorMessage}</div>` : ""}
 
           <div class="form-group">
             <label for="carrier">Carrier</label>
@@ -91,7 +65,7 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
               id="carrier"
               placeholder="e.g., UPS, FedEx, DHL"
               .value=${this._carrier}
-              @input=${(e: Event) => (this._carrier = (e.target as HTMLInputElement).value)}
+              @input=${(e) => this._carrier = e.target.value}
             ></uui-input>
           </div>
 
@@ -101,7 +75,7 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
               id="tracking-number"
               placeholder="Enter tracking number"
               .value=${this._trackingNumber}
-              @input=${(e: Event) => (this._trackingNumber = (e.target as HTMLInputElement).value)}
+              @input=${(e) => this._trackingNumber = e.target.value}
             ></uui-input>
           </div>
 
@@ -111,7 +85,7 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
               id="tracking-url"
               placeholder="https://..."
               .value=${this._trackingUrl}
-              @input=${(e: Event) => (this._trackingUrl = (e.target as HTMLInputElement).value)}
+              @input=${(e) => this._trackingUrl = e.target.value}
             ></uui-input>
           </div>
 
@@ -121,29 +95,27 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
               id="delivery-date"
               type="date"
               .value=${this._actualDeliveryDate}
-              @input=${(e: Event) => (this._actualDeliveryDate = (e.target as HTMLInputElement).value)}
+              @input=${(e) => this._actualDeliveryDate = e.target.value}
             ></uui-input>
             <small class="help-text">Set this when the shipment has been delivered</small>
           </div>
 
           <div class="items-section">
             <h3>Items in this shipment</h3>
-            ${shipment.lineItems.map(
-              (item) => html`
+            ${i.lineItems.map(
+      (e) => r`
                 <div class="item-row">
                   <div class="item-image">
-                    ${item.imageUrl
-                      ? html`<img src="${item.imageUrl}" alt="${item.name}" />`
-                      : html`<div class="placeholder-image"></div>`}
+                    ${e.imageUrl ? r`<img src="${e.imageUrl}" alt="${e.name}" />` : r`<div class="placeholder-image"></div>`}
                   </div>
                   <div class="item-info">
-                    <div class="item-name">${item.name || "Unknown item"}</div>
-                    ${item.sku ? html`<div class="item-sku">${item.sku}</div>` : ""}
+                    <div class="item-name">${e.name || "Unknown item"}</div>
+                    ${e.sku ? r`<div class="item-sku">${e.sku}</div>` : ""}
                   </div>
-                  <div class="item-qty">x${item.quantity}</div>
+                  <div class="item-qty">x${e.quantity}</div>
                 </div>
               `
-            )}
+    )}
           </div>
         </div>
 
@@ -156,14 +128,14 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
             ?disabled=${this._isSaving}
             @click=${this._handleSave}
           >
-            ${this._isSaving ? html`<uui-loader-circle></uui-loader-circle>` : "Save Changes"}
+            ${this._isSaving ? r`<uui-loader-circle></uui-loader-circle>` : "Save Changes"}
           </uui-button>
         </div>
       </umb-body-layout>
-    `;
+    ` : r`<div class="error">No shipment data</div>`;
   }
-
-  static styles = css`
+};
+a.styles = d`
     :host {
       display: block;
     }
@@ -282,12 +254,30 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
       justify-content: flex-end;
     }
   `;
-}
-
-export default MerchelloShipmentEditModalElement;
-
-declare global {
-  interface HTMLElementTagNameMap {
-    "merchello-shipment-edit-modal": MerchelloShipmentEditModalElement;
-  }
-}
+s([
+  l()
+], a.prototype, "_carrier", 2);
+s([
+  l()
+], a.prototype, "_trackingNumber", 2);
+s([
+  l()
+], a.prototype, "_trackingUrl", 2);
+s([
+  l()
+], a.prototype, "_actualDeliveryDate", 2);
+s([
+  l()
+], a.prototype, "_isSaving", 2);
+s([
+  l()
+], a.prototype, "_errorMessage", 2);
+a = s([
+  m("merchello-shipment-edit-modal")
+], a);
+const $ = a;
+export {
+  a as MerchelloShipmentEditModalElement,
+  $ as default
+};
+//# sourceMappingURL=shipment-edit-modal.element-Dhtc2Gfr.js.map

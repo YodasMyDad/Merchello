@@ -1071,6 +1071,57 @@ public class InvoiceService(
     }
 
     /// <inheritdoc />
+    public async Task<List<OrderExportItemDto>> GetOrdersForExportAsync(
+        DateTime fromDate,
+        DateTime toDate,
+        CancellationToken cancellationToken = default)
+    {
+        // Ensure toDate includes the entire day
+        var toDateEndOfDay = toDate.Date.AddDays(1).AddTicks(-1);
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var exportItems = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var invoices = await db.Invoices
+                .AsNoTracking()
+                .AsSplitQuery()
+                .Include(i => i.Orders)
+                .Include(i => i.Payments)
+                .Where(i => !i.IsDeleted
+                    && i.DateCreated >= fromDate.Date
+                    && i.DateCreated <= toDateEndOfDay)
+                .OrderBy(i => i.DateCreated)
+                .ToListAsync(cancellationToken);
+
+            var result = new List<OrderExportItemDto>();
+
+            foreach (var invoice in invoices)
+            {
+                var payments = invoice.Payments?.ToList() ?? [];
+                var paymentDetails = paymentService.CalculatePaymentStatus(payments, invoice.Total);
+                var shippingTotal = invoice.Orders?.Sum(o => o.ShippingCost) ?? 0;
+
+                result.Add(new OrderExportItemDto
+                {
+                    InvoiceNumber = invoice.InvoiceNumber,
+                    InvoiceDate = invoice.DateCreated,
+                    PaymentStatus = paymentDetails.StatusDisplay,
+                    BillingName = invoice.BillingAddress?.Name ?? string.Empty,
+                    SubTotal = invoice.SubTotal,
+                    Tax = invoice.Tax,
+                    Shipping = shippingTotal,
+                    Total = invoice.Total
+                });
+            }
+
+            return result;
+        });
+        scope.Complete();
+
+        return exportItems;
+    }
+
+    /// <inheritdoc />
     public async Task<CrudResult<InvoiceNote>> AddNoteAsync(
         Guid invoiceId,
         string text,

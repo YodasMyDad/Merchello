@@ -6,9 +6,9 @@ import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
 import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
-import type { OrderDetailDto, AddressDto, FulfillmentOrderDto, InvoicePaymentStatus } from "../types/order.types.js";
-import type { MerchelloOrderDetailWorkspaceContext } from "../contexts/order-detail-workspace.context.js";
-import { MERCHELLO_FULFILLMENT_MODAL } from "../modals/fulfillment-modal.token.js";
+import type { OrderDetailDto, AddressDto, FulfillmentOrderDto, InvoicePaymentStatus } from "@orders/types/order.types.js";
+import type { MerchelloOrderDetailWorkspaceContext } from "@orders/contexts/order-detail-workspace.context.js";
+import { MERCHELLO_FULFILLMENT_MODAL } from "@orders/modals/fulfillment-modal.token.js";
 import { formatCurrency, formatDateTime } from "@shared/utils/formatting.js";
 import { MerchelloApi, type CountryDto } from "@api/merchello-api.js";
 

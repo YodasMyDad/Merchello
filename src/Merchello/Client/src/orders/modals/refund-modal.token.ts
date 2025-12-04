@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { PaymentDto } from "../types/order.types.js";
+import type { PaymentDto } from "@orders/types/order.types.js";
 
 export interface RefundModalData {
   /** The payment to refund */
