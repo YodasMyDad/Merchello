@@ -270,6 +270,59 @@ public class OrdersApiController(
         return Ok(MapAddress(result.ResultObject));
     }
 
+    // ============================================
+    // Invoice Editing Endpoints
+    // ============================================
+
+    /// <summary>
+    /// Get invoice data prepared for editing
+    /// </summary>
+    [HttpGet("orders/{invoiceId:guid}/edit")]
+    [ProducesResponseType<InvoiceForEditDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetInvoiceForEdit(Guid invoiceId)
+    {
+        var invoiceData = await invoiceService.GetInvoiceForEditAsync(invoiceId);
+
+        if (invoiceData == null)
+        {
+            return NotFound("Invoice not found");
+        }
+
+        return Ok(invoiceData);
+    }
+
+    /// <summary>
+    /// Edit an invoice (update quantities, apply discounts, add custom items, etc.)
+    /// </summary>
+    [HttpPut("orders/{invoiceId:guid}/edit")]
+    [ProducesResponseType<EditInvoiceResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> EditInvoice(Guid invoiceId, [FromBody] EditInvoiceRequestDto request)
+    {
+        // Get current backoffice user
+        var currentUser = backOfficeSecurityAccessor.BackOfficeSecurity?.CurrentUser;
+        var authorId = currentUser?.Key;
+        var authorName = currentUser?.Name;
+
+        var result = await invoiceService.EditInvoiceAsync(
+            invoiceId,
+            request,
+            authorId,
+            authorName);
+
+        if (!result.IsSuccess)
+        {
+            var errorMessage = result.ErrorMessage ?? "Failed to edit invoice";
+            return errorMessage.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                ? NotFound(errorMessage)
+                : BadRequest(errorMessage);
+        }
+
+        return Ok(result.Data);
+    }
+
     private static Core.Locality.Models.Address MapDtoToAddress(AddressDto dto)
     {
         return new Core.Locality.Models.Address

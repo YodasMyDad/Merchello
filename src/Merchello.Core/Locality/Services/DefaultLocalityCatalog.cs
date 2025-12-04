@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Merchello.Core.Locality.Models;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Shared.Options;
 using Merchello.Core.Shared.Services;

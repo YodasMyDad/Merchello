@@ -19,7 +19,7 @@ public class InventoryConcurrencyTests
         _fixture.ResetDatabase();
     }
 
-    [Fact(Skip = "Requires database-level concurrency control not available in SQLite test environment")]
+    [Fact]
     public async Task ConcurrentReservations_ShouldNotOverAllocateStock()
     {
         _fixture.ResetDatabase();
@@ -56,7 +56,7 @@ public class InventoryConcurrencyTests
         finalState.Stock.ShouldBe(10); // Physical stock unchanged
     }
 
-    [Fact(Skip = "Requires database-level concurrency control not available in SQLite test environment")]
+    [Fact]
     public async Task ConcurrentReservations_FinalReservedStockMatchesSuccessful()
     {
         _fixture.ResetDatabase();
@@ -90,7 +90,7 @@ public class InventoryConcurrencyTests
         finalState.Stock.ShouldBe(100); // Physical stock unchanged
     }
 
-    [Fact(Skip = "Requires database-level concurrency control not available in SQLite test environment")]
+    [Fact]
     public async Task ConcurrentAllocations_ReducesStockCorrectly()
     {
         _fixture.ResetDatabase();

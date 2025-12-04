@@ -4,5 +4,6 @@ public enum LineItemType
 {
     Product,
     Custom,
-    Shipping
+    Shipping,
+    Discount
 }

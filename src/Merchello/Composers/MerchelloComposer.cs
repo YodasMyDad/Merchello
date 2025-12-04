@@ -1,7 +1,7 @@
 using Asp.Versioning;
 using Merchello.Core;
-using Merchello.Core.Accounting.Startup;
-using Merchello.Core.Data;
+using Merchello.Core.Accounting.Handlers;
+using Merchello.Core.Data.Handlers;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.Extensions.Options;

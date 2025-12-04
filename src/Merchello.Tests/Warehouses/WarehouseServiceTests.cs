@@ -101,17 +101,13 @@ public class WarehouseServiceTests
         // Arrange
         var warehouse = _dataBuilder.CreateWarehouse();
         await _dataBuilder.SaveChangesAsync();
-        _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
         var result = await _warehouseService.DeleteWarehouse(warehouse.Id);
 
         // Assert
         result.Successful.ShouldBeTrue();
-        _fixture.DbContext.ChangeTracker.Clear();
-        var deletedWarehouse = await _fixture.DbContext.Warehouses
-            .AsNoTracking()
-            .FirstOrDefaultAsync(w => w.Id == warehouse.Id);
+        var deletedWarehouse = await _fixture.DbContext.Warehouses.FindAsync(warehouse.Id);
         deletedWarehouse.ShouldBeNull();
     }
 
@@ -140,22 +136,17 @@ public class WarehouseServiceTests
         var product = _dataBuilder.CreateProduct();
         _dataBuilder.CreateProductWarehouse(product, warehouse, stock: 10);
         await _dataBuilder.SaveChangesAsync();
-        _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
         var result = await _warehouseService.DeleteWarehouse(warehouse.Id, force: true);
 
         // Assert
         result.Successful.ShouldBeTrue();
-        _fixture.DbContext.ChangeTracker.Clear();
 
-        var deletedWarehouse = await _fixture.DbContext.Warehouses
-            .AsNoTracking()
-            .FirstOrDefaultAsync(w => w.Id == warehouse.Id);
+        var deletedWarehouse = await _fixture.DbContext.Warehouses.FindAsync(warehouse.Id);
         deletedWarehouse.ShouldBeNull();
 
         var stockRecord = await _fixture.DbContext.ProductWarehouses
-            .AsNoTracking()
             .FirstOrDefaultAsync(pw => pw.WarehouseId == warehouse.Id);
         stockRecord.ShouldBeNull();
     }
@@ -249,7 +240,6 @@ public class WarehouseServiceTests
         var productRoot = _dataBuilder.CreateProductRoot();
         _dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse, priorityOrder: 1);
         await _dataBuilder.SaveChangesAsync();
-        _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
         var result = await _warehouseService.UpdateWarehousePriority(
@@ -257,10 +247,8 @@ public class WarehouseServiceTests
 
         // Assert
         result.Successful.ShouldBeTrue();
-        _fixture.DbContext.ChangeTracker.Clear();
 
         var updatedAssociation = await _fixture.DbContext.ProductRootWarehouses
-            .AsNoTracking()
             .FirstOrDefaultAsync(prw =>
                 prw.ProductRootId == productRoot.Id &&
                 prw.WarehouseId == warehouse.Id);
@@ -305,7 +293,6 @@ public class WarehouseServiceTests
         var product = _dataBuilder.CreateProduct();
         _dataBuilder.CreateProductWarehouse(product, warehouse, stock: 25);
         await _dataBuilder.SaveChangesAsync();
-        _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
         var result = await _warehouseService.SetProductStock(
@@ -313,10 +300,8 @@ public class WarehouseServiceTests
 
         // Assert
         result.Successful.ShouldBeTrue();
-        _fixture.DbContext.ChangeTracker.Clear();
 
         var stockRecord = await _fixture.DbContext.ProductWarehouses
-            .AsNoTracking()
             .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
 
         stockRecord.ShouldNotBeNull();
@@ -349,7 +334,6 @@ public class WarehouseServiceTests
         var product = _dataBuilder.CreateProduct();
         _dataBuilder.CreateProductWarehouse(product, warehouse, stock: 50);
         await _dataBuilder.SaveChangesAsync();
-        _fixture.DbContext.ChangeTracker.Clear();
 
         var parameters = new StockAdjustmentParameters
         {
@@ -364,10 +348,8 @@ public class WarehouseServiceTests
 
         // Assert
         result.Successful.ShouldBeTrue();
-        _fixture.DbContext.ChangeTracker.Clear();
 
         var stockRecord = await _fixture.DbContext.ProductWarehouses
-            .AsNoTracking()
             .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
 
         stockRecord!.Stock.ShouldBe(75);
@@ -381,7 +363,6 @@ public class WarehouseServiceTests
         var product = _dataBuilder.CreateProduct();
         _dataBuilder.CreateProductWarehouse(product, warehouse, stock: 50);
         await _dataBuilder.SaveChangesAsync();
-        _fixture.DbContext.ChangeTracker.Clear();
 
         var parameters = new StockAdjustmentParameters
         {
@@ -396,10 +377,8 @@ public class WarehouseServiceTests
 
         // Assert
         result.Successful.ShouldBeTrue();
-        _fixture.DbContext.ChangeTracker.Clear();
 
         var stockRecord = await _fixture.DbContext.ProductWarehouses
-            .AsNoTracking()
             .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
 
         stockRecord!.Stock.ShouldBe(30);
@@ -439,7 +418,6 @@ public class WarehouseServiceTests
         _dataBuilder.CreateProductWarehouse(product, warehouse1, stock: 100);
         _dataBuilder.CreateProductWarehouse(product, warehouse2, stock: 50);
         await _dataBuilder.SaveChangesAsync();
-        _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
         var result = await _warehouseService.TransferStock(
@@ -447,13 +425,10 @@ public class WarehouseServiceTests
 
         // Assert
         result.Successful.ShouldBeTrue();
-        _fixture.DbContext.ChangeTracker.Clear();
 
         var stock1 = await _fixture.DbContext.ProductWarehouses
-            .AsNoTracking()
             .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse1.Id);
         var stock2 = await _fixture.DbContext.ProductWarehouses
-            .AsNoTracking()
             .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse2.Id);
 
         stock1!.Stock.ShouldBe(70);

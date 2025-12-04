@@ -1,6 +1,7 @@
 using System.IO;
 using System.Linq;
 using Merchello.Core.Accounting.Factories;
+using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies;
@@ -21,7 +22,6 @@ using Merchello.Core.Warehouses.Factories;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services;
 using Merchello.Core.Warehouses.Services.Interfaces;
-using Merchello.Core.Warehouses.Services.Models;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

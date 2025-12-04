@@ -8,7 +8,7 @@ using Merchello.Core.Data;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
-using Merchello.Core.Warehouses.Services.Models;
+using Merchello.Core.Warehouses.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;

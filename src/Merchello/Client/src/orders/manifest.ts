@@ -47,6 +47,14 @@ export const manifests: Array<UmbExtensionManifest> = [
     js: () => import("./modals/edit-order-modal.element.js"),
   },
 
+  // Add custom item modal for edit order
+  {
+    type: "modal",
+    alias: "Merchello.AddCustomItem.Modal",
+    name: "Merchello Add Custom Item Modal",
+    js: () => import("./modals/add-custom-item-modal.element.js"),
+  },
+
   // Workspace for orders list (when clicking "Orders" in tree)
   {
     type: "workspace",

@@ -7,7 +7,6 @@ using Merchello.Core.Products.Models;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
-using Merchello.Core.Warehouses.Services.Models;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Shouldly;

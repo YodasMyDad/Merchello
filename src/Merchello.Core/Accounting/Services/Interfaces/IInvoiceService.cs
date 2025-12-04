@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Shared;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Models;
 
@@ -111,5 +112,21 @@ public interface IInvoiceService
     /// Get shipping option names by their IDs for display purposes
     /// </summary>
     Task<Dictionary<Guid, string>> GetShippingOptionNamesAsync(IEnumerable<Guid> shippingOptionIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get invoice data prepared for editing (includes stock availability checks)
+    /// </summary>
+    Task<InvoiceForEditDto?> GetInvoiceForEditAsync(Guid invoiceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Edit an invoice (update quantities, apply discounts, add custom items, etc.)
+    /// Validates stock availability for products and uses product tax groups for tax calculations.
+    /// </summary>
+    Task<OperationResult<EditInvoiceResultDto>> EditInvoiceAsync(
+        Guid invoiceId,
+        EditInvoiceRequestDto request,
+        Guid? authorId,
+        string? authorName,
+        CancellationToken cancellationToken = default);
 }
 

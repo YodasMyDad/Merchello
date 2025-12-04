@@ -1,4 +1,5 @@
 using System.Reflection;
+using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Services;

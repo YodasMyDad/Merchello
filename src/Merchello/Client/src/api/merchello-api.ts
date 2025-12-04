@@ -167,6 +167,10 @@ import type {
   AddressDto,
   OrderExportRequest,
   OrderExportItemDto,
+  InvoiceForEditDto,
+  EditInvoiceRequestDto,
+  EditInvoiceResultDto,
+  TaxGroupDto,
 } from '../orders/types/order.types.js';
 
 // Import payment provider types
@@ -222,6 +226,7 @@ export const MerchelloApi = {
   // Store Settings
   getSettings: () => apiGet<StoreSettingsDto>('settings'),
   getCountries: () => apiGet<CountryDto[]>('countries'),
+  getTaxGroups: () => apiGet<TaxGroupDto[]>('tax-groups'),
 
   // Orders API
   getOrders: (params?: OrderListParams) => {
@@ -245,6 +250,15 @@ export const MerchelloApi = {
   /** Soft-delete multiple orders/invoices */
   deleteOrders: (ids: string[]) =>
     apiPost<{ deletedCount: number }>('orders/delete', { ids }),
+
+  // Invoice Editing API
+  /** Get invoice data prepared for editing */
+  getInvoiceForEdit: (invoiceId: string) =>
+    apiGet<InvoiceForEditDto>(`orders/${invoiceId}/edit`),
+
+  /** Edit an invoice (update quantities, apply discounts, add custom items) */
+  editInvoice: (invoiceId: string, request: EditInvoiceRequestDto) =>
+    apiPut<EditInvoiceResultDto>(`orders/${invoiceId}/edit`, request),
 
   // Fulfillment API
   /** Get fulfillment summary for an invoice (used in fulfillment dialog) */

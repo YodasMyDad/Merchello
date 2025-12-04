@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Merchello.Core.Warehouses.Services.Models;
+using Merchello.Core.Warehouses.Models;
 
 namespace Merchello.Core.Warehouses.Services.Interfaces;
 

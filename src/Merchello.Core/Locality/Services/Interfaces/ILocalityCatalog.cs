@@ -1,6 +1,4 @@
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
+using Merchello.Core.Locality.Models;
 
 namespace Merchello.Core.Locality.Services.Interfaces;
 
@@ -11,7 +9,4 @@ public interface ILocalityCatalog
     Task<string?> TryGetCountryNameAsync(string countryCode, CancellationToken ct = default);
     Task<string?> TryGetRegionNameAsync(string countryCode, string regionCode, CancellationToken ct = default);
 }
-
-public record CountryInfo(string Code, string Name);
-public record SubdivisionInfo(string CountryCode, string RegionCode, string Name);
 

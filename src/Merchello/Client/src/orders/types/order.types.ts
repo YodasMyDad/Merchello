@@ -340,3 +340,140 @@ export interface OrderExportItemDto {
   shipping: number;
   total: number;
 }
+
+// ============================================
+// Invoice Edit Types
+// ============================================
+
+/** Discount type enum */
+export enum DiscountType {
+  Amount = 0,
+  Percentage = 1,
+}
+
+/** Invoice data for editing */
+export interface InvoiceForEditDto {
+  id: string;
+  invoiceNumber: string;
+  fulfillmentStatus: string;
+  canEdit: boolean;
+  cannotEditReason: string | null;
+  currencySymbol: string;
+  currencyCode: string;
+  orders: OrderForEditDto[];
+  /** Subtotal before discounts (products + custom items) */
+  subTotal: number;
+  /** Total discount amount (always positive) */
+  discountTotal: number;
+  /** Subtotal after discounts (SubTotal - DiscountTotal) */
+  adjustedSubTotal: number;
+  /** Total shipping cost across all orders */
+  shippingTotal: number;
+  /** Tax amount */
+  tax: number;
+  /** Grand total */
+  total: number;
+}
+
+/** Order data for editing */
+export interface OrderForEditDto {
+  id: string;
+  status: string;
+  shippingCost: number;
+  shippingMethodName: string | null;
+  lineItems: LineItemForEditDto[];
+}
+
+/** Line item data for editing */
+export interface LineItemForEditDto {
+  id: string;
+  orderId: string;
+  sku: string | null;
+  name: string | null;
+  productId: string | null;
+  quantity: number;
+  amount: number;
+  originalAmount: number | null;
+  imageUrl: string | null;
+  isTaxable: boolean;
+  taxRate: number;
+  lineItemType: string;
+  /** Whether stock is tracked for this product */
+  isStockTracked: boolean;
+  /** Available stock (current - reserved) for quantity increase validation */
+  availableStock: number | null;
+  discounts: DiscountLineItemDto[];
+}
+
+/** Discount line item */
+export interface DiscountLineItemDto {
+  id: string;
+  name: string | null;
+  amount: number;
+  reason: string | null;
+  visibleToCustomer: boolean;
+}
+
+/** Request to edit an invoice */
+export interface EditInvoiceRequestDto {
+  lineItems: EditLineItemDto[];
+  removedLineItems: RemoveLineItemDto[];
+  customItems: AddCustomItemDto[];
+  orderShippingUpdates: OrderShippingUpdateDto[];
+  editReason: string | null;
+}
+
+/** Line item removal with return-to-stock option */
+export interface RemoveLineItemDto {
+  id: string;
+  /** Whether to return the item to available stock (default: true). False for damaged/faulty items. */
+  returnToStock: boolean;
+}
+
+/** Per-order shipping cost update */
+export interface OrderShippingUpdateDto {
+  orderId: string;
+  shippingCost: number;
+}
+
+/** Edit details for an existing line item */
+export interface EditLineItemDto {
+  id: string;
+  quantity: number | null;
+  /** When quantity decreased, whether to return reduced qty to stock. Default: true. */
+  returnToStock: boolean;
+  discount: LineItemDiscountDto | null;
+}
+
+/** Discount to apply to a line item */
+export interface LineItemDiscountDto {
+  type: DiscountType;
+  value: number;
+  reason: string | null;
+  visibleToCustomer: boolean;
+}
+
+/** Custom item to add to the invoice */
+export interface AddCustomItemDto {
+  name: string;
+  price: number;
+  quantity: number;
+  /** Tax group ID. If null/undefined, item is not taxable */
+  taxGroupId: string | null;
+  isPhysicalProduct: boolean;
+}
+
+/** Tax group data for dropdowns */
+export interface TaxGroupDto {
+  id: string;
+  name: string;
+  taxPercentage: number;
+}
+
+/** Response after editing an invoice */
+export interface EditInvoiceResultDto {
+  success: boolean;
+  errorMessage: string | null;
+  /** Warning messages (stock issues, etc.) - edit succeeded but user should be notified */
+  warnings: string[];
+}

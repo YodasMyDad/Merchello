@@ -1,7 +1,7 @@
 ﻿using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Parameters;
-using Merchello.Core.Warehouses.Services.Models;
+using Merchello.Core.Warehouses.Models;
 
 namespace Merchello.Core.Checkout.Services.Interfaces;
 

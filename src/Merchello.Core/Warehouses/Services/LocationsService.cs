@@ -5,8 +5,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Services.Interfaces;
+using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
-using Merchello.Core.Warehouses.Services.Models;
 using Microsoft.EntityFrameworkCore;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 

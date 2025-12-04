@@ -1,5 +1,5 @@
 using Merchello.Core.Accounting.Models;
-using Merchello.Core.Accounting.Services;
+using Merchello.Core.Accounting.Handlers;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Shouldly;

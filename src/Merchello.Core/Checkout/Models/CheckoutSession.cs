@@ -44,11 +44,3 @@ public class CheckoutSession
     public CheckoutStep CurrentStep { get; set; } = CheckoutStep.Addresses;
 }
 
-public enum CheckoutStep
-{
-    Addresses,
-    Shipping,
-    Review,
-    Complete
-}
-

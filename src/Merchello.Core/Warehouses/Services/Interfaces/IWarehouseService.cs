@@ -2,7 +2,6 @@ using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Warehouses.Models;
-using Merchello.Core.Warehouses.Services.Models;
 using Merchello.Core.Warehouses.Services.Parameters;
 
 namespace Merchello.Core.Warehouses.Services.Interfaces;

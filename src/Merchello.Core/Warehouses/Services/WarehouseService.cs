@@ -5,7 +5,6 @@ using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
-using Merchello.Core.Warehouses.Services.Models;
 using Merchello.Core.Warehouses.Services.Parameters;
 using Merchello.Core.Warehouses.Factories;
 using Microsoft.EntityFrameworkCore;
