@@ -68,8 +68,8 @@ public static class InvoiceSeedExtensions
             ShippingAddress = CloneAddress(shippingAddress),
             Channel = channel,
             SubTotal = subTotal,
-            Tax = Math.Round(tax, 2),
-            Total = Math.Round(total, 2),
+            Tax = Math.Round(tax, 2, MidpointRounding.AwayFromZero),
+            Total = Math.Round(total, 2, MidpointRounding.AwayFromZero),
             AdjustedSubTotal = subTotal,
             DateCreated = created,
             DateUpdated = created,
@@ -168,7 +168,7 @@ public static class InvoiceSeedExtensions
                 Id = GuidExtensions.NewSequentialGuid,
                 InvoiceId = invoice.Id,
                 Invoice = invoice,
-                Amount = Math.Round(total, 2), // Must match invoice.Total to avoid precision issues
+                Amount = Math.Round(total, 2, MidpointRounding.AwayFromZero), // Must match invoice.Total to avoid precision issues
                 PaymentMethod = "Credit Card",
                 TransactionId = $"TXN-{Guid.NewGuid().ToString()[..8].ToUpper()}",
                 PaymentSuccess = true,

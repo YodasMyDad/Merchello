@@ -100,7 +100,7 @@ public class ShippingServiceTests
 
         // Assert
         result.CanShipToLocation.ShouldBeFalse();
-        result.Message.ShouldContain("required");
+        result.Message!.ShouldContain("required");
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class ShippingServiceTests
 
         // Assert
         result.CanShipToLocation.ShouldBeFalse();
-        result.Message.ShouldContain("not found");
+        result.Message!.ShouldContain("not found");
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class ShippingServiceTests
 
         // Assert
         result.CanShipToLocation.ShouldBeFalse();
-        result.Message.ShouldContain("cannot be shipped");
+        result.Message!.ShouldContain("cannot be shipped");
     }
 
     [Fact]

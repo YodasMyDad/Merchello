@@ -286,7 +286,9 @@ public class ServiceTestFixture : IDisposable
 
         foreach (var table in tableNames)
         {
+#pragma warning disable EF1002 // Table names come from EF metadata, not user input
             resetContext.Database.ExecuteSqlRaw($"""DELETE FROM "{table}";""");
+#pragma warning restore EF1002
         }
 
         resetContext.Database.ExecuteSqlRaw("PRAGMA foreign_keys = ON;");

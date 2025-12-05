@@ -11,6 +11,11 @@ public class AddCustomItemDto
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
+    /// SKU for the custom item
+    /// </summary>
+    public string Sku { get; set; } = string.Empty;
+
+    /// <summary>
     /// Unit price
     /// </summary>
     public decimal Price { get; set; }

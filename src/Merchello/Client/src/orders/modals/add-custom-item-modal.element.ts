@@ -9,6 +9,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
   AddCustomItemModalValue
 > {
   @state() private _name: string = "";
+  @state() private _sku: string = "";
   @state() private _price: number = 0;
   @state() private _quantity: number = 1;
   @state() private _selectedTaxGroupId: string | null = null;
@@ -20,6 +21,10 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
 
     if (!this._name.trim()) {
       errors.name = "Item name is required";
+    }
+
+    if (!this._sku.trim()) {
+      errors.sku = "SKU is required";
     }
 
     if (this._price <= 0) {
@@ -40,6 +45,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     this.value = {
       item: {
         name: this._name.trim(),
+        sku: this._sku.trim(),
         price: this._price,
         quantity: this._quantity,
         taxGroupId: this._selectedTaxGroupId,
@@ -75,15 +81,28 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     return html`
       <umb-body-layout headline="Add custom item">
         <div id="main">
-          <div class="form-row">
-            <label for="item-name">Item name</label>
-            <uui-input
-              id="item-name"
-              .value=${this._name}
-              @input=${(e: Event) => (this._name = (e.target as HTMLInputElement).value)}
-              placeholder="Enter item name"
-            ></uui-input>
-            ${this._errors.name ? html`<span class="error">${this._errors.name}</span>` : nothing}
+          <div class="form-row-group">
+            <div class="form-row">
+              <label for="item-name">Item name</label>
+              <uui-input
+                id="item-name"
+                .value=${this._name}
+                @input=${(e: Event) => (this._name = (e.target as HTMLInputElement).value)}
+                placeholder="Enter item name"
+              ></uui-input>
+              ${this._errors.name ? html`<span class="error">${this._errors.name}</span>` : nothing}
+            </div>
+
+            <div class="form-row">
+              <label for="item-sku">SKU</label>
+              <uui-input
+                id="item-sku"
+                .value=${this._sku}
+                @input=${(e: Event) => (this._sku = (e.target as HTMLInputElement).value)}
+                placeholder="Enter SKU"
+              ></uui-input>
+              ${this._errors.sku ? html`<span class="error">${this._errors.sku}</span>` : nothing}
+            </div>
           </div>
 
           <div class="form-row-group">

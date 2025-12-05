@@ -49,12 +49,6 @@ public class MerchelloSettings
     public MidpointRounding DefaultRounding { get; set; } = MidpointRounding.AwayFromZero;
 
     /// <summary>
-    /// Tax rounding strategy. Round uses standard Math.Round, Ceiling always rounds up.
-    /// Some US jurisdictions require ceiling for sales tax calculations.
-    /// </summary>
-    public TaxRoundingStrategy TaxRoundingStrategy { get; set; } = TaxRoundingStrategy.Round;
-
-    /// <summary>
     /// Fully qualified type name or key of custom order grouping strategy.
     /// Leave null/empty to use default warehouse-based grouping.
     /// Can be specified as:

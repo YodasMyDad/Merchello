@@ -88,7 +88,7 @@ public class ProductServiceTests
         // Assert - service requires variant options to generate variants
         result.Successful.ShouldBeFalse();
         result.Messages.ShouldNotBeEmpty();
-        result.Messages.First().Message.ShouldContain("variant options");
+        result.Messages.First().Message!.ShouldContain("variant options");
     }
 
     #endregion

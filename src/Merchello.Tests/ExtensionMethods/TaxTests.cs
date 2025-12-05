@@ -1,5 +1,4 @@
 using Merchello.Core.Shared.Extensions;
-using Merchello.Core.Shared.Models;
 using Shouldly;
 using Xunit;
 
@@ -65,42 +64,32 @@ public class TaxTests
     }
 
     [Fact]
-    public void PercentageAmount_RoundingStrategyRound_UsesStandardRounding()
+    public void PercentageAmount_MidpointRounding_UsesConfiguredStrategy()
     {
-        // Arrange - value that will need rounding
+        // Arrange - value that will need rounding (10.0125)
         var amount = 100.125m;
 
-        // Act
-        var taxAmount = amount.PercentageAmount(10, MidpointRounding.ToEven, true, TaxRoundingStrategy.Round);
+        // Act - with AwayFromZero (default for commerce)
+        var taxAmountAwayFromZero = amount.PercentageAmount(10, MidpointRounding.AwayFromZero);
+        // Act - with ToEven (banker's rounding)
+        var taxAmountToEven = amount.PercentageAmount(10, MidpointRounding.ToEven);
 
-        // Assert - 10.0125 rounds to 10.01 with banker's rounding
+        // Assert - 10.0125 rounds to 10.01 with both strategies (0.5 case would differ)
+        taxAmountAwayFromZero.ShouldBe(10.01m);
+        taxAmountToEven.ShouldBe(10.01m);
+    }
+
+    [Fact]
+    public void PercentageAmount_MidpointAwayFromZero_RoundsHalfUp()
+    {
+        // Arrange - value that hits exact midpoint: 10.005
+        var amount = 100.05m;
+
+        // Act
+        var taxAmount = amount.PercentageAmount(10, MidpointRounding.AwayFromZero);
+
+        // Assert - 10.005 rounds to 10.01 with AwayFromZero
         taxAmount.ShouldBe(10.01m);
-    }
-
-    [Fact]
-    public void PercentageAmount_RoundingStrategyCeiling_AlwaysRoundsUp()
-    {
-        // Arrange - value that will need rounding
-        var amount = 100.125m;
-
-        // Act
-        var taxAmount = amount.PercentageAmount(10, MidpointRounding.ToEven, true, TaxRoundingStrategy.Ceiling);
-
-        // Assert - 10.0125 rounds up to 10.02 with ceiling
-        taxAmount.ShouldBe(10.02m);
-    }
-
-    [Fact]
-    public void PercentageAmount_UsSalesTaxExample_CeilingRoundsUp()
-    {
-        // Arrange - $9.99 with 6.5% US sales tax
-        var amount = 9.99m;
-
-        // Act
-        var taxAmount = amount.PercentageAmount(6.5m, MidpointRounding.ToEven, true, TaxRoundingStrategy.Ceiling);
-
-        // Assert - 0.64935 rounds up to 0.65 (common in US jurisdictions)
-        taxAmount.ShouldBe(0.65m);
     }
 
     [Fact]

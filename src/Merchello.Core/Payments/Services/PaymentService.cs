@@ -518,10 +518,10 @@ public class PaymentService(
                   (p.PaymentType == PaymentType.Refund || p.PaymentType == PaymentType.PartialRefund))
             .Sum(p => Math.Abs(p.Amount));
 
-        // Round to avoid floating-point precision issues
-        totalPaid = Math.Round(totalPaid, 2);
-        totalRefunded = Math.Round(totalRefunded, 2);
-        invoiceTotal = Math.Round(invoiceTotal, 2);
+        // Round to avoid floating-point precision issues using configured rounding strategy
+        totalPaid = Math.Round(totalPaid, 2, _settings.DefaultRounding);
+        totalRefunded = Math.Round(totalRefunded, 2, _settings.DefaultRounding);
+        invoiceTotal = Math.Round(invoiceTotal, 2, _settings.DefaultRounding);
 
         var netPayment = totalPaid - totalRefunded;
         var balanceDue = Math.Max(0, invoiceTotal - netPayment);

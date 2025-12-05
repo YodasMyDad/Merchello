@@ -1,27 +1,27 @@
-import { html as a, nothing as d, css as T, state as c, customElement as I } from "@umbraco-cms/backoffice/external/lit";
-import { UmbModalToken as z, UmbModalBaseElement as C, UMB_MODAL_MANAGER_CONTEXT as R } from "@umbraco-cms/backoffice/modal";
+import { html as r, nothing as p, css as z, state as d, customElement as I } from "@umbraco-cms/backoffice/external/lit";
+import { UmbModalToken as C, UmbModalBaseElement as R, UMB_MODAL_MANAGER_CONTEXT as O } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT as M } from "@umbraco-cms/backoffice/notification";
-import { M as b } from "./merchello-api-eSCXsudl.js";
+import { M as f } from "./merchello-api-eSCXsudl.js";
 import { D as m } from "./order.types-DjkMLpgj.js";
-const D = new z("Merchello.AddCustomItem.Modal", {
+const P = new C("Merchello.AddCustomItem.Modal", {
   modal: {
     type: "dialog",
     size: "small"
   }
 });
-var L = Object.defineProperty, P = Object.getOwnPropertyDescriptor, w = (e) => {
+var D = Object.defineProperty, L = Object.getOwnPropertyDescriptor, $ = (e) => {
   throw TypeError(e);
 }, u = (e, i, t, o) => {
-  for (var r = o > 1 ? void 0 : o ? P(i, t) : i, l = e.length - 1, s; l >= 0; l--)
-    (s = e[l]) && (r = (o ? s(i, t, r) : s(r)) || r);
-  return o && r && L(i, t, r), r;
-}, k = (e, i, t) => i.has(e) || w("Cannot " + t), f = (e, i, t) => (k(e, i, "read from private field"), i.get(e)), x = (e, i, t) => i.has(e) ? w("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, t), $ = (e, i, t, o) => (k(e, i, "write to private field"), i.set(e, t), t), h, g;
-let n = class extends C {
+  for (var a = o > 1 ? void 0 : o ? L(i, t) : i, l = e.length - 1, s; l >= 0; l--)
+    (s = e[l]) && (a = (o ? s(i, t, a) : s(a)) || a);
+  return o && a && D(i, t, a), a;
+}, w = (e, i, t) => i.has(e) || $("Cannot " + t), _ = (e, i, t) => (w(e, i, "read from private field"), i.get(e)), x = (e, i, t) => i.has(e) ? $("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, t), y = (e, i, t, o) => (w(e, i, "write to private field"), i.set(e, t), t), h, g;
+let n = class extends R {
   constructor() {
-    super(), this._invoice = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._editReason = "", this._orders = [], this._lineItems = [], this._customItems = [], this._discountPopoverLineItemId = null, this._discountType = m.Amount, this._discountValue = 0, this._discountReason = "", this._discountVisibleToCustomer = !1, this._taxGroups = [], x(this, h), x(this, g), this.consumeContext(R, (e) => {
-      $(this, h, e);
+    super(), this._invoice = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._editReason = "", this._orders = [], this._lineItems = [], this._customItems = [], this._discountPopoverLineItemId = null, this._discountType = m.Amount, this._discountValue = 0, this._discountReason = "", this._discountVisibleToCustomer = !1, this._popoverPosition = { top: 0, left: 0 }, this._taxGroups = [], this._removedShippingOrders = /* @__PURE__ */ new Set(), this._taxRemoved = !1, x(this, h), x(this, g), this.consumeContext(O, (e) => {
+      y(this, h, e);
     }), this.consumeContext(M, (e) => {
-      $(this, g, e);
+      y(this, g, e);
     });
   }
   connectedCallback() {
@@ -30,8 +30,8 @@ let n = class extends C {
   async _loadInvoice() {
     this._isLoading = !0, this._errorMessage = null;
     const [e, i] = await Promise.all([
-      b.getInvoiceForEdit(this.data.invoiceId),
-      b.getTaxGroups()
+      f.getInvoiceForEdit(this.data.invoiceId),
+      f.getTaxGroups()
     ]);
     if (e.error) {
       this._errorMessage = e.error.message, this._isLoading = !1;
@@ -77,9 +77,30 @@ let n = class extends C {
   _updateOrderShipping(e, i) {
     this._orders = this._orders.map((t) => t.id === e ? { ...t, newShippingCost: Math.max(0, i) } : t);
   }
-  _openDiscountPopover(e) {
-    const i = this._lineItems.find((t) => t.id === e);
-    i?.discount ? (this._discountType = i.discount.type, this._discountValue = i.discount.value, this._discountReason = i.discount.reason ?? "", this._discountVisibleToCustomer = i.discount.visibleToCustomer) : (this._discountType = m.Amount, this._discountValue = 0, this._discountReason = "", this._discountVisibleToCustomer = !1), this._discountPopoverLineItemId = e;
+  _removeShipping(e) {
+    this._removedShippingOrders = /* @__PURE__ */ new Set([...this._removedShippingOrders, e]), this._orders = this._orders.map((i) => i.id === e ? { ...i, newShippingCost: 0 } : i);
+  }
+  _restoreShipping(e) {
+    const i = new Set(this._removedShippingOrders);
+    i.delete(e), this._removedShippingOrders = i;
+    const t = this._invoice?.orders.find((o) => o.id === e);
+    t && (this._orders = this._orders.map((o) => o.id === e ? { ...o, newShippingCost: t.shippingCost } : o));
+  }
+  _removeTax() {
+    this._taxRemoved = !0;
+  }
+  _restoreTax() {
+    this._taxRemoved = !1;
+  }
+  _openDiscountPopover(e, i) {
+    const o = i.currentTarget.getBoundingClientRect();
+    this._popoverPosition = {
+      top: o.bottom + 4,
+      left: o.right - 280
+      // 280 is min-width of popover
+    };
+    const a = this._lineItems.find((l) => l.id === e);
+    a?.discount ? (this._discountType = a.discount.type, this._discountValue = a.discount.value, this._discountReason = a.discount.reason ?? "", this._discountVisibleToCustomer = a.discount.visibleToCustomer) : (this._discountType = m.Amount, this._discountValue = 0, this._discountReason = "", this._discountVisibleToCustomer = !1), this._discountPopoverLineItemId = e;
   }
   _closeDiscountPopover() {
     this._discountPopoverLineItemId = null;
@@ -113,8 +134,8 @@ let n = class extends C {
     return !t || t.value <= 0 ? o : t.type === m.Amount ? Math.max(0, o - t.value * i) : o * (1 - t.value / 100);
   }
   async _openAddCustomItemModal() {
-    if (!f(this, h) || !this._invoice) return;
-    const i = await f(this, h).open(this, D, {
+    if (!_(this, h) || !this._invoice) return;
+    const i = await _(this, h).open(this, P, {
       data: {
         currencySymbol: this._invoice.currencySymbol,
         taxGroups: this._taxGroups
@@ -133,7 +154,7 @@ let n = class extends C {
     this._customItems = this._customItems.filter((i) => i.tempId !== e);
   }
   _hasChanges() {
-    return this._invoice ? !!(this._lineItems.some((e) => e.isRemoved) || this._lineItems.some((e) => e.newQuantity !== e.quantity) || this._lineItems.some((e) => e.discount !== null) || this._customItems.length > 0 || this._orders.some((e) => e.newShippingCost !== e.shippingCost)) : !1;
+    return this._invoice ? !!(this._lineItems.some((e) => e.isRemoved) || this._lineItems.some((e) => e.newQuantity !== e.quantity) || this._lineItems.some((e) => e.discount !== null) || this._customItems.length > 0 || this._orders.some((e) => e.newShippingCost !== e.shippingCost) || this._taxRemoved) : !1;
   }
   _calculateSubtotalBeforeDiscounts() {
     const e = this._lineItems.filter((t) => !t.isRemoved).reduce((t, o) => t + o.amount * o.newQuantity, 0), i = this._customItems.reduce(
@@ -155,10 +176,10 @@ let n = class extends C {
     return this._orders.reduce((e, i) => e + i.newShippingCost, 0);
   }
   _calculateNewTax() {
-    if (!this._invoice) return 0;
+    if (!this._invoice || this._taxRemoved) return 0;
     const e = this._lineItems.filter((t) => !t.isRemoved && t.isTaxable).reduce((t, o) => {
-      const r = this._calculateLineItemTotal(o.amount, o.newQuantity, o.discount);
-      return t + r * (o.taxRate / 100);
+      const a = this._calculateLineItemTotal(o.amount, o.newQuantity, o.discount);
+      return t + a * (o.taxRate / 100);
     }, 0), i = this._customItems.filter((t) => t.taxGroupId !== null).reduce((t, o) => {
       const l = this._taxGroups.find((s) => s.id === o.taxGroupId)?.taxPercentage ?? 0;
       return t + o.price * o.quantity * (l / 100);
@@ -187,41 +208,43 @@ let n = class extends C {
       removedLineItems: i,
       customItems: this._customItems.map((s) => ({
         name: s.name,
+        sku: s.sku,
         price: s.price,
         quantity: s.quantity,
         taxGroupId: s.taxGroupId,
         isPhysicalProduct: s.isPhysicalProduct
       })),
       orderShippingUpdates: t,
-      editReason: this._editReason || null
-    }, { data: r, error: l } = await b.editInvoice(this._invoice.id, o);
+      editReason: this._editReason || null,
+      removeTax: this._taxRemoved
+    }, { data: a, error: l } = await f.editInvoice(this._invoice.id, o);
     if (this._isSaving = !1, l) {
       this._errorMessage = l.message;
       return;
     }
-    if (r?.success) {
-      if (r.warnings && r.warnings.length > 0)
-        for (const s of r.warnings)
-          f(this, g)?.peek("warning", {
+    if (a?.success) {
+      if (a.warnings && a.warnings.length > 0)
+        for (const s of a.warnings)
+          _(this, g)?.peek("warning", {
             data: {
               headline: "Stock Warning",
               message: s
             }
           });
-      f(this, g)?.peek("positive", {
+      _(this, g)?.peek("positive", {
         data: {
           headline: "Order Updated",
           message: "The order has been successfully updated."
         }
       }), this.value = { saved: !0 }, this.modalContext?.submit();
     } else
-      this._errorMessage = r?.errorMessage ?? "Failed to save changes";
+      this._errorMessage = a?.errorMessage ?? "Failed to save changes";
   }
   _handleCancel() {
     this.modalContext?.reject();
   }
   _renderLoading() {
-    return a`
+    return r`
       <div class="loading">
         <uui-loader></uui-loader>
         <span>Loading order...</span>
@@ -229,7 +252,7 @@ let n = class extends C {
     `;
   }
   _renderError() {
-    return a`
+    return r`
       <div class="error-state">
         <uui-icon name="icon-alert"></uui-icon>
         <span>${this._errorMessage}</span>
@@ -238,7 +261,7 @@ let n = class extends C {
     `;
   }
   _renderCannotEdit() {
-    return a`
+    return r`
       <div class="cannot-edit">
         <uui-icon name="icon-lock"></uui-icon>
         <h3>Cannot Edit This Order</h3>
@@ -248,22 +271,24 @@ let n = class extends C {
     `;
   }
   _renderLineItem(e) {
-    if (e.isRemoved) return d;
-    const i = this._invoice?.currencySymbol ?? "£", t = e.discount !== null, o = this._discountPopoverLineItemId === e.id, r = e.newQuantity < e.quantity, l = e.newQuantity > e.quantity, s = e.newQuantity - e.quantity, v = l && e.isStockTracked && e.availableStock !== null && e.availableStock < s;
-    return a`
-      <div class="line-item ${v ? "has-error" : ""}">
-        <div class="line-item-image">
-          ${e.imageUrl ? a`<img src=${e.imageUrl} alt=${e.name ?? ""} />` : a`<div class="placeholder-image"><uui-icon name="icon-picture"></uui-icon></div>`}
-        </div>
+    if (e.isRemoved) return p;
+    const i = this._invoice?.currencySymbol ?? "£", t = e.discount !== null, o = e.newQuantity < e.quantity, a = e.newQuantity > e.quantity, l = e.newQuantity - e.quantity, s = a && e.isStockTracked && e.availableStock !== null && e.availableStock < l;
+    return r`
+      <div class="line-item ${s ? "has-error" : ""}">
+        <div class="line-item-product">
+          <div class="line-item-image">
+            ${e.imageUrl ? r`<img src=${e.imageUrl} alt=${e.name ?? ""} />` : r`<div class="placeholder-image"><uui-icon name="icon-picture"></uui-icon></div>`}
+          </div>
 
-        <div class="line-item-details">
-          <div class="line-item-name">${e.name}</div>
-          ${e.sku ? a`<div class="line-item-sku">${e.sku}</div>` : d}
-          ${e.isStockTracked && e.availableStock !== null ? a`
-            <div class="stock-info ${v ? "error" : ""}">
-              ${v ? a`<uui-icon name="icon-alert"></uui-icon> Only ${e.availableStock} available` : a`${e.availableStock} in stock`}
-            </div>
-          ` : d}
+          <div class="line-item-details">
+            <div class="line-item-name">${e.name}</div>
+            ${e.sku ? r`<div class="line-item-sku">${e.sku}</div>` : p}
+            ${e.isStockTracked && e.availableStock !== null ? r`
+              <div class="stock-info ${s ? "error" : ""}">
+                ${s ? r`<uui-icon name="icon-alert"></uui-icon> Only ${e.availableStock} available` : r`${e.availableStock} in stock`}
+              </div>
+            ` : p}
+          </div>
         </div>
 
         <div class="line-item-price">
@@ -271,30 +296,28 @@ let n = class extends C {
             <span class="price ${t ? "has-discount" : ""}">${i}${e.amount.toFixed(2)}</span>
             <button
               class="discount-trigger ${t ? "active" : ""}"
-              @click=${() => this._openDiscountPopover(e.id)}
+              @click=${(v) => this._openDiscountPopover(e.id, v)}
               title="${t ? "Edit discount" : "Add discount"}"
             >
               <uui-icon name="${t ? "icon-sale" : "icon-add"}"></uui-icon>
             </button>
           </div>
-          ${t ? a`
+          ${t ? r`
             <div class="discount-badge">
               -${e.discount.type === m.Percentage ? `${e.discount.value}%` : `${i}${e.discount.value.toFixed(2)}`}
               <button class="remove-discount" @click=${() => this._removeDiscount(e.id)}>×</button>
             </div>
-          ` : d}
-
-          ${o ? this._renderDiscountPopover(e) : d}
+          ` : p}
         </div>
 
         <div class="line-item-quantity">
           <uui-input
             type="number"
             .value=${e.newQuantity.toString()}
-            @input=${(_) => this._updateQuantity(e.id, parseInt(_.target.value) || 1)}
+            @input=${(v) => this._updateQuantity(e.id, parseInt(v.target.value) || 1)}
             min="1"
           ></uui-input>
-          ${r && e.productId && e.isStockTracked ? a`
+          ${o && e.productId && e.isStockTracked ? r`
             <div class="return-to-stock-toggle">
               <uui-checkbox
                 .checked=${e.returnToStock}
@@ -303,7 +326,7 @@ let n = class extends C {
                 Return ${e.quantity - e.newQuantity} to stock
               </uui-checkbox>
             </div>
-          ` : d}
+          ` : p}
         </div>
 
         <div class="line-item-total">
@@ -325,7 +348,7 @@ let n = class extends C {
   }
   _renderRemovedItem(e) {
     const i = this._invoice?.currencySymbol ?? "£";
-    return a`
+    return r`
       <div class="removed-item">
         <div class="removed-item-info">
           <span class="removed-item-name">${e.name}</span>
@@ -333,14 +356,14 @@ let n = class extends C {
           <span class="removed-item-price">${i}${(e.amount * e.quantity).toFixed(2)}</span>
         </div>
         <div class="removed-item-options">
-          ${e.productId && e.isStockTracked ? a`
+          ${e.productId && e.isStockTracked ? r`
             <uui-checkbox
               .checked=${e.returnToStock}
               @change=${() => this._toggleReturnToStock(e.id)}
             >
               Return to stock
             </uui-checkbox>
-          ` : d}
+          ` : p}
           <uui-button look="secondary" compact @click=${() => this._restoreLineItem(e.id)}>
             Undo
           </uui-button>
@@ -348,26 +371,28 @@ let n = class extends C {
       </div>
     `;
   }
-  _renderDiscountPopover(e) {
-    const i = this._invoice?.currencySymbol ?? "£";
-    return a`
-      <div class="discount-popover">
+  _renderDiscountPopover() {
+    const e = this._invoice?.currencySymbol ?? "£", i = `top: ${this._popoverPosition.top}px; left: ${this._popoverPosition.left}px;`;
+    return r`
+      <div class="discount-popover-backdrop" @click=${this._closeDiscountPopover}></div>
+      <div class="discount-popover" style=${i}>
         <div class="popover-header">
           <span>Discount type</span>
         </div>
 
-        <uui-select
+        <select
+          class="discount-type-select"
           .value=${this._discountType.toString()}
           @change=${(t) => this._discountType = parseInt(t.target.value)}
         >
-          <option value="0">Amount</option>
+          <option value="0">Fixed amount</option>
           <option value="1">Percentage</option>
-        </uui-select>
+        </select>
 
         <div class="popover-row">
           <label>Value ${this._discountType === m.Percentage ? "(%)" : "(per unit)"}</label>
           <div class="input-with-affix">
-            ${this._discountType === m.Amount ? a`<span class="prefix">${i}</span>` : d}
+            ${this._discountType === m.Amount ? r`<span class="prefix">${e}</span>` : p}
             <uui-input
               type="number"
               .value=${this._discountValue.toString()}
@@ -375,7 +400,7 @@ let n = class extends C {
               min="0"
               step="0.01"
             ></uui-input>
-            ${this._discountType === m.Percentage ? a`<span class="suffix">%</span>` : d}
+            ${this._discountType === m.Percentage ? r`<span class="suffix">%</span>` : p}
           </div>
         </div>
 
@@ -404,16 +429,18 @@ let n = class extends C {
     `;
   }
   _renderCustomItem(e) {
-    const i = this._invoice?.currencySymbol ?? "£", t = e.taxGroupId ? this._taxGroups.find((r) => r.id === e.taxGroupId) : null, o = t ? `${t.name} (${t.taxPercentage}%)` : "Not taxable";
-    return a`
+    const i = this._invoice?.currencySymbol ?? "£", t = e.taxGroupId ? this._taxGroups.find((a) => a.id === e.taxGroupId) : null, o = t ? `${t.name} (${t.taxPercentage}%)` : "Not taxable";
+    return r`
       <div class="line-item custom-item">
-        <div class="line-item-image">
-          <div class="placeholder-image custom"><uui-icon name="icon-add"></uui-icon></div>
-        </div>
+        <div class="line-item-product">
+          <div class="line-item-image">
+            <div class="placeholder-image custom"><uui-icon name="icon-add"></uui-icon></div>
+          </div>
 
-        <div class="line-item-details">
-          <div class="line-item-name">${e.name}</div>
-          <div class="line-item-sku">Custom item · ${o}</div>
+          <div class="line-item-details">
+            <div class="line-item-name">${e.name}</div>
+            <div class="line-item-sku">${e.sku ?? "Custom item"} · ${o}</div>
+          </div>
         </div>
 
         <div class="line-item-price">
@@ -443,13 +470,13 @@ let n = class extends C {
   }
   render() {
     if (this._isLoading)
-      return a`<umb-body-layout headline="Edit Order">${this._renderLoading()}</umb-body-layout>`;
+      return r`<umb-body-layout headline="Edit Order">${this._renderLoading()}</umb-body-layout>`;
     if (this._errorMessage && !this._invoice)
-      return a`<umb-body-layout headline="Edit Order">${this._renderError()}</umb-body-layout>`;
+      return r`<umb-body-layout headline="Edit Order">${this._renderError()}</umb-body-layout>`;
     if (!this._invoice?.canEdit)
-      return a`<umb-body-layout headline="Edit Order">${this._renderCannotEdit()}</umb-body-layout>`;
-    const e = this._invoice.currencySymbol, i = this._invoice.currencyCode, t = this._calculateSubtotalBeforeDiscounts(), o = this._calculateDiscountTotal(), r = this._calculateAdjustedSubtotal(), l = this._calculateShippingTotal(), s = this._calculateNewTax(), v = this._calculateNewTotal(), _ = this._hasChanges(), y = this._lineItems.filter((p) => p.isRemoved), S = o > 0;
-    return a`
+      return r`<umb-body-layout headline="Edit Order">${this._renderCannotEdit()}</umb-body-layout>`;
+    const e = this._invoice.currencySymbol, i = this._invoice.currencyCode, t = this._calculateSubtotalBeforeDiscounts(), o = this._calculateDiscountTotal(), a = this._calculateAdjustedSubtotal(), l = this._calculateNewTax(), s = this._calculateNewTotal(), v = this._hasChanges(), b = this._lineItems.filter((c) => c.isRemoved), k = o > 0;
+    return r`
       <umb-body-layout headline="Edit Order">
         <div id="main">
           <!-- Fulfillment Status Badge -->
@@ -461,19 +488,19 @@ let n = class extends C {
           </div>
 
           <!-- Orders and Line Items -->
-          ${this._orders.map((p) => this._renderOrderSection(p))}
+          ${this._orders.map((c) => this._renderOrderSection(c))}
 
           <!-- Custom Items Section (if any) -->
-          ${this._customItems.length > 0 ? a`
+          ${this._customItems.length > 0 ? r`
             <div class="items-section custom-items-section">
               <div class="section-header">
                 <h4>Custom Items (New Order)</h4>
               </div>
               <div class="items-list">
-                ${this._customItems.map((p) => this._renderCustomItem(p))}
+                ${this._customItems.map((c) => this._renderCustomItem(c))}
               </div>
             </div>
-          ` : d}
+          ` : p}
 
           <!-- Add Items Actions -->
           <div class="add-items-section">
@@ -489,12 +516,12 @@ let n = class extends C {
           </div>
 
           <!-- Removed Items Section -->
-          ${y.length > 0 ? a`
+          ${b.length > 0 ? r`
             <div class="removed-items-section">
               <h4>Removed Items</h4>
-              ${y.map((p) => this._renderRemovedItem(p))}
+              ${b.map((c) => this._renderRemovedItem(c))}
             </div>
-          ` : d}
+          ` : p}
 
           <!-- Payment Summary -->
           <div class="payment-section">
@@ -505,30 +532,63 @@ let n = class extends C {
               <span>${e}${t.toFixed(2)} ${i}</span>
             </div>
 
-            ${S ? a`
+            ${k ? r`
               <div class="payment-row discount">
                 <span>Discounts</span>
                 <span class="discount-amount">-${e}${o.toFixed(2)} ${i}</span>
               </div>
               <div class="payment-row adjusted">
                 <span>Adjusted Subtotal</span>
-                <span>${e}${r.toFixed(2)} ${i}</span>
+                <span>${e}${a.toFixed(2)} ${i}</span>
               </div>
-            ` : d}
+            ` : p}
 
-            <div class="payment-row">
-              <span>Shipping</span>
-              <span>${e}${l.toFixed(2)} ${i}</span>
-            </div>
+            <!-- Shipping per order with edit/remove -->
+            ${this._orders.map((c, S) => r`
+              <div class="payment-row shipping-row ${this._removedShippingOrders.has(c.id) ? "removed" : ""}">
+                <span>${c.shippingMethodName ?? "Shipping"}${this._orders.length > 1 ? ` (Order ${S + 1})` : ""}</span>
+                <div class="summary-edit-controls">
+                  ${this._removedShippingOrders.has(c.id) ? r`
+                    <span class="removed-label">Removed</span>
+                    <uui-button compact look="secondary" @click=${() => this._restoreShipping(c.id)}>Undo</uui-button>
+                  ` : r`
+                    <div class="summary-input">
+                      <span class="prefix">${e}</span>
+                      <uui-input
+                        type="number"
+                        .value=${c.newShippingCost.toString()}
+                        @input=${(T) => this._updateOrderShipping(c.id, parseFloat(T.target.value) || 0)}
+                        min="0"
+                        step="0.01"
+                      ></uui-input>
+                    </div>
+                    <uui-button compact look="secondary" @click=${() => this._removeShipping(c.id)} title="Remove shipping">
+                      <uui-icon name="icon-delete"></uui-icon>
+                    </uui-button>
+                  `}
+                </div>
+              </div>
+            `)}
 
-            <div class="payment-row">
+            <!-- Tax with remove option -->
+            <div class="payment-row tax-row ${this._taxRemoved ? "removed" : ""}">
               <span>Tax</span>
-              <span>${e}${s.toFixed(2)} ${i}</span>
+              <div class="summary-edit-controls">
+                ${this._taxRemoved ? r`
+                  <span class="removed-label">Removed (VAT exemption)</span>
+                  <uui-button compact look="secondary" @click=${() => this._restoreTax()}>Undo</uui-button>
+                ` : r`
+                  <span>${e}${l.toFixed(2)} ${i}</span>
+                  <uui-button compact look="secondary" @click=${() => this._removeTax()} title="Remove tax (VAT exemption)">
+                    <uui-icon name="icon-delete"></uui-icon>
+                  </uui-button>
+                `}
+              </div>
             </div>
 
             <div class="payment-row total">
               <span>Total</span>
-              <span>${e}${v.toFixed(2)} ${i}</span>
+              <span>${e}${s.toFixed(2)} ${i}</span>
             </div>
 
             <p class="tax-note">Taxes are estimated until you update the order</p>
@@ -539,18 +599,18 @@ let n = class extends C {
             <h3>Reason for edit</h3>
             <uui-textarea
               .value=${this._editReason}
-              @input=${(p) => this._editReason = p.target.value}
+              @input=${(c) => this._editReason = c.target.value}
               placeholder="Add a reason for this edit..."
             ></uui-textarea>
             <p class="reason-note">Only visible to staff</p>
           </div>
 
-          ${this._errorMessage ? a`
+          ${this._errorMessage ? r`
             <div class="error-message">
               <uui-icon name="icon-alert"></uui-icon>
               ${this._errorMessage}
             </div>
-          ` : d}
+          ` : p}
         </div>
 
         <div slot="actions">
@@ -566,33 +626,23 @@ let n = class extends C {
             label="Update order"
             look="primary"
             @click=${this._handleSave}
-            ?disabled=${this._isSaving || !_}
+            ?disabled=${this._isSaving || !v}
           >
-            ${this._isSaving ? a`<uui-loader-circle></uui-loader-circle>` : "Update order"}
+            ${this._isSaving ? r`<uui-loader-circle></uui-loader-circle>` : "Update order"}
           </uui-button>
         </div>
+
+        <!-- Discount Popover (rendered at top level to avoid overflow clipping) -->
+        ${this._discountPopoverLineItemId ? this._renderDiscountPopover() : p}
       </umb-body-layout>
     `;
   }
   _renderOrderSection(e) {
-    const i = this._invoice?.currencySymbol ?? "£", t = this._lineItems.filter((o) => o.orderId === e.id && !o.isRemoved);
-    return a`
+    const i = this._lineItems.filter((t) => t.orderId === e.id && !t.isRemoved);
+    return r`
       <div class="items-section order-section">
         <div class="section-header">
           <h4>Order: ${e.shippingMethodName ?? "Standard"}</h4>
-          <div class="order-shipping">
-            <span class="shipping-label">Shipping:</span>
-            <div class="shipping-cost-input">
-              <span class="prefix">${i}</span>
-              <uui-input
-                type="number"
-                .value=${e.newShippingCost.toString()}
-                @input=${(o) => this._updateOrderShipping(e.id, parseFloat(o.target.value) || 0)}
-                min="0"
-                step="0.01"
-              ></uui-input>
-            </div>
-          </div>
         </div>
 
         <div class="items-header">
@@ -604,7 +654,7 @@ let n = class extends C {
         </div>
 
         <div class="items-list">
-          ${t.map((o) => this._renderLineItem(o))}
+          ${i.map((t) => this._renderLineItem(t))}
         </div>
       </div>
     `;
@@ -612,7 +662,7 @@ let n = class extends C {
 };
 h = /* @__PURE__ */ new WeakMap();
 g = /* @__PURE__ */ new WeakMap();
-n.styles = T`
+n.styles = z`
     #main {
       padding: var(--uui-size-space-5);
       display: flex;
@@ -702,7 +752,7 @@ n.styles = T`
 
     .items-header {
       display: grid;
-      grid-template-columns: 2fr 120px 80px 100px 40px;
+      grid-template-columns: minmax(200px, 2fr) 140px 100px 100px 48px;
       gap: var(--uui-size-space-3);
       padding: var(--uui-size-space-3) var(--uui-size-space-4);
       background: var(--uui-color-surface-alt);
@@ -726,7 +776,7 @@ n.styles = T`
 
     .line-item {
       display: grid;
-      grid-template-columns: 2fr 120px 80px 100px 40px;
+      grid-template-columns: minmax(200px, 2fr) 140px 100px 100px 48px;
       gap: var(--uui-size-space-3);
       padding: var(--uui-size-space-3) var(--uui-size-space-4);
       align-items: center;
@@ -735,6 +785,13 @@ n.styles = T`
 
     .line-item:last-child {
       border-bottom: none;
+    }
+
+    .line-item-product {
+      display: flex;
+      gap: var(--uui-size-space-3);
+      align-items: center;
+      min-width: 0;
     }
 
     .line-item-image {
@@ -846,17 +903,22 @@ n.styles = T`
       padding: 0;
     }
 
+    .discount-popover-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+    }
+
     .discount-popover {
-      position: absolute;
-      top: 100%;
-      right: 0;
-      z-index: 100;
+      position: fixed;
+      z-index: 10000;
       background: var(--uui-color-surface);
       border: 1px solid var(--uui-color-border);
       border-radius: var(--uui-border-radius);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       padding: var(--uui-size-space-4);
       min-width: 280px;
+      max-width: 320px;
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-3);
@@ -865,6 +927,22 @@ n.styles = T`
     .popover-header {
       font-weight: 500;
       font-size: 0.875rem;
+    }
+
+    .discount-type-select {
+      width: 100%;
+      padding: var(--uui-size-space-2) var(--uui-size-space-3);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      background: var(--uui-color-surface);
+      font-size: 0.875rem;
+      color: var(--uui-color-text);
+      cursor: pointer;
+    }
+
+    .discount-type-select:focus {
+      outline: none;
+      border-color: var(--uui-color-interactive);
     }
 
     .popover-row {
@@ -1104,6 +1182,49 @@ n.styles = T`
       margin-bottom: var(--uui-size-space-2);
     }
 
+    /* Summary edit controls for shipping and tax */
+    .summary-edit-controls {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+    }
+
+    .summary-input {
+      display: flex;
+      align-items: center;
+    }
+
+    .summary-input .prefix {
+      background: var(--uui-color-surface-alt);
+      border: 1px solid var(--uui-color-border);
+      border-right: none;
+      padding: 0 var(--uui-size-space-2);
+      height: 32px;
+      display: flex;
+      align-items: center;
+      border-radius: var(--uui-border-radius) 0 0 var(--uui-border-radius);
+      font-size: 0.875rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .summary-input uui-input {
+      width: 80px;
+    }
+
+    .payment-row.removed {
+      color: var(--uui-color-text-alt);
+    }
+
+    .payment-row.removed span:first-child {
+      text-decoration: line-through;
+    }
+
+    .removed-label {
+      font-size: 0.875rem;
+      color: var(--uui-color-text-alt);
+      font-style: italic;
+    }
+
     .shipping-cost-input {
       display: flex;
       align-items: center;
@@ -1172,53 +1293,62 @@ n.styles = T`
     }
   `;
 u([
-  c()
+  d()
 ], n.prototype, "_invoice", 2);
 u([
-  c()
+  d()
 ], n.prototype, "_isLoading", 2);
 u([
-  c()
+  d()
 ], n.prototype, "_isSaving", 2);
 u([
-  c()
+  d()
 ], n.prototype, "_errorMessage", 2);
 u([
-  c()
+  d()
 ], n.prototype, "_editReason", 2);
 u([
-  c()
+  d()
 ], n.prototype, "_orders", 2);
 u([
-  c()
+  d()
 ], n.prototype, "_lineItems", 2);
 u([
-  c()
+  d()
 ], n.prototype, "_customItems", 2);
 u([
-  c()
+  d()
 ], n.prototype, "_discountPopoverLineItemId", 2);
 u([
-  c()
+  d()
 ], n.prototype, "_discountType", 2);
 u([
-  c()
+  d()
 ], n.prototype, "_discountValue", 2);
 u([
-  c()
+  d()
 ], n.prototype, "_discountReason", 2);
 u([
-  c()
+  d()
 ], n.prototype, "_discountVisibleToCustomer", 2);
 u([
-  c()
+  d()
+], n.prototype, "_popoverPosition", 2);
+u([
+  d()
 ], n.prototype, "_taxGroups", 2);
+u([
+  d()
+], n.prototype, "_removedShippingOrders", 2);
+u([
+  d()
+], n.prototype, "_taxRemoved", 2);
 n = u([
   I("merchello-edit-order-modal")
 ], n);
-const G = n;
+const V = n;
 export {
   n as MerchelloEditOrderModalElement,
-  G as default
+  V as default
 };
-//# sourceMappingURL=edit-order-modal.element-DWxd_gBS.js.map
+//# sourceMappingURL=edit-order-modal.element-BBbpu6Ck.js.map

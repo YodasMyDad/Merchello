@@ -79,7 +79,7 @@ public class InventoryServiceTests
         // Assert
         result.ResultObject.ShouldBeFalse();
         result.Messages.ShouldNotBeEmpty();
-        result.Messages.First().Message.ShouldContain("Insufficient stock");
+        result.Messages.First().Message!.ShouldContain("Insufficient stock");
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class InventoryServiceTests
         // Assert
         result.ResultObject.ShouldBeFalse();
         result.Messages.ShouldNotBeEmpty();
-        result.Messages.First().Message.ShouldContain("greater than zero");
+        result.Messages.First().Message!.ShouldContain("greater than zero");
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class InventoryServiceTests
         // Assert
         result.ResultObject.ShouldBeFalse();
         result.Messages.ShouldNotBeEmpty();
-        result.Messages.First().Message.ShouldContain("not found");
+        result.Messages.First().Message!.ShouldContain("not found");
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public class InventoryServiceTests
         // Assert
         result.ResultObject.ShouldBeFalse();
         result.Messages.ShouldNotBeEmpty();
-        result.Messages.First().Message.ShouldContain("Insufficient");
+        result.Messages.First().Message!.ShouldContain("Insufficient");
     }
 
     #endregion

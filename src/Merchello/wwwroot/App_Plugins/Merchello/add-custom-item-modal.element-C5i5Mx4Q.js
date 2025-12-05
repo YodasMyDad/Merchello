@@ -1,22 +1,23 @@
-import { nothing as l, html as o, css as p, state as c, customElement as m } from "@umbraco-cms/backoffice/external/lit";
+import { nothing as n, html as s, css as p, state as d, customElement as m } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement as h } from "@umbraco-cms/backoffice/modal";
-var v = Object.defineProperty, x = Object.getOwnPropertyDescriptor, n = (e, i, u, s) => {
-  for (var r = s > 1 ? void 0 : s ? x(i, u) : i, d = e.length - 1, t; d >= 0; d--)
-    (t = e[d]) && (r = (s ? t(i, u, r) : t(r)) || r);
-  return s && r && v(i, u, r), r;
+var v = Object.defineProperty, x = Object.getOwnPropertyDescriptor, u = (e, i, l, o) => {
+  for (var r = o > 1 ? void 0 : o ? x(i, l) : i, c = e.length - 1, t; c >= 0; c--)
+    (t = e[c]) && (r = (o ? t(i, l, r) : t(r)) || r);
+  return o && r && v(i, l, r), r;
 };
 let a = class extends h {
   constructor() {
-    super(...arguments), this._name = "", this._price = 0, this._quantity = 1, this._selectedTaxGroupId = null, this._isPhysicalProduct = !0, this._errors = {};
+    super(...arguments), this._name = "", this._sku = "", this._price = 0, this._quantity = 1, this._selectedTaxGroupId = null, this._isPhysicalProduct = !0, this._errors = {};
   }
   _validate() {
     const e = {};
-    return this._name.trim() || (e.name = "Item name is required"), this._price <= 0 && (e.price = "Price must be greater than 0"), this._quantity < 1 && (e.quantity = "Quantity must be at least 1"), this._errors = e, Object.keys(e).length === 0;
+    return this._name.trim() || (e.name = "Item name is required"), this._sku.trim() || (e.sku = "SKU is required"), this._price <= 0 && (e.price = "Price must be greater than 0"), this._quantity < 1 && (e.quantity = "Quantity must be at least 1"), this._errors = e, Object.keys(e).length === 0;
   }
   _handleAdd() {
     this._validate() && (this.value = {
       item: {
         name: this._name.trim(),
+        sku: this._sku.trim(),
         price: this._price,
         quantity: this._quantity,
         taxGroupId: this._selectedTaxGroupId,
@@ -35,19 +36,32 @@ let a = class extends h {
     return this._selectedTaxGroupId ? this.data?.taxGroups?.find((i) => i.id === this._selectedTaxGroupId)?.taxPercentage ?? 0 : 0;
   }
   render() {
-    const e = this.data?.currencySymbol ?? "£", i = this.data?.taxGroups ?? [], u = this._getSelectedTaxRate(), s = this._price * this._quantity, r = s * (u / 100), d = s + r;
-    return o`
+    const e = this.data?.currencySymbol ?? "£", i = this.data?.taxGroups ?? [], l = this._getSelectedTaxRate(), o = this._price * this._quantity, r = o * (l / 100), c = o + r;
+    return s`
       <umb-body-layout headline="Add custom item">
         <div id="main">
-          <div class="form-row">
-            <label for="item-name">Item name</label>
-            <uui-input
-              id="item-name"
-              .value=${this._name}
-              @input=${(t) => this._name = t.target.value}
-              placeholder="Enter item name"
-            ></uui-input>
-            ${this._errors.name ? o`<span class="error">${this._errors.name}</span>` : l}
+          <div class="form-row-group">
+            <div class="form-row">
+              <label for="item-name">Item name</label>
+              <uui-input
+                id="item-name"
+                .value=${this._name}
+                @input=${(t) => this._name = t.target.value}
+                placeholder="Enter item name"
+              ></uui-input>
+              ${this._errors.name ? s`<span class="error">${this._errors.name}</span>` : n}
+            </div>
+
+            <div class="form-row">
+              <label for="item-sku">SKU</label>
+              <uui-input
+                id="item-sku"
+                .value=${this._sku}
+                @input=${(t) => this._sku = t.target.value}
+                placeholder="Enter SKU"
+              ></uui-input>
+              ${this._errors.sku ? s`<span class="error">${this._errors.sku}</span>` : n}
+            </div>
           </div>
 
           <div class="form-row-group">
@@ -64,7 +78,7 @@ let a = class extends h {
                   min="0"
                 ></uui-input>
               </div>
-              ${this._errors.price ? o`<span class="error">${this._errors.price}</span>` : l}
+              ${this._errors.price ? s`<span class="error">${this._errors.price}</span>` : n}
             </div>
 
             <div class="form-row">
@@ -76,7 +90,7 @@ let a = class extends h {
                 @input=${(t) => this._quantity = parseInt(t.target.value) || 1}
                 min="1"
               ></uui-input>
-              ${this._errors.quantity ? o`<span class="error">${this._errors.quantity}</span>` : l}
+              ${this._errors.quantity ? s`<span class="error">${this._errors.quantity}</span>` : n}
             </div>
           </div>
 
@@ -90,16 +104,16 @@ let a = class extends h {
             >
               <option value="">Not taxable</option>
               ${i.map(
-      (t) => o`
+      (t) => s`
                   <option value=${t.id}>
                     ${t.name} (${t.taxPercentage}%)
                   </option>
                 `
     )}
             </select>
-            ${this._selectedTaxGroupId ? o`
-              <span class="tax-info">Tax: ${e}${r.toFixed(2)} at ${u}%</span>
-            ` : l}
+            ${this._selectedTaxGroupId ? s`
+              <span class="tax-info">Tax: ${e}${r.toFixed(2)} at ${l}%</span>
+            ` : n}
           </div>
 
           <div class="form-row checkbox-row">
@@ -111,24 +125,24 @@ let a = class extends h {
             </uui-checkbox>
           </div>
 
-          ${this._price > 0 ? o`
+          ${this._price > 0 ? s`
             <div class="summary">
               <div class="summary-row">
                 <span>Subtotal</span>
-                <span>${e}${s.toFixed(2)}</span>
+                <span>${e}${o.toFixed(2)}</span>
               </div>
-              ${this._selectedTaxGroupId ? o`
+              ${this._selectedTaxGroupId ? s`
                 <div class="summary-row">
-                  <span>Tax (${u}%)</span>
+                  <span>Tax (${l}%)</span>
                   <span>${e}${r.toFixed(2)}</span>
                 </div>
-              ` : l}
+              ` : n}
               <div class="summary-row total">
                 <span>Total</span>
-                <span>${e}${d.toFixed(2)}</span>
+                <span>${e}${c.toFixed(2)}</span>
               </div>
             </div>
-          ` : l}
+          ` : n}
         </div>
 
         <div slot="actions">
@@ -254,25 +268,28 @@ a.styles = p`
       justify-content: flex-end;
     }
   `;
-n([
-  c()
+u([
+  d()
 ], a.prototype, "_name", 2);
-n([
-  c()
+u([
+  d()
+], a.prototype, "_sku", 2);
+u([
+  d()
 ], a.prototype, "_price", 2);
-n([
-  c()
+u([
+  d()
 ], a.prototype, "_quantity", 2);
-n([
-  c()
+u([
+  d()
 ], a.prototype, "_selectedTaxGroupId", 2);
-n([
-  c()
+u([
+  d()
 ], a.prototype, "_isPhysicalProduct", 2);
-n([
-  c()
+u([
+  d()
 ], a.prototype, "_errors", 2);
-a = n([
+a = u([
   m("merchello-add-custom-item-modal")
 ], a);
 const b = a;
@@ -280,4 +297,4 @@ export {
   a as MerchelloAddCustomItemModalElement,
   b as default
 };
-//# sourceMappingURL=add-custom-item-modal.element-D9ZCN4o3.js.map
+//# sourceMappingURL=add-custom-item-modal.element-C5i5Mx4Q.js.map

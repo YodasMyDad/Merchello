@@ -29,5 +29,10 @@ public class EditInvoiceRequestDto
     /// Reason for the edit (added to invoice notes/timeline)
     /// </summary>
     public string? EditReason { get; set; }
+
+    /// <summary>
+    /// If true, removes tax from all line items (VAT exemption)
+    /// </summary>
+    public bool RemoveTax { get; set; }
 }
 

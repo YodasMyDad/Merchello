@@ -171,14 +171,14 @@ const e = [
     type: "modal",
     alias: "Merchello.EditOrder.Modal",
     name: "Merchello Edit Order Modal",
-    js: () => import("./edit-order-modal.element-DWxd_gBS.js")
+    js: () => import("./edit-order-modal.element-BBbpu6Ck.js")
   },
   // Add custom item modal for edit order
   {
     type: "modal",
     alias: "Merchello.AddCustomItem.Modal",
     name: "Merchello Add Custom Item Modal",
-    js: () => import("./add-custom-item-modal.element-D9ZCN4o3.js")
+    js: () => import("./add-custom-item-modal.element-C5i5Mx4Q.js")
   },
   // Workspace for orders list (when clicking "Orders" in tree)
   {

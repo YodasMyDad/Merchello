@@ -1895,8 +1895,8 @@ public class InvoiceService(
                                 Sku = $"DISCOUNT-{lineItem.Sku}",
                                 Amount = -discountAmount,
                                 Quantity = 1,
-                                IsTaxable = lineItem.IsTaxable,
-                                TaxRate = lineItem.TaxRate,
+                                IsTaxable = false, // Discounts should not be taxable
+                                TaxRate = 0,
                                 ExtendedData = new Dictionary<string, object>
                                 {
                                     ["DiscountType"] = editItem.Discount.Type.ToString(),
@@ -2018,7 +2018,7 @@ public class InvoiceService(
                             OrderId = customOrder.Id,
                             LineItemType = LineItemType.Custom,
                             Name = customItem.Name,
-                            Sku = $"CUSTOM-{DateTime.UtcNow.Ticks}",
+                            Sku = string.IsNullOrWhiteSpace(customItem.Sku) ? $"CUSTOM-{DateTime.UtcNow.Ticks}" : customItem.Sku,
                             Amount = customItem.Price,
                             Quantity = customItem.Quantity,
                             IsTaxable = isTaxable,
@@ -2051,6 +2051,24 @@ public class InvoiceService(
                         order.ShippingCost = shippingUpdate.ShippingCost;
                         changes.Add($"Changed shipping for order from {_settings.CurrencySymbol}{oldCost} to {_settings.CurrencySymbol}{shippingUpdate.ShippingCost}");
                     }
+                }
+
+                // Handle tax removal (VAT exemption)
+                if (request.RemoveTax)
+                {
+                    foreach (var order in orders)
+                    {
+                        if (order.LineItems is null) continue;
+                        foreach (var lineItem in order.LineItems.Where(li => li.LineItemType != LineItemType.Discount))
+                        {
+                            if (lineItem.IsTaxable)
+                            {
+                                lineItem.IsTaxable = false;
+                                lineItem.TaxRate = 0;
+                            }
+                        }
+                    }
+                    changes.Add("Removed tax (VAT exemption)");
                 }
 
                 // Recalculate totals using stored line item tax rates
@@ -2186,39 +2204,44 @@ public class InvoiceService(
         };
     }
 
-    private static void RecalculateInvoiceTotals(Invoice invoice, List<Order> orders)
+    private void RecalculateInvoiceTotals(Invoice invoice, List<Order> orders)
     {
         var allLineItems = orders.SelectMany(o => o.LineItems ?? []).ToList();
 
-        // Calculate subtotal (products + custom items)
+        // Calculate subtotal (products + custom items) with rounding
         var productItems = allLineItems.Where(li =>
             li.LineItemType == LineItemType.Product ||
             li.LineItemType == LineItemType.Custom);
-        var subTotal = productItems.Sum(li => li.Amount * li.Quantity);
+        var subTotal = productItems.Sum(li =>
+            Math.Round(li.Amount * li.Quantity, 2, _settings.DefaultRounding));
 
         // Apply discounts
         var discountItems = allLineItems.Where(li => li.LineItemType == LineItemType.Discount);
         var discountTotal = discountItems.Sum(li => li.Amount); // Already negative
 
-        // Calculate tax using stored line item tax rates
+        // Adjusted subtotal with rounding
+        var adjustedSubTotal = Math.Round(subTotal + discountTotal, 2, _settings.DefaultRounding);
+
+        // Calculate tax using stored line item tax rates (excluding discount line items)
         // IMPORTANT: We use the stored TaxRate on each line item, NOT the current TaxGroup rate.
         // This ensures historical invoices are not affected by future TaxGroup rate changes.
         decimal tax = 0;
-        foreach (var lineItem in allLineItems.Where(li => li.IsTaxable))
+        foreach (var lineItem in allLineItems.Where(li =>
+            li.IsTaxable && li.LineItemType != LineItemType.Discount))
         {
-            var itemTotal = lineItem.Amount * lineItem.Quantity;
-            tax += itemTotal * (lineItem.TaxRate / 100m);
+            var itemTotal = Math.Round(lineItem.Amount * lineItem.Quantity, 2, _settings.DefaultRounding);
+            tax += Math.Round(itemTotal * (lineItem.TaxRate / 100m), 2, _settings.DefaultRounding);
         }
 
         // Get shipping total
         var shippingTotal = orders.Sum(o => o.ShippingCost);
 
-        // Update invoice
-        invoice.SubTotal = subTotal;
-        invoice.Discount = Math.Abs(discountTotal);
-        invoice.AdjustedSubTotal = subTotal + discountTotal;
-        invoice.Tax = Math.Round(tax, 2);
-        invoice.Total = invoice.AdjustedSubTotal + invoice.Tax + shippingTotal;
+        // Update invoice with all values rounded
+        invoice.SubTotal = Math.Round(subTotal, 2, _settings.DefaultRounding);
+        invoice.Discount = Math.Round(Math.Abs(discountTotal), 2, _settings.DefaultRounding);
+        invoice.AdjustedSubTotal = adjustedSubTotal;
+        invoice.Tax = Math.Round(tax, 2, _settings.DefaultRounding);
+        invoice.Total = Math.Round(adjustedSubTotal + invoice.Tax + shippingTotal, 2, _settings.DefaultRounding);
     }
 
     private static string BuildEditNote(List<string> changes, string? editReason)

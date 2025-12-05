@@ -1,6 +1,4 @@
-﻿using Merchello.Core.Shared.Models;
-
-namespace Merchello.Core.Shared.Extensions;
+﻿namespace Merchello.Core.Shared.Extensions;
 
 public static class TaxExtensions
 {
@@ -9,11 +7,10 @@ public static class TaxExtensions
     /// </summary>
     /// <param name="amount">Amount to tax</param>
     /// <param name="taxRate">The tax rate</param>
-    /// <param name="rounding">Type of rounding</param>
+    /// <param name="rounding">Type of rounding (defaults to AwayFromZero for commerce)</param>
     /// <param name="round">Round the result</param>
-    /// <param name="roundingStrategy">Strategy for rounding (Round or Ceiling)</param>
     /// <returns></returns>
-    public static decimal PercentageAmount(this decimal amount, decimal taxRate, MidpointRounding rounding = MidpointRounding.ToEven, bool round = true, TaxRoundingStrategy roundingStrategy = TaxRoundingStrategy.Round)
+    public static decimal PercentageAmount(this decimal amount, decimal taxRate, MidpointRounding rounding = MidpointRounding.AwayFromZero, bool round = true)
     {
         if (taxRate <= 0)
         {
@@ -27,11 +24,7 @@ public static class TaxExtensions
             return calculatedAmount;
         }
 
-        return roundingStrategy switch
-        {
-            TaxRoundingStrategy.Ceiling => Math.Ceiling(calculatedAmount * 100) / 100,
-            _ => Math.Round(calculatedAmount, 2, rounding)
-        };
+        return Math.Round(calculatedAmount, 2, rounding);
     }
 
     /// <summary>

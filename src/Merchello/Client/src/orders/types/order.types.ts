@@ -421,6 +421,8 @@ export interface EditInvoiceRequestDto {
   customItems: AddCustomItemDto[];
   orderShippingUpdates: OrderShippingUpdateDto[];
   editReason: string | null;
+  /** If true, removes tax from all line items (VAT exemption) */
+  removeTax: boolean;
 }
 
 /** Line item removal with return-to-stock option */
@@ -456,6 +458,8 @@ export interface LineItemDiscountDto {
 /** Custom item to add to the invoice */
 export interface AddCustomItemDto {
   name: string;
+  /** SKU for the custom item */
+  sku: string;
   price: number;
   quantity: number;
   /** Tax group ID. If null/undefined, item is not taxable */
