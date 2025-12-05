@@ -19,6 +19,7 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
 
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
+  #isConnected = false;
 
   constructor() {
     super();
@@ -32,7 +33,13 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.#isConnected = true;
     this._loadProviders();
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#isConnected = false;
   }
 
   private async _loadProviders(): Promise<void> {
@@ -44,6 +51,9 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
         MerchelloApi.getAvailablePaymentProviders(),
         MerchelloApi.getPaymentProviders(),
       ]);
+
+      // Prevent state updates if component was disconnected during async operation
+      if (!this.#isConnected) return;
 
       if (availableResult.error) {
         this._errorMessage = availableResult.error.message;
@@ -60,6 +70,8 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
       this._availableProviders = availableResult.data ?? [];
       this._configuredProviders = configuredResult.data ?? [];
     } catch (err) {
+      // Prevent state updates if component was disconnected during async operation
+      if (!this.#isConnected) return;
       this._errorMessage = err instanceof Error ? err.message : "Failed to load providers";
     }
 
@@ -87,6 +99,9 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
   private async _toggleProvider(setting: PaymentProviderSettingDto): Promise<void> {
     const { error } = await MerchelloApi.togglePaymentProvider(setting.id, !setting.isEnabled);
 
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
+
     if (error) {
       this.#notificationContext?.peek("danger", {
         data: { headline: "Error", message: error.message },
@@ -110,6 +125,9 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     }
 
     const { error } = await MerchelloApi.deletePaymentProvider(setting.id);
+
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
 
     if (error) {
       this.#notificationContext?.peek("danger", {

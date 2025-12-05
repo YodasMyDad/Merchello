@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, unsafeHTML } from "@umbraco-cms/backoffice/external/lit";
+import type { TemplateResult } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
@@ -40,6 +41,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
   #workspaceContext?: MerchelloOrderDetailWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
+  #isConnected = false;
 
   constructor() {
     super();
@@ -63,8 +65,20 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     this._loadCountries();
   }
 
+  connectedCallback(): void {
+    super.connectedCallback();
+    this.#isConnected = true;
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#isConnected = false;
+  }
+
   private async _loadCountries(): Promise<void> {
     const { data } = await MerchelloApi.getCountries();
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
     if (data) {
       this._countries = data;
     }
@@ -258,6 +272,9 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       result = await MerchelloApi.updateBillingAddress(this._order.id, completeAddress);
     }
 
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
+
     this._isSavingAddress = false;
 
     if (result.error) {
@@ -281,7 +298,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     }
   }
 
-  private _renderInput(field: keyof AddressDto, label: string, placeholder: string, type: string = 'text'): unknown {
+  private _renderInput(field: keyof AddressDto, label: string, placeholder: string, type: string = 'text'): TemplateResult {
     const hasError = !!this._validationErrors[field];
     return html`
       <div class="form-field ${hasError ? 'has-error' : ''}">
@@ -297,7 +314,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  private _renderCountrySelect(): unknown {
+  private _renderCountrySelect(): TemplateResult {
     const hasError = !!this._validationErrors.countryCode;
     return html`
       <div class="form-field ${hasError ? 'has-error' : ''}">
@@ -462,6 +479,9 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       visibleToCustomer: this._visibleToCustomer,
     });
 
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
+
     this._isPostingNote = false;
 
     if (error) {
@@ -513,26 +533,29 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
         </div>
 
         <!-- Tabs -->
-        <div class="tabs">
-          <button
-            class="tab ${this._activeTab === "details" ? "active" : ""}"
+        <uui-tab-group>
+          <uui-tab
+            label="Details"
+            ?active=${this._activeTab === "details"}
             @click=${() => this._handleTabClick("details")}
           >
             Details
-          </button>
-          <button
-            class="tab ${this._activeTab === "shipments" ? "active" : ""}"
+          </uui-tab>
+          <uui-tab
+            label="Shipments"
+            ?active=${this._activeTab === "shipments"}
             @click=${() => this._handleTabClick("shipments")}
           >
             Shipments
-          </button>
-          <button
-            class="tab ${this._activeTab === "payments" ? "active" : ""}"
+          </uui-tab>
+          <uui-tab
+            label="Payments"
+            ?active=${this._activeTab === "payments"}
             @click=${() => this._handleTabClick("payments")}
           >
             Payments
-          </button>
-        </div>
+          </uui-tab>
+        </uui-tab-group>
 
         <!-- Tab Content -->
         ${this._activeTab === "shipments"
@@ -565,21 +588,42 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                   <span>${order.orders.reduce((sum, o) => sum + o.lineItems.reduce((s, li) => s + li.quantity, 0), 0)} items</span>
                   <span>${formatCurrency(order.subTotal)}</span>
                 </div>
+                ${order.discountTotal > 0 ? html`
+                  <div class="summary-row discount">
+                    <span>Discounts</span>
+                    <span></span>
+                    <span>-${formatCurrency(order.discountTotal)}</span>
+                  </div>
+                ` : nothing}
                 <div class="summary-row">
                   <span>Shipping</span>
                   <span>${order.orders[0]?.deliveryMethod || "Standard"}</span>
                   <span>${formatCurrency(order.shippingCost)}</span>
                 </div>
+                ${order.tax > 0 ? html`
+                  <div class="summary-row">
+                    <span>Tax</span>
+                    <span></span>
+                    <span>${formatCurrency(order.tax)}</span>
+                  </div>
+                ` : nothing}
                 <div class="summary-row total">
                   <span>Total</span>
                   <span></span>
                   <span>${formatCurrency(order.total)}</span>
                 </div>
-                <div class="summary-row">
+                <div class="summary-row ${order.amountPaid > order.total ? 'overpaid' : order.amountPaid < order.total ? 'underpaid' : ''}">
                   <span>Paid</span>
                   <span></span>
                   <span>${formatCurrency(order.amountPaid)}</span>
                 </div>
+                ${order.balanceDue !== 0 ? html`
+                  <div class="summary-row balance ${order.balanceDue > 0 ? 'underpaid' : 'overpaid'}">
+                    <span>${order.balanceDue > 0 ? 'Balance Due' : 'Credit Due'}</span>
+                    <span></span>
+                    <span>${order.balanceDue > 0 ? formatCurrency(order.balanceDue) : formatCurrency(Math.abs(order.balanceDue))}</span>
+                  </div>
+                ` : nothing}
               </div>
             </div>
 
@@ -828,31 +872,8 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       margin-bottom: var(--uui-size-space-4);
     }
 
-    .tabs {
-      display: flex;
-      gap: var(--uui-size-space-1);
-      border-bottom: 1px solid var(--uui-color-border);
+    uui-tab-group {
       margin-bottom: var(--uui-size-space-4);
-    }
-
-    .tab {
-      padding: var(--uui-size-space-2) var(--uui-size-space-4);
-      border: none;
-      background: none;
-      cursor: pointer;
-      font-size: 0.875rem;
-      color: var(--uui-color-text-alt);
-      border-bottom: 2px solid transparent;
-      transition: all 0.2s;
-    }
-
-    .tab:hover {
-      color: var(--uui-color-text);
-    }
-
-    .tab.active {
-      color: var(--uui-color-text);
-      border-bottom-color: var(--uui-color-current);
     }
 
     .badge {
@@ -864,23 +885,23 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     }
 
     .badge.paid {
-      background: #d4edda;
-      color: #155724;
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
     }
 
     .badge.unpaid {
-      background: #f8d7da;
-      color: #721c24;
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
     }
 
     .badge.fulfilled {
-      background: #d4edda;
-      color: #155724;
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
     }
 
     .badge.unfulfilled {
-      background: #fff3cd;
-      color: #856404;
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
     }
 
     .order-content {
@@ -1157,6 +1178,24 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       font-weight: 600;
       padding-top: var(--uui-size-space-2);
       border-top: 1px solid var(--uui-color-border);
+    }
+
+    .summary-row.discount {
+      color: var(--uui-color-positive);
+    }
+
+    .summary-row.underpaid {
+      color: var(--uui-color-danger);
+    }
+
+    .summary-row.overpaid {
+      color: #b45309; /* Darker amber/orange for better visibility */
+    }
+
+    .summary-row.balance {
+      font-weight: 600;
+      padding-top: var(--uui-size-space-2);
+      border-top: 1px dashed var(--uui-color-border);
     }
 
     /* Timeline - Shopify-like styling */

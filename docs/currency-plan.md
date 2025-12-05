@@ -144,6 +144,70 @@ public async Task UpdateStoreCurrencyAmountsAsync(Invoice invoice, decimal excha
 | [PaymentDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/PaymentDbMapping.cs) | CurrencyCode, ExchangeRate, AmountInStoreCurrency, ExchangeRateSource |
 | InvoiceLineItemDbMapping.cs | AmountInStoreCurrency |
 
+### 3.5 Currency Service (Decimal Places & Formatting)
+
+Different currencies have different decimal places (JPY=0, USD=2, KWD=3). The Stripe provider already handles zero-decimal currencies with a HashSet, but we need a centralized service for consistent handling across the system.
+
+**Interface:**
+
+```csharp
+public interface ICurrencyService
+{
+    CurrencyInfo GetCurrency(string currencyCode);
+    string FormatAmount(decimal amount, string currencyCode);
+    decimal Round(decimal amount, string currencyCode);
+    int GetDecimalPlaces(string currencyCode);
+}
+
+public record CurrencyInfo(
+    string Code,           // "USD", "GBP", "JPY"
+    string Symbol,         // "$", "£", "¥"
+    int DecimalPlaces,     // 2, 2, 0
+    bool SymbolBefore      // true for $100, false for 100€
+);
+```
+
+**Implementation approach:**
+- Static dictionary for ISO 4217 currencies (common ones + fallback to 2 decimals)
+- Leverage .NET's `CultureInfo`/`RegionInfo` for symbols (as `MerchelloSettings` already does)
+- Decimal places from lookup table (not available from .NET APIs)
+- Zero-decimal currencies: `JPY, KRW, VND, CLP, PYG, GNF, RWF, UGX, BIF, XOF, XAF, KMF, DJF, MGA, VUV`
+- Three-decimal currencies: `KWD, BHD, OMR`
+
+**Where it's used:**
+- `InvoiceService` - formatting for display/notes
+- `PaymentService` - amount validation and rounding
+- Admin UI - displaying amounts correctly
+- Stripe provider - can delegate to this instead of its own HashSet
+
+**Location:** `src/Merchello.Core/Shared/Services/CurrencyService.cs`
+
+### 3.6 Fix: InvoiceForEditDto Hardcoded Currency
+
+**Current issue:** `InvoiceForEditDto` defaults to `CurrencyCode = "GBP"` and `CurrencySymbol = "£"` instead of reading from settings.
+
+**Fix in `GetInvoiceForEditAsync`:**
+
+```csharp
+// Before (hardcoded)
+return new InvoiceForEditDto
+{
+    CurrencyCode = "GBP",
+    CurrencySymbol = "£",
+    // ...
+};
+
+// After (from settings, then from invoice when multi-currency is implemented)
+return new InvoiceForEditDto
+{
+    CurrencyCode = _settings.StoreCurrencyCode,
+    CurrencySymbol = _settings.CurrencySymbol,
+    // ...
+};
+```
+
+This is a prerequisite fix before adding multi-currency support.
+
 ---
 
 ## 4. Flow Changes
@@ -448,17 +512,114 @@ public class ExchangeRateProviderSetting
 }
 ```
 
-### 6.5 Built-in Providers
+### 6.5 Built-in Provider: Frankfurter
 
-| Provider | Alias | Free Tier | Notes |
-|----------|-------|-----------|-------|
-| **Exchange Rates API** | `exchangeratesapi` | 250 req/month | Open Exchange Rates data |
-| **Fixer.io** | `fixer` | 100 req/month | Popular, reliable |
-| **Manual/Static** | `manual` | Unlimited | Admin enters rates manually |
+Merchello ships with the **Frankfurter** exchange rate provider as the default:
 
-**Manual Provider**: For stores with fixed exchange rates or low volume. Admin sets rates via backoffice.
+| Provider | Alias | Rate Limits | Notes |
+|----------|-------|-------------|-------|
+| **Frankfurter** | `frankfurter` | **None** | Free, open-source, ECB data |
 
-### 6.6 Custom Provider Example
+**Why Frankfurter:**
+- **No API key required** - works out of the box
+- **No rate limits** - unlimited requests
+- **European Central Bank data** - institutional, reliable source
+- **Open source** - can self-host if needed
+- **Simple REST API** - easy to integrate
+
+**API Details:**
+- Base URL: `https://api.frankfurter.dev/v1/`
+- Rates updated daily ~16:00 CET
+- Supports 30+ currencies
+
+**Endpoints:**
+
+| Endpoint | Purpose | Example |
+|----------|---------|---------|
+| `/latest` | Current rates | `/latest?base=USD` |
+| `/currencies` | List supported currencies | `/currencies` |
+| `/{date}` | Historical rate | `/2024-01-15?base=USD` |
+
+**Response format:**
+```json
+{
+  "base": "USD",
+  "date": "2024-01-15",
+  "rates": {
+    "GBP": 0.79,
+    "EUR": 0.92,
+    "JPY": 145.23
+  }
+}
+```
+
+**Supported currencies:** AUD, BGN, BRL, CAD, CHF, CNY, CZK, DKK, EUR, GBP, HKD, HUF, IDR, ILS, INR, ISK, JPY, KRW, MXN, MYR, NOK, NZD, PHP, PLN, RON, SEK, SGD, THB, TRY, USD, ZAR
+
+### 6.6 Frankfurter Provider Implementation
+
+```csharp
+public class FrankfurterExchangeRateProvider : IExchangeRateProvider
+{
+    private readonly HttpClient _httpClient;
+    private const string BaseUrl = "https://api.frankfurter.dev/v1";
+
+    public ExchangeRateProviderMetadata Metadata => new(
+        Alias: "frankfurter",
+        DisplayName: "Frankfurter (ECB Rates)",
+        Icon: "icon-globe",
+        Description: "Free exchange rates from the European Central Bank",
+        SupportsHistoricalRates: true,
+        SupportedCurrencies: []  // Empty = all supported
+    );
+
+    public async Task<ExchangeRateResult> GetRatesAsync(string baseCurrency)
+    {
+        var response = await _httpClient.GetAsync($"{BaseUrl}/latest?base={baseCurrency}");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return new ExchangeRateResult(
+                Success: false,
+                BaseCurrency: baseCurrency,
+                Rates: new(),
+                Timestamp: DateTime.UtcNow,
+                ErrorMessage: $"API returned {response.StatusCode}"
+            );
+        }
+
+        var data = await response.Content.ReadFromJsonAsync<FrankfurterResponse>();
+
+        return new ExchangeRateResult(
+            Success: true,
+            BaseCurrency: data.Base,
+            Rates: data.Rates,
+            Timestamp: DateTime.Parse(data.Date),
+            ErrorMessage: null
+        );
+    }
+
+    public async Task<decimal?> GetRateAsync(string fromCurrency, string toCurrency)
+    {
+        var response = await _httpClient.GetAsync(
+            $"{BaseUrl}/latest?base={fromCurrency}&symbols={toCurrency}");
+
+        if (!response.IsSuccessStatusCode) return null;
+
+        var data = await response.Content.ReadFromJsonAsync<FrankfurterResponse>();
+        return data?.Rates.GetValueOrDefault(toCurrency);
+    }
+}
+
+internal record FrankfurterResponse(
+    string Base,
+    string Date,
+    Dictionary<string, decimal> Rates
+);
+```
+
+### 6.7 Custom Provider Example
+
+Custom providers can be added via `ExtensionManager` (same as Payment/Shipping):
 
 ```csharp
 public class MyBankExchangeProvider : IExchangeRateProvider
@@ -479,9 +640,7 @@ public class MyBankExchangeProvider : IExchangeRateProvider
 }
 ```
 
-Custom providers auto-discovered via `ExtensionManager` (same as Payment/Shipping).
-
-### 6.7 Rate Refresh Strategy
+### 6.8 Rate Refresh Strategy
 
 ```csharp
 // Background job (runs hourly by default)
@@ -507,13 +666,80 @@ public class ExchangeRateRefreshJob : IHostedService
 }
 ```
 
-### 6.8 Fallback Behavior
+### 6.9 Fallback Behavior
 
 If rate fetch fails:
 1. Use last successfully cached rate
 2. If no cache, use rate from last successful fetch (stored in DB)
 3. If never fetched, display prices in store currency only (no conversion)
 4. Log warning for admin notification
+
+### 6.10 Notifications (per Developer Guidelines)
+
+Exchange rate events integrate with the existing notification system:
+
+| Notification | When | Use Case |
+|--------------|------|----------|
+| `ExchangeRatesRefreshedNotification` | After successful rate fetch | Sync rates to external systems, logging |
+| `ExchangeRateFetchFailedNotification` | After failed fetch attempt | Alert admin, trigger fallback logic |
+
+**Example handler:**
+
+```csharp
+public class MyComposer : IComposer
+{
+    public void Compose(IUmbracoBuilder builder)
+    {
+        builder.AddNotificationAsyncHandler<ExchangeRatesRefreshedNotification, LogRatesHandler>();
+        builder.AddNotificationAsyncHandler<ExchangeRateFetchFailedNotification, AlertAdminHandler>();
+    }
+}
+
+public class LogRatesHandler(ILogger<LogRatesHandler> logger)
+    : INotificationAsyncHandler<ExchangeRatesRefreshedNotification>
+{
+    public Task HandleAsync(ExchangeRatesRefreshedNotification notification, CancellationToken ct)
+    {
+        logger.LogInformation(
+            "Exchange rates refreshed: {Count} rates from {Provider}",
+            notification.Rates.Count,
+            notification.ProviderAlias);
+        return Task.CompletedTask;
+    }
+}
+
+public class AlertAdminHandler(IEmailService emailService)
+    : INotificationAsyncHandler<ExchangeRateFetchFailedNotification>
+{
+    public async Task HandleAsync(ExchangeRateFetchFailedNotification notification, CancellationToken ct)
+    {
+        await emailService.SendAdminAlertAsync(
+            $"Exchange rate fetch failed: {notification.ErrorMessage}");
+    }
+}
+```
+
+**Notification models (in separate files per guidelines):**
+
+```csharp
+// ExchangeRates/Notifications/ExchangeRatesRefreshedNotification.cs
+public class ExchangeRatesRefreshedNotification : INotification
+{
+    public required string ProviderAlias { get; init; }
+    public required string BaseCurrency { get; init; }
+    public required IReadOnlyDictionary<string, decimal> Rates { get; init; }
+    public required DateTime Timestamp { get; init; }
+}
+
+// ExchangeRates/Notifications/ExchangeRateFetchFailedNotification.cs
+public class ExchangeRateFetchFailedNotification : INotification
+{
+    public required string ProviderAlias { get; init; }
+    public required string ErrorMessage { get; init; }
+    public required DateTime Timestamp { get; init; }
+    public int ConsecutiveFailures { get; init; }
+}
+```
 
 ---
 
@@ -691,87 +917,426 @@ var refund = new Payment
 
 ## 10. Implementation Phases
 
-### Phase 1: Data Model (MVP Foundation)
+Each phase is broken into atomic tasks. Complete all tasks in a phase before moving to the next.
 
-1. Add currency fields to Invoice model
-2. Add currency/rate fields to Payment model
-3. Add `AmountInStoreCurrency` to InvoiceLineItem model
-4. Add exchange rate fields to PaymentResult model
-5. Update DB mappings (Invoice, Payment, InvoiceLineItem)
-6. Run migration
-7. Update `CreateOrderFromBasketAsync()` to copy basket currency
+---
 
-### Phase 2: Payment Flow & Order Edits
+### Phase 1: Foundation & Fixes (Pre-requisites)
 
-1. Update `PaymentService` to store currency info
-2. Update Stripe provider to return exchange rate from webhooks/responses
-3. Calculate and store `TotalInStoreCurrency` on invoice after payment
-4. **Sync all line items** with `AmountInStoreCurrency` when exchange rate is recorded
-5. Update `EditInvoiceAsync` to:
-   - Use invoice currency for all edit inputs
-   - Calculate `AmountInStoreCurrency` for discount line items
-   - Recalculate `*InStoreCurrency` totals after edits
-   - Keep line items in sync with invoice totals
-6. Update refund flow to use original exchange rate
+**Goal:** Set up infrastructure and fix existing issues before adding multi-currency.
 
-### Phase 3: Admin Display
+#### 1.1 Create ICurrencyService
+- [ ] Create `src/Merchello.Core/Shared/Services/ICurrencyService.cs` interface
+- [ ] Create `src/Merchello.Core/Shared/Services/CurrencyService.cs` implementation
+- [ ] Add static dictionary with common currencies (code, symbol, decimal places)
+- [ ] Include zero-decimal currencies: `JPY, KRW, VND, CLP, PYG, GNF, RWF, UGX, BIF, XOF, XAF, KMF, DJF, MGA, VUV`
+- [ ] Include three-decimal currencies: `KWD, BHD, OMR`
+- [ ] Register in DI container
+- [ ] Add unit tests for `Round()`, `FormatAmount()`, `GetDecimalPlaces()`
 
-1. Update order list API to return store currency totals
-2. Update order detail to show both currencies
-3. Update TypeScript DTOs
+#### 1.2 Fix InvoiceForEditDto Hardcoded Currency
+- [ ] Update `GetInvoiceForEditAsync()` in `InvoiceService.cs`
+- [ ] Change `CurrencyCode` from hardcoded `"GBP"` to `_settings.StoreCurrencyCode`
+- [ ] Change `CurrencySymbol` from hardcoded `"£"` to `_settings.CurrencySymbol`
+- [ ] Verify in admin UI that correct currency displays
 
-### Phase 4: Future Enhancements (Not MVP)
+---
 
-- Multi-currency product pricing
-- Historical exchange rate reports
+### Phase 2: Data Model Changes
 
-### Phase 5: Exchange Rate Provider (Future)
+**Goal:** Add all currency-related fields to models and database.
 
-1. Create `IExchangeRateProvider` interface
-2. Create `ExchangeRateProviderManager` with single-active pattern
-3. Implement `ManualExchangeRateProvider` (built-in)
-4. Implement one API provider (e.g., `ExchangeRatesApiProvider`)
-5. Create rate caching service
-6. Create background refresh job
+#### 2.1 Update Invoice Model
+- [ ] Add to `Invoice.cs`:
+  ```csharp
+  public string CurrencyCode { get; set; } = "USD";
+  public string CurrencySymbol { get; set; } = "$";
+  public decimal? SubTotalInStoreCurrency { get; set; }
+  public decimal? TaxInStoreCurrency { get; set; }
+  public decimal? TotalInStoreCurrency { get; set; }
+  public decimal? ExchangeRate { get; set; }
+  ```
 
-### Phase 6: Frontend Currency Display (Future, Optional)
+#### 2.2 Update Payment Model
+- [ ] Add to `Payment.cs`:
+  ```csharp
+  public string CurrencyCode { get; set; } = "USD";
+  public decimal? ExchangeRate { get; set; }
+  public decimal? AmountInStoreCurrency { get; set; }
+  public string? ExchangeRateSource { get; set; }
+  ```
 
-1. Add `CurrencyDisplaySettings` to `MerchelloSettings` (all disabled by default)
-2. Create `ICurrencyConversionService` (only active when enabled)
-3. Add currency detection (geo-IP/locale) - optional setting
-4. Update product API to return converted prices (when enabled)
-5. Add currency selector component (optional setting)
-6. Lock basket currency on first item add
+#### 2.3 Update LineItem Model
+- [ ] Add to `LineItem.cs`:
+  ```csharp
+  public decimal? AmountInStoreCurrency { get; set; }
+  ```
 
-**Note**: Simple stores leave all settings disabled → no complexity, just store currency.
+#### 2.4 Update PaymentResult Model
+- [ ] Add to `PaymentResult.cs`:
+  ```csharp
+  public decimal? ExchangeRate { get; init; }
+  public string? SettlementCurrency { get; init; }
+  public decimal? SettlementAmount { get; init; }
+  ```
+- [ ] Update factory methods if needed
+
+#### 2.5 Update Database Mappings
+- [ ] Update `InvoiceDbMapping.cs` - add all new columns with correct precision (18,2)
+- [ ] Update `PaymentDbMapping.cs` - add all new columns
+- [ ] Update `LineItemDbMapping.cs` (or equivalent) - add `AmountInStoreCurrency`
+
+#### 2.6 Create and Run Migration
+- [ ] Run `migrations.ps1` to generate migration for all providers
+- [ ] Test migration on dev database
+- [ ] Verify columns created correctly
+
+---
+
+### Phase 3: Invoice Creation Flow
+
+**Goal:** Capture currency when creating invoices from baskets.
+
+#### 3.1 Update CreateOrderFromBasketAsync
+- [ ] In `InvoiceService.CreateOrderFromBasketAsync()`:
+  - Copy `basket.Currency` to `invoice.CurrencyCode` (fallback to `_settings.StoreCurrencyCode`)
+  - Copy `basket.CurrencySymbol` to `invoice.CurrencySymbol` (fallback to `_settings.CurrencySymbol`)
+- [ ] If invoice currency equals store currency, leave `*InStoreCurrency` fields null
+
+#### 3.2 Update Invoice DTOs
+- [ ] Add currency fields to any invoice DTOs used by APIs
+- [ ] Update `InvoiceForEditDto` to read from invoice (not just settings)
+
+---
+
+### Phase 4: Payment Flow
+
+**Goal:** Capture exchange rate from payment providers and update invoice.
+
+#### 4.1 Update Stripe Provider
+- [ ] In `StripePaymentProvider.cs`, after successful payment:
+  - Extract `exchange_rate` from `BalanceTransaction`
+  - Extract settlement currency and amount
+  - Populate `PaymentResult.ExchangeRate`, `SettlementCurrency`, `SettlementAmount`
+- [ ] Update webhook handler to capture exchange rate from events
+
+#### 4.2 Update PaymentService
+- [ ] In `RecordPaymentAsync()`:
+  - Copy `PaymentResult.ExchangeRate` to `Payment.ExchangeRate`
+  - Set `Payment.CurrencyCode` from invoice
+  - Calculate `Payment.AmountInStoreCurrency` if exchange rate provided
+  - Set `Payment.ExchangeRateSource` (e.g., "stripe")
+
+#### 4.3 Create UpdateStoreCurrencyAmountsAsync Method
+- [ ] Add method to `InvoiceService`:
+  ```csharp
+  public async Task UpdateStoreCurrencyAmountsAsync(Invoice invoice, decimal exchangeRate)
+  ```
+- [ ] Calculate and set `SubTotalInStoreCurrency`, `TaxInStoreCurrency`, `TotalInStoreCurrency`
+- [ ] Sync all line items with `AmountInStoreCurrency`
+- [ ] Call this method after payment is recorded (if exchange rate provided)
+
+#### 4.4 Update Manual Payment Recording
+- [ ] For manual payments, allow optional exchange rate input
+- [ ] If no rate provided and currencies differ, leave store amounts null (or require rate)
+
+---
+
+### Phase 5: Order Edits & Refunds
+
+**Goal:** Ensure edits and refunds work correctly with multi-currency orders.
+
+#### 5.1 Update EditInvoiceAsync for Multi-Currency
+- [ ] All edit inputs (discounts, custom items) are in invoice currency
+- [ ] After applying edits, if `invoice.ExchangeRate` exists:
+  - Recalculate `*InStoreCurrency` totals
+  - Set `AmountInStoreCurrency` on new/modified line items
+- [ ] Add validation: if editing unpaid foreign currency order, warn that store amounts will be calculated at payment
+
+#### 5.2 Update Refund Flow
+- [ ] In refund creation:
+  - Use `invoice.CurrencyCode` for refund currency
+  - Use `invoice.ExchangeRate` for refund exchange rate (original rate)
+  - Calculate `AmountInStoreCurrency` using original rate
+- [ ] Ensure refund reporting uses store currency amounts
+
+---
+
+### Phase 6: Admin Display
+
+**Goal:** Show correct currencies in the admin UI.
+
+#### 6.1 Update Order List API
+- [ ] Return `TotalInStoreCurrency ?? Total` for list display
+- [ ] Always show store currency symbol in list view
+- [ ] Add `OriginalCurrencyCode` field if different from store currency
+
+#### 6.2 Update Order Detail API
+- [ ] Return both customer currency and store currency amounts
+- [ ] Return exchange rate used
+- [ ] Format: "£17.85 GBP — Paid $23.81 USD (rate: 0.749)"
+
+#### 6.3 Update TypeScript (per TypeScript Guidelines)
+
+**File structure:**
+```
+src/backoffice/
+├── orders/
+│   └── types/
+│       └── order.types.ts           # Add currency fields to existing types
+├── shared/
+│   ├── types/
+│   │   └── currency.types.ts        # NEW - Currency interfaces
+│   └── utils/
+│       └── currency-formatting.ts   # NEW - Format helpers
+```
+
+**Type definitions (interface over type per guidelines):**
+```typescript
+// shared/types/currency.types.ts
+export interface CurrencyAmount {
+  amount: decimal;
+  currencyCode: string;
+  currencySymbol: string;
+}
+
+export interface MultiCurrencyInvoice {
+  // Customer currency (what they paid)
+  total: decimal;
+  currencyCode: string;
+  currencySymbol: string;
+
+  // Store currency (for reporting)
+  totalInStoreCurrency?: decimal;
+  exchangeRate?: decimal;
+
+  // Helper
+  isMultiCurrency: boolean;  // true if currencyCode !== storeCurrencyCode
+}
+```
+
+**Update existing order types:**
+```typescript
+// orders/types/order.types.ts - extend existing interfaces
+export interface InvoiceListItem {
+  // ... existing fields ...
+  currencyCode: string;
+  totalInStoreCurrency?: decimal;
+  isMultiCurrency: boolean;
+}
+
+export interface InvoiceForEdit {
+  // ... existing fields ...
+  currencyCode: string;
+  currencySymbol: string;
+  exchangeRate?: decimal;
+  totalInStoreCurrency?: decimal;
+}
+```
+
+#### 6.4 Update Order List Component
+- [ ] Update `orders-list.element.ts` to display store currency
+- [ ] Show currency indicator for foreign currency orders
+- [ ] Use `currencySymbol` from store settings for list totals
+
+#### 6.5 Update Order Detail Component
+- [ ] Update `order-detail.element.ts` to show both currencies
+- [ ] Format: "£17.85 GBP — Paid $23.81 USD (rate: 0.749)"
+- [ ] Add helper `renderCurrencyAmount()` for consistent formatting
+
+#### 6.6 Update Order Edit UI
+- [ ] Show invoice currency prominently when editing
+- [ ] Input fields use invoice currency
+- [ ] Show store currency equivalent where helpful
+- [ ] Add currency indicator badge for multi-currency orders
+
+---
+
+### Phase 7: Testing & Seed Data
+
+**Goal:** Ensure everything works end-to-end.
+
+#### 7.1 Update Seed Data
+- [ ] Add test invoices with different currencies (GBP, EUR, JPY)
+- [ ] Include invoices with and without exchange rates
+- [ ] Include invoices with refunds in foreign currency
+
+#### 7.2 Manual Testing Checklist
+- [ ] Create basket in store currency → invoice correct
+- [ ] Create basket in foreign currency → invoice has currency fields
+- [ ] Pay invoice → exchange rate captured from Stripe
+- [ ] Edit paid foreign currency order → store amounts recalculate
+- [ ] Refund foreign currency order → uses original rate
+- [ ] Order list shows store currency
+- [ ] Order detail shows both currencies
+
+---
+
+### Phase 8: Exchange Rate Provider (Frankfurter)
+
+**Goal:** Enable fetching live exchange rates for display and conversion.
+
+#### 8.1 Provider Interface & Models
+- [ ] Create `src/Merchello.Core/ExchangeRates/Providers/IExchangeRateProvider.cs` interface
+- [ ] Create `ExchangeRateProviderMetadata` record
+- [ ] Create `ExchangeRateResult` record
+- [ ] Create `src/Merchello.Core/ExchangeRates/Models/ExchangeRateProviderSetting.cs` entity
+
+#### 8.2 Provider Manager
+- [ ] Create `src/Merchello.Core/ExchangeRates/Providers/ExchangeRateProviderManager.cs`
+- [ ] Implement single-active pattern (enabling one disables others)
+- [ ] Create `ExchangeRateProviderSettingDbMapping.cs`
+- [ ] Run migration for new table
+
+#### 8.3 Frankfurter Provider
+- [ ] Create `src/Merchello.Core/ExchangeRates/Providers/FrankfurterExchangeRateProvider.cs`
+- [ ] Implement `GetRatesAsync()` - fetch from `https://api.frankfurter.dev/v1/latest`
+- [ ] Implement `GetRateAsync()` - fetch specific pair
+- [ ] No configuration fields needed (no API key required)
+- [ ] Handle HTTP errors gracefully
+
+#### 8.4 Caching Service
+- [ ] Create `src/Merchello.Core/ExchangeRates/Services/IExchangeRateCache.cs` interface
+- [ ] Create `ExchangeRateCache.cs` implementation using `IMemoryCache`
+- [ ] Cache rates with configurable TTL (default 1 hour)
+- [ ] Store last successful rates in DB for fallback
+
+#### 8.5 Background Refresh Job
+- [ ] Create `src/Merchello.Core/ExchangeRates/Services/ExchangeRateRefreshJob.cs`
+- [ ] Implement `IHostedService` for periodic refresh
+- [ ] Configurable interval (default: hourly, matches Frankfurter's daily update)
+- [ ] Log warnings on fetch failures, continue using cached rates
+
+#### 8.6 Notifications (per Developer Guidelines)
+- [ ] Create `ExchangeRates/Notifications/ExchangeRatesRefreshedNotification.cs`
+- [ ] Create `ExchangeRates/Notifications/ExchangeRateFetchFailedNotification.cs`
+- [ ] Publish `ExchangeRatesRefreshedNotification` after successful fetch
+- [ ] Publish `ExchangeRateFetchFailedNotification` after failed fetch
+- [ ] Track consecutive failures in notification
+
+#### 8.7 Register Services
+- [ ] Register `IExchangeRateProvider` implementations in DI
+- [ ] Register `IExchangeRateProviderManager`
+- [ ] Register `IExchangeRateCache`
+- [ ] Register `ExchangeRateRefreshJob` as hosted service
+- [ ] Ensure providers auto-discovered via `ExtensionManager`
+
+---
+
+### Phase 9: Frontend Currency Display (Future, Optional)
+
+**Goal:** Allow customers to see prices in their currency.
+
+#### 9.1 Settings
+- [ ] Add `CurrencyDisplaySettings` to `MerchelloSettings`
+- [ ] All options disabled by default
+
+#### 9.2 Conversion Service
+- [ ] Create `ICurrencyConversionService`
+- [ ] Only active when `EnableMultiCurrency = true`
+- [ ] Use cached rates from exchange rate provider
+
+#### 9.3 Currency Detection
+- [ ] Implement geo-IP detection (when `AutoDetect = true`)
+- [ ] Browser locale fallback
+- [ ] Customer preference storage
+
+#### 9.4 Product API Updates
+- [ ] Return converted prices when multi-currency enabled
+- [ ] Include approximate indicator
+- [ ] Show original price alongside
+
+#### 9.5 Currency Selector
+- [ ] Create selector component (when `ShowSelector = true`)
+- [ ] Persist selection in session/cookie
+- [ ] Update basket on currency change
+
+#### 9.6 Basket Currency Locking
+- [ ] Lock currency on first add-to-cart
+- [ ] Convert prices if customer changes currency (don't clear basket)
+
+---
+
+**Note**: Phases 1-8 are MVP. Phase 9 is a future enhancement for stores that want customer-facing multi-currency display.
 
 ---
 
 ## 11. Key Files to Modify
 
-| File | Changes |
-|------|---------|
-| [Invoice.cs](../src/Merchello.Core/Accounting/Models/Invoice.cs) | Add currency + store currency fields |
-| [Payment.cs](../src/Merchello.Core/Accounting/Models/Payment.cs) | Add currency + exchange rate fields |
-| [InvoiceLineItem.cs](../src/Merchello.Core/Accounting/Models/InvoiceLineItem.cs) | Add AmountInStoreCurrency field |
-| [PaymentResult.cs](../src/Merchello.Core/Payments/Models/PaymentResult.cs) | Add ExchangeRate, SettlementCurrency, SettlementAmount fields |
-| [InvoiceDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/InvoiceDbMapping.cs) | Map new columns |
-| [PaymentDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/PaymentDbMapping.cs) | Map new columns |
-| InvoiceLineItemDbMapping.cs | Map AmountInStoreCurrency |
-| [InvoiceService.cs](../src/Merchello.Core/Accounting/Services/InvoiceService.cs) | Copy currency, calculate store amounts, sync line items |
-| [PaymentService.cs](../src/Merchello.Core/Payments/Services/PaymentService.cs) | Capture exchange rate |
-| [StripePaymentProvider.cs](../src/Merchello.PaymentProviders/Stripe/StripePaymentProvider.cs) | Return exchange rate info |
+### Feature Folder Structure (per Developer Guidelines)
+
+```
+src/Merchello.Core/
+├── Shared/
+│   └── Services/
+│       ├── ICurrencyService.cs          # Phase 1
+│       └── CurrencyService.cs           # Phase 1
+│
+├── ExchangeRates/                       # Phase 8 - New feature folder
+│   ├── Models/
+│   │   ├── ExchangeRateProviderSetting.cs
+│   │   ├── ExchangeRateProviderMetadata.cs
+│   │   └── ExchangeRateResult.cs
+│   ├── Mapping/
+│   │   └── ExchangeRateProviderSettingDbMapping.cs
+│   ├── Providers/
+│   │   ├── IExchangeRateProvider.cs
+│   │   ├── ExchangeRateProviderManager.cs
+│   │   └── FrankfurterExchangeRateProvider.cs
+│   ├── Services/
+│   │   ├── IExchangeRateCache.cs
+│   │   ├── ExchangeRateCache.cs
+│   │   └── ExchangeRateRefreshJob.cs
+│   └── Notifications/
+│       ├── ExchangeRatesRefreshedNotification.cs
+│       └── ExchangeRateFetchFailedNotification.cs
+```
+
+### Files by Phase
+
+| File | Changes | Phase |
+|------|---------|-------|
+| `Shared/Services/ICurrencyService.cs` | **NEW** - Currency metadata interface | 1 |
+| `Shared/Services/CurrencyService.cs` | **NEW** - Implementation with decimal places | 1 |
+| [InvoiceService.cs](../src/Merchello.Core/Accounting/Services/InvoiceService.cs) | Fix hardcoded GBP in GetInvoiceForEditAsync | 1 |
+| [Invoice.cs](../src/Merchello.Core/Accounting/Models/Invoice.cs) | Add currency + store currency fields | 2 |
+| [Payment.cs](../src/Merchello.Core/Accounting/Models/Payment.cs) | Add currency + exchange rate fields | 2 |
+| [LineItem.cs](../src/Merchello.Core/Accounting/Models/LineItem.cs) | Add AmountInStoreCurrency field | 2 |
+| [PaymentResult.cs](../src/Merchello.Core/Payments/Models/PaymentResult.cs) | Add ExchangeRate, SettlementCurrency, SettlementAmount | 2 |
+| [InvoiceDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/InvoiceDbMapping.cs) | Map new columns | 2 |
+| [PaymentDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/PaymentDbMapping.cs) | Map new columns | 2 |
+| [LineItemDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/LineItemDbMapping.cs) | Map AmountInStoreCurrency | 2 |
+| [InvoiceService.cs](../src/Merchello.Core/Accounting/Services/InvoiceService.cs) | Copy currency from basket, UpdateStoreCurrencyAmountsAsync | 3-5 |
+| [PaymentService.cs](../src/Merchello.Core/Payments/Services/PaymentService.cs) | Capture exchange rate, update invoice | 4 |
+| [StripePaymentProvider.cs](../src/Merchello.PaymentProviders/Stripe/StripePaymentProvider.cs) | Return exchange rate from BalanceTransaction | 4 |
+| `ExchangeRates/Models/*.cs` | **NEW** - All model records in separate files | 8 |
+| `ExchangeRates/Providers/IExchangeRateProvider.cs` | **NEW** - Provider interface | 8 |
+| `ExchangeRates/Providers/ExchangeRateProviderManager.cs` | **NEW** - Provider manager | 8 |
+| `ExchangeRates/Providers/FrankfurterExchangeRateProvider.cs` | **NEW** - Frankfurter implementation | 8 |
+| `ExchangeRates/Mapping/ExchangeRateProviderSettingDbMapping.cs` | **NEW** - DB mapping | 8 |
+| `ExchangeRates/Services/IExchangeRateCache.cs` | **NEW** - Cache interface | 8 |
+| `ExchangeRates/Services/ExchangeRateCache.cs` | **NEW** - Cache implementation | 8 |
+| `ExchangeRates/Services/ExchangeRateRefreshJob.cs` | **NEW** - Background refresh | 8 |
+| `ExchangeRates/Notifications/*.cs` | **NEW** - Notification classes | 8 |
 
 ---
 
 ## 12. Estimated Effort
 
-| Phase | Effort | Dependency |
-|-------|--------|------------|
-| Phase 1: Data Model | 1 day | None |
-| Phase 2: Payment Flow | 2 days | Phase 1 |
-| Phase 3: Admin Display | 1-2 days | Phase 2 |
-| **Total MVP** | **4-5 days** | |
+| Phase | Description | Effort | Dependency |
+|-------|-------------|--------|------------|
+| Phase 1 | Foundation & Fixes | 0.5 day | None |
+| Phase 2 | Data Model Changes | 0.5 day | Phase 1 |
+| Phase 3 | Invoice Creation Flow | 0.5 day | Phase 2 |
+| Phase 4 | Payment Flow | 1 day | Phase 3 |
+| Phase 5 | Order Edits & Refunds | 1 day | Phase 4 |
+| Phase 6 | Admin Display | 1 day | Phase 5 |
+| Phase 7 | Testing & Seed Data | 0.5 day | Phase 6 |
+| Phase 8 | Exchange Rate Provider (Frankfurter) | 1.5 days | Phase 1 (can parallel) |
+| **Total MVP (Phases 1-8)** | | **6-7 days** | |
+| Phase 9 | Frontend Currency Display | 2-3 days | Phase 8 |
+
+**Note:** Phase 8 can be developed in parallel with Phases 2-7 since it only depends on Phase 1 (ICurrencyService).
 
 ---
 
@@ -807,6 +1372,15 @@ var refund = new Payment
 - [x] ~~Confirm payment providers support exchange rate data~~ (Done - Stripe, PayPal, Braintree, Worldpay all confirmed)
 - [x] ~~Clarify basket currency change behavior~~ (Done - convert prices, not clear basket)
 - [x] ~~Clarify line item store currency tracking~~ (Done - sync all line items with invoice)
-- [ ] Update seed data to include multi-currency items so we can test in the admin
-- [ ] Begin Phase 1 implementation
+- [x] ~~Add ICurrencyService for decimal places handling~~ (Done - see section 3.5)
+- [x] ~~Document InvoiceForEditDto hardcoded GBP fix~~ (Done - see section 3.6)
+- [x] ~~Restructure phases into manageable tasks~~ (Done - see section 10)
+- [x] ~~Add Frankfurter as default exchange rate provider~~ (Done - see section 6.5, 6.6)
+- [x] ~~Align with Developer Guidelines~~ (Done - feature folders, notifications, models in separate files)
+- [x] ~~Align with TypeScript Guidelines~~ (Done - interface over type, file naming conventions)
+- [ ] Begin Phase 1: Foundation & Fixes
+  - [ ] Create ICurrencyService
+  - [ ] Fix InvoiceForEditDto hardcoded currency
+- [ ] Phase 8 can start in parallel after Phase 1 completes
+- [ ] Continue through remaining phases sequentially
 

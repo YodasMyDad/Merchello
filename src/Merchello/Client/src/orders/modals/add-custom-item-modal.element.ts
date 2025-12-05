@@ -137,9 +137,8 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
 
           <div class="form-row">
             <label for="tax-group">Tax</label>
-            <select
+            <uui-select
               id="tax-group"
-              class="tax-select"
               .value=${this._selectedTaxGroupId ?? ""}
               @change=${this._handleTaxGroupChange}
             >
@@ -151,7 +150,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
                   </option>
                 `
               )}
-            </select>
+            </uui-select>
             ${this._selectedTaxGroupId ? html`
               <span class="tax-info">Tax: ${currencySymbol}${taxAmount.toFixed(2)} at ${selectedTaxRate}%</span>
             ` : nothing}
@@ -249,20 +248,8 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
       border-radius: 0 var(--uui-border-radius) var(--uui-border-radius) 0;
     }
 
-    .tax-select {
+    uui-select {
       width: 100%;
-      padding: var(--uui-size-space-2) var(--uui-size-space-3);
-      border: 1px solid var(--uui-color-border);
-      border-radius: var(--uui-border-radius);
-      background: var(--uui-color-surface);
-      font-size: 0.875rem;
-      color: var(--uui-color-text);
-      cursor: pointer;
-    }
-
-    .tax-select:focus {
-      outline: none;
-      border-color: var(--uui-color-interactive);
     }
 
     .tax-info {

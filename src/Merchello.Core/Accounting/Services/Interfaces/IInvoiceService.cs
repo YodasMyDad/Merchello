@@ -128,5 +128,15 @@ public interface IInvoiceService
         Guid? authorId,
         string? authorName,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Preview the calculated totals for proposed invoice changes without persisting.
+    /// This is the single source of truth for all invoice calculations.
+    /// Frontend should call this instead of calculating locally.
+    /// </summary>
+    Task<PreviewEditResultDto?> PreviewInvoiceEditAsync(
+        Guid invoiceId,
+        EditInvoiceRequestDto request,
+        CancellationToken cancellationToken = default);
 }
 

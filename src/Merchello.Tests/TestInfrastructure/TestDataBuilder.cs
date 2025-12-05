@@ -1,3 +1,4 @@
+using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
@@ -278,7 +279,9 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
         Product? product = null,
         string name = "Test Item",
         int quantity = 1,
-        decimal amount = 10m)
+        decimal amount = 10m,
+        bool isTaxable = true,
+        decimal taxRate = 20m)
     {
         var lineItem = new LineItem
         {
@@ -288,13 +291,91 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             Name = name,
             Quantity = quantity,
             Amount = amount,
-            Sku = product?.Sku ?? "LINE-SKU"
+            Sku = product?.Sku ?? $"LINE-{Guid.NewGuid():N}"[..12],
+            LineItemType = LineItemType.Product,
+            IsTaxable = isTaxable,
+            TaxRate = taxRate
         };
 
         dbContext.LineItems.Add(lineItem);
         order.LineItems ??= [];
         order.LineItems.Add(lineItem);
         return lineItem;
+    }
+
+    /// <summary>
+    /// Creates a discount LineItem linked to a product line item
+    /// </summary>
+    public LineItem CreateDiscountLineItem(
+        Order order,
+        LineItem parentLineItem,
+        decimal discountAmount,
+        DiscountType discountType = DiscountType.Amount,
+        decimal? discountValue = null,
+        string? reason = null,
+        bool visibleToCustomer = false)
+    {
+        var discountLineItem = new LineItem
+        {
+            OrderId = order.Id,
+            Order = order,
+            Name = reason ?? "Discount",
+            Sku = $"DISCOUNT-{Guid.NewGuid():N}"[..12],
+            Quantity = 1,
+            Amount = -Math.Abs(discountAmount), // Store as negative
+            LineItemType = LineItemType.Discount,
+            DependantLineItemSku = parentLineItem.Sku,
+            IsTaxable = false,
+            TaxRate = 0,
+            ExtendedData = new Dictionary<string, object>
+            {
+                ["DiscountType"] = discountType.ToString(),
+                ["DiscountValue"] = discountValue ?? discountAmount,
+                ["VisibleToCustomer"] = visibleToCustomer
+            }
+        };
+
+        dbContext.LineItems.Add(discountLineItem);
+        order.LineItems ??= [];
+        order.LineItems.Add(discountLineItem);
+        return discountLineItem;
+    }
+
+    /// <summary>
+    /// Creates an order-level (unlinked) discount LineItem
+    /// </summary>
+    public LineItem CreateOrderLevelDiscount(
+        Order order,
+        decimal discountAmount,
+        DiscountType discountType = DiscountType.Amount,
+        decimal? discountValue = null,
+        string? name = null,
+        bool visibleToCustomer = false)
+    {
+        var discountLineItem = new LineItem
+        {
+            OrderId = order.Id,
+            Order = order,
+            Name = name ?? "Order Discount",
+            Sku = $"COUPON-{Guid.NewGuid():N}"[..12],
+            Quantity = 1,
+            Amount = -Math.Abs(discountAmount), // Store as negative
+            LineItemType = LineItemType.Discount,
+            DependantLineItemSku = null, // Not linked to any specific product
+            IsTaxable = false,
+            TaxRate = 0,
+            ExtendedData = new Dictionary<string, object>
+            {
+                ["DiscountType"] = discountType.ToString(),
+                ["DiscountValue"] = discountValue ?? discountAmount,
+                ["VisibleToCustomer"] = visibleToCustomer
+            }
+        };
+
+        dbContext.LineItems.Add(discountLineItem);
+        order.LineItems ??= [];
+        order.LineItems.Add(discountLineItem);
+        return discountLineItem;
     }
 
     /// <summary>

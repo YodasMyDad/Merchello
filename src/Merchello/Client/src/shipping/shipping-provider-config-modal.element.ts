@@ -21,9 +21,17 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
 
+  #isConnected = false;
+
   connectedCallback(): void {
     super.connectedCallback();
+    this.#isConnected = true;
     this._loadFields();
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#isConnected = false;
   }
 
   private async _loadFields(): Promise<void> {
@@ -45,6 +53,9 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
 
     // Load configuration fields
     const { data, error } = await MerchelloApi.getShippingProviderFields(provider.key);
+
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
 
     if (error) {
       this._errorMessage = error.message;
@@ -100,6 +111,9 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
           configuration: this._values,
         });
 
+        // Prevent state updates if component was disconnected during async operation
+        if (!this.#isConnected) return;
+
         if (error) {
           this._errorMessage = error.message;
           this._isSaving = false;
@@ -114,6 +128,9 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
           configuration: this._values,
         });
 
+        // Prevent state updates if component was disconnected during async operation
+        if (!this.#isConnected) return;
+
         if (error) {
           this._errorMessage = error.message;
           this._isSaving = false;
@@ -125,6 +142,8 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
       this.value = { saved: true };
       this.modalContext?.submit();
     } catch (err) {
+      // Prevent state updates if component was disconnected during async operation
+      if (!this.#isConnected) return;
       this._errorMessage = err instanceof Error ? err.message : "Failed to save configuration";
       this._isSaving = false;
     }

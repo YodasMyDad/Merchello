@@ -109,6 +109,8 @@ export interface OrderDetailDto {
   dateCreated: string;
   channel: string;
   subTotal: number;
+  /** Total discount amount (always positive) */
+  discountTotal: number;
   shippingCost: number;
   tax: number;
   total: number;
@@ -361,6 +363,8 @@ export interface InvoiceForEditDto {
   currencySymbol: string;
   currencyCode: string;
   orders: OrderForEditDto[];
+  /** Order-level discounts (coupons, etc.) - can be viewed and removed */
+  orderDiscounts: DiscountLineItemDto[];
   /** Subtotal before discounts (products + custom items) */
   subTotal: number;
   /** Total discount amount (always positive) */
@@ -409,7 +413,12 @@ export interface LineItemForEditDto {
 export interface DiscountLineItemDto {
   id: string;
   name: string | null;
+  /** The calculated discount amount (always positive) */
   amount: number;
+  /** The original discount type (Amount or Percentage) */
+  type: DiscountType;
+  /** The original discount value (e.g., 10 for £10 off or 10%) */
+  value: number;
   reason: string | null;
   visibleToCustomer: boolean;
 }
@@ -418,6 +427,8 @@ export interface DiscountLineItemDto {
 export interface EditInvoiceRequestDto {
   lineItems: EditLineItemDto[];
   removedLineItems: RemoveLineItemDto[];
+  /** IDs of order-level discounts to remove (coupons, etc.) */
+  removedOrderDiscounts: string[];
   customItems: AddCustomItemDto[];
   orderShippingUpdates: OrderShippingUpdateDto[];
   editReason: string | null;
@@ -480,4 +491,43 @@ export interface EditInvoiceResultDto {
   errorMessage: string | null;
   /** Warning messages (stock issues, etc.) - edit succeeded but user should be notified */
   warnings: string[];
+}
+
+// ============================================
+// Preview Edit Types (Single Source of Truth)
+// ============================================
+
+/**
+ * Result of previewing invoice edit calculations.
+ * All calculations are performed server-side - this is the single source of truth.
+ */
+export interface PreviewEditResultDto {
+  /** Subtotal before discounts (products + custom items) */
+  subTotal: number;
+  /** Total discount amount (always positive) */
+  discountTotal: number;
+  /** Subtotal after discounts (SubTotal - DiscountTotal) */
+  adjustedSubTotal: number;
+  /** Total shipping cost across all orders */
+  shippingTotal: number;
+  /** Tax amount calculated on discounted amounts */
+  tax: number;
+  /** Grand total (AdjustedSubTotal + Tax + ShippingTotal) */
+  total: number;
+  /** Per-line-item calculated totals for display */
+  lineItems: LineItemPreviewDto[];
+  /** Validation warnings (e.g., discount exceeds item value) */
+  warnings: string[];
+}
+
+/** Calculated values for a single line item */
+export interface LineItemPreviewDto {
+  /** Line item ID */
+  id: string;
+  /** Calculated total for this line item (amount * quantity - discount) */
+  calculatedTotal: number;
+  /** Calculated discount amount for this line item */
+  discountAmount: number;
+  /** Tax amount for this line item */
+  taxAmount: number;
 }

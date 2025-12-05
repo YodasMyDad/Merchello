@@ -19,6 +19,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
 
   #workspaceContext?: MerchelloOrderDetailWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
+  #isConnected = false;
 
   constructor() {
     super();
@@ -36,6 +37,16 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     });
   }
 
+  connectedCallback(): void {
+    super.connectedCallback();
+    this.#isConnected = true;
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#isConnected = false;
+  }
+
   private async _loadShipments(): Promise<void> {
     if (!this._invoiceId) return;
 
@@ -43,6 +54,9 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     this._errorMessage = null;
 
     const { data, error } = await MerchelloApi.getFulfillmentSummary(this._invoiceId);
+
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
 
     if (error) {
       this._errorMessage = error.message;
@@ -73,6 +87,9 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     if (!confirmed) return;
 
     const { error } = await MerchelloApi.deleteShipment(shipment.id);
+
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
 
     if (error) {
       alert(error.message);
@@ -325,18 +342,18 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     }
 
     .status-badge.fulfilled {
-      background: #d4edda;
-      color: #155724;
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
     }
 
     .status-badge.partial {
-      background: #fff3cd;
-      color: #856404;
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
     }
 
     .status-badge.unfulfilled {
-      background: #f8d7da;
-      color: #721c24;
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
     }
 
     .count {

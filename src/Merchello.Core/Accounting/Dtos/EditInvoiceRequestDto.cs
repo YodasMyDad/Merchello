@@ -16,6 +16,11 @@ public class EditInvoiceRequestDto
     public List<RemoveLineItemDto> RemovedLineItems { get; set; } = [];
 
     /// <summary>
+    /// IDs of order-level discounts to remove (coupons, etc.)
+    /// </summary>
+    public List<Guid> RemovedOrderDiscounts { get; set; } = [];
+
+    /// <summary>
     /// Custom items to add
     /// </summary>
     public List<AddCustomItemDto> CustomItems { get; set; } = [];

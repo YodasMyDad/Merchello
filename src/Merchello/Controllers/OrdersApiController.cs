@@ -293,6 +293,26 @@ public class OrdersApiController(
     }
 
     /// <summary>
+    /// Preview calculated totals for proposed invoice changes without persisting.
+    /// This is the single source of truth for all invoice calculations.
+    /// Frontend should call this instead of calculating locally.
+    /// </summary>
+    [HttpPost("orders/{invoiceId:guid}/preview-edit")]
+    [ProducesResponseType<PreviewEditResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> PreviewEditInvoice(Guid invoiceId, [FromBody] EditInvoiceRequestDto request)
+    {
+        var result = await invoiceService.PreviewInvoiceEditAsync(invoiceId, request);
+
+        if (result == null)
+        {
+            return NotFound("Invoice not found");
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Edit an invoice (update quantities, apply discounts, add custom items, etc.)
     /// </summary>
     [HttpPut("orders/{invoiceId:guid}/edit")]
@@ -388,6 +408,12 @@ public class OrdersApiController(
         var paymentDetails = paymentService.CalculatePaymentStatus(payments, invoice.Total);
         var shippingCost = orders.Sum(o => o.ShippingCost);
 
+        // Calculate discount total from discount line items
+        var discountTotal = orders
+            .SelectMany(o => o.LineItems ?? [])
+            .Where(li => li.LineItemType == LineItemType.Discount)
+            .Sum(li => Math.Abs(li.Amount));
+
         return new OrderDetailDto
         {
             Id = invoice.Id,
@@ -395,6 +421,7 @@ public class OrdersApiController(
             DateCreated = invoice.DateCreated,
             Channel = invoice.Channel,
             SubTotal = invoice.SubTotal,
+            DiscountTotal = discountTotal,
             ShippingCost = shippingCost,
             Tax = invoice.Tax,
             Total = invoice.Total,

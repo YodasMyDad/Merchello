@@ -22,9 +22,17 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
   @state()
   private _isLoading = true;
 
+  #isConnected = false;
+
   connectedCallback(): void {
     super.connectedCallback();
+    this.#isConnected = true;
     this._loadData();
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#isConnected = false;
   }
 
   private async _loadData(): Promise<void> {
@@ -35,6 +43,9 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
       MerchelloApi.getDashboardStats(),
       MerchelloApi.getOrders({ pageSize: 15, sortBy: "date", sortDir: "desc" }),
     ]);
+
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
 
     if (statsResult.data) {
       this._stats = statsResult.data;
@@ -225,28 +236,28 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
       }
 
       .badge.paid {
-        background: #d4edda;
-        color: #155724;
+        background: var(--uui-color-positive-standalone);
+        color: var(--uui-color-positive-contrast);
       }
 
       .badge.unpaid {
-        background: #fff3cd;
-        color: #856404;
+        background: var(--uui-color-warning-standalone);
+        color: var(--uui-color-warning-contrast);
       }
 
       .badge.fulfilled {
-        background: #d4edda;
-        color: #155724;
+        background: var(--uui-color-positive-standalone);
+        color: var(--uui-color-positive-contrast);
       }
 
       .badge.unfulfilled {
-        background: #1b264f;
-        color: #ffffff;
+        background: var(--uui-color-default-standalone);
+        color: var(--uui-color-default-contrast);
       }
 
       .badge.partial {
-        background: #cce5ff;
-        color: #004085;
+        background: var(--uui-color-warning-standalone);
+        color: var(--uui-color-warning-contrast);
       }
 
       uui-table-cell a {

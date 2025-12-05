@@ -47,9 +47,17 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
   @state() private _expandedOrders: Set<string> = new Set();
   @state() private _existingShipmentsExpanded: boolean = false;
 
+  #isConnected = false;
+
   connectedCallback(): void {
     super.connectedCallback();
+    this.#isConnected = true;
     this._loadFulfillmentSummary();
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#isConnected = false;
   }
 
   private async _loadFulfillmentSummary(): Promise<void> {
@@ -57,6 +65,9 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
     this._errorMessage = null;
 
     const { data, error } = await MerchelloApi.getFulfillmentSummary(this.data!.invoiceId);
+
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
 
     if (error) {
       this._errorMessage = error.message;
@@ -241,6 +252,9 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
     const errors: string[] = [];
 
     for (const order of ordersToShip) {
+      // Check connection status before each iteration
+      if (!this.#isConnected) return;
+
       const trackingInfo = this._orderTrackingInfo.get(order.orderId);
       const orderSelections = this._selectedItems.get(order.orderId);
 
@@ -268,6 +282,9 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
       }
     }
 
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
+
     this._isCreating = false;
     this._shipmentsCreated += successCount;
 
@@ -285,6 +302,9 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
     }
 
     const { error } = await MerchelloApi.deleteShipment(shipmentId);
+
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
 
     if (error) {
       this._errorMessage = error.message;
@@ -694,18 +714,18 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
     }
 
     .status-badge.unfulfilled {
-      background: #fff3cd;
-      color: #856404;
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
     }
 
     .status-badge.partial {
-      background: #cce5ff;
-      color: #004085;
+      background: var(--uui-color-default-standalone);
+      color: var(--uui-color-default-contrast);
     }
 
     .status-badge.fulfilled {
-      background: #d4edda;
-      color: #155724;
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
     }
 
     .shipments-to-create h3 {

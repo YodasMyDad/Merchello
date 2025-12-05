@@ -16,6 +16,10 @@ public class OrderDetailDto
 
     // Financial
     public decimal SubTotal { get; set; }
+    /// <summary>
+    /// Total discount amount (always positive)
+    /// </summary>
+    public decimal DiscountTotal { get; set; }
     public decimal ShippingCost { get; set; }
     public decimal Tax { get; set; }
     public decimal Total { get; set; }

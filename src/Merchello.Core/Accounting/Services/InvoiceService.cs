@@ -1719,13 +1719,62 @@ public class InvoiceService(
             // Calculate totals breakdown
             var allLineItems = orders.SelectMany(o => o.LineItems ?? []).ToList();
             var productItems = allLineItems.Where(li =>
-                li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom);
+                li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom).ToList();
             var subTotal = productItems.Sum(li => li.Amount * li.Quantity);
 
-            var discountItems = allLineItems.Where(li => li.LineItemType == LineItemType.Discount);
-            var discountTotal = Math.Abs(discountItems.Sum(li => li.Amount));
+            var discountItems = allLineItems.Where(li => li.LineItemType == LineItemType.Discount).ToList();
+            // Cap discount total to subtotal to prevent negative adjusted subtotal
+            var rawDiscountTotal = Math.Abs(discountItems.Sum(li => li.Amount));
+            var discountTotal = Math.Min(rawDiscountTotal, subTotal);
 
+            var adjustedSubTotal = Math.Max(0, subTotal - discountTotal);
             var shippingTotal = orders.Sum(o => o.ShippingCost);
+
+            // Extract order-level discounts (not linked to any specific line item)
+            // These are discounts where DependantLineItemSku is null/empty or doesn't match any product SKU
+            var productSkus = productItems.Select(p => p.Sku).Where(s => !string.IsNullOrEmpty(s)).ToHashSet();
+            var orderLevelDiscounts = discountItems
+                .Where(d => string.IsNullOrEmpty(d.DependantLineItemSku) ||
+                            !productSkus.Contains(d.DependantLineItemSku))
+                .Select(MapDiscountLineItem)
+                .ToList();
+
+            // Recalculate tax dynamically from line items (same logic as RecalculateInvoiceTotals)
+            var linkedDiscounts = discountItems.Where(d => !string.IsNullOrEmpty(d.DependantLineItemSku)).ToList();
+            var unlinkedDiscountTotal = discountItems
+                .Where(d => string.IsNullOrEmpty(d.DependantLineItemSku))
+                .Sum(d => d.Amount); // Already negative
+
+            var taxableItems = allLineItems.Where(li =>
+                li.IsTaxable && li.LineItemType != LineItemType.Discount).ToList();
+            var totalTaxableAmount = taxableItems.Sum(li =>
+                Math.Round(li.Amount * li.Quantity, 2, _settings.DefaultRounding));
+
+            decimal tax = 0;
+            foreach (var lineItem in taxableItems)
+            {
+                var itemTotal = Math.Round(lineItem.Amount * lineItem.Quantity, 2, _settings.DefaultRounding);
+
+                // Find any linked discount applied specifically to this line item
+                var lineItemDiscount = linkedDiscounts
+                    .Where(d => d.DependantLineItemSku == lineItem.Sku)
+                    .Sum(d => d.Amount); // Already negative
+
+                // Pro-rate unlinked discounts across taxable items
+                var proRatedUnlinkedDiscount = 0m;
+                if (unlinkedDiscountTotal < 0 && totalTaxableAmount > 0)
+                {
+                    var proportion = itemTotal / totalTaxableAmount;
+                    proRatedUnlinkedDiscount = Math.Round(unlinkedDiscountTotal * proportion, 2, _settings.DefaultRounding);
+                }
+
+                // Calculate tax on discounted amount
+                var taxableAmount = Math.Round(itemTotal + lineItemDiscount + proRatedUnlinkedDiscount, 2, _settings.DefaultRounding);
+                taxableAmount = Math.Max(0, taxableAmount); // Ensure non-negative
+                tax += Math.Round(taxableAmount * (lineItem.TaxRate / 100m), 2, _settings.DefaultRounding);
+            }
+
+            var total = adjustedSubTotal + tax + shippingTotal;
 
             return new InvoiceForEditDto
             {
@@ -1737,16 +1786,296 @@ public class InvoiceService(
                 CurrencySymbol = _settings.CurrencySymbol,
                 CurrencyCode = _settings.StoreCurrencyCode,
                 Orders = orders.Select(o => MapOrderForEdit(o, shippingOptionNames, stockInfoMap)).ToList(),
+                OrderDiscounts = orderLevelDiscounts,
                 SubTotal = subTotal,
                 DiscountTotal = discountTotal,
-                AdjustedSubTotal = subTotal - discountTotal,
+                AdjustedSubTotal = adjustedSubTotal,
                 ShippingTotal = shippingTotal,
-                Tax = invoice.Tax,
-                Total = invoice.Total
+                Tax = tax,
+                Total = total
             };
         });
         scope.Complete();
         return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<PreviewEditResultDto?> PreviewInvoiceEditAsync(
+        Guid invoiceId,
+        EditInvoiceRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var invoice = await db.Invoices
+                .Include(i => i.Orders)!
+                .ThenInclude(o => o.LineItems)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(i => i.Id == invoiceId && !i.IsDeleted, cancellationToken);
+
+            if (invoice == null) return null;
+
+            var orders = invoice.Orders?.ToList() ?? [];
+            var warnings = new List<string>();
+
+            // Get tax groups for custom items
+            var taxGroupIds = request.CustomItems
+                .Where(c => c.TaxGroupId.HasValue)
+                .Select(c => c.TaxGroupId!.Value)
+                .Distinct()
+                .ToList();
+
+            var taxGroups = await db.TaxGroups
+                .Where(tg => taxGroupIds.Contains(tg.Id))
+                .ToDictionaryAsync(tg => tg.Id, tg => tg.TaxPercentage, cancellationToken);
+
+            // Build virtual line items representing the proposed state
+            var virtualLineItems = new List<VirtualLineItem>();
+
+            // Process existing line items
+            foreach (var order in orders)
+            {
+                foreach (var lineItem in order.LineItems ?? [])
+                {
+                    // Skip discount line items - we'll calculate discounts separately
+                    if (lineItem.LineItemType == LineItemType.Discount) continue;
+
+                    // Check if item is being removed
+                    var isRemoved = request.RemovedLineItems.Any(r => r.Id == lineItem.Id);
+                    if (isRemoved) continue;
+
+                    // Check for quantity/discount updates
+                    var editItem = request.LineItems.FirstOrDefault(e => e.Id == lineItem.Id);
+                    var quantity = editItem?.Quantity ?? lineItem.Quantity;
+                    var discount = editItem?.Discount;
+
+                    // Check if there's an existing discount on this line item
+                    var existingDiscount = orders
+                        .SelectMany(o => o.LineItems ?? [])
+                        .FirstOrDefault(li =>
+                            li.LineItemType == LineItemType.Discount &&
+                            li.DependantLineItemSku == lineItem.Sku);
+
+                    // Use new discount if provided, otherwise use existing
+                    LineItemDiscountDto? effectiveDiscount = discount;
+                    if (effectiveDiscount == null && existingDiscount != null)
+                    {
+                        // Convert existing discount to DTO format
+                        var discountTypeStr = existingDiscount.ExtendedData?.GetValueOrDefault("DiscountType")?.ToString();
+                        var discountValueRaw = existingDiscount.ExtendedData?.GetValueOrDefault("DiscountValue");
+
+                        // Handle JsonElement conversion (EF Core stores Dictionary<string, object> as JSON)
+                        decimal discountValue;
+                        if (discountValueRaw is System.Text.Json.JsonElement jsonElement)
+                        {
+                            discountValue = jsonElement.GetDecimal();
+                        }
+                        else if (discountValueRaw != null)
+                        {
+                            discountValue = Convert.ToDecimal(discountValueRaw);
+                        }
+                        else
+                        {
+                            discountValue = Math.Abs(existingDiscount.Amount);
+                        }
+
+                        effectiveDiscount = new LineItemDiscountDto
+                        {
+                            Type = discountTypeStr == "Percentage" ? DiscountType.Percentage : DiscountType.Amount,
+                            Value = discountValue
+                        };
+                    }
+
+                    virtualLineItems.Add(new VirtualLineItem
+                    {
+                        Id = lineItem.Id,
+                        Amount = lineItem.Amount,
+                        Quantity = quantity,
+                        IsTaxable = lineItem.IsTaxable,
+                        TaxRate = lineItem.TaxRate,
+                        Discount = effectiveDiscount
+                    });
+                }
+            }
+
+            // Add custom items
+            foreach (var customItem in request.CustomItems)
+            {
+                var taxRate = customItem.TaxGroupId.HasValue && taxGroups.TryGetValue(customItem.TaxGroupId.Value, out var rate)
+                    ? rate
+                    : 0m;
+
+                virtualLineItems.Add(new VirtualLineItem
+                {
+                    Id = Guid.NewGuid(),
+                    Amount = customItem.Price,
+                    Quantity = customItem.Quantity,
+                    IsTaxable = customItem.TaxGroupId.HasValue,
+                    TaxRate = taxRate,
+                    Discount = null
+                });
+            }
+
+            // Calculate order discounts (coupons, etc.) - excluding removed ones
+            var orderDiscountTotal = 0m;
+            foreach (var order in orders)
+            {
+                var orderDiscounts = (order.LineItems ?? [])
+                    .Where(li =>
+                        li.LineItemType == LineItemType.Discount &&
+                        string.IsNullOrEmpty(li.DependantLineItemSku) &&
+                        !request.RemovedOrderDiscounts.Contains(li.Id))
+                    .ToList();
+
+                orderDiscountTotal += Math.Abs(orderDiscounts.Sum(d => d.Amount));
+            }
+
+            // Calculate shipping total
+            var shippingTotal = 0m;
+            foreach (var order in orders)
+            {
+                var shippingUpdate = request.OrderShippingUpdates.FirstOrDefault(u => u.OrderId == order.Id);
+                shippingTotal += shippingUpdate?.ShippingCost ?? order.ShippingCost;
+            }
+
+            // Calculate subtotal and line item discounts
+            var subTotal = 0m;
+            var lineItemDiscountTotal = 0m;
+            var lineItemPreviews = new List<LineItemPreviewDto>();
+
+            foreach (var item in virtualLineItems)
+            {
+                var itemTotal = Math.Round(item.Amount * item.Quantity, 2, _settings.DefaultRounding);
+                subTotal += itemTotal;
+
+                // Calculate discount for this item
+                var discountAmount = 0m;
+                if (item.Discount != null)
+                {
+                    if (item.Discount.Type == DiscountType.Percentage)
+                    {
+                        discountAmount = Math.Round(itemTotal * (item.Discount.Value / 100m), 2, _settings.DefaultRounding);
+                    }
+                    else
+                    {
+                        discountAmount = Math.Round(item.Discount.Value * item.Quantity, 2, _settings.DefaultRounding);
+                    }
+
+                    // Cap discount at item total
+                    if (discountAmount > itemTotal)
+                    {
+                        warnings.Add($"Discount capped at item value");
+                        discountAmount = itemTotal;
+                    }
+                }
+
+                lineItemDiscountTotal += discountAmount;
+
+                // Calculate tax for this item
+                var taxableAmount = Math.Max(0, itemTotal - discountAmount);
+
+                // Pro-rate order-level discount to this item
+                if (orderDiscountTotal > 0 && subTotal > 0 && item.IsTaxable)
+                {
+                    var proportion = itemTotal / subTotal;
+                    var proRatedOrderDiscount = Math.Round(orderDiscountTotal * proportion, 2, _settings.DefaultRounding);
+                    taxableAmount = Math.Max(0, taxableAmount - proRatedOrderDiscount);
+                }
+
+                var taxAmount = 0m;
+                if (item.IsTaxable && !request.RemoveTax)
+                {
+                    taxAmount = Math.Round(taxableAmount * (item.TaxRate / 100m), 2, _settings.DefaultRounding);
+                }
+
+                lineItemPreviews.Add(new LineItemPreviewDto
+                {
+                    Id = item.Id,
+                    CalculatedTotal = itemTotal - discountAmount,
+                    DiscountAmount = discountAmount,
+                    TaxAmount = taxAmount
+                });
+            }
+
+            // Cap total discount at subtotal
+            var rawDiscountTotal = lineItemDiscountTotal + orderDiscountTotal;
+            var discountTotal = Math.Min(rawDiscountTotal, subTotal);
+            if (rawDiscountTotal > subTotal)
+            {
+                warnings.Add("Total discount capped at subtotal to prevent negative total");
+            }
+
+            var adjustedSubTotal = Math.Max(0, subTotal - discountTotal);
+
+            // Calculate tax - needs to be recalculated properly with pro-rating
+            var tax = 0m;
+            if (!request.RemoveTax)
+            {
+                var totalTaxableAmount = virtualLineItems
+                    .Where(li => li.IsTaxable)
+                    .Sum(li => Math.Round(li.Amount * li.Quantity, 2, _settings.DefaultRounding));
+
+                foreach (var item in virtualLineItems.Where(li => li.IsTaxable))
+                {
+                    var itemTotal = Math.Round(item.Amount * item.Quantity, 2, _settings.DefaultRounding);
+
+                    // Calculate line item discount
+                    var itemDiscountAmount = 0m;
+                    if (item.Discount != null)
+                    {
+                        if (item.Discount.Type == DiscountType.Percentage)
+                        {
+                            itemDiscountAmount = Math.Round(itemTotal * (item.Discount.Value / 100m), 2, _settings.DefaultRounding);
+                        }
+                        else
+                        {
+                            itemDiscountAmount = Math.Round(item.Discount.Value * item.Quantity, 2, _settings.DefaultRounding);
+                        }
+                        itemDiscountAmount = Math.Min(itemDiscountAmount, itemTotal);
+                    }
+
+                    // Pro-rate order discount
+                    var proRatedOrderDiscount = 0m;
+                    if (orderDiscountTotal > 0 && totalTaxableAmount > 0)
+                    {
+                        var proportion = itemTotal / totalTaxableAmount;
+                        proRatedOrderDiscount = Math.Round(orderDiscountTotal * proportion, 2, _settings.DefaultRounding);
+                    }
+
+                    var taxableAmount = Math.Max(0, itemTotal - itemDiscountAmount - proRatedOrderDiscount);
+                    tax += Math.Round(taxableAmount * (item.TaxRate / 100m), 2, _settings.DefaultRounding);
+                }
+            }
+
+            var total = adjustedSubTotal + tax + shippingTotal;
+
+            return new PreviewEditResultDto
+            {
+                SubTotal = subTotal,
+                DiscountTotal = discountTotal,
+                AdjustedSubTotal = adjustedSubTotal,
+                ShippingTotal = shippingTotal,
+                Tax = tax,
+                Total = total,
+                LineItems = lineItemPreviews,
+                Warnings = warnings
+            };
+        });
+
+        scope.Complete();
+        return result;
+    }
+
+    // Helper class for preview calculations
+    private class VirtualLineItem
+    {
+        public Guid Id { get; set; }
+        public decimal Amount { get; set; }
+        public int Quantity { get; set; }
+        public bool IsTaxable { get; set; }
+        public decimal TaxRate { get; set; }
+        public LineItemDiscountDto? Discount { get; set; }
     }
 
     /// <inheritdoc />
@@ -1972,6 +2301,22 @@ public class InvoiceService(
                     changes.Add($"Removed {lineItem.Name}");
                 }
 
+                // Remove order-level discounts (coupons, etc.)
+                foreach (var discountId in request.RemovedOrderDiscounts)
+                {
+                    var discount = orders
+                        .SelectMany(o => o.LineItems ?? [])
+                        .FirstOrDefault(li => li.Id == discountId && li.LineItemType == LineItemType.Discount);
+
+                    if (discount != null)
+                    {
+                        var discountOrder = orders.First(o => o.LineItems?.Contains(discount) == true);
+                        discountOrder.LineItems?.Remove(discount);
+                        db.LineItems.Remove(discount);
+                        changes.Add($"Removed order discount: {discount.Name}");
+                    }
+                }
+
                 // Add custom items - create a new order for custom items
                 if (request.CustomItems.Any())
                 {
@@ -2162,13 +2507,66 @@ public class InvoiceService(
     {
         var discounts = allDiscounts
             .Where(d => d.DependantLineItemSku == lineItem.Sku)
-            .Select(d => new DiscountLineItemDto
+            .Select(d =>
             {
-                Id = d.Id,
-                Name = d.Name,
-                Amount = Math.Abs(d.Amount),
-                Reason = d.Name,
-                VisibleToCustomer = d.ExtendedData?.TryGetValue("VisibleToCustomer", out var visible) == true && visible is bool b && b
+                // Read discount type and value from ExtendedData
+                var discountType = DiscountType.Amount;
+                var discountValue = Math.Abs(d.Amount);
+
+                if (d.ExtendedData?.TryGetValue("DiscountType", out var typeObj) == true)
+                {
+                    var typeStr = typeObj switch
+                    {
+                        string s => s,
+                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString(),
+                        _ => null
+                    };
+
+                    if (typeStr != null && Enum.TryParse<DiscountType>(typeStr, out var parsedType))
+                    {
+                        discountType = parsedType;
+                    }
+                }
+
+                if (d.ExtendedData?.TryGetValue("DiscountValue", out var valueObj) == true)
+                {
+                    discountValue = valueObj switch
+                    {
+                        decimal dec => dec,
+                        double dbl => (decimal)dbl,
+                        int i => i,
+                        long l => l,
+                        float f => (decimal)f,
+                        string s when decimal.TryParse(s, out var parsed) => parsed,
+                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number =>
+                            je.TryGetDecimal(out var d2) ? d2 : discountValue,
+                        _ => discountValue
+                    };
+                }
+
+                // Read VisibleToCustomer, handling JsonElement
+                var visibleToCustomer = false;
+                if (d.ExtendedData?.TryGetValue("VisibleToCustomer", out var visibleObj) == true)
+                {
+                    visibleToCustomer = visibleObj switch
+                    {
+                        bool b => b,
+                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.True => true,
+                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.False => false,
+                        _ => false
+                    };
+                }
+
+                return new DiscountLineItemDto
+                {
+                    Id = d.Id,
+                    Name = d.Name,
+                    Amount = Math.Abs(d.Amount),
+                    Type = discountType,
+                    Value = discountValue,
+                    Reason = d.Name,
+                    VisibleToCustomer = visibleToCustomer
+                };
             })
             .ToList();
 
@@ -2194,6 +2592,69 @@ public class InvoiceService(
         };
     }
 
+    /// <summary>
+    /// Maps a discount LineItem to DiscountLineItemDto, extracting type/value from ExtendedData
+    /// </summary>
+    private static DiscountLineItemDto MapDiscountLineItem(LineItem d)
+    {
+        var discountType = DiscountType.Amount;
+        var discountValue = Math.Abs(d.Amount);
+
+        if (d.ExtendedData?.TryGetValue("DiscountType", out var typeObj) == true)
+        {
+            var typeStr = typeObj switch
+            {
+                string s => s,
+                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString(),
+                _ => null
+            };
+
+            if (typeStr != null && Enum.TryParse<DiscountType>(typeStr, out var parsedType))
+            {
+                discountType = parsedType;
+            }
+        }
+
+        if (d.ExtendedData?.TryGetValue("DiscountValue", out var valueObj) == true)
+        {
+            discountValue = valueObj switch
+            {
+                decimal dec => dec,
+                double dbl => (decimal)dbl,
+                int i => i,
+                long l => l,
+                float f => (decimal)f,
+                string s when decimal.TryParse(s, out var parsed) => parsed,
+                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number =>
+                    je.TryGetDecimal(out var d2) ? d2 : discountValue,
+                _ => discountValue
+            };
+        }
+
+        var visibleToCustomer = false;
+        if (d.ExtendedData?.TryGetValue("VisibleToCustomer", out var visibleObj) == true)
+        {
+            visibleToCustomer = visibleObj switch
+            {
+                bool b => b,
+                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.True => true,
+                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.False => false,
+                _ => false
+            };
+        }
+
+        return new DiscountLineItemDto
+        {
+            Id = d.Id,
+            Name = d.Name,
+            Amount = Math.Abs(d.Amount),
+            Type = discountType,
+            Value = discountValue,
+            Reason = d.Name,
+            VisibleToCustomer = visibleToCustomer
+        };
+    }
+
     private static decimal CalculateDiscountAmount(LineItemDiscountDto discount, decimal unitPrice, int quantity)
     {
         return discount.Type switch
@@ -2216,7 +2677,7 @@ public class InvoiceService(
             Math.Round(li.Amount * li.Quantity, 2, _settings.DefaultRounding));
 
         // Apply discounts
-        var discountItems = allLineItems.Where(li => li.LineItemType == LineItemType.Discount);
+        var discountItems = allLineItems.Where(li => li.LineItemType == LineItemType.Discount).ToList();
         var discountTotal = discountItems.Sum(li => li.Amount); // Already negative
 
         // Adjusted subtotal with rounding
@@ -2225,12 +2686,42 @@ public class InvoiceService(
         // Calculate tax using stored line item tax rates (excluding discount line items)
         // IMPORTANT: We use the stored TaxRate on each line item, NOT the current TaxGroup rate.
         // This ensures historical invoices are not affected by future TaxGroup rate changes.
+        // Tax is calculated on the discounted amount (itemTotal - discount) not the full amount.
+
+        // Separate linked discounts (specific to a line item) from unlinked (order-level) discounts
+        var linkedDiscounts = discountItems.Where(d => !string.IsNullOrEmpty(d.DependantLineItemSku)).ToList();
+        var unlinkedDiscountTotal = discountItems
+            .Where(d => string.IsNullOrEmpty(d.DependantLineItemSku))
+            .Sum(d => d.Amount); // Already negative
+
+        // Get taxable items and calculate total taxable amount for pro-rating unlinked discounts
+        var taxableItems = allLineItems.Where(li =>
+            li.IsTaxable && li.LineItemType != LineItemType.Discount).ToList();
+        var totalTaxableAmount = taxableItems.Sum(li =>
+            Math.Round(li.Amount * li.Quantity, 2, _settings.DefaultRounding));
+
         decimal tax = 0;
-        foreach (var lineItem in allLineItems.Where(li =>
-            li.IsTaxable && li.LineItemType != LineItemType.Discount))
+        foreach (var lineItem in taxableItems)
         {
             var itemTotal = Math.Round(lineItem.Amount * lineItem.Quantity, 2, _settings.DefaultRounding);
-            tax += Math.Round(itemTotal * (lineItem.TaxRate / 100m), 2, _settings.DefaultRounding);
+
+            // Find any linked discount applied specifically to this line item (amount is negative)
+            var lineItemDiscount = linkedDiscounts
+                .Where(d => d.DependantLineItemSku == lineItem.Sku)
+                .Sum(d => d.Amount); // Already negative
+
+            // Pro-rate unlinked (order-level) discounts across taxable items by value proportion
+            var proRatedUnlinkedDiscount = 0m;
+            if (unlinkedDiscountTotal < 0 && totalTaxableAmount > 0)
+            {
+                var proportion = itemTotal / totalTaxableAmount;
+                proRatedUnlinkedDiscount = Math.Round(unlinkedDiscountTotal * proportion, 2, _settings.DefaultRounding);
+            }
+
+            // Calculate tax on discounted amount (both linked and pro-rated unlinked discounts)
+            var taxableAmount = Math.Round(itemTotal + lineItemDiscount + proRatedUnlinkedDiscount, 2, _settings.DefaultRounding);
+            taxableAmount = Math.Max(0, taxableAmount); // Ensure non-negative
+            tax += Math.Round(taxableAmount * (lineItem.TaxRate / 100m), 2, _settings.DefaultRounding);
         }
 
         // Get shipping total

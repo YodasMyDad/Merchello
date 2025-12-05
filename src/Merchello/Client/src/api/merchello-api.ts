@@ -170,6 +170,7 @@ import type {
   InvoiceForEditDto,
   EditInvoiceRequestDto,
   EditInvoiceResultDto,
+  PreviewEditResultDto,
   TaxGroupDto,
 } from '../orders/types/order.types.js';
 
@@ -259,6 +260,12 @@ export const MerchelloApi = {
   /** Edit an invoice (update quantities, apply discounts, add custom items) */
   editInvoice: (invoiceId: string, request: EditInvoiceRequestDto) =>
     apiPut<EditInvoiceResultDto>(`orders/${invoiceId}/edit`, request),
+
+  /** Preview calculated totals for proposed invoice changes without persisting.
+   * This is the single source of truth for all invoice calculations.
+   * Frontend should call this instead of calculating locally. */
+  previewInvoiceEdit: (invoiceId: string, request: EditInvoiceRequestDto) =>
+    apiPost<PreviewEditResultDto>(`orders/${invoiceId}/preview-edit`, request),
 
   // Fulfillment API
   /** Get fulfillment summary for an invoice (used in fulfillment dialog) */

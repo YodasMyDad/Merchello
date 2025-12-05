@@ -385,26 +385,29 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
           </div>
 
           <!-- Tabs -->
-          <div class="tabs">
-            <button
-              class="tab ${this._activeTab === "all" ? "active" : ""}"
+          <uui-tab-group>
+            <uui-tab
+              label="All"
+              ?active=${this._activeTab === "all"}
               @click=${() => this._handleTabClick("all")}
             >
               All
-            </button>
-            <button
-              class="tab ${this._activeTab === "unfulfilled" ? "active" : ""}"
+            </uui-tab>
+            <uui-tab
+              label="Unfulfilled"
+              ?active=${this._activeTab === "unfulfilled"}
               @click=${() => this._handleTabClick("unfulfilled")}
             >
               Unfulfilled
-            </button>
-            <button
-              class="tab ${this._activeTab === "unpaid" ? "active" : ""}"
+            </uui-tab>
+            <uui-tab
+              label="Unpaid"
+              ?active=${this._activeTab === "unpaid"}
               @click=${() => this._handleTabClick("unpaid")}
             >
               Unpaid
-            </button>
-          </div>
+            </uui-tab>
+          </uui-tab-group>
         </div>
 
         <!-- Orders Table -->
@@ -502,36 +505,6 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       color: var(--uui-color-text-alt);
     }
 
-    .tabs {
-      display: flex;
-      gap: var(--uui-size-space-1);
-      border-bottom: 1px solid var(--uui-color-border);
-    }
-
-    .tab {
-      padding: var(--uui-size-space-2) var(--uui-size-space-4);
-      border: none;
-      background: none;
-      cursor: pointer;
-      font-size: 0.875rem;
-      color: var(--uui-color-text-alt);
-      border-bottom: 2px solid transparent;
-      transition: all 0.2s;
-    }
-
-    .tab:hover {
-      color: var(--uui-color-text);
-    }
-
-    .tab.active {
-      color: var(--uui-color-text);
-      border-bottom-color: var(--uui-color-current);
-    }
-
-    .tab.add-tab {
-      font-size: 1rem;
-    }
-
     .table-container {
       overflow-x: auto;
       background: var(--uui-color-surface);
@@ -575,28 +548,28 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     }
 
     .badge.paid {
-      background: #d4edda;
-      color: #155724;
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
     }
 
     .badge.unpaid {
-      background: #f8d7da;
-      color: #721c24;
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
     }
 
     .badge.fulfilled {
-      background: #d4edda;
-      color: #155724;
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
     }
 
     .badge.unfulfilled {
-      background: #fff3cd;
-      color: #856404;
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
     }
 
     .badge.partial {
-      background: #cce5ff;
-      color: #004085;
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
     }
 
     .loading {

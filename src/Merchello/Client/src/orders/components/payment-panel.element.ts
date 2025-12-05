@@ -20,6 +20,7 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
   @state() private _errorMessage: string | null = null;
 
   #modalManager?: UmbModalManagerContext;
+  #isConnected = false;
 
   constructor() {
     super();
@@ -30,9 +31,15 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.#isConnected = true;
     if (this.invoiceId) {
       this._loadPayments();
     }
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#isConnected = false;
   }
 
   updated(changedProperties: Map<string, unknown>): void {
@@ -53,6 +60,9 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
         MerchelloApi.getPaymentStatus(this.invoiceId),
       ]);
 
+      // Prevent state updates if component was disconnected during async operation
+      if (!this.#isConnected) return;
+
       if (paymentsResult.error) {
         this._errorMessage = paymentsResult.error.message;
         this._isLoading = false;
@@ -68,6 +78,8 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
       this._payments = paymentsResult.data ?? [];
       this._status = statusResult.data ?? null;
     } catch (err) {
+      // Prevent state updates if component was disconnected during async operation
+      if (!this.#isConnected) return;
       this._errorMessage = err instanceof Error ? err.message : "Failed to load payments";
     }
 
@@ -323,28 +335,28 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
     }
 
     .status-badge.paid {
-      background: #d4edda;
-      color: #155724;
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
     }
 
     .status-badge.partial {
-      background: #fff3cd;
-      color: #856404;
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
     }
 
     .status-badge.unpaid {
-      background: #f8d7da;
-      color: #721c24;
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
     }
 
     .status-badge.awaiting {
-      background: #cce5ff;
-      color: #004085;
+      background: var(--uui-color-default-standalone);
+      color: var(--uui-color-default-contrast);
     }
 
     .status-badge.refunded {
-      background: #e2e3e5;
-      color: #383d41;
+      background: var(--uui-color-surface-alt);
+      color: var(--uui-color-text);
     }
 
     .status-details {

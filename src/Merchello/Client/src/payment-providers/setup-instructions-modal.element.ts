@@ -2,6 +2,7 @@ import { html, css, unsafeHTML } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 import type {
   SetupInstructionsModalData,
   SetupInstructionsModalValue,
@@ -28,7 +29,9 @@ export class MerchelloSetupInstructionsModalElement extends UmbModalBaseElement<
       gfm: true,
     });
 
-    this._renderedContent = await marked.parse(instructions);
+    const parsed = await marked.parse(instructions);
+    // Sanitize the HTML to prevent XSS attacks
+    this._renderedContent = DOMPurify.sanitize(parsed);
   }
 
   private _handleClose(): void {
