@@ -6,6 +6,27 @@ Enable customers to checkout in their local currency while maintaining all repor
 
 ---
 
+## Shopify Alignment Validation
+
+This plan has been validated against Shopify's multi-currency implementation:
+
+| Concept | Shopify Term | Merchello Equivalent |
+|---------|--------------|---------------------|
+| Store's home currency | **Store currency** | `StoreCurrencyCode` in settings |
+| What customer sees/pays | **Presentment currency** | `CurrencyCode` on Invoice |
+| What merchant receives | **Settlement currency** | `*InStoreCurrency` fields |
+
+**Key alignments:**
+- **Dual storage** - Shopify stores both `shop_money` and `presentment_money`; we store `Total` + `TotalInStoreCurrency`
+- **Exchange rate from payment provider** - Shopify uses real-time rates at payment time; we capture from Stripe/PayPal
+- **Reporting in store currency** - Shopify reports all revenue in store currency; we use `*InStoreCurrency` fields
+- **Display rates are approximate** - Shopify shows estimates until payment; we use `~` indicator
+- **Single store currency** - Shopify allows only ONE store currency per store; we follow the same pattern
+
+This approach is proven at scale and positions Merchello as an enterprise-grade solution.
+
+---
+
 ## 1. How It Should Work (Matching Shopify)
 
 | View | Currency Shown | Example |
@@ -82,12 +103,46 @@ public decimal? AmountInStoreCurrency { get; set; }      // For reporting
 public string? ExchangeRateSource { get; set; }          // "stripe", "paypal", "manual"
 ```
 
-### 3.3 Database Mapping Updates
+### 3.3 Line Item Model
+
+Add store currency tracking to line items for detailed reporting:
+
+```csharp
+public class InvoiceLineItem
+{
+    // ... existing fields ...
+    public decimal? AmountInStoreCurrency { get; set; }  // For reporting
+}
+```
+
+**Important**: When invoice store currency amounts are updated, all line items must be recalculated in sync:
+
+```csharp
+// In InvoiceService after payment with exchange rate
+public async Task UpdateStoreCurrencyAmountsAsync(Invoice invoice, decimal exchangeRate)
+{
+    invoice.ExchangeRate = exchangeRate;
+    invoice.SubTotalInStoreCurrency = invoice.SubTotal * exchangeRate;
+    invoice.TaxInStoreCurrency = invoice.Tax * exchangeRate;
+    invoice.TotalInStoreCurrency = invoice.Total * exchangeRate;
+
+    // Sync all line items
+    foreach (var item in invoice.Items)
+    {
+        item.AmountInStoreCurrency = item.Amount * exchangeRate;
+    }
+
+    await _invoiceRepository.UpdateAsync(invoice);
+}
+```
+
+### 3.4 Database Mapping Updates
 
 | File | New Columns |
 |------|-------------|
 | [InvoiceDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/InvoiceDbMapping.cs) | CurrencyCode, CurrencySymbol, SubTotalInStoreCurrency, TaxInStoreCurrency, TotalInStoreCurrency, ExchangeRate |
 | [PaymentDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/PaymentDbMapping.cs) | CurrencyCode, ExchangeRate, AmountInStoreCurrency, ExchangeRateSource |
+| InvoiceLineItemDbMapping.cs | AmountInStoreCurrency |
 
 ---
 
@@ -284,6 +339,32 @@ public class Basket
 
 This prevents price fluctuation during shopping session.
 
+### 5.8 Basket Currency Change Behavior
+
+If a customer changes their currency after adding items to the basket, **convert prices** to the new currency (do not clear the basket):
+
+```csharp
+public async Task ChangeCurrencyAsync(Basket basket, string newCurrencyCode)
+{
+    if (basket.Currency == newCurrencyCode) return;
+
+    var rate = await _exchangeRateService.GetRateAsync(basket.Currency, newCurrencyCode);
+
+    foreach (var item in basket.Items)
+    {
+        item.Price = item.Price * rate;  // Convert to new currency
+    }
+
+    basket.Currency = newCurrencyCode;
+    basket.CurrencySymbol = GetSymbol(newCurrencyCode);
+    basket.ExchangeRateAtCreation = rate;
+
+    await _basketRepository.UpdateAsync(basket);
+}
+```
+
+This provides a better customer experience than clearing the basket.
+
 ---
 
 ## 6. Exchange Rate Provider Architecture
@@ -438,19 +519,69 @@ If rate fetch fails:
 
 ## 7. Payment Provider Interface Update
 
-Update [IPaymentProvider](../src/Merchello.Core/Payments/Providers/IPaymentProvider.cs) result models:
+### 7.1 Exchange Rate Support by Provider
+
+All major payment providers return exchange rate information in their API responses:
+
+| Provider | Exchange Rate in API | How It's Returned |
+|----------|---------------------|-------------------|
+| **Stripe** | Yes | `exchange_rate` on Charge/BalanceTransaction objects |
+| **PayPal** | Yes | `exchange_rate` in capture response; also FX Quote API |
+| **Braintree** | Yes | FX Optimizer with `exchangeRateQuoteId` for settlement |
+| **Worldpay** | Yes | FX API returns `bidRate`, `askRate`, `rateId` |
+
+### 7.2 Existing Architecture Support
+
+The current `PaymentResult` model already has a `ProviderData` dictionary that can store exchange rate data:
+
+```csharp
+// Existing field in PaymentResult
+public Dictionary<string, object>? ProviderData { get; init; }
+```
+
+### 7.3 Recommended: Add Explicit Fields
+
+For type safety and consistency across all providers, add explicit fields to [PaymentResult.cs](../src/Merchello.Core/Payments/Models/PaymentResult.cs):
 
 ```csharp
 public class PaymentResult
 {
     // ... existing fields ...
-    public decimal? ExchangeRate { get; set; }
-    public decimal? AmountInSettlementCurrency { get; set; }
-    public string? SettlementCurrency { get; set; }
+
+    // NEW: Multi-currency settlement info
+    public decimal? ExchangeRate { get; init; }
+    public string? SettlementCurrency { get; init; }
+    public decimal? SettlementAmount { get; init; }
 }
 ```
 
-Stripe and other providers that handle multi-currency will populate these fields.
+### 7.4 Provider Implementation Examples
+
+**Stripe:**
+```csharp
+var charge = await _stripeClient.Charges.GetAsync(chargeId);
+return new PaymentResult
+{
+    // ... existing fields ...
+    ExchangeRate = charge.BalanceTransaction?.ExchangeRate,
+    SettlementCurrency = charge.BalanceTransaction?.Currency,
+    SettlementAmount = charge.BalanceTransaction?.Amount / 100m
+};
+```
+
+**PayPal:**
+```csharp
+var capture = await _paypalClient.CapturePaymentAsync(orderId);
+return new PaymentResult
+{
+    // ... existing fields ...
+    ExchangeRate = capture.SellerReceivableBreakdown?.ExchangeRate?.Value,
+    SettlementCurrency = capture.SellerReceivableBreakdown?.NetAmount?.CurrencyCode,
+    SettlementAmount = capture.SellerReceivableBreakdown?.NetAmount?.Value
+};
+```
+
+All providers that handle multi-currency will populate these fields consistently.
 
 ---
 
@@ -564,20 +695,24 @@ var refund = new Payment
 
 1. Add currency fields to Invoice model
 2. Add currency/rate fields to Payment model
-3. Update DB mappings
-4. Run migration
-5. Update `CreateOrderFromBasketAsync()` to copy basket currency
+3. Add `AmountInStoreCurrency` to InvoiceLineItem model
+4. Add exchange rate fields to PaymentResult model
+5. Update DB mappings (Invoice, Payment, InvoiceLineItem)
+6. Run migration
+7. Update `CreateOrderFromBasketAsync()` to copy basket currency
 
 ### Phase 2: Payment Flow & Order Edits
 
 1. Update `PaymentService` to store currency info
 2. Update Stripe provider to return exchange rate from webhooks/responses
 3. Calculate and store `TotalInStoreCurrency` on invoice after payment
-4. Update `EditInvoiceAsync` to:
+4. **Sync all line items** with `AmountInStoreCurrency` when exchange rate is recorded
+5. Update `EditInvoiceAsync` to:
    - Use invoice currency for all edit inputs
    - Calculate `AmountInStoreCurrency` for discount line items
    - Recalculate `*InStoreCurrency` totals after edits
-5. Update refund flow to use original exchange rate
+   - Keep line items in sync with invoice totals
+6. Update refund flow to use original exchange rate
 
 ### Phase 3: Admin Display
 
@@ -618,9 +753,12 @@ var refund = new Payment
 |------|---------|
 | [Invoice.cs](../src/Merchello.Core/Accounting/Models/Invoice.cs) | Add currency + store currency fields |
 | [Payment.cs](../src/Merchello.Core/Accounting/Models/Payment.cs) | Add currency + exchange rate fields |
+| [InvoiceLineItem.cs](../src/Merchello.Core/Accounting/Models/InvoiceLineItem.cs) | Add AmountInStoreCurrency field |
+| [PaymentResult.cs](../src/Merchello.Core/Payments/Models/PaymentResult.cs) | Add ExchangeRate, SettlementCurrency, SettlementAmount fields |
 | [InvoiceDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/InvoiceDbMapping.cs) | Map new columns |
 | [PaymentDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/PaymentDbMapping.cs) | Map new columns |
-| [InvoiceService.cs](../src/Merchello.Core/Accounting/Services/InvoiceService.cs) | Copy currency, calculate store amounts |
+| InvoiceLineItemDbMapping.cs | Map AmountInStoreCurrency |
+| [InvoiceService.cs](../src/Merchello.Core/Accounting/Services/InvoiceService.cs) | Copy currency, calculate store amounts, sync line items |
 | [PaymentService.cs](../src/Merchello.Core/Payments/Services/PaymentService.cs) | Capture exchange rate |
 | [StripePaymentProvider.cs](../src/Merchello.PaymentProviders/Stripe/StripePaymentProvider.cs) | Return exchange rate info |
 
@@ -665,5 +803,10 @@ var refund = new Payment
 
 ## 14. Next Steps
 
+- [x] ~~Validate plan against Shopify's approach~~ (Done - see Shopify Alignment Validation section)
+- [x] ~~Confirm payment providers support exchange rate data~~ (Done - Stripe, PayPal, Braintree, Worldpay all confirmed)
+- [x] ~~Clarify basket currency change behavior~~ (Done - convert prices, not clear basket)
+- [x] ~~Clarify line item store currency tracking~~ (Done - sync all line items with invoice)
 - [ ] Update seed data to include multi-currency items so we can test in the admin
+- [ ] Begin Phase 1 implementation
 
