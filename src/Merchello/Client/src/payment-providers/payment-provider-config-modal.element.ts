@@ -157,6 +157,17 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
     this.modalContext?.reject();
   }
 
+  private _getSelectFieldOptions(field: PaymentProviderFieldDto, currentValue: string): Array<{ name: string; value: string; selected: boolean }> {
+    return [
+      { name: "Select...", value: "", selected: !currentValue },
+      ...(field.options?.map(opt => ({
+        name: opt.label,
+        value: opt.value,
+        selected: currentValue === opt.value
+      })) ?? [])
+    ];
+  }
+
   private _renderField(field: PaymentProviderFieldDto): unknown {
     const value = this._values[field.key] ?? "";
 
@@ -247,20 +258,11 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
               : nothing}
             <uui-select
               id="${field.key}"
-              .value=${value}
+              .options=${this._getSelectFieldOptions(field, value)}
               ?required=${field.isRequired}
               @change=${(e: Event) =>
                 this._handleValueChange(field.key, (e.target as HTMLSelectElement).value)}
-            >
-              <option value="">Select...</option>
-              ${field.options?.map(
-                (opt) => html`
-                  <option value="${opt.value}" ?selected=${value === opt.value}>
-                    ${opt.label}
-                  </option>
-                `
-              )}
-            </uui-select>
+            ></uui-select>
           </div>
         `;
 

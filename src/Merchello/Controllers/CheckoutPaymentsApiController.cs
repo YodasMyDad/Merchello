@@ -48,7 +48,7 @@ public class CheckoutPaymentsApiController(
     /// Create a payment session for an invoice
     /// </summary>
     [HttpPost("{invoiceId:guid}/pay")]
-    [ProducesResponseType<PaymentSessionResponseDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<PaymentSessionResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CreatePaymentSession(
@@ -98,7 +98,7 @@ public class CheckoutPaymentsApiController(
             request.CancelUrl,
             cancellationToken);
 
-        var response = new PaymentSessionResponseDto
+        var response = new PaymentSessionResultDto
         {
             Success = result.Success,
             SessionId = result.SessionId,
@@ -152,9 +152,9 @@ public class CheckoutPaymentsApiController(
     /// Handle return from payment gateway after successful payment
     /// </summary>
     [HttpGet("return")]
-    [ProducesResponseType<PaymentReturnResponseDto>(StatusCodes.Status200OK)]
-    public async Task<PaymentReturnResponseDto> HandleReturn(
-        [FromQuery] PaymentReturnQuery query,
+    [ProducesResponseType<PaymentReturnResultDto>(StatusCodes.Status200OK)]
+    public async Task<PaymentReturnResultDto> HandleReturn(
+        [FromQuery] PaymentReturnQueryDto query,
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation(
@@ -172,7 +172,7 @@ public class CheckoutPaymentsApiController(
 
             if (existingPayment != null)
             {
-                return new PaymentReturnResponseDto
+                return new PaymentReturnResultDto
                 {
                     Success = existingPayment.PaymentSuccess,
                     Message = existingPayment.PaymentSuccess
@@ -186,7 +186,7 @@ public class CheckoutPaymentsApiController(
 
         // Payment not yet recorded - it may be processed via webhook shortly
         // Return a pending status
-        return new PaymentReturnResponseDto
+        return new PaymentReturnResultDto
         {
             Success = true,
             Message = "Payment is being processed. Please wait for confirmation.",
@@ -198,9 +198,9 @@ public class CheckoutPaymentsApiController(
     /// Handle cancel from payment gateway
     /// </summary>
     [HttpGet("cancel")]
-    [ProducesResponseType<PaymentReturnResponseDto>(StatusCodes.Status200OK)]
-    public Task<PaymentReturnResponseDto> HandleCancel(
-        [FromQuery] PaymentReturnQuery query,
+    [ProducesResponseType<PaymentReturnResultDto>(StatusCodes.Status200OK)]
+    public Task<PaymentReturnResultDto> HandleCancel(
+        [FromQuery] PaymentReturnQueryDto query,
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation(
@@ -209,7 +209,7 @@ public class CheckoutPaymentsApiController(
             query.TransactionId,
             query.Provider);
 
-        return Task.FromResult(new PaymentReturnResponseDto
+        return Task.FromResult(new PaymentReturnResultDto
         {
             Success = false,
             Message = "Payment was cancelled.",

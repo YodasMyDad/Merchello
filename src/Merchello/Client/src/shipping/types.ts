@@ -63,7 +63,7 @@ export interface ShippingProviderConfigurationDto {
 }
 
 /** Request to create/enable a shipping provider */
-export interface CreateShippingProviderConfigurationDto {
+export interface CreateShippingProviderDto {
   /** The provider key to enable */
   providerKey: string;
   /** Display name override (optional, defaults to provider's display name) */
@@ -75,7 +75,7 @@ export interface CreateShippingProviderConfigurationDto {
 }
 
 /** Request to update a shipping provider configuration */
-export interface UpdateShippingProviderConfigurationDto {
+export interface UpdateShippingProviderDto {
   /** Display name override */
   displayName?: string;
   /** Whether the provider is enabled */

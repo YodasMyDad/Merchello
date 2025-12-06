@@ -541,6 +541,34 @@ html`
 | `uui-box` | `headline` |
 | `uui-badge` | `color`, `look` |
 
+### uui-select (IMPORTANT)
+The `<uui-select>` component does **NOT** support native `<option>` children. Options must be passed via the `.options` property:
+
+```typescript
+// WRONG - will render empty dropdown
+html`
+  <uui-select>
+    <option value="1">Option 1</option>
+  </uui-select>
+`
+
+// CORRECT - use .options property
+const options = [
+  { name: "Select...", value: "" },
+  { name: "Option 1", value: "1" },
+  { name: "Option 2", value: "2", selected: true }
+];
+
+html`<uui-select .options=${options} @change=${this.handleChange}></uui-select>`
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `.options` | `Array<{name: string, value: string, selected?: boolean}>` | **Required** - Array of options |
+| `@change` | `UUISelectEvent` | Change event, use `e.target.value` to get selected value |
+| `label` | `string` | Accessibility label |
+| `placeholder` | `string` | Placeholder text when no selection |
+
 ### CSS Variables
 - Spacing: `--uui-size-space-1` to `-6`, Layout: `--uui-size-layout-1` to `-5`
 - Colors: `--uui-color-text`, `--uui-color-background`

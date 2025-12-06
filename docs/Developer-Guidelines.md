@@ -51,6 +51,47 @@ Products/
 |UPPERCASE|constants|
 |I prefix|interfaces (`IUserService`)|
 
+## DTO Naming Conventions
+
+### Folder Organization
+- `Dtos/` - API transfer objects (request/response payloads)
+- `Models/` - Internal domain objects (service-to-service, no `Dto` suffix)
+
+### Naming Rules
+
+**API DTOs (Dtos/ folder)** - Always end with `Dto`:
+
+|Intent|Pattern|Example|
+|---|---|---|
+|Read/display|`{Entity}Dto`|`PaymentDto`|
+|List view|`{Entity}ListItemDto`|`OrderListItemDto`|
+|Detail view|`{Entity}DetailDto`|`OrderDetailDto`|
+|Create|`Create{Entity}Dto`|`CreateShipmentDto`|
+|Update|`Update{Entity}Dto`|`UpdateShipmentDto`|
+|Edit (complex)|`Edit{Entity}Dto`|`EditInvoiceDto`|
+|For edit form|`{Entity}ForEditDto`|`InvoiceForEditDto`|
+|Operation result|`{Action}ResultDto`|`EditInvoiceResultDto`|
+|Paginated list|`{Entity}PageDto`|`OrderPageDto`|
+|Query params|`{Entity}QueryDto`|`OrderQueryDto`|
+|Toggle|`Toggle{Entity}Dto`|`TogglePaymentProviderDto`|
+|Add item|`Add{Item}Dto`|`AddCustomItemDto`|
+|Remove item|`Remove{Item}Dto`|`RemoveLineItemDto`|
+|Export|`Export{Entity}Dto`|`ExportOrderDto`|
+
+**Internal Models (Models/ folder)** - NO `Dto` suffix:
+
+|Intent|Pattern|Example|
+|---|---|---|
+|Service request|`{Entity}Request`|`PaymentRequest`|
+|Operation result|`{Entity}Result`|`PaymentResult`|
+
+### TypeScript Conventions
+
+- API types: Mirror C# naming exactly
+- Modal input: `{Feature}ModalData`
+- Modal output: `{Feature}ModalValue`
+- Event payload: `{Event}Detail`
+
 ## Classes & Models
 - Never put models/records in same file as services/handlers
 - Models in separate files within nested `Models/` folder

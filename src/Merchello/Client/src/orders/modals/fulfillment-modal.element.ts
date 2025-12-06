@@ -7,7 +7,7 @@ import type {
   FulfillmentSummaryDto,
   OrderFulfillmentDto,
   FulfillmentLineItemDto,
-  CreateShipmentRequest,
+  CreateShipmentDto,
   ShipmentDetailDto,
 } from "@orders/types/order.types.js";
 import type { FulfillmentModalData, FulfillmentModalValue } from "./fulfillment-modal.token.js";
@@ -266,7 +266,7 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
         lineItems[lineItemId] = item.quantity;
       }
 
-      const request: CreateShipmentRequest = {
+      const request: CreateShipmentDto = {
         lineItems,
         carrier: trackingInfo?.carrier || undefined,
         trackingNumber: trackingInfo?.trackingNumber || undefined,

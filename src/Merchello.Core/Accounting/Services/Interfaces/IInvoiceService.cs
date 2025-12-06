@@ -124,7 +124,7 @@ public interface IInvoiceService
     /// </summary>
     Task<OperationResult<EditInvoiceResultDto>> EditInvoiceAsync(
         Guid invoiceId,
-        EditInvoiceRequestDto request,
+        EditInvoiceDto request,
         Guid? authorId,
         string? authorName,
         CancellationToken cancellationToken = default);
@@ -136,7 +136,7 @@ public interface IInvoiceService
     /// </summary>
     Task<PreviewEditResultDto?> PreviewInvoiceEditAsync(
         Guid invoiceId,
-        EditInvoiceRequestDto request,
+        EditInvoiceDto request,
         CancellationToken cancellationToken = default);
 }
 

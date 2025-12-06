@@ -1802,7 +1802,7 @@ public class InvoiceService(
     /// <inheritdoc />
     public async Task<PreviewEditResultDto?> PreviewInvoiceEditAsync(
         Guid invoiceId,
-        EditInvoiceRequestDto request,
+        EditInvoiceDto request,
         CancellationToken cancellationToken = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();
@@ -2081,7 +2081,7 @@ public class InvoiceService(
     /// <inheritdoc />
     public async Task<OperationResult<EditInvoiceResultDto>> EditInvoiceAsync(
         Guid invoiceId,
-        EditInvoiceRequestDto request,
+        EditInvoiceDto request,
         Guid? authorId,
         string? authorName,
         CancellationToken cancellationToken = default)

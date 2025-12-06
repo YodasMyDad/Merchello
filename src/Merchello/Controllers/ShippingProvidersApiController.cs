@@ -90,7 +90,7 @@ public class ShippingProvidersApiController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CreateProviderConfiguration(
-        [FromBody] CreateShippingProviderConfigurationDto request,
+        [FromBody] CreateShippingProviderDto request,
         CancellationToken cancellationToken = default)
     {
         var provider = await providerManager.GetProviderAsync(request.ProviderKey, requireEnabled: false, cancellationToken);
@@ -135,7 +135,7 @@ public class ShippingProvidersApiController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateProviderConfiguration(
         Guid id,
-        [FromBody] UpdateShippingProviderConfigurationDto request,
+        [FromBody] UpdateShippingProviderDto request,
         CancellationToken cancellationToken = default)
     {
         var providers = await providerManager.GetProvidersAsync(cancellationToken);

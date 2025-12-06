@@ -107,6 +107,8 @@ public class WarehouseServiceTests
 
         // Assert
         result.Successful.ShouldBeTrue();
+        // Clear change tracker to get fresh data from database
+        _fixture.DbContext.ChangeTracker.Clear();
         var deletedWarehouse = await _fixture.DbContext.Warehouses.FindAsync(warehouse.Id);
         deletedWarehouse.ShouldBeNull();
     }
@@ -143,6 +145,8 @@ public class WarehouseServiceTests
         // Assert
         result.Successful.ShouldBeTrue();
 
+        // Clear change tracker to get fresh data from database
+        _fixture.DbContext.ChangeTracker.Clear();
         var deletedWarehouse = await _fixture.DbContext.Warehouses.FindAsync(warehouse.Id);
         deletedWarehouse.ShouldBeNull();
 
@@ -248,6 +252,8 @@ public class WarehouseServiceTests
         // Assert
         result.Successful.ShouldBeTrue();
 
+        // Clear change tracker to get fresh data from database
+        _fixture.DbContext.ChangeTracker.Clear();
         var updatedAssociation = await _fixture.DbContext.ProductRootWarehouses
             .FirstOrDefaultAsync(prw =>
                 prw.ProductRootId == productRoot.Id &&
@@ -301,6 +307,8 @@ public class WarehouseServiceTests
         // Assert
         result.Successful.ShouldBeTrue();
 
+        // Clear change tracker to get fresh data from database
+        _fixture.DbContext.ChangeTracker.Clear();
         var stockRecord = await _fixture.DbContext.ProductWarehouses
             .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
 
@@ -349,6 +357,8 @@ public class WarehouseServiceTests
         // Assert
         result.Successful.ShouldBeTrue();
 
+        // Clear change tracker to get fresh data from database
+        _fixture.DbContext.ChangeTracker.Clear();
         var stockRecord = await _fixture.DbContext.ProductWarehouses
             .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
 
@@ -378,6 +388,8 @@ public class WarehouseServiceTests
         // Assert
         result.Successful.ShouldBeTrue();
 
+        // Clear change tracker to get fresh data from database
+        _fixture.DbContext.ChangeTracker.Clear();
         var stockRecord = await _fixture.DbContext.ProductWarehouses
             .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
 
@@ -426,6 +438,8 @@ public class WarehouseServiceTests
         // Assert
         result.Successful.ShouldBeTrue();
 
+        // Clear change tracker to get fresh data from database
+        _fixture.DbContext.ChangeTracker.Clear();
         var stock1 = await _fixture.DbContext.ProductWarehouses
             .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse1.Id);
         var stock2 = await _fixture.DbContext.ProductWarehouses
