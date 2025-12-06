@@ -64,7 +64,7 @@ export interface PaymentProviderSettingDto {
 }
 
 /** Request to create/enable a payment provider */
-export interface CreatePaymentProviderSettingDto {
+export interface CreatePaymentProviderDto {
   /** The provider alias to enable */
   providerAlias: string;
   /** Display name override (optional, defaults to provider's display name) */
@@ -78,7 +78,7 @@ export interface CreatePaymentProviderSettingDto {
 }
 
 /** Request to update a payment provider setting */
-export interface UpdatePaymentProviderSettingDto {
+export interface UpdatePaymentProviderDto {
   /** Display name override */
   displayName?: string;
   /** Whether the provider is enabled */

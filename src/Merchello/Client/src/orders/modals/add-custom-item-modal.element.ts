@@ -70,9 +70,20 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     return taxGroup?.taxPercentage ?? 0;
   }
 
+  private _getTaxGroupOptions(): Array<{ name: string; value: string; selected: boolean }> {
+    const taxGroups = this.data?.taxGroups ?? [];
+    return [
+      { name: "Not taxable", value: "", selected: !this._selectedTaxGroupId },
+      ...taxGroups.map(tg => ({
+        name: `${tg.name} (${tg.taxPercentage}%)`,
+        value: tg.id,
+        selected: this._selectedTaxGroupId === tg.id
+      }))
+    ];
+  }
+
   render() {
     const currencySymbol = this.data?.currencySymbol ?? "£";
-    const taxGroups = this.data?.taxGroups ?? [];
     const selectedTaxRate = this._getSelectedTaxRate();
     const subtotal = this._price * this._quantity;
     const taxAmount = subtotal * (selectedTaxRate / 100);
@@ -139,18 +150,9 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
             <label for="tax-group">Tax</label>
             <uui-select
               id="tax-group"
-              .value=${this._selectedTaxGroupId ?? ""}
+              .options=${this._getTaxGroupOptions()}
               @change=${this._handleTaxGroupChange}
-            >
-              <option value="">Not taxable</option>
-              ${taxGroups.map(
-                (tg) => html`
-                  <option value=${tg.id}>
-                    ${tg.name} (${tg.taxPercentage}%)
-                  </option>
-                `
-              )}
-            </uui-select>
+            ></uui-select>
             ${this._selectedTaxGroupId ? html`
               <span class="tax-info">Tax: ${currencySymbol}${taxAmount.toFixed(2)} at ${selectedTaxRate}%</span>
             ` : nothing}

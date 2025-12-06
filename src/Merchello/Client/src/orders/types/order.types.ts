@@ -176,12 +176,12 @@ export interface InvoiceNoteDto {
 }
 
 /** Request to add a note to an invoice */
-export interface AddInvoiceNoteRequest {
+export interface AddInvoiceNoteDto {
   text: string;
   visibleToCustomer: boolean;
 }
 
-export interface OrderListResponse {
+export interface OrderPageDto {
   items: OrderListItemDto[];
   page: number;
   pageSize: number;
@@ -239,7 +239,7 @@ export const MERCHELLO_ORDER_ENTITY_TYPE = "merchello-order";
 // ============================================
 
 /** Request to create a new shipment */
-export interface CreateShipmentRequest {
+export interface CreateShipmentDto {
   /** Line items to include in shipment. Key: LineItemId, Value: Quantity */
   lineItems: Record<string, number>;
   /** Carrier name (e.g., "UPS", "FedEx", "DHL") */
@@ -251,7 +251,7 @@ export interface CreateShipmentRequest {
 }
 
 /** Request to update shipment tracking info */
-export interface UpdateShipmentRequest {
+export interface UpdateShipmentDto {
   carrier?: string;
   trackingNumber?: string;
   trackingUrl?: string;
@@ -326,7 +326,7 @@ export interface PendingShipmentItem {
 // ============================================
 
 /** Request to export orders within a date range */
-export interface OrderExportRequest {
+export interface ExportOrderDto {
   fromDate: string;
   toDate: string;
 }
@@ -424,7 +424,7 @@ export interface DiscountLineItemDto {
 }
 
 /** Request to edit an invoice */
-export interface EditInvoiceRequestDto {
+export interface EditInvoiceDto {
   lineItems: EditLineItemDto[];
   removedLineItems: RemoveLineItemDto[];
   /** IDs of order-level discounts to remove (coupons, etc.) */

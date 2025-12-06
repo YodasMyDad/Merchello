@@ -149,26 +149,26 @@ export interface UserModel {
 
 // Import order types
 import type {
-  OrderListResponse,
+  OrderPageDto,
   OrderDetailDto,
   OrderListParams,
   OrderStatsDto,
   DashboardStatsDto,
   FulfillmentSummaryDto,
-  CreateShipmentRequest,
-  UpdateShipmentRequest,
+  CreateShipmentDto,
+  UpdateShipmentDto,
   ShipmentDetailDto,
   PaymentDto,
   PaymentStatusDto,
   RecordManualPaymentDto,
   ProcessRefundDto,
   InvoiceNoteDto,
-  AddInvoiceNoteRequest,
+  AddInvoiceNoteDto,
   AddressDto,
-  OrderExportRequest,
+  ExportOrderDto,
   OrderExportItemDto,
   InvoiceForEditDto,
-  EditInvoiceRequestDto,
+  EditInvoiceDto,
   EditInvoiceResultDto,
   PreviewEditResultDto,
   TaxGroupDto,
@@ -179,8 +179,8 @@ import type {
   PaymentProviderDto,
   PaymentProviderSettingDto,
   PaymentProviderFieldDto,
-  CreatePaymentProviderSettingDto,
-  UpdatePaymentProviderSettingDto,
+  CreatePaymentProviderDto,
+  UpdatePaymentProviderDto,
 } from '../payment-providers/types.js';
 
 // Import shipping provider types
@@ -188,8 +188,8 @@ import type {
   ShippingProviderDto,
   ShippingProviderConfigurationDto,
   ShippingProviderFieldDto,
-  CreateShippingProviderConfigurationDto,
-  UpdateShippingProviderConfigurationDto,
+  CreateShippingProviderDto,
+  UpdateShippingProviderDto,
 } from '../shipping/types.js';
 
 // Helper to build query string from params
@@ -232,10 +232,10 @@ export const MerchelloApi = {
   // Orders API
   getOrders: (params?: OrderListParams) => {
     const queryString = buildQueryString(params as Record<string, unknown>);
-    return apiGet<OrderListResponse>(`orders${queryString ? `?${queryString}` : ''}`);
+    return apiGet<OrderPageDto>(`orders${queryString ? `?${queryString}` : ''}`);
   },
   getOrder: (id: string) => apiGet<OrderDetailDto>(`orders/${id}`),
-  addInvoiceNote: (invoiceId: string, data: AddInvoiceNoteRequest) =>
+  addInvoiceNote: (invoiceId: string, data: AddInvoiceNoteDto) =>
     apiPost<InvoiceNoteDto>(`orders/${invoiceId}/notes`, data),
   updateBillingAddress: (invoiceId: string, address: AddressDto) =>
     apiPut<AddressDto>(`orders/${invoiceId}/billing-address`, address),
@@ -245,7 +245,7 @@ export const MerchelloApi = {
   getDashboardStats: () => apiGet<DashboardStatsDto>('orders/dashboard-stats'),
 
   /** Export orders within a date range for CSV generation */
-  exportOrders: (request: OrderExportRequest) =>
+  exportOrders: (request: ExportOrderDto) =>
     apiPost<OrderExportItemDto[]>('orders/export', request),
 
   /** Soft-delete multiple orders/invoices */
@@ -258,13 +258,13 @@ export const MerchelloApi = {
     apiGet<InvoiceForEditDto>(`orders/${invoiceId}/edit`),
 
   /** Edit an invoice (update quantities, apply discounts, add custom items) */
-  editInvoice: (invoiceId: string, request: EditInvoiceRequestDto) =>
+  editInvoice: (invoiceId: string, request: EditInvoiceDto) =>
     apiPut<EditInvoiceResultDto>(`orders/${invoiceId}/edit`, request),
 
   /** Preview calculated totals for proposed invoice changes without persisting.
    * This is the single source of truth for all invoice calculations.
    * Frontend should call this instead of calculating locally. */
-  previewInvoiceEdit: (invoiceId: string, request: EditInvoiceRequestDto) =>
+  previewInvoiceEdit: (invoiceId: string, request: EditInvoiceDto) =>
     apiPost<PreviewEditResultDto>(`orders/${invoiceId}/preview-edit`, request),
 
   // Fulfillment API
@@ -273,11 +273,11 @@ export const MerchelloApi = {
     apiGet<FulfillmentSummaryDto>(`orders/${invoiceId}/fulfillment-summary`),
 
   /** Create a shipment for an order */
-  createShipment: (orderId: string, request: CreateShipmentRequest) =>
+  createShipment: (orderId: string, request: CreateShipmentDto) =>
     apiPost<ShipmentDetailDto>(`orders/${orderId}/shipments`, request),
 
   /** Update shipment tracking information */
-  updateShipment: (shipmentId: string, request: UpdateShipmentRequest) =>
+  updateShipment: (shipmentId: string, request: UpdateShipmentDto) =>
     apiPut<ShipmentDetailDto>(`shipments/${shipmentId}`, request),
 
   /** Delete a shipment (releases items back to unfulfilled) */
@@ -305,11 +305,11 @@ export const MerchelloApi = {
     apiGet<PaymentProviderFieldDto[]>(`payment-providers/${alias}/fields`),
 
   /** Create/enable a payment provider */
-  createPaymentProvider: (data: CreatePaymentProviderSettingDto) =>
+  createPaymentProvider: (data: CreatePaymentProviderDto) =>
     apiPost<PaymentProviderSettingDto>('payment-providers', data),
 
   /** Update a payment provider setting */
-  updatePaymentProvider: (id: string, data: UpdatePaymentProviderSettingDto) =>
+  updatePaymentProvider: (id: string, data: UpdatePaymentProviderDto) =>
     apiPut<PaymentProviderSettingDto>(`payment-providers/${id}`, data),
 
   /** Delete a payment provider setting */
@@ -369,11 +369,11 @@ export const MerchelloApi = {
     apiGet<ShippingProviderFieldDto[]>(`shipping-providers/${key}/fields`),
 
   /** Create/enable a shipping provider */
-  createShippingProvider: (data: CreateShippingProviderConfigurationDto) =>
+  createShippingProvider: (data: CreateShippingProviderDto) =>
     apiPost<ShippingProviderConfigurationDto>('shipping-providers', data),
 
   /** Update a shipping provider configuration */
-  updateShippingProvider: (id: string, data: UpdateShippingProviderConfigurationDto) =>
+  updateShippingProvider: (id: string, data: UpdateShippingProviderDto) =>
     apiPut<ShippingProviderConfigurationDto>(`shipping-providers/${id}`, data),
 
   /** Delete a shipping provider configuration */

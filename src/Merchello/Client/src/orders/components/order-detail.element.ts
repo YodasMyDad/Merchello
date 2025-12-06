@@ -314,6 +314,17 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     `;
   }
 
+  private _getCountryOptions(): Array<{ name: string; value: string; selected: boolean }> {
+    return [
+      { name: "Select country...", value: "", selected: !this._editFormData.countryCode },
+      ...this._countries.map(c => ({
+        name: c.name,
+        value: c.code,
+        selected: this._editFormData.countryCode === c.code
+      }))
+    ];
+  }
+
   private _renderCountrySelect(): TemplateResult {
     const hasError = !!this._validationErrors.countryCode;
     return html`
@@ -321,7 +332,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
         <uui-select
           label="Country"
           placeholder="Select country"
-          .value=${this._editFormData.countryCode || ''}
+          .options=${this._getCountryOptions()}
           @change=${(e: Event) => {
             const select = e.target as HTMLSelectElement;
             const selectedCountry = this._countries.find(c => c.code === select.value);
@@ -335,12 +346,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
               this._validationErrors = rest;
             }
           }}
-        >
-          <option value="">Select country...</option>
-          ${this._countries.map(c => html`
-            <option value=${c.code} ?selected=${this._editFormData.countryCode === c.code}>${c.name}</option>
-          `)}
-        </uui-select>
+        ></uui-select>
         ${hasError ? html`<span class="field-error">${this._validationErrors.countryCode}</span>` : nothing}
       </div>
     `;

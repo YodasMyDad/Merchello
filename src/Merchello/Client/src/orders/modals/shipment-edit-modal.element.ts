@@ -4,7 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatShortDate } from "@shared/utils/formatting.js";
 import type { ShipmentEditModalData, ShipmentEditModalValue } from "./shipment-edit-modal.token.js";
-import type { UpdateShipmentRequest } from "@orders/types/order.types.js";
+import type { UpdateShipmentDto } from "@orders/types/order.types.js";
 
 @customElement("merchello-shipment-edit-modal")
 export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
@@ -38,7 +38,7 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
     this._errorMessage = null;
 
     try {
-      const request: UpdateShipmentRequest = {
+      const request: UpdateShipmentDto = {
         carrier: this._carrier || undefined,
         trackingNumber: this._trackingNumber || undefined,
         trackingUrl: this._trackingUrl || undefined,

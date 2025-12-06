@@ -95,7 +95,7 @@ public class PaymentProvidersApiController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CreateProviderSetting(
-        [FromBody] CreatePaymentProviderSettingDto request,
+        [FromBody] CreatePaymentProviderDto request,
         CancellationToken cancellationToken = default)
     {
         // Verify provider exists
@@ -143,7 +143,7 @@ public class PaymentProvidersApiController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateProviderSetting(
         Guid id,
-        [FromBody] UpdatePaymentProviderSettingDto request,
+        [FromBody] UpdatePaymentProviderDto request,
         CancellationToken cancellationToken = default)
     {
         var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);

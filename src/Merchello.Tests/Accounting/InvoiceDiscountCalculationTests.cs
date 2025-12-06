@@ -592,7 +592,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Act: Remove the order discount
         var editResult = await _invoiceService.EditInvoiceAsync(
             invoice.Id,
-            new EditInvoiceRequestDto
+            new EditInvoiceDto
             {
                 LineItems = [],
                 RemovedLineItems = [],
@@ -669,7 +669,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Act: Preview with no changes
         var result = await _invoiceService.PreviewInvoiceEditAsync(
             invoice.Id,
-            new EditInvoiceRequestDto
+            new EditInvoiceDto
             {
                 LineItems = [],
                 RemovedLineItems = [],
@@ -703,7 +703,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Act: Preview quantity change from 1 to 3
         var result = await _invoiceService.PreviewInvoiceEditAsync(
             invoice.Id,
-            new EditInvoiceRequestDto
+            new EditInvoiceDto
             {
                 LineItems = [new EditLineItemDto { Id = lineItem.Id, Quantity = 3 }],
                 RemovedLineItems = [],
@@ -735,7 +735,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Act: Preview adding 20% discount
         var result = await _invoiceService.PreviewInvoiceEditAsync(
             invoice.Id,
-            new EditInvoiceRequestDto
+            new EditInvoiceDto
             {
                 LineItems = [new EditLineItemDto
                 {
@@ -778,7 +778,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Act: Preview removing first item
         var result = await _invoiceService.PreviewInvoiceEditAsync(
             invoice.Id,
-            new EditInvoiceRequestDto
+            new EditInvoiceDto
             {
                 LineItems = [],
                 RemovedLineItems = [new RemoveLineItemDto { Id = lineItem1.Id }],
@@ -811,7 +811,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Act: Preview adding custom item
         var result = await _invoiceService.PreviewInvoiceEditAsync(
             invoice.Id,
-            new EditInvoiceRequestDto
+            new EditInvoiceDto
             {
                 LineItems = [],
                 RemovedLineItems = [],
@@ -850,7 +850,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Act: Preview removing order discount
         var result = await _invoiceService.PreviewInvoiceEditAsync(
             invoice.Id,
-            new EditInvoiceRequestDto
+            new EditInvoiceDto
             {
                 LineItems = [],
                 RemovedLineItems = [],
@@ -885,7 +885,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Act: Preview updating shipping cost
         var result = await _invoiceService.PreviewInvoiceEditAsync(
             invoice.Id,
-            new EditInvoiceRequestDto
+            new EditInvoiceDto
             {
                 LineItems = [],
                 RemovedLineItems = [],
@@ -918,7 +918,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Act: Preview with tax removed
         var result = await _invoiceService.PreviewInvoiceEditAsync(
             invoice.Id,
-            new EditInvoiceRequestDto
+            new EditInvoiceDto
             {
                 LineItems = [],
                 RemovedLineItems = [],
@@ -951,7 +951,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Act
         var result = await _invoiceService.PreviewInvoiceEditAsync(
             invoice.Id,
-            new EditInvoiceRequestDto
+            new EditInvoiceDto
             {
                 LineItems = [],
                 RemovedLineItems = [],
@@ -985,7 +985,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Act: Preview adding discount larger than item value
         var result = await _invoiceService.PreviewInvoiceEditAsync(
             invoice.Id,
-            new EditInvoiceRequestDto
+            new EditInvoiceDto
             {
                 LineItems = [new EditLineItemDto
                 {
@@ -1017,7 +1017,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Act
         var result = await _invoiceService.PreviewInvoiceEditAsync(
             Guid.NewGuid(),
-            new EditInvoiceRequestDto
+            new EditInvoiceDto
             {
                 LineItems = [],
                 RemovedLineItems = [],
@@ -1054,7 +1054,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Act: Preview with quantity change and custom item
         var result = await _invoiceService.PreviewInvoiceEditAsync(
             invoice.Id,
-            new EditInvoiceRequestDto
+            new EditInvoiceDto
             {
                 LineItems = [new EditLineItemDto { Id = lineItem1.Id, Quantity = 3 }],
                 RemovedLineItems = [],

@@ -10,7 +10,7 @@ import type {
   InvoiceForEditDto,
   LineItemForEditDto,
   OrderForEditDto,
-  EditInvoiceRequestDto,
+  EditInvoiceDto,
   EditLineItemDto,
   AddCustomItemDto,
   LineItemDiscountDto,
@@ -347,6 +347,13 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     }
   }
 
+  private _getDiscountTypeOptions(): Array<{ name: string; value: string; selected: boolean }> {
+    return [
+      { name: "Fixed amount", value: "0", selected: this._discountType === DiscountType.Amount },
+      { name: "Percentage", value: "1", selected: this._discountType === DiscountType.Percentage }
+    ];
+  }
+
   private async _openAddCustomItemModal(): Promise<void> {
     if (!this.#modalManager || !this._invoice) return;
 
@@ -421,7 +428,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
   /**
    * Build the request object for preview/edit operations
    */
-  private _buildPreviewRequest(): EditInvoiceRequestDto {
+  private _buildPreviewRequest(): EditInvoiceDto {
     // Build line item updates (quantity and discount changes)
     const lineItemUpdates: EditLineItemDto[] = this._lineItems
       .filter((li) => !li.isRemoved && (li.newQuantity !== li.quantity || li.discount !== null))
@@ -804,12 +811,9 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         </div>
 
         <uui-select
-          .value=${this._discountType.toString()}
+          .options=${this._getDiscountTypeOptions()}
           @change=${(e: Event) => (this._discountType = parseInt((e.target as HTMLSelectElement).value))}
-        >
-          <option value="0">Fixed amount</option>
-          <option value="1">Percentage</option>
-        </uui-select>
+        ></uui-select>
 
         <div class="popover-row">
           <label>Value ${this._discountType === DiscountType.Percentage ? '(%)' : `(per unit)`}</label>

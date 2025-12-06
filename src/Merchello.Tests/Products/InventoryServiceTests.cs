@@ -1,6 +1,7 @@
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Tests.TestInfrastructure;
+using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Xunit;
 
@@ -32,7 +33,7 @@ public class InventoryServiceTests
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
         var product = dataBuilder.CreateProduct();
-        var productWarehouse = dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100, trackStock: true);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100, trackStock: true);
         await dataBuilder.SaveChangesAsync();
 
         // Act
@@ -40,7 +41,11 @@ public class InventoryServiceTests
 
         // Assert
         result.ResultObject.ShouldBeTrue();
-        productWarehouse.ReservedStock.ShouldBe(10);
+        // Clear change tracker and reload from database
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedPw = await _fixture.DbContext.ProductWarehouses
+            .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
+        updatedPw!.ReservedStock.ShouldBe(10);
     }
 
     [Fact]
@@ -169,7 +174,7 @@ public class InventoryServiceTests
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
         var product = dataBuilder.CreateProduct();
-        var productWarehouse = dataBuilder.CreateProductWarehouse(
+        dataBuilder.CreateProductWarehouse(
             product, warehouse, stock: 100, trackStock: true, reservedStock: 30);
         await dataBuilder.SaveChangesAsync();
 
@@ -178,7 +183,11 @@ public class InventoryServiceTests
 
         // Assert
         result.ResultObject.ShouldBeTrue();
-        productWarehouse.ReservedStock.ShouldBe(20); // 30 - 10
+        // Clear change tracker and reload from database
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedPw = await _fixture.DbContext.ProductWarehouses
+            .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
+        updatedPw!.ReservedStock.ShouldBe(20); // 30 - 10
     }
 
     [Fact]
@@ -188,7 +197,7 @@ public class InventoryServiceTests
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
         var product = dataBuilder.CreateProduct();
-        var productWarehouse = dataBuilder.CreateProductWarehouse(
+        dataBuilder.CreateProductWarehouse(
             product, warehouse, stock: 100, trackStock: true, reservedStock: 5);
         await dataBuilder.SaveChangesAsync();
 
@@ -197,7 +206,11 @@ public class InventoryServiceTests
 
         // Assert
         result.ResultObject.ShouldBeTrue();
-        productWarehouse.ReservedStock.ShouldBe(0); // Clamped to 0
+        // Clear change tracker and reload from database
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedPw = await _fixture.DbContext.ProductWarehouses
+            .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
+        updatedPw!.ReservedStock.ShouldBe(0); // Clamped to 0
     }
 
     [Fact]
@@ -230,7 +243,7 @@ public class InventoryServiceTests
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
         var product = dataBuilder.CreateProduct();
-        var productWarehouse = dataBuilder.CreateProductWarehouse(
+        dataBuilder.CreateProductWarehouse(
             product, warehouse, stock: 100, trackStock: true, reservedStock: 30);
         await dataBuilder.SaveChangesAsync();
 
@@ -239,8 +252,12 @@ public class InventoryServiceTests
 
         // Assert
         result.ResultObject.ShouldBeTrue();
-        productWarehouse.Stock.ShouldBe(80); // 100 - 20
-        productWarehouse.ReservedStock.ShouldBe(10); // 30 - 20
+        // Clear change tracker and reload from database
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedPw = await _fixture.DbContext.ProductWarehouses
+            .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
+        updatedPw!.Stock.ShouldBe(80); // 100 - 20
+        updatedPw.ReservedStock.ShouldBe(10); // 30 - 20
     }
 
     [Fact]
@@ -269,7 +286,7 @@ public class InventoryServiceTests
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
         var product = dataBuilder.CreateProduct();
-        var productWarehouse = dataBuilder.CreateProductWarehouse(
+        dataBuilder.CreateProductWarehouse(
             product, warehouse, stock: 10, trackStock: true, reservedStock: 5);
         await dataBuilder.SaveChangesAsync();
 
@@ -278,8 +295,12 @@ public class InventoryServiceTests
 
         // Assert
         result.ResultObject.ShouldBeTrue();
-        productWarehouse.Stock.ShouldBe(0); // Clamped to 0
-        productWarehouse.ReservedStock.ShouldBe(0); // Clamped to 0
+        // Clear change tracker and reload from database
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedPw = await _fixture.DbContext.ProductWarehouses
+            .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
+        updatedPw!.Stock.ShouldBe(0); // Clamped to 0
+        updatedPw.ReservedStock.ShouldBe(0); // Clamped to 0
     }
 
     #endregion
@@ -404,7 +425,7 @@ public class InventoryServiceTests
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
         var product = dataBuilder.CreateProduct();
-        var productWarehouse = dataBuilder.CreateProductWarehouse(
+        dataBuilder.CreateProductWarehouse(
             product, warehouse, stock: 100, trackStock: true);
         await dataBuilder.SaveChangesAsync();
 
@@ -414,7 +435,11 @@ public class InventoryServiceTests
         await _inventoryService.ReserveStockAsync(product.Id, warehouse.Id, 10);
 
         // Assert
-        productWarehouse.ReservedStock.ShouldBe(60); // 20 + 30 + 10
+        // Clear change tracker and reload from database
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedPw = await _fixture.DbContext.ProductWarehouses
+            .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
+        updatedPw!.ReservedStock.ShouldBe(60); // 20 + 30 + 10
         var available = await _inventoryService.GetAvailableStockAsync(product.Id, warehouse.Id);
         available.ShouldBe(40); // 100 - 60
     }
@@ -426,7 +451,7 @@ public class InventoryServiceTests
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
         var product = dataBuilder.CreateProduct();
-        var productWarehouse = dataBuilder.CreateProductWarehouse(
+        dataBuilder.CreateProductWarehouse(
             product, warehouse, stock: 50, trackStock: true, reservedStock: 30);
         await dataBuilder.SaveChangesAsync();
 
@@ -435,7 +460,11 @@ public class InventoryServiceTests
 
         // Assert
         result.ResultObject.ShouldBeTrue();
-        productWarehouse.ReservedStock.ShouldBe(50);
+        // Clear change tracker and reload from database
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedPw = await _fixture.DbContext.ProductWarehouses
+            .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
+        updatedPw!.ReservedStock.ShouldBe(50);
         var available = await _inventoryService.GetAvailableStockAsync(product.Id, warehouse.Id);
         available.ShouldBe(0);
     }

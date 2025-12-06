@@ -73,6 +73,14 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
+  private _getPaymentMethodOptions(): Array<{ name: string; value: string; selected: boolean }> {
+    return PAYMENT_METHODS.map(method => ({
+      name: method.label,
+      value: method.value,
+      selected: this._paymentMethod === method.value
+    }));
+  }
+
   render() {
     const balanceDue = this.data?.balanceDue ?? 0;
 
@@ -115,23 +123,12 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
             <label for="paymentMethod">Payment Method *</label>
             <uui-select
               id="paymentMethod"
-              .value=${this._paymentMethod}
+              .options=${this._getPaymentMethodOptions()}
               required
               @change=${(e: Event) => {
                 this._paymentMethod = (e.target as HTMLSelectElement).value;
               }}
-            >
-              ${PAYMENT_METHODS.map(
-                (method) => html`
-                  <option
-                    value="${method.value}"
-                    ?selected=${this._paymentMethod === method.value}
-                  >
-                    ${method.label}
-                  </option>
-                `
-              )}
-            </uui-select>
+            ></uui-select>
           </div>
 
           <div class="form-field">

@@ -25,8 +25,8 @@ public class OrdersApiController(
     /// Get paginated list of orders/invoices
     /// </summary>
     [HttpGet("orders")]
-    [ProducesResponseType<OrderListResponse>(StatusCodes.Status200OK)]
-    public async Task<OrderListResponse> GetOrders([FromQuery] OrderListQuery query)
+    [ProducesResponseType<OrderPageDto>(StatusCodes.Status200OK)]
+    public async Task<OrderPageDto> GetOrders([FromQuery] OrderQueryDto query)
     {
         // Map query to parameters
         var parameters = new InvoiceQueryParameters
@@ -73,7 +73,7 @@ public class OrdersApiController(
         // Map to DTOs
         var items = result.Items.Select(i => MapToListItem(i, shippingOptionNames)).ToList();
 
-        return new OrderListResponse
+        return new OrderPageDto
         {
             Items = items,
             Page = result.PageIndex,
@@ -122,7 +122,7 @@ public class OrdersApiController(
     [ProducesResponseType<List<OrderExportItemDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ExportOrders(
-        [FromBody] OrderExportRequestDto request,
+        [FromBody] ExportOrderDto request,
         CancellationToken cancellationToken)
     {
         if (request.FromDate > request.ToDate)
@@ -173,9 +173,9 @@ public class OrdersApiController(
     /// Soft-delete multiple orders/invoices
     /// </summary>
     [HttpPost("orders/delete")]
-    [ProducesResponseType<DeleteOrdersResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<DeleteOrdersResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> DeleteOrders([FromBody] DeleteOrdersRequest request)
+    public async Task<IActionResult> DeleteOrders([FromBody] DeleteOrdersDto request)
     {
         if (request.Ids == null || request.Ids.Count == 0)
         {
@@ -184,7 +184,7 @@ public class OrdersApiController(
 
         var deletedCount = await invoiceService.SoftDeleteInvoicesAsync(request.Ids);
 
-        return Ok(new DeleteOrdersResponse
+        return Ok(new DeleteOrdersResultDto
         {
             DeletedCount = deletedCount
         });
@@ -300,7 +300,7 @@ public class OrdersApiController(
     [HttpPost("orders/{invoiceId:guid}/preview-edit")]
     [ProducesResponseType<PreviewEditResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> PreviewEditInvoice(Guid invoiceId, [FromBody] EditInvoiceRequestDto request)
+    public async Task<IActionResult> PreviewEditInvoice(Guid invoiceId, [FromBody] EditInvoiceDto request)
     {
         var result = await invoiceService.PreviewInvoiceEditAsync(invoiceId, request);
 
@@ -319,7 +319,7 @@ public class OrdersApiController(
     [ProducesResponseType<EditInvoiceResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> EditInvoice(Guid invoiceId, [FromBody] EditInvoiceRequestDto request)
+    public async Task<IActionResult> EditInvoice(Guid invoiceId, [FromBody] EditInvoiceDto request)
     {
         // Get current backoffice user
         var currentUser = backOfficeSecurityAccessor.BackOfficeSecurity?.CurrentUser;
@@ -547,7 +547,7 @@ public class OrdersApiController(
     [ProducesResponseType<ShipmentDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> CreateShipment(Guid orderId, [FromBody] CreateShipmentRequestDto request)
+    public async Task<IActionResult> CreateShipment(Guid orderId, [FromBody] CreateShipmentDto request)
     {
         if (request.LineItems == null || request.LineItems.Count == 0)
         {
@@ -580,7 +580,7 @@ public class OrdersApiController(
     [HttpPut("shipments/{shipmentId:guid}")]
     [ProducesResponseType<ShipmentDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateShipment(Guid shipmentId, [FromBody] UpdateShipmentRequestDto request)
+    public async Task<IActionResult> UpdateShipment(Guid shipmentId, [FromBody] UpdateShipmentDto request)
     {
         var parameters = new UpdateShipmentParameters
         {
