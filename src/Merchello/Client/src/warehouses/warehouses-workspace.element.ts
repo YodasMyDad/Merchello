@@ -10,14 +10,18 @@ import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 export class MerchelloWarehousesWorkspaceElement extends UmbElementMixin(LitElement) {
   render() {
     return html`
-      <uui-box headline="Warehouses">
-        <div class="placeholder">
-          <uui-icon name="icon-store"></uui-icon>
-          <h2>Warehouses</h2>
-          <p>Warehouse management coming soon.</p>
-          <p class="hint">This section will allow you to manage warehouse locations, inventory distribution, and fulfillment centers.</p>
+      <umb-body-layout header-fit-height main-no-padding>
+        <div class="content">
+          <uui-box headline="Warehouses">
+            <div class="placeholder">
+              <uui-icon name="icon-store"></uui-icon>
+              <h2>Warehouses</h2>
+              <p>Warehouse management coming soon.</p>
+              <p class="hint">This section will allow you to manage warehouse locations, inventory distribution, and fulfillment centers.</p>
+            </div>
+          </uui-box>
         </div>
-      </uui-box>
+      </umb-body-layout>
     `;
   }
 
@@ -25,6 +29,10 @@ export class MerchelloWarehousesWorkspaceElement extends UmbElementMixin(LitElem
     css`
       :host {
         display: block;
+        height: 100%;
+      }
+
+      .content {
         padding: var(--uui-size-layout-1);
       }
 

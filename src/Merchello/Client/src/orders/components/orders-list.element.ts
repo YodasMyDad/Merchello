@@ -312,27 +312,25 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
 
   render() {
     return html`
+      <umb-body-layout header-fit-height main-no-padding>
       <div class="orders-container">
-        <!-- Header -->
-        <div class="orders-header">
-          <h1>Orders</h1>
-          <div class="header-actions">
-            ${this._selectedOrders.size > 0
-              ? html`
-                  <uui-button
-                    look="primary"
-                    color="danger"
-                    label="Delete"
-                    ?disabled=${this._isDeleting}
-                    @click=${this._handleDeleteSelected}
-                  >
-                    ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedOrders.size})`}
-                  </uui-button>
-                `
-              : ""}
-            <uui-button look="secondary" label="Export" @click=${this._handleExport}>Export</uui-button>
-            <uui-button look="primary" color="positive" label="Create order">Create order</uui-button>
-          </div>
+        <!-- Header Actions -->
+        <div class="header-actions">
+          ${this._selectedOrders.size > 0
+            ? html`
+                <uui-button
+                  look="primary"
+                  color="danger"
+                  label="Delete"
+                  ?disabled=${this._isDeleting}
+                  @click=${this._handleDeleteSelected}
+                >
+                  ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedOrders.size})`}
+                </uui-button>
+              `
+            : ""}
+          <uui-button look="secondary" label="Export" @click=${this._handleExport}>Export</uui-button>
+          <uui-button look="primary" color="positive" label="Create order">Create order</uui-button>
         </div>
 
         <!-- Stats Bar -->
@@ -413,36 +411,28 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
         <!-- Orders Table -->
         ${this._renderOrdersContent()}
       </div>
+      </umb-body-layout>
     `;
   }
 
   static styles = css`
     :host {
       display: block;
-      padding: var(--uui-size-layout-1);
+      height: 100%;
       background: var(--uui-color-background);
     }
 
     .orders-container {
       max-width: 100%;
-    }
-
-    .orders-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: var(--uui-size-space-4);
-    }
-
-    .orders-header h1 {
-      margin: 0;
-      font-size: 1.5rem;
-      font-weight: 600;
+      padding: var(--uui-size-layout-1);
     }
 
     .header-actions {
       display: flex;
       gap: var(--uui-size-space-2);
+      align-items: center;
+      justify-content: flex-end;
+      margin-bottom: var(--uui-size-space-4);
     }
 
     .stats-bar {

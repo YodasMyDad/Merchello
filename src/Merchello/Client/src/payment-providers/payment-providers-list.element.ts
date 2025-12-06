@@ -277,30 +277,40 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
   render() {
     if (this._isLoading) {
       return html`
-        <div class="loading">
-          <uui-loader></uui-loader>
-          <span>Loading payment providers...</span>
-        </div>
+        <umb-body-layout header-fit-height main-no-padding>
+          <div class="content">
+            <div class="loading">
+              <uui-loader></uui-loader>
+              <span>Loading payment providers...</span>
+            </div>
+          </div>
+        </umb-body-layout>
       `;
     }
 
     if (this._errorMessage) {
       return html`
-        <uui-box>
-          <div class="error">
-            <uui-icon name="icon-alert"></uui-icon>
-            <span>${this._errorMessage}</span>
-            <uui-button look="primary" label="Retry" @click=${this._loadProviders}>
-              Retry
-            </uui-button>
+        <umb-body-layout header-fit-height main-no-padding>
+          <div class="content">
+            <uui-box>
+              <div class="error">
+                <uui-icon name="icon-alert"></uui-icon>
+                <span>${this._errorMessage}</span>
+                <uui-button look="primary" label="Retry" @click=${this._loadProviders}>
+                  Retry
+                </uui-button>
+              </div>
+            </uui-box>
           </div>
-        </uui-box>
+        </umb-body-layout>
       `;
     }
 
     const unconfiguredProviders = this._getUnconfiguredProviders();
 
     return html`
+      <umb-body-layout header-fit-height main-no-padding>
+      <div class="content">
       <uui-box headline="Configured Payment Providers">
         <p class="section-description">
           These payment providers are installed and configured.
@@ -332,12 +342,18 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
               </div>
             `}
       </uui-box>
+      </div>
+      </umb-body-layout>
     `;
   }
 
   static styles = css`
     :host {
       display: block;
+      height: 100%;
+    }
+
+    .content {
       padding: var(--uui-size-layout-1);
     }
 

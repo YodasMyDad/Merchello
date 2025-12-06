@@ -430,6 +430,8 @@ export interface EditInvoiceDto {
   /** IDs of order-level discounts to remove (coupons, etc.) */
   removedOrderDiscounts: string[];
   customItems: AddCustomItemDto[];
+  /** Order-level discounts to add (not tied to specific line items) */
+  orderDiscounts?: LineItemDiscountDto[];
   orderShippingUpdates: OrderShippingUpdateDto[];
   editReason: string | null;
   /** If true, removes tax from all line items (VAT exemption) */
@@ -465,6 +467,7 @@ export interface LineItemDiscountDto {
   reason: string | null;
   visibleToCustomer: boolean;
 }
+
 
 /** Custom item to add to the invoice */
 export interface AddCustomItemDto {

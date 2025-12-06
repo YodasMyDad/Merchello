@@ -1931,6 +1931,12 @@ public class InvoiceService(
                 orderDiscountTotal += Math.Abs(orderDiscounts.Sum(d => d.Amount));
             }
 
+            // Store new order discounts - percentage ones will be calculated after subtotal is known
+            var newOrderAmountDiscounts = request.OrderDiscounts
+                .Where(d => d.Type == DiscountType.Amount)
+                .Sum(d => d.Value);
+            orderDiscountTotal += newOrderAmountDiscounts;
+
             // Calculate shipping total
             var shippingTotal = 0m;
             foreach (var order in orders)
@@ -1997,6 +2003,15 @@ public class InvoiceService(
                     TaxAmount = taxAmount
                 });
             }
+
+            // Calculate new percentage order discounts now that we have subtotal
+            var newOrderPercentageDiscounts = 0m;
+            foreach (var newDiscount in request.OrderDiscounts.Where(d => d.Type == DiscountType.Percentage))
+            {
+                var percentageAmount = Math.Round(subTotal * (newDiscount.Value / 100m), 2, _settings.DefaultRounding);
+                newOrderPercentageDiscounts += percentageAmount;
+            }
+            orderDiscountTotal += newOrderPercentageDiscounts;
 
             // Cap total discount at subtotal
             var rawDiscountTotal = lineItemDiscountTotal + orderDiscountTotal;
@@ -2384,6 +2399,60 @@ public class InvoiceService(
                     db.Orders.Add(customOrder);
                     orders.Add(customOrder);
                     changes.Add("Created new order for custom items");
+                }
+
+                // Add new order-level discounts
+                if (request.OrderDiscounts.Any())
+                {
+                    // Get the first order to attach discounts to (or use custom order if it exists)
+                    var targetOrder = orders.FirstOrDefault();
+                    if (targetOrder == null)
+                    {
+                        return OperationResult<EditInvoiceResultDto>.Fail("No order found to attach discount to");
+                    }
+
+                    // Calculate subtotal for percentage discounts
+                    var currentSubTotal = orders
+                        .SelectMany(o => o.LineItems ?? [])
+                        .Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom)
+                        .Sum(li => li.Amount * li.Quantity);
+
+                    foreach (var orderDiscount in request.OrderDiscounts)
+                    {
+                        // Calculate the discount amount
+                        var discountAmount = orderDiscount.Type == DiscountType.Percentage
+                            ? Math.Round(currentSubTotal * (orderDiscount.Value / 100m), 2, _settings.DefaultRounding)
+                            : orderDiscount.Value;
+
+                        var discountLineItem = new LineItem
+                        {
+                            Id = GuidExtensions.NewSequentialGuid,
+                            OrderId = targetOrder.Id,
+                            LineItemType = LineItemType.Discount,
+                            DependantLineItemSku = null, // No dependent SKU - this is an order-level discount
+                            Name = orderDiscount.Reason ?? "Order Discount",
+                            Sku = $"ORDERDISCOUNT-{DateTime.UtcNow.Ticks}",
+                            Amount = -discountAmount, // Discounts are stored as negative amounts
+                            Quantity = 1,
+                            IsTaxable = false,
+                            TaxRate = 0,
+                            ExtendedData = new Dictionary<string, object>
+                            {
+                                ["DiscountType"] = orderDiscount.Type.ToString(),
+                                ["DiscountValue"] = orderDiscount.Value,
+                                ["VisibleToCustomer"] = orderDiscount.VisibleToCustomer
+                            }
+                        };
+
+                        targetOrder.LineItems ??= [];
+                        targetOrder.LineItems.Add(discountLineItem);
+                        db.LineItems.Add(discountLineItem);
+
+                        var discountDisplay = orderDiscount.Type == DiscountType.Percentage
+                            ? $"{orderDiscount.Value}%"
+                            : $"{_settings.CurrencySymbol}{orderDiscount.Value}";
+                        changes.Add($"Added order discount: {discountDisplay} off ({orderDiscount.Reason ?? "No reason specified"})");
+                    }
                 }
 
                 // Update per-order shipping costs

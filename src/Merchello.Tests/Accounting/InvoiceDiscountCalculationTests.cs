@@ -1082,4 +1082,486 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
     }
 
     #endregion
+
+    #region J. Adding New Order Discounts
+
+    [Fact]
+    public async Task PreviewEdit_AddNewOrderDiscount_FixedAmount_CalculatesTotals()
+    {
+        // Arrange: Invoice with single item, no existing discounts
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
+        await builder.SaveChangesAsync();
+
+        // Act: Preview adding £15 order discount
+        var result = await _invoiceService.PreviewInvoiceEditAsync(
+            invoice.Id,
+            new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems = [],
+                OrderDiscounts = [new LineItemDiscountDto
+                {
+                    Type = DiscountType.Amount,
+                    Value = 15m,
+                    Reason = "Goodwill gesture",
+                    VisibleToCustomer = false
+                }],
+                OrderShippingUpdates = [],
+                EditReason = null,
+                RemoveTax = false
+            });
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        result.DiscountTotal.ShouldBe(15m);
+        result.AdjustedSubTotal.ShouldBe(85m);
+        result.Tax.ShouldBe(17m); // 20% of 85
+        result.Total.ShouldBe(102m); // 85 + 17
+    }
+
+    [Fact]
+    public async Task PreviewEdit_AddNewOrderDiscount_Percentage_CalculatesTotals()
+    {
+        // Arrange: Invoice with single item, no existing discounts
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
+        await builder.SaveChangesAsync();
+
+        // Act: Preview adding 10% order discount
+        var result = await _invoiceService.PreviewInvoiceEditAsync(
+            invoice.Id,
+            new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems = [],
+                OrderDiscounts = [new LineItemDiscountDto
+                {
+                    Type = DiscountType.Percentage,
+                    Value = 10m,
+                    Reason = "Customer loyalty",
+                    VisibleToCustomer = true
+                }],
+                OrderShippingUpdates = [],
+                EditReason = null,
+                RemoveTax = false
+            });
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        result.DiscountTotal.ShouldBe(10m); // 10% of 100
+        result.AdjustedSubTotal.ShouldBe(90m);
+        result.Tax.ShouldBe(18m); // 20% of 90
+        result.Total.ShouldBe(108m);
+    }
+
+    [Fact]
+    public async Task PreviewEdit_AddMultipleNewOrderDiscounts_AllApplied()
+    {
+        // Arrange: Invoice with item
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
+        await builder.SaveChangesAsync();
+
+        // Act: Preview adding £5 fixed + 10% percentage discounts
+        var result = await _invoiceService.PreviewInvoiceEditAsync(
+            invoice.Id,
+            new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems = [],
+                OrderDiscounts = [
+                    new LineItemDiscountDto
+                    {
+                        Type = DiscountType.Amount,
+                        Value = 5m,
+                        Reason = "Apology credit"
+                    },
+                    new LineItemDiscountDto
+                    {
+                        Type = DiscountType.Percentage,
+                        Value = 10m,
+                        Reason = "VIP discount"
+                    }
+                ],
+                OrderShippingUpdates = [],
+                EditReason = null,
+                RemoveTax = false
+            });
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        // Fixed £5 + 10% of £100 = £5 + £10 = £15
+        result.DiscountTotal.ShouldBe(15m);
+        result.AdjustedSubTotal.ShouldBe(85m);
+        result.Tax.ShouldBe(17m); // 20% of 85
+        result.Total.ShouldBe(102m);
+    }
+
+    [Fact]
+    public async Task PreviewEdit_AddNewOrderDiscount_WithExistingLineItemDiscount_BothApplied()
+    {
+        // Arrange: Invoice with item that has line item discount
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
+        builder.CreateDiscountLineItem(order, lineItem, 10m, DiscountType.Amount, 10m, "Line discount");
+        await builder.SaveChangesAsync();
+
+        // Act: Add £5 order discount on top of existing line discount
+        var result = await _invoiceService.PreviewInvoiceEditAsync(
+            invoice.Id,
+            new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems = [],
+                OrderDiscounts = [new LineItemDiscountDto
+                {
+                    Type = DiscountType.Amount,
+                    Value = 5m,
+                    Reason = "Additional discount"
+                }],
+                OrderShippingUpdates = [],
+                EditReason = null,
+                RemoveTax = false
+            });
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        result.DiscountTotal.ShouldBe(15m); // £10 line + £5 order
+        result.AdjustedSubTotal.ShouldBe(85m);
+        result.Tax.ShouldBe(17m); // 20% of 85
+        result.Total.ShouldBe(102m);
+    }
+
+    [Fact]
+    public async Task PreviewEdit_AddNewOrderDiscount_MultipleItems_ProRatedForTax()
+    {
+        // Arrange: 2 items with different tax rates
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        builder.CreateLineItem(order, name: "Product 1", quantity: 1, amount: 60m, taxRate: 20m);
+        builder.CreateLineItem(order, name: "Product 2", quantity: 1, amount: 40m, taxRate: 10m);
+        await builder.SaveChangesAsync();
+
+        // Act: Preview adding £10 order discount
+        var result = await _invoiceService.PreviewInvoiceEditAsync(
+            invoice.Id,
+            new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems = [],
+                OrderDiscounts = [new LineItemDiscountDto
+                {
+                    Type = DiscountType.Amount,
+                    Value = 10m,
+                    Reason = "Order discount"
+                }],
+                OrderShippingUpdates = [],
+                EditReason = null,
+                RemoveTax = false
+            });
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        result.DiscountTotal.ShouldBe(10m);
+        result.AdjustedSubTotal.ShouldBe(90m);
+        // Pro-rated discount: £6 off first (60%), £4 off second (40%)
+        // Tax: (54 * 0.20) + (36 * 0.10) = 10.8 + 3.6 = 14.4
+        result.Tax.ShouldBe(14.4m);
+        result.Total.ShouldBe(104.4m); // 90 + 14.4
+    }
+
+    [Fact]
+    public async Task PreviewEdit_AddNewOrderDiscount_ExceedsSubtotal_Capped()
+    {
+        // Arrange: Small order
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 50m, taxRate: 20m);
+        await builder.SaveChangesAsync();
+
+        // Act: Preview adding £100 order discount (exceeds £50 subtotal)
+        var result = await _invoiceService.PreviewInvoiceEditAsync(
+            invoice.Id,
+            new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems = [],
+                OrderDiscounts = [new LineItemDiscountDto
+                {
+                    Type = DiscountType.Amount,
+                    Value = 100m,
+                    Reason = "Massive discount"
+                }],
+                OrderShippingUpdates = [],
+                EditReason = null,
+                RemoveTax = false
+            });
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(50m);
+        result.DiscountTotal.ShouldBe(50m); // Capped at subtotal
+        result.AdjustedSubTotal.ShouldBe(0m);
+        result.Tax.ShouldBe(0m); // No tax on £0
+        result.Warnings.ShouldContain(w => w.Contains("capped"));
+    }
+
+    [Fact]
+    public async Task PreviewEdit_AddNewOrderDiscount_PercentageOver100_CappedAtSubtotal()
+    {
+        // Arrange
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
+        await builder.SaveChangesAsync();
+
+        // Act: Preview adding 150% discount
+        var result = await _invoiceService.PreviewInvoiceEditAsync(
+            invoice.Id,
+            new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems = [],
+                OrderDiscounts = [new LineItemDiscountDto
+                {
+                    Type = DiscountType.Percentage,
+                    Value = 150m // 150% would be £150, capped at £100
+                }],
+                OrderShippingUpdates = [],
+                EditReason = null,
+                RemoveTax = false
+            });
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        result.DiscountTotal.ShouldBe(100m); // Capped at subtotal
+        result.AdjustedSubTotal.ShouldBe(0m);
+        result.Warnings.ShouldContain(w => w.Contains("capped"));
+    }
+
+    [Fact]
+    public async Task EditInvoice_AddNewOrderDiscount_PersistsAndRecalculates()
+    {
+        // Arrange
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
+        await builder.SaveChangesAsync();
+
+        // Verify initial state - no discounts
+        var initialResult = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        initialResult.ShouldNotBeNull();
+        initialResult.DiscountTotal.ShouldBe(0m);
+        initialResult.OrderDiscounts.Count.ShouldBe(0);
+
+        // Act: Add order discount
+        var editResult = await _invoiceService.EditInvoiceAsync(
+            invoice.Id,
+            new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems = [],
+                OrderDiscounts = [new LineItemDiscountDto
+                {
+                    Type = DiscountType.Amount,
+                    Value = 20m,
+                    Reason = "Customer compensation",
+                    VisibleToCustomer = true
+                }],
+                OrderShippingUpdates = [],
+                EditReason = "Adding goodwill discount",
+                RemoveTax = false
+            },
+            authorId: Guid.NewGuid(),
+            authorName: "Test User");
+
+        // Assert
+        editResult.IsSuccess.ShouldBeTrue();
+        editResult.Data.ShouldNotBeNull();
+        editResult.Data.Success.ShouldBeTrue();
+
+        // Verify persisted state
+        var updatedResult = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        updatedResult.ShouldNotBeNull();
+        updatedResult.SubTotal.ShouldBe(100m);
+        updatedResult.DiscountTotal.ShouldBe(20m);
+        updatedResult.AdjustedSubTotal.ShouldBe(80m);
+        updatedResult.Tax.ShouldBe(16m); // 20% of 80
+        updatedResult.OrderDiscounts.Count.ShouldBe(1);
+        updatedResult.OrderDiscounts[0].Value.ShouldBe(20m);
+        updatedResult.OrderDiscounts[0].Type.ShouldBe(DiscountType.Amount);
+    }
+
+    [Fact]
+    public async Task EditInvoice_AddNewOrderDiscount_Percentage_PersistsCorrectly()
+    {
+        // Arrange
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 80m, taxRate: 20m);
+        await builder.SaveChangesAsync();
+
+        // Act: Add 25% order discount
+        var editResult = await _invoiceService.EditInvoiceAsync(
+            invoice.Id,
+            new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems = [],
+                OrderDiscounts = [new LineItemDiscountDto
+                {
+                    Type = DiscountType.Percentage,
+                    Value = 25m,
+                    Reason = "VIP 25% off"
+                }],
+                OrderShippingUpdates = [],
+                EditReason = null,
+                RemoveTax = false
+            },
+            authorId: Guid.NewGuid(),
+            authorName: "Test User");
+
+        // Assert
+        editResult.IsSuccess.ShouldBeTrue();
+
+        // Verify: 25% of £80 = £20 discount
+        var updatedResult = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        updatedResult.ShouldNotBeNull();
+        updatedResult.SubTotal.ShouldBe(80m);
+        updatedResult.DiscountTotal.ShouldBe(20m);
+        updatedResult.AdjustedSubTotal.ShouldBe(60m);
+        updatedResult.Tax.ShouldBe(12m); // 20% of 60
+        updatedResult.Total.ShouldBe(72m);
+    }
+
+    [Fact]
+    public async Task PreviewEdit_AddNewOrderDiscount_WithShipping_ShippingUnaffected()
+    {
+        // Arrange
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        order.ShippingCost = 10m;
+        builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
+        await builder.SaveChangesAsync();
+
+        // Act: Add order discount
+        var result = await _invoiceService.PreviewInvoiceEditAsync(
+            invoice.Id,
+            new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems = [],
+                OrderDiscounts = [new LineItemDiscountDto
+                {
+                    Type = DiscountType.Amount,
+                    Value = 20m
+                }],
+                OrderShippingUpdates = [],
+                EditReason = null,
+                RemoveTax = false
+            });
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        result.DiscountTotal.ShouldBe(20m);
+        result.AdjustedSubTotal.ShouldBe(80m);
+        result.ShippingTotal.ShouldBe(10m); // Shipping not affected by discount
+        result.Tax.ShouldBe(16m); // 20% of 80
+        result.Total.ShouldBe(106m); // 80 + 16 + 10
+    }
+
+    [Fact]
+    public async Task PreviewEdit_AddNewOrderDiscount_CombinedWithExistingOrderDiscount()
+    {
+        // Arrange: Invoice with existing order discount
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
+        builder.CreateOrderLevelDiscount(order, 10m, DiscountType.Amount, 10m, "Existing coupon");
+        await builder.SaveChangesAsync();
+
+        // Act: Add another order discount
+        var result = await _invoiceService.PreviewInvoiceEditAsync(
+            invoice.Id,
+            new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems = [],
+                OrderDiscounts = [new LineItemDiscountDto
+                {
+                    Type = DiscountType.Amount,
+                    Value = 5m,
+                    Reason = "Additional discount"
+                }],
+                OrderShippingUpdates = [],
+                EditReason = null,
+                RemoveTax = false
+            });
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        result.DiscountTotal.ShouldBe(15m); // £10 existing + £5 new
+        result.AdjustedSubTotal.ShouldBe(85m);
+        result.Tax.ShouldBe(17m); // 20% of 85
+        result.Total.ShouldBe(102m);
+    }
+
+    #endregion
 }

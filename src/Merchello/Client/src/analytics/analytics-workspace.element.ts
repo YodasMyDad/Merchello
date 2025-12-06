@@ -10,14 +10,18 @@ import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitElement) {
   render() {
     return html`
-      <uui-box headline="Analytics">
-        <div class="placeholder">
-          <uui-icon name="icon-chart-curve"></uui-icon>
-          <h2>Analytics</h2>
-          <p>Sales analytics and reporting coming soon.</p>
-          <p class="hint">This section will provide insights into sales performance, customer behavior, and revenue trends.</p>
+      <umb-body-layout header-fit-height main-no-padding>
+        <div class="content">
+          <uui-box headline="Analytics">
+            <div class="placeholder">
+              <uui-icon name="icon-chart-curve"></uui-icon>
+              <h2>Analytics</h2>
+              <p>Sales analytics and reporting coming soon.</p>
+              <p class="hint">This section will provide insights into sales performance, customer behavior, and revenue trends.</p>
+            </div>
+          </uui-box>
         </div>
-      </uui-box>
+      </umb-body-layout>
     `;
   }
 
@@ -25,6 +29,10 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
     css`
       :host {
         display: block;
+        height: 100%;
+      }
+
+      .content {
         padding: var(--uui-size-layout-1);
       }
 
