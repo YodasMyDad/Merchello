@@ -87,13 +87,19 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
   render() {
     if (this._isLoading) {
       return html`
-        <div class="loading">
-          <uui-loader></uui-loader>
-        </div>
+        <umb-body-layout header-fit-height main-no-padding>
+          <div class="content">
+            <div class="loading">
+              <uui-loader></uui-loader>
+            </div>
+          </div>
+        </umb-body-layout>
       `;
     }
 
     return html`
+      <umb-body-layout header-fit-height main-no-padding>
+      <div class="content">
       <div class="stats-grid">
         <uui-box headline="Orders">
           <div class="stat-value">${this._stats?.ordersThisMonth ?? 0}</div>
@@ -166,6 +172,8 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
               </uui-table>
             `}
       </uui-box>
+      </div>
+      </umb-body-layout>
     `;
   }
 
@@ -173,6 +181,10 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
     css`
       :host {
         display: block;
+        height: 100%;
+      }
+
+      .content {
         padding: var(--uui-size-layout-1);
       }
 

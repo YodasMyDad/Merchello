@@ -522,6 +522,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     const order = this._order;
 
     return html`
+      <umb-body-layout header-fit-height main-no-padding>
       <div class="order-detail">
         <!-- Header -->
         <div class="order-header">
@@ -825,14 +826,19 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
         </div>
         `}
       </div>
+      </umb-body-layout>
     `;
   }
 
   static styles = css`
     :host {
       display: block;
-      padding: var(--uui-size-layout-1);
+      height: 100%;
       background: var(--uui-color-background);
+    }
+
+    .order-detail {
+      padding: var(--uui-size-layout-1);
     }
 
     .loading {

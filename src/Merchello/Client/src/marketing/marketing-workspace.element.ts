@@ -10,14 +10,18 @@ import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 export class MerchelloMarketingWorkspaceElement extends UmbElementMixin(LitElement) {
   render() {
     return html`
-      <uui-box headline="Marketing">
-        <div class="placeholder">
-          <uui-icon name="icon-megaphone"></uui-icon>
-          <h2>Marketing</h2>
-          <p>Marketing tools and promotions coming soon.</p>
-          <p class="hint">This section will allow you to create discount codes, promotions, and email campaigns.</p>
+      <umb-body-layout header-fit-height main-no-padding>
+        <div class="content">
+          <uui-box headline="Marketing">
+            <div class="placeholder">
+              <uui-icon name="icon-megaphone"></uui-icon>
+              <h2>Marketing</h2>
+              <p>Marketing tools and promotions coming soon.</p>
+              <p class="hint">This section will allow you to create discount codes, promotions, and email campaigns.</p>
+            </div>
+          </uui-box>
         </div>
-      </uui-box>
+      </umb-body-layout>
     `;
   }
 
@@ -25,6 +29,10 @@ export class MerchelloMarketingWorkspaceElement extends UmbElementMixin(LitEleme
     css`
       :host {
         display: block;
+        height: 100%;
+      }
+
+      .content {
         padding: var(--uui-size-layout-1);
       }
 

@@ -713,6 +713,47 @@ html`
 
 ---
 
+## Workspace View Scrolling (Important!)
+
+Workspace views that have scrollable content **must** use `umb-body-layout` to get proper internal scrolling. Without it, content will overflow the viewport without a scrollbar.
+
+### Pattern
+```typescript
+override render() {
+  return html`
+    <umb-body-layout header-fit-height main-no-padding>
+      <div class="my-content">
+        <!-- Your scrollable content here -->
+      </div>
+    </umb-body-layout>
+  `;
+}
+
+static override styles = [css`
+  :host {
+    display: block;
+    height: 100%;  /* Required for umb-body-layout to fill container */
+  }
+  
+  .my-content {
+    padding: var(--uui-size-layout-1);  /* Add padding here since main-no-padding removes it */
+  }
+`];
+```
+
+### Why This Works
+- `umb-body-layout` has an internal `#main` div with `overflow-y: auto` and `flex: 1`
+- The `:host` must have `height: 100%` to give `umb-body-layout` a height constraint
+- `header-fit-height` makes the header shrink to content (useful when you have your own header)
+- `main-no-padding` removes default padding so you can control it in your content
+
+### Common Mistakes
+1. **Missing `height: 100%` on `:host`** - `umb-body-layout` needs a height constraint to enable scrolling
+2. **Not using `umb-body-layout`** - Content will overflow without a scrollbar
+3. **Padding on `:host` instead of content** - Can cause layout issues with the body layout
+
+---
+
 ## Routable Workspaces (Detail/Edit Views)
 
 Routable workspaces are used for CRUD operations where you need to navigate to a specific entity (e.g., edit a document, view order details).

@@ -111,6 +111,8 @@ export class MerchelloDashboardElement extends UmbElementMixin(LitElement) {
 
   render() {
     return html`
+      <umb-body-layout header-fit-height main-no-padding>
+      <div class="content">
       <uui-box headline="Who am I?">
         <div slot="header">[Server]</div>
         <h2>
@@ -181,12 +183,19 @@ export class MerchelloDashboardElement extends UmbElementMixin(LitElement) {
           >${JSON.stringify(this._contextCurrentUser, null, 2)}</umb-code-block
         >
       </uui-box>
+      </div>
+      </umb-body-layout>
     `;
   }
 
   static styles = [
     css`
       :host {
+        display: block;
+        height: 100%;
+      }
+
+      .content {
         display: grid;
         gap: var(--uui-size-layout-1);
         padding: var(--uui-size-layout-1);

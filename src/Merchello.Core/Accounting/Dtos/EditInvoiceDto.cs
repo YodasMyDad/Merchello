@@ -26,6 +26,11 @@ public class EditInvoiceDto
     public List<AddCustomItemDto> CustomItems { get; set; } = [];
 
     /// <summary>
+    /// Order-level discounts to add (not tied to specific line items)
+    /// </summary>
+    public List<LineItemDiscountDto> OrderDiscounts { get; set; } = [];
+
+    /// <summary>
     /// Per-order shipping cost updates
     /// </summary>
     public List<OrderShippingUpdateDto> OrderShippingUpdates { get; set; } = [];

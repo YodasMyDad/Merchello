@@ -22,6 +22,7 @@ import type {
 import { DiscountType } from "@orders/types/order.types.js";
 import type { EditOrderModalData, EditOrderModalValue } from "./edit-order-modal.token.js";
 import { MERCHELLO_ADD_CUSTOM_ITEM_MODAL } from "./add-custom-item-modal.token.js";
+import { MERCHELLO_ADD_DISCOUNT_MODAL } from "./add-discount-modal.token.js";
 
 interface EditableLineItem extends LineItemForEditDto {
   isRemoved: boolean;
@@ -41,6 +42,10 @@ interface PendingCustomItem extends AddCustomItemDto {
   tempId: string;
 }
 
+interface PendingOrderDiscount extends LineItemDiscountDto {
+  tempId: string;
+}
+
 @customElement("merchello-edit-order-modal")
 export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
   EditOrderModalData,
@@ -57,14 +62,6 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
   @state() private _lineItems: EditableLineItem[] = [];
   @state() private _customItems: PendingCustomItem[] = [];
 
-  // Discount popover state
-  @state() private _discountPopoverLineItemId: string | null = null;
-  @state() private _discountType: DiscountType = DiscountType.Amount;
-  @state() private _discountValue: number = 0;
-  @state() private _discountReason: string = "";
-  @state() private _discountVisibleToCustomer: boolean = false;
-  @state() private _popoverPosition: { top: number; left: number } = { top: 0, left: 0 };
-
   // Tax groups for custom items
   @state() private _taxGroups: TaxGroupDto[] = [];
 
@@ -74,6 +71,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
   // Order-level discounts (coupons, etc.)
   @state() private _removedOrderDiscounts: Set<string> = new Set();
+  @state() private _pendingOrderDiscounts: PendingOrderDiscount[] = [];
 
   // Preview state - Single source of truth from backend
   @state() private _previewResult: PreviewEditResultDto | null = null;
@@ -260,61 +258,63 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     this._refreshPreview();
   }
 
-  private _openDiscountPopover(lineItemId: string, event: Event): void {
-    const button = event.currentTarget as HTMLElement;
-    const rect = button.getBoundingClientRect();
-
-    // Position popover below the button, aligned to the right
-    this._popoverPosition = {
-      top: rect.bottom + 4,
-      left: rect.right - 280, // 280 is min-width of popover
-    };
+  private async _openLineItemDiscountModal(lineItemId: string): Promise<void> {
+    if (!this.#modalManager || !this._invoice) return;
 
     const lineItem = this._lineItems.find((li) => li.id === lineItemId);
-    if (lineItem?.discount) {
-      this._discountType = lineItem.discount.type;
-      this._discountValue = lineItem.discount.value;
-      this._discountReason = lineItem.discount.reason ?? "";
-      this._discountVisibleToCustomer = lineItem.discount.visibleToCustomer;
-    } else {
-      this._discountType = DiscountType.Amount;
-      this._discountValue = 0;
-      this._discountReason = "";
-      this._discountVisibleToCustomer = false;
-    }
-    this._discountPopoverLineItemId = lineItemId;
-  }
+    if (!lineItem) return;
 
-  private _closeDiscountPopover(): void {
-    this._discountPopoverLineItemId = null;
-  }
-
-  private _applyDiscount(): void {
-    if (!this._discountPopoverLineItemId || this._discountValue <= 0) {
-      this._closeDiscountPopover();
-      return;
-    }
-
-    const discount: LineItemDiscountDto = {
-      type: this._discountType,
-      value: this._discountValue,
-      reason: this._discountReason || null,
-      visibleToCustomer: this._discountVisibleToCustomer,
-    };
-
-    this._lineItems = this._lineItems.map((li) => {
-      if (li.id === this._discountPopoverLineItemId) {
-        return {
-          ...li,
-          discount,
-          calculatedTotal: this._getOptimisticLineItemTotal(li.amount, li.newQuantity, discount),
-        };
-      }
-      return li;
+    const modal = this.#modalManager.open(this, MERCHELLO_ADD_DISCOUNT_MODAL, {
+      data: {
+        currencySymbol: this._invoice.currencySymbol,
+        isOrderDiscount: false,
+        lineItemName: lineItem.name ?? undefined,
+        lineItemPrice: lineItem.amount,
+        lineItemQuantity: lineItem.newQuantity,
+        existingDiscount: lineItem.discount ?? undefined,
+      },
     });
 
-    this._closeDiscountPopover();
-    this._refreshPreview();
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.discount) {
+      this._lineItems = this._lineItems.map((li) => {
+        if (li.id === lineItemId) {
+          return {
+            ...li,
+            discount: result.discount!,
+            calculatedTotal: this._getOptimisticLineItemTotal(li.amount, li.newQuantity, result.discount!),
+          };
+        }
+        return li;
+      });
+      this._refreshPreview();
+    }
+  }
+
+  private async _openAddDiscountModal(): Promise<void> {
+    if (!this.#modalManager || !this._invoice) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_ADD_DISCOUNT_MODAL, {
+      data: {
+        currencySymbol: this._invoice.currencySymbol,
+        isOrderDiscount: true,
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.discount) {
+      this._pendingOrderDiscounts = [
+        ...this._pendingOrderDiscounts,
+        {
+          type: result.discount.type,
+          value: result.discount.value,
+          reason: result.discount.reason,
+          visibleToCustomer: result.discount.visibleToCustomer,
+          tempId: `discount-${Date.now()}`,
+        },
+      ];
+      this._refreshPreview();
+    }
   }
 
   private _removeDiscount(lineItemId: string): void {
@@ -347,11 +347,19 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     }
   }
 
-  private _getDiscountTypeOptions(): Array<{ name: string; value: string; selected: boolean }> {
-    return [
-      { name: "Fixed amount", value: "0", selected: this._discountType === DiscountType.Amount },
-      { name: "Percentage", value: "1", selected: this._discountType === DiscountType.Percentage }
-    ];
+  /**
+   * Calculate the discounted unit price for display.
+   */
+  private _getDiscountedUnitPrice(lineItem: EditableLineItem): number {
+    if (!lineItem.discount || lineItem.discount.value <= 0) {
+      return lineItem.amount;
+    }
+
+    if (lineItem.discount.type === DiscountType.Amount) {
+      return Math.max(0, lineItem.amount - lineItem.discount.value);
+    } else {
+      return lineItem.amount * (1 - lineItem.discount.value / 100);
+    }
   }
 
   private async _openAddCustomItemModal(): Promise<void> {
@@ -379,6 +387,11 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
   private _removeCustomItem(tempId: string): void {
     this._customItems = this._customItems.filter((item) => item.tempId !== tempId);
+    this._refreshPreview();
+  }
+
+  private _removePendingOrderDiscount(tempId: string): void {
+    this._pendingOrderDiscounts = this._pendingOrderDiscounts.filter((d) => d.tempId !== tempId);
     this._refreshPreview();
   }
 
@@ -417,6 +430,9 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
     // Check for removed order-level discounts
     if (this._removedOrderDiscounts.size > 0) return true;
+
+    // Check for pending order discounts
+    if (this._pendingOrderDiscounts.length > 0) return true;
 
     return false;
   }
@@ -466,6 +482,12 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         quantity: item.quantity,
         taxGroupId: item.taxGroupId,
         isPhysicalProduct: item.isPhysicalProduct,
+      })),
+      orderDiscounts: this._pendingOrderDiscounts.map((d) => ({
+        type: d.type,
+        value: d.value,
+        reason: d.reason,
+        visibleToCustomer: d.visibleToCustomer,
       })),
       orderShippingUpdates: orderShippingUpdates,
       editReason: this._editReason || null,
@@ -667,12 +689,17 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         </div>
 
         <div class="line-item-price">
-          <div class="price-wrapper">
-            <span class="price ${hasDiscount ? 'has-discount' : ''}">${currencySymbol}${lineItem.amount.toFixed(2)}</span>
+          <div class="price-display">
+            ${hasDiscount ? html`
+              <span class="original-price">${currencySymbol}${lineItem.amount.toFixed(2)}</span>
+              <span class="discounted-price">${currencySymbol}${this._getDiscountedUnitPrice(lineItem).toFixed(2)}</span>
+            ` : html`
+              <span class="price">${currencySymbol}${lineItem.amount.toFixed(2)}</span>
+            `}
             ${canModifyDiscount ? html`
               <button
                 class="discount-trigger ${hasDiscount ? 'active' : ''}"
-                @click=${(e: Event) => this._openDiscountPopover(lineItem.id, e)}
+                @click=${() => this._openLineItemDiscountModal(lineItem.id)}
                 title="${hasDiscount ? 'Edit discount' : 'Add discount'}"
               >
                 <uui-icon name="${hasDiscount ? 'icon-sale' : 'icon-add'}"></uui-icon>
@@ -680,11 +707,11 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
             ` : nothing}
           </div>
           ${hasDiscount ? html`
-            <div class="discount-badge">
-              -${lineItem.discount!.type === DiscountType.Percentage
+            <div class="discount-text">
+              <span>-${lineItem.discount!.type === DiscountType.Percentage
                 ? `${lineItem.discount!.value}%`
-                : `${currencySymbol}${lineItem.discount!.value.toFixed(2)}`}
-              <button class="remove-discount" @click=${() => this._removeDiscount(lineItem.id)}>×</button>
+                : `${currencySymbol}${lineItem.discount!.value.toFixed(2)}`} off</span>
+              <button class="remove-discount-btn" @click=${() => this._removeDiscount(lineItem.id)} title="Remove discount">×</button>
             </div>
           ` : nothing}
         </div>
@@ -762,7 +789,10 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       (d) => !this._removedOrderDiscounts.has(d.id)
     );
 
-    if (activeDiscounts.length === 0) return nothing;
+    const hasPendingDiscounts = this._pendingOrderDiscounts.length > 0;
+    const hasActiveDiscounts = activeDiscounts.length > 0;
+
+    if (!hasActiveDiscounts && !hasPendingDiscounts) return nothing;
 
     const currencySymbol = this._invoice.currencySymbol;
 
@@ -795,66 +825,32 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
             </div>
           `
         )}
-      </div>
-    `;
-  }
-
-  private _renderDiscountPopover() {
-    const currencySymbol = this._invoice?.currencySymbol ?? "£";
-    const popoverStyle = `top: ${this._popoverPosition.top}px; left: ${this._popoverPosition.left}px;`;
-
-    return html`
-      <div class="discount-popover-backdrop" @click=${this._closeDiscountPopover}></div>
-      <div class="discount-popover" style=${popoverStyle}>
-        <div class="popover-header">
-          <span>Discount type</span>
-        </div>
-
-        <uui-select
-          .options=${this._getDiscountTypeOptions()}
-          @change=${(e: Event) => (this._discountType = parseInt((e.target as HTMLSelectElement).value))}
-        ></uui-select>
-
-        <div class="popover-row">
-          <label>Value ${this._discountType === DiscountType.Percentage ? '(%)' : `(per unit)`}</label>
-          <div class="input-with-affix">
-            ${this._discountType === DiscountType.Amount
-              ? html`<span class="prefix">${currencySymbol}</span>`
-              : nothing}
-            <uui-input
-              type="number"
-              .value=${this._discountValue.toString()}
-              @input=${(e: Event) => (this._discountValue = parseFloat((e.target as HTMLInputElement).value) || 0)}
-              min="0"
-              step="0.01"
-            ></uui-input>
-            ${this._discountType === DiscountType.Percentage
-              ? html`<span class="suffix">%</span>`
-              : nothing}
-          </div>
-        </div>
-
-        <div class="popover-row">
-          <label>Reason for discount</label>
-          <uui-input
-            .value=${this._discountReason}
-            @input=${(e: Event) => (this._discountReason = (e.target as HTMLInputElement).value)}
-            placeholder="Optional"
-          ></uui-input>
-        </div>
-
-        <div class="popover-row checkbox">
-          <uui-checkbox
-            .checked=${this._discountVisibleToCustomer}
-            @change=${(e: Event) => (this._discountVisibleToCustomer = (e.target as HTMLInputElement).checked)}
-          >
-            Visible to customer
-          </uui-checkbox>
-        </div>
-
-        <div class="popover-actions">
-          <uui-button look="primary" @click=${this._applyDiscount}>Done</uui-button>
-        </div>
+        ${this._pendingOrderDiscounts.map(
+          (discount) => html`
+            <div class="order-discount-row pending">
+              <div class="discount-info">
+                <span class="discount-name">${discount.reason || "New Discount"}</span>
+                <span class="discount-value">
+                  ${discount.type === DiscountType.Percentage
+                    ? `${discount.value}%`
+                    : `${currencySymbol}${discount.value.toFixed(2)}`}
+                </span>
+                <span class="pending-badge">New</span>
+              </div>
+              <div class="discount-amount-cell">
+                <uui-button
+                  compact
+                  look="secondary"
+                  color="danger"
+                  @click=${() => this._removePendingOrderDiscount(discount.tempId)}
+                  title="Remove discount"
+                >
+                  <uui-icon name="icon-delete"></uui-icon>
+                </uui-button>
+              </div>
+            </div>
+          `
+        )}
       </div>
     `;
   }
@@ -967,6 +963,10 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
             <uui-button look="secondary" @click=${this._openAddCustomItemModal}>
               <uui-icon name="icon-add"></uui-icon>
               Add custom item
+            </uui-button>
+            <uui-button look="secondary" @click=${this._openAddDiscountModal}>
+              <uui-icon name="icon-add"></uui-icon>
+              Add discount
             </uui-button>
           </div>
 
@@ -1090,8 +1090,6 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
           </uui-button>
         </div>
 
-        <!-- Discount Popover (rendered at top level to avoid overflow clipping) -->
-        ${this._discountPopoverLineItemId ? this._renderDiscountPopover() : nothing}
       </umb-body-layout>
     `;
   }
@@ -1121,6 +1119,11 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
   }
 
   static styles = css`
+    :host {
+      display: block;
+      height: 100%;
+    }
+
     #main {
       padding: var(--uui-size-space-5);
       display: flex;
@@ -1305,16 +1308,26 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       position: relative;
     }
 
-    .price-wrapper {
+    .price-display {
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: var(--uui-size-space-1);
+      gap: var(--uui-size-space-2);
     }
 
-    .price.has-discount {
+    .price {
+      font-weight: 500;
+    }
+
+    .original-price {
       text-decoration: line-through;
       color: var(--uui-color-text-alt);
+      font-size: 0.875rem;
+    }
+
+    .discounted-price {
+      font-weight: 600;
+      color: var(--uui-color-current);
     }
 
     .discount-trigger {
@@ -1339,107 +1352,34 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       color: var(--uui-color-positive);
     }
 
-    .discount-badge {
-      display: inline-flex;
+    .discount-text {
+      display: flex;
       align-items: center;
-      gap: 4px;
-      background: var(--uui-color-positive-emphasis);
-      color: white;
-      padding: 2px 8px;
-      border-radius: 10px;
-      font-size: 0.75rem;
+      justify-content: flex-end;
+      gap: var(--uui-size-space-2);
       margin-top: 4px;
+      font-size: 0.8125rem;
+      color: var(--uui-color-positive);
     }
 
-    .remove-discount {
+    .discount-text span {
+      font-weight: 500;
+    }
+
+    .remove-discount-btn {
       background: none;
       border: none;
-      color: white;
+      color: var(--uui-color-positive);
       cursor: pointer;
-      font-size: 1rem;
+      font-size: 1.125rem;
       line-height: 1;
       padding: 0;
+      opacity: 0.7;
+      transition: opacity 0.15s;
     }
 
-    .discount-popover-backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-    }
-
-    .discount-popover {
-      position: fixed;
-      z-index: 10000;
-      background: var(--uui-color-surface);
-      border: 1px solid var(--uui-color-border);
-      border-radius: var(--uui-border-radius);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      padding: var(--uui-size-space-4);
-      min-width: 280px;
-      max-width: 320px;
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-3);
-    }
-
-    .popover-header {
-      font-weight: 500;
-      font-size: 0.875rem;
-    }
-
-    .discount-popover uui-select {
-      width: 100%;
-    }
-
-    .popover-row {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-1);
-    }
-
-    .popover-row label {
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
-    }
-
-    .popover-row.checkbox {
-      flex-direction: row;
-    }
-
-    .input-with-affix {
-      display: flex;
-      align-items: center;
-    }
-
-    .input-with-affix .prefix,
-    .input-with-affix .suffix {
-      padding: 0 var(--uui-size-space-2);
-      background: var(--uui-color-surface-alt);
-      border: 1px solid var(--uui-color-border);
-      height: 36px;
-      display: flex;
-      align-items: center;
-      color: var(--uui-color-text-alt);
-    }
-
-    .input-with-affix .prefix {
-      border-right: none;
-      border-radius: var(--uui-border-radius) 0 0 var(--uui-border-radius);
-    }
-
-    .input-with-affix .suffix {
-      border-left: none;
-      border-radius: 0 var(--uui-border-radius) var(--uui-border-radius) 0;
-    }
-
-    .input-with-affix uui-input {
-      flex: 1;
-    }
-
-    .popover-actions {
-      display: flex;
-      justify-content: flex-end;
-      padding-top: var(--uui-size-space-2);
+    .remove-discount-btn:hover {
+      opacity: 1;
     }
 
     .line-item-quantity {
@@ -1796,6 +1736,23 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     .order-discount-row .discount-amount {
       font-weight: 500;
       color: var(--uui-color-positive);
+    }
+
+    .order-discount-row.pending {
+      background: rgba(var(--uui-color-positive-rgb), 0.05);
+      margin: 0 calc(-1 * var(--uui-size-space-4));
+      padding-left: var(--uui-size-space-4);
+      padding-right: var(--uui-size-space-4);
+    }
+
+    .pending-badge {
+      font-size: 0.625rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      background: var(--uui-color-positive-emphasis);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
     }
   `;
 }
