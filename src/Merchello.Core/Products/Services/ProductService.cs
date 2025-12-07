@@ -1061,7 +1061,15 @@ public class ProductService(
                 itemsQuery = itemsQuery.Include(x => x.ProductWarehouses);
             }
 
-            if (parameters.NoTracking)
+            if (parameters.IncludeSiblingVariants)
+            {
+                itemsQuery = itemsQuery.Include(x => x.ProductRoot)
+                    .ThenInclude(x => x.Products);
+            }
+
+            // Note: Cannot use NoTracking with circular references (ProductRoot->Products creates a cycle)
+            // Only apply NoTracking if we're not including sibling variants
+            if (parameters.NoTracking && !parameters.IncludeSiblingVariants)
             {
                 itemsQuery = itemsQuery.AsNoTracking();
             }

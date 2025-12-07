@@ -55,8 +55,6 @@ public class ProductRoot
     /// </summary>
     public string? RootUrl { get; set; }
 
-
-
     /// <summary>
     /// The list of selling points
     /// </summary>

@@ -196,6 +196,14 @@ import type {
   UpdateShippingProviderDto,
 } from '../shipping/types.js';
 
+// Import product types
+import type {
+  ProductPageDto,
+  ProductListParams,
+  ProductTypeDto,
+  ProductCategoryDto,
+} from '../products/types/product.types.js';
+
 // Helper to build query string from params
 function buildQueryString(params?: Record<string, unknown>): string {
   if (!params) return '';
@@ -408,4 +416,20 @@ export const MerchelloApi = {
   /** Reorder shipping providers */
   reorderShippingProviders: (orderedIds: string[]) =>
     apiPut<void>('shipping-providers/reorder', { orderedIds }),
+
+  // ============================================
+  // Products API
+  // ============================================
+
+  /** Get paginated list of products */
+  getProducts: (params?: ProductListParams) => {
+    const queryString = buildQueryString(params as Record<string, unknown>);
+    return apiGet<ProductPageDto>(`products${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Get all product types for filtering */
+  getProductTypes: () => apiGet<ProductTypeDto[]>('products/types'),
+
+  /** Get all product categories for filtering */
+  getProductCategories: () => apiGet<ProductCategoryDto[]>('products/categories'),
 };
