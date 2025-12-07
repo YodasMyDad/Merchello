@@ -7,6 +7,7 @@ export default defineConfig({
       "@api": resolve(__dirname, "src/api"),
       "@orders": resolve(__dirname, "src/orders"),
       "@payment-providers": resolve(__dirname, "src/payment-providers"),
+      "@products": resolve(__dirname, "src/products"),
       "@shared": resolve(__dirname, "src/shared"),
     },
   },

@@ -15,5 +15,6 @@ public class ProductQueryParameters
     public List<Guid>? FilterKeys { get; set; }
     public bool AllVariants { get;set;}
     public bool IncludeProductWarehouses { get; set; } = false;
+    public bool IncludeSiblingVariants { get; set; } = false;
 }
 

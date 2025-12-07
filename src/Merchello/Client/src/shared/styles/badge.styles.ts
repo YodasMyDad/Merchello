@@ -55,4 +55,25 @@ export const badgeStyles = css`
     background: var(--uui-color-warning-standalone);
     color: var(--uui-color-warning-contrast);
   }
+
+  /* Generic color badges (for products, etc.) */
+  .badge-positive {
+    background: var(--uui-color-positive-standalone);
+    color: var(--uui-color-positive-contrast);
+  }
+
+  .badge-danger {
+    background: var(--uui-color-danger-standalone);
+    color: var(--uui-color-danger-contrast);
+  }
+
+  .badge-warning {
+    background: var(--uui-color-warning-standalone);
+    color: var(--uui-color-warning-contrast);
+  }
+
+  .badge-default {
+    background: var(--uui-color-surface-alt);
+    color: var(--uui-color-text);
+  }
 `;

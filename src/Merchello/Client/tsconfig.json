@@ -26,6 +26,7 @@
       "@api/*": [ "src/api/*" ],
       "@orders/*": [ "src/orders/*" ],
       "@payment-providers/*": [ "src/payment-providers/*" ],
+      "@products/*": [ "src/products/*" ],
       "@shared/*": [ "src/shared/*" ]
     },
 
