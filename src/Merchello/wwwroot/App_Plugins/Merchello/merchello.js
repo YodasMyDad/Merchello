@@ -68,7 +68,7 @@ const e = [
     type: "dashboard",
     alias: "Merchello.Dashboard.Stats",
     name: "Merchello Stats Dashboard",
-    element: () => import("./stats-dashboard.element-BvogpLw3.js"),
+    element: () => import("./stats-dashboard.element-Csul2e7f.js"),
     meta: {
       label: "Stats",
       pathname: "stats"
@@ -199,7 +199,7 @@ const e = [
     type: "modal",
     alias: "Merchello.CustomerOrders.Modal",
     name: "Merchello Customer Orders Modal",
-    js: () => import("./customer-orders-modal.element-CXPNPjLk.js")
+    js: () => import("./customer-orders-modal.element-C3_EQhz_.js")
   },
   // Workspace for orders list (when clicking "Orders" in tree)
   {
@@ -217,7 +217,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Orders.ListView",
     name: "Orders List View",
-    js: () => import("./orders-list.element-UASs8Q14.js"),
+    js: () => import("./orders-list.element-CVyuPNmR.js"),
     weight: 100,
     meta: {
       label: "Orders",

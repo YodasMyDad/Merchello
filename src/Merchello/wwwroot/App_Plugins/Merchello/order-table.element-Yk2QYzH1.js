@@ -1,16 +1,22 @@
-import { css as d, LitElement as b, html as a, nothing as h, property as u, customElement as p } from "@umbraco-cms/backoffice/external/lit";
-import { UmbElementMixin as g } from "@umbraco-cms/backoffice/element-api";
-import { a as m, O as f } from "./order.types-B45a7FtJ.js";
-import { c as v, g as k, d as w, a as _, e as y } from "./formatting-CfdJ8lRr.js";
-const $ = "/umbraco/section/merchello";
-function C(e, t) {
-  return `${$}/workspace/${e}/${t}`;
+import { css as d, LitElement as p, html as l, nothing as g, property as u, customElement as m } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as f } from "@umbraco-cms/backoffice/element-api";
+import { a as v, O as k } from "./order.types-B45a7FtJ.js";
+import { c as w, g as _, d as y, a as $, e as C } from "./formatting-CfdJ8lRr.js";
+const S = "section/merchello";
+function b(e, t) {
+  return `${S}/workspace/${e}/${t}`;
 }
-const S = "merchello-order";
-function E(e) {
-  return C(S, `edit/${e}`);
+function E(e, t) {
+  history.pushState({}, "", b(e, t));
 }
-const x = d`
+const h = "merchello-order";
+function x(e) {
+  return b(h, `edit/${e}`);
+}
+function T(e) {
+  E(h, `edit/${e}`);
+}
+const O = d`
   .badge {
     display: inline-block;
     padding: 2px 8px;
@@ -62,14 +68,14 @@ const x = d`
     color: var(--uui-color-warning-contrast);
   }
 `;
-var O = Object.defineProperty, R = Object.getOwnPropertyDescriptor, i = (e, t, l, c) => {
-  for (var r = c > 1 ? void 0 : c ? R(t, l) : t, s = e.length - 1, n; s >= 0; s--)
-    (n = e[s]) && (r = (c ? n(t, l, r) : n(r)) || r);
-  return c && r && O(t, l, r), r;
+var R = Object.defineProperty, D = Object.getOwnPropertyDescriptor, i = (e, t, a, c) => {
+  for (var r = c > 1 ? void 0 : c ? D(t, a) : t, s = e.length - 1, n; s >= 0; s--)
+    (n = e[s]) && (r = (c ? n(t, a, r) : n(r)) || r);
+  return c && r && R(t, a, r), r;
 };
-let o = class extends g(b) {
+let o = class extends f(p) {
   constructor() {
-    super(...arguments), this.orders = [], this.columns = [...m], this.selectable = !1, this.selectedIds = [], this.clickable = !0;
+    super(...arguments), this.orders = [], this.columns = [...v], this.selectable = !1, this.selectedIds = [], this.clickable = !0;
   }
   /**
    * Ensure invoiceNumber is always in columns and 'select' column is added if selectable.
@@ -79,8 +85,8 @@ let o = class extends g(b) {
     return e.includes("invoiceNumber") || e.unshift("invoiceNumber"), this.selectable && !e.includes("select") && e.unshift("select"), e;
   }
   _handleSelectAll(e) {
-    const l = e.target.checked ? this.orders.map((c) => c.id) : [];
-    this._dispatchSelectionChange(l);
+    const a = e.target.checked ? this.orders.map((c) => c.id) : [];
+    this._dispatchSelectionChange(a);
   }
   _handleSelectOrder(e, t) {
     t.stopPropagation();
@@ -109,7 +115,7 @@ let o = class extends g(b) {
     );
   }
   _renderHeaderCell(e) {
-    return e === "select" ? a`
+    return e === "select" ? l`
         <uui-table-head-cell class="checkbox-col">
           <uui-checkbox
             aria-label="Select all orders"
@@ -117,75 +123,75 @@ let o = class extends g(b) {
             ?checked=${this.selectedIds.length === this.orders.length && this.orders.length > 0}
           ></uui-checkbox>
         </uui-table-head-cell>
-      ` : a`<uui-table-head-cell>${f[e]}</uui-table-head-cell>`;
+      ` : l`<uui-table-head-cell>${k[e]}</uui-table-head-cell>`;
   }
   _renderCell(e, t) {
     switch (t) {
       case "select":
-        return a`
+        return l`
           <uui-table-cell class="checkbox-col">
             <uui-checkbox
               aria-label="Select order ${e.invoiceNumber || e.id}"
               ?checked=${this.selectedIds.includes(e.id)}
-              @change=${(l) => this._handleSelectOrder(e.id, l)}
-              @click=${(l) => l.stopPropagation()}
+              @change=${(a) => this._handleSelectOrder(e.id, a)}
+              @click=${(a) => a.stopPropagation()}
             ></uui-checkbox>
           </uui-table-cell>
         `;
       case "invoiceNumber":
-        return a`
+        return l`
           <uui-table-cell class="order-number">
-            <a href=${E(e.id)} @click=${(l) => l.stopPropagation()}>
+            <a href=${x(e.id)}>
               ${e.invoiceNumber || e.id.substring(0, 8)}
             </a>
           </uui-table-cell>
         `;
       case "date":
-        return a`<uui-table-cell>${y(e.dateCreated)}</uui-table-cell>`;
+        return l`<uui-table-cell>${C(e.dateCreated)}</uui-table-cell>`;
       case "customer":
-        return a`<uui-table-cell>${e.customerName}</uui-table-cell>`;
+        return l`<uui-table-cell>${e.customerName}</uui-table-cell>`;
       case "channel":
-        return a`<uui-table-cell>${e.channel}</uui-table-cell>`;
+        return l`<uui-table-cell>${e.channel}</uui-table-cell>`;
       case "total":
-        return a`<uui-table-cell>${_(e.total)}</uui-table-cell>`;
+        return l`<uui-table-cell>${$(e.total)}</uui-table-cell>`;
       case "paymentStatus":
-        return a`
+        return l`
           <uui-table-cell>
-            <span class="badge ${w(e.paymentStatus)}">
+            <span class="badge ${y(e.paymentStatus)}">
               ${e.paymentStatusDisplay}
             </span>
           </uui-table-cell>
         `;
       case "fulfillmentStatus":
-        return a`
+        return l`
           <uui-table-cell>
-            <span class="badge ${k(e.fulfillmentStatus)}">
+            <span class="badge ${_(e.fulfillmentStatus)}">
               ${e.fulfillmentStatus}
             </span>
           </uui-table-cell>
         `;
       case "itemCount":
-        return a`<uui-table-cell>${v(e.itemCount)}</uui-table-cell>`;
+        return l`<uui-table-cell>${w(e.itemCount)}</uui-table-cell>`;
       case "deliveryMethod":
-        return a`<uui-table-cell>${e.deliveryMethod}</uui-table-cell>`;
+        return l`<uui-table-cell>${e.deliveryMethod}</uui-table-cell>`;
       default:
-        return h;
+        return g;
     }
   }
   _renderRow(e) {
     const t = this._getEffectiveColumns();
-    return a`
+    return l`
       <uui-table-row
         class=${this.clickable ? "clickable" : ""}
         @click=${() => this._handleRowClick(e)}
       >
-        ${t.map((l) => this._renderCell(e, l))}
+        ${t.map((a) => this._renderCell(e, a))}
       </uui-table-row>
     `;
   }
   render() {
     const e = this._getEffectiveColumns();
-    return a`
+    return l`
       <div class="table-container">
         <uui-table class="order-table">
           <uui-table-head>
@@ -198,7 +204,7 @@ let o = class extends g(b) {
   }
 };
 o.styles = [
-  x,
+  O,
   d`
       :host {
         display: block;
@@ -259,9 +265,9 @@ i([
   u({ type: Boolean })
 ], o.prototype, "clickable", 2);
 o = i([
-  p("merchello-order-table")
+  m("merchello-order-table")
 ], o);
 export {
-  E as g
+  T as n
 };
-//# sourceMappingURL=order-table.element-BaTm9Se_.js.map
+//# sourceMappingURL=order-table.element-Yk2QYzH1.js.map

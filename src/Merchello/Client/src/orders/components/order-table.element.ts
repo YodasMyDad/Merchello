@@ -161,7 +161,7 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
       case "invoiceNumber":
         return html`
           <uui-table-cell class="order-number">
-            <a href=${getOrderDetailHref(order.id)} @click=${(e: Event) => e.stopPropagation()}>
+            <a href=${getOrderDetailHref(order.id)}>
               ${order.invoiceNumber || order.id.substring(0, 8)}
             </a>
           </uui-table-cell>

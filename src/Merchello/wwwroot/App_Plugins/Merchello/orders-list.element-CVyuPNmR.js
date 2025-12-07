@@ -1,9 +1,9 @@
-import { LitElement as b, nothing as w, html as n, css as f, property as y, customElement as x, state as l } from "@umbraco-cms/backoffice/external/lit";
+import { LitElement as b, nothing as C, html as n, css as f, property as y, customElement as x, state as l } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin as O } from "@umbraco-cms/backoffice/element-api";
-import { UmbModalToken as T, UMB_MODAL_MANAGER_CONTEXT as C } from "@umbraco-cms/backoffice/modal";
+import { UmbModalToken as T, UMB_MODAL_MANAGER_CONTEXT as w } from "@umbraco-cms/backoffice/modal";
 import { M as g } from "./merchello-api-ADr5A_m-.js";
 import "./merchello-empty-state.element-mt97UoA5.js";
-import { g as z } from "./order-table.element-BaTm9Se_.js";
+import { n as z } from "./order-table.element-Yk2QYzH1.js";
 function P(e) {
   if (e.totalItems === 0)
     return "0 items";
@@ -48,7 +48,7 @@ let h = class extends O(b) {
   }
   render() {
     if (this.state.totalItems === 0)
-      return w;
+      return C;
     const e = m(this.state), t = v(this.state);
     return n`
       <div class="pagination">
@@ -181,7 +181,7 @@ let i = class extends O(b) {
       "fulfillmentStatus",
       "itemCount",
       "deliveryMethod"
-    ], this.consumeContext(C, (e) => {
+    ], this.consumeContext(w, (e) => {
       N(this, u, e);
     });
   }
@@ -261,7 +261,7 @@ let i = class extends O(b) {
       data: {}
     }).onSubmit().catch(() => {
     });
-    t?.created && t.invoiceId && (window.location.href = z(t.invoiceId));
+    t?.created && t.invoiceId && z(t.invoiceId);
   }
   _renderLoadingState() {
     return n`<div class="loading"><uui-loader></uui-loader></div>`;
@@ -543,4 +543,4 @@ export {
   i as MerchelloOrdersListElement,
   F as default
 };
-//# sourceMappingURL=orders-list.element-UASs8Q14.js.map
+//# sourceMappingURL=orders-list.element-CVyuPNmR.js.map

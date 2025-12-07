@@ -12,7 +12,7 @@ import "./order-table.element.js";
 import type { OrderSelectionChangeEventDetail } from "./order-table.element.js";
 import { MERCHELLO_EXPORT_MODAL } from "@orders/modals/export-modal.token.js";
 import { MERCHELLO_CREATE_ORDER_MODAL } from "@orders/modals/create-order-modal.token.js";
-import { getOrderDetailHref } from "@shared/utils/navigation.js";
+import { navigateToOrderDetail } from "@shared/utils/navigation.js";
 
 @customElement("merchello-orders-list")
 export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
@@ -191,8 +191,8 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
 
     const result = await modal.onSubmit().catch(() => undefined);
     if (result?.created && result.invoiceId) {
-      // Navigate to the new order
-      window.location.href = getOrderDetailHref(result.invoiceId);
+      // Navigate to the new order using SPA routing
+      navigateToOrderDetail(result.invoiceId);
     }
   }
 
