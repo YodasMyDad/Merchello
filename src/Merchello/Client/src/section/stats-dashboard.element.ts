@@ -7,9 +7,9 @@ import {
 } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { MerchelloApi } from "@api/merchello-api.js";
-import { formatCurrency, formatShortDate, formatPercent } from "@shared/utils/formatting.js";
-import type { DashboardStatsDto, OrderListItemDto } from "@orders/types/order.types.js";
-import { InvoicePaymentStatus } from "@orders/types/order.types.js";
+import { formatCurrency, formatPercent } from "@shared/utils/formatting.js";
+import type { DashboardStatsDto, OrderListItemDto, OrderColumnKey } from "@orders/types/order.types.js";
+import "@orders/components/order-table.element.js";
 
 @customElement("merchello-stats-dashboard")
 export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) {
@@ -58,30 +58,20 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
     this._isLoading = false;
   }
 
-  private _getPaymentStatusBadgeClass(status: InvoicePaymentStatus): string {
-    switch (status) {
-      case InvoicePaymentStatus.Paid:
-        return "paid";
-      case InvoicePaymentStatus.PartiallyPaid:
-        return "partial";
-      case InvoicePaymentStatus.Refunded:
-      case InvoicePaymentStatus.PartiallyRefunded:
-        return "refunded";
-      case InvoicePaymentStatus.AwaitingPayment:
-        return "awaiting";
-      default:
-        return "unpaid";
-    }
-  }
+  /** Columns for the dashboard recent orders table */
+  private _recentOrderColumns: OrderColumnKey[] = [
+    "invoiceNumber",
+    "customer",
+    "date",
+    "paymentStatus",
+    "fulfillmentStatus",
+    "total",
+  ];
 
   private _getChangeClass(value: number): string {
     if (value > 0) return "positive";
     if (value < 0) return "negative";
     return "neutral";
-  }
-
-  private _getOrderHref(id: string): string {
-    return `section/merchello/workspace/merchello-order/edit/${id}`;
   }
 
   render() {
@@ -142,34 +132,10 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
         ${this._recentOrders.length === 0
           ? html`<p class="no-data">No orders yet</p>`
           : html`
-              <uui-table>
-                <uui-table-head>
-                  <uui-table-head-cell>Order #</uui-table-head-cell>
-                  <uui-table-head-cell>Customer</uui-table-head-cell>
-                  <uui-table-head-cell>Date</uui-table-head-cell>
-                  <uui-table-head-cell>Payment</uui-table-head-cell>
-                  <uui-table-head-cell>Fulfillment</uui-table-head-cell>
-                  <uui-table-head-cell>Total</uui-table-head-cell>
-                </uui-table-head>
-                ${this._recentOrders.map(
-                  (order) => html`
-                    <uui-table-row>
-                      <uui-table-cell>
-                        <a href=${this._getOrderHref(order.id)}>#${order.invoiceNumber}</a>
-                      </uui-table-cell>
-                      <uui-table-cell>${order.customerName}</uui-table-cell>
-                      <uui-table-cell>${formatShortDate(order.dateCreated)}</uui-table-cell>
-                      <uui-table-cell>
-                        <span class="badge ${this._getPaymentStatusBadgeClass(order.paymentStatus)}">${order.paymentStatusDisplay}</span>
-                      </uui-table-cell>
-                      <uui-table-cell>
-                        <span class="badge ${order.fulfillmentStatus.toLowerCase().replace(" ", "-")}">${order.fulfillmentStatus}</span>
-                      </uui-table-cell>
-                      <uui-table-cell>${formatCurrency(order.total)}</uui-table-cell>
-                    </uui-table-row>
-                  `
-                )}
-              </uui-table>
+              <merchello-order-table
+                .orders=${this._recentOrders}
+                .columns=${this._recentOrderColumns}
+              ></merchello-order-table>
             `}
       </uui-box>
       </div>
@@ -233,52 +199,6 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
 
       .wide {
         grid-column: span 4;
-      }
-
-      uui-table {
-        width: 100%;
-      }
-
-      .badge {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 500;
-      }
-
-      .badge.paid {
-        background: var(--uui-color-positive-standalone);
-        color: var(--uui-color-positive-contrast);
-      }
-
-      .badge.unpaid {
-        background: var(--uui-color-warning-standalone);
-        color: var(--uui-color-warning-contrast);
-      }
-
-      .badge.fulfilled {
-        background: var(--uui-color-positive-standalone);
-        color: var(--uui-color-positive-contrast);
-      }
-
-      .badge.unfulfilled {
-        background: var(--uui-color-default-standalone);
-        color: var(--uui-color-default-contrast);
-      }
-
-      .badge.partial {
-        background: var(--uui-color-warning-standalone);
-        color: var(--uui-color-warning-contrast);
-      }
-
-      uui-table-cell a {
-        color: var(--uui-color-interactive);
-        text-decoration: none;
-      }
-
-      uui-table-cell a:hover {
-        text-decoration: underline;
       }
 
       .no-data {

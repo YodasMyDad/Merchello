@@ -12,6 +12,7 @@ import type { OrderDetailDto, AddressDto, FulfillmentOrderDto, InvoicePaymentSta
 import type { MerchelloOrderDetailWorkspaceContext } from "@orders/contexts/order-detail-workspace.context.js";
 import { MERCHELLO_FULFILLMENT_MODAL } from "@orders/modals/fulfillment-modal.token.js";
 import { MERCHELLO_EDIT_ORDER_MODAL } from "@orders/modals/edit-order-modal.token.js";
+import { MERCHELLO_CUSTOMER_ORDERS_MODAL } from "@orders/modals/customer-orders-modal.token.js";
 import { formatCurrency, formatDateTime } from "@shared/utils/formatting.js";
 import { MerchelloApi, type CountryDto } from "@api/merchello-api.js";
 
@@ -135,6 +136,19 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     this.#workspaceContext?.load(this._order.id);
   }
 
+  private async _openCustomerOrdersModal(): Promise<void> {
+    if (!this._order || !this.#modalManager) return;
+
+    const email = this._order.billingAddress?.email;
+    if (!email) return;
+
+    this.#modalManager.open(this, MERCHELLO_CUSTOMER_ORDERS_MODAL, {
+      data: {
+        email,
+        customerName: this._order.billingAddress?.name || "Customer",
+      },
+    });
+  }
 
   private _getPaymentStatusBadgeClass(status: InvoicePaymentStatus): string {
     switch (status) {
@@ -709,8 +723,11 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <div class="card">
               <h3>Customer</h3>
               <div class="customer-info">
-                <a href="#" class="customer-name">${order.billingAddress?.name || "Unknown"}</a>
-                <div class="muted">${order.customerOrderCount} ${order.customerOrderCount === 1 ? 'order' : 'orders'}</div>
+                <div class="customer-name">${order.billingAddress?.name || "Unknown"}</div>
+                ${order.billingAddress?.email
+                  ? html`<button type="button" class="customer-orders-link" @click=${this._openCustomerOrdersModal}>${order.customerOrderCount} ${order.customerOrderCount === 1 ? 'order' : 'orders'}</button>`
+                  : html`<div class="muted">${order.customerOrderCount} ${order.customerOrderCount === 1 ? 'order' : 'orders'}</div>`
+                }
               </div>
               <div class="section">
                 <div class="section-header">
@@ -1251,6 +1268,11 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       overflow: hidden;
     }
 
+    .timeline-input-wrapper uui-textarea {
+      --uui-textarea-border-color: transparent;
+      --uui-textarea-border-color-focus: transparent;
+    }
+
     .timeline-input-wrapper textarea {
       width: 100%;
       padding: var(--uui-size-space-3);
@@ -1409,10 +1431,34 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       font-size: 0.875rem;
     }
 
+    .customer-info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-1);
+    }
+
     .customer-name {
-      color: var(--uui-color-interactive);
-      text-decoration: none;
+      color: var(--uui-color-text);
       font-weight: 500;
+    }
+
+    .customer-orders-link {
+      display: inline-block;
+      background: none;
+      border: none;
+      padding: 0;
+      margin: 0;
+      color: var(--uui-color-text-alt);
+      font-size: 0.875rem;
+      font-family: inherit;
+      text-decoration: none;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .customer-orders-link:hover {
+      color: var(--uui-color-interactive);
+      text-decoration: underline;
     }
 
     .section {

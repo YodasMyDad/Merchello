@@ -63,6 +63,22 @@ export const manifests: Array<UmbExtensionManifest> = [
     js: () => import("./modals/add-discount-modal.element.js"),
   },
 
+  // Create order modal for creating draft orders from backoffice
+  {
+    type: "modal",
+    alias: "Merchello.CreateOrder.Modal",
+    name: "Merchello Create Order Modal",
+    js: () => import("./modals/create-order-modal.element.js"),
+  },
+
+  // Customer orders modal for viewing all orders by a customer
+  {
+    type: "modal",
+    alias: "Merchello.CustomerOrders.Modal",
+    name: "Merchello Customer Orders Modal",
+    js: () => import("./modals/customer-orders-modal.element.js"),
+  },
+
   // Workspace for orders list (when clicking "Orders" in tree)
   {
     type: "workspace",

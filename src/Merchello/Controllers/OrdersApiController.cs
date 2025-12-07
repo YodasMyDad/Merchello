@@ -619,6 +619,111 @@ public class OrdersApiController(
         return NoContent();
     }
 
+    // ============================================
+    // Draft Order Creation Endpoints
+    // ============================================
+
+    /// <summary>
+    /// Create a new draft order from the admin backoffice
+    /// </summary>
+    [HttpPost("orders/draft")]
+    [ProducesResponseType<CreateDraftOrderResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateDraftOrder([FromBody] CreateDraftOrderDto request)
+    {
+        // Validate billing address required fields
+        if (string.IsNullOrWhiteSpace(request.BillingAddress.Name))
+        {
+            return BadRequest("Billing address name is required");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.BillingAddress.Email))
+        {
+            return BadRequest("Billing address email is required");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.BillingAddress.AddressOne))
+        {
+            return BadRequest("Billing address line 1 is required");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.BillingAddress.TownCity))
+        {
+            return BadRequest("Billing address town/city is required");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.BillingAddress.PostalCode))
+        {
+            return BadRequest("Billing address postal code is required");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.BillingAddress.CountryCode))
+        {
+            return BadRequest("Billing address country is required");
+        }
+
+        // Get current backoffice user
+        var currentUser = backOfficeSecurityAccessor.BackOfficeSecurity?.CurrentUser;
+        var authorId = currentUser?.Key;
+        var authorName = currentUser?.Name;
+
+        var result = await invoiceService.CreateDraftOrderAsync(
+            request,
+            authorId,
+            authorName);
+
+        if (!result.IsSuccess)
+        {
+            return BadRequest(result.ErrorMessage ?? "Failed to create draft order");
+        }
+
+        return Ok(result.Data);
+    }
+
+    /// <summary>
+    /// Search for customers by email or name for order creation
+    /// </summary>
+    [HttpGet("orders/customer-lookup")]
+    [ProducesResponseType<List<CustomerLookupResultDto>>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> SearchCustomers(
+        [FromQuery] string? email,
+        [FromQuery] string? name)
+    {
+        var results = await invoiceService.SearchCustomersAsync(email, name);
+        return Ok(results);
+    }
+
+    /// <summary>
+    /// Get all orders for a customer by their billing email address
+    /// </summary>
+    [HttpGet("orders/customer/{email}")]
+    [ProducesResponseType<List<OrderListItemDto>>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetCustomerOrders(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return Ok(new List<OrderListItemDto>());
+        }
+
+        // URL decode the email in case it contains special characters
+        var decodedEmail = Uri.UnescapeDataString(email);
+
+        var invoices = await invoiceService.GetInvoicesByBillingEmailAsync(decodedEmail);
+
+        // Lookup shipping option names for delivery method display
+        var shippingOptionIds = invoices
+            .SelectMany(i => i.Orders ?? [])
+            .Select(o => o.ShippingOptionId)
+            .Distinct()
+            .ToList();
+        var shippingOptionNames = await invoiceService.GetShippingOptionNamesAsync(shippingOptionIds);
+
+        // Map to DTOs
+        var items = invoices.Select(i => MapToListItem(i, shippingOptionNames)).ToList();
+
+        return Ok(items);
+    }
+
     private static ShipmentDetailDto MapToShipmentDetail(Shipment shipment)
     {
         return new ShipmentDetailDto

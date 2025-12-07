@@ -151,6 +151,7 @@ export interface UserModel {
 import type {
   OrderPageDto,
   OrderDetailDto,
+  OrderListItemDto,
   OrderListParams,
   OrderStatsDto,
   DashboardStatsDto,
@@ -172,6 +173,9 @@ import type {
   EditInvoiceResultDto,
   PreviewEditResultDto,
   TaxGroupDto,
+  CreateDraftOrderDto,
+  CreateDraftOrderResultDto,
+  CustomerLookupResultDto,
 } from '../orders/types/order.types.js';
 
 // Import payment provider types
@@ -243,6 +247,23 @@ export const MerchelloApi = {
     apiPut<AddressDto>(`orders/${invoiceId}/shipping-address`, address),
   getOrderStats: () => apiGet<OrderStatsDto>('orders/stats'),
   getDashboardStats: () => apiGet<DashboardStatsDto>('orders/dashboard-stats'),
+
+  /** Create a draft order from the admin backoffice */
+  createDraftOrder: (request: CreateDraftOrderDto) =>
+    apiPost<CreateDraftOrderResultDto>('orders/draft', request),
+
+  /** Search for customers by email or name (returns matching customers with their past shipping addresses) */
+  searchCustomers: (email?: string, name?: string) => {
+    const params = new URLSearchParams();
+    if (email) params.set('email', email);
+    if (name) params.set('name', name);
+    const query = params.toString();
+    return apiGet<CustomerLookupResultDto[]>(`orders/customer-lookup${query ? `?${query}` : ''}`);
+  },
+
+  /** Get all orders for a customer by their billing email address */
+  getCustomerOrders: (email: string) =>
+    apiGet<OrderListItemDto[]>(`orders/customer/${encodeURIComponent(email)}`),
 
   /** Export orders within a date range for CSV generation */
   exportOrders: (request: ExportOrderDto) =>

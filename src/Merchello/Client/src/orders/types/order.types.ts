@@ -534,3 +534,97 @@ export interface LineItemPreviewDto {
   /** Tax amount for this line item */
   taxAmount: number;
 }
+
+// ============================================
+// Create Order Types
+// ============================================
+
+/** Request to create a draft order from the admin backoffice */
+export interface CreateDraftOrderDto {
+  /** Billing address for the order (required) */
+  billingAddress: AddressDto;
+  /** Shipping address for the order. If null, billing address is used. */
+  shippingAddress?: AddressDto | null;
+  /** Custom items to add to the order */
+  customItems: AddCustomItemDto[];
+}
+
+/** Result DTO returned after creating a draft order */
+export interface CreateDraftOrderResultDto {
+  /** Whether the draft order was created successfully */
+  success: boolean;
+  /** The ID of the created invoice (if successful) */
+  invoiceId?: string;
+  /** The invoice number of the created order (if successful) */
+  invoiceNumber?: string;
+  /** Error message if creation failed */
+  errorMessage?: string;
+}
+
+/** Result DTO for customer lookup, containing customer info and their past shipping addresses */
+export interface CustomerLookupResultDto {
+  /** Customer name from billing address */
+  name: string;
+  /** Customer email from billing address */
+  email: string;
+  /** Customer phone from billing address */
+  phone?: string;
+  /** The most recent billing address for this customer */
+  billingAddress: AddressDto;
+  /** De-duplicated list of past shipping addresses from this customer's orders */
+  pastShippingAddresses: AddressDto[];
+}
+
+// ============================================
+// Order Table Column Types
+// ============================================
+
+/**
+ * Available columns for the order table component.
+ * 'invoiceNumber' is always shown regardless of configuration.
+ */
+export type OrderColumnKey =
+  | "select" // Checkbox for multi-select
+  | "invoiceNumber" // Order/invoice number (always shown)
+  | "date" // Date created
+  | "customer" // Customer name
+  | "channel" // Sales channel
+  | "total" // Order total
+  | "paymentStatus" // Payment status badge
+  | "fulfillmentStatus" // Fulfillment status badge
+  | "itemCount" // Number of items
+  | "deliveryMethod"; // Delivery method
+
+/** Column header labels */
+export const ORDER_COLUMN_LABELS: Record<OrderColumnKey, string> = {
+  select: "",
+  invoiceNumber: "Order",
+  date: "Date",
+  customer: "Customer",
+  channel: "Channel",
+  total: "Total",
+  paymentStatus: "Payment",
+  fulfillmentStatus: "Fulfillment",
+  itemCount: "Items",
+  deliveryMethod: "Delivery",
+};
+
+/** Default columns for a full order list */
+export const DEFAULT_ORDER_COLUMNS: OrderColumnKey[] = [
+  "invoiceNumber",
+  "date",
+  "customer",
+  "total",
+  "paymentStatus",
+  "fulfillmentStatus",
+];
+
+/** Compact columns for modals/previews */
+export const COMPACT_ORDER_COLUMNS: OrderColumnKey[] = [
+  "invoiceNumber",
+  "date",
+  "total",
+  "paymentStatus",
+  "fulfillmentStatus",
+  "itemCount",
+];
