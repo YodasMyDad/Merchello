@@ -1,0 +1,161 @@
+import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
+import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
+import type { ProductListItemDto, ProductColumnKey } from "../types/product.types.js";
+import { PRODUCT_COLUMN_LABELS, DEFAULT_PRODUCT_COLUMNS } from "../types/product.types.js";
+import { formatCurrency } from "../../shared/utils/formatting.js";
+import { getProductDetailHref } from "../../shared/utils/navigation.js";
+import { badgeStyles } from "../../shared/styles/badge.styles.js";
+
+export interface ProductClickEventDetail {
+  productId: string;
+  product: ProductListItemDto;
+}
+
+export interface ProductSelectionChangeEventDetail {
+  selectedIds: string[];
+}
+
+@customElement("merchello-product-table")
+export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
+  @property({ type: Array }) products: ProductListItemDto[] = [];
+  @property({ type: Array }) columns: ProductColumnKey[] = [...DEFAULT_PRODUCT_COLUMNS];
+  @property({ type: Boolean }) selectable = false;
+  @property({ type: Array }) selectedIds: string[] = [];
+  @property({ type: Boolean }) clickable = true;
+
+  private _getEffectiveColumns(): ProductColumnKey[] {
+    const cols = [...this.columns];
+    if (!cols.includes("rootName")) cols.unshift("rootName");
+    if (this.selectable && !cols.includes("select")) cols.unshift("select");
+    return cols;
+  }
+
+  private _handleSelectAll(e: Event): void {
+    const checked = (e.target as HTMLInputElement).checked;
+    const newSelection = checked ? this.products.map((p) => p.id) : [];
+    this._dispatchSelectionChange(newSelection);
+  }
+
+  private _handleSelectProduct(id: string, e: Event): void {
+    e.stopPropagation();
+    const checked = (e.target as HTMLInputElement).checked;
+    const newSelection = checked
+      ? [...this.selectedIds, id]
+      : this.selectedIds.filter((selectedId) => selectedId !== id);
+    this._dispatchSelectionChange(newSelection);
+  }
+
+  private _dispatchSelectionChange(selectedIds: string[]): void {
+    this.dispatchEvent(new CustomEvent("selection-change", {
+      detail: { selectedIds } as ProductSelectionChangeEventDetail,
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
+  private _handleRowClick(product: ProductListItemDto): void {
+    if (!this.clickable) return;
+    this.dispatchEvent(new CustomEvent("product-click", {
+      detail: { productId: product.id, product } as ProductClickEventDetail,
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
+  private _renderHeaderCell(column: ProductColumnKey): unknown {
+    if (column === "select") {
+      return html`
+        <uui-table-head-cell class="checkbox-col">
+          <uui-checkbox aria-label="Select all" @change=${this._handleSelectAll}
+            ?checked=${this.selectedIds.length === this.products.length && this.products.length > 0}></uui-checkbox>
+        </uui-table-head-cell>
+      `;
+    }
+    return html`<uui-table-head-cell>${PRODUCT_COLUMN_LABELS[column]}</uui-table-head-cell>`;
+  }
+
+  private _renderCell(product: ProductListItemDto, column: ProductColumnKey): unknown {
+    switch (column) {
+      case "select":
+        return html`
+          <uui-table-cell class="checkbox-col">
+            <uui-checkbox aria-label="Select ${product.rootName}" ?checked=${this.selectedIds.includes(product.id)}
+              @change=${(e: Event) => this._handleSelectProduct(product.id, e)}
+              @click=${(e: Event) => e.stopPropagation()}></uui-checkbox>
+          </uui-table-cell>
+        `;
+      case "rootName":
+        return html`<uui-table-cell class="product-name"><a href=${getProductDetailHref(product.id)}>${product.rootName}</a></uui-table-cell>`;
+      case "sku":
+        return html`<uui-table-cell>${product.sku ?? "-"}</uui-table-cell>`;
+      case "price":
+        return html`<uui-table-cell>${this._formatPriceRange(product)}</uui-table-cell>`;
+      case "purchaseable":
+        return html`<uui-table-cell><span class="badge ${product.purchaseable ? "badge-positive" : "badge-danger"}">${product.purchaseable ? "Available" : "Unavailable"}</span></uui-table-cell>`;
+      case "stock":
+        return html`<uui-table-cell><span class="badge ${this._getStockBadgeClass(product.totalStock)}">${product.totalStock}</span></uui-table-cell>`;
+      case "variants":
+        return html`<uui-table-cell><span class="badge badge-default">${product.variantCount}</span></uui-table-cell>`;
+      default:
+        return nothing;
+    }
+  }
+
+  private _getStockBadgeClass(stock: number): string {
+    if (stock <= 0) return "badge-danger";
+    if (stock <= 10) return "badge-warning";
+    return "badge-positive";
+  }
+
+  private _formatPriceRange(product: ProductListItemDto): string {
+    if (product.minPrice != null && product.maxPrice != null && product.minPrice !== product.maxPrice) {
+      return `${formatCurrency(product.minPrice)} - ${formatCurrency(product.maxPrice)}`;
+    }
+    return formatCurrency(product.price);
+  }
+
+  private _renderRow(product: ProductListItemDto): unknown {
+    const cols = this._getEffectiveColumns();
+    return html`
+      <uui-table-row class=${this.clickable ? "clickable" : ""} @click=${() => this._handleRowClick(product)}>
+        ${cols.map((col) => this._renderCell(product, col))}
+      </uui-table-row>
+    `;
+  }
+
+  render() {
+    const cols = this._getEffectiveColumns();
+    return html`
+      <div class="table-container">
+        <uui-table class="product-table">
+          <uui-table-head>${cols.map((col) => this._renderHeaderCell(col))}</uui-table-head>
+          ${this.products.map((product) => this._renderRow(product))}
+        </uui-table>
+      </div>
+    `;
+  }
+
+  static styles = [
+    badgeStyles,
+    css`
+      :host { display: block; }
+      .table-container { overflow-x: auto; background: var(--uui-color-surface); border: 1px solid var(--uui-color-border); border-radius: var(--uui-border-radius); }
+      .product-table { width: 100%; }
+      uui-table-head-cell, uui-table-cell { white-space: nowrap; }
+      uui-table-row.clickable { cursor: pointer; }
+      uui-table-row.clickable:hover { background: var(--uui-color-surface-emphasis); }
+      .checkbox-col { width: 40px; }
+      .product-name a { font-weight: 500; color: var(--uui-color-interactive); text-decoration: none; }
+      .product-name a:hover { text-decoration: underline; }
+    `,
+  ];
+}
+
+export default MerchelloProductTableElement;
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "merchello-product-table": MerchelloProductTableElement;
+  }
+}
