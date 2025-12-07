@@ -138,5 +138,46 @@ public interface IInvoiceService
         Guid invoiceId,
         EditInvoiceDto request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Create a draft order from the admin backoffice.
+    /// Creates an invoice with a single order, ready for products to be added via edit.
+    /// </summary>
+    /// <param name="request">The draft order request with addresses and optional custom items</param>
+    /// <param name="authorId">Optional author user ID for timeline note</param>
+    /// <param name="authorName">Optional author name for timeline note</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Result containing the new invoice ID and number, or error message</returns>
+    Task<OperationResult<CreateDraftOrderResultDto>> CreateDraftOrderAsync(
+        CreateDraftOrderDto request,
+        Guid? authorId,
+        string? authorName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Search for customers by email or name, returning their info and past shipping addresses.
+    /// Used for customer lookup when creating orders in the backoffice.
+    /// </summary>
+    /// <param name="email">Email to search (exact or partial match)</param>
+    /// <param name="name">Name to search (partial match)</param>
+    /// <param name="limit">Maximum number of results to return</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of matching customers with their de-duplicated past shipping addresses</returns>
+    Task<List<CustomerLookupResultDto>> SearchCustomersAsync(
+        string? email,
+        string? name,
+        int limit = 10,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get all invoices for a customer by their billing email address.
+    /// Used for displaying customer order history in the backoffice.
+    /// </summary>
+    /// <param name="email">The customer's billing email address</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of invoices for the customer, ordered by date descending</returns>
+    Task<List<Invoice>> GetInvoicesByBillingEmailAsync(
+        string email,
+        CancellationToken cancellationToken = default);
 }
 

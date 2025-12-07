@@ -985,3 +985,58 @@ Output: `src/Merchello/wwwroot/App_Plugins/Merchello/`
 | Manifests | JSON (`umbraco-package.json`) | TypeScript files |
 | API | `tryExecute` + generated client | Custom fetch wrapper |
 | Init | Implicit | Explicit `backofficeEntryPoint` |
+
+### Navigation (CRITICAL)
+
+**Never use `window.location.href` for navigation** - it causes a full page reload and resets the sidebar tree state.
+
+Use the navigation utilities in `@shared/utils/navigation.js`:
+
+```typescript
+import {
+  getOrderDetailHref,       // For href attributes
+  navigateToOrderDetail,    // For programmatic navigation
+  getMerchelloWorkspaceHref,    // Generic - any entity type
+  navigateToMerchelloWorkspace  // Generic - any entity type
+} from "@shared/utils/navigation.js";
+```
+
+**Two patterns:**
+
+1. **href attributes** (preferred for links/buttons):
+```typescript
+// Use get*Href() functions - returns absolute path with /umbraco/ prefix
+html`<a href=${getOrderDetailHref(order.id)}>${order.name}</a>`
+
+// Or generic version for any entity type
+html`<a href=${getMerchelloWorkspaceHref("merchello-product", `edit/${product.id}`)}>
+  ${product.name}
+</a>`
+```
+
+2. **Programmatic navigation** (after modal submit, etc.):
+```typescript
+// Use navigateTo*() functions - uses History API, no page reload
+const result = await modal.onSubmit();
+if (result?.created) {
+  navigateToOrderDetail(result.invoiceId);
+}
+
+// Or generic version
+navigateToMerchelloWorkspace("merchello-product", `edit/${productId}`);
+```
+
+**Adding new entity navigation helpers:**
+
+In `src/shared/utils/navigation.ts`, add convenience wrappers:
+```typescript
+export const PRODUCT_ENTITY_TYPE = "merchello-product";
+
+export function getProductDetailHref(productId: string): string {
+  return getMerchelloWorkspaceHref(PRODUCT_ENTITY_TYPE, `edit/${productId}`);
+}
+
+export function navigateToProductDetail(productId: string): void {
+  navigateToMerchelloWorkspace(PRODUCT_ENTITY_TYPE, `edit/${productId}`);
+}
+```

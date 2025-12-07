@@ -3,13 +3,16 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
-import type { OrderListItemDto, OrderStatsDto, OrderListParams } from "@orders/types/order.types.js";
-import { InvoicePaymentStatus } from "@orders/types/order.types.js";
+import type { OrderListItemDto, OrderStatsDto, OrderListParams, OrderColumnKey } from "@orders/types/order.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
-import { formatCurrency, formatRelativeDate } from "@shared/utils/formatting.js";
 import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
 import "@shared/components/pagination.element.js";
+import "@shared/components/merchello-empty-state.element.js";
+import "./order-table.element.js";
+import type { OrderSelectionChangeEventDetail } from "./order-table.element.js";
 import { MERCHELLO_EXPORT_MODAL } from "@orders/modals/export-modal.token.js";
+import { MERCHELLO_CREATE_ORDER_MODAL } from "@orders/modals/create-order-modal.token.js";
+import { getOrderDetailHref } from "@shared/utils/navigation.js";
 
 @customElement("merchello-orders-list")
 export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
@@ -138,23 +141,8 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     };
   }
 
-  private _handleSelectAll(e: CustomEvent): void {
-    const checked = (e.target as HTMLInputElement).checked;
-    if (checked) {
-      this._selectedOrders = new Set(this._orders.map((o) => o.id));
-    } else {
-      this._selectedOrders = new Set();
-    }
-    this.requestUpdate();
-  }
-
-  private _handleSelectOrder(id: string, e: CustomEvent): void {
-    const checked = (e.target as HTMLInputElement).checked;
-    if (checked) {
-      this._selectedOrders.add(id);
-    } else {
-      this._selectedOrders.delete(id);
-    }
+  private _handleSelectionChange(e: CustomEvent<OrderSelectionChangeEventDetail>): void {
+    this._selectedOrders = new Set(e.detail.selectedIds);
     this.requestUpdate();
   }
 
@@ -194,26 +182,33 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     });
   }
 
-  private _getPaymentStatusBadgeClass(status: InvoicePaymentStatus): string {
-    switch (status) {
-      case InvoicePaymentStatus.Paid:
-        return "paid";
-      case InvoicePaymentStatus.PartiallyPaid:
-        return "partial";
-      case InvoicePaymentStatus.Refunded:
-      case InvoicePaymentStatus.PartiallyRefunded:
-        return "refunded";
-      case InvoicePaymentStatus.AwaitingPayment:
-        return "awaiting";
-      default:
-        return "unpaid";
+  private async _handleCreateOrder(): Promise<void> {
+    if (!this.#modalManager) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_CREATE_ORDER_MODAL, {
+      data: {},
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.created && result.invoiceId) {
+      // Navigate to the new order
+      window.location.href = getOrderDetailHref(result.invoiceId);
     }
   }
 
-  private _getOrderHref(id: string): string {
-    // Pattern: section/{sectionPathname}/workspace/{entityType}/{routePath}
-    return `section/merchello/workspace/merchello-order/edit/${id}`;
-  }
+  /** Columns to show in the order table */
+  private _tableColumns: OrderColumnKey[] = [
+    "select",
+    "invoiceNumber",
+    "date",
+    "customer",
+    "channel",
+    "total",
+    "paymentStatus",
+    "fulfillmentStatus",
+    "itemCount",
+    "deliveryMethod",
+  ];
 
   private _renderLoadingState(): unknown {
     return html`<div class="loading"><uui-loader></uui-loader></div>`;
@@ -225,68 +220,23 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
 
   private _renderEmptyState(): unknown {
     return html`
-      <div class="empty-state">
-        <uui-icon name="icon-receipt-dollar"></uui-icon>
-        <h3>No orders found</h3>
-        <p>Orders will appear here once customers place them.</p>
-      </div>
+      <merchello-empty-state
+        icon="icon-receipt-dollar"
+        headline="No orders found"
+        message="Orders will appear here once customers place them.">
+      </merchello-empty-state>
     `;
   }
 
   private _renderOrdersTable(): unknown {
     return html`
-      <div class="table-container">
-        <uui-table class="orders-table">
-          <uui-table-head>
-            <uui-table-head-cell class="checkbox-col">
-              <uui-checkbox
-                aria-label="Select all orders"
-                @change=${this._handleSelectAll}
-                ?checked=${this._selectedOrders.size === this._orders.length && this._orders.length > 0}
-              ></uui-checkbox>
-            </uui-table-head-cell>
-            <uui-table-head-cell>Order</uui-table-head-cell>
-            <uui-table-head-cell>Date</uui-table-head-cell>
-            <uui-table-head-cell>Customer</uui-table-head-cell>
-            <uui-table-head-cell>Channel</uui-table-head-cell>
-            <uui-table-head-cell>Total</uui-table-head-cell>
-            <uui-table-head-cell>Payment status</uui-table-head-cell>
-            <uui-table-head-cell>Fulfillment status</uui-table-head-cell>
-            <uui-table-head-cell>Items</uui-table-head-cell>
-            <uui-table-head-cell>Delivery method</uui-table-head-cell>
-          </uui-table-head>
-          ${this._orders.map(
-            (order) => html`
-              <uui-table-row>
-                <uui-table-cell class="checkbox-col">
-                  <uui-checkbox
-                    aria-label="Select order ${order.invoiceNumber || order.id}"
-                    ?checked=${this._selectedOrders.has(order.id)}
-                    @change=${(e: CustomEvent) => this._handleSelectOrder(order.id, e)}
-                  ></uui-checkbox>
-                </uui-table-cell>
-                <uui-table-cell class="order-number">
-                  <a href=${this._getOrderHref(order.id)}>${order.invoiceNumber || order.id.substring(0, 8)}</a>
-                </uui-table-cell>
-                <uui-table-cell>${formatRelativeDate(order.dateCreated)}</uui-table-cell>
-                <uui-table-cell>${order.customerName}</uui-table-cell>
-                <uui-table-cell>${order.channel}</uui-table-cell>
-                <uui-table-cell>${formatCurrency(order.total)}</uui-table-cell>
-                <uui-table-cell>
-                  <span class="badge ${this._getPaymentStatusBadgeClass(order.paymentStatus)}">${order.paymentStatusDisplay}</span>
-                </uui-table-cell>
-                <uui-table-cell>
-                  <span class="badge ${order.fulfillmentStatus.toLowerCase().replace(" ", "-")}">
-                    ${order.fulfillmentStatus}
-                  </span>
-                </uui-table-cell>
-                <uui-table-cell>${order.itemCount} item${order.itemCount !== 1 ? "s" : ""}</uui-table-cell>
-                <uui-table-cell>${order.deliveryMethod}</uui-table-cell>
-              </uui-table-row>
-            `
-          )}
-        </uui-table>
-      </div>
+      <merchello-order-table
+        .orders=${this._orders}
+        .columns=${this._tableColumns}
+        .selectable=${true}
+        .selectedIds=${Array.from(this._selectedOrders)}
+        @selection-change=${this._handleSelectionChange}
+      ></merchello-order-table>
 
       <!-- Pagination -->
       <merchello-pagination
@@ -330,7 +280,7 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
               `
             : ""}
           <uui-button look="secondary" label="Export" @click=${this._handleExport}>Export</uui-button>
-          <uui-button look="primary" color="positive" label="Create order">Create order</uui-button>
+          <uui-button look="primary" color="positive" label="Create order" @click=${this._handleCreateOrder}>Create order</uui-button>
         </div>
 
         <!-- Stats Bar -->
@@ -495,73 +445,6 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       color: var(--uui-color-text-alt);
     }
 
-    .table-container {
-      overflow-x: auto;
-      background: var(--uui-color-surface);
-      border: 1px solid var(--uui-color-border);
-      border-radius: var(--uui-border-radius);
-    }
-
-    .orders-table {
-      width: 100%;
-    }
-
-    uui-table-head-cell,
-    uui-table-cell {
-      white-space: nowrap;
-    }
-
-    uui-table-row {
-      cursor: pointer;
-    }
-
-    .checkbox-col {
-      width: 40px;
-    }
-
-    .order-number a {
-      font-weight: 500;
-      color: var(--uui-color-interactive);
-      text-decoration: none;
-    }
-
-    .order-number a:hover {
-      text-decoration: underline;
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-      font-weight: 500;
-    }
-
-    .badge.paid {
-      background: var(--uui-color-positive-standalone);
-      color: var(--uui-color-positive-contrast);
-    }
-
-    .badge.unpaid {
-      background: var(--uui-color-danger-standalone);
-      color: var(--uui-color-danger-contrast);
-    }
-
-    .badge.fulfilled {
-      background: var(--uui-color-positive-standalone);
-      color: var(--uui-color-positive-contrast);
-    }
-
-    .badge.unfulfilled {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
-    }
-
-    .badge.partial {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
-    }
-
     .loading {
       display: flex;
       justify-content: center;
@@ -573,22 +456,6 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       background: #f8d7da;
       color: #721c24;
       border-radius: var(--uui-border-radius);
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: var(--uui-size-layout-2);
-      color: var(--uui-color-text-alt);
-    }
-
-    .empty-state uui-icon {
-      font-size: 3rem;
-      margin-bottom: var(--uui-size-space-4);
-    }
-
-    .empty-state h3 {
-      margin: 0 0 var(--uui-size-space-2);
-      color: var(--uui-color-text);
     }
 
     merchello-pagination {

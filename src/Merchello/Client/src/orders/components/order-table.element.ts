@@ -1,0 +1,292 @@
+import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
+import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
+import type { OrderListItemDto, OrderColumnKey } from "@orders/types/order.types.js";
+import { ORDER_COLUMN_LABELS, DEFAULT_ORDER_COLUMNS } from "@orders/types/order.types.js";
+import {
+  formatCurrency,
+  formatRelativeDate,
+  formatItemCount,
+  getPaymentStatusBadgeClass,
+  getFulfillmentStatusBadgeClass,
+} from "@shared/utils/formatting.js";
+import { getOrderDetailHref } from "@shared/utils/navigation.js";
+import { badgeStyles } from "@shared/styles/badge.styles.js";
+
+/** Event detail for order click */
+export interface OrderClickEventDetail {
+  orderId: string;
+  order: OrderListItemDto;
+}
+
+/** Event detail for selection change */
+export interface OrderSelectionChangeEventDetail {
+  selectedIds: string[];
+}
+
+/**
+ * Reusable order table component with configurable columns.
+ *
+ * @fires order-click - Dispatched when an order row is clicked. Detail contains { orderId, order }
+ * @fires selection-change - Dispatched when selection changes. Detail contains { selectedIds }
+ *
+ * @example
+ * ```html
+ * <merchello-order-table
+ *   .orders=${this._orders}
+ *   .columns=${['invoiceNumber', 'date', 'total', 'paymentStatus', 'fulfillmentStatus']}
+ *   @order-click=${(e) => this._handleOrderClick(e.detail)}>
+ * </merchello-order-table>
+ * ```
+ */
+@customElement("merchello-order-table")
+export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
+  /**
+   * Array of orders to display.
+   */
+  @property({ type: Array })
+  orders: OrderListItemDto[] = [];
+
+  /**
+   * Columns to display. 'invoiceNumber' is always included.
+   */
+  @property({ type: Array })
+  columns: OrderColumnKey[] = [...DEFAULT_ORDER_COLUMNS];
+
+  /**
+   * Enable row selection with checkboxes.
+   */
+  @property({ type: Boolean })
+  selectable = false;
+
+  /**
+   * Currently selected order IDs.
+   */
+  @property({ type: Array })
+  selectedIds: string[] = [];
+
+  /**
+   * Make rows clickable (navigates to order detail).
+   */
+  @property({ type: Boolean })
+  clickable = true;
+
+  /**
+   * Ensure invoiceNumber is always in columns and 'select' column is added if selectable.
+   */
+  private _getEffectiveColumns(): OrderColumnKey[] {
+    const cols = [...this.columns];
+
+    // Ensure invoiceNumber is always present
+    if (!cols.includes("invoiceNumber")) {
+      cols.unshift("invoiceNumber");
+    }
+
+    // Add select column if selectable
+    if (this.selectable && !cols.includes("select")) {
+      cols.unshift("select");
+    }
+
+    return cols;
+  }
+
+  private _handleSelectAll(e: Event): void {
+    const checked = (e.target as HTMLInputElement).checked;
+    const newSelection = checked ? this.orders.map((o) => o.id) : [];
+    this._dispatchSelectionChange(newSelection);
+  }
+
+  private _handleSelectOrder(id: string, e: Event): void {
+    e.stopPropagation();
+    const checked = (e.target as HTMLInputElement).checked;
+    const newSelection = checked
+      ? [...this.selectedIds, id]
+      : this.selectedIds.filter((selectedId) => selectedId !== id);
+    this._dispatchSelectionChange(newSelection);
+  }
+
+  private _dispatchSelectionChange(selectedIds: string[]): void {
+    const detail: OrderSelectionChangeEventDetail = { selectedIds };
+    this.dispatchEvent(
+      new CustomEvent("selection-change", {
+        detail,
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private _handleRowClick(order: OrderListItemDto): void {
+    if (!this.clickable) return;
+
+    const detail: OrderClickEventDetail = { orderId: order.id, order };
+    this.dispatchEvent(
+      new CustomEvent("order-click", {
+        detail,
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private _renderHeaderCell(column: OrderColumnKey): unknown {
+    if (column === "select") {
+      return html`
+        <uui-table-head-cell class="checkbox-col">
+          <uui-checkbox
+            aria-label="Select all orders"
+            @change=${this._handleSelectAll}
+            ?checked=${this.selectedIds.length === this.orders.length && this.orders.length > 0}
+          ></uui-checkbox>
+        </uui-table-head-cell>
+      `;
+    }
+    return html`<uui-table-head-cell>${ORDER_COLUMN_LABELS[column]}</uui-table-head-cell>`;
+  }
+
+  private _renderCell(order: OrderListItemDto, column: OrderColumnKey): unknown {
+    switch (column) {
+      case "select":
+        return html`
+          <uui-table-cell class="checkbox-col">
+            <uui-checkbox
+              aria-label="Select order ${order.invoiceNumber || order.id}"
+              ?checked=${this.selectedIds.includes(order.id)}
+              @change=${(e: Event) => this._handleSelectOrder(order.id, e)}
+              @click=${(e: Event) => e.stopPropagation()}
+            ></uui-checkbox>
+          </uui-table-cell>
+        `;
+
+      case "invoiceNumber":
+        return html`
+          <uui-table-cell class="order-number">
+            <a href=${getOrderDetailHref(order.id)} @click=${(e: Event) => e.stopPropagation()}>
+              ${order.invoiceNumber || order.id.substring(0, 8)}
+            </a>
+          </uui-table-cell>
+        `;
+
+      case "date":
+        return html`<uui-table-cell>${formatRelativeDate(order.dateCreated)}</uui-table-cell>`;
+
+      case "customer":
+        return html`<uui-table-cell>${order.customerName}</uui-table-cell>`;
+
+      case "channel":
+        return html`<uui-table-cell>${order.channel}</uui-table-cell>`;
+
+      case "total":
+        return html`<uui-table-cell>${formatCurrency(order.total)}</uui-table-cell>`;
+
+      case "paymentStatus":
+        return html`
+          <uui-table-cell>
+            <span class="badge ${getPaymentStatusBadgeClass(order.paymentStatus)}">
+              ${order.paymentStatusDisplay}
+            </span>
+          </uui-table-cell>
+        `;
+
+      case "fulfillmentStatus":
+        return html`
+          <uui-table-cell>
+            <span class="badge ${getFulfillmentStatusBadgeClass(order.fulfillmentStatus)}">
+              ${order.fulfillmentStatus}
+            </span>
+          </uui-table-cell>
+        `;
+
+      case "itemCount":
+        return html`<uui-table-cell>${formatItemCount(order.itemCount)}</uui-table-cell>`;
+
+      case "deliveryMethod":
+        return html`<uui-table-cell>${order.deliveryMethod}</uui-table-cell>`;
+
+      default:
+        return nothing;
+    }
+  }
+
+  private _renderRow(order: OrderListItemDto): unknown {
+    const cols = this._getEffectiveColumns();
+    return html`
+      <uui-table-row
+        class=${this.clickable ? "clickable" : ""}
+        @click=${() => this._handleRowClick(order)}
+      >
+        ${cols.map((col) => this._renderCell(order, col))}
+      </uui-table-row>
+    `;
+  }
+
+  render() {
+    const cols = this._getEffectiveColumns();
+
+    return html`
+      <div class="table-container">
+        <uui-table class="order-table">
+          <uui-table-head>
+            ${cols.map((col) => this._renderHeaderCell(col))}
+          </uui-table-head>
+          ${this.orders.map((order) => this._renderRow(order))}
+        </uui-table>
+      </div>
+    `;
+  }
+
+  static styles = [
+    badgeStyles,
+    css`
+      :host {
+        display: block;
+      }
+
+      .table-container {
+        overflow-x: auto;
+        background: var(--uui-color-surface);
+        border: 1px solid var(--uui-color-border);
+        border-radius: var(--uui-border-radius);
+      }
+
+      .order-table {
+        width: 100%;
+      }
+
+      uui-table-head-cell,
+      uui-table-cell {
+        white-space: nowrap;
+      }
+
+      uui-table-row.clickable {
+        cursor: pointer;
+      }
+
+      uui-table-row.clickable:hover {
+        background: var(--uui-color-surface-emphasis);
+      }
+
+      .checkbox-col {
+        width: 40px;
+      }
+
+      .order-number a {
+        font-weight: 500;
+        color: var(--uui-color-interactive);
+        text-decoration: none;
+      }
+
+      .order-number a:hover {
+        text-decoration: underline;
+      }
+    `,
+  ];
+}
+
+export default MerchelloOrderTableElement;
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "merchello-order-table": MerchelloOrderTableElement;
+  }
+}

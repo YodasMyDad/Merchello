@@ -5,6 +5,7 @@ using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Data;
+using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Aggregate;
@@ -1649,6 +1650,31 @@ public class InvoiceService(
     }
 
     /// <inheritdoc />
+    public async Task<List<Invoice>> GetInvoicesByBillingEmailAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return [];
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var invoices = await scope.ExecuteWithContextAsync(async db =>
+            await db.Invoices
+                .AsNoTracking()
+                .Include(i => i.Orders!)
+                    .ThenInclude(o => o.LineItems)
+                .Include(i => i.Payments)
+                .Where(i => !i.IsDeleted && i.BillingAddress.Email == email)
+                .OrderByDescending(i => i.DateCreated)
+                .ToListAsync(cancellationToken));
+        scope.Complete();
+
+        return invoices;
+    }
+
+    /// <inheritdoc />
     public async Task<Dictionary<Guid, string>> GetShippingOptionNamesAsync(
         IEnumerable<Guid> shippingOptionIds,
         CancellationToken cancellationToken = default)
@@ -2823,6 +2849,325 @@ public class InvoiceService(
         }
 
         return note;
+    }
+
+    /// <inheritdoc />
+    public async Task<OperationResult<CreateDraftOrderResultDto>> CreateDraftOrderAsync(
+        CreateDraftOrderDto request,
+        Guid? authorId,
+        string? authorName,
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync<OperationResult<CreateDraftOrderResultDto>>(async db =>
+        {
+            // Generate next invoice number
+            var lastInvoice = await db.Invoices
+                .OrderByDescending(i => i.DateCreated)
+                .Select(i => i.InvoiceNumber)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var nextNumber = 1;
+            if (!string.IsNullOrEmpty(lastInvoice))
+            {
+                // Extract number from existing invoice (e.g., "INV-0001" -> 1)
+                var numericPart = lastInvoice.Replace(_settings.InvoiceNumberPrefix, "");
+                if (int.TryParse(numericPart, out var lastNumber))
+                {
+                    nextNumber = lastNumber + 1;
+                }
+            }
+            var invoiceNumber = $"{_settings.InvoiceNumberPrefix}{nextNumber:D4}";
+
+            // Get first warehouse and its first shipping option for the draft order
+            var warehouse = await db.Warehouses
+                .Include(w => w.ShippingOptions)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (warehouse == null)
+            {
+                return OperationResult<CreateDraftOrderResultDto>.Fail("No warehouse found. Please configure at least one warehouse.");
+            }
+
+            var shippingOption = warehouse.ShippingOptions.FirstOrDefault();
+            if (shippingOption == null)
+            {
+                return OperationResult<CreateDraftOrderResultDto>.Fail($"Warehouse '{warehouse.Name}' has no shipping options. Please configure at least one shipping option.");
+            }
+
+            // Get tax groups for custom items
+            var taxGroupIds = request.CustomItems
+                .Where(c => c.TaxGroupId.HasValue)
+                .Select(c => c.TaxGroupId!.Value)
+                .Distinct()
+                .ToList();
+
+            var taxGroups = taxGroupIds.Count > 0
+                ? await db.TaxGroups
+                    .Where(tg => taxGroupIds.Contains(tg.Id))
+                    .ToDictionaryAsync(tg => tg.Id, tg => tg.TaxPercentage, cancellationToken)
+                : new Dictionary<Guid, decimal>();
+
+            var now = DateTime.UtcNow;
+
+            // Map billing address from DTO
+            var billingAddress = MapDtoToAddress(request.BillingAddress);
+
+            // Use shipping address if provided, otherwise use billing address
+            var shippingAddress = request.ShippingAddress != null
+                ? MapDtoToAddress(request.ShippingAddress)
+                : CloneAddress(billingAddress);
+
+            // Calculate totals from custom items
+            decimal subTotal = 0;
+            decimal tax = 0;
+
+            foreach (var item in request.CustomItems)
+            {
+                var itemTotal = item.Price * item.Quantity;
+                subTotal += itemTotal;
+
+                if (item.TaxGroupId.HasValue && taxGroups.TryGetValue(item.TaxGroupId.Value, out var taxRate))
+                {
+                    tax += itemTotal * (taxRate / 100m);
+                }
+            }
+
+            var total = subTotal + tax;
+
+            // Create the invoice
+            var invoice = new Invoice
+            {
+                Id = Shared.Extensions.GuidExtensions.NewSequentialGuid,
+                InvoiceNumber = invoiceNumber,
+                BillingAddress = billingAddress,
+                ShippingAddress = shippingAddress,
+                Channel = "Draft order",
+                SubTotal = Math.Round(subTotal, 2, _settings.DefaultRounding),
+                Discount = 0,
+                AdjustedSubTotal = Math.Round(subTotal, 2, _settings.DefaultRounding),
+                Tax = Math.Round(tax, 2, _settings.DefaultRounding),
+                Total = Math.Round(total, 2, _settings.DefaultRounding),
+                DateCreated = now,
+                DateUpdated = now,
+                Notes =
+                [
+                    new InvoiceNote
+                    {
+                        DateCreated = now,
+                        Description = "Draft order created",
+                        AuthorId = authorId,
+                        Author = authorName ?? "System",
+                        VisibleToCustomer = false
+                    }
+                ]
+            };
+
+            // Create the order
+            var order = new Order
+            {
+                Id = Shared.Extensions.GuidExtensions.NewSequentialGuid,
+                InvoiceId = invoice.Id,
+                Invoice = invoice,
+                WarehouseId = warehouse.Id,
+                ShippingOptionId = shippingOption.Id,
+                ShippingCost = 0, // Will be set when fulfilling
+                Status = OrderStatus.Pending,
+                DateCreated = now,
+                DateUpdated = now,
+                LineItems = []
+            };
+
+            // Add custom items as line items
+            foreach (var customItem in request.CustomItems)
+            {
+                var taxRate = customItem.TaxGroupId.HasValue && taxGroups.TryGetValue(customItem.TaxGroupId.Value, out var rate)
+                    ? rate
+                    : 0m;
+
+                var lineItem = new LineItem
+                {
+                    Id = Shared.Extensions.GuidExtensions.NewSequentialGuid,
+                    OrderId = order.Id,
+                    Order = order,
+                    Sku = customItem.Sku,
+                    Name = customItem.Name,
+                    Quantity = customItem.Quantity,
+                    Amount = customItem.Price,
+                    IsTaxable = customItem.TaxGroupId.HasValue,
+                    TaxRate = taxRate,
+                    LineItemType = LineItemType.Custom,
+                    DateCreated = now,
+                    DateUpdated = now,
+                    ExtendedData = new Dictionary<string, object>
+                    {
+                        ["IsPhysicalProduct"] = customItem.IsPhysicalProduct
+                    }
+                };
+
+                order.LineItems.Add(lineItem);
+                db.LineItems.Add(lineItem);
+            }
+
+            invoice.Orders = [order];
+
+            db.Invoices.Add(invoice);
+            db.Orders.Add(order);
+
+            await db.SaveChangesAsync(cancellationToken);
+
+            return OperationResult<CreateDraftOrderResultDto>.Success(new CreateDraftOrderResultDto
+            {
+                Success = true,
+                InvoiceId = invoice.Id,
+                InvoiceNumber = invoice.InvoiceNumber
+            });
+        });
+
+        scope.Complete();
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<List<CustomerLookupResultDto>> SearchCustomersAsync(
+        string? email,
+        string? name,
+        int limit = 10,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(email) && string.IsNullOrWhiteSpace(name))
+        {
+            return [];
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var searchEmail = email?.Trim().ToLower();
+            var searchName = name?.Trim().ToLower();
+
+            // Query invoices matching the search criteria
+            var query = db.Invoices
+                .AsNoTracking()
+                .Where(i => !i.IsDeleted);
+
+            // Apply search filters
+            if (!string.IsNullOrEmpty(searchEmail))
+            {
+                query = query.Where(i => i.BillingAddress.Email != null &&
+                    i.BillingAddress.Email.ToLower().Contains(searchEmail));
+            }
+
+            if (!string.IsNullOrEmpty(searchName))
+            {
+                query = query.Where(i => i.BillingAddress.Name != null &&
+                    i.BillingAddress.Name.ToLower().Contains(searchName));
+            }
+
+            // Get matching invoices, ordered by most recent
+            // Load full entities to ensure owned entities (Address, CountyState) are properly included
+            var invoices = await query
+                .OrderByDescending(i => i.DateCreated)
+                .Take(100) // Limit to prevent scanning too many records
+                .ToListAsync(cancellationToken);
+
+            // Group by billing email to get unique customers
+            var customerGroups = invoices
+                .Where(i => !string.IsNullOrWhiteSpace(i.BillingAddress.Email))
+                .GroupBy(i => i.BillingAddress.Email!.ToLower())
+                .Take(limit);
+
+            var customers = new List<CustomerLookupResultDto>();
+
+            foreach (var group in customerGroups)
+            {
+                var firstInvoice = group.First();
+                var billingAddress = firstInvoice.BillingAddress;
+
+                // Collect unique shipping addresses from all invoices for this customer
+                var shippingAddresses = group
+                    .Select(i => i.ShippingAddress)
+                    .Where(a => !string.IsNullOrWhiteSpace(a.AddressOne))
+                    .DistinctBy(a => NormalizeAddressKey(a))
+                    .Select(MapAddressToDto)
+                    .ToList();
+
+                customers.Add(new CustomerLookupResultDto
+                {
+                    Name = billingAddress.Name ?? string.Empty,
+                    Email = billingAddress.Email ?? string.Empty,
+                    Phone = billingAddress.Phone,
+                    BillingAddress = MapAddressToDto(billingAddress),
+                    PastShippingAddresses = shippingAddresses
+                });
+            }
+
+            return customers;
+        });
+
+        scope.Complete();
+        return result;
+    }
+
+    private static string NormalizeAddressKey(Address address)
+    {
+        // Create a normalized key for de-duplication
+        var key = $"{address.AddressOne?.Trim().ToLower()}|{address.TownCity?.Trim().ToLower()}|{address.PostalCode?.Trim().ToLower()}|{address.CountryCode?.Trim().ToLower()}";
+        return key;
+    }
+
+    private static AddressDto MapAddressToDto(Address address)
+    {
+        return new AddressDto
+        {
+            Name = address.Name,
+            Company = address.Company,
+            AddressOne = address.AddressOne,
+            AddressTwo = address.AddressTwo,
+            TownCity = address.TownCity,
+            CountyState = address.CountyState?.Name,
+            PostalCode = address.PostalCode,
+            Country = address.Country,
+            CountryCode = address.CountryCode,
+            Email = address.Email,
+            Phone = address.Phone
+        };
+    }
+
+    private static Address MapDtoToAddress(AddressDto dto)
+    {
+        return new Address
+        {
+            Name = dto.Name,
+            Company = dto.Company,
+            AddressOne = dto.AddressOne,
+            AddressTwo = dto.AddressTwo,
+            TownCity = dto.TownCity,
+            CountyState = new CountyState { Name = dto.CountyState },
+            PostalCode = dto.PostalCode,
+            Country = dto.Country,
+            CountryCode = dto.CountryCode,
+            Email = dto.Email,
+            Phone = dto.Phone
+        };
+    }
+
+    private static Address CloneAddress(Address source)
+    {
+        return new Address
+        {
+            Name = source.Name,
+            Company = source.Company,
+            AddressOne = source.AddressOne,
+            AddressTwo = source.AddressTwo,
+            TownCity = source.TownCity,
+            CountyState = new CountyState { Name = source.CountyState?.Name, RegionCode = source.CountyState?.RegionCode },
+            PostalCode = source.PostalCode,
+            Country = source.Country,
+            CountryCode = source.CountryCode,
+            Email = source.Email,
+            Phone = source.Phone
+        };
     }
 }
 

@@ -337,7 +337,19 @@ public static class InvoiceSeedExtensions
                 PostalCode = "SW1A 1AA",
                 Country = "United Kingdom",
                 CountryCode = "GB"
-            }, null),
+            }, new Address
+            {
+                Name = "John Smith (Work)",
+                Phone = "+44 20 7946 1234",
+                Company = "Smith Industries",
+                AddressOne = "456 Business Park",
+                AddressTwo = "Unit 7",
+                TownCity = "London",
+                CountyState = new CountyState { Name = "Greater London", RegionCode = "LND" },
+                PostalCode = "E14 5AB",
+                Country = "United Kingdom",
+                CountryCode = "GB"
+            }),
 
             (new Address
             {
@@ -352,7 +364,17 @@ public static class InvoiceSeedExtensions
                 PostalCode = "M1 1AE",
                 Country = "United Kingdom",
                 CountryCode = "GB"
-            }, null),
+            }, new Address
+            {
+                Name = "Sarah Johnson",
+                Phone = "+44 161 496 0123",
+                AddressOne = "78 Residential Lane",
+                TownCity = "Salford",
+                CountyState = new CountyState { Name = "Greater Manchester", RegionCode = "MAN" },
+                PostalCode = "M5 4WT",
+                Country = "United Kingdom",
+                CountryCode = "GB"
+            }),
 
             (new Address
             {
