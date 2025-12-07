@@ -842,9 +842,10 @@ export { MyItemDetailWorkspaceContext as api };
 Use `href` attributes on elements - **never use `window.location.hash` or `window.location.href`**:
 
 ```typescript
-// In your list element
+// In your list element - use relative paths for SPA routing
 private _getItemHref(id: string): string {
   // Pattern: section/{sectionPathname}/workspace/{entityType}/{routePath}
+  // Note: NO leading slash, NO /umbraco/ prefix - must be relative!
   return `section/my-section/workspace/my-item/edit/${id}`;
 }
 
@@ -867,6 +868,8 @@ render() {
 2. **Wrong URL pattern** - Using `window.location.hash = '#/...'` instead of `href` attribute
 3. **Including hash in href** - Use `section/...` not `#/section/...`
 4. **EntityType mismatch** - The `entityType` in manifest must match what's in the URL
+5. **Absolute paths cause full page reloads** - Use relative paths like `section/...`, NOT `/umbraco/section/...`
+6. **Using `window.location.href`** - Causes full page reload; use `history.pushState()` or navigation helpers instead
 
 ---
 
@@ -994,18 +997,20 @@ Use the navigation utilities in `@shared/utils/navigation.js`:
 
 ```typescript
 import {
-  getOrderDetailHref,       // For href attributes
-  navigateToOrderDetail,    // For programmatic navigation
-  getMerchelloWorkspaceHref,    // Generic - any entity type
-  navigateToMerchelloWorkspace  // Generic - any entity type
+  getOrderDetailHref,           // For href attributes
+  navigateToOrderDetail,        // For programmatic navigation
+  getMerchelloWorkspaceHref,    // Generic - any entity type (for href)
+  navigateToMerchelloWorkspace  // Generic - any entity type (programmatic)
 } from "@shared/utils/navigation.js";
 ```
+
+**IMPORTANT:** All paths are **relative** (e.g., `section/merchello/workspace/...`) to work with Umbraco's SPA router. Never use absolute paths with `/umbraco/` prefix.
 
 **Two patterns:**
 
 1. **href attributes** (preferred for links/buttons):
 ```typescript
-// Use get*Href() functions - returns absolute path with /umbraco/ prefix
+// Use get*Href() functions - returns relative path for SPA routing
 html`<a href=${getOrderDetailHref(order.id)}>${order.name}</a>`
 
 // Or generic version for any entity type

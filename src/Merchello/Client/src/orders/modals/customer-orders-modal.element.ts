@@ -7,7 +7,7 @@ import { COMPACT_ORDER_COLUMNS } from "@orders/types/order.types.js";
 import "@orders/components/order-table.element.js";
 import type { OrderClickEventDetail } from "@orders/components/order-table.element.js";
 import "@shared/components/merchello-empty-state.element.js";
-import { getOrderDetailHref } from "@shared/utils/navigation.js";
+import { navigateToOrderDetail } from "@shared/utils/navigation.js";
 import type {
   CustomerOrdersModalData,
   CustomerOrdersModalValue,
@@ -53,7 +53,8 @@ export class MerchelloCustomerOrdersModalElement extends UmbModalBaseElement<
   private _handleOrderClick(e: CustomEvent<OrderClickEventDetail>): void {
     this.value = { navigatedToOrder: true };
     this.modalContext?.submit();
-    window.location.href = getOrderDetailHref(e.detail.orderId);
+    // Navigate using SPA routing
+    navigateToOrderDetail(e.detail.orderId);
   }
 
   private _handleClose(): void {

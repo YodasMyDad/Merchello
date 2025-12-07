@@ -2,12 +2,12 @@ import { html as a, nothing as c, css as m, state as u, customElement as h } fro
 import { UmbModalBaseElement as _ } from "@umbraco-cms/backoffice/modal";
 import { M as g } from "./merchello-api-ADr5A_m-.js";
 import { C as p } from "./order.types-B45a7FtJ.js";
-import { g as f } from "./order-table.element-BaTm9Se_.js";
+import { n as v } from "./order-table.element-Yk2QYzH1.js";
 import "./merchello-empty-state.element-mt97UoA5.js";
-var v = Object.defineProperty, C = Object.getOwnPropertyDescriptor, d = (r, e, o, i) => {
+var f = Object.defineProperty, C = Object.getOwnPropertyDescriptor, d = (r, e, o, i) => {
   for (var s = i > 1 ? void 0 : i ? C(e, o) : e, n = r.length - 1, l; n >= 0; n--)
     (l = r[n]) && (s = (i ? l(e, o, s) : l(s)) || s);
-  return i && s && v(e, o, s), s;
+  return i && s && f(e, o, s), s;
 };
 let t = class extends _ {
   constructor() {
@@ -31,7 +31,7 @@ let t = class extends _ {
     this._orders = e ?? [], this._isLoading = !1;
   }
   _handleOrderClick(r) {
-    this.value = { navigatedToOrder: !0 }, this.modalContext?.submit(), window.location.href = f(r.detail.orderId);
+    this.value = { navigatedToOrder: !0 }, this.modalContext?.submit(), v(r.detail.orderId);
   }
   _handleClose() {
     this.value = { navigatedToOrder: !1 }, this.modalContext?.reject();
@@ -140,4 +140,4 @@ export {
   t as MerchelloCustomerOrdersModalElement,
   x as default
 };
-//# sourceMappingURL=customer-orders-modal.element-CXPNPjLk.js.map
+//# sourceMappingURL=customer-orders-modal.element-C3_EQhz_.js.map
