@@ -13,6 +13,7 @@ public class OrderDetailDto
     public string InvoiceNumber { get; set; } = string.Empty;
     public DateTime DateCreated { get; set; }
     public string Channel { get; set; } = string.Empty;
+    public string? PurchaseOrder { get; set; }
 
     // Financial
     public decimal SubTotal { get; set; }

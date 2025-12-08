@@ -1,4 +1,4 @@
-﻿using Merchello.Core.Accounting.Models;
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Shared.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -16,6 +16,7 @@ public class InvoiceDbMapping : IEntityTypeConfiguration<Invoice>
         // Invoice number and channel
         builder.Property(x => x.InvoiceNumber).HasMaxLength(50);
         builder.Property(x => x.Channel).HasMaxLength(100);
+        builder.Property(x => x.PurchaseOrder).HasMaxLength(100);
 
         // Billing address (owned entity with column prefix)
         builder.OwnsOne(x => x.BillingAddress, addr =>

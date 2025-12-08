@@ -108,6 +108,7 @@ export interface OrderDetailDto {
   invoiceNumber: string;
   dateCreated: string;
   channel: string;
+  purchaseOrder: string | null;
   subTotal: number;
   /** Total discount amount (always positive) */
   discountTotal: number;

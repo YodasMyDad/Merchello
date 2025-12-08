@@ -1,4 +1,4 @@
-﻿using Merchello.Core.Locality.Models;
+using Merchello.Core.Locality.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Shared.Extensions;
 
@@ -35,6 +35,11 @@ public class Invoice
     /// Sales channel (e.g., "Online Store", "Shop", "POS")
     /// </summary>
     public string Channel { get; set; } = "Online Store";
+
+    /// <summary>
+    /// Customer's purchase order number/reference
+    /// </summary>
+    public string? PurchaseOrder { get; set; }
 
     /// <summary>
     /// Line items on this invoice

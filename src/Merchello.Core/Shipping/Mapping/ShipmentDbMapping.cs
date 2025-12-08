@@ -1,4 +1,4 @@
-﻿using Merchello.Core.Shared.Extensions;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shipping.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -24,7 +24,7 @@ public class ShipmentDbMapping : IEntityTypeConfiguration<Shipment>
 
         builder.HasOne(x => x.Warehouse)
             .WithMany()
-            .HasForeignKey(d => d.SupplierId)
+            .HasForeignKey(d => d.WarehouseId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -73,6 +73,10 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasMaxLength(3000)
                         .HasColumnType("nvarchar(3000)");
 
+                    b.Property<string>("PurchaseOrder")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<decimal>("SubTotal")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -832,20 +836,20 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<DateTime?>("RequestedDeliveryDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("SupplierId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("TrackingNumber")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("TrackingUrl")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("OrderId");
 
-                    b.HasIndex("SupplierId");
+                    b.HasIndex("WarehouseId");
 
                     b.ToTable("merchelloShipments", (string)null);
                 });
@@ -997,6 +1001,54 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.ToTable("merchelloShippingProviderConfigurations", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.Suppliers.Models.Supplier", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("ContactName")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DateUpdated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ExtendedData")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("merchelloSuppliers", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.Warehouses.Models.Warehouse", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1013,7 +1065,8 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("Code")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("datetime2");
@@ -1030,7 +1083,12 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasMaxLength(250)
                         .HasColumnType("nvarchar(250)");
 
+                    b.Property<Guid?>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("SupplierId");
 
                     b.ToTable("merchelloWarehouses", (string)null);
                 });
@@ -1478,7 +1536,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.HasOne("Merchello.Core.Warehouses.Models.Warehouse", "Warehouse")
                         .WithMany()
-                        .HasForeignKey("SupplierId")
+                        .HasForeignKey("WarehouseId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1573,6 +1631,16 @@ namespace Merchello.Core.SqlServer.Migrations
                         .IsRequired();
 
                     b.Navigation("ShippingOption");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Warehouses.Models.Warehouse", b =>
+                {
+                    b.HasOne("Merchello.Core.Suppliers.Models.Supplier", "Supplier")
+                        .WithMany("Warehouses")
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Supplier");
                 });
 
             modelBuilder.Entity("Merchello.Core.Warehouses.Models.WarehouseServiceRegion", b =>
@@ -1714,6 +1782,11 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Navigation("ShippingCosts");
 
                     b.Navigation("ShippingOptionCountries");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Suppliers.Models.Supplier", b =>
+                {
+                    b.Navigation("Warehouses");
                 });
 
             modelBuilder.Entity("Merchello.Core.Warehouses.Models.Warehouse", b =>

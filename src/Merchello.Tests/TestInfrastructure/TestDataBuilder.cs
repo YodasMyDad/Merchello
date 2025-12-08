@@ -6,6 +6,8 @@ using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Suppliers.Factories;
+using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Warehouses.Factories;
 using Merchello.Core.Warehouses.Models;
 
@@ -17,9 +19,22 @@ namespace Merchello.Tests.TestInfrastructure;
 /// </summary>
 public class TestDataBuilder(MerchelloDbContext dbContext)
 {
+    private readonly SupplierFactory _supplierFactory = new();
     private readonly WarehouseFactory _warehouseFactory = new();
     private readonly TaxGroupFactory _taxGroupFactory = new();
     private readonly ProductTypeFactory _productTypeFactory = new();
+
+    /// <summary>
+    /// Creates a Supplier with the specified name
+    /// </summary>
+    public Supplier CreateSupplier(string name = "Test Supplier", string? code = null)
+    {
+        var supplier = _supplierFactory.Create(name);
+        supplier.Id = Guid.NewGuid(); // Pre-generate ID for FK relationships
+        supplier.Code = code;
+        dbContext.Suppliers.Add(supplier);
+        return supplier;
+    }
 
     /// <summary>
     /// Creates a TaxGroup with the specified name and percentage
@@ -44,12 +59,20 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
     }
 
     /// <summary>
-    /// Creates a Warehouse with the specified name and country code
+    /// Creates a Warehouse with the specified name and country code, optionally linked to a supplier
     /// </summary>
-    public Warehouse CreateWarehouse(string name = "Test Warehouse", string countryCode = "GB")
+    public Warehouse CreateWarehouse(string name = "Test Warehouse", string countryCode = "GB", Supplier? supplier = null)
     {
         var warehouse = _warehouseFactory.Create(name, new Address { CountryCode = countryCode });
         warehouse.Id = Guid.NewGuid(); // Pre-generate ID for FK relationships
+
+        if (supplier != null)
+        {
+            warehouse.SupplierId = supplier.Id;
+            warehouse.Supplier = supplier;
+            supplier.Warehouses.Add(warehouse);
+        }
+
         dbContext.Warehouses.Add(warehouse);
         return warehouse;
     }

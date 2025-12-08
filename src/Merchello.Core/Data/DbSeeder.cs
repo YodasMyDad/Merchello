@@ -6,6 +6,8 @@ using Merchello.Core.Products.ExtensionMethods;
 using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Suppliers.Factories;
+using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Warehouses.Extensions;
 using Merchello.Core.Warehouses.Factories;
 using Merchello.Core.Warehouses.Models;
@@ -17,7 +19,7 @@ namespace Merchello.Core.Data;
 
 /// <summary>
 /// Consolidated database seeder for development and testing.
-/// Seeds products, warehouses, and invoices with realistic data.
+/// Seeds products, warehouses, suppliers, and invoices with realistic data.
 /// </summary>
 public class DbSeeder(
     MerchelloDbContext context,
@@ -26,6 +28,7 @@ public class DbSeeder(
     ProductCategoryFactory productCategoryFactory,
     ProductFilterGroupFactory productFilterGroupFactory,
     ProductFilterFactory productFilterFactory,
+    SupplierFactory supplierFactory,
     WarehouseFactory warehouseFactory,
     ProductFactory productFactory,
     IOptions<MerchelloSettings> settings,
@@ -55,25 +58,29 @@ public class DbSeeder(
         var categories = CreateCategories();
         logger.LogDebug("Created {Count} categories", categories.Count);
 
-        // 4. Create Warehouses with shipping options
-        var warehouses = CreateWarehouses();
-        logger.LogDebug("Created {Count} warehouses", warehouses.Length);
+        // 4. Create Supplier
+        var supplier = CreateDefaultSupplier();
+        logger.LogDebug("Created default supplier: {Name}", supplier.Name);
 
-        // 5. Create Filter Groups & Filters
+        // 5. Create Warehouses with shipping options (linked to supplier)
+        var warehouses = CreateWarehouses(supplier);
+        logger.LogDebug("Created {Count} warehouses for supplier", warehouses.Length);
+
+        // 6. Create Filter Groups & Filters
         var (colorFilters, sizeFilters) = CreateFilters();
         logger.LogDebug("Created color and size filter groups");
 
-        // 6. Create Products - Save first so we have IDs
+        // 7. Create Products - Save first so we have IDs
         await context.SaveChangesAsync(cancellationToken);
 
-        // 7. Create all products with various configurations
+        // 8. Create all products with various configurations
         CreateProducts(ukVat, productTypes, categories, warehouses, colorFilters, sizeFilters);
 
         // Save products before creating invoices
         await context.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Merchello seed data: Created products");
 
-        // 8. Load products and create invoices
+        // 9. Load products and create invoices
         var products = await context.Products.ToListAsync(cancellationToken);
         var warehouseList = await context.Warehouses
             .Include(w => w.ShippingOptions)
@@ -137,7 +144,24 @@ public class DbSeeder(
         return categories;
     }
 
-    private Warehouse[] CreateWarehouses()
+    private Supplier CreateDefaultSupplier()
+    {
+        var supplier = supplierFactory.Create("Default Supplier", new Address
+        {
+            Company = "Merchello Demo Ltd",
+            Country = "United Kingdom",
+            CountryCode = "GB"
+        });
+        supplier.Code = "MERCH-01";
+        supplier.ContactName = "Sales Team";
+        supplier.ContactEmail = "sales@merchello-demo.com";
+        supplier.ContactPhone = "+44 20 1234 5678";
+
+        context.Suppliers.Add(supplier);
+        return supplier;
+    }
+
+    private Warehouse[] CreateWarehouses(Supplier supplier)
     {
         var warehouse1Result = context.CreateWarehouseWithOptions(
             warehouseFactory,
@@ -148,6 +172,7 @@ public class DbSeeder(
                 Country = "United Kingdom",
                 CountryCode = "GB"
             },
+            supplier: supplier,
             serviceRegions:
             [
                 ("GB", null, false),
@@ -169,6 +194,7 @@ public class DbSeeder(
                 Country = "United Kingdom",
                 CountryCode = "GB"
             },
+            supplier: supplier,
             serviceRegions:
             [
                 ("GB", null, false),
@@ -191,6 +217,7 @@ public class DbSeeder(
                 Country = "United Kingdom",
                 CountryCode = "GB"
             },
+            supplier: supplier,
             serviceRegions:
             [
                 ("GB", null, false),

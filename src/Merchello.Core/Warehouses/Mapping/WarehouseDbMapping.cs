@@ -1,4 +1,4 @@
-﻿using Merchello.Core.Shared.Extensions;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Warehouses.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -13,9 +13,13 @@ public class WarehouseDbMapping : IEntityTypeConfiguration<Warehouse>
 
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).IsRequired();
+        builder.Property(x => x.SupplierId).IsRequired(false);
         builder.Property(x => x.Name).HasMaxLength(250);
+        builder.Property(x => x.Code).HasMaxLength(100);
         builder.Property(x => x.Address).ToJsonConversion(500);
         builder.Property(x => x.ExtendedData).ToJsonConversion(1000);
         builder.Property(x => x.AutomationMethod).HasMaxLength(1000);
+
+        // Relationship to Supplier is configured in SupplierDbMapping
     }
 }

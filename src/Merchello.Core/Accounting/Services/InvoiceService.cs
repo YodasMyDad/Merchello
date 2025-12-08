@@ -464,7 +464,7 @@ public class InvoiceService(
                 var shipment = new Shipment
                 {
                     OrderId = order.Id,
-                    SupplierId = warehouseId,
+                    WarehouseId = warehouseId,
                     LineItems = lineItems,
                     Address = parameters.ShippingAddress,
                     TrackingNumber = parameters.TrackingNumber,
@@ -1264,6 +1264,39 @@ public class InvoiceService(
     }
 
     /// <inheritdoc />
+    public async Task<CrudResult<string?>> UpdatePurchaseOrderAsync(
+        Guid invoiceId,
+        string? purchaseOrder,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<string?>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
+            if (invoice == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Invoice not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            invoice.PurchaseOrder = purchaseOrder;
+            invoice.DateUpdated = DateTime.UtcNow;
+
+            await db.SaveChangesAsync(cancellationToken);
+            result.ResultObject = purchaseOrder;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    /// <inheritdoc />
     public async Task<FulfillmentSummaryDto?> GetFulfillmentSummaryAsync(
         Guid invoiceId,
         CancellationToken cancellationToken = default)
@@ -1382,7 +1415,7 @@ public class InvoiceService(
             var shipment = new Shipment
             {
                 OrderId = parameters.OrderId,
-                SupplierId = order.WarehouseId,
+                WarehouseId = order.WarehouseId,
                 Address = order.Invoice?.ShippingAddress ?? new Address(),
                 LineItems = shipmentLineItems,
                 Carrier = parameters.Carrier,

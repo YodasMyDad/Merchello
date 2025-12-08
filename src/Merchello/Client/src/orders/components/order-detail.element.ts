@@ -40,6 +40,11 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
   @state() private _validationErrors: Record<string, string> = {};
   @state() private _countries: CountryDto[] = [];
 
+  // Purchase order editing state
+  @state() private _editingPurchaseOrder: boolean = false;
+  @state() private _purchaseOrderValue: string = "";
+  @state() private _isSavingPurchaseOrder: boolean = false;
+
   #workspaceContext?: MerchelloOrderDetailWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
   #isConnected = false;
@@ -300,6 +305,43 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     this._editingSection = null;
     this._editFormData = {};
     this._validationErrors = {};
+    this.#workspaceContext?.load(this._order.id);
+  }
+
+  private _startEditingPurchaseOrder(): void {
+    if (!this._order) return;
+    this._purchaseOrderValue = this._order.purchaseOrder || "";
+    this._editingPurchaseOrder = true;
+  }
+
+  private _cancelEditingPurchaseOrder(): void {
+    this._editingPurchaseOrder = false;
+    this._purchaseOrderValue = "";
+  }
+
+  private async _savePurchaseOrder(): Promise<void> {
+    if (!this._order) return;
+
+    this._isSavingPurchaseOrder = true;
+
+    const { error } = await MerchelloApi.updatePurchaseOrder(
+      this._order.id,
+      this._purchaseOrderValue.trim() || null
+    );
+
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
+
+    this._isSavingPurchaseOrder = false;
+
+    if (error) {
+      console.error('Failed to save purchase order:', error);
+      return;
+    }
+
+    // Reload order data and close edit mode
+    this._editingPurchaseOrder = false;
+    this._purchaseOrderValue = "";
     this.#workspaceContext?.load(this._order.id);
   }
 
@@ -719,6 +761,42 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
           <!-- Right Column (Sidebar) -->
           <div class="sidebar">
+            <!-- Purchase Order -->
+            <div class="card">
+              <div class="card-header-with-action">
+                <h3>Purchase Order</h3>
+                ${!this._editingPurchaseOrder ? html`
+                  <uui-button look="secondary" compact label="Edit purchase order" @click=${this._startEditingPurchaseOrder}>
+                    <uui-icon name="icon-edit"></uui-icon>
+                  </uui-button>
+                ` : nothing}
+              </div>
+              ${this._editingPurchaseOrder ? html`
+                <div class="edit-form">
+                  <uui-input
+                    type="text"
+                    label="Purchase Order"
+                    placeholder="Enter PO number..."
+                    .value=${this._purchaseOrderValue}
+                    @input=${(e: Event) => this._purchaseOrderValue = (e.target as HTMLInputElement).value}
+                  ></uui-input>
+                  <div class="edit-actions">
+                    <uui-button look="secondary" label="Cancel" @click=${this._cancelEditingPurchaseOrder} ?disabled=${this._isSavingPurchaseOrder}>Cancel</uui-button>
+                    <uui-button look="primary" label="Save" @click=${this._savePurchaseOrder} ?disabled=${this._isSavingPurchaseOrder}>
+                      ${this._isSavingPurchaseOrder ? 'Saving...' : 'Save'}
+                    </uui-button>
+                  </div>
+                </div>
+              ` : html`
+                <div class="purchase-order-value">
+                  ${order.purchaseOrder
+                    ? html`<span>${order.purchaseOrder}</span>`
+                    : html`<span class="muted">No PO number</span>`
+                  }
+                </div>
+              `}
+            </div>
+
             <!-- Customer -->
             <div class="card">
               <h3>Customer</h3>
@@ -1428,6 +1506,10 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     .muted {
       color: var(--uui-color-text-alt);
+      font-size: 0.875rem;
+    }
+
+    .purchase-order-value {
       font-size: 0.875rem;
     }
 
