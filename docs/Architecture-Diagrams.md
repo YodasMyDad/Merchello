@@ -25,7 +25,7 @@ Feature/
 └── ExtensionMethods/    # Helper extensions
 ```
 
-**Main Modules**: Accounting, Checkout, Products, Shipping, Payments, Warehouses, Locality, Notifications, Stores
+**Main Modules**: Accounting, Checkout, Products, Shipping, Payments, Suppliers, Warehouses, Locality, Notifications, Stores
 
 ---
 
@@ -36,29 +36,35 @@ Feature/
 │                           ENTITY STRUCTURE                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-  PRODUCTS                           WAREHOUSES                    ORDERS
-  ────────                           ──────────                    ──────
-  ProductRoot ──1:N──► Product       Warehouse                     Invoice
-       │                  │              │                            │
-       │                  │              ├──1:N──► ServiceRegions     │
-       └──M:N─────────────┼──────────────┤                           1:N
-     (ProductRoot         │              └──1:N──► ShippingOptions    │
-      Warehouse)          │                            │              ▼
-                          │                           1:N           Order
-                          └──M:N──────────────────────►│              │
-                        (ProductWarehouse)      ShippingCosts        1:N
-                           - Stock                                    │
-                           - ReservedStock                            ▼
-                           - TrackStock                           Shipment
-
+  SUPPLIERS              WAREHOUSES                    PRODUCTS           ORDERS
+  ─────────              ──────────                    ────────           ──────
+  Supplier ──1:N──► Warehouse                         ProductRoot        Invoice
+      │                  │                                │                 │
+      │                  ├──1:N──► ServiceRegions         │                 │
+      │                  ├──1:N──► ShippingOptions   M:N──┼─────────┐      1:N
+      │                  │              │                 │         │       │
+      │                  │             1:N                │         │       ▼
+      │                  │              ▼                 ▼         │     Order
+      │                  └──M:N──► ShippingCosts     Product       │       │
+      │                      (ProductWarehouse)          │         │      1:N
+      │                         - Stock            M:N───┘         │       │
+      │                         - ReservedStock  (ProductWarehouse)│       ▼
+      │                         - TrackStock                       │   Shipment
+      │                                                            │       │
+      └────────────────────────────────────────────────────────────┘       │
+                              (ProductRootWarehouse)                       │
+                                                                    N:1────┘
+                                                                 (WarehouseId)
 
   RELATIONSHIP MATRIX
   ┌──────────────────────┬────────────────────────────────────────────────────┐
-  │ ProductRoot          │ 1:N Products, M:N Warehouses (via ProductRootWH)  │
-  │ Product (variant)    │ M:N Warehouses (via ProductWarehouse for stock)   │
-  │ Warehouse            │ 1:N ServiceRegions, 1:N ShippingOptions           │
-  │ Invoice              │ 1:N Orders, 1:N Payments                          │
-  │ Order                │ 1:N Shipments, 1:N LineItems                      │
+  │ Supplier             │ 1:N Warehouses                                     │
+  │ Warehouse            │ N:1 Supplier, 1:N ServiceRegions, 1:N ShipOptions  │
+  │ ProductRoot          │ 1:N Products, M:N Warehouses (via ProductRootWH)   │
+  │ Product (variant)    │ M:N Warehouses (via ProductWarehouse for stock)    │
+  │ Invoice              │ 1:N Orders, 1:N Payments                           │
+  │ Order                │ 1:N Shipments, 1:N LineItems                       │
+  │ Shipment             │ N:1 Order, N:1 Warehouse                           │
   └──────────────────────┴────────────────────────────────────────────────────┘
 ```
 
@@ -177,28 +183,40 @@ Groups items by warehouse based on:
 | LineItems | Allocated items |
 | AvailableShippingOptions | Options for this group |
 
-### Custom Strategy Example
+### Custom Strategy Example (Supplier Grouping)
 
 ```csharp
-public class VendorGroupingStrategy(ILogger<VendorGroupingStrategy> logger) : IOrderGroupingStrategy
+public class SupplierGroupingStrategy(ILogger<SupplierGroupingStrategy> logger) : IOrderGroupingStrategy
 {
     public OrderGroupingStrategyMetadata Metadata => new(
-        Key: "vendor-grouping",
-        DisplayName: "Vendor Grouping",
-        Description: "Groups items by vendor for drop-shipping.");
+        Key: "supplier-grouping",
+        DisplayName: "Supplier Grouping",
+        Description: "Groups items by supplier for drop-shipping scenarios.");
 
     public async Task<OrderGroupingResult> GroupItemsAsync(OrderGroupingContext context, CancellationToken ct)
     {
+        // Group by supplier (via warehouse relationship)
         var groups = context.Basket.LineItems
-            .GroupBy(li => GetVendorId(li, context.Products))
+            .GroupBy(li => GetSupplierId(li, context.Products, context.Warehouses))
             .Select(g => new OrderGroup
             {
                 GroupId = GenerateDeterministicId(g.Key),
-                GroupName = $"Vendor: {g.Key}",
-                LineItems = g.Select(MapToShippingLineItem).ToList()
+                GroupName = $"Supplier: {GetSupplierName(g.Key, context.Warehouses)}",
+                LineItems = g.Select(MapToShippingLineItem).ToList(),
+                Metadata = { ["SupplierId"] = g.Key }
             }).ToList();
 
         return new OrderGroupingResult { Groups = groups };
+    }
+
+    private Guid? GetSupplierId(LineItem li, Dictionary<Guid, Product> products, List<Warehouse> warehouses)
+    {
+        // Get product's primary warehouse, then get supplier from warehouse
+        var product = products.GetValueOrDefault(li.ProductId);
+        var warehouseId = product?.ProductRoot?.ProductRootWarehouses
+            .OrderBy(prw => prw.PriorityOrder)
+            .FirstOrDefault()?.WarehouseId;
+        return warehouses.FirstOrDefault(w => w.Id == warehouseId)?.SupplierId;
     }
 }
 ```
@@ -401,6 +419,7 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 | `IProductService` | Product queries, lifecycle |
 | `IShippingService` | Shipping options, provider management |
 | `IPaymentService` | Payment transactions, refunds |
+| `ISupplierService` | Supplier management |
 | `IWarehouseService` | Warehouse selection, inventory |
 
 ### Rules

@@ -253,6 +253,8 @@ export const MerchelloApi = {
     apiPut<AddressDto>(`orders/${invoiceId}/billing-address`, address),
   updateShippingAddress: (invoiceId: string, address: AddressDto) =>
     apiPut<AddressDto>(`orders/${invoiceId}/shipping-address`, address),
+  updatePurchaseOrder: (invoiceId: string, purchaseOrder: string | null) =>
+    apiPut<{ purchaseOrder: string | null }>(`orders/${invoiceId}/purchase-order`, { purchaseOrder }),
   getOrderStats: () => apiGet<OrderStatsDto>('orders/stats'),
   getDashboardStats: () => apiGet<DashboardStatsDto>('orders/dashboard-stats'),
 

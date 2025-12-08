@@ -4,6 +4,7 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Warehouses.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,6 +32,9 @@ public class MerchelloDbContext : DbContext
 
     // Checkout DbSets
     public DbSet<Basket> Baskets => Set<Basket>();
+
+    // Supplier DbSets
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
 
     // Warehouse DbSets
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();

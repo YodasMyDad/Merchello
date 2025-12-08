@@ -5,28 +5,39 @@ using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Suppliers.Models;
 
 namespace Merchello.Core.Warehouses.Models;
 
 public class Warehouse
 {
     /// <summary>
-    /// Supplier Id
+    /// Warehouse Id
     /// </summary>
     public Guid Id { get; set; } = GuidExtensions.NewSequentialGuid;
 
     /// <summary>
-    /// Supplier name
+    /// The supplier that owns this warehouse (optional)
+    /// </summary>
+    public Guid? SupplierId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the owning supplier
+    /// </summary>
+    public virtual Supplier? Supplier { get; set; }
+
+    /// <summary>
+    /// Warehouse name
     /// </summary>
     public string? Name { get; set; }
 
     /// <summary>
-    /// Supplier name
+    /// Warehouse code for reference
     /// </summary>
     public string? Code { get; set; }
 
     /// <summary>
-    /// The suppliers address
+    /// The warehouse shipping origin address
     /// </summary>
     public Address Address { get; set; } = new();
 
@@ -72,7 +83,7 @@ public class Warehouse
     public string? AutomationMethod { get; set; }
 
     /// <summary>
-    ///     General use extended data, for storing data related to this basket
+    /// General use extended data for storing additional warehouse data
     /// </summary>
     public Dictionary<string, object> ExtendedData { get; set; } = [];
 

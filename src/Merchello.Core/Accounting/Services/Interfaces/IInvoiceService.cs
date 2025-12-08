@@ -84,6 +84,11 @@ public interface IInvoiceService
     Task<CrudResult<Address>> UpdateShippingAddressAsync(Guid invoiceId, Address address, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Update the purchase order number for an invoice
+    /// </summary>
+    Task<CrudResult<string?>> UpdatePurchaseOrderAsync(Guid invoiceId, string? purchaseOrder, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Get fulfillment summary for an invoice including warehouse names
     /// </summary>
     Task<FulfillmentSummaryDto?> GetFulfillmentSummaryAsync(Guid invoiceId, CancellationToken cancellationToken = default);

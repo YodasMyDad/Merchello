@@ -6,6 +6,7 @@ using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services;
+using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
 using Microsoft.AspNetCore.Http;
@@ -270,6 +271,24 @@ public class OrdersApiController(
         return Ok(MapAddress(result.ResultObject));
     }
 
+    /// <summary>
+    /// Update purchase order number for an invoice
+    /// </summary>
+    [HttpPut("orders/{invoiceId:guid}/purchase-order")]
+    [ProducesResponseType<UpdatePurchaseOrderResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdatePurchaseOrder(Guid invoiceId, [FromBody] UpdatePurchaseOrderRequest request)
+    {
+        var result = await invoiceService.UpdatePurchaseOrderAsync(invoiceId, request.PurchaseOrder);
+
+        if (result.Messages.Any(m => m.ResultMessageType == ResultMessageType.Error))
+        {
+            return NotFound("Invoice not found");
+        }
+
+        return Ok(new UpdatePurchaseOrderResponse { PurchaseOrder = result.ResultObject });
+    }
+
     // ============================================
     // Invoice Editing Endpoints
     // ============================================
@@ -420,6 +439,7 @@ public class OrdersApiController(
             InvoiceNumber = invoice.InvoiceNumber,
             DateCreated = invoice.DateCreated,
             Channel = invoice.Channel,
+            PurchaseOrder = invoice.PurchaseOrder,
             SubTotal = invoice.SubTotal,
             DiscountTotal = discountTotal,
             ShippingCost = shippingCost,
@@ -746,4 +766,20 @@ public class OrdersApiController(
             }).ToList() ?? []
         };
     }
+}
+
+/// <summary>
+/// Request to update purchase order number
+/// </summary>
+public class UpdatePurchaseOrderRequest
+{
+    public string? PurchaseOrder { get; set; }
+}
+
+/// <summary>
+/// Response after updating purchase order
+/// </summary>
+public class UpdatePurchaseOrderResponse
+{
+    public string? PurchaseOrder { get; set; }
 }

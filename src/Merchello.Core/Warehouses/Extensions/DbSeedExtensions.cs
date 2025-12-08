@@ -2,6 +2,7 @@ using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Warehouses.Factories;
 using Merchello.Core.Warehouses.Models;
 
@@ -23,6 +24,7 @@ public static class WarehouseServiceDbSeedExtensions
         string name,
         string? code = null,
         Address? address = null,
+        Supplier? supplier = null,
         string? automationMethod = null,
         Dictionary<string, object>? extendedData = null,
         List<(string countryCode, string? stateOrProvinceCode, bool isExcluded)>? serviceRegions = null,
@@ -34,6 +36,14 @@ public static class WarehouseServiceDbSeedExtensions
         warehouse.Code = code;
         warehouse.AutomationMethod = automationMethod;
         warehouse.ExtendedData = extendedData ?? new Dictionary<string, object>();
+
+        // Link to supplier if provided
+        if (supplier != null)
+        {
+            warehouse.SupplierId = supplier.Id;
+            warehouse.Supplier = supplier;
+            supplier.Warehouses.Add(warehouse);
+        }
 
         // Add service regions
         if (serviceRegions != null)

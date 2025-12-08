@@ -29,6 +29,9 @@ using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Services;
 using Merchello.Core.Warehouses.Services;
 using Merchello.Core.Warehouses.Services.Interfaces;
+using Merchello.Core.Suppliers.Factories;
+using Merchello.Core.Suppliers.Services;
+using Merchello.Core.Suppliers.Services.Interfaces;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Locality.Factories;
 using Merchello.Core.Warehouses.Factories;
@@ -78,6 +81,7 @@ public static class Startup
         builder.Services.AddSingleton<ProductFilterFactory>();
         builder.Services.AddSingleton<ProductOptionFactory>();
         builder.Services.AddSingleton<ShippingOptionFactory>();
+        builder.Services.AddSingleton<SupplierFactory>();
         builder.Services.AddSingleton<WarehouseFactory>();
         builder.Services.AddSingleton<LineItemFactory>();
         builder.Services.AddSingleton<AddressFactory>();
@@ -95,6 +99,7 @@ public static class Startup
         builder.Services.AddScoped<IShippingProviderManager, ShippingProviderManager>();
         builder.Services.AddScoped<IShippingService, ShippingService>();
         builder.Services.AddScoped<IWarehouseService, WarehouseService>();
+        builder.Services.AddScoped<ISupplierService, SupplierService>();
         builder.Services.AddScoped<ILocationsService, LocationsService>();
         builder.Services.AddSingleton<ILocalityCatalog, DefaultLocalityCatalog>();
         builder.Services.AddSingleton<ILocalityCacheInvalidator, LocalityCacheInvalidator>();

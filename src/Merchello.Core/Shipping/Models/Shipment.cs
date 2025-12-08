@@ -1,4 +1,4 @@
-﻿using Merchello.Core.Accounting.Models;
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Warehouses.Models;
@@ -8,7 +8,7 @@ namespace Merchello.Core.Shipping.Models;
 public class Shipment
 {
     /// <summary>
-    /// Basket Id
+    /// Shipment Id
     /// </summary>
     public Guid Id { get; set; } = GuidExtensions.NewSequentialGuid;
 
@@ -18,7 +18,7 @@ public class Shipment
     public virtual Order Order { get; set; } = default!;
 
     /// <summary>
-    /// Order associated with this shipment
+    /// Order Id
     /// </summary>
     public Guid OrderId { get; set; }
 
@@ -38,14 +38,14 @@ public class Shipment
     public Guid CourierId { get; set; }
 
     /// <summary>
-    /// Supplier of this shipment
+    /// Warehouse fulfilling this shipment
     /// </summary>
     public virtual Warehouse Warehouse { get; set; } = default!;
 
     /// <summary>
-    /// Supplier Id
+    /// Warehouse Id
     /// </summary>
-    public Guid SupplierId { get; set; }
+    public Guid WarehouseId { get; set; }
 
     /// <summary>
     /// Tracking number for this shipment
