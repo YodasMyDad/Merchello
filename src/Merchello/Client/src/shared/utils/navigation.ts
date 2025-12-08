@@ -68,3 +68,52 @@ export function getProductDetailHref(productId: string): string {
 export function navigateToProductDetail(productId: string): void {
   navigateToMerchelloWorkspace(PRODUCT_ENTITY_TYPE, `edit/${productId}`);
 }
+
+/** Entity type for warehouse detail workspace */
+export const WAREHOUSE_ENTITY_TYPE = "merchello-warehouse";
+
+/** Entity type for warehouses list workspace */
+export const WAREHOUSES_ENTITY_TYPE = "merchello-warehouses";
+
+/**
+ * Generate the URL to view/edit a warehouse detail.
+ * Use this in href attributes on links/buttons.
+ */
+export function getWarehouseDetailHref(warehouseId: string): string {
+  return getMerchelloWorkspaceHref(WAREHOUSE_ENTITY_TYPE, `edit/${warehouseId}`);
+}
+
+/**
+ * Generate the URL to create a new warehouse.
+ */
+export function getWarehouseCreateHref(): string {
+  return getMerchelloWorkspaceHref(WAREHOUSE_ENTITY_TYPE, "create");
+}
+
+/**
+ * Navigate programmatically to a warehouse detail page using SPA routing.
+ */
+export function navigateToWarehouseDetail(warehouseId: string): void {
+  navigateToMerchelloWorkspace(WAREHOUSE_ENTITY_TYPE, `edit/${warehouseId}`);
+}
+
+/**
+ * Navigate programmatically to create a new warehouse.
+ */
+export function navigateToWarehouseCreate(): void {
+  navigateToMerchelloWorkspace(WAREHOUSE_ENTITY_TYPE, "create");
+}
+
+/**
+ * Generate the URL to the warehouses list.
+ */
+export function getWarehousesListHref(): string {
+  return getMerchelloWorkspaceHref(WAREHOUSES_ENTITY_TYPE, "warehouses");
+}
+
+/**
+ * Navigate programmatically to the warehouses list using SPA routing.
+ */
+export function navigateToWarehousesList(): void {
+  navigateToMerchelloWorkspace(WAREHOUSES_ENTITY_TYPE, "warehouses");
+}

@@ -17,6 +17,24 @@ public class ShippingOption
     public string? Name { get; set; }
 
     /// <summary>
+    /// The provider key (e.g., "flat-rate", "ups", "fedex").
+    /// Defaults to "flat-rate" for backward compatibility.
+    /// </summary>
+    public string ProviderKey { get; set; } = "flat-rate";
+
+    /// <summary>
+    /// JSON-serialized provider-specific settings.
+    /// Used by real-time providers for service level, markup, etc.
+    /// FlatRate uses the existing Costs/WeightTiers tables instead.
+    /// </summary>
+    public string? ProviderSettings { get; set; }
+
+    /// <summary>
+    /// Whether this shipping method is enabled.
+    /// </summary>
+    public bool IsEnabled { get; set; } = true;
+
+    /// <summary>
     /// Optional fixed cost for everything in this shipping option
     /// </summary>
     public decimal? FixedCost { get; set; }
@@ -72,6 +90,11 @@ public class ShippingOption
     /// The country shipping costs for this shipping option (What about states and provinces)
     /// </summary>
     public virtual ICollection<ShippingCost> ShippingCosts { get; set; } = new HashSet<ShippingCost>();
+
+    /// <summary>
+    /// Weight-based surcharge tiers for this shipping option
+    /// </summary>
+    public virtual ICollection<ShippingWeightTier> WeightTiers { get; set; } = new HashSet<ShippingWeightTier>();
 
     /// <summary>
     /// Whether this shipping option allows customers to select a specific delivery date

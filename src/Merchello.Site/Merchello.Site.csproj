@@ -20,6 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Merchello\Merchello.csproj" />
     <ProjectReference Include="..\Merchello.PaymentProviders\Merchello.PaymentProviders.csproj" />
+    <ProjectReference Include="..\Merchello.ShippingProviders\Merchello.ShippingProviders.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

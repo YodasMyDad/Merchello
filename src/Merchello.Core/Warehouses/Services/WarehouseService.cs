@@ -3,6 +3,7 @@ using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Warehouses.Dtos;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Parameters;
@@ -232,6 +233,7 @@ public class WarehouseService(
 
         var warehouse = warehouseFactory.Create(parameters.Name, parameters.Address);
         warehouse.Code = parameters.Code;
+        warehouse.SupplierId = parameters.SupplierId;
         warehouse.AutomationMethod = parameters.AutomationMethod;
         warehouse.ExtendedData = parameters.ExtendedData ?? new Dictionary<string, object>();
 
@@ -277,6 +279,11 @@ public class WarehouseService(
 
             if (parameters.Code != null)
                 warehouse.Code = parameters.Code;
+
+            if (parameters.ClearSupplierId)
+                warehouse.SupplierId = null;
+            else if (parameters.SupplierId.HasValue)
+                warehouse.SupplierId = parameters.SupplierId;
 
             if (parameters.Address != null)
                 warehouse.Address = parameters.Address;
@@ -957,6 +964,325 @@ public class WarehouseService(
                 .ToListAsync(cancellationToken);
         });
         scope.Complete();
+        return result;
+    }
+
+    #endregion
+
+    #region Warehouse List and Detail DTOs
+
+    /// <summary>
+    /// Gets all warehouses as list DTOs with summary data
+    /// </summary>
+    public async Task<List<WarehouseListDto>> GetWarehouseListAsync(CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.Warehouses
+                .AsNoTracking()
+                .Include(w => w.Supplier)
+                .Include(w => w.ServiceRegions)
+                .Include(w => w.ShippingOptions)
+                .OrderBy(w => w.Name)
+                .Select(w => new WarehouseListDto
+                {
+                    Id = w.Id,
+                    Name = w.Name,
+                    Code = w.Code,
+                    SupplierId = w.SupplierId,
+                    SupplierName = w.Supplier != null ? w.Supplier.Name : null,
+                    ServiceRegionCount = w.ServiceRegions.Count,
+                    ShippingOptionCount = w.ShippingOptions.Count,
+                    AddressSummary = BuildAddressSummary(w.Address),
+                    DateUpdated = w.DateUpdated
+                })
+                .ToListAsync(cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Gets a warehouse by ID as detail DTO with nested service regions
+    /// </summary>
+    public async Task<WarehouseDetailDto?> GetWarehouseDetailAsync(Guid warehouseId, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var warehouse = await db.Warehouses
+                .AsNoTracking()
+                .Include(w => w.Supplier)
+                .Include(w => w.ServiceRegions)
+                .Include(w => w.ShippingOptions)
+                .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken);
+
+            if (warehouse == null)
+                return null;
+
+            return new WarehouseDetailDto
+            {
+                Id = warehouse.Id,
+                Name = warehouse.Name,
+                Code = warehouse.Code,
+                SupplierId = warehouse.SupplierId,
+                SupplierName = warehouse.Supplier?.Name,
+                Address = MapAddress(warehouse.Address),
+                ServiceRegions = warehouse.ServiceRegions
+                    .OrderBy(r => r.CountryCode)
+                    .ThenBy(r => r.StateOrProvinceCode)
+                    .Select(r => new ServiceRegionDto
+                    {
+                        Id = r.Id,
+                        CountryCode = r.CountryCode,
+                        StateOrProvinceCode = r.StateOrProvinceCode,
+                        IsExcluded = r.IsExcluded,
+                        RegionDisplay = BuildRegionDisplay(r.CountryCode, r.StateOrProvinceCode)
+                    })
+                    .ToList(),
+                ShippingOptionCount = warehouse.ShippingOptions.Count,
+                DateCreated = warehouse.DateCreated,
+                DateUpdated = warehouse.DateUpdated
+            };
+        });
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Gets a warehouse by ID
+    /// </summary>
+    public async Task<Warehouse?> GetWarehouseByIdAsync(Guid warehouseId, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.Warehouses
+                .AsNoTracking()
+                .Include(w => w.Supplier)
+                .Include(w => w.ServiceRegions)
+                .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    private static string? BuildAddressSummary(Address? address)
+    {
+        if (address == null)
+            return null;
+
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(address.TownCity))
+            parts.Add(address.TownCity);
+        if (!string.IsNullOrWhiteSpace(address.Country))
+            parts.Add(address.Country);
+        else if (!string.IsNullOrWhiteSpace(address.CountryCode))
+            parts.Add(address.CountryCode);
+
+        return parts.Count > 0 ? string.Join(", ", parts) : null;
+    }
+
+    private static WarehouseAddressDto MapAddress(Address address)
+    {
+        return new WarehouseAddressDto
+        {
+            Name = address.Name,
+            Company = address.Company,
+            AddressOne = address.AddressOne,
+            AddressTwo = address.AddressTwo,
+            TownCity = address.TownCity,
+            CountyState = address.CountyState?.Name,
+            CountyStateCode = address.CountyState?.RegionCode,
+            PostalCode = address.PostalCode,
+            Country = address.Country,
+            CountryCode = address.CountryCode,
+            Email = address.Email,
+            Phone = address.Phone
+        };
+    }
+
+    private static string BuildRegionDisplay(string countryCode, string? stateOrProvinceCode)
+    {
+        // For now, just return the codes - frontend can enhance with full names
+        if (string.IsNullOrWhiteSpace(stateOrProvinceCode))
+            return countryCode;
+        return $"{stateOrProvinceCode}, {countryCode}";
+    }
+
+    #endregion
+
+    #region Service Region Management
+
+    /// <summary>
+    /// Adds a service region to a warehouse
+    /// </summary>
+    public async Task<CrudResult<WarehouseServiceRegion>> AddServiceRegionAsync(
+        Guid warehouseId,
+        CreateServiceRegionDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<WarehouseServiceRegion>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            // Validate warehouse exists
+            var warehouse = await db.Warehouses
+                .Include(w => w.ServiceRegions)
+                .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken);
+
+            if (warehouse == null)
+            {
+                result.Messages.Add(new Shared.Models.ResultMessage
+                {
+                    Message = "Warehouse not found",
+                    ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+                });
+                return;
+            }
+
+            // Check for duplicate
+            var normalizedCountry = dto.CountryCode.ToUpperInvariant();
+            var normalizedState = dto.StateOrProvinceCode?.ToUpperInvariant();
+
+            var exists = warehouse.ServiceRegions.Any(r =>
+                string.Equals(r.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(r.StateOrProvinceCode, normalizedState, StringComparison.OrdinalIgnoreCase));
+
+            if (exists)
+            {
+                result.Messages.Add(new Shared.Models.ResultMessage
+                {
+                    Message = "A service region with this country and state/province already exists",
+                    ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+                });
+                return;
+            }
+
+            var region = new WarehouseServiceRegion
+            {
+                WarehouseId = warehouseId,
+                CountryCode = normalizedCountry,
+                StateOrProvinceCode = normalizedState,
+                IsExcluded = dto.IsExcluded
+            };
+
+            db.WarehouseServiceRegions.Add(region);
+            warehouse.DateUpdated = DateTime.UtcNow;
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+
+            result.ResultObject = region;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    /// <summary>
+    /// Updates a service region
+    /// </summary>
+    public async Task<CrudResult<WarehouseServiceRegion>> UpdateServiceRegionAsync(
+        Guid warehouseId,
+        Guid regionId,
+        CreateServiceRegionDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<WarehouseServiceRegion>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var region = await db.WarehouseServiceRegions
+                .FirstOrDefaultAsync(r => r.Id == regionId && r.WarehouseId == warehouseId, cancellationToken);
+
+            if (region == null)
+            {
+                result.Messages.Add(new Shared.Models.ResultMessage
+                {
+                    Message = "Service region not found",
+                    ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+                });
+                return;
+            }
+
+            var normalizedCountry = dto.CountryCode.ToUpperInvariant();
+            var normalizedState = dto.StateOrProvinceCode?.ToUpperInvariant();
+
+            // Check for duplicate (excluding current region)
+            var duplicate = await db.WarehouseServiceRegions
+                .AnyAsync(r =>
+                    r.Id != regionId &&
+                    r.WarehouseId == warehouseId &&
+                    string.Equals(r.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(r.StateOrProvinceCode, normalizedState, StringComparison.OrdinalIgnoreCase),
+                    cancellationToken);
+
+            if (duplicate)
+            {
+                result.Messages.Add(new Shared.Models.ResultMessage
+                {
+                    Message = "A service region with this country and state/province already exists",
+                    ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+                });
+                return;
+            }
+
+            region.CountryCode = normalizedCountry;
+            region.StateOrProvinceCode = normalizedState;
+            region.IsExcluded = dto.IsExcluded;
+
+            // Update warehouse timestamp
+            var warehouse = await db.Warehouses.FindAsync([warehouseId], cancellationToken);
+            if (warehouse != null)
+                warehouse.DateUpdated = DateTime.UtcNow;
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+
+            result.ResultObject = region;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    /// <summary>
+    /// Deletes a service region
+    /// </summary>
+    public async Task<CrudResult<bool>> DeleteServiceRegionAsync(
+        Guid warehouseId,
+        Guid regionId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<bool>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var region = await db.WarehouseServiceRegions
+                .FirstOrDefaultAsync(r => r.Id == regionId && r.WarehouseId == warehouseId, cancellationToken);
+
+            if (region == null)
+            {
+                result.Messages.Add(new Shared.Models.ResultMessage
+                {
+                    Message = "Service region not found",
+                    ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+                });
+                return;
+            }
+
+            db.WarehouseServiceRegions.Remove(region);
+
+            // Update warehouse timestamp
+            var warehouse = await db.Warehouses.FindAsync([warehouseId], cancellationToken);
+            if (warehouse != null)
+                warehouse.DateUpdated = DateTime.UtcNow;
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+
+            result.ResultObject = true;
+        });
+        scope.Complete();
+
         return result;
     }
 

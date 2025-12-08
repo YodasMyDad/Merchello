@@ -2,11 +2,11 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { ShippingProviderFieldDto } from "./types.js";
+import type { ShippingProviderFieldDto } from "@shipping/types.js";
 import type {
   ShippingProviderConfigModalData,
   ShippingProviderConfigModalValue,
-} from "./shipping-provider-config-modal.token.js";
+} from "@shipping/shipping-provider-config-modal.token.js";
 
 @customElement("merchello-shipping-provider-config-modal")
 export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseElement<

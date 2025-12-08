@@ -917,6 +917,11 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<bool>("IsDeliveryDateGuaranteed")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<bool>("IsNextDay")
                         .HasColumnType("bit");
 
@@ -932,6 +937,16 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<TimeSpan?>("NextDayCutOffTime")
                         .HasColumnType("time");
+
+                    b.Property<string>("ProviderKey")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("flat-rate");
+
+                    b.Property<string>("ProviderSettings")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("UpdateDate")
                         .HasColumnType("datetime2");
@@ -999,6 +1014,46 @@ namespace Merchello.Core.SqlServer.Migrations
                         .IsUnique();
 
                     b.ToTable("merchelloShippingProviderConfigurations", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingWeightTier", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("MaxWeightKg")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("MinWeightKg")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("ShippingOptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("StateOrProvinceCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<decimal>("Surcharge")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdateDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShippingOptionId", "CountryCode", "StateOrProvinceCode");
+
+                    b.ToTable("merchelloShippingWeightTiers", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.Suppliers.Models.Supplier", b =>
@@ -1633,6 +1688,17 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Navigation("ShippingOption");
                 });
 
+            modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingWeightTier", b =>
+                {
+                    b.HasOne("Merchello.Core.Shipping.Models.ShippingOption", "ShippingOption")
+                        .WithMany("WeightTiers")
+                        .HasForeignKey("ShippingOptionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ShippingOption");
+                });
+
             modelBuilder.Entity("Merchello.Core.Warehouses.Models.Warehouse", b =>
                 {
                     b.HasOne("Merchello.Core.Suppliers.Models.Supplier", "Supplier")
@@ -1782,6 +1848,8 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Navigation("ShippingCosts");
 
                     b.Navigation("ShippingOptionCountries");
+
+                    b.Navigation("WeightTiers");
                 });
 
             modelBuilder.Entity("Merchello.Core.Suppliers.Models.Supplier", b =>

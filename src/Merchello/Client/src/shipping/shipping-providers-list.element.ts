@@ -6,9 +6,9 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { ShippingProviderDto, ShippingProviderConfigurationDto } from "./types.js";
-import { MERCHELLO_SHIPPING_PROVIDER_CONFIG_MODAL } from "./shipping-provider-config-modal.token.js";
-import { MERCHELLO_SETUP_INSTRUCTIONS_MODAL } from "../payment-providers/setup-instructions-modal.token.js";
+import type { ShippingProviderDto, ShippingProviderConfigurationDto } from "@shipping/types.js";
+import { MERCHELLO_SHIPPING_PROVIDER_CONFIG_MODAL } from "@shipping/shipping-provider-config-modal.token.js";
+import { MERCHELLO_SETUP_INSTRUCTIONS_MODAL } from "@payment-providers/setup-instructions-modal.token.js";
 
 @customElement("merchello-shipping-providers-list")
 export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitElement) {
@@ -80,7 +80,15 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
 
   private _getUnconfiguredProviders(): ShippingProviderDto[] {
     const configuredKeys = new Set(this._configuredProviders.map((p) => p.providerKey));
-    return this._availableProviders.filter((p) => !configuredKeys.has(p.key));
+    // Only show providers that require global config and haven't been configured yet
+    return this._availableProviders.filter(
+      (p) => !configuredKeys.has(p.key) && p.configCapabilities?.requiresGlobalConfig
+    );
+  }
+
+  private _getBuiltInProviders(): ShippingProviderDto[] {
+    // Providers that don't require global configuration (always available)
+    return this._availableProviders.filter((p) => !p.configCapabilities?.requiresGlobalConfig);
   }
 
   private async _openConfigModal(provider: ShippingProviderDto, configuration?: ShippingProviderConfigurationDto): Promise<void> {
@@ -215,6 +223,31 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     `;
   }
 
+  private _renderBuiltInProvider(provider: ShippingProviderDto): unknown {
+    return html`
+      <div class="provider-card built-in">
+        <div class="provider-header">
+          <div class="provider-info">
+            ${provider.icon
+              ? html`<uui-icon name="${provider.icon}"></uui-icon>`
+              : html`<uui-icon name="icon-truck"></uui-icon>`}
+            <div class="provider-details">
+              <span class="provider-name">${provider.displayName}</span>
+              <span class="provider-key">${provider.key}</span>
+            </div>
+          </div>
+          <span class="built-in-badge">
+            <uui-icon name="icon-check"></uui-icon>
+            Always Available
+          </span>
+        </div>
+        ${provider.description
+          ? html`<p class="provider-description">${provider.description}</p>`
+          : nothing}
+      </div>
+    `;
+  }
+
   private _renderAvailableProvider(provider: ShippingProviderDto): unknown {
     return html`
       <div class="provider-card available">
@@ -291,17 +324,34 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     }
 
     const unconfiguredProviders = this._getUnconfiguredProviders();
+    const builtInProviders = this._getBuiltInProviders();
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
       <div class="content">
+      <!-- Built-in Providers (always available, no config needed) -->
+      ${builtInProviders.length > 0
+        ? html`
+            <uui-box headline="Built-in Providers">
+              <p class="section-description">
+                These providers are built-in and always available. No configuration required.
+                Add shipping methods using these providers in your <strong>Warehouses</strong>.
+              </p>
+              <div class="providers-list">
+                ${builtInProviders.map((provider) => this._renderBuiltInProvider(provider))}
+              </div>
+            </uui-box>
+          `
+        : nothing}
+
+      <!-- Configured Third-Party Providers -->
       <uui-box headline="Configured Shipping Providers">
         <p class="section-description">
           These shipping providers are installed and configured.
           Toggle the switch to enable or disable a provider.
         </p>
         ${this._configuredProviders.length === 0
-          ? html`<p class="no-items">No shipping providers configured yet.</p>`
+          ? html`<p class="no-items">No third-party shipping providers configured yet.</p>`
           : html`
               <div class="providers-list">
                 ${this._configuredProviders.map((config) =>
@@ -311,21 +361,21 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
             `}
       </uui-box>
 
-      <uui-box headline="Available Shipping Providers">
-        <p class="section-description">
-          These shipping providers are available but not yet configured.
-          Click "Install" to configure and add a provider.
-        </p>
-        ${unconfiguredProviders.length === 0
-          ? html`<p class="no-items">All available providers have been configured.</p>`
-          : html`
+      <!-- Available Third-Party Providers -->
+      ${unconfiguredProviders.length > 0
+        ? html`
+            <uui-box headline="Available Shipping Providers">
+              <p class="section-description">
+                These shipping providers require API credentials. Click "Install" to configure.
+              </p>
               <div class="providers-list">
                 ${unconfiguredProviders.map((provider) =>
                   this._renderAvailableProvider(provider)
                 )}
               </div>
-            `}
-      </uui-box>
+            </uui-box>
+          `
+        : nothing}
       </div>
       </umb-body-layout>
     `;
@@ -393,6 +443,23 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
 
     .provider-card.available {
       border-left: 3px solid var(--uui-color-border-emphasis);
+    }
+
+    .provider-card.built-in {
+      border-left: 3px solid var(--uui-color-positive);
+      background: var(--uui-color-surface-alt);
+    }
+
+    .built-in-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-2) var(--uui-size-space-3);
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
+      border-radius: var(--uui-border-radius);
+      font-size: 0.75rem;
+      font-weight: 600;
     }
 
     .provider-header {

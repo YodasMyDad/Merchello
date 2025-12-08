@@ -6,17 +6,22 @@ using System.Threading;
 using System.Threading.Tasks;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Locality.Services.Interfaces;
+using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Options;
 using Merchello.Core.Shared.Services;
 using Microsoft.Extensions.Options;
 
 namespace Merchello.Core.Locality.Services;
 
-public class DefaultLocalityCatalog(IOptions<CacheOptions> cacheOptions, CacheService cacheService)
+public class DefaultLocalityCatalog(
+    IOptions<CacheOptions> cacheOptions,
+    IOptions<MerchelloSettings> merchelloSettings,
+    CacheService cacheService)
     : ILocalityCatalog
 {
     private readonly Lazy<IReadOnlyDictionary<string, string>> _countries = new(BuildCountryMap, isThreadSafe: true);
     private readonly CacheOptions _cacheOptions = cacheOptions.Value;
+    private readonly MerchelloSettings _settings = merchelloSettings.Value;
 
     public Task<IReadOnlyCollection<CountryInfo>> GetCountriesAsync(CancellationToken ct = default)
     {
@@ -25,6 +30,26 @@ public class DefaultLocalityCatalog(IOptions<CacheOptions> cacheOptions, CacheSe
             .Select(kv => new CountryInfo(kv.Key, kv.Value))
             .ToList()
             .AsReadOnly();
+        return Task.FromResult<IReadOnlyCollection<CountryInfo>>(list);
+    }
+
+    public Task<IReadOnlyCollection<CountryInfo>> GetStoreCountriesAsync(CancellationToken ct = default)
+    {
+        IEnumerable<KeyValuePair<string, string>> source = _countries.Value;
+
+        // Filter by allowed countries if configured
+        if (_settings.HasCountryRestrictions)
+        {
+            var allowedSet = new HashSet<string>(_settings.AllowedCountries!, StringComparer.OrdinalIgnoreCase);
+            source = source.Where(kv => allowedSet.Contains(kv.Key));
+        }
+
+        var list = source
+            .OrderBy(kv => kv.Value, StringComparer.OrdinalIgnoreCase)
+            .Select(kv => new CountryInfo(kv.Key, kv.Value))
+            .ToList()
+            .AsReadOnly();
+
         return Task.FromResult<IReadOnlyCollection<CountryInfo>>(list);
     }
 

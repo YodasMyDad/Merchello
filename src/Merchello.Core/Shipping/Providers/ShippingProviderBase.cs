@@ -23,6 +23,13 @@ public abstract class ShippingProviderBase : IShippingProvider
     }
 
     /// <inheritdoc />
+    public virtual ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetMethodConfigFieldsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return ValueTask.FromResult(Enumerable.Empty<ShippingProviderConfigurationField>());
+    }
+
+    /// <inheritdoc />
     public virtual ValueTask ConfigureAsync(ShippingProviderConfiguration? configuration,
         CancellationToken cancellationToken = default)
     {

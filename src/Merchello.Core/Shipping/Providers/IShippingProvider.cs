@@ -13,10 +13,18 @@ public interface IShippingProvider
     ShippingProviderMetadata Metadata { get; }
 
     /// <summary>
-    /// Gets the configuration fields required by this provider.
-    /// Used to generate dynamic configuration UI in the backoffice.
+    /// Gets the global configuration fields required by this provider (API keys, account numbers, etc.).
+    /// Used to generate dynamic configuration UI in the backoffice Providers section.
     /// </summary>
     ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets configuration fields for per-warehouse shipping method setup.
+    /// Returns fields like name, delivery days, service level selection, markup.
+    /// These are rendered as a dynamic form in the shipping method configuration UI.
+    /// </summary>
+    ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetMethodConfigFieldsAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>

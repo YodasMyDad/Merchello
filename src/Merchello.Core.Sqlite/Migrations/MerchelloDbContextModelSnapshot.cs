@@ -912,6 +912,11 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<bool>("IsDeliveryDateGuaranteed")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
                     b.Property<bool>("IsNextDay")
                         .HasColumnType("INTEGER");
 
@@ -926,6 +931,16 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<TimeSpan?>("NextDayCutOffTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProviderKey")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("flat-rate");
+
+                    b.Property<string>("ProviderSettings")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("UpdateDate")
@@ -994,6 +1009,46 @@ namespace Merchello.Core.Sqlite.Migrations
                         .IsUnique();
 
                     b.ToTable("merchelloShippingProviderConfigurations", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingWeightTier", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("MaxWeightKg")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("MinWeightKg")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("ShippingOptionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StateOrProvinceCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("Surcharge")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdateDate")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShippingOptionId", "CountryCode", "StateOrProvinceCode");
+
+                    b.ToTable("merchelloShippingWeightTiers", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.Suppliers.Models.Supplier", b =>
@@ -1626,6 +1681,17 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("ShippingOption");
                 });
 
+            modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingWeightTier", b =>
+                {
+                    b.HasOne("Merchello.Core.Shipping.Models.ShippingOption", "ShippingOption")
+                        .WithMany("WeightTiers")
+                        .HasForeignKey("ShippingOptionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ShippingOption");
+                });
+
             modelBuilder.Entity("Merchello.Core.Warehouses.Models.Warehouse", b =>
                 {
                     b.HasOne("Merchello.Core.Suppliers.Models.Supplier", "Supplier")
@@ -1775,6 +1841,8 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("ShippingCosts");
 
                     b.Navigation("ShippingOptionCountries");
+
+                    b.Navigation("WeightTiers");
                 });
 
             modelBuilder.Entity("Merchello.Core.Suppliers.Models.Supplier", b =>

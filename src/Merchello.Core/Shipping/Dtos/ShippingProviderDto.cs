@@ -30,4 +30,102 @@ public class ShippingProviderDto
     /// Optional setup instructions/documentation for developers (markdown format)
     /// </summary>
     public string? SetupInstructions { get; set; }
+
+    /// <summary>
+    /// Configuration capabilities for this provider.
+    /// </summary>
+    public ProviderConfigCapabilitiesDto? ConfigCapabilities { get; set; }
+}
+
+/// <summary>
+/// Configuration capabilities for a shipping provider.
+/// </summary>
+public class ProviderConfigCapabilitiesDto
+{
+    /// <summary>
+    /// Whether this provider uses location-based cost tables.
+    /// </summary>
+    public bool HasLocationBasedCosts { get; set; }
+
+    /// <summary>
+    /// Whether this provider uses weight tier surcharge tables.
+    /// </summary>
+    public bool HasWeightTiers { get; set; }
+
+    /// <summary>
+    /// Whether this provider fetches rates from an external API.
+    /// </summary>
+    public bool UsesLiveRates { get; set; }
+
+    /// <summary>
+    /// Whether global configuration (API credentials) is required before use.
+    /// </summary>
+    public bool RequiresGlobalConfig { get; set; }
+}
+
+/// <summary>
+/// Method configuration info for a shipping provider.
+/// </summary>
+public class ProviderMethodConfigDto
+{
+    /// <summary>
+    /// Provider key
+    /// </summary>
+    public required string ProviderKey { get; set; }
+
+    /// <summary>
+    /// Display name of the provider
+    /// </summary>
+    public required string DisplayName { get; set; }
+
+    /// <summary>
+    /// Configuration fields for per-warehouse shipping method setup
+    /// </summary>
+    public List<ShippingProviderFieldDto> Fields { get; set; } = [];
+
+    /// <summary>
+    /// Provider capabilities for UI rendering
+    /// </summary>
+    public ProviderConfigCapabilitiesDto Capabilities { get; set; } = new();
+}
+
+/// <summary>
+/// Provider available for adding shipping methods to a warehouse
+/// </summary>
+public class AvailableProviderDto
+{
+    /// <summary>
+    /// Provider key
+    /// </summary>
+    public required string Key { get; set; }
+
+    /// <summary>
+    /// Display name
+    /// </summary>
+    public required string DisplayName { get; set; }
+
+    /// <summary>
+    /// Icon class
+    /// </summary>
+    public string? Icon { get; set; }
+
+    /// <summary>
+    /// Provider description
+    /// </summary>
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Whether this provider is available (either doesn't require global config or is configured)
+    /// </summary>
+    public bool IsAvailable { get; set; }
+
+    /// <summary>
+    /// Whether this provider requires setup before use (needs global config but not configured yet)
+    /// </summary>
+    public bool RequiresSetup { get; set; }
+
+    /// <summary>
+    /// Provider capabilities
+    /// </summary>
+    public ProviderConfigCapabilitiesDto Capabilities { get; set; } = new();
 }

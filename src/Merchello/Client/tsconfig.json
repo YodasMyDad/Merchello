@@ -24,10 +24,21 @@
     "baseUrl": ".",
     "paths": {
       "@api/*": [ "src/api/*" ],
+      "@analytics/*": [ "src/analytics/*" ],
+      "@customers/*": [ "src/customers/*" ],
+      "@dashboards/*": [ "src/dashboards/*" ],
+      "@entrypoints/*": [ "src/entrypoints/*" ],
+      "@marketing/*": [ "src/marketing/*" ],
       "@orders/*": [ "src/orders/*" ],
       "@payment-providers/*": [ "src/payment-providers/*" ],
       "@products/*": [ "src/products/*" ],
-      "@shared/*": [ "src/shared/*" ]
+      "@providers/*": [ "src/providers/*" ],
+      "@section/*": [ "src/section/*" ],
+      "@settings/*": [ "src/settings/*" ],
+      "@shared/*": [ "src/shared/*" ],
+      "@shipping/*": [ "src/shipping/*" ],
+      "@tree/*": [ "src/tree/*" ],
+      "@warehouses/*": [ "src/warehouses/*" ]
     },
 
     "types": [ "@umbraco-cms/backoffice/extension-types" ]

@@ -56,4 +56,31 @@ public class MerchelloSettings
     /// - Fully qualified type name: "MyCompany.Commerce.VendorGroupingStrategy, MyCompany.Commerce"
     /// </summary>
     public string? OrderGroupingStrategy { get; set; }
+
+    /// <summary>
+    /// List of ISO 3166-1 alpha-2 country codes that this store sells/ships to.
+    /// When set, this restricts country selection throughout the system:
+    /// - Warehouse service regions
+    /// - Shipping costs and weight tiers
+    /// - Checkout country selection
+    /// 
+    /// Leave null or empty to allow all countries (no restriction).
+    /// Example: ["GB", "US", "DE", "FR", "ES", "IT"]
+    /// </summary>
+    public string[]? AllowedCountries { get; set; }
+
+    /// <summary>
+    /// Returns true if country restrictions are configured.
+    /// </summary>
+    public bool HasCountryRestrictions => AllowedCountries is { Length: > 0 };
+
+    /// <summary>
+    /// Check if a country code is allowed by store settings.
+    /// Returns true if no restrictions are configured or if the country is in the allowed list.
+    /// </summary>
+    public bool IsCountryAllowed(string countryCode)
+    {
+        if (!HasCountryRestrictions) return true;
+        return AllowedCountries!.Any(c => c.Equals(countryCode, StringComparison.OrdinalIgnoreCase));
+    }
 }

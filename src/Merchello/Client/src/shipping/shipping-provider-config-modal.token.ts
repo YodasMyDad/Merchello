@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { ShippingProviderDto, ShippingProviderConfigurationDto } from "./types.js";
+import type { ShippingProviderDto, ShippingProviderConfigurationDto } from "@shipping/types.js";
 
 export interface ShippingProviderConfigModalData {
   /** The provider to configure */

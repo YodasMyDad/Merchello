@@ -19,12 +19,39 @@ export const manifests: Array<UmbExtensionManifest> = [
     ],
   },
 
+  // NOTE: Shipping options are now managed per-warehouse in the Warehouses section
+  // The old "Shipping Options" tab in Providers has been removed
+
   // Shipping provider configuration modal
   {
     type: "modal",
     alias: "Merchello.ShippingProvider.Config.Modal",
     name: "Shipping Provider Config Modal",
     js: () => import("./shipping-provider-config-modal.element.js"),
+  },
+
+  // Shipping option detail modal
+  {
+    type: "modal",
+    alias: "Merchello.ShippingOption.Detail.Modal",
+    name: "Shipping Option Detail Modal",
+    js: () => import("./modals/shipping-option-detail-modal.element.js"),
+  },
+
+  // Shipping cost modal
+  {
+    type: "modal",
+    alias: "Merchello.ShippingCost.Modal",
+    name: "Shipping Cost Modal",
+    js: () => import("./modals/shipping-cost-modal.element.js"),
+  },
+
+  // Shipping weight tier modal
+  {
+    type: "modal",
+    alias: "Merchello.ShippingWeightTier.Modal",
+    name: "Shipping Weight Tier Modal",
+    js: () => import("./modals/shipping-weight-tier-modal.element.js"),
   },
 ];
 

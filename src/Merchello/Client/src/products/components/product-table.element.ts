@@ -1,11 +1,11 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import type { ProductListItemDto, ProductColumnKey } from "../types/product.types.js";
-import { PRODUCT_COLUMN_LABELS, DEFAULT_PRODUCT_COLUMNS } from "../types/product.types.js";
-import { formatCurrency } from "../../shared/utils/formatting.js";
-import { getProductDetailHref } from "../../shared/utils/navigation.js";
-import { badgeStyles } from "../../shared/styles/badge.styles.js";
+import type { ProductListItemDto, ProductColumnKey } from "@products/types/product.types.js";
+import { PRODUCT_COLUMN_LABELS, DEFAULT_PRODUCT_COLUMNS } from "@products/types/product.types.js";
+import { formatCurrency } from "@shared/utils/formatting.js";
+import { getProductDetailHref } from "@shared/utils/navigation.js";
+import { badgeStyles } from "@shared/styles/badge.styles.js";
 
 export interface ProductClickEventDetail {
   productId: string;

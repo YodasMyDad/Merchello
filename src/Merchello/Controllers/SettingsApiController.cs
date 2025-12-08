@@ -34,17 +34,36 @@ public class SettingsApiController(
     }
 
     /// <summary>
-    /// Get list of countries for address dropdowns
+    /// Get list of countries for address dropdowns.
+    /// Returns only countries allowed by store settings (AllowedCountries).
+    /// If no restrictions are configured, returns all countries.
     /// </summary>
     [HttpGet("countries")]
     [ProducesResponseType<List<CountryDto>>(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetCountries(CancellationToken ct)
     {
-        var countries = await localityCatalog.GetCountriesAsync(ct);
+        var countries = await localityCatalog.GetStoreCountriesAsync(ct);
         var result = countries.Select(c => new CountryDto
         {
             Code = c.Code,
             Name = c.Name
+        }).ToList();
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get regions/states for a country
+    /// </summary>
+    [HttpGet("countries/{countryCode}/regions")]
+    [ProducesResponseType<List<RegionDto>>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetRegions(string countryCode, CancellationToken ct)
+    {
+        var regions = await localityCatalog.GetRegionsAsync(countryCode, ct);
+        var result = regions.Select(r => new RegionDto
+        {
+            CountryCode = r.CountryCode,
+            RegionCode = r.RegionCode,
+            Name = r.Name
         }).ToList();
         return Ok(result);
     }
@@ -73,6 +92,16 @@ public class SettingsApiController(
 public class CountryDto
 {
     public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Region/state data for dropdowns
+/// </summary>
+public class RegionDto
+{
+    public string CountryCode { get; set; } = string.Empty;
+    public string RegionCode { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
 }
 

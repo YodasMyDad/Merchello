@@ -19,6 +19,16 @@ public class ShippingOptionDbMapping : IEntityTypeConfiguration<ShippingOption>
         builder.Property(x => x.Name).HasMaxLength(350);
         builder.Property(x => x.FixedCost).HasPrecision(18, 2);
 
+        builder.Property(x => x.ProviderKey)
+            .HasMaxLength(50)
+            .HasDefaultValue("flat-rate");
+
+        // ProviderSettings is a JSON string - EF Core will use nvarchar(max) on SQL Server, TEXT on SQLite
+        builder.Property(x => x.ProviderSettings);
+
+        builder.Property(x => x.IsEnabled)
+            .HasDefaultValue(true);
+
         builder.HasOne(x => x.Warehouse)
             .WithMany(x => x.ShippingOptions)
             .HasForeignKey(d => d.WarehouseId)

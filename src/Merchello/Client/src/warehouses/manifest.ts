@@ -1,5 +1,9 @@
 export const manifests: Array<UmbExtensionManifest> = [
-  // Workspace for warehouses (child of Settings in tree)
+  // ============================================
+  // Warehouses List Workspace
+  // ============================================
+
+  // Main workspace for warehouses list (child of Settings in tree)
   {
     type: "workspace",
     kind: "default",
@@ -11,12 +15,12 @@ export const manifests: Array<UmbExtensionManifest> = [
     },
   },
 
-  // Workspace view for warehouses
+  // List view for warehouses
   {
     type: "workspaceView",
-    alias: "Merchello.Warehouses.Workspace.View",
-    name: "Merchello Warehouses View",
-    js: () => import("./warehouses-workspace.element.js"),
+    alias: "Merchello.Warehouses.ListView",
+    name: "Merchello Warehouses List View",
+    js: () => import("./warehouses-list.element.js"),
     weight: 100,
     meta: {
       label: "Warehouses",
@@ -30,5 +34,60 @@ export const manifests: Array<UmbExtensionManifest> = [
       },
     ],
   },
-];
 
+  // ============================================
+  // Warehouse Detail Workspace (Routable)
+  // ============================================
+
+  // Routable workspace for warehouse detail/edit
+  {
+    type: "workspace",
+    kind: "routable",
+    alias: "Merchello.Warehouse.Detail.Workspace",
+    name: "Merchello Warehouse Detail Workspace",
+    api: () => import("./contexts/warehouse-detail-workspace.context.js"),
+    meta: {
+      entityType: "merchello-warehouse",
+    },
+  },
+
+  // Detail view for warehouse editing
+  {
+    type: "workspaceView",
+    alias: "Merchello.Warehouse.Detail.View",
+    name: "Merchello Warehouse Detail View",
+    js: () => import("./components/warehouse-detail.element.js"),
+    weight: 100,
+    meta: {
+      label: "Warehouse",
+      pathname: "warehouse",
+      icon: "icon-store",
+    },
+    conditions: [
+      {
+        alias: "Umb.Condition.WorkspaceAlias",
+        match: "Merchello.Warehouse.Detail.Workspace",
+      },
+    ],
+  },
+
+  // ============================================
+  // Modals
+  // ============================================
+
+  // Service region modal
+  {
+    type: "modal",
+    alias: "Merchello.ServiceRegion.Modal",
+    name: "Merchello Service Region Modal",
+    js: () => import("./modals/service-region-modal.element.js"),
+  },
+
+  // Create supplier modal
+  {
+    type: "modal",
+    alias: "Merchello.CreateSupplier.Modal",
+    name: "Merchello Create Supplier Modal",
+    js: () => import("./modals/create-supplier-modal.element.js"),
+  },
+];

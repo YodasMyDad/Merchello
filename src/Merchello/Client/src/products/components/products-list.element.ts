@@ -9,13 +9,13 @@ import type {
   ProductTypeDto,
   ProductCategoryDto,
   ProductColumnKey,
-} from "../types/product.types.js";
-import { MerchelloApi } from "../../api/merchello-api.js";
-import type { PaginationState, PageChangeEventDetail } from "../../shared/types/pagination.types.js";
-import { MERCHELLO_CREATE_PRODUCT_MODAL } from "../modals/create-product-modal.token.js";
-import { navigateToProductDetail } from "../../shared/utils/navigation.js";
-import "../../shared/components/pagination.element.js";
-import "../../shared/components/merchello-empty-state.element.js";
+} from "@products/types/product.types.js";
+import { MerchelloApi } from "@api/merchello-api.js";
+import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
+import { MERCHELLO_CREATE_PRODUCT_MODAL } from "@products/modals/create-product-modal.token.js";
+import { navigateToProductDetail } from "@shared/utils/navigation.js";
+import "@shared/components/pagination.element.js";
+import "@shared/components/merchello-empty-state.element.js";
 import "./product-table.element.js";
 import type { ProductSelectionChangeEventDetail } from "./product-table.element.js";
 

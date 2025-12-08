@@ -33,5 +33,20 @@ public enum ConfigurationFieldType
     /// <summary>
     /// URL input with validation.
     /// </summary>
-    Url
+    Url,
+
+    /// <summary>
+    /// Numeric input (integers).
+    /// </summary>
+    Number,
+
+    /// <summary>
+    /// Currency/decimal input with formatting.
+    /// </summary>
+    Currency,
+
+    /// <summary>
+    /// Percentage input (0-100).
+    /// </summary>
+    Percentage
 }

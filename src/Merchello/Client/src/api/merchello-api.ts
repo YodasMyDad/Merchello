@@ -176,7 +176,7 @@ import type {
   CreateDraftOrderDto,
   CreateDraftOrderResultDto,
   CustomerLookupResultDto,
-} from '../orders/types/order.types.js';
+} from '@orders/types/order.types.js';
 
 // Import payment provider types
 import type {
@@ -185,7 +185,7 @@ import type {
   PaymentProviderFieldDto,
   CreatePaymentProviderDto,
   UpdatePaymentProviderDto,
-} from '../payment-providers/types.js';
+} from '@payment-providers/types.js';
 
 // Import shipping provider types
 import type {
@@ -194,7 +194,17 @@ import type {
   ShippingProviderFieldDto,
   CreateShippingProviderDto,
   UpdateShippingProviderDto,
-} from '../shipping/types.js';
+  WarehouseDto,
+  ShippingOptionDto,
+  ShippingOptionDetailDto,
+  CreateShippingOptionDto,
+  ShippingCostDto,
+  CreateShippingCostDto,
+  ShippingWeightTierDto,
+  CreateShippingWeightTierDto,
+  ProviderMethodConfigDto,
+  AvailableProviderDto,
+} from '@shipping/types.js';
 
 // Import product types
 import type {
@@ -202,7 +212,21 @@ import type {
   ProductListParams,
   ProductTypeDto,
   ProductCategoryDto,
-} from '../products/types/product.types.js';
+} from '@products/types/product.types.js';
+
+// Import warehouse types
+import type {
+  WarehouseListDto,
+  WarehouseDetailDto,
+  CreateWarehouseDto,
+  UpdateWarehouseDto,
+  ServiceRegionDto,
+  CreateServiceRegionDto,
+  SupplierDto,
+  CreateSupplierDto,
+  CountryInfo,
+  SubdivisionInfo,
+} from '@warehouses/types.js';
 
 // Helper to build query string from params
 function buildQueryString(params?: Record<string, unknown>): string {
@@ -419,6 +443,14 @@ export const MerchelloApi = {
   reorderShippingProviders: (orderedIds: string[]) =>
     apiPut<void>('shipping-providers/reorder', { orderedIds }),
 
+  /** Get method configuration fields and capabilities for a shipping provider */
+  getShippingProviderMethodConfig: (providerKey: string) =>
+    apiGet<ProviderMethodConfigDto>(`shipping-providers/${providerKey}/method-config`),
+
+  /** Get providers available for adding shipping methods to a warehouse */
+  getAvailableProvidersForWarehouse: () =>
+    apiGet<AvailableProviderDto[]>('shipping-providers/available-for-warehouse'),
+
   // ============================================
   // Products API
   // ============================================
@@ -434,4 +466,110 @@ export const MerchelloApi = {
 
   /** Get all product categories for filtering */
   getProductCategories: () => apiGet<ProductCategoryDto[]>('products/categories'),
+
+  // ============================================
+  // Shipping Options API
+  // ============================================
+
+  /** Get all warehouses for dropdown selection */
+  getWarehouses: () => apiGet<WarehouseDto[]>('warehouses'),
+
+  /** Get all shipping options */
+  getShippingOptions: () => apiGet<ShippingOptionDto[]>('shipping-options'),
+
+  /** Get a single shipping option with costs and weight tiers */
+  getShippingOption: (id: string) => apiGet<ShippingOptionDetailDto>(`shipping-options/${id}`),
+
+  /** Create a new shipping option */
+  createShippingOption: (data: CreateShippingOptionDto) =>
+    apiPost<ShippingOptionDetailDto>('shipping-options', data),
+
+  /** Update a shipping option */
+  updateShippingOption: (id: string, data: CreateShippingOptionDto) =>
+    apiPut<ShippingOptionDetailDto>(`shipping-options/${id}`, data),
+
+  /** Delete a shipping option */
+  deleteShippingOption: (id: string) => apiDelete(`shipping-options/${id}`),
+
+  /** Add a cost to a shipping option */
+  addShippingCost: (optionId: string, data: CreateShippingCostDto) =>
+    apiPost<ShippingCostDto>(`shipping-options/${optionId}/costs`, data),
+
+  /** Update a shipping cost */
+  updateShippingCost: (costId: string, data: CreateShippingCostDto) =>
+    apiPut<ShippingCostDto>(`shipping-costs/${costId}`, data),
+
+  /** Delete a shipping cost */
+  deleteShippingCost: (costId: string) => apiDelete(`shipping-costs/${costId}`),
+
+  /** Add a weight tier to a shipping option */
+  addShippingWeightTier: (optionId: string, data: CreateShippingWeightTierDto) =>
+    apiPost<ShippingWeightTierDto>(`shipping-options/${optionId}/weight-tiers`, data),
+
+  /** Update a weight tier */
+  updateShippingWeightTier: (tierId: string, data: CreateShippingWeightTierDto) =>
+    apiPut<ShippingWeightTierDto>(`shipping-weight-tiers/${tierId}`, data),
+
+  /** Delete a weight tier */
+  deleteShippingWeightTier: (tierId: string) => apiDelete(`shipping-weight-tiers/${tierId}`),
+
+  // ============================================
+  // Warehouses Management API
+  // ============================================
+
+  /** Get all warehouses with summary data for list view */
+  getWarehousesList: () => apiGet<WarehouseListDto[]>('warehouses'),
+
+  /** Get a warehouse with full detail including service regions */
+  getWarehouseDetail: (id: string) => apiGet<WarehouseDetailDto>(`warehouses/${id}`),
+
+  /** Create a new warehouse */
+  createWarehouse: (data: CreateWarehouseDto) =>
+    apiPost<WarehouseDetailDto>('warehouses', data),
+
+  /** Update a warehouse */
+  updateWarehouse: (id: string, data: UpdateWarehouseDto) =>
+    apiPut<WarehouseDetailDto>(`warehouses/${id}`, data),
+
+  /** Delete a warehouse */
+  deleteWarehouse: (id: string, force = false) =>
+    apiDelete(`warehouses/${id}${force ? '?force=true' : ''}`),
+
+  // ============================================
+  // Service Regions API
+  // ============================================
+
+  /** Add a service region to a warehouse */
+  addServiceRegion: (warehouseId: string, data: CreateServiceRegionDto) =>
+    apiPost<ServiceRegionDto>(`warehouses/${warehouseId}/service-regions`, data),
+
+  /** Update a service region */
+  updateServiceRegion: (warehouseId: string, regionId: string, data: CreateServiceRegionDto) =>
+    apiPut<ServiceRegionDto>(`warehouses/${warehouseId}/service-regions/${regionId}`, data),
+
+  /** Delete a service region */
+  deleteServiceRegion: (warehouseId: string, regionId: string) =>
+    apiDelete(`warehouses/${warehouseId}/service-regions/${regionId}`),
+
+  // ============================================
+  // Suppliers API
+  // ============================================
+
+  /** Get all suppliers for dropdown selection */
+  getSuppliers: () => apiGet<SupplierDto[]>('suppliers'),
+
+  /** Create a new supplier (quick create from warehouse form) */
+  createSupplier: (data: CreateSupplierDto) =>
+    apiPost<SupplierDto>('suppliers', data),
+
+  // ============================================
+  // Locality API (Countries & Regions)
+  // ============================================
+
+  /** Get all countries for warehouse service region selection */
+  getLocalityCountries: () => apiGet<CountryInfo[]>('countries'),
+
+  /** Get regions/states for a country */
+  getLocalityRegions: (countryCode: string) =>
+    apiGet<SubdivisionInfo[]>(`countries/${countryCode}/regions`),
 };

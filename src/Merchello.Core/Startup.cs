@@ -98,6 +98,7 @@ public static class Startup
         builder.Services.AddScoped<IShippingQuoteService, ShippingQuoteService>();
         builder.Services.AddScoped<IShippingProviderManager, ShippingProviderManager>();
         builder.Services.AddScoped<IShippingService, ShippingService>();
+        builder.Services.AddScoped<IShippingOptionService, ShippingOptionService>();
         builder.Services.AddScoped<IWarehouseService, WarehouseService>();
         builder.Services.AddScoped<ISupplierService, SupplierService>();
         builder.Services.AddScoped<ILocationsService, LocationsService>();

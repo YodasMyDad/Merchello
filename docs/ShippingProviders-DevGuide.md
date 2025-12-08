@@ -32,6 +32,43 @@ Guide for third-party developers creating custom shipping providers.
 | `Checkbox` | Boolean flags |
 | `Select` | Dropdown options |
 | `Url` | Endpoint URLs with validation |
+| `Number` | Integer values (days, counts) |
+| `Currency` | Monetary values with formatting |
+| `Percentage` | Percentage values (0-100) |
+
+## Configuration Capabilities
+
+Providers declare their configuration capabilities via `ConfigCapabilities`. This determines which UI elements are shown when configuring shipping methods:
+
+```csharp
+public record ProviderConfigCapabilities
+{
+    public bool HasLocationBasedCosts { get; init; }  // Show costs table
+    public bool HasWeightTiers { get; init; }         // Show weight tiers table
+    public bool UsesLiveRates { get; init; }          // Rates from API, not config
+    public bool RequiresGlobalConfig { get; init; }   // Needs API credentials first
+}
+```
+
+| Provider Type | HasLocationBasedCosts | HasWeightTiers | UsesLiveRates | RequiresGlobalConfig |
+|---------------|----------------------|----------------|---------------|----------------------|
+| Flat Rate | true | true | false | false |
+| UPS/FedEx | false | false | true | true |
+| Free Shipping | false | false | false | false |
+
+## Two Types of Configuration
+
+Providers can have two types of configuration:
+
+1. **Global Configuration** (`GetConfigurationFieldsAsync`)
+   - API credentials, account numbers, environment selection
+   - Stored in `merchelloShippingProviderConfigurations` table
+   - Required before provider can be used (if `RequiresGlobalConfig = true`)
+
+2. **Per-Method Configuration** (`GetMethodConfigFieldsAsync`)
+   - Method name, service level, delivery days, markup
+   - Stored in `ShippingOption.ProviderSettings` as JSON
+   - Each warehouse can have multiple methods from same provider
 
 ---
 
@@ -57,9 +94,18 @@ public class FedExShippingProvider : ShippingProviderBase
         SupportsDeliveryDateSelection = false,
         SupportsInternational = true,
         RequiresFullAddress = true,
-        SetupInstructions = "Create a FedEx Developer account at developer.fedex.com to obtain API credentials."
+        SetupInstructions = "Create a FedEx Developer account at developer.fedex.com to obtain API credentials.",
+        // ConfigCapabilities determine what UI elements are shown for per-warehouse methods
+        ConfigCapabilities = new ProviderConfigCapabilities
+        {
+            HasLocationBasedCosts = false,  // Rates from FedEx API, not config tables
+            HasWeightTiers = false,         // Weight handled by FedEx
+            UsesLiveRates = true,           // Fetches rates at runtime
+            RequiresGlobalConfig = true     // API credentials needed first
+        }
     };
 
+    // GLOBAL CONFIG: API credentials (stored in merchelloShippingProviderConfigurations)
     public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken ct = default)
     {
@@ -68,7 +114,29 @@ public class FedExShippingProvider : ShippingProviderBase
             new() { Key = "accountNumber", Label = "Account Number", FieldType = ConfigurationFieldType.Text, IsRequired = true },
             new() { Key = "apiKey", Label = "API Key", FieldType = ConfigurationFieldType.Password, IsSensitive = true, IsRequired = true },
             new() { Key = "secretKey", Label = "Secret Key", FieldType = ConfigurationFieldType.Password, IsSensitive = true, IsRequired = true },
-            new() { Key = "meterNumber", Label = "Meter Number", FieldType = ConfigurationFieldType.Text, IsRequired = false }
+            new() { Key = "meterNumber", Label = "Meter Number", FieldType = ConfigurationFieldType.Text, IsRequired = false },
+            new() { Key = "environment", Label = "Environment", FieldType = ConfigurationFieldType.Select, IsRequired = true,
+                    Options = [new("sandbox", "Sandbox"), new("production", "Production")] }
+        ]);
+    }
+
+    // PER-METHOD CONFIG: Settings for each shipping method in a warehouse (stored in ShippingOption.ProviderSettings)
+    public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetMethodConfigFieldsAsync(
+        CancellationToken ct = default)
+    {
+        return ValueTask.FromResult<IEnumerable<ShippingProviderConfigurationField>>(
+        [
+            new() { Key = "name", Label = "Method Name", FieldType = ConfigurationFieldType.Text, IsRequired = true,
+                    Placeholder = "e.g., FedEx Ground" },
+            new() { Key = "serviceType", Label = "Service Type", FieldType = ConfigurationFieldType.Select, IsRequired = true,
+                    Options = [
+                        new("FEDEX_GROUND", "FedEx Ground"),
+                        new("FEDEX_2_DAY", "FedEx 2Day"),
+                        new("STANDARD_OVERNIGHT", "Standard Overnight"),
+                        new("PRIORITY_OVERNIGHT", "Priority Overnight")
+                    ] },
+            new() { Key = "markup", Label = "Markup %", FieldType = ConfigurationFieldType.Percentage,
+                    Description = "Percentage to add to FedEx rates" }
         ]);
     }
 
@@ -157,9 +225,17 @@ public class UpsShippingProvider : ShippingProviderBase
         SupportsLabelGeneration = false,
         SupportsDeliveryDateSelection = false,
         SupportsInternational = true,
-        RequiresFullAddress = true
+        RequiresFullAddress = true,
+        ConfigCapabilities = new ProviderConfigCapabilities
+        {
+            HasLocationBasedCosts = false,  // Rates from UPS API
+            HasWeightTiers = false,
+            UsesLiveRates = true,
+            RequiresGlobalConfig = true     // API credentials required
+        }
     };
 
+    // Global config: API credentials
     public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken ct = default)
     {
@@ -169,6 +245,24 @@ public class UpsShippingProvider : ShippingProviderBase
             new() { Key = "userId", Label = "User ID", FieldType = ConfigurationFieldType.Text, IsRequired = true },
             new() { Key = "password", Label = "Password", FieldType = ConfigurationFieldType.Password, IsSensitive = true, IsRequired = true },
             new() { Key = "accountNumber", Label = "Account Number", FieldType = ConfigurationFieldType.Text, IsRequired = true }
+        ]);
+    }
+
+    // Per-method config: Service selection, markup
+    public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetMethodConfigFieldsAsync(
+        CancellationToken ct = default)
+    {
+        return ValueTask.FromResult<IEnumerable<ShippingProviderConfigurationField>>(
+        [
+            new() { Key = "name", Label = "Display Name", FieldType = ConfigurationFieldType.Text, IsRequired = true },
+            new() { Key = "serviceCode", Label = "UPS Service", FieldType = ConfigurationFieldType.Select, IsRequired = true,
+                    Options = [
+                        new("03", "UPS Ground"),
+                        new("02", "UPS 2nd Day Air"),
+                        new("01", "UPS Next Day Air"),
+                        new("14", "UPS Next Day Air Early")
+                    ] },
+            new() { Key = "markup", Label = "Markup %", FieldType = ConfigurationFieldType.Percentage }
         ]);
     }
 
@@ -237,7 +331,14 @@ public class WeightBasedShippingProvider : ShippingProviderBase
         SupportsLabelGeneration = false,
         SupportsDeliveryDateSelection = false,
         SupportsInternational = true,
-        RequiresFullAddress = false
+        RequiresFullAddress = false,
+        ConfigCapabilities = new ProviderConfigCapabilities
+        {
+            HasLocationBasedCosts = false,  // Uses weight tiers from global config
+            HasWeightTiers = false,         // Weight tiers are global, not per-method
+            UsesLiveRates = false,
+            RequiresGlobalConfig = true     // Weight tiers must be configured first
+        }
     };
 
     public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(
@@ -341,7 +442,14 @@ public class FreeShippingProvider : ShippingProviderBase
         SupportsLabelGeneration = false,
         SupportsDeliveryDateSelection = false,
         SupportsInternational = true,
-        RequiresFullAddress = false
+        RequiresFullAddress = false,
+        ConfigCapabilities = new ProviderConfigCapabilities
+        {
+            HasLocationBasedCosts = false,  // Free = no cost config needed
+            HasWeightTiers = false,
+            UsesLiveRates = false,
+            RequiresGlobalConfig = true     // Minimum order value must be set
+        }
     };
 
     public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(

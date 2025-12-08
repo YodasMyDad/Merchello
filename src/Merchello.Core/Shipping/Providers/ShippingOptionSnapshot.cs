@@ -19,6 +19,7 @@ public class ShippingOptionSnapshot
     public bool CanShipToDestination { get; init; }
     public decimal? DestinationCost { get; init; }
     public IReadOnlyCollection<ShippingCostSnapshot> Costs { get; init; } = Array.Empty<ShippingCostSnapshot>();
+    public IReadOnlyCollection<ShippingWeightTierSnapshot> WeightTiers { get; init; } = Array.Empty<ShippingWeightTierSnapshot>();
     public bool AllowsDeliveryDateSelection { get; init; }
     public int? MinDeliveryDays { get; init; }
     public int? MaxDeliveryDays { get; init; }

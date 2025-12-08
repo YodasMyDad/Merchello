@@ -64,4 +64,10 @@ public record ShippingProviderMetadata
     /// Countries this provider is available in (null = all countries).
     /// </summary>
     public IReadOnlyCollection<string>? SupportedCountries { get; init; }
+
+    /// <summary>
+    /// Configuration capabilities for this provider.
+    /// Determines what UI elements are shown when configuring shipping methods.
+    /// </summary>
+    public ProviderConfigCapabilities ConfigCapabilities { get; init; } = new();
 }

@@ -233,6 +233,66 @@ public class ShippingProvidersApiController(
         return Ok();
     }
 
+    /// <summary>
+    /// Get method configuration fields and capabilities for a provider.
+    /// Used by UI to render the correct config form when adding/editing shipping methods.
+    /// </summary>
+    [HttpGet("shipping-providers/{providerKey}/method-config")]
+    [ProducesResponseType<ProviderMethodConfigDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetMethodConfig(string providerKey, CancellationToken cancellationToken = default)
+    {
+        var provider = await providerManager.GetProviderAsync(providerKey, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            return NotFound($"Provider '{providerKey}' not found.");
+        }
+
+        var fields = await provider.Provider.GetMethodConfigFieldsAsync(cancellationToken);
+
+        return Ok(new ProviderMethodConfigDto
+        {
+            ProviderKey = providerKey,
+            DisplayName = provider.Metadata.DisplayName,
+            Fields = fields.Select(MapToFieldDto).ToList(),
+            Capabilities = new ProviderConfigCapabilitiesDto
+            {
+                HasLocationBasedCosts = provider.Metadata.ConfigCapabilities.HasLocationBasedCosts,
+                HasWeightTiers = provider.Metadata.ConfigCapabilities.HasWeightTiers,
+                UsesLiveRates = provider.Metadata.ConfigCapabilities.UsesLiveRates,
+                RequiresGlobalConfig = provider.Metadata.ConfigCapabilities.RequiresGlobalConfig
+            }
+        });
+    }
+
+    /// <summary>
+    /// Get providers available for adding shipping methods to a warehouse.
+    /// FlatRate is always available; others require global configuration.
+    /// </summary>
+    [HttpGet("shipping-providers/available-for-warehouse")]
+    [ProducesResponseType<List<AvailableProviderDto>>(StatusCodes.Status200OK)]
+    public async Task<List<AvailableProviderDto>> GetAvailableForWarehouse(CancellationToken cancellationToken = default)
+    {
+        var allProviders = await providerManager.GetProvidersAsync(cancellationToken);
+
+        return allProviders.Select(p => new AvailableProviderDto
+        {
+            Key = p.Metadata.Key,
+            DisplayName = p.Metadata.DisplayName,
+            Icon = p.Metadata.Icon,
+            Description = p.Metadata.Description,
+            IsAvailable = !p.Metadata.ConfigCapabilities.RequiresGlobalConfig || p.Configuration != null,
+            RequiresSetup = p.Metadata.ConfigCapabilities.RequiresGlobalConfig && p.Configuration == null,
+            Capabilities = new ProviderConfigCapabilitiesDto
+            {
+                HasLocationBasedCosts = p.Metadata.ConfigCapabilities.HasLocationBasedCosts,
+                HasWeightTiers = p.Metadata.ConfigCapabilities.HasWeightTiers,
+                UsesLiveRates = p.Metadata.ConfigCapabilities.UsesLiveRates,
+                RequiresGlobalConfig = p.Metadata.ConfigCapabilities.RequiresGlobalConfig
+            }
+        }).ToList();
+    }
+
     // ============================================
     // Mapping Helpers
     // ============================================
@@ -254,7 +314,14 @@ public class ShippingProvidersApiController(
             RequiresFullAddress = meta.RequiresFullAddress,
             IsEnabled = registered.IsEnabled,
             ConfigurationId = registered.Configuration?.Id,
-            SetupInstructions = meta.SetupInstructions
+            SetupInstructions = meta.SetupInstructions,
+            ConfigCapabilities = new ProviderConfigCapabilitiesDto
+            {
+                HasLocationBasedCosts = meta.ConfigCapabilities.HasLocationBasedCosts,
+                HasWeightTiers = meta.ConfigCapabilities.HasWeightTiers,
+                UsesLiveRates = meta.ConfigCapabilities.UsesLiveRates,
+                RequiresGlobalConfig = meta.ConfigCapabilities.RequiresGlobalConfig
+            }
         };
     }
 

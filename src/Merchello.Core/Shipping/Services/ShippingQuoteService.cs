@@ -150,13 +150,26 @@ public class ShippingQuoteService(
                 .Include(product => product.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
+                            .ThenInclude(w => w!.ShippingOptions)
+                                .ThenInclude(so => so.WeightTiers)
+                .Include(product => product.ProductRoot)
+                    .ThenInclude(pr => pr!.ProductRootWarehouses)
+                        .ThenInclude(prw => prw.Warehouse)
                             .ThenInclude(w => w!.ServiceRegions)
                 .Include(product => product.ShippingOptions)
                     .ThenInclude(option => option.ShippingCosts)
                 .Include(product => product.ShippingOptions)
+                    .ThenInclude(option => option.WeightTiers)
+                .Include(product => product.ShippingOptions)
                     .ThenInclude(option => option.Warehouse)
                         .ThenInclude(warehouse => warehouse!.ServiceRegions)
                 .Include(product => product.AllowedShippingOptions)
+                    .ThenInclude(option => option.ShippingCosts)
+                .Include(product => product.AllowedShippingOptions)
+                    .ThenInclude(option => option.WeightTiers)
+                .Include(product => product.AllowedShippingOptions)
+                    .ThenInclude(option => option.Warehouse)
+                        .ThenInclude(warehouse => warehouse!.ServiceRegions)
                 .Include(product => product.ExcludedShippingOptions)
                 .AsNoTracking()
                 .Where(product => productIds.Contains(product.Id))
@@ -249,6 +262,16 @@ public class ShippingQuoteService(
                             CountryCode = cost.CountryCode,
                             StateOrProvinceCode = cost.StateOrProvinceCode,
                             Cost = cost.Cost
+                        })
+                        .ToList(),
+                    WeightTiers = option.WeightTiers
+                        .Select(tier => new ShippingWeightTierSnapshot
+                        {
+                            CountryCode = tier.CountryCode,
+                            StateOrProvinceCode = tier.StateOrProvinceCode,
+                            MinWeightKg = tier.MinWeightKg,
+                            MaxWeightKg = tier.MaxWeightKg,
+                            Surcharge = tier.Surcharge
                         })
                         .ToList()
                 };

@@ -20,6 +20,7 @@ Pluggable shipping provider system allowing third-party carriers (FedEx, UPS, DH
 | `IShippingProvider` | [IShippingProvider.cs](../src/Merchello.Core/Shipping/Providers/IShippingProvider.cs) |
 | `ShippingProviderBase` | [ShippingProviderBase.cs](../src/Merchello.Core/Shipping/Providers/ShippingProviderBase.cs) |
 | `ShippingProviderMetadata` | [ShippingProviderMetadata.cs](../src/Merchello.Core/Shipping/Providers/ShippingProviderMetadata.cs) |
+| `ProviderConfigCapabilities` | [ProviderConfigCapabilities.cs](../src/Merchello.Core/Shipping/Providers/ProviderConfigCapabilities.cs) |
 | `IShippingProviderManager` | [IShippingProviderManager.cs](../src/Merchello.Core/Shipping/Providers/IShippingProviderManager.cs) |
 | `ShippingProviderManager` | [ShippingProviderManager.cs](../src/Merchello.Core/Shipping/Providers/ShippingProviderManager.cs) |
 | `IShippingQuoteService` | [IShippingQuoteService.cs](../src/Merchello.Core/Shipping/Services/Interfaces/IShippingQuoteService.cs) |
@@ -69,6 +70,63 @@ Pluggable shipping provider system allowing third-party carriers (FedEx, UPS, DH
 | `SupportsInternational` | Handles international shipments |
 | `RequiresFullAddress` | Needs complete address for quotes (vs just country/postal) |
 | `SupportedCountries` | List of countries provider operates in (null = all) |
+
+## Provider Configuration Capabilities
+
+The `ConfigCapabilities` property on `ShippingProviderMetadata` controls which UI elements are shown when configuring shipping methods:
+
+| Capability | Description | UI Impact |
+|------------|-------------|-----------|
+| `HasLocationBasedCosts` | Uses location-based cost tables | Shows ShippingCosts table editor |
+| `HasWeightTiers` | Uses weight tier surcharge tables | Shows WeightTiers table editor |
+| `UsesLiveRates` | Fetches rates from external API at runtime | Hides cost tables, shows "Live rates" |
+| `RequiresGlobalConfig` | Requires API credentials before use | Provider must be configured first |
+
+```csharp
+public record ProviderConfigCapabilities
+{
+    public bool HasLocationBasedCosts { get; init; }  // FlatRate: true, UPS: false
+    public bool HasWeightTiers { get; init; }         // FlatRate: true, UPS: false
+    public bool UsesLiveRates { get; init; }          // FlatRate: false, UPS: true
+    public bool RequiresGlobalConfig { get; init; }   // FlatRate: false, UPS: true
+}
+```
+
+## ShippingOption-Provider Linkage
+
+Each `ShippingOption` (per-warehouse shipping method) is linked to a provider via `ProviderKey`:
+
+```csharp
+public class ShippingOption
+{
+    // Existing fields...
+    public string Name { get; set; }
+    public Guid WarehouseId { get; set; }
+    public decimal? FixedCost { get; set; }
+
+    // Provider linkage (new)
+    public string ProviderKey { get; set; } = "flat-rate";  // e.g., "flat-rate", "ups", "fedex"
+    public string? ProviderSettings { get; set; }            // JSON for provider-specific config
+    public bool IsEnabled { get; set; } = true;
+}
+```
+
+- **FlatRate**: Uses `Costs` and `WeightTiers` tables; `ProviderSettings` is typically null
+- **UPS/FedEx**: Uses `ProviderSettings` JSON for service level, markup, etc.; no cost tables
+
+### Provider Configuration Flow
+
+1. **Global Config** (optional): Some providers need API credentials first
+   - Stored in `merchelloShippingProviderConfigurations` table
+   - Configured via Providers section in UI
+
+2. **Per-Warehouse Methods**: Each warehouse configures shipping methods
+   - Stored in `merchelloShippingOptions` table with `ProviderKey`
+   - Provider determines which fields to show
+
+3. **Method Config Fields**: Providers define fields via `GetMethodConfigFieldsAsync()`
+   - Rendered as dynamic form in UI
+   - Separate from global config (`GetConfigurationFieldsAsync()`)
 
 ## Quote Flow
 
@@ -165,8 +223,9 @@ src/Merchello.Core/Shipping/
 │   ├── ShippingProviderBase.cs
 │   ├── ShippingProviderManager.cs
 │   ├── ShippingProviderMetadata.cs
+│   ├── ProviderConfigCapabilities.cs           # NEW: Config capability flags
 │   ├── ShippingProviderConfigurationField.cs
-│   ├── ConfigurationFieldType.cs
+│   ├── ConfigurationFieldType.cs               # Updated: +Number, Currency, Percentage
 │   ├── SelectOption.cs
 │   ├── RegisteredShippingProvider.cs
 │   ├── ShippingQuoteRequest.cs
@@ -176,44 +235,102 @@ src/Merchello.Core/Shipping/
 │   ├── ShipmentPackage.cs
 │   ├── ShippingProductSnapshot.cs
 │   ├── ShippingOptionSnapshot.cs
-│   └── ShippingCostSnapshot.cs
+│   ├── ShippingCostSnapshot.cs
+│   └── ShippingWeightTierSnapshot.cs           # NEW: Weight tier for quote context
 ├── Models/
 │   ├── ShippingProviderConfiguration.cs
-│   ├── ShippingOption.cs
+│   ├── ShippingOption.cs                       # Updated: +ProviderKey, ProviderSettings, IsEnabled
 │   ├── ShippingCost.cs
+│   ├── ShippingWeightTier.cs
 │   ├── ShippingOptionCountry.cs
 │   ├── Shipment.cs
 │   └── ...
 ├── Services/
 │   ├── Interfaces/
 │   │   ├── IShippingService.cs
-│   │   └── IShippingQuoteService.cs
+│   │   ├── IShippingQuoteService.cs
+│   │   └── IShippingOptionService.cs
 │   ├── ShippingService.cs
-│   └── ShippingQuoteService.cs
+│   ├── ShippingQuoteService.cs
+│   └── ShippingOptionService.cs
 ├── Mapping/
-│   └── ShippingProviderConfigurationDbMapping.cs
+│   ├── ShippingProviderConfigurationDbMapping.cs
+│   ├── ShippingOptionDbMapping.cs
+│   └── ShippingWeightTierDbMapping.cs
 └── Dtos/
-    ├── ShippingProviderDto.cs
+    ├── ShippingProviderDto.cs                  # Updated: +ProviderConfigCapabilitiesDto, etc.
     ├── ShippingProviderConfigurationDto.cs
+    ├── ShippingOptionDtos.cs                   # Updated: +ProviderKey, ProviderSettings fields
     └── ...
 
 src/Merchello/Controllers/
-└── ShippingProvidersApiController.cs
+├── ShippingProvidersApiController.cs           # Updated: +method-config, available-for-warehouse
+└── ShippingOptionsApiController.cs
 ```
 
 ## API Endpoints
+
+### Provider Management
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/merchello/shipping-providers/available` | List all discovered providers |
 | GET | `/api/merchello/shipping-providers` | List configured providers |
 | GET | `/api/merchello/shipping-providers/{id}` | Get provider configuration |
-| GET | `/api/merchello/shipping-providers/{key}/fields` | Get configuration fields |
+| GET | `/api/merchello/shipping-providers/{key}/fields` | Get global configuration fields |
+| GET | `/api/merchello/shipping-providers/{key}/method-config` | Get method config fields and capabilities |
+| GET | `/api/merchello/shipping-providers/available-for-warehouse` | Get providers available for adding methods |
 | POST | `/api/merchello/shipping-providers` | Create provider configuration |
 | PUT | `/api/merchello/shipping-providers/{id}` | Update configuration |
 | PUT | `/api/merchello/shipping-providers/{id}/toggle` | Enable/disable provider |
 | PUT | `/api/merchello/shipping-providers/reorder` | Update sort order |
 | DELETE | `/api/merchello/shipping-providers/{id}` | Delete configuration |
+
+### Method Config Endpoint
+
+The `/method-config` endpoint returns fields and capabilities for per-warehouse shipping method setup:
+
+```json
+{
+  "providerKey": "flat-rate",
+  "displayName": "Flat Rate Shipping",
+  "fields": [
+    { "key": "name", "label": "Method Name", "fieldType": "Text", "isRequired": true },
+    { "key": "fixedCost", "label": "Fixed Cost", "fieldType": "Currency" },
+    { "key": "daysFrom", "label": "Min Delivery Days", "fieldType": "Number" },
+    { "key": "daysTo", "label": "Max Delivery Days", "fieldType": "Number" }
+  ],
+  "capabilities": {
+    "hasLocationBasedCosts": true,
+    "hasWeightTiers": true,
+    "usesLiveRates": false,
+    "requiresGlobalConfig": false
+  }
+}
+```
+
+### Available for Warehouse Endpoint
+
+The `/available-for-warehouse` endpoint returns providers with availability status:
+
+```json
+[
+  {
+    "key": "flat-rate",
+    "displayName": "Flat Rate Shipping",
+    "isAvailable": true,
+    "requiresSetup": false,
+    "capabilities": { ... }
+  },
+  {
+    "key": "ups",
+    "displayName": "UPS",
+    "isAvailable": false,
+    "requiresSetup": true,  // Needs global config first
+    "capabilities": { ... }
+  }
+]
+```
 
 ## Testing Checklist
 
