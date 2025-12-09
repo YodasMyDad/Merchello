@@ -108,7 +108,7 @@ public class ManualPaymentProvider : PaymentProviderBase
         ProcessPaymentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var formData = request.FormData ?? new Dictionary<string, string>();
+        var formData = request.FormData ?? [];
 
         var paymentMethod = formData.GetValueOrDefault("paymentMethod", "manual");
         var reference = formData.GetValueOrDefault("reference", "");

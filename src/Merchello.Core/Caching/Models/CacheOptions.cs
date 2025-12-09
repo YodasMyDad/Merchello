@@ -1,4 +1,4 @@
-namespace Merchello.Core.Shared.Options;
+namespace Merchello.Core.Caching.Models;
 
 public class CacheOptions
 {

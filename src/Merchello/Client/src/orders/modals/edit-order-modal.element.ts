@@ -1189,18 +1189,18 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     }
 
     .fulfillment-badge.unfulfilled {
-      background: #fef3cd;
-      color: #856404;
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
     }
 
     .fulfillment-badge.partial {
-      background: #cce5ff;
-      color: #004085;
+      background: var(--uui-color-current-standalone);
+      color: var(--uui-color-current-contrast);
     }
 
     .fulfillment-badge.fulfilled {
-      background: #d4edda;
-      color: #155724;
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
     }
 
     /* Items Section */

@@ -453,8 +453,8 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
 
     .error {
       padding: var(--uui-size-space-4);
-      background: #f8d7da;
-      color: #721c24;
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
     }
 

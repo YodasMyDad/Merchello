@@ -300,7 +300,7 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
     .filter-dropdowns { display: flex; gap: var(--uui-size-space-2); flex-wrap: wrap; }
     .filter-dropdowns uui-select { min-width: 140px; }
     .loading { display: flex; justify-content: center; padding: var(--uui-size-space-6); }
-    .error { padding: var(--uui-size-space-4); background: #f8d7da; color: #721c24; border-radius: var(--uui-border-radius); }
+    .error { padding: var(--uui-size-space-4); background: var(--uui-color-danger-standalone); color: var(--uui-color-danger-contrast); border-radius: var(--uui-border-radius); }
     merchello-pagination { padding: var(--uui-size-space-3); border-top: 1px solid var(--uui-color-border); }
   `;
 }

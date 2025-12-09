@@ -47,6 +47,10 @@ public class ServiceTestFixture : IDisposable
     private SqliteConnection _keepAliveConnection;
     private readonly ServiceProvider _serviceProvider;
 
+    // Track all connections created by CreateDbContext for proper disposal
+    private readonly List<SqliteConnection> _trackedConnections = [];
+    private readonly object _connectionLock = new();
+
     public MerchelloDbContext DbContext { get; private set; } = null!;
     public IServiceProvider ServiceProvider => _serviceProvider;
 
@@ -249,8 +253,8 @@ public class ServiceTestFixture : IDisposable
                     .Returns((Func<MerchelloDbContext, Task<Dictionary<Guid, ShippingOption>>> func) => func(dbContext));
 
                 scopeMock
-                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductShippingOptionsResult>>>()))
-                    .Returns((Func<MerchelloDbContext, Task<ProductShippingOptionsResult>> func) => func(dbContext));
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductShippingOptionsResultDto>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<ProductShippingOptionsResultDto>> func) => func(dbContext));
 
                 // Tuple return type for shipping basket query
                 scopeMock
@@ -315,11 +319,18 @@ public class ServiceTestFixture : IDisposable
     /// <summary>
     /// Creates a new DbContext instance that points at the shared in-memory database.
     /// Useful for concurrent test threads where a unique context is required.
+    /// Note: Connections are tracked and disposed when the fixture is disposed.
     /// </summary>
     public MerchelloDbContext CreateDbContext()
     {
         var connection = new SqliteConnection(_connectionString);
         connection.Open();
+
+        // Track connection for cleanup (EF Core doesn't dispose externally-provided connections)
+        lock (_connectionLock)
+        {
+            _trackedConnections.Add(connection);
+        }
 
         var options = new DbContextOptionsBuilder<MerchelloDbContext>()
             .UseSqlite(connection)
@@ -332,7 +343,32 @@ public class ServiceTestFixture : IDisposable
     {
         DbContext?.Dispose();
         _serviceProvider?.Dispose();
+
+        // Dispose all tracked connections from CreateDbContext calls
+        lock (_connectionLock)
+        {
+            foreach (var connection in _trackedConnections)
+            {
+                connection.Dispose();
+            }
+            _trackedConnections.Clear();
+        }
+
         _keepAliveConnection?.Dispose();
+
+        // Clean up the temp database file
+        try
+        {
+            if (File.Exists(_databaseFilePath))
+            {
+                File.Delete(_databaseFilePath);
+            }
+        }
+        catch
+        {
+            // Best effort cleanup - file may be locked
+        }
+
         GC.SuppressFinalize(this);
     }
 }

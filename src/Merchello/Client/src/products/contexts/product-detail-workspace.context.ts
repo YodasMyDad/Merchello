@@ -3,15 +3,7 @@ import { UmbControllerBase } from "@umbraco-cms/backoffice/class-api";
 import type { UmbRoutableWorkspaceContext } from "@umbraco-cms/backoffice/workspace";
 import { UMB_WORKSPACE_CONTEXT, UmbWorkspaceRouteManager } from "@umbraco-cms/backoffice/workspace";
 import { UmbObjectState } from "@umbraco-cms/backoffice/observable-api";
-
-// Placeholder type until full product detail DTO is defined
-export interface ProductDetailDto {
-  id: string;
-  productRootId: string;
-  name: string;
-  sku: string | null;
-  price: number;
-}
+import type { ProductDetailDto } from "@products/types/product.types.js";
 
 export class MerchelloProductDetailWorkspaceContext extends UmbControllerBase implements UmbRoutableWorkspaceContext {
   readonly workspaceAlias = "Merchello.Product.Detail.Workspace";

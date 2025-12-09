@@ -1,5 +1,14 @@
 // Product types matching the API DTOs
 
+// TODO: Expand with full product detail fields when API endpoint is available
+export interface ProductDetailDto {
+  id: string;
+  productRootId: string;
+  name: string;
+  sku: string | null;
+  price: number;
+}
+
 export interface ProductListItemDto {
   id: string;
   productRootId: string;

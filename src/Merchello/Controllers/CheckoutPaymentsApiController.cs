@@ -1,7 +1,9 @@
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Providers;
-using Merchello.Core.Payments.Services;
+using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Core.Shared.Types;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -92,10 +94,13 @@ public class CheckoutPaymentsApiController(
 
         // Create payment session
         var result = await paymentService.CreatePaymentSessionAsync(
-            invoiceId,
-            request.ProviderAlias,
-            request.ReturnUrl,
-            request.CancelUrl,
+            new CreatePaymentSessionParameters
+            {
+                InvoiceId = invoiceId,
+                ProviderAlias = request.ProviderAlias,
+                ReturnUrl = request.ReturnUrl,
+                CancelUrl = request.CancelUrl
+            },
             cancellationToken);
 
         var response = new PaymentSessionResultDto

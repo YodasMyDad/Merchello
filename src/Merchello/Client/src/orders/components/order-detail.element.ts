@@ -944,8 +944,8 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     .error {
       padding: var(--uui-size-space-4);
-      background: #f8d7da;
-      color: #721c24;
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
     }
 
@@ -1080,8 +1080,8 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       border-radius: 20px;
       font-size: 0.8125rem;
       font-weight: 600;
-      background: #fef3c7;
-      color: #92400e;
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
     }
 
     .fulfillment-status-badge uui-icon {
@@ -1089,8 +1089,8 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     }
 
     .fulfillment-status-badge.shipped {
-      background: #d1fae5;
-      color: #065f46;
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
     }
 
     .fulfillment-shipping-method {
@@ -1215,13 +1215,13 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       border-radius: 12px;
       font-size: 0.75rem;
       font-weight: 500;
-      background: #fff3cd;
-      color: #856404;
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
     }
 
     .status-badge.shipped {
-      background: #d4edda;
-      color: #155724;
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
     }
 
     .shipping-method {
@@ -1296,7 +1296,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     }
 
     .summary-row.overpaid {
-      color: #b45309; /* Darker amber/orange for better visibility */
+      color: var(--uui-color-warning);
     }
 
     .summary-row.balance {
@@ -1376,7 +1376,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     }
 
     .note-error {
-      color: #dc3545;
+      color: var(--uui-color-danger);
       font-size: 0.875rem;
       padding: var(--uui-size-space-2) var(--uui-size-space-3);
     }
@@ -1457,7 +1457,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     }
 
     .timeline-event.customer-visible .timeline-event-dot {
-      background: #0078d4;
+      background: var(--uui-color-current);
     }
 
     .timeline-event-content {
@@ -1470,8 +1470,8 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       display: inline-block;
       font-size: 0.7rem;
       font-weight: 500;
-      color: #0078d4;
-      background: #cce5ff;
+      color: var(--uui-color-current-contrast);
+      background: var(--uui-color-current-standalone);
       padding: 2px 8px;
       border-radius: 10px;
       width: fit-content;

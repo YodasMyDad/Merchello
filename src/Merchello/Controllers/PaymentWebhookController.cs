@@ -1,6 +1,7 @@
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
-using Merchello.Core.Payments.Services;
+using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -143,12 +144,14 @@ public class PaymentWebhookController(
                     if (existingPayment == null)
                     {
                         await paymentService.RecordPaymentAsync(
-                            result.InvoiceId.Value,
-                            providerAlias,
-                            result.TransactionId,
-                            result.Amount.Value,
-                            $"Payment via {providerAlias} webhook",
-                            null,
+                            new RecordPaymentParameters
+                            {
+                                InvoiceId = result.InvoiceId.Value,
+                                ProviderAlias = providerAlias,
+                                TransactionId = result.TransactionId,
+                                Amount = result.Amount.Value,
+                                Description = "Payment via " + providerAlias + " webhook"
+                            },
                             cancellationToken);
 
                         logger.LogInformation(

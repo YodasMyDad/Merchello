@@ -9,6 +9,7 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import type { PaymentProviderDto, PaymentProviderSettingDto } from "./types.js";
 import { MERCHELLO_PAYMENT_PROVIDER_CONFIG_MODAL } from "./payment-provider-config-modal.token.js";
 import { MERCHELLO_SETUP_INSTRUCTIONS_MODAL } from "./setup-instructions-modal.token.js";
+import { MERCHELLO_TEST_PAYMENT_PROVIDER_MODAL } from "./test-provider-modal.token.js";
 
 @customElement("merchello-payment-providers-list")
 export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitElement) {
@@ -154,6 +155,14 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     });
   }
 
+  private _openTestModal(setting: PaymentProviderSettingDto): void {
+    if (!this.#modalManager) return;
+
+    this.#modalManager.open(this, MERCHELLO_TEST_PAYMENT_PROVIDER_MODAL, {
+      data: { setting },
+    });
+  }
+
   private _renderConfiguredProvider(setting: PaymentProviderSettingDto): unknown {
     const provider = setting.provider;
 
@@ -175,6 +184,14 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
               @change=${() => this._toggleProvider(setting)}
               label="${setting.isEnabled ? 'In Checkout' : 'Hide From Checkout'}"
             ></uui-toggle>
+            <uui-button
+              look="secondary"
+              label="Test"
+              title="Test this provider configuration"
+              @click=${() => this._openTestModal(setting)}
+            >
+              <uui-icon name="icon-lab"></uui-icon>
+            </uui-button>
             <uui-button
               look="secondary"
               label="Configure"
@@ -508,8 +525,8 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     }
 
     .feature-badge.test-mode {
-      background: #f97316;
-      color: #fff;
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
     }
 
     .feature-badge.live-mode {

@@ -1,15 +1,20 @@
+using Merchello.Core.Caching.Models;
+using Merchello.Core.Caching.Services.Interfaces;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Options;
-using Merchello.Core.Shared.Options;
-using Merchello.Core;
 
-namespace Merchello.Core.Shared.Services;
+namespace Merchello.Core.Caching.Services;
 
-public class CacheService(HybridCache cache, IOptions<CacheOptions> options)
+/// <summary>
+/// Service for caching operations using HybridCache.
+/// </summary>
+public class CacheService(HybridCache cache, IOptions<CacheOptions> options) : ICacheService
 {
     private readonly CacheOptions _options = options.Value;
 
-    public async Task<T> GetOrCreateAsync<T>(string key,
+    /// <inheritdoc />
+    public async Task<T> GetOrCreateAsync<T>(
+        string key,
         Func<CancellationToken, Task<T>> factory,
         TimeSpan? ttl = null,
         IEnumerable<string>? tags = null,
@@ -29,23 +34,11 @@ public class CacheService(HybridCache cache, IOptions<CacheOptions> options)
         return value;
     }
 
+    /// <inheritdoc />
     public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
         => cache.RemoveAsync(key, cancellationToken).AsTask();
 
+    /// <inheritdoc />
     public Task RemoveByTagAsync(string tag, CancellationToken cancellationToken = default)
         => cache.RemoveByTagAsync(tag, cancellationToken).AsTask();
-
-    // Legacy convenience wrapper (sync)
-    public T? GetSetCachedItem<T>(string cacheKey, Func<T> getCacheItem, int cacheTimeInMinutes = Constants.CacheKeys.MemoryCacheInMinutes)
-    {
-        var result = cache.GetOrCreateAsync(
-            cacheKey,
-            _ => new ValueTask<T>(getCacheItem()),
-            new HybridCacheEntryOptions
-            {
-                Expiration = TimeSpan.FromMinutes(cacheTimeInMinutes),
-                LocalCacheExpiration = TimeSpan.FromMinutes(cacheTimeInMinutes)
-            });
-        return result.GetAwaiter().GetResult();
-    }
 }

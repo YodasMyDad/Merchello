@@ -1,4 +1,4 @@
-using Merchello.Core.Accounting.ExtensionMethods;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Locality.Models;

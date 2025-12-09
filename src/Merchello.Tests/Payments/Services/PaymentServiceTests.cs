@@ -3,6 +3,8 @@ using Merchello.Core.Data;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Services;
+using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -251,7 +253,13 @@ public class PaymentServiceTests
 
         // Act
         var result = await service.CreatePaymentSessionAsync(
-            invoiceId, "disabled-provider", "https://return.url", "https://cancel.url");
+            new CreatePaymentSessionParameters
+            {
+                InvoiceId = invoiceId,
+                ProviderAlias = "disabled-provider",
+                ReturnUrl = "https://return.url",
+                CancelUrl = "https://cancel.url"
+            });
 
         // Assert
         result.Success.ShouldBeFalse();

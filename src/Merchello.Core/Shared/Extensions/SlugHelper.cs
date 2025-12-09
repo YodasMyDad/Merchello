@@ -76,17 +76,10 @@ namespace Merchello.Core.Shared.Extensions;
 
         public class Config
         {
-            public Dictionary<string, string> CharacterReplacements { get; set; }
-            public bool ForceLowerCase { get; set; }
-            public bool CollapseWhiteSpace { get; set; }
-            public string DeniedCharactersRegex { get; set; }
-            public Config()
-            {
-                CharacterReplacements = new Dictionary<string, string> {{" ", "-"}};
-                ForceLowerCase = true;
-                CollapseWhiteSpace = true;
-                DeniedCharactersRegex = @"[^a-zA-Z0-9\-\._]";
-            }
+            public Dictionary<string, string> CharacterReplacements { get; set; } = new() { { " ", "-" } };
+            public bool ForceLowerCase { get; set; } = true;
+            public bool CollapseWhiteSpace { get; set; } = true;
+            public string DeniedCharactersRegex { get; set; } = @"[^a-zA-Z0-9\-\._]";
         }
 
     }

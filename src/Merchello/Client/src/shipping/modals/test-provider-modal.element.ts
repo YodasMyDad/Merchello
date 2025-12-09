@@ -1,0 +1,678 @@
+import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
+import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
+import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
+import type { TestProviderModalData, TestProviderModalValue } from "./test-provider-modal.token.js";
+import type { WarehouseListDto, CountryInfo, SubdivisionInfo } from "@warehouses/types.js";
+import type { TestShippingProviderRequestDto, TestShippingProviderResponseDto } from "@shipping/types.js";
+import { MerchelloApi } from "@api/merchello-api.js";
+import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
+
+const STORAGE_KEY = "merchello-test-provider-form";
+
+interface SelectOption {
+  name: string;
+  value: string;
+  selected?: boolean;
+}
+
+interface SavedFormValues {
+  warehouseId?: string;
+  countryCode?: string;
+  stateOrProvinceCode?: string;
+  postalCode?: string;
+  city?: string;
+  weightKg?: number;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
+  itemsSubtotal?: number;
+}
+
+@customElement("merchello-test-provider-modal")
+export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
+  TestProviderModalData,
+  TestProviderModalValue
+> {
+  // Form state
+  @state() private _warehouseId: string = "";
+  @state() private _countryCode: string = "";
+  @state() private _stateOrProvinceCode: string = "";
+  @state() private _postalCode: string = "";
+  @state() private _city: string = "";
+  @state() private _weightKg: number = 1.0;
+  @state() private _lengthCm: string = "";
+  @state() private _widthCm: string = "";
+  @state() private _heightCm: string = "";
+  @state() private _itemsSubtotal: number = 100.0;
+
+  // Data state
+  @state() private _warehouses: WarehouseListDto[] = [];
+  @state() private _countries: CountryInfo[] = [];
+  @state() private _regions: SubdivisionInfo[] = [];
+
+  // UI state
+  @state() private _isLoadingData = true;
+  @state() private _isLoadingRegions = false;
+  @state() private _isTesting = false;
+  @state() private _testResult?: TestShippingProviderResponseDto;
+  @state() private _errorMessage: string | null = null;
+
+  #isConnected = false;
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this.#isConnected = true;
+    this._loadInitialData();
+    this._restoreSavedValues();
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#isConnected = false;
+  }
+
+  private async _loadInitialData(): Promise<void> {
+    this._isLoadingData = true;
+
+    // Preload store settings for currency symbol
+    getStoreSettings();
+
+    const [warehousesResult, countriesResult] = await Promise.all([
+      MerchelloApi.getWarehousesList(),
+      MerchelloApi.getLocalityCountries(),
+    ]);
+
+    if (!this.#isConnected) return;
+
+    if (warehousesResult.error) {
+      this._errorMessage = warehousesResult.error.message;
+      this._isLoadingData = false;
+      return;
+    }
+
+    if (countriesResult.error) {
+      this._errorMessage = countriesResult.error.message;
+      this._isLoadingData = false;
+      return;
+    }
+
+    this._warehouses = warehousesResult.data ?? [];
+    this._countries = countriesResult.data ?? [];
+
+    // Auto-select first warehouse if only one and none was restored
+    if (this._warehouses.length === 1 && !this._warehouseId) {
+      this._warehouseId = this._warehouses[0].id;
+    }
+
+    // Load regions if country was restored from storage
+    if (this._countryCode) {
+      await this._loadRegions(this._countryCode);
+    }
+
+    this._isLoadingData = false;
+  }
+
+  private _restoreSavedValues(): void {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const values: SavedFormValues = JSON.parse(saved);
+        if (values.warehouseId) this._warehouseId = values.warehouseId;
+        if (values.countryCode) this._countryCode = values.countryCode;
+        if (values.stateOrProvinceCode) this._stateOrProvinceCode = values.stateOrProvinceCode;
+        if (values.postalCode) this._postalCode = values.postalCode;
+        if (values.city) this._city = values.city;
+        if (values.weightKg !== undefined) this._weightKg = values.weightKg;
+        if (values.lengthCm !== undefined) this._lengthCm = String(values.lengthCm);
+        if (values.widthCm !== undefined) this._widthCm = String(values.widthCm);
+        if (values.heightCm !== undefined) this._heightCm = String(values.heightCm);
+        if (values.itemsSubtotal !== undefined) this._itemsSubtotal = values.itemsSubtotal;
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }
+
+  private _saveFormValues(): void {
+    try {
+      const values: SavedFormValues = {
+        warehouseId: this._warehouseId,
+        countryCode: this._countryCode,
+        stateOrProvinceCode: this._stateOrProvinceCode,
+        postalCode: this._postalCode,
+        city: this._city,
+        weightKg: this._weightKg,
+        lengthCm: this._lengthCm ? parseFloat(this._lengthCm) : undefined,
+        widthCm: this._widthCm ? parseFloat(this._widthCm) : undefined,
+        heightCm: this._heightCm ? parseFloat(this._heightCm) : undefined,
+        itemsSubtotal: this._itemsSubtotal,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+    } catch {
+      // Ignore localStorage errors
+    }
+  }
+
+  private async _loadRegions(countryCode: string): Promise<void> {
+    this._isLoadingRegions = true;
+    this._regions = [];
+
+    const { data } = await MerchelloApi.getLocalityRegions(countryCode);
+    if (!this.#isConnected) return;
+
+    if (data) {
+      this._regions = data;
+    }
+
+    this._isLoadingRegions = false;
+  }
+
+  private _handleCountryChange(e: Event): void {
+    const value = (e.target as HTMLSelectElement).value;
+    this._countryCode = value;
+    this._stateOrProvinceCode = "";
+    if (value) {
+      this._loadRegions(value);
+    } else {
+      this._regions = [];
+    }
+  }
+
+  private async _handleTest(): Promise<void> {
+    if (!this._warehouseId || !this._countryCode) {
+      this._errorMessage = "Please select a warehouse and destination country.";
+      return;
+    }
+
+    this._isTesting = true;
+    this._errorMessage = null;
+    this._testResult = undefined;
+    this._saveFormValues();
+
+    const configId = this.data?.configuration.id;
+    if (!configId) {
+      this._errorMessage = "Configuration ID missing.";
+      this._isTesting = false;
+      return;
+    }
+
+    const request: TestShippingProviderRequestDto = {
+      warehouseId: this._warehouseId,
+      countryCode: this._countryCode,
+      stateOrProvinceCode: this._stateOrProvinceCode || undefined,
+      postalCode: this._postalCode || undefined,
+      city: this._city || undefined,
+      weightKg: this._weightKg,
+      lengthCm: this._lengthCm ? parseFloat(this._lengthCm) : undefined,
+      widthCm: this._widthCm ? parseFloat(this._widthCm) : undefined,
+      heightCm: this._heightCm ? parseFloat(this._heightCm) : undefined,
+      itemsSubtotal: this._itemsSubtotal,
+    };
+
+    const { data, error } = await MerchelloApi.testShippingProvider(configId, request);
+
+    if (!this.#isConnected) return;
+
+    if (error) {
+      this._errorMessage = error.message;
+      this._isTesting = false;
+      return;
+    }
+
+    this._testResult = data;
+    this._isTesting = false;
+  }
+
+  private _handleClose(): void {
+    this.modalContext?.reject();
+  }
+
+  // Select options builders
+  private _getWarehouseOptions(): SelectOption[] {
+    return [
+      { name: "Select warehouse...", value: "", selected: !this._warehouseId },
+      ...this._warehouses.map((w) => ({
+        name: w.name || w.code || "Unnamed Warehouse",
+        value: w.id,
+        selected: w.id === this._warehouseId,
+      })),
+    ];
+  }
+
+  private _getCountryOptions(): SelectOption[] {
+    return [
+      { name: "Select country...", value: "", selected: !this._countryCode },
+      ...this._countries.map((c) => ({
+        name: c.name,
+        value: c.code,
+        selected: c.code === this._countryCode,
+      })),
+    ];
+  }
+
+  private _getRegionOptions(): SelectOption[] {
+    if (this._isLoadingRegions) {
+      return [{ name: "Loading...", value: "", selected: true }];
+    }
+
+    return [
+      { name: "All regions", value: "", selected: !this._stateOrProvinceCode },
+      ...this._regions.map((r) => ({
+        name: r.name,
+        value: r.regionCode,
+        selected: r.regionCode === this._stateOrProvinceCode,
+      })),
+    ];
+  }
+
+  // Render methods
+  private _renderForm(): unknown {
+    const currencySymbol = getCurrencySymbol();
+
+    return html`
+      <div class="form-section">
+        <h3>Origin</h3>
+        <div class="form-row">
+          <label>Warehouse <span class="required">*</span></label>
+          <uui-select
+            label="Warehouse"
+            .options=${this._getWarehouseOptions()}
+            @change=${(e: Event) => (this._warehouseId = (e.target as HTMLSelectElement).value)}
+          ></uui-select>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Destination</h3>
+        <div class="form-row">
+          <label>Country <span class="required">*</span></label>
+          <uui-select
+            label="Country"
+            .options=${this._getCountryOptions()}
+            @change=${this._handleCountryChange}
+          ></uui-select>
+        </div>
+
+        <div class="form-row">
+          <label>State/Province</label>
+          <uui-select
+            label="State/Province"
+            .options=${this._getRegionOptions()}
+            ?disabled=${!this._countryCode || this._isLoadingRegions}
+            @change=${(e: Event) =>
+              (this._stateOrProvinceCode = (e.target as HTMLSelectElement).value)}
+          ></uui-select>
+        </div>
+
+        <div class="form-row">
+          <label>Postal Code</label>
+          <uui-input
+            type="text"
+            .value=${this._postalCode}
+            placeholder="e.g., SW1A 1AA"
+            @input=${(e: Event) => (this._postalCode = (e.target as HTMLInputElement).value)}
+          ></uui-input>
+          <span class="hint">Required for accurate rate quotes from most carriers</span>
+        </div>
+
+        <div class="form-row">
+          <label>City</label>
+          <uui-input
+            type="text"
+            .value=${this._city}
+            placeholder="e.g., London"
+            @input=${(e: Event) => (this._city = (e.target as HTMLInputElement).value)}
+          ></uui-input>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Package</h3>
+        <div class="form-row">
+          <label>Weight (kg) <span class="required">*</span></label>
+          <uui-input
+            type="number"
+            min="0.01"
+            step="0.1"
+            .value=${String(this._weightKg)}
+            @input=${(e: Event) =>
+              (this._weightKg = parseFloat((e.target as HTMLInputElement).value) || 1)}
+          ></uui-input>
+        </div>
+
+        <div class="form-row-group">
+          <div class="form-row">
+            <label>Length (cm)</label>
+            <uui-input
+              type="number"
+              min="0"
+              step="1"
+              .value=${this._lengthCm}
+              placeholder="Optional"
+              @input=${(e: Event) => (this._lengthCm = (e.target as HTMLInputElement).value)}
+            ></uui-input>
+          </div>
+          <div class="form-row">
+            <label>Width (cm)</label>
+            <uui-input
+              type="number"
+              min="0"
+              step="1"
+              .value=${this._widthCm}
+              placeholder="Optional"
+              @input=${(e: Event) => (this._widthCm = (e.target as HTMLInputElement).value)}
+            ></uui-input>
+          </div>
+          <div class="form-row">
+            <label>Height (cm)</label>
+            <uui-input
+              type="number"
+              min="0"
+              step="1"
+              .value=${this._heightCm}
+              placeholder="Optional"
+              @input=${(e: Event) => (this._heightCm = (e.target as HTMLInputElement).value)}
+            ></uui-input>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label>Item Value (${currencySymbol})</label>
+          <uui-input
+            type="number"
+            min="0"
+            step="0.01"
+            .value=${String(this._itemsSubtotal)}
+            @input=${(e: Event) =>
+              (this._itemsSubtotal = parseFloat((e.target as HTMLInputElement).value) || 0)}
+          ></uui-input>
+          <span class="hint">Used for value-based shipping calculations (e.g., free shipping thresholds)</span>
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderResults(): unknown {
+    if (!this._testResult) return nothing;
+
+    const { success, serviceLevels, errors } = this._testResult;
+    const currencySymbol = getCurrencySymbol();
+
+    return html`
+      <div class="results-section">
+        <h3>Results</h3>
+
+        ${errors.length > 0
+          ? html`
+              <div class="result-errors">
+                <uui-icon name="icon-alert"></uui-icon>
+                <ul>
+                  ${errors.map((err) => html`<li>${err}</li>`)}
+                </ul>
+              </div>
+            `
+          : nothing}
+
+        ${serviceLevels.length > 0
+          ? html`
+              <div class="service-levels">
+                ${serviceLevels.map(
+                  (level) => html`
+                    <div class="service-level-card">
+                      <div class="service-header">
+                        <span class="service-name">${level.serviceName}</span>
+                        <span class="service-cost">${currencySymbol}${level.totalCost.toFixed(2)}</span>
+                      </div>
+                      <div class="service-details">
+                        <span class="service-code">${level.serviceCode}</span>
+                        ${level.transitTime
+                          ? html`<span class="transit-time">Transit: ${level.transitTime}</span>`
+                          : nothing}
+                        ${level.estimatedDeliveryDate
+                          ? html`<span class="delivery-date">Est. delivery: ${new Date(level.estimatedDeliveryDate).toLocaleDateString()}</span>`
+                          : nothing}
+                      </div>
+                      ${level.description
+                        ? html`<p class="service-description">${level.description}</p>`
+                        : nothing}
+                    </div>
+                  `
+                )}
+              </div>
+            `
+          : success
+            ? html`<p class="no-results">No service levels returned for this destination.</p>`
+            : nothing}
+      </div>
+    `;
+  }
+
+  render() {
+    const providerName = this.data?.configuration.displayName ?? "Provider";
+
+    if (this._isLoadingData) {
+      return html`
+        <umb-body-layout headline="Test ${providerName}">
+          <div id="main">
+            <div class="loading">
+              <uui-loader></uui-loader>
+              <span>Loading...</span>
+            </div>
+          </div>
+        </umb-body-layout>
+      `;
+    }
+
+    return html`
+      <umb-body-layout headline="Test ${providerName}">
+        <div id="main">
+          ${this._errorMessage
+            ? html`
+                <div class="error-banner">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>${this._errorMessage}</span>
+                  <uui-button
+                    look="secondary"
+                    compact
+                    @click=${() => (this._errorMessage = null)}
+                  >
+                    Dismiss
+                  </uui-button>
+                </div>
+              `
+            : nothing}
+
+          ${this._renderForm()}
+          ${this._renderResults()}
+        </div>
+
+        <div slot="actions">
+          <uui-button label="Close" look="secondary" @click=${this._handleClose}>
+            Close
+          </uui-button>
+          <uui-button
+            label="Test Provider"
+            look="primary"
+            color="positive"
+            ?disabled=${this._isTesting || !this._warehouseId || !this._countryCode}
+            @click=${this._handleTest}
+          >
+            ${this._isTesting ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
+            ${this._isTesting ? "Testing..." : "Test Provider"}
+          </uui-button>
+        </div>
+      </umb-body-layout>
+    `;
+  }
+
+  static styles = css`
+    :host {
+      display: block;
+      height: 100%;
+    }
+
+    #main {
+      padding: var(--uui-size-space-5);
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-5);
+    }
+
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: var(--uui-size-layout-2);
+      gap: var(--uui-size-space-4);
+    }
+
+    .error-banner {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3);
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
+      border-radius: var(--uui-border-radius);
+    }
+
+    .error-banner span {
+      flex: 1;
+    }
+
+    .form-section {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-3);
+    }
+
+    .form-section h3 {
+      margin: 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--uui-color-text-alt);
+      border-bottom: 1px solid var(--uui-color-border);
+      padding-bottom: var(--uui-size-space-2);
+    }
+
+    .form-row {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-1);
+    }
+
+    .form-row-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: var(--uui-size-space-3);
+    }
+
+    label {
+      font-weight: 600;
+      font-size: 0.8125rem;
+    }
+
+    .required {
+      color: var(--uui-color-danger);
+    }
+
+    .hint {
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    uui-select,
+    uui-input {
+      width: 100%;
+    }
+
+    .results-section {
+      border-top: 1px solid var(--uui-color-border);
+      padding-top: var(--uui-size-space-4);
+    }
+
+    .results-section h3 {
+      margin: 0 0 var(--uui-size-space-3) 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--uui-color-text-alt);
+    }
+
+    .result-errors {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3);
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
+      border-radius: var(--uui-border-radius);
+      margin-bottom: var(--uui-size-space-3);
+    }
+
+    .result-errors ul {
+      margin: 0;
+      padding-left: var(--uui-size-space-4);
+    }
+
+    .service-levels {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-3);
+    }
+
+    .service-level-card {
+      padding: var(--uui-size-space-3);
+      background: var(--uui-color-surface);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+    }
+
+    .service-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .service-name {
+      font-weight: 600;
+    }
+
+    .service-cost {
+      font-weight: 700;
+      font-size: 1.125rem;
+      color: var(--uui-color-positive);
+    }
+
+    .service-details {
+      display: flex;
+      gap: var(--uui-size-space-3);
+      margin-top: var(--uui-size-space-2);
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .service-description {
+      margin: var(--uui-size-space-2) 0 0;
+      font-size: 0.8125rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .no-results {
+      color: var(--uui-color-text-alt);
+      font-style: italic;
+    }
+
+    [slot="actions"] {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      justify-content: flex-end;
+    }
+  `;
+}
+
+export default MerchelloTestProviderModalElement;
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "merchello-test-provider-modal": MerchelloTestProviderModalElement;
+  }
+}

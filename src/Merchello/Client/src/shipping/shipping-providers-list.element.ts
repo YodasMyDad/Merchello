@@ -8,6 +8,7 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { ShippingProviderDto, ShippingProviderConfigurationDto } from "@shipping/types.js";
 import { MERCHELLO_SHIPPING_PROVIDER_CONFIG_MODAL } from "@shipping/shipping-provider-config-modal.token.js";
+import { MERCHELLO_TEST_PROVIDER_MODAL } from "@shipping/modals/test-provider-modal.token.js";
 import { MERCHELLO_SETUP_INSTRUCTIONS_MODAL } from "@payment-providers/setup-instructions-modal.token.js";
 
 @customElement("merchello-shipping-providers-list")
@@ -104,6 +105,14 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     }
   }
 
+  private _openTestModal(configuration: ShippingProviderConfigurationDto): void {
+    if (!this.#modalManager) return;
+
+    this.#modalManager.open(this, MERCHELLO_TEST_PROVIDER_MODAL, {
+      data: { configuration },
+    });
+  }
+
   private async _toggleProvider(configuration: ShippingProviderConfigurationDto): Promise<void> {
     const { error } = await MerchelloApi.toggleShippingProvider(configuration.id, !configuration.isEnabled);
 
@@ -185,6 +194,14 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
             ></uui-toggle>
             <uui-button
               look="secondary"
+              label="Test"
+              title="Test this provider with sample data"
+              @click=${() => this._openTestModal(configuration)}
+            >
+              <uui-icon name="icon-lab"></uui-icon>
+            </uui-button>
+            <uui-button
+              look="secondary"
               label="Configure"
               @click=${() => provider && this._openConfigModal(provider, configuration)}
             >
@@ -206,6 +223,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
         ${provider?.setupInstructions
           ? html`
               <div class="provider-footer">
+                <div></div>
                 <uui-button
                   look="secondary"
                   compact
@@ -214,7 +232,6 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
                   @click=${() => this._openSetupInstructions(provider)}
                 >
                   <uui-icon name="icon-help-alt"></uui-icon>
-                  Setup Instructions
                 </uui-button>
               </div>
             `
@@ -510,8 +527,8 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
 
     .provider-footer {
       display: flex;
-      justify-content: flex-start;
-      align-items: center;
+      justify-content: space-between;
+      align-items: flex-end;
       margin-top: var(--uui-size-space-3);
       gap: var(--uui-size-space-3);
     }

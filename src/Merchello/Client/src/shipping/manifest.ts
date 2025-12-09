@@ -30,6 +30,14 @@ export const manifests: Array<UmbExtensionManifest> = [
     js: () => import("./shipping-provider-config-modal.element.js"),
   },
 
+  // Test shipping provider modal
+  {
+    type: "modal",
+    alias: "Merchello.TestProvider.Modal",
+    name: "Test Shipping Provider Modal",
+    js: () => import("./modals/test-provider-modal.element.js"),
+  },
+
   // Shipping option detail modal
   {
     type: "modal",

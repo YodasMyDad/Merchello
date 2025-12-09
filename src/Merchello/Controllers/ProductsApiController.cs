@@ -135,16 +135,3 @@ public class ProductsApiController(IProductService productService) : MerchelloAp
         return items;
     }
 }
-
-public class ProductTypeDto
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string? Alias { get; set; }
-}
-
-public class ProductCategoryDto
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-}

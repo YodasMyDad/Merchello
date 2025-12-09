@@ -185,6 +185,8 @@ import type {
   PaymentProviderFieldDto,
   CreatePaymentProviderDto,
   UpdatePaymentProviderDto,
+  TestPaymentProviderRequestDto,
+  TestPaymentProviderResponseDto,
 } from '@payment-providers/types.js';
 
 // Import shipping provider types
@@ -204,6 +206,8 @@ import type {
   CreateShippingWeightTierDto,
   ProviderMethodConfigDto,
   AvailableProviderDto,
+  TestShippingProviderRequestDto,
+  TestShippingProviderResponseDto,
 } from '@shipping/types.js';
 
 // Import product types
@@ -379,6 +383,10 @@ export const MerchelloApi = {
   reorderPaymentProviders: (orderedIds: string[]) =>
     apiPut<void>('payment-providers/reorder', { orderedIds }),
 
+  /** Test a payment provider configuration */
+  testPaymentProvider: (settingId: string, request: TestPaymentProviderRequestDto) =>
+    apiPost<TestPaymentProviderResponseDto>(`payment-providers/${settingId}/test`, request),
+
   // ============================================
   // Payments API
   // ============================================
@@ -450,6 +458,10 @@ export const MerchelloApi = {
   /** Get providers available for adding shipping methods to a warehouse */
   getAvailableProvidersForWarehouse: () =>
     apiGet<AvailableProviderDto[]>('shipping-providers/available-for-warehouse'),
+
+  /** Test a shipping provider configuration with sample data */
+  testShippingProvider: (configurationId: string, request: TestShippingProviderRequestDto) =>
+    apiPost<TestShippingProviderResponseDto>(`shipping-providers/${configurationId}/test`, request),
 
   // ============================================
   // Products API

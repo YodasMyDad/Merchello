@@ -9,9 +9,19 @@ namespace Merchello.ShippingProviders.FedEx;
 /// </summary>
 public class FedExShippingProvider : ShippingProviderBase, IDisposable
 {
+    private const string HttpClientName = "FedEx";
+    private readonly IHttpClientFactory _httpClientFactory;
     private FedExApiClient? _apiClient;
-    private HttpClient? _httpClient;
     private bool _disposed;
+
+    /// <summary>
+    /// Creates a new FedEx shipping provider instance.
+    /// </summary>
+    /// <param name="httpClientFactory">HTTP client factory for creating managed HttpClient instances.</param>
+    public FedExShippingProvider(IHttpClientFactory httpClientFactory)
+    {
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+    }
 
     /// <inheritdoc />
     public override ShippingProviderMetadata Metadata => new()
@@ -207,17 +217,18 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
 
             var useSandbox = environment.Equals("sandbox", StringComparison.OrdinalIgnoreCase);
 
-            // Create HTTP client (in production, use IHttpClientFactory)
-            _httpClient = new HttpClient();
+            // Use IHttpClientFactory for proper socket management and DNS refresh
+            var httpClient = _httpClientFactory.CreateClient(HttpClientName);
             _apiClient = new FedExApiClient(
-                _httpClient,
+                httpClient,
                 clientId,
                 clientSecret,
                 accountNumber,
                 useSandbox);
         }
-        catch
+        catch (JsonException)
         {
+            // Configuration JSON is malformed - provider will remain unconfigured
             DisposeApiClient();
         }
     }
@@ -226,8 +237,7 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
     {
         _apiClient?.Dispose();
         _apiClient = null;
-        _httpClient?.Dispose();
-        _httpClient = null;
+        // Note: HttpClient is managed by IHttpClientFactory, we don't dispose it
     }
 
     /// <inheritdoc />

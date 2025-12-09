@@ -13,15 +13,18 @@ namespace Merchello.Core.Shipping.Providers;
 public class ShippingProviderManager(
     ExtensionManager extensionManager,
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
-    ILogger<ShippingProviderManager> logger) : IShippingProviderManager
+    ILogger<ShippingProviderManager> logger) : IShippingProviderManager, IDisposable
 {
-    private IReadOnlyCollection<RegisteredShippingProvider>? _cachedProviders;
+    private volatile IReadOnlyCollection<RegisteredShippingProvider>? _cachedProviders;
+    private bool _disposed;
 
     public async Task<IReadOnlyCollection<RegisteredShippingProvider>> GetProvidersAsync(CancellationToken cancellationToken = default)
     {
-        if (_cachedProviders != null)
+        // Fast path - volatile read ensures we see latest value
+        var cached = _cachedProviders;
+        if (cached != null)
         {
-            return _cachedProviders;
+            return cached;
         }
 
         var providerInstances = extensionManager.GetInstances<IShippingProvider>(useCaching: true)
@@ -70,8 +73,9 @@ public class ShippingProviderManager(
             registeredProviders.Add(new RegisteredShippingProvider(provider, configuration));
         }
 
+        // Thread-safe assignment - volatile write ensures visibility
         _cachedProviders = registeredProviders;
-        return _cachedProviders;
+        return registeredProviders;
     }
 
     public async Task<IReadOnlyCollection<RegisteredShippingProvider>> GetEnabledProvidersAsync(CancellationToken cancellationToken = default)
@@ -220,6 +224,45 @@ public class ShippingProviderManager(
 
     public void ClearCache()
     {
+        DisposeProviders();
         _cachedProviders = null;
+    }
+
+    /// <summary>
+    /// Disposes all cached providers that implement IDisposable.
+    /// </summary>
+    private void DisposeProviders()
+    {
+        var providers = _cachedProviders;
+        if (providers == null) return;
+
+        foreach (var registered in providers)
+        {
+            if (registered.Provider is IDisposable disposable)
+            {
+                try
+                {
+                    disposable.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Error disposing shipping provider {ProviderKey}", registered.Metadata.Key);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Disposes resources used by the manager.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        DisposeProviders();
+        _cachedProviders = null;
+
+        GC.SuppressFinalize(this);
     }
 }

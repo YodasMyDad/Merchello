@@ -13,7 +13,7 @@ using Merchello.Core.Notifications.Invoice;
 using Merchello.Core.Notifications.Order;
 using Merchello.Core.Notifications.Shipment;
 using Merchello.Core.Payments.Models;
-using Merchello.Core.Payments.Services;
+using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared;
 using Merchello.Core.Shared.Extensions;
