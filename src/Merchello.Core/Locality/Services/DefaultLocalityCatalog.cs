@@ -7,8 +7,8 @@ using System.Threading.Tasks;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Shared.Models;
-using Merchello.Core.Shared.Options;
-using Merchello.Core.Shared.Services;
+using Merchello.Core.Caching.Models;
+using Merchello.Core.Caching.Services.Interfaces;
 using Microsoft.Extensions.Options;
 
 namespace Merchello.Core.Locality.Services;
@@ -16,7 +16,7 @@ namespace Merchello.Core.Locality.Services;
 public class DefaultLocalityCatalog(
     IOptions<CacheOptions> cacheOptions,
     IOptions<MerchelloSettings> merchelloSettings,
-    CacheService cacheService)
+    ICacheService cacheService)
     : ILocalityCatalog
 {
     private readonly Lazy<IReadOnlyDictionary<string, string>> _countries = new(BuildCountryMap, isThreadSafe: true);
@@ -108,8 +108,10 @@ public class DefaultLocalityCatalog(
                     // Using name avoids LCID issues for customized cultures
                     return new RegionInfo(c.Name);
                 }
-                catch
+                catch (ArgumentException)
                 {
+                    // Expected for language-only cultures (e.g., "en" without region) or
+                    // custom cultures that don't map to a geographic region
                     return null;
                 }
             })

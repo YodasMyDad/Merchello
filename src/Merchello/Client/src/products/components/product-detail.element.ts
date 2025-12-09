@@ -2,7 +2,8 @@ import { LitElement, html, css } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
-import type { MerchelloProductDetailWorkspaceContext, ProductDetailDto } from "@products/contexts/product-detail-workspace.context.js";
+import type { MerchelloProductDetailWorkspaceContext } from "@products/contexts/product-detail-workspace.context.js";
+import type { ProductDetailDto } from "@products/types/product.types.js";
 
 @customElement("merchello-product-detail")
 export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {

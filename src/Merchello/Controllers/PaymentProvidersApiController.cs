@@ -4,8 +4,11 @@ using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Shared.Extensions;
+using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Types;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Merchello.Controllers;
 
@@ -15,8 +18,10 @@ namespace Merchello.Controllers;
 [ApiVersion("1.0")]
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class PaymentProvidersApiController(
-    IPaymentProviderManager providerManager) : MerchelloApiControllerBase
+    IPaymentProviderManager providerManager,
+    IOptions<MerchelloSettings> merchelloSettings) : MerchelloApiControllerBase
 {
+    private readonly MerchelloSettings _settings = merchelloSettings.Value;
 
     /// <summary>
     /// Get all available payment providers discovered from assemblies
@@ -245,6 +250,84 @@ public class PaymentProvidersApiController(
         }
 
         return Ok();
+    }
+
+    /// <summary>
+    /// Test a payment provider configuration by creating a test payment session
+    /// </summary>
+    [HttpPost("payment-providers/{id:guid}/test")]
+    [ProducesResponseType<TestPaymentProviderResponseDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TestProvider(
+        Guid id,
+        [FromBody] TestPaymentProviderRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        // 1. Get provider setting
+        var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);
+        if (setting == null)
+        {
+            return NotFound("Provider setting not found.");
+        }
+
+        // 2. Get provider instance
+        var provider = await providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            return NotFound("Provider not found.");
+        }
+
+        // 3. Build test payment request
+        var paymentRequest = new PaymentRequest
+        {
+            InvoiceId = Guid.Empty, // Test mode - no real invoice
+            Amount = request.Amount,
+            Currency = request.CurrencyCode ?? _settings.StoreCurrencyCode,
+            ReturnUrl = "https://test.example.com/return",
+            CancelUrl = "https://test.example.com/cancel",
+            Description = "Test payment session"
+        };
+
+        // 4. Create response
+        var response = new TestPaymentProviderResponseDto
+        {
+            ProviderAlias = setting.ProviderAlias,
+            ProviderName = setting.DisplayName,
+            IntegrationType = provider.Metadata.IntegrationType
+        };
+
+        try
+        {
+            var sessionResult = await provider.Provider.CreatePaymentSessionAsync(paymentRequest, cancellationToken);
+
+            response.Success = sessionResult.Success;
+            response.SessionId = sessionResult.SessionId;
+            response.RedirectUrl = sessionResult.RedirectUrl;
+            response.ClientToken = sessionResult.ClientToken;
+            response.ClientSecret = sessionResult.ClientSecret;
+            response.JavaScriptSdkUrl = sessionResult.JavaScriptSdkUrl;
+            response.ErrorMessage = sessionResult.ErrorMessage;
+            response.ErrorCode = sessionResult.ErrorCode;
+
+            if (sessionResult.FormFields != null)
+            {
+                response.FormFields = sessionResult.FormFields.Select(f => new TestCheckoutFormFieldDto
+                {
+                    Key = f.Key,
+                    Label = f.Label,
+                    Description = f.Description,
+                    FieldType = f.FieldType.ToString(),
+                    IsRequired = f.IsRequired
+                }).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            response.Success = false;
+            response.ErrorMessage = ex.Message;
+        }
+
+        return Ok(response);
     }
 
     // ============================================

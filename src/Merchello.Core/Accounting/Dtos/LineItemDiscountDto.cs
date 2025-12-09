@@ -1,3 +1,5 @@
+using Merchello.Core.Accounting.Models;
+
 namespace Merchello.Core.Accounting.Dtos;
 
 /// <summary>

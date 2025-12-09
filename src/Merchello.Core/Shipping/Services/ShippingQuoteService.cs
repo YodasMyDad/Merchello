@@ -3,7 +3,7 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.ExtensionMethods;
-using Merchello.Core.Shared.Services;
+using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Services.Interfaces;
@@ -16,7 +16,7 @@ namespace Merchello.Core.Shipping.Services;
 public class ShippingQuoteService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IShippingProviderManager providerRegistry,
-    CacheService cacheService,
+    ICacheService cacheService,
     ILogger<ShippingQuoteService> logger) : IShippingQuoteService
 {
     private static readonly TimeSpan _quoteCacheTtl = TimeSpan.FromMinutes(10);

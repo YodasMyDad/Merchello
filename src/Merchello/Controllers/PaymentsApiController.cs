@@ -3,7 +3,8 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
-using Merchello.Core.Payments.Services;
+using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -119,10 +120,13 @@ public class PaymentsApiController(
         }
 
         var result = await paymentService.RecordManualPaymentAsync(
-            invoiceId,
-            request.Amount,
-            request.PaymentMethod,
-            request.Description,
+            new RecordManualPaymentParameters
+            {
+                InvoiceId = invoiceId,
+                Amount = request.Amount,
+                PaymentMethod = request.PaymentMethod,
+                Description = request.Description
+            },
             cancellationToken);
 
         if (!result.Successful)

@@ -79,9 +79,10 @@ public class FedExApiClient : IDisposable
                     return errorResponse;
                 }
             }
-            catch
+            catch (JsonException)
             {
-                // Fall through to generic error
+                // Response body is not valid JSON or doesn't match expected structure.
+                // Fall through to generic error response below.
             }
 
             return new FedExRateResponse

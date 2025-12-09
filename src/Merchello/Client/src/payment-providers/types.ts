@@ -1,5 +1,27 @@
 // Payment Provider types matching the API DTOs
 
+// Import shared types for provider configuration fields
+import type {
+  SelectOptionDto,
+  ConfigurationFieldType,
+  ProviderFieldDto,
+} from "@shared/types/provider-fields.types.js";
+
+// Re-export shared types for backward compatibility
+export type { SelectOptionDto, ConfigurationFieldType };
+
+/** Payment integration types */
+export enum PaymentIntegrationType {
+  /** Customer is redirected to external payment page (e.g., Stripe Checkout, PayPal) */
+  Redirect = 0,
+  /** Payment fields rendered as iframes (e.g., Braintree Hosted Fields, Stripe Elements) */
+  HostedFields = 10,
+  /** Provider's embedded UI component (e.g., Klarna widget, PayPal Buttons) */
+  Widget = 20,
+  /** Custom form fields rendered directly (e.g., Purchase Order, Manual Payment) */
+  DirectForm = 30,
+}
+
 /** Payment provider with metadata and enabled status */
 export interface PaymentProviderDto {
   alias: string;
@@ -8,7 +30,10 @@ export interface PaymentProviderDto {
   description?: string;
   supportsRefunds: boolean;
   supportsPartialRefunds: boolean;
+  /** @deprecated Use integrationType instead */
   usesRedirectCheckout: boolean;
+  /** Integration type determining how the payment UI is rendered */
+  integrationType: PaymentIntegrationType;
   supportsAuthAndCapture: boolean;
   webhookPath?: string;
   /** Whether this provider is enabled (has a setting with IsEnabled = true) */
@@ -19,33 +44,8 @@ export interface PaymentProviderDto {
   setupInstructions?: string;
 }
 
-/** Configuration field definition for dynamic UI */
-export interface PaymentProviderFieldDto {
-  key: string;
-  label: string;
-  description?: string;
-  fieldType: ConfigurationFieldType;
-  isRequired: boolean;
-  isSensitive: boolean;
-  defaultValue?: string;
-  placeholder?: string;
-  options?: SelectOptionDto[];
-}
-
-/** Select option for dropdown fields */
-export interface SelectOptionDto {
-  value: string;
-  label: string;
-}
-
-/** Configuration field types */
-export type ConfigurationFieldType = 
-  | 'Text'
-  | 'Password'
-  | 'Textarea'
-  | 'Checkbox'
-  | 'Select'
-  | 'Url';
+/** Configuration field definition for dynamic UI - uses shared ProviderFieldDto */
+export type PaymentProviderFieldDto = ProviderFieldDto;
 
 /** Persisted provider configuration */
 export interface PaymentProviderSettingDto {
@@ -87,5 +87,59 @@ export interface UpdatePaymentProviderDto {
   isTestMode?: boolean;
   /** Configuration values (key-value pairs) */
   configuration?: Record<string, string>;
+}
+
+// ============================================
+// Test Provider Types
+// ============================================
+
+/** Request to test a payment provider configuration */
+export interface TestPaymentProviderRequestDto {
+  /** Test amount (defaults to 100.00) */
+  amount?: number;
+  /** Currency code (uses store default if not specified) */
+  currencyCode?: string;
+}
+
+/** Response from testing a payment provider */
+export interface TestPaymentProviderResponseDto {
+  /** Provider alias */
+  providerAlias: string;
+  /** Provider display name */
+  providerName: string;
+  /** Whether the test was successful */
+  success: boolean;
+  /** Integration type of the provider */
+  integrationType: PaymentIntegrationType;
+  /** Redirect URL for Redirect integration type */
+  redirectUrl?: string;
+  /** Client token for HostedFields/Widget integration types */
+  clientToken?: string;
+  /** Client secret for HostedFields/Widget integration types */
+  clientSecret?: string;
+  /** JavaScript SDK URL for HostedFields/Widget integration types */
+  javaScriptSdkUrl?: string;
+  /** Form fields for DirectForm integration type */
+  formFields?: TestCheckoutFormFieldDto[];
+  /** Session ID from the provider */
+  sessionId?: string;
+  /** Error message if the test failed */
+  errorMessage?: string;
+  /** Error code from the provider */
+  errorCode?: string;
+}
+
+/** Checkout form field for DirectForm providers */
+export interface TestCheckoutFormFieldDto {
+  /** Field key */
+  key: string;
+  /** Field label */
+  label: string;
+  /** Field description */
+  description?: string;
+  /** Field type */
+  fieldType: string;
+  /** Whether the field is required */
+  isRequired: boolean;
 }
 

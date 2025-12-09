@@ -255,7 +255,7 @@ public class ShippingService(
     }
 
     /// <inheritdoc />
-    public async Task<ProductShippingOptionsResult> GetShippingOptionsForProductAsync(
+    public async Task<ProductShippingOptionsResultDto> GetShippingOptionsForProductAsync(
         Guid productId,
         string countryCode,
         string? stateOrProvinceCode = null,
@@ -263,7 +263,7 @@ public class ShippingService(
     {
         if (string.IsNullOrWhiteSpace(countryCode))
         {
-            return new ProductShippingOptionsResult
+            return new ProductShippingOptionsResultDto
             {
                 CanShipToLocation = false,
                 Message = "Country code is required"
@@ -293,7 +293,7 @@ public class ShippingService(
 
             if (product == null)
             {
-                return new ProductShippingOptionsResult
+                return new ProductShippingOptionsResultDto
                 {
                     CanShipToLocation = false,
                     Message = "Product not found"
@@ -310,7 +310,7 @@ public class ShippingService(
 
             if (serviceableWarehouses.Count == 0)
             {
-                return new ProductShippingOptionsResult
+                return new ProductShippingOptionsResultDto
                 {
                     CanShipToLocation = false,
                     Message = "This product cannot be shipped to your location"
@@ -322,7 +322,7 @@ public class ShippingService(
             var excludedOptionIds = product.ExcludedShippingOptions?.Select(so => so.Id).ToHashSet() ?? [];
 
             // Collect all available shipping options from serviceable warehouses
-            List<ProductShippingMethod> methods = [];
+            List<ProductShippingMethodDto> methods = [];
             var sortOrder = 0;
 
             foreach (var warehouse in serviceableWarehouses)
@@ -348,7 +348,7 @@ public class ShippingService(
                             ? $"{shippingOption.DaysFrom}-{shippingOption.DaysTo} business days"
                             : null;
 
-                    methods.Add(new ProductShippingMethod
+                    methods.Add(new ProductShippingMethodDto
                     {
                         Name = shippingOption.Name ?? "Standard Shipping",
                         DeliveryTimeDescription = deliveryTime,
@@ -367,7 +367,7 @@ public class ShippingService(
                 .OrderBy(m => m.SortOrder)
                 .ToList();
 
-            return new ProductShippingOptionsResult
+            return new ProductShippingOptionsResultDto
             {
                 CanShipToLocation = uniqueMethods.Count > 0,
                 AvailableMethods = uniqueMethods,

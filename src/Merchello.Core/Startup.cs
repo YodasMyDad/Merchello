@@ -13,9 +13,10 @@ using Merchello.Core.Products.Services;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
-using Merchello.Core.Shared.Options;
+using Merchello.Core.Caching.Models;
 using Merchello.Core.Shared.Reflection;
-using Merchello.Core.Shared.Services;
+using Merchello.Core.Caching.Services;
+using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Services;
@@ -27,6 +28,7 @@ using Merchello.Core.Notifications.Payment;
 using Merchello.Core.Notifications.Shipment;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Services;
+using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Warehouses.Services;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Suppliers.Factories;
@@ -67,9 +69,13 @@ public static class Startup
         builder.Services.AddMemoryCache();
         builder.Services.AddHybridCache();
 
-        builder.Services.AddSingleton<CacheService>();
+        builder.Services.AddSingleton<ICacheService, CacheService>();
         builder.Services.AddScoped<ExtensionManager>();
         builder.Services.AddSingleton<SlugHelper>();
+
+        // Register IHttpClientFactory for use by shipping/payment provider plugins
+        // Plugins can use CreateClient() or CreateClient("name") without pre-registration
+        builder.Services.AddHttpClient();
 
         // Factories
         builder.Services.AddSingleton<TaxGroupFactory>();
@@ -183,9 +189,10 @@ public static class Startup
                     discoveredAssemblies.Add(assembly);
                 }
             }
-            catch
+            catch (Exception ex) when (ex is ReflectionTypeLoadException or NotSupportedException or FileNotFoundException)
             {
-                // Skip assemblies that can't be scanned (e.g., dynamic assemblies)
+                // Expected for dynamic assemblies, collectible assemblies, or assemblies with missing dependencies.
+                // These are intentionally skipped during provider discovery.
             }
         }
 

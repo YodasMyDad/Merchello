@@ -1,10 +1,14 @@
 using System.Text.Json;
 using Asp.Versioning;
+using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Types;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
+using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Merchello.Controllers;
 
@@ -14,8 +18,11 @@ namespace Merchello.Controllers;
 [ApiVersion("1.0")]
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class ShippingProvidersApiController(
-    IShippingProviderManager providerManager) : MerchelloApiControllerBase
+    IShippingProviderManager providerManager,
+    IWarehouseService warehouseService,
+    IOptions<MerchelloSettings> merchelloSettings) : MerchelloApiControllerBase
 {
+    private readonly MerchelloSettings _settings = merchelloSettings.Value;
     /// <summary>
     /// Get all available shipping providers discovered from assemblies
     /// </summary>
@@ -291,6 +298,108 @@ public class ShippingProvidersApiController(
                 RequiresGlobalConfig = p.Metadata.ConfigCapabilities.RequiresGlobalConfig
             }
         }).ToList();
+    }
+
+    /// <summary>
+    /// Test a shipping provider configuration with sample data.
+    /// Allows users to verify their API credentials and configuration are working correctly.
+    /// </summary>
+    [HttpPost("shipping-providers/{id:guid}/test")]
+    [ProducesResponseType<TestShippingProviderResponseDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> TestProvider(
+        Guid id,
+        [FromBody] TestShippingProviderRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        // 1. Get the provider configuration
+        var providers = await providerManager.GetProvidersAsync(cancellationToken);
+        var provider = providers.FirstOrDefault(p => p.Configuration?.Id == id);
+
+        if (provider?.Configuration == null)
+        {
+            return NotFound("Provider configuration not found.");
+        }
+
+        // 2. Get the warehouse for origin address
+        var warehouse = await warehouseService.GetWarehouseByIdAsync(request.WarehouseId, cancellationToken);
+        if (warehouse == null)
+        {
+            return BadRequest("Warehouse not found.");
+        }
+
+        // 3. Build the shipping quote request
+        var quoteRequest = new ShippingQuoteRequest
+        {
+            CountryCode = request.CountryCode,
+            StateOrProvinceCode = request.StateOrProvinceCode,
+            PostalCode = request.PostalCode,
+            City = request.City,
+            OriginWarehouseId = warehouse.Id,
+            OriginAddress = warehouse.Address,
+            ItemsSubtotal = request.ItemsSubtotal,
+            CurrencyCode = _settings.StoreCurrencyCode,
+            IsEstimateMode = string.IsNullOrEmpty(request.PostalCode),
+            Packages =
+            [
+                new ShipmentPackage(
+                    request.WeightKg,
+                    request.LengthCm,
+                    request.WidthCm,
+                    request.HeightCm)
+            ],
+            Items = [] // No actual items for test
+        };
+
+        // 4. Get rates from the provider
+        var response = new TestShippingProviderResponseDto
+        {
+            ProviderKey = provider.Metadata.Key,
+            ProviderName = provider.DisplayName
+        };
+
+        try
+        {
+            if (!provider.Provider.IsAvailableFor(quoteRequest))
+            {
+                response.Success = false;
+                response.Errors.Add("Provider is not available for this destination or configuration.");
+                return Ok(response);
+            }
+
+            var quote = await provider.Provider.GetRatesAsync(quoteRequest, cancellationToken);
+
+            if (quote == null)
+            {
+                response.Success = false;
+                response.Errors.Add("Provider returned no rates for this request.");
+                return Ok(response);
+            }
+
+            response.Success = quote.Errors.Count == 0;
+            response.ServiceLevels = quote.ServiceLevels.Select(sl => new TestShippingServiceLevelDto
+            {
+                ServiceCode = sl.ServiceCode,
+                ServiceName = sl.ServiceName,
+                TotalCost = sl.TotalCost,
+                CurrencyCode = sl.CurrencyCode,
+                TransitTime = sl.TransitTime?.TotalDays > 0
+                    ? $"{(int)sl.TransitTime.Value.TotalDays} day{((int)sl.TransitTime.Value.TotalDays != 1 ? "s" : "")}"
+                    : null,
+                EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
+                Description = sl.Description
+            }).ToList();
+
+            response.Errors = quote.Errors.ToList();
+        }
+        catch (Exception ex)
+        {
+            response.Success = false;
+            response.Errors.Add($"Error testing provider: {ex.Message}");
+        }
+
+        return Ok(response);
     }
 
     // ============================================

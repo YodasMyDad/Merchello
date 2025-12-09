@@ -34,5 +34,13 @@ export const manifests: Array<UmbExtensionManifest> = [
     name: "Setup Instructions Modal",
     js: () => import("./setup-instructions-modal.element.js"),
   },
+
+  // Modal for testing a payment provider
+  {
+    type: "modal",
+    alias: "Merchello.TestPaymentProvider.Modal",
+    name: "Test Payment Provider Modal",
+    js: () => import("./test-provider-modal.element.js"),
+  },
 ];
 

@@ -194,8 +194,8 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
       align-items: center;
       gap: var(--uui-size-space-2);
       padding: var(--uui-size-space-3);
-      background: #f8d7da;
-      color: #721c24;
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
       margin-bottom: var(--uui-size-space-4);
       font-size: 0.875rem;

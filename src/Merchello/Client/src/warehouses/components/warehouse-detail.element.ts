@@ -957,7 +957,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
       .form-field.field-warning uui-input,
       .form-field.field-warning uui-select {
         --uui-input-border-color: var(--uui-color-warning);
-        background-color: rgba(255, 193, 7, 0.1);
+        background-color: color-mix(in srgb, var(--uui-color-warning) 10%, transparent);
       }
 
       .validation-summary {

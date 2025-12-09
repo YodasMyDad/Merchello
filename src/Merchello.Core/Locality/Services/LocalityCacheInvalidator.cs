@@ -1,11 +1,10 @@
-using System.Threading;
-using System.Threading.Tasks;
+using Merchello.Core.Caching.Models;
+using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Locality.Services.Interfaces;
-using Merchello.Core.Shared.Services;
 
 namespace Merchello.Core.Locality.Services;
 
-public class LocalityCacheInvalidator(CacheService cache) : ILocalityCacheInvalidator
+public class LocalityCacheInvalidator(ICacheService cache) : ILocalityCacheInvalidator
 {
     public Task InvalidateAllRegionsAsync(CancellationToken ct = default)
     {
@@ -17,4 +16,3 @@ public class LocalityCacheInvalidator(CacheService cache) : ILocalityCacheInvali
         return cache.RemoveByTagAsync(CacheTags.LocalityRegionsCountry(countryCode), ct);
     }
 }
-

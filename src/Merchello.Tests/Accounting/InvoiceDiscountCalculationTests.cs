@@ -4,7 +4,7 @@ using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Notifications;
-using Merchello.Core.Payments.Services;
+using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Services.Interfaces;

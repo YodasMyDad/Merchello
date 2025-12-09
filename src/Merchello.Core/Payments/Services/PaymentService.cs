@@ -2,6 +2,8 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
+using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -24,18 +26,15 @@ public class PaymentService(
 
     /// <inheritdoc />
     public async Task<PaymentSessionResult> CreatePaymentSessionAsync(
-        Guid invoiceId,
-        string providerAlias,
-        string returnUrl,
-        string cancelUrl,
+        CreatePaymentSessionParameters parameters,
         CancellationToken cancellationToken = default)
     {
         // Get the provider
-        var registeredProvider = await providerManager.GetProviderAsync(providerAlias, requireEnabled: true, cancellationToken);
+        var registeredProvider = await providerManager.GetProviderAsync(parameters.ProviderAlias, requireEnabled: true, cancellationToken);
         if (registeredProvider == null)
         {
             return PaymentSessionResult.Failed(
-                $"Payment provider '{providerAlias}' is not available or not enabled.");
+                $"Payment provider '{parameters.ProviderAlias}' is not available or not enabled.");
         }
 
         // Load the invoice to get amount and details
@@ -43,26 +42,26 @@ public class PaymentService(
         var invoice = await scope.ExecuteWithContextAsync(async db =>
             await db.Invoices
                 .AsNoTracking()
-                .FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken));
+                .FirstOrDefaultAsync(i => i.Id == parameters.InvoiceId, cancellationToken));
         scope.Complete();
 
         if (invoice == null)
         {
-            return PaymentSessionResult.Failed($"Invoice '{invoiceId}' not found.");
+            return PaymentSessionResult.Failed($"Invoice '{(object)parameters.InvoiceId}' not found.");
         }
 
         // Create the payment request
         var request = new PaymentRequest
         {
-            InvoiceId = invoiceId,
+            InvoiceId = parameters.InvoiceId,
             Amount = invoice.Total,
             Currency = _settings.StoreCurrencyCode,
-            ReturnUrl = returnUrl,
-            CancelUrl = cancelUrl,
+            ReturnUrl = parameters.ReturnUrl,
+            CancelUrl = parameters.CancelUrl,
             Description = $"Payment for Invoice {invoice.InvoiceNumber}",
             Metadata = new()
             {
-                ["invoiceId"] = invoiceId.ToString(),
+                ["invoiceId"] = parameters.InvoiceId.ToString(),
                 ["invoiceNumber"] = invoice.InvoiceNumber
             }
         };
@@ -73,13 +72,13 @@ public class PaymentService(
 
             logger.LogInformation(
                 "Payment session created for invoice {InvoiceId} via {Provider}. Success: {Success}, SessionId: {SessionId}",
-                invoiceId, providerAlias, result.Success, result.SessionId);
+                parameters.InvoiceId, parameters.ProviderAlias, result.Success, result.SessionId);
 
             return result;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to create payment session for invoice {InvoiceId} via {Provider}", invoiceId, providerAlias);
+            logger.LogError(ex, "Failed to create payment session for invoice {InvoiceId} via {Provider}", parameters.InvoiceId, parameters.ProviderAlias);
             return PaymentSessionResult.Failed($"Payment session creation failed: {ex.Message}");
         }
     }
@@ -123,11 +122,14 @@ public class PaymentService(
                 paymentResult.Status == PaymentResultStatus.Authorized)
             {
                 return await RecordPaymentAsync(
-                    request.InvoiceId,
-                    request.ProviderAlias,
-                    paymentResult.TransactionId ?? Guid.NewGuid().ToString("N"),
-                    paymentResult.Amount ?? request.Amount ?? 0,
-                    cancellationToken: cancellationToken);
+                    new RecordPaymentParameters
+                    {
+                        InvoiceId = request.InvoiceId,
+                        ProviderAlias = request.ProviderAlias,
+                        TransactionId = paymentResult.TransactionId ?? Guid.NewGuid().ToString("N"),
+                        Amount = paymentResult.Amount ?? request.Amount ?? 0
+                    },
+                    cancellationToken);
             }
 
             // For pending status, we'll wait for webhook confirmation
@@ -166,12 +168,7 @@ public class PaymentService(
 
     /// <inheritdoc />
     public async Task<CrudResult<Payment>> RecordPaymentAsync(
-        Guid invoiceId,
-        string providerAlias,
-        string transactionId,
-        decimal amount,
-        string? description = null,
-        string? fraudResponse = null,
+        RecordPaymentParameters parameters,
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<Payment>();
@@ -180,12 +177,12 @@ public class PaymentService(
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             // Check if invoice exists
-            var invoiceExists = await db.Invoices.AnyAsync(i => i.Id == invoiceId, cancellationToken);
+            var invoiceExists = await db.Invoices.AnyAsync(i => i.Id == parameters.InvoiceId, cancellationToken);
             if (!invoiceExists)
             {
                 result.Messages.Add(new ResultMessage
                 {
-                    Message = $"Invoice '{invoiceId}' not found.",
+                    Message = $"Invoice '{(object)parameters.InvoiceId}' not found.",
                     ResultMessageType = ResultMessageType.Error
                 });
                 return;
@@ -193,16 +190,16 @@ public class PaymentService(
 
             // Check for duplicate transaction ID
             var duplicateTransaction = await db.Payments
-                .AnyAsync(p => p.TransactionId == transactionId, cancellationToken);
+                .AnyAsync(p => p.TransactionId == parameters.TransactionId, cancellationToken);
             if (duplicateTransaction)
             {
                 logger.LogWarning(
                     "Duplicate payment transaction {TransactionId} for invoice {InvoiceId}. Ignoring.",
-                    transactionId, invoiceId);
+                    parameters.TransactionId, parameters.InvoiceId);
 
                 // Return existing payment as success (idempotent)
                 var existingPayment = await db.Payments
-                    .FirstAsync(p => p.TransactionId == transactionId, cancellationToken);
+                    .FirstAsync(p => p.TransactionId == parameters.TransactionId, cancellationToken);
                 result.ResultObject = existingPayment;
                 result.Messages.Add(new ResultMessage
                 {
@@ -214,13 +211,13 @@ public class PaymentService(
 
             var payment = new Payment
             {
-                InvoiceId = invoiceId,
-                Amount = amount,
-                PaymentProviderAlias = providerAlias,
+                InvoiceId = parameters.InvoiceId,
+                Amount = parameters.Amount,
+                PaymentProviderAlias = parameters.ProviderAlias,
                 PaymentType = PaymentType.Payment,
-                TransactionId = transactionId,
-                Description = description,
-                FraudResponse = fraudResponse,
+                TransactionId = parameters.TransactionId,
+                Description = parameters.Description,
+                FraudResponse = parameters.FraudResponse,
                 PaymentSuccess = true,
                 DateCreated = DateTime.UtcNow
             };
@@ -231,7 +228,7 @@ public class PaymentService(
             result.ResultObject = payment;
             logger.LogInformation(
                 "Payment recorded: {PaymentId} for invoice {InvoiceId}, amount {Amount}, transaction {TransactionId}",
-                payment.Id, invoiceId, amount, transactionId);
+                payment.Id, parameters.InvoiceId, parameters.Amount, parameters.TransactionId);
         });
         scope.Complete();
 
@@ -562,15 +559,12 @@ public class PaymentService(
 
     /// <inheritdoc />
     public async Task<CrudResult<Payment>> RecordManualPaymentAsync(
-        Guid invoiceId,
-        decimal amount,
-        string paymentMethod,
-        string? description = null,
+        RecordManualPaymentParameters parameters,
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<Payment>();
 
-        if (amount <= 0)
+        if (parameters.Amount <= 0)
         {
             result.Messages.Add(new ResultMessage
             {
@@ -584,12 +578,12 @@ public class PaymentService(
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             // Verify invoice exists
-            var invoiceExists = await db.Invoices.AnyAsync(i => i.Id == invoiceId, cancellationToken);
+            var invoiceExists = await db.Invoices.AnyAsync(i => i.Id == parameters.InvoiceId, cancellationToken);
             if (!invoiceExists)
             {
                 result.Messages.Add(new ResultMessage
                 {
-                    Message = $"Invoice '{invoiceId}' not found.",
+                    Message = $"Invoice '{(object)parameters.InvoiceId}' not found.",
                     ResultMessageType = ResultMessageType.Error
                 });
                 return;
@@ -597,13 +591,13 @@ public class PaymentService(
 
             var payment = new Payment
             {
-                InvoiceId = invoiceId,
-                Amount = amount,
-                PaymentMethod = paymentMethod,
+                InvoiceId = parameters.InvoiceId,
+                Amount = parameters.Amount,
+                PaymentMethod = parameters.PaymentMethod,
                 PaymentProviderAlias = "manual",
                 PaymentType = PaymentType.Payment,
                 TransactionId = $"MANUAL-{Guid.NewGuid():N}".ToUpperInvariant(),
-                Description = description ?? $"Manual payment: {paymentMethod}",
+                Description = parameters.Description ?? "Manual payment: " + parameters.PaymentMethod,
                 PaymentSuccess = true,
                 DateCreated = DateTime.UtcNow
             };
@@ -614,7 +608,7 @@ public class PaymentService(
             result.ResultObject = payment;
             logger.LogInformation(
                 "Manual payment recorded: {PaymentId} for invoice {InvoiceId}, amount {Amount}, method: {Method}",
-                payment.Id, invoiceId, amount, paymentMethod);
+                payment.Id, parameters.InvoiceId, parameters.Amount, parameters.PaymentMethod);
         });
         scope.Complete();
 

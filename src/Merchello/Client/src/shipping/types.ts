@@ -1,5 +1,15 @@
 // Shipping Provider types matching the API DTOs
 
+// Import shared types for provider configuration fields
+import type {
+  SelectOptionDto,
+  ConfigurationFieldType,
+  ProviderFieldDto,
+} from "@shared/types/provider-fields.types.js";
+
+// Re-export shared types for backward compatibility
+export type { SelectOptionDto, ConfigurationFieldType };
+
 /** Shipping provider with metadata and enabled status */
 export interface ShippingProviderDto {
   key: string;
@@ -22,36 +32,8 @@ export interface ShippingProviderDto {
   configCapabilities?: ProviderConfigCapabilities;
 }
 
-/** Configuration field definition for dynamic UI */
-export interface ShippingProviderFieldDto {
-  key: string;
-  label: string;
-  description?: string;
-  fieldType: ConfigurationFieldType;
-  isRequired: boolean;
-  isSensitive: boolean;
-  defaultValue?: string;
-  placeholder?: string;
-  options?: SelectOptionDto[];
-}
-
-/** Select option for dropdown fields */
-export interface SelectOptionDto {
-  value: string;
-  label: string;
-}
-
-/** Configuration field types */
-export type ConfigurationFieldType =
-  | 'Text'
-  | 'Password'
-  | 'Textarea'
-  | 'Checkbox'
-  | 'Select'
-  | 'Url'
-  | 'Number'
-  | 'Currency'
-  | 'Percentage';
+/** Configuration field definition for dynamic UI - uses shared ProviderFieldDto */
+export type ShippingProviderFieldDto = ProviderFieldDto;
 
 /** Configuration capabilities for a shipping provider */
 export interface ProviderConfigCapabilities {
@@ -219,4 +201,64 @@ export interface CreateShippingWeightTierDto {
   minWeightKg: number;
   maxWeightKg?: number;
   surcharge: number;
+}
+
+// ============================================
+// Test Provider Types
+// ============================================
+
+/** Request to test a shipping provider configuration */
+export interface TestShippingProviderRequestDto {
+  /** The warehouse ID to use as origin address */
+  warehouseId: string;
+  /** Destination country code (ISO 3166-1 alpha-2) */
+  countryCode: string;
+  /** Destination state/province code (optional) */
+  stateOrProvinceCode?: string;
+  /** Destination postal code (optional but recommended for accurate rates) */
+  postalCode?: string;
+  /** Destination city (optional) */
+  city?: string;
+  /** Package weight in kg */
+  weightKg: number;
+  /** Package length in cm (optional) */
+  lengthCm?: number;
+  /** Package width in cm (optional) */
+  widthCm?: number;
+  /** Package height in cm (optional) */
+  heightCm?: number;
+  /** Item value/subtotal for rate calculation */
+  itemsSubtotal: number;
+}
+
+/** Response from testing a shipping provider */
+export interface TestShippingProviderResponseDto {
+  /** Provider key that was tested */
+  providerKey: string;
+  /** Provider display name */
+  providerName: string;
+  /** Whether the test was successful */
+  success: boolean;
+  /** Service levels returned by the provider */
+  serviceLevels: TestShippingServiceLevelDto[];
+  /** Any errors encountered during the test */
+  errors: string[];
+}
+
+/** Service level from test results */
+export interface TestShippingServiceLevelDto {
+  /** Unique service code (e.g., "fedex-ground") */
+  serviceCode: string;
+  /** Human-readable service name (e.g., "FedEx Ground") */
+  serviceName: string;
+  /** Total shipping cost */
+  totalCost: number;
+  /** Currency code (e.g., "USD", "GBP") */
+  currencyCode: string;
+  /** Transit time as human-readable string */
+  transitTime?: string;
+  /** Estimated delivery date */
+  estimatedDeliveryDate?: string;
+  /** Additional description */
+  description?: string;
 }

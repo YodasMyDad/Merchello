@@ -44,7 +44,7 @@ public interface IShippingService
     /// <param name="stateOrProvinceCode">Optional state/province code for more accurate estimates</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Available shipping methods with estimated costs</returns>
-    Task<ProductShippingOptionsResult> GetShippingOptionsForProductAsync(
+    Task<ProductShippingOptionsResultDto> GetShippingOptionsForProductAsync(
         Guid productId,
         string countryCode,
         string? stateOrProvinceCode = null,

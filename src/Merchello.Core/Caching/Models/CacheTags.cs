@@ -1,4 +1,4 @@
-namespace Merchello.Core.Shared.Services;
+namespace Merchello.Core.Caching.Models;
 
 public static class CacheTags
 {

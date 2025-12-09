@@ -235,7 +235,7 @@ public class WarehouseService(
         warehouse.Code = parameters.Code;
         warehouse.SupplierId = parameters.SupplierId;
         warehouse.AutomationMethod = parameters.AutomationMethod;
-        warehouse.ExtendedData = parameters.ExtendedData ?? new Dictionary<string, object>();
+        warehouse.ExtendedData = parameters.ExtendedData ?? [];
 
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>

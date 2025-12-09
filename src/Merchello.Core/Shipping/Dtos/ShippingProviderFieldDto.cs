@@ -1,3 +1,5 @@
+using Merchello.Core.Shared.Types;
+
 namespace Merchello.Core.Shipping.Dtos;
 
 /// <summary>

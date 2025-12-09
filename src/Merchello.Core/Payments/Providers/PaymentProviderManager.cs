@@ -12,12 +12,13 @@ namespace Merchello.Core.Payments.Providers;
 /// <summary>
 /// Discovers and configures payment provider implementations.
 /// </summary>
-public class PaymentProviderManager : IPaymentProviderManager
+public class PaymentProviderManager : IPaymentProviderManager, IDisposable
 {
     private readonly ExtensionManager _extensionManager;
     private readonly IEFCoreScopeProvider<MerchelloDbContext> _efCoreScopeProvider;
     private readonly ILogger<PaymentProviderManager> _logger;
-    private IReadOnlyCollection<RegisteredPaymentProvider>? _cachedProviders;
+    private volatile IReadOnlyCollection<RegisteredPaymentProvider>? _cachedProviders;
+    private bool _disposed;
 
     public PaymentProviderManager(
         ExtensionManager extensionManager,
@@ -33,9 +34,11 @@ public class PaymentProviderManager : IPaymentProviderManager
     public async Task<IReadOnlyCollection<RegisteredPaymentProvider>> GetAvailableProvidersAsync(
         CancellationToken cancellationToken = default)
     {
-        if (_cachedProviders != null)
+        // Fast path - volatile read ensures we see latest value
+        var cached = _cachedProviders;
+        if (cached != null)
         {
-            return _cachedProviders;
+            return cached;
         }
 
         // Discover all provider implementations from assemblies
@@ -101,8 +104,9 @@ public class PaymentProviderManager : IPaymentProviderManager
             registeredProviders.Add(new RegisteredPaymentProvider(provider, setting));
         }
 
+        // Thread-safe assignment - volatile write ensures visibility
         _cachedProviders = registeredProviders;
-        return _cachedProviders;
+        return registeredProviders;
     }
 
     /// <inheritdoc />
@@ -360,7 +364,46 @@ public class PaymentProviderManager : IPaymentProviderManager
     /// <inheritdoc />
     public void RefreshCache()
     {
+        DisposeProviders();
         _cachedProviders = null;
+    }
+
+    /// <summary>
+    /// Disposes all cached providers that implement IDisposable.
+    /// </summary>
+    private void DisposeProviders()
+    {
+        var providers = _cachedProviders;
+        if (providers == null) return;
+
+        foreach (var registered in providers)
+        {
+            if (registered.Provider is IDisposable disposable)
+            {
+                try
+                {
+                    disposable.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error disposing payment provider {ProviderAlias}", registered.Metadata.Alias);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Disposes resources used by the manager.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        DisposeProviders();
+        _cachedProviders = null;
+
+        GC.SuppressFinalize(this);
     }
 }
 
