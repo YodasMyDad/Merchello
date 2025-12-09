@@ -299,12 +299,14 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
   static styles = [
     badgeStyles,
     css`
+      :host {
+        display: block;
+      }
+
       #main {
-        padding: var(--uui-size-space-5);
         display: flex;
         flex-direction: column;
         gap: var(--uui-size-space-5);
-        min-width: 420px;
       }
 
       /* Info box */

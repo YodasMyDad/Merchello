@@ -18,6 +18,6 @@ export const MERCHELLO_SERVICE_REGION_MODAL = new UmbModalToken<
 >("Merchello.ServiceRegion.Modal", {
   modal: {
     type: "sidebar",
-    size: "small",
+    size: "medium",
   },
 });

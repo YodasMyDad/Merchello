@@ -15,6 +15,6 @@ export const MERCHELLO_EXPORT_MODAL = new UmbModalToken<
 >("Merchello.Export.Modal", {
   modal: {
     type: "sidebar",
-    size: "small",
+    size: "medium",
   },
 });

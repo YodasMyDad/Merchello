@@ -656,6 +656,9 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsDigitalProduct")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("ProductOptions")
                         .IsRequired()
                         .HasMaxLength(3000)
@@ -941,6 +944,10 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasDefaultValue("flat-rate");
 
                     b.Property<string>("ProviderSettings")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ServiceType")
+                        .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("UpdateDate")

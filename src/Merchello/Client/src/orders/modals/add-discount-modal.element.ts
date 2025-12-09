@@ -181,15 +181,12 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
   static styles = css`
     :host {
       display: block;
-      height: 100%;
     }
 
     #main {
-      padding: var(--uui-size-space-4);
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-4);
-      min-width: 320px;
     }
 
     .context-info {

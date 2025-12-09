@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -14,6 +15,7 @@ public class FedExApiClient : IDisposable
     private const string SandboxBaseUrl = "https://apis-sandbox.fedex.com";
 
     private readonly HttpClient _httpClient;
+    private readonly bool _ownsHttpClient;
     private readonly string _clientId;
     private readonly string _clientSecret;
     private readonly string _accountNumber;
@@ -26,7 +28,36 @@ public class FedExApiClient : IDisposable
     /// <summary>
     /// Creates a new FedEx API client.
     /// </summary>
-    /// <param name="httpClient">HTTP client instance.</param>
+    /// <param name="clientId">FedEx API Key (Client ID).</param>
+    /// <param name="clientSecret">FedEx Secret Key (Client Secret).</param>
+    /// <param name="accountNumber">FedEx Account Number.</param>
+    /// <param name="useSandbox">Whether to use sandbox environment.</param>
+    public FedExApiClient(
+        string clientId,
+        string clientSecret,
+        string accountNumber,
+        bool useSandbox = true)
+    {
+        _clientId = clientId;
+        _clientSecret = clientSecret;
+        _accountNumber = accountNumber;
+        _useSandbox = useSandbox;
+
+        // Create our own HttpClient with automatic decompression enabled
+        // FedEx API returns gzip-compressed responses
+        var handler = new HttpClientHandler
+        {
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+        };
+        _httpClient = new HttpClient(handler);
+        _ownsHttpClient = true;
+    }
+
+    /// <summary>
+    /// Creates a new FedEx API client with a provided HttpClient.
+    /// Note: The provided HttpClient must be configured to handle gzip decompression.
+    /// </summary>
+    /// <param name="httpClient">HTTP client instance (must handle gzip decompression).</param>
     /// <param name="clientId">FedEx API Key (Client ID).</param>
     /// <param name="clientSecret">FedEx Secret Key (Client Secret).</param>
     /// <param name="accountNumber">FedEx Account Number.</param>
@@ -39,6 +70,7 @@ public class FedExApiClient : IDisposable
         bool useSandbox = true)
     {
         _httpClient = httpClient;
+        _ownsHttpClient = false;
         _clientId = clientId;
         _clientSecret = clientSecret;
         _accountNumber = accountNumber;
@@ -144,10 +176,9 @@ public class FedExApiClient : IDisposable
             ["client_secret"] = _clientSecret
         };
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, url)
-        {
-            Content = new FormUrlEncodedContent(formData)
-        };
+        using var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Content = new FormUrlEncodedContent(formData);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         var response = await _httpClient.SendAsync(request, cancellationToken);
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -217,6 +248,10 @@ public class FedExApiClient : IDisposable
         if (disposing)
         {
             _tokenLock.Dispose();
+            if (_ownsHttpClient)
+            {
+                _httpClient.Dispose();
+            }
         }
 
         _disposed = true;

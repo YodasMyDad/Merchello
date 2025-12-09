@@ -43,11 +43,6 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
   static styles = css`
     :host {
       display: block;
-      height: 100%;
-    }
-
-    .content {
-      padding: var(--uui-size-space-5);
     }
 
     .placeholder {

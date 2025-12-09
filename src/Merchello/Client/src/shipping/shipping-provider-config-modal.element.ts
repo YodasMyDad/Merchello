@@ -354,8 +354,8 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
   }
 
   static styles = css`
-    #main {
-      padding: var(--uui-size-space-4);
+    :host {
+      display: block;
     }
 
     .loading {

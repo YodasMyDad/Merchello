@@ -1,5 +1,6 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
+using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Parameters;
@@ -1067,6 +1068,14 @@ public class ProductService(
                     .ThenInclude(x => x.Products);
             }
 
+            if (parameters.IncludeProductRootWarehouses)
+            {
+                itemsQuery = itemsQuery.Include(x => x.ProductRoot)
+                    .ThenInclude(x => x.ProductRootWarehouses)
+                    .ThenInclude(prw => prw.Warehouse)
+                    .ThenInclude(w => w!.ShippingOptions);
+            }
+
             // Note: Cannot use NoTracking with circular references (ProductRoot->Products creates a cycle)
             // Only apply NoTracking if we're not including sibling variants
             if (parameters.NoTracking && !parameters.IncludeSiblingVariants)
@@ -1132,6 +1141,664 @@ public class ProductService(
         });
         scope.Complete();
         return result;
+    }
+
+    /// <summary>
+    /// Gets a product root with all details including variants, options, and warehouse stock
+    /// </summary>
+    public async Task<ProductRootDetailDto?> GetProductRootWithDetails(Guid productRootId, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var productRoot = await db.RootProducts
+                .AsNoTracking()
+                .Include(pr => pr.TaxGroup)
+                .Include(pr => pr.ProductType)
+                .Include(pr => pr.Categories)
+                .Include(pr => pr.ProductRootWarehouses)
+                    .ThenInclude(prw => prw.Warehouse)
+                .Include(pr => pr.Products)
+                    .ThenInclude(p => p.ProductWarehouses)
+                        .ThenInclude(pw => pw.Warehouse)
+                .AsSplitQuery()
+                .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
+
+            if (productRoot == null)
+            {
+                return null;
+            }
+
+            return MapToProductRootDetailDto(productRoot);
+        });
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Creates a new product root with a default variant
+    /// </summary>
+    public async Task<CrudResult<ProductRoot>> CreateProductRoot(CreateProductRootRequest request, CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<ProductRoot>();
+        ProductRoot? productRoot = null;
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var taxGroup = await db.TaxGroups.FindAsync([request.TaxGroupId], cancellationToken);
+            if (taxGroup == null)
+            {
+                result.AddErrorMessage("Tax group not found");
+                return;
+            }
+
+            var productType = await db.ProductTypes.FindAsync([request.ProductTypeId], cancellationToken);
+            if (productType == null)
+            {
+                result.AddErrorMessage("Product type not found");
+                return;
+            }
+
+            var categories = request.CategoryIds?.Any() == true
+                ? await db.ProductCategories.Where(c => request.CategoryIds.Contains(c.Id)).ToListAsync(cancellationToken)
+                : [];
+
+            productRoot = new ProductRoot
+            {
+                Id = Guid.NewGuid(),
+                RootName = request.RootName,
+                TaxGroup = taxGroup,
+                TaxGroupId = request.TaxGroupId,
+                ProductType = productType,
+                ProductTypeId = request.ProductTypeId,
+                IsDigitalProduct = request.IsDigitalProduct,
+                Categories = categories,
+                RootImages = request.RootImages?.Select(g => g.ToString()).ToList() ?? []
+            };
+
+            db.RootProducts.Add(productRoot);
+
+            // Create default variant
+            var defaultVariant = productFactory.Create(
+                productRoot,
+                request.DefaultVariant.Name ?? request.RootName,
+                request.DefaultVariant.Price,
+                request.DefaultVariant.CostOfGoods,
+                request.DefaultVariant.Gtin ?? "",
+                request.DefaultVariant.Sku ?? "",
+                true,
+                null);
+
+            defaultVariant.Weight = request.DefaultVariant.Weight;
+            defaultVariant.LengthCm = request.DefaultVariant.LengthCm;
+            defaultVariant.WidthCm = request.DefaultVariant.WidthCm;
+            defaultVariant.HeightCm = request.DefaultVariant.HeightCm;
+            defaultVariant.AvailableForPurchase = request.DefaultVariant.AvailableForPurchase;
+            defaultVariant.CanPurchase = request.DefaultVariant.CanPurchase;
+
+            db.Products.Add(defaultVariant);
+
+            // Handle warehouse assignments (only for non-digital products)
+            if (!request.IsDigitalProduct && request.WarehouseIds?.Any() == true)
+            {
+                var warehouses = await db.Warehouses
+                    .Where(w => request.WarehouseIds.Contains(w.Id))
+                    .ToListAsync(cancellationToken);
+
+                foreach (var warehouse in warehouses)
+                {
+                    var prw = new ProductRootWarehouse
+                    {
+                        ProductRootId = productRoot.Id,
+                        WarehouseId = warehouse.Id
+                    };
+                    db.ProductRootWarehouses.Add(prw);
+                }
+            }
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+        });
+
+        scope.Complete();
+        result.ResultObject = productRoot;
+        return result;
+    }
+
+    /// <summary>
+    /// Updates an existing product root
+    /// </summary>
+    public async Task<CrudResult<ProductRoot>> UpdateProductRoot(Guid productRootId, UpdateProductRootRequest request, CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<ProductRoot>();
+        ProductRoot? productRoot = null;
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            productRoot = await db.RootProducts
+                .Include(pr => pr.Categories)
+                .Include(pr => pr.ProductRootWarehouses)
+                .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
+
+            if (productRoot == null)
+            {
+                result.AddErrorMessage("Product root not found");
+                return;
+            }
+
+            // Update simple properties
+            if (request.RootName != null) productRoot.RootName = request.RootName;
+            if (request.RootUrl != null) productRoot.RootUrl = request.RootUrl;
+            if (request.SellingPoints != null) productRoot.SellingPoints = request.SellingPoints;
+            if (request.Videos != null) productRoot.Videos = request.Videos;
+            if (request.GoogleShoppingFeedCategory != null) productRoot.GoogleShoppingFeedCategory = request.GoogleShoppingFeedCategory;
+            if (request.HsCode != null) productRoot.HsCode = request.HsCode;
+            if (request.IsDigitalProduct.HasValue) productRoot.IsDigitalProduct = request.IsDigitalProduct.Value;
+            if (request.RootImages != null) productRoot.RootImages = request.RootImages.Select(g => g.ToString()).ToList();
+
+            // Update tax group
+            if (request.TaxGroupId.HasValue && request.TaxGroupId.Value != productRoot.TaxGroupId)
+            {
+                var newTaxGroup = await db.TaxGroups.FindAsync([request.TaxGroupId.Value], cancellationToken);
+                if (newTaxGroup == null)
+                {
+                    result.AddErrorMessage("Tax group not found");
+                    return;
+                }
+                productRoot.TaxGroup = newTaxGroup;
+                productRoot.TaxGroupId = request.TaxGroupId.Value;
+            }
+
+            // Update product type
+            if (request.ProductTypeId.HasValue && request.ProductTypeId.Value != productRoot.ProductTypeId)
+            {
+                var newProductType = await db.ProductTypes.FindAsync([request.ProductTypeId.Value], cancellationToken);
+                if (newProductType == null)
+                {
+                    result.AddErrorMessage("Product type not found");
+                    return;
+                }
+                productRoot.ProductType = newProductType;
+                productRoot.ProductTypeId = request.ProductTypeId.Value;
+            }
+
+            // Update categories
+            if (request.CategoryIds != null)
+            {
+                productRoot.Categories.Clear();
+                if (request.CategoryIds.Any())
+                {
+                    var categories = await db.ProductCategories
+                        .Where(c => request.CategoryIds.Contains(c.Id))
+                        .ToListAsync(cancellationToken);
+                    foreach (var category in categories)
+                    {
+                        productRoot.Categories.Add(category);
+                    }
+                }
+            }
+
+            // Update warehouses
+            if (request.WarehouseIds != null)
+            {
+                // Remove existing warehouse assignments
+                var existingWarehouses = productRoot.ProductRootWarehouses.ToList();
+                foreach (var prw in existingWarehouses)
+                {
+                    db.ProductRootWarehouses.Remove(prw);
+                }
+
+                // Add new warehouse assignments
+                if (request.WarehouseIds.Any())
+                {
+                    foreach (var warehouseId in request.WarehouseIds)
+                    {
+                        var prw = new ProductRootWarehouse
+                        {
+                            ProductRootId = productRoot.Id,
+                            WarehouseId = warehouseId
+                        };
+                        db.ProductRootWarehouses.Add(prw);
+                    }
+                }
+            }
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+        });
+
+        scope.Complete();
+        result.ResultObject = productRoot;
+        return result;
+    }
+
+    /// <summary>
+    /// Deletes a product root and all its variants
+    /// </summary>
+    public async Task<CrudResult<bool>> DeleteProductRoot(Guid productRootId, CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<bool>();
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var productRoot = await db.RootProducts
+                .Include(pr => pr.Products)
+                .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
+
+            if (productRoot == null)
+            {
+                result.AddErrorMessage("Product root not found");
+                return;
+            }
+
+            // Remove all products (variants)
+            foreach (var product in productRoot.Products.ToList())
+            {
+                db.Products.Remove(product);
+            }
+
+            db.RootProducts.Remove(productRoot);
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            result.ResultObject = true;
+        });
+
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Gets a specific variant by product root ID and variant ID
+    /// </summary>
+    public async Task<Product?> GetVariant(Guid productRootId, Guid variantId, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            return await db.Products
+                .AsNoTracking()
+                .Include(p => p.ProductWarehouses)
+                    .ThenInclude(pw => pw.Warehouse)
+                .FirstOrDefaultAsync(p => p.ProductRootId == productRootId && p.Id == variantId, cancellationToken);
+        });
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Updates a specific variant
+    /// </summary>
+    public async Task<CrudResult<Product>> UpdateVariant(Guid productRootId, Guid variantId, UpdateVariantRequest request, CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<Product>();
+        Product? variant = null;
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            variant = await db.Products
+                .FirstOrDefaultAsync(p => p.ProductRootId == productRootId && p.Id == variantId, cancellationToken);
+
+            if (variant == null)
+            {
+                result.AddErrorMessage("Variant not found");
+                return;
+            }
+
+            // Update properties if provided
+            if (request.Name != null) variant.Name = request.Name;
+            if (request.Sku != null) variant.Sku = request.Sku;
+            if (request.Gtin != null) variant.Gtin = request.Gtin;
+            if (request.SupplierSku != null) variant.SupplierSku = request.SupplierSku;
+            if (request.Price.HasValue) variant.Price = request.Price.Value;
+            if (request.CostOfGoods.HasValue) variant.CostOfGoods = request.CostOfGoods.Value;
+            if (request.OnSale.HasValue) variant.OnSale = request.OnSale.Value;
+            if (request.PreviousPrice.HasValue) variant.PreviousPrice = request.PreviousPrice.Value;
+            if (request.AvailableForPurchase.HasValue) variant.AvailableForPurchase = request.AvailableForPurchase.Value;
+            if (request.CanPurchase.HasValue) variant.CanPurchase = request.CanPurchase.Value;
+            if (request.Description != null) variant.Description = request.Description;
+            if (request.ExcludeRootProductImages.HasValue) variant.ExcludeRootProductImages = request.ExcludeRootProductImages.Value;
+            if (request.Url != null) variant.Url = request.Url;
+            if (request.Images != null) variant.Images = request.Images.Select(g => g.ToString()).ToList();
+
+            // Dimensions
+            if (request.Weight.HasValue) variant.Weight = request.Weight.Value;
+            if (request.LengthCm.HasValue) variant.LengthCm = request.LengthCm.Value;
+            if (request.WidthCm.HasValue) variant.WidthCm = request.WidthCm.Value;
+            if (request.HeightCm.HasValue) variant.HeightCm = request.HeightCm.Value;
+
+            // SEO
+            if (request.MetaDescription != null) variant.MetaDescription = request.MetaDescription;
+            if (request.PageTitle != null) variant.PageTitle = request.PageTitle;
+            if (request.NoIndex.HasValue) variant.NoIndex = request.NoIndex.Value;
+            if (request.OpenGraphImage != null) variant.OpenGraphImage = request.OpenGraphImage;
+
+            // Shopping Feed
+            if (request.ShoppingFeedTitle != null) variant.ShoppingFeedTitle = request.ShoppingFeedTitle;
+            if (request.ShoppingFeedDescription != null) variant.ShoppingFeedDescription = request.ShoppingFeedDescription;
+            if (request.ShoppingFeedColour != null) variant.ShoppingFeedColour = request.ShoppingFeedColour;
+            if (request.ShoppingFeedMaterial != null) variant.ShoppingFeedMaterial = request.ShoppingFeedMaterial;
+            if (request.ShoppingFeedSize != null) variant.ShoppingFeedSize = request.ShoppingFeedSize;
+            if (request.ExcludeFromCustomLabels.HasValue) variant.ExcludeFromCustomLabels = request.ExcludeFromCustomLabels.Value;
+            if (request.RemoveFromFeed.HasValue) variant.RemoveFromFeed = request.RemoveFromFeed.Value;
+
+            variant.DateUpdated = DateTime.Now;
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+        });
+
+        scope.Complete();
+        result.ResultObject = variant;
+        return result;
+    }
+
+    /// <summary>
+    /// Saves product options (creates new, updates existing, deletes removed)
+    /// </summary>
+    public async Task<CrudResult<List<ProductOption>>> SaveProductOptions(Guid productRootId, List<SaveProductOptionRequest> options, CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<List<ProductOption>>();
+        List<ProductOption> savedOptions = [];
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var productRoot = await db.RootProducts
+                .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
+
+            if (productRoot == null)
+            {
+                result.AddErrorMessage("Product root not found");
+                return;
+            }
+
+            // Get existing option IDs from request
+            var requestOptionIds = options.Where(o => o.Id.HasValue).Select(o => o.Id!.Value).ToHashSet();
+
+            // Delete options that are no longer in the request
+            var optionsToRemove = productRoot.ProductOptions.Where(o => !requestOptionIds.Contains(o.Id)).ToList();
+            foreach (var option in optionsToRemove)
+            {
+                productRoot.ProductOptions.Remove(option);
+            }
+
+            // Update or create options
+            foreach (var optionRequest in options)
+            {
+                ProductOption option;
+
+                if (optionRequest.Id.HasValue)
+                {
+                    // Update existing option
+                    option = productRoot.ProductOptions.FirstOrDefault(o => o.Id == optionRequest.Id.Value)!;
+                    if (option == null)
+                    {
+                        result.AddWarningMessage($"Option with ID {optionRequest.Id} not found, creating new");
+                        option = new ProductOption { Id = Guid.NewGuid() };
+                        productRoot.ProductOptions.Add(option);
+                    }
+                }
+                else
+                {
+                    // Create new option
+                    option = new ProductOption { Id = Guid.NewGuid() };
+                    productRoot.ProductOptions.Add(option);
+                }
+
+                option.Name = optionRequest.Name;
+                option.Alias = optionRequest.Alias;
+                option.SortOrder = optionRequest.SortOrder;
+                option.OptionTypeAlias = optionRequest.OptionTypeAlias;
+                option.OptionUiAlias = optionRequest.OptionUiAlias;
+                option.IsVariant = optionRequest.IsVariant;
+
+                // Handle values
+                var requestValueIds = optionRequest.Values.Where(v => v.Id.HasValue).Select(v => v.Id!.Value).ToHashSet();
+                var valuesToRemove = option.ProductOptionValues.Where(v => !requestValueIds.Contains(v.Id)).ToList();
+                foreach (var value in valuesToRemove)
+                {
+                    option.ProductOptionValues.Remove(value);
+                }
+
+                foreach (var valueRequest in optionRequest.Values)
+                {
+                    ProductOptionValue value;
+
+                    if (valueRequest.Id.HasValue)
+                    {
+                        value = option.ProductOptionValues.FirstOrDefault(v => v.Id == valueRequest.Id.Value)!;
+                        if (value == null)
+                        {
+                            value = new ProductOptionValue { Id = Guid.NewGuid() };
+                            option.ProductOptionValues.Add(value);
+                        }
+                    }
+                    else
+                    {
+                        value = new ProductOptionValue { Id = Guid.NewGuid() };
+                        option.ProductOptionValues.Add(value);
+                    }
+
+                    value.Name = valueRequest.Name;
+                    value.FullName = valueRequest.FullName ?? $"{option.Name}: {valueRequest.Name}";
+                    value.SortOrder = valueRequest.SortOrder;
+                    value.HexValue = valueRequest.HexValue;
+                    value.MediaKey = valueRequest.MediaKey;
+                    value.PriceAdjustment = valueRequest.PriceAdjustment;
+                    value.CostAdjustment = valueRequest.CostAdjustment;
+                    value.SkuSuffix = valueRequest.SkuSuffix;
+                }
+
+                savedOptions.Add(option);
+            }
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+        });
+
+        scope.Complete();
+        result.ResultObject = savedOptions;
+        return result;
+    }
+
+    /// <summary>
+    /// Regenerates variants based on current options
+    /// </summary>
+    public async Task<CrudResult<List<Product>>> RegenerateVariants(Guid productRootId, CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<List<Product>>();
+        List<Product>? generatedVariants = null;
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var productRoot = await db.RootProducts
+                .Include(pr => pr.Products)
+                .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
+
+            if (productRoot == null)
+            {
+                result.AddErrorMessage("Product root not found");
+                return;
+            }
+
+            var variantOptions = productRoot.ProductOptions.Where(o => o.IsVariant).ToList();
+
+            if (!variantOptions.Any())
+            {
+                // No variant options, ensure there's a single default product
+                if (productRoot.Products.Count > 1)
+                {
+                    var defaultProduct = productRoot.Products.FirstOrDefault(p => p.Default) ?? productRoot.Products.First();
+                    var toRemove = productRoot.Products.Where(p => p.Id != defaultProduct.Id).ToList();
+                    foreach (var p in toRemove)
+                    {
+                        db.Products.Remove(p);
+                    }
+                    defaultProduct.Default = true;
+                    defaultProduct.VariantOptionsKey = null;
+                    generatedVariants = [defaultProduct];
+                }
+                else if (productRoot.Products.Count == 1)
+                {
+                    var product = productRoot.Products.First();
+                    product.Default = true;
+                    product.VariantOptionsKey = null;
+                    generatedVariants = [product];
+                }
+                else
+                {
+                    // Create a default product
+                    var product = productFactory.Create(productRoot, productRoot.RootName ?? "Default", 0, 0, "", "", true, null);
+                    db.Products.Add(product);
+                    generatedVariants = [product];
+                }
+            }
+            else
+            {
+                // Get template values from existing products
+                var template = productRoot.Products.FirstOrDefault(p => p.Default) ?? productRoot.Products.FirstOrDefault();
+                var defaultPrice = template?.Price ?? 0;
+                var defaultCostOfGoods = template?.CostOfGoods ?? 0;
+
+                // Remove all existing products
+                foreach (var product in productRoot.Products.ToList())
+                {
+                    db.Products.Remove(product);
+                }
+
+                // Generate new variants
+                CreateVariantsNew(db, productRoot, defaultPrice, defaultCostOfGoods, "", "");
+
+                await db.SaveChangesAsync(cancellationToken);
+
+                generatedVariants = await db.Products
+                    .Where(p => p.ProductRootId == productRootId)
+                    .ToListAsync(cancellationToken);
+            }
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+        });
+
+        scope.Complete();
+        result.ResultObject = generatedVariants;
+        return result;
+    }
+
+    /// <summary>
+    /// Maps a ProductRoot entity to a ProductRootDetailDto
+    /// </summary>
+    private static ProductRootDetailDto MapToProductRootDetailDto(ProductRoot productRoot)
+    {
+        return new ProductRootDetailDto
+        {
+            Id = productRoot.Id,
+            RootName = productRoot.RootName ?? string.Empty,
+            RootImages = productRoot.RootImages.Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToList(),
+            RootUrl = productRoot.RootUrl,
+            SellingPoints = productRoot.SellingPoints,
+            Videos = productRoot.Videos,
+            GoogleShoppingFeedCategory = productRoot.GoogleShoppingFeedCategory,
+            HsCode = productRoot.HsCode,
+            IsDigitalProduct = productRoot.IsDigitalProduct,
+            TaxGroupId = productRoot.TaxGroupId,
+            TaxGroupName = productRoot.TaxGroup?.Name,
+            ProductTypeId = productRoot.ProductTypeId,
+            ProductTypeName = productRoot.ProductType?.Name,
+            CategoryIds = productRoot.Categories.Select(c => c.Id).ToList(),
+            WarehouseIds = productRoot.ProductRootWarehouses.Select(prw => prw.WarehouseId).ToList(),
+            ProductOptions = productRoot.ProductOptions.OrderBy(o => o.SortOrder).Select(MapToProductOptionDto).ToList(),
+            Variants = productRoot.Products.OrderByDescending(p => p.Default).ThenBy(p => p.Name).Select(MapToProductVariantDto).ToList()
+        };
+    }
+
+    /// <summary>
+    /// Maps a ProductOption entity to a ProductOptionDto
+    /// </summary>
+    private static ProductOptionDto MapToProductOptionDto(ProductOption option)
+    {
+        return new ProductOptionDto
+        {
+            Id = option.Id,
+            Name = option.Name ?? string.Empty,
+            Alias = option.Alias,
+            SortOrder = option.SortOrder,
+            OptionTypeAlias = option.OptionTypeAlias,
+            OptionUiAlias = option.OptionUiAlias,
+            IsVariant = option.IsVariant,
+            Values = option.ProductOptionValues.OrderBy(v => v.SortOrder).Select(MapToProductOptionValueDto).ToList()
+        };
+    }
+
+    /// <summary>
+    /// Maps a ProductOptionValue entity to a ProductOptionValueDto
+    /// </summary>
+    private static ProductOptionValueDto MapToProductOptionValueDto(ProductOptionValue value)
+    {
+        return new ProductOptionValueDto
+        {
+            Id = value.Id,
+            Name = value.Name ?? string.Empty,
+            FullName = value.FullName,
+            SortOrder = value.SortOrder,
+            HexValue = value.HexValue,
+            MediaKey = value.MediaKey,
+            PriceAdjustment = value.PriceAdjustment,
+            CostAdjustment = value.CostAdjustment,
+            SkuSuffix = value.SkuSuffix
+        };
+    }
+
+    /// <summary>
+    /// Maps a Product entity to a ProductVariantDto
+    /// </summary>
+    private static ProductVariantDto MapToProductVariantDto(Product product)
+    {
+        return new ProductVariantDto
+        {
+            Id = product.Id,
+            ProductRootId = product.ProductRootId,
+            Default = product.Default,
+            Name = product.Name,
+            Sku = product.Sku,
+            Gtin = product.Gtin,
+            SupplierSku = product.SupplierSku,
+            Price = product.Price,
+            CostOfGoods = product.CostOfGoods,
+            OnSale = product.OnSale,
+            PreviousPrice = product.PreviousPrice,
+            AvailableForPurchase = product.AvailableForPurchase,
+            CanPurchase = product.CanPurchase,
+            Images = product.Images.Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToList(),
+            Description = product.Description,
+            ExcludeRootProductImages = product.ExcludeRootProductImages,
+            Url = product.Url,
+            VariantOptionsKey = product.VariantOptionsKey,
+            Weight = product.Weight,
+            LengthCm = product.LengthCm,
+            WidthCm = product.WidthCm,
+            HeightCm = product.HeightCm,
+            MetaDescription = product.MetaDescription,
+            PageTitle = product.PageTitle,
+            NoIndex = product.NoIndex,
+            OpenGraphImage = product.OpenGraphImage,
+            ShoppingFeedTitle = product.ShoppingFeedTitle,
+            ShoppingFeedDescription = product.ShoppingFeedDescription,
+            ShoppingFeedColour = product.ShoppingFeedColour,
+            ShoppingFeedMaterial = product.ShoppingFeedMaterial,
+            ShoppingFeedSize = product.ShoppingFeedSize,
+            ExcludeFromCustomLabels = product.ExcludeFromCustomLabels,
+            RemoveFromFeed = product.RemoveFromFeed,
+            TotalStock = product.ProductWarehouses?.Sum(pw => pw.Stock) ?? 0,
+            WarehouseStock = product.ProductWarehouses?.Select(pw => new VariantWarehouseStockDto
+            {
+                WarehouseId = pw.WarehouseId,
+                WarehouseName = pw.Warehouse?.Name,
+                Stock = pw.Stock,
+                ReorderPoint = pw.ReorderPoint,
+                ReorderQuantity = pw.ReorderQuantity,
+                TrackStock = pw.TrackStock
+            }).ToList() ?? []
+        };
     }
 }
 

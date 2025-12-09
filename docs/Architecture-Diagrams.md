@@ -88,12 +88,23 @@ Assembly scanning for plugin discovery at startup:
 public interface IShippingProvider
 {
     ShippingProviderMetadata Metadata { get; }
-    Task<List<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync();
-    Task ConfigureAsync(Dictionary<string, string> settings);
+    ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(CancellationToken ct);
+    ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetMethodConfigFieldsAsync(CancellationToken ct);
+    ValueTask ConfigureAsync(ShippingProviderConfiguration? config, CancellationToken ct);
     bool IsAvailableFor(ShippingQuoteRequest request);
-    Task<List<ShippingQuote>> GetRatesAsync(ShippingQuoteRequest request);
+    Task<ShippingRateQuote?> GetRatesAsync(ShippingQuoteRequest request, CancellationToken ct);
+    Task<ShippingRateQuote?> GetRatesForServicesAsync(
+        ShippingQuoteRequest request,
+        IReadOnlyList<string> serviceTypes,           // e.g., ["FEDEX_GROUND", "FEDEX_2_DAY"]
+        IReadOnlyList<ShippingOptionSnapshot> options, // Contains markup settings
+        CancellationToken ct);
 }
 ```
+
+**Key concepts:**
+- `GetConfigurationFieldsAsync`: Global config (API keys, account numbers)
+- `GetMethodConfigFieldsAsync`: Per-warehouse method config (service type, markup)
+- `GetRatesForServicesAsync`: Fetch rates filtered to only enabled service types
 
 **ShippingProviderManager**: Discovers providers → loads `ShippingProviderConfiguration` from DB → caches with settings
 

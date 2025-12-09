@@ -18,6 +18,6 @@ export const MERCHELLO_MANUAL_PAYMENT_MODAL = new UmbModalToken<
 >("Merchello.ManualPayment.Modal", {
   modal: {
     type: "sidebar",
-    size: "small",
+    size: "medium",
   },
 });

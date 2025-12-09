@@ -74,6 +74,10 @@ public static class WarehouseServiceDbSeedExtensions
                     FixedCost = shippingConfig.Cost,
                     IsNextDay = shippingConfig.IsNextDay,
                     NextDayCutOffTime = shippingConfig.NextDayCutOffTime,
+                    ProviderKey = shippingConfig.ProviderKey,
+                    ServiceType = shippingConfig.ServiceType,
+                    ProviderSettings = shippingConfig.ProviderSettings,
+                    IsEnabled = shippingConfig.IsEnabled,
                     CreateDate = DateTime.UtcNow,
                     UpdateDate = DateTime.UtcNow
                 };

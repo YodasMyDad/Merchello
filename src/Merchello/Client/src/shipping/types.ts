@@ -127,6 +127,8 @@ export interface ShippingOptionDto {
   providerKey: string;
   /** Display name of the provider */
   providerDisplayName?: string;
+  /** Service type code for external providers (e.g., "FEDEX_GROUND", "UPS_NEXT_DAY_AIR") */
+  serviceType?: string;
   /** Whether this shipping method is enabled */
   isEnabled: boolean;
 }
@@ -181,6 +183,8 @@ export interface CreateShippingOptionDto {
   isDeliveryDateGuaranteed?: boolean;
   /** The provider key (e.g., "flat-rate", "ups", "fedex") */
   providerKey?: string;
+  /** Service type code for external providers (e.g., "FEDEX_GROUND", "UPS_NEXT_DAY_AIR") */
+  serviceType?: string;
   /** Provider-specific settings */
   providerSettings?: Record<string, string>;
   /** Whether this shipping method is enabled */

@@ -168,10 +168,6 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
       display: block;
     }
 
-    #main {
-      padding: var(--uui-size-space-4);
-    }
-
     .shipment-summary {
       background: var(--uui-color-surface-alt);
       padding: var(--uui-size-space-3);

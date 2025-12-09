@@ -301,11 +301,9 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
   static styles = css`
     :host {
       display: block;
-      height: 100%;
     }
 
     #main {
-      padding: var(--uui-size-space-5);
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-5);

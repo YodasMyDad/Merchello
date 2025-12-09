@@ -226,11 +226,16 @@ import type {
   UpdateWarehouseDto,
   ServiceRegionDto,
   CreateServiceRegionDto,
-  SupplierDto,
   CreateSupplierDto,
   CountryInfo,
   SubdivisionInfo,
 } from '@warehouses/types.js';
+
+// Import supplier types
+import type {
+  SupplierListItemDto,
+  UpdateSupplierDto,
+} from '@suppliers/types.js';
 
 // Helper to build query string from params
 function buildQueryString(params?: Record<string, unknown>): string {
@@ -564,15 +569,35 @@ export const MerchelloApi = {
     apiDelete(`warehouses/${warehouseId}/service-regions/${regionId}`),
 
   // ============================================
+  // Warehouse Available Destinations API
+  // ============================================
+
+  /** Get countries that a warehouse can service based on its service regions */
+  getAvailableDestinationsForWarehouse: (warehouseId: string) =>
+    apiGet<{ code: string; name: string }[]>(`warehouses/${warehouseId}/available-destinations`),
+
+  /** Get regions that a warehouse can service for a given country */
+  getAvailableRegionsForWarehouse: (warehouseId: string, countryCode: string) =>
+    apiGet<{ regionCode: string; name: string }[]>(`warehouses/${warehouseId}/available-destinations/${countryCode}/regions`),
+
+  // ============================================
   // Suppliers API
   // ============================================
 
-  /** Get all suppliers for dropdown selection */
-  getSuppliers: () => apiGet<SupplierDto[]>('suppliers'),
+  /** Get all suppliers with warehouse count */
+  getSuppliers: () => apiGet<SupplierListItemDto[]>('suppliers'),
 
-  /** Create a new supplier (quick create from warehouse form) */
+  /** Create a new supplier */
   createSupplier: (data: CreateSupplierDto) =>
-    apiPost<SupplierDto>('suppliers', data),
+    apiPost<SupplierListItemDto>('suppliers', data),
+
+  /** Update an existing supplier */
+  updateSupplier: (id: string, data: UpdateSupplierDto) =>
+    apiPut<SupplierListItemDto>(`suppliers/${id}`, data),
+
+  /** Delete a supplier */
+  deleteSupplier: (id: string, force = false) =>
+    apiDelete(`suppliers/${id}${force ? '?force=true' : ''}`),
 
   // ============================================
   // Locality API (Countries & Regions)

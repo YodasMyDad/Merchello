@@ -661,6 +661,9 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<bool>("IsDigitalProduct")
+                        .HasColumnType("bit");
+
                     b.Property<string>("ProductOptions")
                         .IsRequired()
                         .HasMaxLength(3000)
@@ -947,6 +950,10 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ProviderSettings")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ServiceType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTime>("UpdateDate")
                         .HasColumnType("datetime2");

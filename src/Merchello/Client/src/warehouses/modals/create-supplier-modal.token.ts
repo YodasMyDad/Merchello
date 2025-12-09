@@ -15,6 +15,6 @@ export const MERCHELLO_CREATE_SUPPLIER_MODAL = new UmbModalToken<
 >("Merchello.CreateSupplier.Modal", {
   modal: {
     type: "sidebar",
-    size: "small",
+    size: "medium",
   },
 });

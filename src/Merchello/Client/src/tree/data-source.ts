@@ -11,11 +11,11 @@ import {
   MERCHELLO_ORDERS_ENTITY_TYPE,
   MERCHELLO_PRODUCTS_ENTITY_TYPE,
   MERCHELLO_CUSTOMERS_ENTITY_TYPE,
-  MERCHELLO_PROVIDERS_ENTITY_TYPE,
   MERCHELLO_ANALYTICS_ENTITY_TYPE,
-  MERCHELLO_MARKETING_ENTITY_TYPE,
-  MERCHELLO_SETTINGS_ENTITY_TYPE,
+  MERCHELLO_DISCOUNTS_ENTITY_TYPE,
+  MERCHELLO_SUPPLIERS_ENTITY_TYPE,
   MERCHELLO_WAREHOUSES_ENTITY_TYPE,
+  MERCHELLO_PROVIDERS_ENTITY_TYPE,
 } from "./types.js";
 
 export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTreeDataSource<MerchelloTreeItemModel> {
@@ -49,15 +49,6 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
         parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
       },
       {
-        entityType: MERCHELLO_PROVIDERS_ENTITY_TYPE,
-        unique: "providers",
-        name: "Providers",
-        hasChildren: false,
-        isFolder: false,
-        icon: "icon-nodes",
-        parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
-      },
-      {
         entityType: MERCHELLO_ANALYTICS_ENTITY_TYPE,
         unique: "analytics",
         name: "Analytics",
@@ -67,21 +58,39 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
         parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
       },
       {
-        entityType: MERCHELLO_MARKETING_ENTITY_TYPE,
-        unique: "marketing",
-        name: "Marketing",
+        entityType: MERCHELLO_DISCOUNTS_ENTITY_TYPE,
+        unique: "discounts",
+        name: "Discounts",
         hasChildren: false,
         isFolder: false,
         icon: "icon-megaphone",
         parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
       },
       {
-        entityType: MERCHELLO_SETTINGS_ENTITY_TYPE,
-        unique: "settings",
-        name: "Settings",
-        hasChildren: true,
-        isFolder: true,
-        icon: "icon-settings",
+        entityType: MERCHELLO_SUPPLIERS_ENTITY_TYPE,
+        unique: "suppliers",
+        name: "Suppliers",
+        hasChildren: false,
+        isFolder: false,
+        icon: "icon-truck",
+        parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
+      },
+      {
+        entityType: MERCHELLO_WAREHOUSES_ENTITY_TYPE,
+        unique: "warehouses",
+        name: "Warehouses",
+        hasChildren: false,
+        isFolder: false,
+        icon: "icon-store",
+        parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
+      },
+      {
+        entityType: MERCHELLO_PROVIDERS_ENTITY_TYPE,
+        unique: "providers",
+        name: "Providers",
+        hasChildren: false,
+        isFolder: false,
+        icon: "icon-nodes",
         parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
       },
     ];
@@ -89,23 +98,8 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
     return { data: { items: rootItems, total: rootItems.length } };
   }
 
-  async getChildrenOf(args: UmbTreeChildrenOfRequestArgs) {
-    // Settings has child items: Warehouses
-    if (args.parent.unique === "settings") {
-      const children: Array<MerchelloTreeItemModel> = [
-        {
-          entityType: MERCHELLO_WAREHOUSES_ENTITY_TYPE,
-          unique: "warehouses",
-          name: "Warehouses",
-          hasChildren: false,
-          isFolder: false,
-          icon: "icon-store",
-          parent: { unique: "settings", entityType: MERCHELLO_SETTINGS_ENTITY_TYPE },
-        },
-      ];
-      return { data: { items: children, total: children.length } };
-    }
-
+  async getChildrenOf(_args: UmbTreeChildrenOfRequestArgs) {
+    // No nested children in the new tree structure
     return { data: { items: [], total: 0 } };
   }
 

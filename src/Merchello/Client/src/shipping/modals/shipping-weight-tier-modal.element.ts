@@ -7,17 +7,31 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import type { CreateShippingWeightTierDto } from "@shipping/types.js";
 import type { ShippingWeightTierModalData, ShippingWeightTierModalValue } from "./shipping-weight-tier-modal.token.js";
 
+interface CountryOption {
+  code: string;
+  name: string;
+}
+
+interface RegionOption {
+  regionCode: string;
+  name: string;
+}
+
 @customElement("merchello-shipping-weight-tier-modal")
 export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement<
   ShippingWeightTierModalData,
   ShippingWeightTierModalValue
 > {
   @state() private _isSaving = false;
+  @state() private _isLoadingCountries = true;
+  @state() private _isLoadingRegions = false;
   @state() private _countryCode = "";
   @state() private _stateOrProvinceCode = "";
   @state() private _minWeightKg = 0;
   @state() private _maxWeightKg: number | null = null;
   @state() private _surcharge = 0;
+  @state() private _countries: CountryOption[] = [];
+  @state() private _regions: RegionOption[] = [];
 
   #notificationContext?: UmbNotificationContext;
 
@@ -30,13 +44,107 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
 
   connectedCallback(): void {
     super.connectedCallback();
+    this._loadCountries();
+
     if (this.data?.tier) {
       this._countryCode = this.data.tier.countryCode;
       this._stateOrProvinceCode = this.data.tier.stateOrProvinceCode ?? "";
       this._minWeightKg = this.data.tier.minWeightKg;
       this._maxWeightKg = this.data.tier.maxWeightKg ?? null;
       this._surcharge = this.data.tier.surcharge;
+
+      // Load regions if editing and country is set
+      if (this._countryCode && this._countryCode !== "*") {
+        this._loadRegions(this._countryCode);
+      }
     }
+  }
+
+  private async _loadCountries(): Promise<void> {
+    this._isLoadingCountries = true;
+
+    // Use warehouse-filtered destinations if warehouseId is provided
+    if (this.data?.warehouseId) {
+      const { data } = await MerchelloApi.getAvailableDestinationsForWarehouse(this.data.warehouseId);
+      if (data) {
+        this._countries = data;
+      }
+    } else {
+      // Fallback to all countries
+      const { data } = await MerchelloApi.getCountries();
+      if (data) {
+        this._countries = data;
+      }
+    }
+
+    this._isLoadingCountries = false;
+  }
+
+  private async _loadRegions(countryCode: string): Promise<void> {
+    this._isLoadingRegions = true;
+    this._regions = [];
+
+    // Use warehouse-filtered regions if warehouseId is provided
+    if (this.data?.warehouseId) {
+      const { data } = await MerchelloApi.getAvailableRegionsForWarehouse(this.data.warehouseId, countryCode);
+      if (data) {
+        this._regions = data;
+      }
+    } else {
+      // Fallback to all regions
+      const { data } = await MerchelloApi.getLocalityRegions(countryCode);
+      if (data) {
+        this._regions = data;
+      }
+    }
+
+    this._isLoadingRegions = false;
+  }
+
+  private _handleCountryChange(e: Event): void {
+    const value = (e.target as HTMLSelectElement).value;
+    this._countryCode = value;
+    this._stateOrProvinceCode = "";
+    this._regions = [];
+
+    if (value && value !== "*") {
+      this._loadRegions(value);
+    }
+  }
+
+  /** Options for destination dropdown */
+  private get _destinationOptions(): Array<{ name: string; value: string; selected?: boolean }> {
+    const options: Array<{ name: string; value: string; selected?: boolean }> = [
+      { name: "Select a destination...", value: "", selected: !this._countryCode },
+      { name: "★ All Destinations (Default)", value: "*", selected: this._countryCode === "*" },
+    ];
+
+    this._countries.forEach(c => {
+      options.push({
+        name: c.name,
+        value: c.code,
+        selected: c.code === this._countryCode
+      });
+    });
+
+    return options;
+  }
+
+  /** Options for region dropdown */
+  private get _regionOptions(): Array<{ name: string; value: string; selected?: boolean }> {
+    const options: Array<{ name: string; value: string; selected?: boolean }> = [
+      { name: "Entire country (all regions)", value: "", selected: !this._stateOrProvinceCode }
+    ];
+
+    this._regions.forEach(r => {
+      options.push({
+        name: r.name,
+        value: r.regionCode,
+        selected: r.regionCode === this._stateOrProvinceCode
+      });
+    });
+
+    return options;
   }
 
   private async _save(): Promise<void> {
@@ -117,29 +225,54 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
     const isEditing = !!this.data?.tier;
 
     return html`
-      <umb-body-layout headline="${isEditing ? 'Edit' : 'Add'} Weight Tier">
+      <umb-body-layout headline="${isEditing ? 'Edit' : 'Add'} Weight Surcharge">
         <div class="form-content">
-          <uui-form-layout-item>
-            <uui-label slot="label" for="countryCode" required>Country Code</uui-label>
-            <uui-input
-              id="countryCode"
-              .value=${this._countryCode}
-              @input=${(e: InputEvent) => (this._countryCode = (e.target as HTMLInputElement).value)}
-              placeholder="GB, US, * for all"
-            ></uui-input>
-            <div slot="description">Use * for all countries</div>
-          </uui-form-layout-item>
+          <!-- Info section -->
+          <div class="info-box">
+            <uui-icon name="icon-info"></uui-icon>
+            <span>Add extra charges based on order weight. Surcharges are added on top of the base shipping rate.</span>
+          </div>
 
           <uui-form-layout-item>
-            <uui-label slot="label" for="stateCode">State/Province Code</uui-label>
-            <uui-input
-              id="stateCode"
-              .value=${this._stateOrProvinceCode}
-              @input=${(e: InputEvent) => (this._stateOrProvinceCode = (e.target as HTMLInputElement).value)}
-              placeholder="CA, NY (optional)"
-            ></uui-input>
-            <div slot="description">Leave empty for country-wide tier</div>
+            <uui-label slot="label" for="countryCode" required>Destination</uui-label>
+            ${this._isLoadingCountries
+              ? html`<uui-loader></uui-loader>`
+              : html`
+                  <uui-select
+                    id="countryCode"
+                    .options=${this._destinationOptions}
+                    @change=${this._handleCountryChange}
+                  ></uui-select>
+                `}
+            <div slot="description">Choose a specific country or apply to all destinations</div>
           </uui-form-layout-item>
+
+          ${this._countryCode && this._countryCode !== "*"
+            ? html`
+                <uui-form-layout-item>
+                  <uui-label slot="label" for="stateCode">Region/State</uui-label>
+                  ${this._isLoadingRegions
+                    ? html`<uui-loader></uui-loader>`
+                    : this._regions.length > 0
+                      ? html`
+                          <uui-select
+                            id="stateCode"
+                            .options=${this._regionOptions}
+                            @change=${(e: Event) => (this._stateOrProvinceCode = (e.target as HTMLSelectElement).value)}
+                          ></uui-select>
+                        `
+                      : html`
+                          <uui-input
+                            id="stateCode"
+                            .value=${this._stateOrProvinceCode}
+                            @input=${(e: InputEvent) => (this._stateOrProvinceCode = (e.target as HTMLInputElement).value)}
+                            placeholder="Optional: CA, NY, etc."
+                          ></uui-input>
+                        `}
+                  <div slot="description">Optionally apply to a specific state or province</div>
+                </uui-form-layout-item>
+              `
+            : nothing}
 
           <div class="row">
             <uui-form-layout-item>
@@ -151,6 +284,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
                 min="0"
                 .value=${this._minWeightKg.toString()}
                 @input=${(e: InputEvent) => (this._minWeightKg = parseFloat((e.target as HTMLInputElement).value) || 0)}
+                placeholder="0"
               ></uui-input>
             </uui-form-layout-item>
 
@@ -166,22 +300,26 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
                   const val = (e.target as HTMLInputElement).value;
                   this._maxWeightKg = val ? parseFloat(val) : null;
                 }}
-                placeholder="Leave empty for unlimited"
+                placeholder="No limit"
               ></uui-input>
             </uui-form-layout-item>
           </div>
 
           <uui-form-layout-item>
             <uui-label slot="label" for="surcharge" required>Surcharge</uui-label>
-            <uui-input
-              id="surcharge"
-              type="number"
-              step="0.01"
-              min="0"
-              .value=${this._surcharge.toString()}
-              @input=${(e: InputEvent) => (this._surcharge = parseFloat((e.target as HTMLInputElement).value) || 0)}
-            ></uui-input>
-            <div slot="description">Additional cost added to base shipping rate</div>
+            <div class="cost-input-wrapper">
+              <span class="currency-symbol">$</span>
+              <uui-input
+                id="surcharge"
+                type="number"
+                step="0.01"
+                min="0"
+                .value=${this._surcharge.toString()}
+                @input=${(e: InputEvent) => (this._surcharge = parseFloat((e.target as HTMLInputElement).value) || 0)}
+                placeholder="0.00"
+              ></uui-input>
+            </div>
+            <div slot="description">Additional cost added to base shipping rate for this weight range</div>
           </uui-form-layout-item>
         </div>
 
@@ -189,12 +327,13 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
           <uui-button label="Cancel" @click=${this._close}>Cancel</uui-button>
           <uui-button
             look="primary"
-            label="${isEditing ? 'Save' : 'Add'}"
-            ?disabled=${this._isSaving}
+            color="positive"
+            label="${isEditing ? 'Save Surcharge' : 'Add Surcharge'}"
+            ?disabled=${this._isSaving || !this._countryCode}
             @click=${this._save}
           >
             ${this._isSaving ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
-            ${isEditing ? "Save" : "Add"}
+            ${isEditing ? "Save Surcharge" : "Add Surcharge"}
           </uui-button>
         </div>
       </umb-body-layout>
@@ -207,10 +346,26 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
     }
 
     .form-content {
-      padding: var(--uui-size-layout-1);
       display: flex;
       flex-direction: column;
-      gap: var(--uui-size-space-4);
+      gap: var(--uui-size-space-5);
+    }
+
+    .info-box {
+      display: flex;
+      gap: var(--uui-size-space-3);
+      padding: var(--uui-size-space-4);
+      background: var(--uui-color-surface-alt);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      font-size: 0.8125rem;
+      color: var(--uui-color-text-alt);
+      line-height: 1.5;
+    }
+
+    .info-box uui-icon {
+      flex-shrink: 0;
+      color: var(--uui-color-interactive);
     }
 
     .row {
@@ -219,16 +374,37 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
       gap: var(--uui-size-space-4);
     }
 
+    uui-select,
+    uui-input {
+      width: 100%;
+    }
+
+    .cost-input-wrapper {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+    }
+
+    .currency-symbol {
+      font-weight: 600;
+      font-size: 1.125rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .cost-input-wrapper uui-input {
+      flex: 1;
+      max-width: 150px;
+    }
+
     [slot="actions"] {
       display: flex;
       gap: var(--uui-size-space-3);
-      padding: var(--uui-size-space-4);
-      border-top: 1px solid var(--uui-color-border);
     }
 
     [slot="description"] {
-      font-size: 0.875rem;
+      font-size: 0.8125rem;
       color: var(--uui-color-text-alt);
+      margin-top: var(--uui-size-space-1);
     }
   `;
 }

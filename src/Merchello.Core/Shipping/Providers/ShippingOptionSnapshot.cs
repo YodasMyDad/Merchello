@@ -25,4 +25,20 @@ public class ShippingOptionSnapshot
     public int? MaxDeliveryDays { get; init; }
     public string? AllowedDaysOfWeek { get; init; }
     public bool IsDeliveryDateGuaranteed { get; init; }
+
+    /// <summary>
+    /// The provider key (e.g., "flat-rate", "fedex", "ups").
+    /// </summary>
+    public string ProviderKey { get; init; } = "flat-rate";
+
+    /// <summary>
+    /// The service type code for external providers (e.g., "FEDEX_GROUND").
+    /// Null for flat-rate provider.
+    /// </summary>
+    public string? ServiceType { get; init; }
+
+    /// <summary>
+    /// JSON-serialized provider-specific settings (e.g., markup percentage).
+    /// </summary>
+    public string? ProviderSettings { get; init; }
 }

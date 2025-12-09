@@ -23,6 +23,9 @@ export interface ProductListItemDto {
   productTypeName: string;
   categoryNames: string[];
   imageUrl: string | null;
+  hasWarehouse: boolean;
+  hasShippingOptions: boolean;
+  isDigitalProduct: boolean;
 }
 
 export interface ProductPageDto {
@@ -63,7 +66,8 @@ export type ProductColumnKey =
   | "price"
   | "purchaseable"
   | "stock"
-  | "variants";
+  | "variants"
+  | "warnings";
 
 export const PRODUCT_COLUMN_LABELS: Record<ProductColumnKey, string> = {
   select: "",
@@ -73,6 +77,7 @@ export const PRODUCT_COLUMN_LABELS: Record<ProductColumnKey, string> = {
   purchaseable: "Available",
   stock: "Stock",
   variants: "Variants",
+  warnings: "",
 };
 
 export const DEFAULT_PRODUCT_COLUMNS: ProductColumnKey[] = [

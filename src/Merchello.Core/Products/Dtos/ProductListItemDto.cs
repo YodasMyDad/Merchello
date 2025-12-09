@@ -30,4 +30,19 @@ public class ProductListItemDto
     public List<string> CategoryNames { get; set; } = [];
 
     public string? ImageUrl { get; set; }
+
+    /// <summary>
+    /// Whether this product has at least one warehouse assigned (via ProductRootWarehouse)
+    /// </summary>
+    public bool HasWarehouse { get; set; }
+
+    /// <summary>
+    /// Whether any assigned warehouse has shipping options configured
+    /// </summary>
+    public bool HasShippingOptions { get; set; }
+
+    /// <summary>
+    /// Whether this is a digital product that doesn't require shipping
+    /// </summary>
+    public bool IsDigitalProduct { get; set; }
 }

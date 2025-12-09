@@ -162,8 +162,8 @@ export class MerchelloExportModalElement extends UmbModalBaseElement<
   }
 
   static styles = css`
-    #main {
-      padding: var(--uui-size-space-4);
+    :host {
+      display: block;
     }
 
     .description {

@@ -112,13 +112,18 @@ public class CreateServiceRegionDto
 }
 
 /// <summary>
-/// Lightweight DTO for supplier dropdown selection.
+/// Lightweight DTO for supplier list and dropdown selection.
 /// </summary>
 public class SupplierListDto
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;
     public string? Code { get; set; }
+
+    /// <summary>
+    /// Number of warehouses linked to this supplier.
+    /// </summary>
+    public int WarehouseCount { get; set; }
 }
 
 /// <summary>
@@ -128,4 +133,31 @@ public class CreateSupplierDto
 {
     public required string Name { get; set; }
     public string? Code { get; set; }
+}
+
+/// <summary>
+/// DTO for updating an existing supplier.
+/// </summary>
+public class UpdateSupplierDto
+{
+    public required string Name { get; set; }
+    public string? Code { get; set; }
+}
+
+/// <summary>
+/// DTO for country/destination selection in shipping configuration.
+/// </summary>
+public class DestinationDto
+{
+    public string Code { get; set; } = null!;
+    public string Name { get; set; } = null!;
+}
+
+/// <summary>
+/// DTO for region/state selection in shipping configuration.
+/// </summary>
+public class RegionDto
+{
+    public string RegionCode { get; set; } = null!;
+    public string Name { get; set; } = null!;
 }

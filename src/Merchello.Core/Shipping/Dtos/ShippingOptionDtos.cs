@@ -11,6 +11,13 @@ public class ShippingOptionDto
     public string? WarehouseName { get; set; }
     public string ProviderKey { get; set; } = "flat-rate";
     public string? ProviderDisplayName { get; set; }
+
+    /// <summary>
+    /// Service type code for external providers (e.g., "FEDEX_GROUND", "UPS_NEXT_DAY_AIR").
+    /// Null for flat-rate provider.
+    /// </summary>
+    public string? ServiceType { get; set; }
+
     public bool IsEnabled { get; set; } = true;
     public decimal? FixedCost { get; set; }
     public int DaysFrom { get; set; }
@@ -84,6 +91,13 @@ public class CreateShippingOptionDto
     public required string Name { get; set; }
     public required Guid WarehouseId { get; set; }
     public string ProviderKey { get; set; } = "flat-rate";
+
+    /// <summary>
+    /// Service type code for external providers (e.g., "FEDEX_GROUND", "UPS_NEXT_DAY_AIR").
+    /// Required for external providers, null for flat-rate.
+    /// </summary>
+    public string? ServiceType { get; set; }
+
     public Dictionary<string, string>? ProviderSettings { get; set; }
     public bool IsEnabled { get; set; } = true;
     public decimal? FixedCost { get; set; }

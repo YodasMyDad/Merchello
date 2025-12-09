@@ -6,6 +6,8 @@ export interface ShippingWeightTierModalData {
   tier?: ShippingWeightTierDto;
   /** The shipping option ID to add the tier to (for create) */
   optionId?: string;
+  /** The warehouse ID to filter available destinations */
+  warehouseId?: string;
 }
 
 export interface ShippingWeightTierModalValue {
