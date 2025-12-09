@@ -7,6 +7,22 @@ export const manifests: Array<UmbExtensionManifest> = [
     js: () => import("./modals/create-product-modal.element.js"),
   },
 
+  // Variant detail modal
+  {
+    type: "modal",
+    alias: "Merchello.VariantDetail.Modal",
+    name: "Merchello Variant Detail Modal",
+    js: () => import("./modals/variant-detail-modal.element.js"),
+  },
+
+  // Option editor modal
+  {
+    type: "modal",
+    alias: "Merchello.OptionEditor.Modal",
+    name: "Merchello Option Editor Modal",
+    js: () => import("./modals/option-editor-modal.element.js"),
+  },
+
   // Workspace for products list (when clicking "Products" in tree)
   {
     type: "workspace",
@@ -49,6 +65,26 @@ export const manifests: Array<UmbExtensionManifest> = [
     meta: {
       entityType: "merchello-product",
     },
+  },
+
+  // Workspace view for product detail
+  {
+    type: "workspaceView",
+    alias: "Merchello.Product.Detail.View",
+    name: "Product Detail View",
+    js: () => import("./components/product-detail.element.js"),
+    weight: 100,
+    meta: {
+      label: "Product",
+      pathname: "product",
+      icon: "icon-box",
+    },
+    conditions: [
+      {
+        alias: "Umb.Condition.WorkspaceAlias",
+        match: "Merchello.Product.Detail.Workspace",
+      },
+    ],
   },
 ];
 

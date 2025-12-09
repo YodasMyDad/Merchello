@@ -54,6 +54,9 @@ export function navigateToOrderDetail(orderId: string): void {
 /** Entity type for product detail workspace */
 export const PRODUCT_ENTITY_TYPE = "merchello-product";
 
+/** Entity type for products list workspace */
+export const PRODUCTS_ENTITY_TYPE = "merchello-products";
+
 /**
  * Generate the URL to view/edit a product detail.
  * Use this in href attributes on links/buttons.
@@ -67,6 +70,20 @@ export function getProductDetailHref(productId: string): string {
  */
 export function navigateToProductDetail(productId: string): void {
   navigateToMerchelloWorkspace(PRODUCT_ENTITY_TYPE, `edit/${productId}`);
+}
+
+/**
+ * Generate the URL to the products list.
+ */
+export function getProductsListHref(): string {
+  return getMerchelloWorkspaceHref(PRODUCTS_ENTITY_TYPE, "products");
+}
+
+/**
+ * Navigate programmatically to the products list using SPA routing.
+ */
+export function navigateToProductsList(): void {
+  navigateToMerchelloWorkspace(PRODUCTS_ENTITY_TYPE, "products");
 }
 
 /** Entity type for warehouse detail workspace */

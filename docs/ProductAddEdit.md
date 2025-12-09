@@ -1959,40 +1959,40 @@ export const manifests: Array<UmbExtensionManifest> = [
 
 ### Phase 2: Frontend Types & API
 
-- [ ] Update product.types.ts with all new interfaces
-- [ ] Add API methods to merchello-api.ts
+- [x] Update product.types.ts with all new interfaces
+- [x] Add API methods to merchello-api.ts
 - [ ] Test API calls work correctly
 
 ### Phase 3: Workspace & Context
 
-- [ ] Update product-detail-workspace.context.ts with create/edit routes
-- [ ] Add isNew flag and updateProduct method
+- [x] Update product-detail-workspace.context.ts with create/edit routes
+- [x] Add isNew flag and updateProduct method
 - [ ] Test routing works for both create and edit
 
 ### Phase 4: Product Detail View
 
-- [ ] Rewrite product-detail.element.ts with tabbed interface
-- [ ] Implement Details tab with media picker
-- [ ] Implement Variants tab with radio selection
-- [ ] Implement Options tab with option cards
-- [ ] Add validation and warning states
+- [x] Rewrite product-detail.element.ts with tabbed interface
+- [x] Implement Details tab with media picker
+- [x] Implement Variants tab with radio selection
+- [x] Implement Options tab with option cards
+- [x] Add validation and warning states
 
 ### Phase 5: Variant Modal
 
-- [ ] Create variant-detail-modal.token.ts
-- [ ] Implement variant-detail-modal.element.ts with all sections
+- [x] Create variant-detail-modal.token.ts
+- [x] Implement variant-detail-modal.element.ts with all sections
 - [ ] Test variant editing and saving
 
 ### Phase 6: Option Editor Modal
 
-- [ ] Create option-editor-modal.token.ts
-- [ ] Implement option-editor-modal.element.ts
-- [ ] Handle different UI aliases (dropdown, colour, image)
+- [x] Create option-editor-modal.token.ts
+- [x] Implement option-editor-modal.element.ts
+- [x] Handle different UI aliases (dropdown, colour, image)
 - [ ] Test option creation and editing
 
 ### Phase 7: Integration & Polish
 
-- [ ] Update manifest.ts with all new modals
+- [x] Update manifest.ts with all new modals
 - [ ] Test create flow end-to-end
 - [ ] Test edit flow end-to-end
 - [ ] Test variant generation from options

@@ -216,6 +216,14 @@ import type {
   ProductListParams,
   ProductTypeDto,
   ProductCategoryDto,
+  ProductRootDetailDto,
+  ProductOptionSettingsDto,
+  CreateProductRootRequest,
+  UpdateProductRootRequest,
+  ProductVariantDto,
+  UpdateVariantRequest,
+  ProductOptionDto,
+  SaveProductOptionRequest,
 } from '@products/types/product.types.js';
 
 // Import warehouse types
@@ -483,6 +491,45 @@ export const MerchelloApi = {
 
   /** Get all product categories for filtering */
   getProductCategories: () => apiGet<ProductCategoryDto[]>('products/categories'),
+
+  /** Get product option settings (available type and UI aliases) */
+  getProductOptionSettings: () => apiGet<ProductOptionSettingsDto>('settings/product-options'),
+
+  /** Get full product root with all variants and options */
+  getProductDetail: (id: string) => apiGet<ProductRootDetailDto>(`products/${id}`),
+
+  /** Create new product root with default variant */
+  createProduct: (request: CreateProductRootRequest) => 
+    apiPost<ProductRootDetailDto>('products', request),
+
+  /** Update product root */
+  updateProduct: (id: string, request: UpdateProductRootRequest) => 
+    apiPut<ProductRootDetailDto>(`products/${id}`, request),
+
+  /** Delete product root and all variants */
+  deleteProduct: (id: string) => apiDelete(`products/${id}`),
+
+  // Variant operations
+  /** Get a specific variant */
+  getVariant: (productRootId: string, variantId: string) => 
+    apiGet<ProductVariantDto>(`products/${productRootId}/variants/${variantId}`),
+
+  /** Update a variant */
+  updateVariant: (productRootId: string, variantId: string, request: UpdateVariantRequest) => 
+    apiPut<ProductVariantDto>(`products/${productRootId}/variants/${variantId}`, request),
+
+  /** Set a variant as the default */
+  setDefaultVariant: (productRootId: string, variantId: string) => 
+    apiPut(`products/${productRootId}/variants/${variantId}/set-default`),
+
+  // Options operations
+  /** Save all product options (replaces existing) */
+  saveProductOptions: (productRootId: string, options: SaveProductOptionRequest[]) => 
+    apiPut<ProductOptionDto[]>(`products/${productRootId}/options`, options),
+
+  /** Regenerate variants from current option combinations */
+  regenerateVariants: (productRootId: string) => 
+    apiPost<ProductVariantDto[]>(`products/${productRootId}/options/regenerate-variants`),
 
   // ============================================
   // Shipping Options API
