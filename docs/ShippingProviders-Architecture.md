@@ -94,25 +94,45 @@ public record ProviderConfigCapabilities
 
 ## ShippingOption-Provider Linkage
 
-Each `ShippingOption` (per-warehouse shipping method) is linked to a provider via `ProviderKey`:
+Each `ShippingOption` (per-warehouse shipping method) is linked to a provider via `ProviderKey` and optionally `ServiceType`:
 
 ```csharp
 public class ShippingOption
 {
-    // Existing fields...
+    // Core fields
     public string Name { get; set; }
     public Guid WarehouseId { get; set; }
     public decimal? FixedCost { get; set; }
 
-    // Provider linkage (new)
+    // Provider linkage
     public string ProviderKey { get; set; } = "flat-rate";  // e.g., "flat-rate", "ups", "fedex"
-    public string? ProviderSettings { get; set; }            // JSON for provider-specific config
+    public string? ServiceType { get; set; }                 // e.g., "FEDEX_GROUND", "FEDEX_2_DAY"
+    public string? ProviderSettings { get; set; }            // JSON for per-method config (e.g., markup)
     public bool IsEnabled { get; set; } = true;
 }
 ```
 
-- **FlatRate**: Uses `Costs` and `WeightTiers` tables; `ProviderSettings` is typically null
-- **UPS/FedEx**: Uses `ProviderSettings` JSON for service level, markup, etc.; no cost tables
+### ServiceType Field
+
+The `ServiceType` field identifies which carrier service this shipping method represents:
+
+| Provider | ServiceType Examples | Purpose |
+|----------|---------------------|---------|
+| **flat-rate** | `null` | Flat rate uses Costs/WeightTiers tables, no service type needed |
+| **fedex** | `FEDEX_GROUND`, `FEDEX_2_DAY`, `PRIORITY_OVERNIGHT` | Maps to FedEx API service codes |
+| **ups** | `03` (Ground), `02` (2nd Day), `01` (Next Day) | Maps to UPS service codes |
+
+### How ServiceType Enables Per-Warehouse Control
+
+1. **Admin creates ShippingOption** with ProviderKey=`fedex`, ServiceType=`FEDEX_GROUND`
+2. **Quote request** for that warehouse collects all enabled ShippingOptions
+3. **ShippingQuoteService** groups by ProviderKey and calls `GetRatesForServicesAsync` with the service types
+4. **FedExShippingProvider** fetches rates from API, filters to only the requested services, applies markup
+
+This ensures:
+- Only warehouse-enabled services are returned (not all FedEx services)
+- Product-level restrictions (`AllowedShippingOptions`/`ExcludedShippingOptions`) work for all providers
+- Different warehouses can offer different service levels from the same carrier
 
 ### Provider Configuration Flow
 
@@ -135,7 +155,7 @@ public class ShippingOption
        │
        ▼
 2. BuildRequestAsync() → ShippingQuoteRequest
-       │ - Loads products with shipping options
+       │ - Loads products with shipping options (includes ServiceType)
        │ - Builds ShippingQuoteItem per line item
        │ - Creates ShipmentPackage with total weight
        ▼
@@ -146,13 +166,33 @@ public class ShippingOption
        └── Cache Miss ↓
                       ▼
 4. FetchQuotesFromProvidersAsync()
-       │ - Get enabled providers (ordered by SortOrder)
+       │ - Get enabled ShippingOptions for warehouse
+       │ - Group ShippingOptions by ProviderKey
        │ - For each provider:
+       │     - Get serviceTypes from that provider's ShippingOptions
        │     - Check IsAvailableFor(request)
-       │     - Call GetRatesAsync(request)
+       │     - If provider.UsesLiveRates && serviceTypes.Any():
+       │         Call GetRatesForServicesAsync(request, serviceTypes, options)
+       │     - Else:
+       │         Call GetRatesAsync(request)
        ▼
 5. Return List<ShippingRateQuote> (cached for 10 min)
 ```
+
+### GetRatesForServicesAsync vs GetRatesAsync
+
+| Method | When Used | Purpose |
+|--------|-----------|---------|
+| `GetRatesAsync` | Flat-rate providers | Returns all configured rates |
+| `GetRatesForServicesAsync` | External providers (FedEx, UPS) | Fetches rates filtered to only enabled service types |
+
+The `GetRatesForServicesAsync` method receives:
+- `serviceTypes`: List of service codes to fetch (e.g., `["FEDEX_GROUND", "FEDEX_2_DAY"]`)
+- `shippingOptions`: The ShippingOption records containing per-method settings (markup, etc.)
+
+Providers can implement this efficiently by:
+1. Filtering at the API level (pass service types to carrier API if supported)
+2. Or filtering responses after fetching (default `ShippingProviderBase` implementation)
 
 ## Service Level Structure
 
@@ -239,7 +279,7 @@ src/Merchello.Core/Shipping/
 │   └── ShippingWeightTierSnapshot.cs           # NEW: Weight tier for quote context
 ├── Models/
 │   ├── ShippingProviderConfiguration.cs
-│   ├── ShippingOption.cs                       # Updated: +ProviderKey, ProviderSettings, IsEnabled
+│   ├── ShippingOption.cs                       # +ProviderKey, ServiceType, ProviderSettings, IsEnabled
 │   ├── ShippingCost.cs
 │   ├── ShippingWeightTier.cs
 │   ├── ShippingOptionCountry.cs

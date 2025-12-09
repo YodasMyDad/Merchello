@@ -69,6 +69,62 @@ Providers can have two types of configuration:
    - Method name, service level, delivery days, markup
    - Stored in `ShippingOption.ProviderSettings` as JSON
    - Each warehouse can have multiple methods from same provider
+   - `ServiceType` field identifies the carrier service (e.g., `FEDEX_GROUND`)
+
+---
+
+## GetRatesForServicesAsync
+
+External providers (FedEx, UPS, etc.) should implement `GetRatesForServicesAsync` to support per-warehouse service filtering:
+
+```csharp
+public override async Task<ShippingRateQuote?> GetRatesForServicesAsync(
+    ShippingQuoteRequest request,
+    IReadOnlyList<string> serviceTypes,           // ["FEDEX_GROUND", "FEDEX_2_DAY"]
+    IReadOnlyList<ShippingOptionSnapshot> options, // Contains markup settings per service
+    CancellationToken ct = default)
+{
+    // 1. Fetch rates from carrier API
+    var allRates = await _carrierClient.GetRatesAsync(request, ct);
+
+    // 2. Filter to only requested service types
+    var filteredRates = allRates.Where(r => serviceTypes.Contains(r.ServiceCode));
+
+    // 3. Apply per-method markup from ShippingOption.ProviderSettings
+    var serviceLevels = filteredRates.Select(rate =>
+    {
+        var option = options.FirstOrDefault(o => o.ServiceType == rate.ServiceCode);
+        var markup = GetMarkupFromSettings(option?.ProviderSettings);
+        var adjustedCost = rate.TotalCost * (1 + markup / 100);
+
+        return new ShippingServiceLevel
+        {
+            ServiceCode = rate.ServiceCode,
+            ServiceName = option?.Name ?? rate.ServiceName, // Use custom name if set
+            TotalCost = adjustedCost,
+            CurrencyCode = rate.CurrencyCode,
+            ExtendedProperties = new Dictionary<string, string>
+            {
+                ["fedexServiceType"] = rate.ServiceCode  // For filtering by base class
+            }
+        };
+    }).ToList();
+
+    return new ShippingRateQuote
+    {
+        ProviderKey = Metadata.Key,
+        ProviderName = Metadata.DisplayName,
+        ServiceLevels = serviceLevels
+    };
+}
+```
+
+**Why this matters:**
+- Without this, FedEx would return ALL service types regardless of warehouse configuration
+- Product restrictions (`AllowedShippingOptions`/`ExcludedShippingOptions`) only work when services are ShippingOption records
+- Each warehouse can enable different services (East Coast: Ground only, West Coast: Ground + 2Day)
+
+The default `ShippingProviderBase` implementation calls `GetRatesAsync` and filters results by checking `ExtendedProperties` for keys ending in `ServiceType`.
 
 ---
 
@@ -190,7 +246,11 @@ public class FedExShippingProvider : ShippingProviderBase
             TotalCost = rate.TotalCharge,
             CurrencyCode = rate.Currency,
             TransitTime = TimeSpan.FromDays(rate.TransitDays),
-            EstimatedDeliveryDate = rate.DeliveryDate
+            EstimatedDeliveryDate = rate.DeliveryDate,
+            ExtendedProperties = new Dictionary<string, string>
+            {
+                ["fedexServiceType"] = rate.ServiceType  // Used for filtering
+            }
         }).ToList();
 
         return new ShippingRateQuote
@@ -199,6 +259,62 @@ public class FedExShippingProvider : ShippingProviderBase
             ProviderName = Metadata.DisplayName,
             ServiceLevels = serviceLevels
         };
+    }
+
+    // Override for efficient per-service filtering with markup
+    public override async Task<ShippingRateQuote?> GetRatesForServicesAsync(
+        ShippingQuoteRequest request,
+        IReadOnlyList<string> serviceTypes,
+        IReadOnlyList<ShippingOptionSnapshot> shippingOptions,
+        CancellationToken ct = default)
+    {
+        if (!IsAvailableFor(request)) return null;
+
+        // Fetch all rates
+        var allRates = await GetRatesAsync(request, ct);
+        if (allRates == null) return null;
+
+        // Filter to requested services and apply markup
+        var serviceTypeSet = new HashSet<string>(serviceTypes, StringComparer.OrdinalIgnoreCase);
+        var filteredLevels = allRates.ServiceLevels
+            .Where(sl => sl.ExtendedProperties?.TryGetValue("fedexServiceType", out var st) == true
+                         && serviceTypeSet.Contains(st))
+            .Select(sl =>
+            {
+                var fedexServiceType = sl.ExtendedProperties!["fedexServiceType"];
+                var option = shippingOptions.FirstOrDefault(o =>
+                    string.Equals(o.ServiceType, fedexServiceType, StringComparison.OrdinalIgnoreCase));
+
+                // Apply markup from ProviderSettings
+                var markup = GetMarkupFromSettings(option?.ProviderSettings);
+                var adjustedCost = sl.TotalCost * (1 + markup / 100);
+
+                return new ShippingServiceLevel
+                {
+                    ServiceCode = sl.ServiceCode,
+                    ServiceName = option?.Name ?? sl.ServiceName,
+                    TotalCost = adjustedCost,
+                    CurrencyCode = sl.CurrencyCode,
+                    TransitTime = sl.TransitTime,
+                    EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
+                    ExtendedProperties = sl.ExtendedProperties
+                };
+            })
+            .ToList();
+
+        return new ShippingRateQuote
+        {
+            ProviderKey = Metadata.Key,
+            ProviderName = Metadata.DisplayName,
+            ServiceLevels = filteredLevels
+        };
+    }
+
+    private static decimal GetMarkupFromSettings(string? providerSettingsJson)
+    {
+        if (string.IsNullOrEmpty(providerSettingsJson)) return 0;
+        var settings = JsonSerializer.Deserialize<Dictionary<string, string>>(providerSettingsJson);
+        return decimal.TryParse(settings?.GetValueOrDefault("markup"), out var m) ? m : 0;
     }
 }
 ```
@@ -735,6 +851,8 @@ async function selectShippingOption(basketId: string, providerKey: string, servi
 - Use `ExtendedProperties` for provider-specific data (tracking URL templates, etc.)
 - Weight should be in kilograms, dimensions in centimeters
 - Always check `IsAvailableFor` before making expensive API calls
+- For external providers, include the service type in `ExtendedProperties` with a key ending in `ServiceType` (e.g., `fedexServiceType`, `upsServiceType`) - the base class uses this for filtering
+- Override `GetRatesForServicesAsync` for efficient per-service filtering with markup support
 
 
 

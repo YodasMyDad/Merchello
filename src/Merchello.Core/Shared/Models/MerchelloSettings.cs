@@ -75,6 +75,21 @@ public class MerchelloSettings
     public bool HasCountryRestrictions => AllowedCountries is { Length: > 0 };
 
     /// <summary>
+    /// Available option type aliases for product options.
+    /// These define what kind of attribute the option represents.
+    /// Examples: "colour", "size", "material", "pattern"
+    /// </summary>
+    public string[] OptionTypeAliases { get; set; } = ["colour", "size", "material", "pattern"];
+
+    /// <summary>
+    /// Available option UI aliases that control how options are displayed to customers.
+    /// - "dropdown": Standard select dropdown
+    /// - "colour": Color swatches with hex values
+    /// - "image": Image/media selection for each value
+    /// </summary>
+    public string[] OptionUiAliases { get; set; } = ["dropdown", "colour", "image"];
+
+    /// <summary>
     /// Check if a country code is allowed by store settings.
     /// Returns true if no restrictions are configured or if the country is in the allowed list.
     /// </summary>

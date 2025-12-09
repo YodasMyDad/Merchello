@@ -349,7 +349,18 @@ public class ShippingProvidersApiController(
                     request.WidthCm,
                     request.HeightCm)
             ],
-            Items = [] // No actual items for test
+            Items =
+            [
+                new ShippingQuoteItem
+                {
+                    Quantity = 1,
+                    IsShippable = true,
+                    TotalWeightKg = request.WeightKg,
+                    LengthCm = request.LengthCm,
+                    WidthCm = request.WidthCm,
+                    HeightCm = request.HeightCm
+                }
+            ]
         };
 
         // 4. Get rates from the provider

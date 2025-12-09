@@ -276,6 +276,43 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     return this._customItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   }
 
+  /** Options for country dropdown - uui-select requires .options property */
+  private _getCountryOptions(prefix: "billing" | "shipping"): Array<{ name: string; value: string; selected?: boolean }> {
+    const address = prefix === "billing" ? this._billingAddress : this._shippingAddress;
+    const options: Array<{ name: string; value: string; selected?: boolean }> = [
+      { name: "Select country...", value: "", selected: !address.countryCode }
+    ];
+
+    this._countries.forEach(c => {
+      options.push({
+        name: c.name,
+        value: c.code,
+        selected: c.code === address.countryCode
+      });
+    });
+
+    return options;
+  }
+
+  /** Options for past shipping address dropdown */
+  private get _pastShippingAddressOptions(): Array<{ name: string; value: string; selected?: boolean }> {
+    const options: Array<{ name: string; value: string; selected?: boolean }> = [
+      { name: "Select an address...", value: "", selected: true }
+    ];
+
+    if (this._selectedCustomer) {
+      this._selectedCustomer.pastShippingAddresses.forEach((addr, i) => {
+        options.push({
+          name: `${addr.addressOne}, ${addr.townCity}, ${addr.postalCode}`,
+          value: i.toString(),
+          selected: false
+        });
+      });
+    }
+
+    return options;
+  }
+
   private async _handleSave(): Promise<void> {
     if (!this._validateForm()) {
       this.#notificationContext?.peek("warning", {
@@ -366,7 +403,6 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
   }
 
   private _renderCountrySelect(prefix: "billing" | "shipping") {
-    const address = prefix === "billing" ? this._billingAddress : this._shippingAddress;
     const error = this._validationErrors[`${prefix}.countryCode`];
     const updateFn = prefix === "billing" ? this._updateBillingField : this._updateShippingField;
 
@@ -374,19 +410,14 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
       <div class="form-field ${error ? 'has-error' : ''}">
         <label>Country<span class="required">*</span></label>
         <uui-select
-          .value=${address.countryCode ?? ""}
+          .options=${this._getCountryOptions(prefix)}
           @change=${(e: Event) => {
             const select = e.target as HTMLSelectElement;
             const country = this._countries.find((c) => c.code === select.value);
             updateFn.call(this, "countryCode", select.value || null);
             updateFn.call(this, "country", country?.name ?? null);
           }}
-        >
-          <option value="">Select country...</option>
-          ${this._countries.map(
-            (country) => html`<option value=${country.code}>${country.name}</option>`
-          )}
-        </uui-select>
+        ></uui-select>
         ${error ? html`<span class="error-text">${error}</span>` : nothing}
       </div>
     `;
@@ -480,22 +511,14 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
             <div class="form-field">
               <label>Use a past shipping address</label>
               <uui-select
+                .options=${this._pastShippingAddressOptions}
                 @change=${(e: Event) => {
                   const index = parseInt((e.target as HTMLSelectElement).value);
                   if (!isNaN(index) && this._selectedCustomer) {
                     this._selectPastShippingAddress(this._selectedCustomer.pastShippingAddresses[index]);
                   }
                 }}
-              >
-                <option value="">Select an address...</option>
-                ${this._selectedCustomer.pastShippingAddresses.map(
-                  (addr, i) => html`
-                    <option value=${i}>
-                      ${addr.addressOne}, ${addr.townCity}, ${addr.postalCode}
-                    </option>
-                  `
-                )}
-              </uui-select>
+              ></uui-select>
             </div>
           ` : nothing}
 
@@ -668,15 +691,12 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
   static styles = css`
     :host {
       display: block;
-      height: 100%;
     }
 
     #main {
-      padding: var(--uui-size-space-5);
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-5);
-      min-width: 600px;
     }
 
     .loading {

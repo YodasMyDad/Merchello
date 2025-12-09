@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,4 +21,17 @@ public interface ILocationsService
     /// the country or availability cannot be enumerated, returns an empty collection.
     /// </summary>
     Task<IReadOnlyCollection<RegionAvailability>> GetAvailableRegionsAsync(string countryCode, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns the list of countries that a specific warehouse can service,
+    /// based on its service region configuration.
+    /// If the warehouse has no service regions, returns all countries (unrestricted).
+    /// </summary>
+    Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesForWarehouseAsync(Guid warehouseId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns the list of regions (state/province codes) that a specific warehouse
+    /// can service for a given country, based on its service region configuration.
+    /// </summary>
+    Task<IReadOnlyCollection<RegionAvailability>> GetAvailableRegionsForWarehouseAsync(Guid warehouseId, string countryCode, CancellationToken ct = default);
 }

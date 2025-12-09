@@ -85,5 +85,11 @@ public class ProductRoot
     /// The Categories this product is in
     /// </summary>
     public virtual ICollection<ProductCategory> Categories { get; set; } = new HashSet<ProductCategory>();
+
+    /// <summary>
+    /// Indicates whether this is a digital product (no physical shipping required).
+    /// Digital products do not require warehouse assignment or shipping options.
+    /// </summary>
+    public bool IsDigitalProduct { get; set; }
 }
 

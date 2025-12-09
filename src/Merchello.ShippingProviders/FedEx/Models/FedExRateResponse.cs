@@ -105,4 +105,16 @@ public class FedExError
 
     [JsonPropertyName("message")]
     public string? Message { get; set; }
+
+    [JsonPropertyName("parameterList")]
+    public List<FedExErrorParameter>? ParameterList { get; set; }
+}
+
+public class FedExErrorParameter
+{
+    [JsonPropertyName("key")]
+    public string? Key { get; set; }
+
+    [JsonPropertyName("value")]
+    public string? Value { get; set; }
 }

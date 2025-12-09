@@ -667,11 +667,6 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
   static styles = css`
     :host {
       display: block;
-      height: 100%;
-    }
-
-    #main {
-      padding: var(--uui-size-layout-1);
     }
 
     .loading {

@@ -9,18 +9,14 @@ namespace Merchello.ShippingProviders.FedEx;
 /// </summary>
 public class FedExShippingProvider : ShippingProviderBase, IDisposable
 {
-    private const string HttpClientName = "FedEx";
-    private readonly IHttpClientFactory _httpClientFactory;
     private FedExApiClient? _apiClient;
     private bool _disposed;
 
     /// <summary>
     /// Creates a new FedEx shipping provider instance.
     /// </summary>
-    /// <param name="httpClientFactory">HTTP client factory for creating managed HttpClient instances.</param>
-    public FedExShippingProvider(IHttpClientFactory httpClientFactory)
+    public FedExShippingProvider()
     {
-        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
     }
 
     /// <inheritdoc />
@@ -157,8 +153,6 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
                 Options =
                 [
                     new SelectOption { Value = "FEDEX_GROUND", Label = "FedEx Ground" },
-                    new SelectOption { Value = "GROUND_HOME_DELIVERY", Label = "FedEx Home Delivery" },
-                    new SelectOption { Value = "FEDEX_EXPRESS_SAVER", Label = "FedEx Express Saver" },
                     new SelectOption { Value = "FEDEX_2_DAY", Label = "FedEx 2Day" },
                     new SelectOption { Value = "FEDEX_2_DAY_AM", Label = "FedEx 2Day A.M." },
                     new SelectOption { Value = "STANDARD_OVERNIGHT", Label = "FedEx Standard Overnight" },
@@ -217,10 +211,9 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
 
             var useSandbox = environment.Equals("sandbox", StringComparison.OrdinalIgnoreCase);
 
-            // Use IHttpClientFactory for proper socket management and DNS refresh
-            var httpClient = _httpClientFactory.CreateClient(HttpClientName);
+            // Create API client with its own HttpClient configured for gzip decompression
+            // (FedEx API returns gzip-compressed responses)
             _apiClient = new FedExApiClient(
-                httpClient,
                 clientId,
                 clientSecret,
                 accountNumber,
@@ -237,7 +230,6 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
     {
         _apiClient?.Dispose();
         _apiClient = null;
-        // Note: HttpClient is managed by IHttpClientFactory, we don't dispose it
     }
 
     /// <inheritdoc />
@@ -315,7 +307,7 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
                     ProviderKey = Metadata.Key,
                     ProviderName = Metadata.DisplayName,
                     ServiceLevels = [],
-                    Errors = response.Errors.Select(e => e.Message ?? e.Code ?? "Unknown error").ToList()
+                    Errors = response.Errors.Select(FormatFedExError).ToList()
                 };
             }
 
@@ -398,6 +390,115 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
         }
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Overrides the base implementation to filter FedEx results by service type
+    /// and apply per-method markup from ProviderSettings.
+    /// </remarks>
+    public override async Task<ShippingRateQuote?> GetRatesForServicesAsync(
+        ShippingQuoteRequest request,
+        IReadOnlyList<string> serviceTypes,
+        IReadOnlyList<ShippingOptionSnapshot> shippingOptions,
+        CancellationToken cancellationToken = default)
+    {
+        // Get all FedEx rates
+        var quote = await GetRatesAsync(request, cancellationToken);
+        if (quote == null)
+            return null;
+
+        // Build lookup for service type -> shipping option (for markup)
+        var optionsByServiceType = shippingOptions
+            .Where(o => !string.IsNullOrEmpty(o.ServiceType))
+            .ToDictionary(o => o.ServiceType!, o => o, StringComparer.OrdinalIgnoreCase);
+
+        // Filter to only requested service types and apply markup
+        var serviceTypeSet = new HashSet<string>(serviceTypes, StringComparer.OrdinalIgnoreCase);
+        var filteredLevels = new List<ShippingServiceLevel>();
+
+        foreach (var sl in quote.ServiceLevels)
+        {
+            // Get the FedEx service type from extended properties
+            if (sl.ExtendedProperties?.TryGetValue("fedexServiceType", out var fedexType) != true)
+                continue;
+
+            // Only include if in requested service types
+            if (fedexType is null || !serviceTypeSet.Contains(fedexType))
+                continue;
+
+            var totalCost = sl.TotalCost;
+            var serviceName = sl.ServiceName;
+            var extendedProps = sl.ExtendedProperties != null
+                ? new Dictionary<string, string>(sl.ExtendedProperties)
+                : new Dictionary<string, string>();
+
+            // Apply markup if configured for this service type
+            if (optionsByServiceType.TryGetValue(fedexType, out var option))
+            {
+                var markup = GetMarkupFromSettings(option.ProviderSettings);
+                if (markup > 0)
+                {
+                    totalCost = sl.TotalCost * (1 + markup / 100m);
+                    totalCost = Math.Round(totalCost, 2);
+                }
+
+                // Use custom name from ShippingOption if provided
+                if (!string.IsNullOrEmpty(option.Name))
+                {
+                    serviceName = option.Name;
+                }
+
+                // Add ShippingOptionId to extended properties
+                extendedProps["shippingOptionId"] = option.Id.ToString();
+            }
+
+            // Create new service level with potentially modified values
+            filteredLevels.Add(new ShippingServiceLevel
+            {
+                ServiceCode = sl.ServiceCode,
+                ServiceName = serviceName,
+                TotalCost = totalCost,
+                CurrencyCode = sl.CurrencyCode,
+                TransitTime = sl.TransitTime,
+                EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
+                Description = sl.Description,
+                ExtendedProperties = extendedProps
+            });
+        }
+
+        // Sort by cost
+        filteredLevels = filteredLevels.OrderBy(s => s.TotalCost).ToList();
+
+        return new ShippingRateQuote
+        {
+            ProviderKey = quote.ProviderKey,
+            ProviderName = quote.ProviderName,
+            ServiceLevels = filteredLevels,
+            Errors = quote.Errors
+        };
+    }
+
+    private static decimal GetMarkupFromSettings(string? providerSettingsJson)
+    {
+        if (string.IsNullOrEmpty(providerSettingsJson))
+            return 0;
+
+        try
+        {
+            var settings = JsonSerializer.Deserialize<Dictionary<string, string>>(providerSettingsJson);
+            if (settings?.TryGetValue("markup", out var markupStr) == true &&
+                decimal.TryParse(markupStr, out var markup))
+            {
+                return markup;
+            }
+        }
+        catch (JsonException)
+        {
+            // Invalid JSON, ignore
+        }
+
+        return 0;
+    }
+
     private static List<FedExPackageLineItem> BuildPackages(ShippingQuoteRequest request)
     {
         // If pre-built packages exist, use them
@@ -449,8 +550,6 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
         return serviceType switch
         {
             "FEDEX_GROUND" => "FedEx Ground",
-            "GROUND_HOME_DELIVERY" => "FedEx Home Delivery",
-            "FEDEX_EXPRESS_SAVER" => "FedEx Express Saver",
             "FEDEX_2_DAY" => "FedEx 2Day",
             "FEDEX_2_DAY_AM" => "FedEx 2Day A.M.",
             "STANDARD_OVERNIGHT" => "FedEx Standard Overnight",
@@ -475,6 +574,26 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
         }
 
         return null;
+    }
+
+    private static string FormatFedExError(FedExError error)
+    {
+        var message = error.Message ?? error.Code ?? "Unknown error";
+
+        // Include parameter details if available (helps debugging)
+        if (error.ParameterList?.Count > 0)
+        {
+            var parameters = string.Join(", ", error.ParameterList
+                .Where(p => !string.IsNullOrEmpty(p.Key))
+                .Select(p => $"{p.Key}: {p.Value}"));
+
+            if (!string.IsNullOrEmpty(parameters))
+            {
+                message += $" ({parameters})";
+            }
+        }
+
+        return message;
     }
 
     /// <summary>

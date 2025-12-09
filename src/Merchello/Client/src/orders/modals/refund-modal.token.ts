@@ -17,6 +17,6 @@ export const MERCHELLO_REFUND_MODAL = new UmbModalToken<
 >("Merchello.Refund.Modal", {
   modal: {
     type: "sidebar",
-    size: "small",
+    size: "medium",
   },
 });

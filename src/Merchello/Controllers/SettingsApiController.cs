@@ -84,6 +84,20 @@ public class SettingsApiController(
         }).ToList();
         return Ok(result);
     }
+
+    /// <summary>
+    /// Get product option settings (available option types and UI aliases)
+    /// </summary>
+    [HttpGet("settings/product-options")]
+    [ProducesResponseType<ProductOptionSettingsDto>(StatusCodes.Status200OK)]
+    public IActionResult GetProductOptionSettings()
+    {
+        return Ok(new ProductOptionSettingsDto
+        {
+            OptionTypeAliases = settings.Value.OptionTypeAliases,
+            OptionUiAliases = settings.Value.OptionUiAliases
+        });
+    }
 }
 
 /// <summary>
@@ -145,4 +159,20 @@ public class StoreSettingsDto
     /// Invoice number prefix, e.g., "INV-"
     /// </summary>
     public string InvoiceNumberPrefix { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Product option configuration settings
+/// </summary>
+public class ProductOptionSettingsDto
+{
+    /// <summary>
+    /// Available option type aliases (e.g., "colour", "size", "material", "pattern")
+    /// </summary>
+    public string[] OptionTypeAliases { get; set; } = [];
+
+    /// <summary>
+    /// Available option UI aliases (e.g., "dropdown", "colour", "image")
+    /// </summary>
+    public string[] OptionUiAliases { get; set; } = [];
 }

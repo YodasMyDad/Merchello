@@ -44,6 +44,21 @@ public interface IShippingProvider
     Task<ShippingRateQuote?> GetRatesAsync(ShippingQuoteRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Requests live rates from the provider, filtered to specific service types.
+    /// Used when a warehouse has enabled only specific service types from this provider.
+    /// </summary>
+    /// <param name="request">The shipping quote request.</param>
+    /// <param name="serviceTypes">Service type codes to include (e.g., "FEDEX_GROUND", "FEDEX_2_DAY").</param>
+    /// <param name="shippingOptions">The ShippingOption records for each service type (contains markup settings).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A quote with only the requested service levels, or null when no services are available.</returns>
+    Task<ShippingRateQuote?> GetRatesForServicesAsync(
+        ShippingQuoteRequest request,
+        IReadOnlyList<string> serviceTypes,
+        IReadOnlyList<ShippingOptionSnapshot> shippingOptions,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets available delivery dates for a specific service level.
     /// Returns empty list if delivery date selection is not supported.
     /// </summary>

@@ -26,6 +26,10 @@ public class ShippingOptionDbMapping : IEntityTypeConfiguration<ShippingOption>
         // ProviderSettings is a JSON string - EF Core will use nvarchar(max) on SQL Server, TEXT on SQLite
         builder.Property(x => x.ProviderSettings);
 
+        // ServiceType for external providers (e.g., "FEDEX_GROUND")
+        builder.Property(x => x.ServiceType)
+            .HasMaxLength(50);
+
         builder.Property(x => x.IsEnabled)
             .HasDefaultValue(true);
 

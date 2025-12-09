@@ -113,12 +113,14 @@ export class MerchelloCreateSupplierModalElement extends UmbModalBaseElement<
   }
 
   static styles = css`
+    :host {
+      display: block;
+    }
+
     #main {
-      padding: var(--uui-size-space-5);
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-5);
-      min-width: 400px;
     }
 
     /* Info box */

@@ -75,6 +75,18 @@ public class ShippingQuoteService(
         IReadOnlyCollection<RegisteredShippingProvider> providers = await providerRegistry.GetEnabledProvidersAsync(cancellationToken);
         List<ShippingRateQuote> quotes = [];
 
+        // Collect all shipping options from all items in the request
+        var allOptions = request.Items
+            .Where(i => i.ProductSnapshot?.ShippingOptions != null)
+            .SelectMany(i => i.ProductSnapshot!.ShippingOptions)
+            .Where(o => o.CanShipToDestination)
+            .ToList();
+
+        // Group shipping options by provider key
+        var optionsByProvider = allOptions
+            .GroupBy(o => o.ProviderKey)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         foreach (var provider in providers)
         {
             if (!provider.Provider.IsAvailableFor(request))
@@ -84,10 +96,43 @@ public class ShippingQuoteService(
 
             try
             {
-                var quote = await provider.Provider.GetRatesAsync(request, cancellationToken);
-                if (quote != null)
+                var providerKey = provider.Metadata.Key;
+
+                // Check if this provider uses live rates and has service types configured
+                if (provider.Metadata.ConfigCapabilities?.UsesLiveRates == true &&
+                    optionsByProvider.TryGetValue(providerKey, out var providerOptions))
                 {
-                    quotes.Add(quote);
+                    // External provider (FedEx, UPS, etc.) - filter by configured service types
+                    var serviceTypes = providerOptions
+                        .Where(o => !string.IsNullOrEmpty(o.ServiceType))
+                        .Select(o => o.ServiceType!)
+                        .Distinct()
+                        .ToList();
+
+                    if (serviceTypes.Count > 0)
+                    {
+                        // Call GetRatesForServicesAsync with the enabled service types
+                        var quote = await provider.Provider.GetRatesForServicesAsync(
+                            request,
+                            serviceTypes,
+                            providerOptions,
+                            cancellationToken);
+
+                        if (quote != null)
+                        {
+                            quotes.Add(quote);
+                        }
+                    }
+                    // If no service types configured, provider is available but nothing enabled for this warehouse
+                }
+                else
+                {
+                    // Flat rate or other provider - use existing logic
+                    var quote = await provider.Provider.GetRatesAsync(request, cancellationToken);
+                    if (quote != null)
+                    {
+                        quotes.Add(quote);
+                    }
                 }
             }
             catch (Exception ex)
@@ -239,6 +284,13 @@ public class ShippingQuoteService(
                 var destinationCost = ResolveShippingCost(option.ShippingCosts, countryCode, stateOrProvinceCode);
                 var canShip = option.Warehouse.CanServeRegion(countryCode, stateOrProvinceCode);
 
+                // For external providers, they're available if the warehouse can ship to the region
+                // For flat-rate, they need a destination cost configured
+                var isExternalProvider = option.ProviderKey != "flat-rate";
+                var canShipToDestination = isExternalProvider
+                    ? canShip  // External providers calculate costs at runtime
+                    : canShip && destinationCost.HasValue;  // Flat rate needs cost configured
+
                 return new ShippingOptionSnapshot
                 {
                     Id = option.Id,
@@ -249,13 +301,16 @@ public class ShippingQuoteService(
                     IsNextDay = option.IsNextDay,
                     FixedCost = option.FixedCost,
                     NextDayCutOffTime = option.NextDayCutOffTime,
-                    CanShipToDestination = canShip && destinationCost.HasValue,
+                    CanShipToDestination = canShipToDestination,
                     DestinationCost = destinationCost,
                     AllowsDeliveryDateSelection = option.AllowsDeliveryDateSelection,
                     MinDeliveryDays = option.MinDeliveryDays,
                     MaxDeliveryDays = option.MaxDeliveryDays,
                     AllowedDaysOfWeek = option.AllowedDaysOfWeek,
                     IsDeliveryDateGuaranteed = option.IsDeliveryDateGuaranteed,
+                    ProviderKey = option.ProviderKey,
+                    ServiceType = option.ServiceType,
+                    ProviderSettings = option.ProviderSettings,
                     Costs = option.ShippingCosts
                         .Select(cost => new ShippingCostSnapshot
                         {

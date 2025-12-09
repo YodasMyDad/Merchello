@@ -6,6 +6,8 @@ import { PRODUCT_COLUMN_LABELS, DEFAULT_PRODUCT_COLUMNS } from "@products/types/
 import { formatCurrency } from "@shared/utils/formatting.js";
 import { getProductDetailHref } from "@shared/utils/navigation.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
+import type { WarningItem } from "@shared/components/warning-popover.element.js";
+import "@shared/components/warning-popover.element.js";
 
 export interface ProductClickEventDetail {
   productId: string;
@@ -97,9 +99,47 @@ export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
         return html`<uui-table-cell><span class="badge ${this._getStockBadgeClass(product.totalStock)}">${product.totalStock}</span></uui-table-cell>`;
       case "variants":
         return html`<uui-table-cell><span class="badge badge-default">${product.variantCount}</span></uui-table-cell>`;
+      case "warnings":
+        return this._renderWarningsCell(product);
       default:
         return nothing;
     }
+  }
+
+  private _getProductWarnings(product: ProductListItemDto): WarningItem[] {
+    const warnings: WarningItem[] = [];
+
+    // Digital products don't need warehouse or shipping
+    if (product.isDigitalProduct) {
+      return warnings;
+    }
+
+    // Error: No warehouse assigned
+    if (!product.hasWarehouse) {
+      warnings.push({
+        type: "error",
+        message: "No warehouse assigned. This product cannot be fulfilled.",
+      });
+    }
+
+    // Warning: No shipping options (only if warehouse is assigned)
+    if (product.hasWarehouse && !product.hasShippingOptions) {
+      warnings.push({
+        type: "warning",
+        message: "No shipping options configured for assigned warehouses.",
+      });
+    }
+
+    return warnings;
+  }
+
+  private _renderWarningsCell(product: ProductListItemDto): unknown {
+    const warnings = this._getProductWarnings(product);
+    return html`
+      <uui-table-cell class="warnings-col">
+        <merchello-warning-popover .warnings=${warnings}></merchello-warning-popover>
+      </uui-table-cell>
+    `;
   }
 
   private _getStockBadgeClass(stock: number): string {
@@ -146,6 +186,7 @@ export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
       uui-table-row.clickable { cursor: pointer; }
       uui-table-row.clickable:hover { background: var(--uui-color-surface-emphasis); }
       .checkbox-col { width: 40px; }
+      .warnings-col { width: 40px; text-align: center; }
       .product-name a { font-weight: 500; color: var(--uui-color-interactive); text-decoration: none; }
       .product-name a:hover { text-decoration: underline; }
     `,

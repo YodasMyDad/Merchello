@@ -58,21 +58,42 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
 
   private async _loadCountries(): Promise<void> {
     this._isLoadingCountries = true;
-    const { data } = await MerchelloApi.getCountries();
-    if (data) {
-      this._countries = data;
+
+    // Use warehouse-filtered destinations if warehouseId is provided
+    if (this.data?.warehouseId) {
+      const { data } = await MerchelloApi.getAvailableDestinationsForWarehouse(this.data.warehouseId);
+      if (data) {
+        this._countries = data;
+      }
+    } else {
+      // Fallback to all countries
+      const { data } = await MerchelloApi.getCountries();
+      if (data) {
+        this._countries = data;
+      }
     }
+
     this._isLoadingCountries = false;
   }
 
   private async _loadRegions(countryCode: string): Promise<void> {
     this._isLoadingRegions = true;
     this._regions = [];
-    
-    const { data } = await MerchelloApi.getLocalityRegions(countryCode);
-    if (data) {
-      this._regions = data;
+
+    // Use warehouse-filtered regions if warehouseId is provided
+    if (this.data?.warehouseId) {
+      const { data } = await MerchelloApi.getAvailableRegionsForWarehouse(this.data.warehouseId, countryCode);
+      if (data) {
+        this._regions = data;
+      }
+    } else {
+      // Fallback to all regions
+      const { data } = await MerchelloApi.getLocalityRegions(countryCode);
+      if (data) {
+        this._regions = data;
+      }
     }
+
     this._isLoadingRegions = false;
   }
 
@@ -81,10 +102,45 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
     this._countryCode = value;
     this._stateOrProvinceCode = "";
     this._regions = [];
-    
+
     if (value && value !== "*") {
       this._loadRegions(value);
     }
+  }
+
+  /** Options for destination dropdown */
+  private get _destinationOptions(): Array<{ name: string; value: string; selected?: boolean }> {
+    const options: Array<{ name: string; value: string; selected?: boolean }> = [
+      { name: "Select a destination...", value: "", selected: !this._countryCode },
+      { name: "★ All Destinations (Default Rate)", value: "*", selected: this._countryCode === "*" },
+    ];
+
+    this._countries.forEach(c => {
+      options.push({
+        name: c.name,
+        value: c.code,
+        selected: c.code === this._countryCode
+      });
+    });
+
+    return options;
+  }
+
+  /** Options for region dropdown */
+  private get _regionOptions(): Array<{ name: string; value: string; selected?: boolean }> {
+    const options: Array<{ name: string; value: string; selected?: boolean }> = [
+      { name: "Entire country (all regions)", value: "", selected: !this._stateOrProvinceCode }
+    ];
+
+    this._regions.forEach(r => {
+      options.push({
+        name: r.name,
+        value: r.regionCode,
+        selected: r.regionCode === this._stateOrProvinceCode
+      });
+    });
+
+    return options;
   }
 
   private async _save(): Promise<void> {
@@ -164,18 +220,9 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
               : html`
                   <uui-select
                     id="countryCode"
+                    .options=${this._destinationOptions}
                     @change=${this._handleCountryChange}
-                    label="Select destination">
-                    <option value="" ?selected=${!this._countryCode}>Select a destination...</option>
-                    <option value="*" ?selected=${this._countryCode === "*"}>
-                      ⭐ All Destinations (Default Rate)
-                    </option>
-                    <optgroup label="Countries">
-                      ${this._countries.map(
-                        (c) => html`<option value="${c.code}" ?selected=${c.code === this._countryCode}>${c.name}</option>`
-                      )}
-                    </optgroup>
-                  </uui-select>
+                  ></uui-select>
                 `}
             <div slot="description">Choose a specific country or set a default rate for all destinations</div>
           </uui-form-layout-item>
@@ -187,25 +234,21 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
                   ${this._isLoadingRegions
                     ? html`<uui-loader></uui-loader>`
                     : this._regions.length > 0
-                    ? html`
-                        <uui-select
-                          id="stateCode"
-                          @change=${(e: Event) => (this._stateOrProvinceCode = (e.target as HTMLSelectElement).value)}
-                          label="Select region">
-                          <option value="" ?selected=${!this._stateOrProvinceCode}>Entire country (all regions)</option>
-                          ${this._regions.map(
-                            (r) => html`<option value="${r.regionCode}" ?selected=${r.regionCode === this._stateOrProvinceCode}>${r.name}</option>`
-                          )}
-                        </uui-select>
-                      `
-                    : html`
-                        <uui-input
-                          id="stateCode"
-                          .value=${this._stateOrProvinceCode}
-                          @input=${(e: InputEvent) => (this._stateOrProvinceCode = (e.target as HTMLInputElement).value)}
-                          placeholder="Optional: CA, NY, etc."
-                        ></uui-input>
-                      `}
+                      ? html`
+                          <uui-select
+                            id="stateCode"
+                            .options=${this._regionOptions}
+                            @change=${(e: Event) => (this._stateOrProvinceCode = (e.target as HTMLSelectElement).value)}
+                          ></uui-select>
+                        `
+                      : html`
+                          <uui-input
+                            id="stateCode"
+                            .value=${this._stateOrProvinceCode}
+                            @input=${(e: InputEvent) => (this._stateOrProvinceCode = (e.target as HTMLInputElement).value)}
+                            placeholder="Optional: CA, NY, etc."
+                          ></uui-input>
+                        `}
                   <div slot="description">Optionally set a rate for a specific state or province</div>
                 </uui-form-layout-item>
               `
@@ -252,11 +295,9 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
     }
 
     .form-content {
-      padding: var(--uui-size-layout-1);
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-5);
-      min-width: 400px;
     }
 
     .info-box {
@@ -301,8 +342,6 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
     [slot="actions"] {
       display: flex;
       gap: var(--uui-size-space-3);
-      padding: var(--uui-size-space-4);
-      border-top: 1px solid var(--uui-color-border);
     }
 
     [slot="description"] {

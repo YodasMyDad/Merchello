@@ -6,6 +6,8 @@ export interface ShippingCostModalData {
   cost?: ShippingCostDto;
   /** The shipping option ID to add the cost to (for create) */
   optionId?: string;
+  /** The warehouse ID to filter available destinations */
+  warehouseId?: string;
 }
 
 export interface ShippingCostModalValue {

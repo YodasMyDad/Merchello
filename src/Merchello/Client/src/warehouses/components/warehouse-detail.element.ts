@@ -646,6 +646,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
   private _renderOptionsTab(): unknown {
     const isNew = this.#workspaceContext?.isNew ?? true;
+    const hasLiveRateOptions = this._shippingOptions.some(o => o.providerKey !== "flat-rate");
 
     return html`
       <div class="tab-content">
@@ -660,10 +661,29 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
         ${!isNew && this._shippingOptions.length === 0
           ? html`
-              <div class="info-banner warning">
-                <uui-icon name="icon-alert"></uui-icon>
-                <span>No shipping methods configured for this warehouse. Add shipping options to offer delivery to customers.</span>
+              <div class="info-banner info">
+                <uui-icon name="icon-info"></uui-icon>
+                <div>
+                  <strong>Configure Shipping Methods</strong>
+                  <p>Add shipping options to enable delivery for products from this warehouse. You can:</p>
+                  <ul>
+                    <li><strong>Flat Rate</strong> - Set manual prices per destination</li>
+                    <li><strong>FedEx/UPS</strong> - Get live rates from carrier APIs (requires provider setup in Settings)</li>
+                  </ul>
+                </div>
               </div>
+            `
+          : nothing}
+
+        <!-- Help text for existing options -->
+        ${!isNew && this._shippingOptions.length > 0
+          ? html`
+              <p class="section-description">
+                These shipping methods are available for products shipped from this warehouse.
+                ${hasLiveRateOptions
+                  ? "Live rate options fetch real-time prices from the carrier's API."
+                  : "Add more options or configure external providers for live rates."}
+              </p>
             `
           : nothing}
 
@@ -709,6 +729,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
   private _renderOptionRow(option: ShippingOptionDto): unknown {
     const isDeleting = this._isDeletingOption === option.id;
+    const isLiveRates = option.providerKey !== "flat-rate";
 
     // Build delivery time description from daysFrom/daysTo
     const deliveryTime = option.isNextDay
@@ -717,18 +738,25 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
         ? `${option.daysFrom} days`
         : `${option.daysFrom}-${option.daysTo} days`;
 
-    // Display cost info - for live rate providers show "Live", otherwise show fixed cost or location-based
-    const costDisplay =
-      option.fixedCost != null
-        ? `$${option.fixedCost.toFixed(2)}`
-        : option.costCount > 0
-          ? `${option.costCount} location(s)`
-          : "—";
+    // Display cost info - for live rate providers show "Live Rates", otherwise show fixed cost or location-based
+    let costDisplay: string;
+    if (isLiveRates) {
+      costDisplay = "Live Rates";
+    } else if (option.fixedCost != null) {
+      costDisplay = `$${option.fixedCost.toFixed(2)}`;
+    } else if (option.costCount > 0) {
+      costDisplay = `${option.costCount} location(s)`;
+    } else {
+      costDisplay = "—";
+    }
 
     return html`
       <uui-table-row class="clickable" @click=${() => this._openShippingOptionModal(option)}>
         <uui-table-cell>
-          <span class="badge badge-default">${option.providerDisplayName || option.providerKey || "Flat Rate"}</span>
+          <span class="badge ${isLiveRates ? "badge-live" : "badge-default"}">
+            ${option.providerDisplayName || option.providerKey || "Flat Rate"}
+          </span>
+          ${option.serviceType ? html`<span class="service-type">${option.serviceType}</span>` : nothing}
         </uui-table-cell>
         <uui-table-cell>
           <span class="option-name">${option.name || "Unnamed"}</span>
@@ -997,6 +1025,54 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
         background: var(--uui-color-warning-standalone);
         color: var(--uui-color-warning-contrast);
         border-color: var(--uui-color-warning);
+      }
+
+      .info-banner.info {
+        background: linear-gradient(135deg, #e3f2fd 0%, #f5f5f5 100%);
+        border-left: 4px solid var(--uui-color-interactive);
+      }
+
+      .info-banner.info strong {
+        display: block;
+        margin-bottom: var(--uui-size-space-2);
+        color: var(--uui-color-text);
+      }
+
+      .info-banner.info p {
+        margin: 0 0 var(--uui-size-space-2);
+        color: var(--uui-color-text-alt);
+      }
+
+      .info-banner.info ul {
+        margin: 0;
+        padding-left: var(--uui-size-space-4);
+      }
+
+      .info-banner.info li {
+        margin-bottom: var(--uui-size-space-1);
+      }
+
+      .section-description {
+        font-size: 0.875rem;
+        color: var(--uui-color-text-alt);
+        margin: 0 0 var(--uui-size-space-4);
+      }
+
+      .badge-live {
+        background: var(--uui-color-positive-standalone);
+        color: white;
+      }
+
+      .badge-default {
+        background: var(--uui-color-surface-alt);
+        border: 1px solid var(--uui-color-border);
+      }
+
+      .service-type {
+        font-size: 0.75rem;
+        color: var(--uui-color-text-alt);
+        display: block;
+        margin-top: var(--uui-size-space-1);
       }
 
       .section-header {

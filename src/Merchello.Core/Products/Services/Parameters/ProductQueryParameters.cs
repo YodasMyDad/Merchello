@@ -16,5 +16,6 @@ public class ProductQueryParameters
     public bool AllVariants { get;set;}
     public bool IncludeProductWarehouses { get; set; } = false;
     public bool IncludeSiblingVariants { get; set; } = false;
+    public bool IncludeProductRootWarehouses { get; set; } = false;
 }
 

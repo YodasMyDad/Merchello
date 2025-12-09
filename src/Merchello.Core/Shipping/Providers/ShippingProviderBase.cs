@@ -46,6 +46,59 @@ public abstract class ShippingProviderBase : IShippingProvider
 
     /// <inheritdoc />
     /// <remarks>
+    /// Default implementation calls GetRatesAsync and filters results by service type.
+    /// External providers should override to filter at the API level for efficiency.
+    /// </remarks>
+    public virtual async Task<ShippingRateQuote?> GetRatesForServicesAsync(
+        ShippingQuoteRequest request,
+        IReadOnlyList<string> serviceTypes,
+        IReadOnlyList<ShippingOptionSnapshot> shippingOptions,
+        CancellationToken cancellationToken = default)
+    {
+        // Default: get all rates and filter
+        var quote = await GetRatesAsync(request, cancellationToken);
+        if (quote == null)
+            return null;
+
+        // Filter to only requested service types
+        var serviceTypeSet = new HashSet<string>(serviceTypes, StringComparer.OrdinalIgnoreCase);
+        var filteredLevels = quote.ServiceLevels
+            .Where(sl =>
+            {
+                // Check ExtendedProperties for provider-specific service type keys
+                // Common patterns: fedexServiceType, upsServiceType, serviceType, etc.
+                if (sl.ExtendedProperties != null)
+                {
+                    foreach (var (key, value) in sl.ExtendedProperties)
+                    {
+                        if (key.EndsWith("ServiceType", StringComparison.OrdinalIgnoreCase) &&
+                            serviceTypeSet.Contains(value))
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                // Fallback: check if ServiceCode matches exactly or contains the service type
+                if (serviceTypeSet.Contains(sl.ServiceCode))
+                    return true;
+
+                return serviceTypes.Any(st =>
+                    sl.ServiceCode.Contains(st, StringComparison.OrdinalIgnoreCase));
+            })
+            .ToList();
+
+        return new ShippingRateQuote
+        {
+            ProviderKey = quote.ProviderKey,
+            ProviderName = quote.ProviderName,
+            ServiceLevels = filteredLevels,
+            Errors = quote.Errors
+        };
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
     /// Default implementation returns empty list (no delivery date selection).
     /// Override to provide available delivery dates.
     /// </remarks>

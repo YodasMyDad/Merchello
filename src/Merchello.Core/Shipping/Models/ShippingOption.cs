@@ -24,10 +24,16 @@ public class ShippingOption
 
     /// <summary>
     /// JSON-serialized provider-specific settings.
-    /// Used by real-time providers for service level, markup, etc.
+    /// Used by real-time providers for markup percentage, etc.
     /// FlatRate uses the existing Costs/WeightTiers tables instead.
     /// </summary>
     public string? ProviderSettings { get; set; }
+
+    /// <summary>
+    /// The service type code for external providers (e.g., "FEDEX_GROUND", "UPS_NEXT_DAY_AIR").
+    /// Null for flat-rate provider which uses Costs/WeightTiers instead.
+    /// </summary>
+    public string? ServiceType { get; set; }
 
     /// <summary>
     /// Whether this shipping method is enabled.

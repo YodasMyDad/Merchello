@@ -180,7 +180,7 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
     }
   }
 
-  private _tableColumns: ProductColumnKey[] = ["select", "rootName", "sku", "price", "purchaseable", "stock", "variants"];
+  private _tableColumns: ProductColumnKey[] = ["select", "warnings", "rootName", "sku", "price", "purchaseable", "stock", "variants"];
 
   private _getProductTypeOptions(): SelectOption[] {
     return [

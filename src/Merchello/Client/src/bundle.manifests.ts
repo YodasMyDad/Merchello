@@ -7,11 +7,12 @@ import { manifests as products } from "./products/manifest.js";
 import { manifests as customers } from "./customers/manifest.js";
 import { manifests as providers } from "./providers/manifest.js";
 import { manifests as analytics } from "./analytics/manifest.js";
-import { manifests as marketing } from "./marketing/manifest.js";
-import { manifests as settings } from "./settings/manifest.js";
+import { manifests as discounts } from "./discounts/manifest.js";
+import { manifests as suppliers } from "./suppliers/manifest.js";
 import { manifests as warehouses } from "./warehouses/manifest.js";
 import { manifests as shipping } from "./shipping/manifest.js";
 import { manifests as paymentProviders } from "./payment-providers/manifest.js";
+import { manifests as settings } from "./settings/manifest.js";
 
 // Job of the bundle is to collate all the manifests from different parts of the extension and load other manifests
 // We load this bundle from umbraco-package.json
@@ -25,9 +26,10 @@ export const manifests: Array<UmbExtensionManifest> = [
   ...customers,
   ...providers,
   ...analytics,
-  ...marketing,
-  ...settings,
+  ...discounts,
+  ...suppliers,
   ...warehouses,
   ...shipping,
   ...paymentProviders,
+  ...settings,
 ];

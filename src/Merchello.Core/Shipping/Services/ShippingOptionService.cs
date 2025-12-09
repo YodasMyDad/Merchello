@@ -36,6 +36,7 @@ public class ShippingOptionService(
                     WarehouseId = o.WarehouseId,
                     WarehouseName = o.Warehouse!.Name,
                     ProviderKey = o.ProviderKey,
+                    ServiceType = o.ServiceType,
                     IsEnabled = o.IsEnabled,
                     FixedCost = o.FixedCost,
                     DaysFrom = o.DaysFrom,
@@ -99,6 +100,7 @@ public class ShippingOptionService(
             WarehouseId = option.WarehouseId,
             WarehouseName = option.Warehouse?.Name,
             ProviderKey = option.ProviderKey,
+            ServiceType = option.ServiceType,
             ProviderDisplayName = providerDisplayName,
             ProviderSettings = providerSettings,
             IsEnabled = option.IsEnabled,
@@ -162,6 +164,7 @@ public class ShippingOptionService(
             Name = dto.Name,
             WarehouseId = dto.WarehouseId,
             ProviderKey = dto.ProviderKey,
+            ServiceType = dto.ServiceType,
             ProviderSettings = providerSettingsJson,
             IsEnabled = dto.IsEnabled,
             FixedCost = dto.FixedCost,
@@ -217,6 +220,7 @@ public class ShippingOptionService(
             option.Name = dto.Name;
             option.WarehouseId = dto.WarehouseId;
             option.ProviderKey = dto.ProviderKey;
+            option.ServiceType = dto.ServiceType;
             option.ProviderSettings = providerSettingsJson;
             option.IsEnabled = dto.IsEnabled;
             option.FixedCost = dto.FixedCost;

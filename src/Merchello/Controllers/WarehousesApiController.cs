@@ -14,7 +14,8 @@ namespace Merchello.Controllers;
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class WarehousesApiController(
     IWarehouseService warehouseService,
-    ISupplierService supplierService) : MerchelloApiControllerBase
+    ISupplierService supplierService,
+    ILocationsService locationsService) : MerchelloApiControllerBase
 {
     #region Warehouses
 
@@ -210,10 +211,37 @@ public class WarehousesApiController(
 
     #endregion
 
+    #region Available Destinations
+
+    /// <summary>
+    /// Get countries that a specific warehouse can service based on its service regions.
+    /// If the warehouse has no service regions, returns all countries (unrestricted).
+    /// </summary>
+    [HttpGet("warehouses/{warehouseId:guid}/available-destinations")]
+    [ProducesResponseType<List<DestinationDto>>(StatusCodes.Status200OK)]
+    public async Task<List<DestinationDto>> GetAvailableDestinations(Guid warehouseId, CancellationToken ct)
+    {
+        var countries = await locationsService.GetAvailableCountriesForWarehouseAsync(warehouseId, ct);
+        return countries.Select(c => new DestinationDto { Code = c.Code, Name = c.Name }).ToList();
+    }
+
+    /// <summary>
+    /// Get regions (states/provinces) that a specific warehouse can service for a given country.
+    /// </summary>
+    [HttpGet("warehouses/{warehouseId:guid}/available-destinations/{countryCode}/regions")]
+    [ProducesResponseType<List<RegionDto>>(StatusCodes.Status200OK)]
+    public async Task<List<RegionDto>> GetAvailableRegions(Guid warehouseId, string countryCode, CancellationToken ct)
+    {
+        var regions = await locationsService.GetAvailableRegionsForWarehouseAsync(warehouseId, countryCode, ct);
+        return regions.Select(r => new RegionDto { RegionCode = r.RegionCode, Name = r.Name }).ToList();
+    }
+
+    #endregion
+
     #region Suppliers
 
     /// <summary>
-    /// Get all suppliers for dropdown selection
+    /// Get all suppliers with warehouse count
     /// </summary>
     [HttpGet("suppliers")]
     [ProducesResponseType<List<SupplierListDto>>(StatusCodes.Status200OK)]
@@ -226,13 +254,14 @@ public class WarehousesApiController(
             {
                 Id = s.Id,
                 Name = s.Name,
-                Code = s.Code
+                Code = s.Code,
+                WarehouseCount = s.Warehouses?.Count ?? 0
             })
             .ToList();
     }
 
     /// <summary>
-    /// Create a new supplier (quick create from warehouse form)
+    /// Create a new supplier
     /// </summary>
     [HttpPost("suppliers")]
     [ProducesResponseType<SupplierListDto>(StatusCodes.Status201Created)]
@@ -256,10 +285,71 @@ public class WarehousesApiController(
         {
             Id = supplier.Id,
             Name = supplier.Name,
-            Code = supplier.Code
+            Code = supplier.Code,
+            WarehouseCount = 0
         };
 
         return Created($"/api/v1/suppliers/{supplier.Id}", supplierDto);
+    }
+
+    /// <summary>
+    /// Update an existing supplier
+    /// </summary>
+    [HttpPut("suppliers/{id:guid}")]
+    [ProducesResponseType<SupplierListDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateSupplier(Guid id, [FromBody] UpdateSupplierDto dto, CancellationToken ct)
+    {
+        var parameters = new UpdateSupplierParameters
+        {
+            SupplierId = id,
+            Name = dto.Name,
+            Code = dto.Code
+        };
+
+        var result = await supplierService.UpdateSupplierAsync(parameters, ct);
+        if (!result.Successful)
+        {
+            var errorMessage = result.Messages.FirstOrDefault()?.Message;
+            if (errorMessage?.Contains("not found") == true)
+            {
+                return NotFound(errorMessage);
+            }
+            return BadRequest(errorMessage ?? "Failed to update supplier.");
+        }
+
+        var supplier = result.ResultObject!;
+        return Ok(new SupplierListDto
+        {
+            Id = supplier.Id,
+            Name = supplier.Name,
+            Code = supplier.Code,
+            WarehouseCount = supplier.Warehouses?.Count ?? 0
+        });
+    }
+
+    /// <summary>
+    /// Delete a supplier
+    /// </summary>
+    [HttpDelete("suppliers/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteSupplier(Guid id, [FromQuery] bool force = false, CancellationToken ct = default)
+    {
+        var result = await supplierService.DeleteSupplierAsync(id, force, ct);
+        if (!result.Successful)
+        {
+            var errorMessage = result.Messages.FirstOrDefault()?.Message;
+            if (errorMessage?.Contains("not found") == true)
+            {
+                return NotFound(errorMessage);
+            }
+            return BadRequest(errorMessage ?? "Failed to delete supplier.");
+        }
+
+        return NoContent();
     }
 
     #endregion

@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Models;
@@ -33,5 +34,19 @@ public interface IProductService
     Task<List<ProductType>> GetProductTypes(CancellationToken cancellationToken = default);
     Task<List<ProductCategory>> GetProductCategories(CancellationToken cancellationToken = default);
     Task<ProductRoot?> GetProductRoot(Guid productRootId, bool includeProducts = false, bool includeWarehouses = false, CancellationToken cancellationToken = default);
+
+    // Product detail view methods
+    Task<ProductRootDetailDto?> GetProductRootWithDetails(Guid productRootId, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductRoot>> CreateProductRoot(CreateProductRootRequest request, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductRoot>> UpdateProductRoot(Guid productRootId, UpdateProductRootRequest request, CancellationToken cancellationToken = default);
+    Task<CrudResult<bool>> DeleteProductRoot(Guid productRootId, CancellationToken cancellationToken = default);
+
+    // Variant operations
+    Task<Product?> GetVariant(Guid productRootId, Guid variantId, CancellationToken cancellationToken = default);
+    Task<CrudResult<Product>> UpdateVariant(Guid productRootId, Guid variantId, UpdateVariantRequest request, CancellationToken cancellationToken = default);
+
+    // Options operations
+    Task<CrudResult<List<ProductOption>>> SaveProductOptions(Guid productRootId, List<SaveProductOptionRequest> options, CancellationToken cancellationToken = default);
+    Task<CrudResult<List<Product>>> RegenerateVariants(Guid productRootId, CancellationToken cancellationToken = default);
 }
 

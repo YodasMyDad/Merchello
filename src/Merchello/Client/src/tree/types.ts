@@ -26,10 +26,8 @@ export const MERCHELLO_ORDERS_ENTITY_TYPE = "merchello-orders";
 export const MERCHELLO_ORDER_ENTITY_TYPE = "merchello-order";
 export const MERCHELLO_PRODUCTS_ENTITY_TYPE = "merchello-products";
 export const MERCHELLO_CUSTOMERS_ENTITY_TYPE = "merchello-customers";
-export const MERCHELLO_PROVIDERS_ENTITY_TYPE = "merchello-providers";
 export const MERCHELLO_ANALYTICS_ENTITY_TYPE = "merchello-analytics";
-export const MERCHELLO_MARKETING_ENTITY_TYPE = "merchello-marketing";
-export const MERCHELLO_SETTINGS_ENTITY_TYPE = "merchello-settings";
-
-// Settings child entity types
+export const MERCHELLO_DISCOUNTS_ENTITY_TYPE = "merchello-discounts";
+export const MERCHELLO_SUPPLIERS_ENTITY_TYPE = "merchello-suppliers";
 export const MERCHELLO_WAREHOUSES_ENTITY_TYPE = "merchello-warehouses";
+export const MERCHELLO_PROVIDERS_ENTITY_TYPE = "merchello-providers";
