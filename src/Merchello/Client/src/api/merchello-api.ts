@@ -527,13 +527,9 @@ export const MerchelloApi = {
     apiPut(`products/${productRootId}/variants/${variantId}/set-default`),
 
   // Options operations
-  /** Save all product options (replaces existing) */
-  saveProductOptions: (productRootId: string, options: SaveProductOptionRequest[]) => 
+  /** Save all product options (replaces existing). Variants are automatically regenerated. */
+  saveProductOptions: (productRootId: string, options: SaveProductOptionRequest[]) =>
     apiPut<ProductOptionDto[]>(`products/${productRootId}/options`, options),
-
-  /** Regenerate variants from current option combinations */
-  regenerateVariants: (productRootId: string) => 
-    apiPost<ProductVariantDto[]>(`products/${productRootId}/options/regenerate-variants`),
 
   // ============================================
   // Shipping Options API

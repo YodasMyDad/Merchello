@@ -176,29 +176,6 @@ public class ProductsApiController(IProductService productService) : MerchelloAp
         return Ok(result.ResultObject!.Select(MapToOptionDto).ToList());
     }
 
-    /// <summary>
-    /// Regenerates variants based on current options
-    /// </summary>
-    [HttpPost("products/{productRootId:guid}/options/regenerate-variants")]
-    [ProducesResponseType<List<ProductVariantDto>>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> RegenerateVariants(Guid productRootId)
-    {
-        var result = await productService.RegenerateVariants(productRootId);
-        if (!result.Successful)
-        {
-            var errors = result.Messages.Where(m => m.ResultMessageType == ResultMessageType.Error).Select(m => m.Message).ToList();
-            if (errors.Any(e => e?.Contains("not found") == true))
-            {
-                return NotFound();
-            }
-            return BadRequest(new { errors });
-        }
-
-        return Ok(result.ResultObject!.Select(MapToVariantDto).ToList());
-    }
-
     #endregion
 
     #region Product List Endpoints

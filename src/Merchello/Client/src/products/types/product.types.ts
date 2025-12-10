@@ -132,6 +132,8 @@ export interface VariantWarehouseStockDto {
 export interface ProductOptionSettingsDto {
   optionTypeAliases: string[];
   optionUiAliases: string[];
+  maxProductOptions: number;
+  maxOptionValuesPerOption: number;
 }
 
 export interface DescriptionEditorSettingsDto {

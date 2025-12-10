@@ -99,7 +99,9 @@ public class SettingsApiController(
         return Ok(new ProductOptionSettingsDto
         {
             OptionTypeAliases = settings.Value.OptionTypeAliases,
-            OptionUiAliases = settings.Value.OptionUiAliases
+            OptionUiAliases = settings.Value.OptionUiAliases,
+            MaxProductOptions = settings.Value.MaxProductOptions,
+            MaxOptionValuesPerOption = settings.Value.MaxOptionValuesPerOption
         });
     }
 
@@ -206,9 +208,19 @@ public class ProductOptionSettingsDto
     public string[] OptionTypeAliases { get; set; } = [];
 
     /// <summary>
-    /// Available option UI aliases (e.g., "dropdown", "colour", "image")
+    /// Available option UI aliases (e.g., "dropdown", "colour", "image", "checkbox", "radiobutton")
     /// </summary>
     public string[] OptionUiAliases { get; set; } = [];
+
+    /// <summary>
+    /// Maximum number of options allowed per product
+    /// </summary>
+    public int MaxProductOptions { get; set; }
+
+    /// <summary>
+    /// Maximum number of values allowed per option
+    /// </summary>
+    public int MaxOptionValuesPerOption { get; set; }
 }
 
 /// <summary>

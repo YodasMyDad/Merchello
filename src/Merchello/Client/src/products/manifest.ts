@@ -7,14 +7,6 @@ export const manifests: Array<UmbExtensionManifest> = [
     js: () => import("./modals/create-product-modal.element.js"),
   },
 
-  // Variant detail modal
-  {
-    type: "modal",
-    alias: "Merchello.VariantDetail.Modal",
-    name: "Merchello Variant Detail Modal",
-    js: () => import("./modals/variant-detail-modal.element.js"),
-  },
-
   // Option editor modal
   {
     type: "modal",

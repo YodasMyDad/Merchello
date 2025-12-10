@@ -1,90 +1,57 @@
-import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
-import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
-import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
-import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
-import type { OptionEditorModalData, OptionEditorModalValue } from "./option-editor-modal.token.js";
-import type { ProductOptionDto, ProductOptionValueDto } from "@products/types/product.types.js";
-
-interface SelectOption {
-  name: string;
-  value: string;
-  selected?: boolean;
-}
-
-@customElement("merchello-option-editor-modal")
-export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
-  OptionEditorModalData,
-  OptionEditorModalValue
-> {
-  @state() private _formData: Partial<ProductOptionDto> = {
-    name: "",
-    alias: "",
-    sortOrder: 0,
-    optionTypeAlias: "",
-    optionUiAlias: "dropdown",
-    isVariant: false,
-    values: [],
-  };
-  @state() private _isSaving = false;
-  @state() private _errorMessage: string | null = null;
-  @state() private _originalIsVariant = false;
-
-  #notificationContext?: UmbNotificationContext;
-
+import { nothing as u, html as r, css as v, state as d, customElement as f } from "@umbraco-cms/backoffice/external/lit";
+import { UmbModalBaseElement as _ } from "@umbraco-cms/backoffice/modal";
+import { UMB_NOTIFICATION_CONTEXT as g } from "@umbraco-cms/backoffice/notification";
+var b = Object.defineProperty, y = Object.getOwnPropertyDescriptor, m = (a) => {
+  throw TypeError(a);
+}, l = (a, t, i, e) => {
+  for (var o = e > 1 ? void 0 : e ? y(t, i) : t, n = a.length - 1, c; n >= 0; n--)
+    (c = a[n]) && (o = (e ? c(t, i, o) : c(o)) || o);
+  return e && o && b(t, i, o), o;
+}, h = (a, t, i) => t.has(a) || m("Cannot " + i), D = (a, t, i) => (h(a, t, "read from private field"), t.get(a)), x = (a, t, i) => t.has(a) ? m("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(a) : t.set(a, i), V = (a, t, i, e) => (h(a, t, "write to private field"), t.set(a, i), i), p;
+let s = class extends _ {
   constructor() {
-    super();
-    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
-      this.#notificationContext = context;
+    super(), this._formData = {
+      name: "",
+      alias: "",
+      sortOrder: 0,
+      optionTypeAlias: "",
+      optionUiAlias: "dropdown",
+      isVariant: !1,
+      values: []
+    }, this._isSaving = !1, this._errorMessage = null, this._originalIsVariant = !1, x(this, p), this.consumeContext(g, (a) => {
+      V(this, p, a);
     });
   }
-
-  connectedCallback(): void {
-    super.connectedCallback();
-    if (this.data?.option) {
-      this._formData = { ...this.data.option };
-      this._originalIsVariant = this.data.option.isVariant;
-    }
+  connectedCallback() {
+    super.connectedCallback(), this.data?.option && (this._formData = { ...this.data.option }, this._originalIsVariant = this.data.option.isVariant);
   }
-
-  private _getOptionTypeOptions(): SelectOption[] {
-    const aliases = this.data?.settings?.optionTypeAliases ?? [];
+  _getOptionTypeOptions() {
+    const a = this.data?.settings?.optionTypeAliases ?? [];
     return [
       { name: "Select type...", value: "", selected: !this._formData.optionTypeAlias },
-      ...aliases.map((alias) => ({
-        name: alias.charAt(0).toUpperCase() + alias.slice(1),
-        value: alias,
-        selected: alias === this._formData.optionTypeAlias,
-      })),
+      ...a.map((t) => ({
+        name: t.charAt(0).toUpperCase() + t.slice(1),
+        value: t,
+        selected: t === this._formData.optionTypeAlias
+      }))
     ];
   }
-
-  private _getOptionUiOptions(): SelectOption[] {
-    const aliases = this.data?.settings?.optionUiAliases ?? [];
-    return aliases.map((alias) => ({
-      name: alias.charAt(0).toUpperCase() + alias.slice(1),
-      value: alias,
-      selected: alias === this._formData.optionUiAlias,
+  _getOptionUiOptions() {
+    return (this.data?.settings?.optionUiAliases ?? []).map((t) => ({
+      name: t.charAt(0).toUpperCase() + t.slice(1),
+      value: t,
+      selected: t === this._formData.optionUiAlias
     }));
   }
+  _handleSave() {
+    this._validateForm() && (this.data?.option && this._originalIsVariant !== this._formData.isVariant && !confirm(
+      this._formData.isVariant ? `Enabling 'Generates Variants' will create new product variants. You'll need to regenerate variants for this to take effect.
 
-  private _handleSave(): void {
-    if (!this._validateForm()) {
-      return;
-    }
+Continue?` : `Disabling 'Generates Variants' will not delete existing variants, but they won't be regenerated.
 
-    // Warn if changing isVariant on existing option
-    if (this.data?.option && this._originalIsVariant !== this._formData.isVariant) {
-      const confirmed = confirm(
-        this._formData.isVariant
-          ? "Enabling 'Generates Variants' will create new product variants. You'll need to regenerate variants for this to take effect.\n\nContinue?"
-          : "Disabling 'Generates Variants' will not delete existing variants, but they won't be regenerated.\n\nContinue?"
-      );
-      if (!confirmed) return;
-    }
-
-    this.value = {
-      saved: true,
+Continue?`
+    ) || (this.value = {
+      saved: !0,
       option: {
         id: this._formData.id || crypto.randomUUID(),
         name: this._formData.name || "",
@@ -92,160 +59,122 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
         sortOrder: this._formData.sortOrder || 0,
         optionTypeAlias: this._formData.optionTypeAlias || null,
         optionUiAlias: this._formData.optionUiAlias || null,
-        isVariant: this._formData.isVariant || false,
-        values: this._formData.values || [],
-      },
-    };
-    this.#notificationContext?.peek("positive", { data: { headline: "Option saved", message: `"${this._formData.name}" has been saved` } });
-    this.modalContext?.submit();
+        isVariant: this._formData.isVariant || !1,
+        values: this._formData.values || []
+      }
+    }, D(this, p)?.peek("positive", { data: { headline: "Option saved", message: `"${this._formData.name}" has been saved` } }), this.modalContext?.submit()));
   }
-
-  private _handleDelete(): void {
+  _handleDelete() {
     this.value = {
-      saved: true,
-      deleted: true,
-    };
-    this.modalContext?.submit();
+      saved: !0,
+      deleted: !0
+    }, this.modalContext?.submit();
   }
-
-  private _validateForm(): boolean {
-    if (!this._formData.name) {
-      this._errorMessage = "Option name is required";
-      return false;
-    }
-    if (!this._formData.values || this._formData.values.length === 0) {
-      this._errorMessage = "At least one value is required";
-      return false;
-    }
-    return true;
+  _validateForm() {
+    return this._formData.name ? !this._formData.values || this._formData.values.length === 0 ? (this._errorMessage = "At least one value is required", !1) : !0 : (this._errorMessage = "Option name is required", !1);
   }
-
-  private _addValue(): void {
-    const values = [...(this._formData.values || [])];
-    values.push({
+  _addValue() {
+    const a = [...this._formData.values || []];
+    a.push({
       id: crypto.randomUUID(),
       name: "",
       fullName: null,
-      sortOrder: values.length,
+      sortOrder: a.length,
       hexValue: null,
       mediaKey: null,
       priceAdjustment: 0,
       costAdjustment: 0,
-      skuSuffix: null,
-    });
-    this._formData = { ...this._formData, values };
+      skuSuffix: null
+    }), this._formData = { ...this._formData, values: a };
   }
-
-  private _removeValue(index: number): void {
-    const values = [...(this._formData.values || [])];
-    values.splice(index, 1);
-    // Update sort orders
-    values.forEach((v, i) => (v.sortOrder = i));
-    this._formData = { ...this._formData, values };
+  _removeValue(a) {
+    const t = [...this._formData.values || []];
+    t.splice(a, 1), t.forEach((i, e) => i.sortOrder = e), this._formData = { ...this._formData, values: t };
   }
-
-  private _updateValue(index: number, field: keyof ProductOptionValueDto, value: any): void {
-    const values = [...(this._formData.values || [])];
-    values[index] = { ...values[index], [field]: value };
-    this._formData = { ...this._formData, values };
+  _updateValue(a, t, i) {
+    const e = [...this._formData.values || []];
+    e[a] = { ...e[a], [t]: i }, this._formData = { ...this._formData, values: e };
   }
-
-  private _renderValueEditor(value: ProductOptionValueDto, index: number): unknown {
-    const uiAlias = this._formData.optionUiAlias;
-
-    return html`
+  _renderValueEditor(a, t) {
+    const i = this._formData.optionUiAlias;
+    return r`
       <div class="value-row">
         <div class="value-main">
           <uui-input
-            .value=${value.name}
+            .value=${a.name}
             placeholder="Value name"
-            @input=${(e: Event) => this._updateValue(index, "name", (e.target as HTMLInputElement).value)}>
+            @input=${(e) => this._updateValue(t, "name", e.target.value)}>
           </uui-input>
 
-          ${uiAlias === "colour"
-            ? html`
+          ${i === "colour" ? r`
                 <uui-input
                   type="color"
-                  .value=${value.hexValue || "#000000"}
-                  @input=${(e: Event) => this._updateValue(index, "hexValue", (e.target as HTMLInputElement).value)}>
+                  .value=${a.hexValue || "#000000"}
+                  @input=${(e) => this._updateValue(t, "hexValue", e.target.value)}>
                 </uui-input>
-              `
-            : nothing}
+              ` : u}
 
-          ${!this._formData.isVariant
-            ? html`
+          ${this._formData.isVariant ? u : r`
                 <uui-input
                   type="number"
                   step="0.01"
-                  .value=${String(value.priceAdjustment)}
+                  .value=${String(a.priceAdjustment)}
                   placeholder="Price +/-"
-                  @input=${(e: Event) => this._updateValue(index, "priceAdjustment", parseFloat((e.target as HTMLInputElement).value) || 0)}>
+                  @input=${(e) => this._updateValue(t, "priceAdjustment", parseFloat(e.target.value) || 0)}>
                 </uui-input>
 
                 <uui-input
-                  .value=${value.skuSuffix || ""}
+                  .value=${a.skuSuffix || ""}
                   placeholder="SKU suffix"
-                  @input=${(e: Event) => this._updateValue(index, "skuSuffix", (e.target as HTMLInputElement).value)}>
+                  @input=${(e) => this._updateValue(t, "skuSuffix", e.target.value)}>
                 </uui-input>
-              `
-            : nothing}
+              `}
         </div>
 
-        <uui-button compact look="secondary" color="danger" @click=${() => this._removeValue(index)}>
+        <uui-button compact look="secondary" color="danger" @click=${() => this._removeValue(t)}>
           <uui-icon name="icon-trash"></uui-icon>
         </uui-button>
       </div>
     `;
   }
-
-  private _getMaxValues(): number {
+  _getMaxValues() {
     return this.data?.settings?.maxOptionValuesPerOption ?? 20;
   }
-
-  private _isAtMaxValues(): boolean {
+  _isAtMaxValues() {
     return (this._formData.values?.length ?? 0) >= this._getMaxValues();
   }
-
   render() {
-    const isNew = !this.data?.option;
-    const valueCount = this._formData.values?.length || 0;
-    const maxValues = this._getMaxValues();
-    const variantEstimate = this._formData.isVariant && valueCount > 0 ? `Will create ${valueCount} variants` : "";
-
-    return html`
-      <umb-body-layout headline="${isNew ? "Add Option" : `Edit Option: ${this._formData.name}`}">
+    const a = !this.data?.option, t = this._formData.values?.length || 0, i = this._getMaxValues(), e = this._formData.isVariant && t > 0 ? `Will create ${t} variants` : "";
+    return r`
+      <umb-body-layout headline="${a ? "Add Option" : `Edit Option: ${this._formData.name}`}">
         <div class="modal-content">
-          ${this._errorMessage
-            ? html`
+          ${this._errorMessage ? r`
                 <div class="error-banner">
                   <uui-icon name="icon-alert"></uui-icon>
                   ${this._errorMessage}
                 </div>
-              `
-            : nothing}
+              ` : u}
 
-          ${this._formData.isVariant && valueCount > 0
-            ? html`
+          ${this._formData.isVariant && t > 0 ? r`
                 <div class="info-banner">
                   <uui-icon name="icon-lightbulb"></uui-icon>
                   <div>
                     <strong>Variant Generation</strong>
-                    <p>${variantEstimate} (when combined with other variant options, this creates a cartesian product)</p>
+                    <p>${e} (when combined with other variant options, this creates a cartesian product)</p>
                   </div>
                 </div>
-              `
-            : nothing}
+              ` : u}
 
           <uui-box headline="Option Details">
             <umb-property-layout
               label="Option Name"
               description="Customer-facing name for this option"
-              ?mandatory=${true}>
+              ?mandatory=${!0}>
               <uui-input
                 slot="editor"
                 .value=${this._formData.name || ""}
                 placeholder="e.g., Size, Color, Material"
-                @input=${(e: Event) => (this._formData = { ...this._formData, name: (e.target as HTMLInputElement).value })}
+                @input=${(o) => this._formData = { ...this._formData, name: o.target.value }}
                 aria-required="true">
               </uui-input>
             </umb-property-layout>
@@ -257,7 +186,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                 slot="editor"
                 .value=${this._formData.alias || ""}
                 placeholder="Optional: machine-readable name"
-                @input=${(e: Event) => (this._formData = { ...this._formData, alias: (e.target as HTMLInputElement).value })}>
+                @input=${(o) => this._formData = { ...this._formData, alias: o.target.value }}>
               </uui-input>
             </umb-property-layout>
 
@@ -267,7 +196,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               <uui-select
                 slot="editor"
                 .options=${this._getOptionTypeOptions()}
-                @change=${(e: Event) => (this._formData = { ...this._formData, optionTypeAlias: (e.target as HTMLSelectElement).value })}>
+                @change=${(o) => this._formData = { ...this._formData, optionTypeAlias: o.target.value }}>
               </uui-select>
             </umb-property-layout>
 
@@ -277,7 +206,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               <uui-select
                 slot="editor"
                 .options=${this._getOptionUiOptions()}
-                @change=${(e: Event) => (this._formData = { ...this._formData, optionUiAlias: (e.target as HTMLSelectElement).value })}>
+                @change=${(o) => this._formData = { ...this._formData, optionUiAlias: o.target.value }}>
               </uui-select>
             </umb-property-layout>
 
@@ -286,8 +215,8 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               description="Creates all combinations (e.g., 3 sizes × 4 colors = 12 variants). If disabled, this is an add-on that modifies price.">
               <uui-toggle
                 slot="editor"
-                .checked=${this._formData.isVariant ?? false}
-                @change=${(e: Event) => (this._formData = { ...this._formData, isVariant: (e.target as any).checked })}>
+                .checked=${this._formData.isVariant ?? !1}
+                @change=${(o) => this._formData = { ...this._formData, isVariant: o.target.checked }}>
               </uui-toggle>
             </umb-property-layout>
           </uui-box>
@@ -295,7 +224,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
           <uui-box>
             <div class="section-header" slot="headline">
               <span>Option Values</span>
-              <span class="value-count">${valueCount}/${maxValues}</span>
+              <span class="value-count">${t}/${i}</span>
             </div>
             <div class="section-header-actions" slot="header-actions">
               <uui-button
@@ -310,13 +239,11 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               </uui-button>
             </div>
 
-            ${this._formData.values && this._formData.values.length > 0
-              ? html`
+            ${this._formData.values && this._formData.values.length > 0 ? r`
                   <div class="values-list">
-                    ${this._formData.values.map((value, index) => this._renderValueEditor(value, index))}
+                    ${this._formData.values.map((o, n) => this._renderValueEditor(o, n))}
                   </div>
-                `
-              : html`
+                ` : r`
                   <div class="empty-state">
                     <uui-icon name="icon-list"></uui-icon>
                     <p>No values added yet</p>
@@ -328,14 +255,12 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
 
         <div slot="actions">
           <uui-button look="secondary" @click=${() => this.modalContext?.reject()}> Cancel </uui-button>
-          ${!isNew
-            ? html`
+          ${a ? u : r`
                 <uui-button look="primary" color="danger" @click=${this._handleDelete} label="Delete Option">
                   <uui-icon name="icon-trash"></uui-icon>
                   Delete Option
                 </uui-button>
-              `
-            : nothing}
+              `}
           <uui-button look="primary" color="positive" ?disabled=${this._isSaving} @click=${this._handleSave}>
             <uui-icon name="icon-check"></uui-icon>
             ${this._isSaving ? "Saving..." : "Save"}
@@ -344,8 +269,9 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
       </umb-body-layout>
     `;
   }
-
-  static styles = css`
+};
+p = /* @__PURE__ */ new WeakMap();
+s.styles = v`
     :host {
       display: block;
     }
@@ -464,12 +390,24 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
       color: var(--uui-color-text);
     }
   `;
-}
-
-export default MerchelloOptionEditorModalElement;
-
-declare global {
-  interface HTMLElementTagNameMap {
-    "merchello-option-editor-modal": MerchelloOptionEditorModalElement;
-  }
-}
+l([
+  d()
+], s.prototype, "_formData", 2);
+l([
+  d()
+], s.prototype, "_isSaving", 2);
+l([
+  d()
+], s.prototype, "_errorMessage", 2);
+l([
+  d()
+], s.prototype, "_originalIsVariant", 2);
+s = l([
+  f("merchello-option-editor-modal")
+], s);
+const k = s;
+export {
+  s as MerchelloOptionEditorModalElement,
+  k as default
+};
+//# sourceMappingURL=option-editor-modal.element-y2LoSFbq.js.map

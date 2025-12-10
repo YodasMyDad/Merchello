@@ -86,8 +86,21 @@ public class MerchelloSettings
     /// - "dropdown": Standard select dropdown
     /// - "colour": Color swatches with hex values
     /// - "image": Image/media selection for each value
+    /// - "checkbox": Multiple selection checkboxes
+    /// - "radiobutton": Single selection radio buttons
     /// </summary>
-    public string[] OptionUiAliases { get; set; } = ["dropdown", "colour", "image"];
+    public string[] OptionUiAliases { get; set; } = ["dropdown", "colour", "image", "checkbox", "radiobutton"];
+
+    /// <summary>
+    /// Maximum number of options allowed per product (default: 5).
+    /// Higher values can result in exponential variant generation.
+    /// </summary>
+    public int MaxProductOptions { get; set; } = 5;
+
+    /// <summary>
+    /// Maximum number of values allowed per option (default: 20).
+    /// </summary>
+    public int MaxOptionValuesPerOption { get; set; } = 20;
 
     /// <summary>
     /// The DataType key (GUID) for the Product Description rich text editor.

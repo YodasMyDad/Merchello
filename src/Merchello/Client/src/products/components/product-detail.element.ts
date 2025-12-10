@@ -237,6 +237,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         component: stubComponent,
       },
       {
+        path: "tab/media",
+        component: stubComponent,
+      },
+      {
         path: "tab/seo",
         component: stubComponent,
       },
@@ -258,7 +262,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   /**
    * Gets the currently active tab based on the route path
    */
-  private _getActiveTab(): "details" | "seo" | "variants" | "options" {
+  private _getActiveTab(): "details" | "media" | "seo" | "variants" | "options" {
+    if (this._activePath.includes("tab/media")) return "media";
     if (this._activePath.includes("tab/seo")) return "seo";
     if (this._activePath.includes("tab/variants")) return "variants";
     if (this._activePath.includes("tab/options")) return "options";
@@ -485,6 +490,13 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         </uui-tab>
 
         <uui-tab
+          label="Media"
+          href="${this._routerPath}/tab/media"
+          ?active=${activeTab === "media"}>
+          Media
+        </uui-tab>
+
+        <uui-tab
           label="SEO"
           href="${this._routerPath}/tab/seo"
           ?active=${activeTab === "seo"}>
@@ -599,16 +611,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           </umb-property-layout>
         </uui-box>
 
-        <uui-box headline="Product Images">
-          <umb-property-layout
-            label="Images"
-            description="Add images that will be displayed on your storefront">
-            <div slot="editor">
-              ${this._renderMediaPicker()}
-            </div>
-          </umb-property-layout>
-        </uui-box>
-
         ${!this._formData.isDigitalProduct
           ? html`
               <uui-box headline="Warehouses">
@@ -624,6 +626,22 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
               </uui-box>
             `
           : nothing}
+      </div>
+    `;
+  }
+
+  private _renderMediaTab(): unknown {
+    return html`
+      <div class="tab-content">
+        <uui-box headline="Product Images">
+          <umb-property-layout
+            label="Images"
+            description="Add images that will be displayed on your storefront. These images are shared across all variants.">
+            <div slot="editor">
+              ${this._renderMediaPicker()}
+            </div>
+          </umb-property-layout>
+        </uui-box>
       </div>
     `;
   }
@@ -762,8 +780,76 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             </div>
           </umb-property-layout>
         </uui-box>
+
+        <uui-box headline="Search Preview">
+          <umb-property-layout
+            label="Google Search Result"
+            description="Preview how this product may appear in Google search results">
+            <div slot="editor">
+              ${this._renderGoogleSearchPreview()}
+            </div>
+          </umb-property-layout>
+        </uui-box>
       </div>
     `;
+  }
+
+  private _renderGoogleSearchPreview(): unknown {
+    const pageTitle = this._formData.pageTitle || this._formData.rootName || "Product Title";
+    const metaDescription = this._formData.metaDescription || "No meta description set. Add a description to improve search visibility.";
+    const url = this._formData.canonicalUrl || "https://yourstore.com/products/product-name";
+
+    // Parse URL into breadcrumb format (how Google now displays URLs)
+    const urlBreadcrumb = this._formatUrlAsBreadcrumb(url);
+
+    // Google measures in pixels (~600px for titles, ~920px for descriptions)
+    // Character limits are approximations since character widths vary
+    // Desktop: ~50-60 chars for title, ~155-160 for description
+    const titleCharLimit = 60;
+    const descCharLimit = 160;
+    const titleOverLimit = pageTitle.length > titleCharLimit;
+    const descOverLimit = metaDescription.length > descCharLimit;
+
+    // Show truncated version as Google would display it
+    const displayTitle = titleOverLimit ? pageTitle.substring(0, titleCharLimit - 3) + "..." : pageTitle;
+    const displayDescription = descOverLimit ? metaDescription.substring(0, descCharLimit - 3) + "..." : metaDescription;
+
+    return html`
+      <div class="google-preview">
+        <div class="google-preview-header">
+          <div class="google-preview-favicon">
+            <uui-icon name="icon-globe"></uui-icon>
+          </div>
+          <div class="google-preview-site">
+            <div class="google-preview-site-name">Your Store</div>
+            <div class="google-preview-url">${urlBreadcrumb}</div>
+          </div>
+        </div>
+        <div class="google-preview-title">${displayTitle}</div>
+        <div class="google-preview-description">${displayDescription}</div>
+      </div>
+      <div class="google-preview-stats">
+        <span class="${titleOverLimit ? "stat-warning" : "stat-ok"}">
+          Title: ${pageTitle.length}/${titleCharLimit} chars ${titleOverLimit ? "(will be truncated)" : ""}
+        </span>
+        <span class="${descOverLimit ? "stat-warning" : "stat-ok"}">
+          Description: ${metaDescription.length}/${descCharLimit} chars ${descOverLimit ? "(will be truncated)" : ""}
+        </span>
+      </div>
+    `;
+  }
+
+  private _formatUrlAsBreadcrumb(url: string): string {
+    try {
+      const parsed = new URL(url);
+      const pathParts = parsed.pathname.split("/").filter((p) => p);
+      if (pathParts.length === 0) {
+        return parsed.hostname;
+      }
+      return `${parsed.hostname} › ${pathParts.join(" › ")}`;
+    } catch {
+      return url;
+    }
   }
 
   private _handleOpenGraphImageChange(e: CustomEvent): void {
@@ -836,17 +922,21 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
   private _renderVariantRow(variant: ProductVariantDto): unknown {
     const variantHref = this._product ? getVariantDetailHref(this._product.id, variant.id) : "";
+    const optionDescription = this._getVariantOptionDescription(variant);
     return html`
       <uui-table-row>
         <uui-table-cell>
           <uui-radio
-            name="default-variant"
-            .checked=${variant.default}
-            @change=${() => this._handleSetDefaultVariant(variant.id)}>
+            name="default-variant-${variant.productRootId}"
+            ?checked=${variant.default}
+            @click=${(e: Event) => { e.preventDefault(); this._handleSetDefaultVariant(variant.id); }}>
           </uui-radio>
         </uui-table-cell>
         <uui-table-cell>
-          <a href=${variantHref} class="variant-link">${variant.name || "Unnamed"}</a>
+          <div class="variant-name-cell">
+            <a href=${variantHref} class="variant-link">${variant.name || "Unnamed"}</a>
+            ${optionDescription ? html`<span class="variant-options-text">${optionDescription}</span>` : nothing}
+          </div>
         </uui-table-cell>
         <uui-table-cell>${variant.sku || "—"}</uui-table-cell>
         <uui-table-cell>$${variant.price.toFixed(2)}</uui-table-cell>
@@ -868,21 +958,66 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     return "badge-positive";
   }
 
+  /**
+   * Parses the variant's option key and returns a human-readable description
+   * of the option value combination (e.g., "Red / Large / Cotton")
+   */
+  private _getVariantOptionDescription(variant: ProductVariantDto): string | null {
+    if (!variant.variantOptionsKey || !this._product) return null;
+
+    const guids = variant.variantOptionsKey.split('-');
+    const descriptions: string[] = [];
+
+    for (const guid of guids) {
+      for (const option of this._product.productOptions) {
+        const value = option.values.find(v => v.id === guid);
+        if (value) {
+          descriptions.push(value.name);
+          break;
+        }
+      }
+    }
+
+    return descriptions.length > 0 ? descriptions.join(' / ') : null;
+  }
+
   private async _handleSetDefaultVariant(variantId: string): Promise<void> {
     if (!this._product) return;
 
+    // Skip if this variant is already the default
+    const clickedVariant = this._product.variants.find(v => v.id === variantId);
+    if (clickedVariant?.default) return;
+
+    const productRootId = this._product.id;
+    console.log("Setting default variant:", { productRootId, variantId });
+
+    // Optimistic UI update - immediately show new default
+    const updatedVariants = this._product.variants.map(v => ({
+      ...v,
+      default: v.id === variantId
+    }));
+    this._product = { ...this._product, variants: updatedVariants };
+
     try {
-      const { error } = await MerchelloApi.setDefaultVariant(this._product.id, variantId);
+      const { error } = await MerchelloApi.setDefaultVariant(productRootId, variantId);
+      console.log("API response:", { error });
+      
       if (!error) {
         this.#notificationContext?.peek("positive", { data: { headline: "Default variant updated", message: "" } });
-        this.#workspaceContext?.reload();
+        // Reload to sync with server state
+        await this.#workspaceContext?.reload();
+        console.log("After reload, variants:", this._product?.variants.map(v => ({ id: v.id, name: v.name, default: v.default })));
       } else {
         console.error("Failed to set default variant:", error);
         this.#notificationContext?.peek("danger", { data: { headline: "Failed to set default variant", message: error.message } });
+        // Revert optimistic update on error
+        await this.#workspaceContext?.reload();
       }
     } catch (error) {
       console.error("Failed to set default variant:", error);
       this.#notificationContext?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } });
+      // Revert optimistic update on error
+      await this.#workspaceContext?.reload();
     }
   }
 
@@ -891,6 +1026,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     const isNew = this.#workspaceContext?.isNew ?? true;
     const variantOptions = options.filter((o) => o.isVariant);
     const estimatedVariants = variantOptions.reduce((acc, opt) => acc * (opt.values.length || 1), variantOptions.length > 0 ? 1 : 0);
+    const maxOptions = this._optionSettings?.maxProductOptions ?? 5;
+    const isAtMaxOptions = options.length >= maxOptions;
 
     return html`
       <div class="tab-content">
@@ -920,14 +1057,14 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
         <div class="section-header">
           <div>
-            <h3>Product Options</h3>
+            <h3>Product Options <span class="option-count">${options.length}/${maxOptions}</span></h3>
             ${estimatedVariants > 0 ? html`<small class="hint">Will generate ${estimatedVariants} variant${estimatedVariants !== 1 ? 's' : ''}</small>` : nothing}
           </div>
           <uui-button
             look="primary"
             color="positive"
             label="Add Option"
-            ?disabled=${isNew}
+            ?disabled=${isNew || isAtMaxOptions}
             @click=${this._addNewOption}>
             <uui-icon name="icon-add"></uui-icon>
             Add Option
@@ -941,29 +1078,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
               <div class="empty-state">
                 <uui-icon name="icon-layers"></uui-icon>
                 <p>No options configured</p>
-                <p class="hint"><strong>Examples:</strong> Size (Small, Medium, Large), Color (Red, Blue, Green), Material (Cotton, Polyester)</p>
-                <uui-button look="primary" @click=${this._addNewOption}>
-                  <uui-icon name="icon-add"></uui-icon>
-                  Add Your First Option
-                </uui-button>
+                <p class="hint">Use the <strong>Add Option</strong> button above to add options like Size, Color, or Material</p>
               </div>
             `
           : nothing}
 
-        ${options.some((o) => o.isVariant) && !isNew
-          ? html`
-              <div class="regenerate-section">
-                <uui-button look="secondary" label="Regenerate Variants" @click=${this._regenerateVariants}>
-                  <uui-icon name="icon-sync"></uui-icon>
-                  Regenerate Variants
-                </uui-button>
-                <small class="hint">
-                  <uui-icon name="icon-alert"></uui-icon>
-                  This will create new variants based on current options. Existing variant data (pricing, stock, images) may need to be updated manually.
-                </small>
-              </div>
-            `
-          : nothing}
       </div>
     `;
   }
@@ -1078,8 +1197,58 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     await this._saveOptions();
   }
 
+  /**
+   * Confirms with user before saving options that will regenerate variants.
+   * Returns true if user confirms or no confirmation needed, false if cancelled.
+   */
+  private _confirmVariantRegeneration(): boolean {
+    const options = this._formData.productOptions || [];
+    const variantOptions = options.filter((o) => o.isVariant);
+    const currentVariantCount = this._product?.variants.length ?? 0;
+
+    // Calculate new variant count from cartesian product
+    const newVariantCount = variantOptions.length > 0
+      ? variantOptions.reduce((acc, opt) => acc * (opt.values.length || 1), 1)
+      : 1;
+
+    // Show warning if there are existing variants and variant options exist
+    if (currentVariantCount > 0 && variantOptions.length > 0) {
+      const message =
+        `⚠️ WARNING: Saving these options will regenerate all product variants.\n\n` +
+        `Current variants: ${currentVariantCount}\n` +
+        `New variants to create: ${newVariantCount}\n\n` +
+        `This will DELETE all existing variants and create new ones.\n` +
+        `Any variant-specific data (pricing, stock levels, images, SKUs) will need to be re-entered manually.\n\n` +
+        `Are you sure you want to continue?`;
+
+      return confirm(message);
+    }
+
+    // Show warning if removing all variant options (will collapse to single variant)
+    if (currentVariantCount > 1 && variantOptions.length === 0) {
+      const message =
+        `⚠️ WARNING: Removing all variant options will collapse this product to a single variant.\n\n` +
+        `Current variants: ${currentVariantCount}\n` +
+        `After save: 1 variant (default only)\n\n` +
+        `${currentVariantCount - 1} variants will be DELETED.\n` +
+        `Only the default variant will be kept.\n\n` +
+        `Are you sure you want to continue?`;
+
+      return confirm(message);
+    }
+
+    return true;
+  }
+
   private async _saveOptions(): Promise<void> {
     if (!this._product?.id) return;
+
+    // Confirm with user before potentially destructive operation
+    if (!this._confirmVariantRegeneration()) {
+      // User cancelled - reload to revert form state
+      this.#workspaceContext?.reload();
+      return;
+    }
 
     try {
       const options = (this._formData.productOptions || []).map((opt, index) => ({
@@ -1102,55 +1271,26 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         })),
       }));
 
+      this.#notificationContext?.peek("default", { data: { headline: "Saving options...", message: "Variants will be regenerated" } });
+
       const { data, error } = await MerchelloApi.saveProductOptions(this._product.id, options);
-      
+
       // Prevent state updates if component was disconnected during async operation
       if (!this.#isConnected) return;
 
       if (!error && data) {
         this._formData = { ...this._formData, productOptions: data };
+        this.#notificationContext?.peek("positive", { data: { headline: "Options saved", message: "Variants have been regenerated" } });
         this.#workspaceContext?.reload();
       } else if (error) {
         console.error("Failed to save options:", error);
         this._errorMessage = "Failed to save options: " + error.message;
+        this.#notificationContext?.peek("danger", { data: { headline: "Failed to save options", message: error.message } });
       }
     } catch (error) {
       if (!this.#isConnected) return;
       console.error("Failed to save options:", error);
       this._errorMessage = error instanceof Error ? error.message : "Failed to save options";
-    }
-  }
-
-  /**
-   * Regenerates variants from options with confirmation
-   */
-  private async _regenerateVariants(): Promise<void> {
-    if (!this._product?.id) return;
-
-    const variantOptions = this._formData.productOptions?.filter((o) => o.isVariant) || [];
-    const estimatedCount = variantOptions.reduce((acc, opt) => acc * (opt.values.length || 1), 1);
-
-    const confirmed = confirm(
-      `This will regenerate all product variants based on your options (approximately ${estimatedCount} variants).\n\n` +
-      `Existing variant-specific data (pricing, stock, images) will need to be updated manually.\n\n` +
-      `Are you sure you want to continue?`
-    );
-    if (!confirmed) return;
-
-    try {
-      this.#notificationContext?.peek("default", { data: { headline: "Regenerating variants...", message: "Please wait" } });
-      const { data, error } = await MerchelloApi.regenerateVariants(this._product.id);
-      if (!error) {
-        this.#notificationContext?.peek("positive", { data: { headline: "Variants regenerated", message: `${data?.length || 0} variants created` } });
-        this.#workspaceContext?.reload();
-      } else {
-        console.error("Failed to regenerate variants:", error);
-        this._errorMessage = "Failed to regenerate variants: " + error.message;
-        this.#notificationContext?.peek("danger", { data: { headline: "Failed to regenerate variants", message: error.message } });
-      }
-    } catch (error) {
-      console.error("Failed to regenerate variants:", error);
-      this._errorMessage = error instanceof Error ? error.message : "Failed to regenerate variants";
       this.#notificationContext?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } });
     }
   }
@@ -1223,6 +1363,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           </umb-router-slot>
 
           ${activeTab === "details" ? this._renderDetailsTab() : nothing}
+          ${activeTab === "media" ? this._renderMediaTab() : nothing}
           ${activeTab === "seo" ? this._renderSeoTab() : nothing}
           ${activeTab === "variants" ? this._renderVariantsTab() : nothing}
           ${activeTab === "options" ? this._renderOptionsTab() : nothing}
@@ -1452,6 +1593,13 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         font-size: 1.25rem;
       }
 
+      .option-count {
+        font-size: 0.875rem;
+        font-weight: normal;
+        color: var(--uui-color-text-alt);
+        margin-left: var(--uui-size-space-2);
+      }
+
       .section-description {
         color: var(--uui-color-text-alt);
         margin: var(--uui-size-space-2) 0;
@@ -1466,6 +1614,12 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         width: 100%;
       }
 
+      .variant-name-cell {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-1);
+      }
+
       .variant-link {
         font-weight: 500;
         color: var(--uui-color-interactive);
@@ -1475,6 +1629,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       .variant-link:hover {
         text-decoration: underline;
         color: var(--uui-color-interactive-emphasis);
+      }
+
+      .variant-options-text {
+        font-size: 0.8125rem;
+        color: var(--uui-color-text-alt);
       }
 
       /* Options */
@@ -1560,24 +1719,93 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         color: var(--uui-color-text);
       }
 
-      /* Regenerate variants section */
-      .regenerate-section {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-2);
+      /* Google Search Preview - Updated 2024/2025 styling */
+      .google-preview {
+        font-family: Arial, sans-serif;
+        max-width: 600px;
         padding: var(--uui-size-space-4);
-        background: var(--uui-color-surface);
+        background: #fff;
+        border: 1px solid var(--uui-color-border);
         border-radius: var(--uui-border-radius);
-        border: 1px solid var(--uui-color-warning);
       }
 
-      .regenerate-section .hint {
+      .google-preview-header {
         display: flex;
         align-items: center;
-        gap: var(--uui-size-space-2);
+        gap: 12px;
+        margin-bottom: 4px;
       }
 
-      .regenerate-section uui-icon {
+      .google-preview-favicon {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: #f1f3f4;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .google-preview-favicon uui-icon {
+        font-size: 16px;
+        color: #5f6368;
+      }
+
+      .google-preview-site {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      .google-preview-site-name {
+        font-size: 14px;
+        color: #202124;
+        line-height: 1.3;
+      }
+
+      .google-preview-url {
+        font-size: 12px;
+        color: #4d5156;
+        line-height: 1.3;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .google-preview-title {
+        font-size: 20px;
+        color: #1a0dab;
+        line-height: 1.3;
+        margin-bottom: 4px;
+        word-wrap: break-word;
+      }
+
+      .google-preview-title:hover {
+        text-decoration: underline;
+        cursor: pointer;
+      }
+
+      .google-preview-description {
+        font-size: 14px;
+        color: #4d5156;
+        line-height: 1.58;
+        word-wrap: break-word;
+      }
+
+      .google-preview-stats {
+        display: flex;
+        gap: var(--uui-size-space-4);
+        margin-top: var(--uui-size-space-3);
+        font-size: 12px;
+        flex-wrap: wrap;
+      }
+
+      .google-preview-stats .stat-ok {
+        color: var(--uui-color-positive);
+      }
+
+      .google-preview-stats .stat-warning {
         color: var(--uui-color-warning);
       }
 

@@ -798,23 +798,25 @@ public class ProductService(
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
-            var variant = await db.Products
+            // Find the variant to get its ProductRootId
+            var targetVariant = await db.Products
                 .FirstOrDefaultAsync(p => p.Id == variantId, cancellationToken);
-
-            if (variant == null)
+            
+            if (targetVariant == null)
             {
                 result.AddErrorMessage("Variant not found");
                 return;
             }
-
-            // Fetch siblings
+            
+            // Fetch all variants for that product root
             var siblings = await db.Products
-                .Where(p => p.ProductRootId == variant.ProductRootId)
+                .Where(p => p.ProductRootId == targetVariant.ProductRootId)
                 .ToListAsync(cancellationToken);
 
-            foreach (var v in siblings)
+            // Update default flags
+            foreach (var variant in siblings)
             {
-                v.Default = v.Id == variantId;
+                variant.Default = variant.Id == variantId;
             }
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
@@ -1595,13 +1597,33 @@ public class ProductService(
 
         scope.Complete();
         result.ResultObject = savedOptions;
+
+        // Auto-regenerate variants if the options save was successful
+        if (result.Successful)
+        {
+            // Check if there are any variant options (that generate variants)
+            var hasVariantOptions = options.Any(o => o.IsVariant);
+
+            logger.LogInformation("SaveProductOptions: Saved {OptionCount} options for product {ProductRootId}. HasVariantOptions: {HasVariantOptions}",
+                options.Count, productRootId, hasVariantOptions);
+
+            // Always regenerate to ensure variants match current options
+            // This handles: adding variant options, removing variant options, changing option values
+            var regenerateResult = await RegenerateVariants(productRootId, cancellationToken);
+            if (!regenerateResult.Successful)
+            {
+                result.AddWarningMessage("Options saved but variant regeneration had issues: " +
+                    string.Join(", ", regenerateResult.Messages.Select(m => m.Message)));
+            }
+        }
+
         return result;
     }
 
     /// <summary>
-    /// Regenerates variants based on current options
+    /// Regenerates variants based on current options. Called internally when options are saved.
     /// </summary>
-    public async Task<CrudResult<List<Product>>> RegenerateVariants(Guid productRootId, CancellationToken cancellationToken = default)
+    private async Task<CrudResult<List<Product>>> RegenerateVariants(Guid productRootId, CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<List<Product>>();
         List<Product>? generatedVariants = null;

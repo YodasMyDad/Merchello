@@ -45,8 +45,7 @@ public interface IProductService
     Task<Product?> GetVariant(Guid productRootId, Guid variantId, CancellationToken cancellationToken = default);
     Task<CrudResult<Product>> UpdateVariant(Guid productRootId, Guid variantId, UpdateVariantRequest request, CancellationToken cancellationToken = default);
 
-    // Options operations
+    // Options operations (variants are automatically regenerated when options are saved)
     Task<CrudResult<List<ProductOption>>> SaveProductOptions(Guid productRootId, List<SaveProductOptionRequest> options, CancellationToken cancellationToken = default);
-    Task<CrudResult<List<Product>>> RegenerateVariants(Guid productRootId, CancellationToken cancellationToken = default);
 }
 
