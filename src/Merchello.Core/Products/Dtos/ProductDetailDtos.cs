@@ -15,6 +15,15 @@ public class ProductRootDetailDto
     public string? HsCode { get; set; }
     public bool IsDigitalProduct { get; set; }
 
+    public string? Description { get; set; }
+
+    // SEO
+    public string? MetaDescription { get; set; }
+    public string? PageTitle { get; set; }
+    public bool NoIndex { get; set; }
+    public string? OpenGraphImage { get; set; }
+    public string? CanonicalUrl { get; set; }
+
     // Related entities
     public Guid TaxGroupId { get; set; }
     public string? TaxGroupName { get; set; }
@@ -78,7 +87,6 @@ public class ProductVariantDto
     public bool AvailableForPurchase { get; set; }
     public bool CanPurchase { get; set; }
     public List<Guid> Images { get; set; } = [];
-    public string? Description { get; set; }
     public bool ExcludeRootProductImages { get; set; }
     public string? Url { get; set; }
     public string? VariantOptionsKey { get; set; }
@@ -89,19 +97,12 @@ public class ProductVariantDto
     public decimal? WidthCm { get; set; }
     public decimal? HeightCm { get; set; }
 
-    // SEO
-    public string? MetaDescription { get; set; }
-    public string? PageTitle { get; set; }
-    public bool NoIndex { get; set; }
-    public string? OpenGraphImage { get; set; }
-
     // Shopping Feed
     public string? ShoppingFeedTitle { get; set; }
     public string? ShoppingFeedDescription { get; set; }
     public string? ShoppingFeedColour { get; set; }
     public string? ShoppingFeedMaterial { get; set; }
     public string? ShoppingFeedSize { get; set; }
-    public bool ExcludeFromCustomLabels { get; set; }
     public bool RemoveFromFeed { get; set; }
 
     // Stock (aggregated from ProductWarehouses)

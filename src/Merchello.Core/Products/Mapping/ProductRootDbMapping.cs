@@ -30,5 +30,12 @@ public class ProductRootDbMapping : IEntityTypeConfiguration<ProductRoot>
         builder.Property(x => x.GoogleShoppingFeedCategory).HasMaxLength(1000);
         builder.Property(x => x.RootUrl).HasMaxLength(1000);
         builder.Property(x => x.HsCode).HasMaxLength(10);
+
+        // SEO fields
+        builder.Property(x => x.Description).HasMaxLength(5000);
+        builder.Property(x => x.MetaDescription).HasMaxLength(200);
+        builder.Property(x => x.PageTitle).HasMaxLength(100);
+        builder.Property(x => x.OpenGraphImage).HasMaxLength(50);
+        builder.Property(x => x.CanonicalUrl).HasMaxLength(1000);
     }
 }

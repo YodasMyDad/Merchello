@@ -8,7 +8,7 @@ import type { ProductVariantDto, UpdateVariantRequest } from "@products/types/pr
 import { MerchelloApi } from "@api/merchello-api.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 
-type SectionId = "basic" | "dimensions" | "seo" | "feed" | "stock";
+type SectionId = "basic" | "dimensions" | "feed" | "stock";
 
 @customElement("merchello-variant-detail-modal")
 export class MerchelloVariantDetailModalElement extends UmbModalBaseElement<
@@ -55,23 +55,17 @@ export class MerchelloVariantDetailModalElement extends UmbModalBaseElement<
         availableForPurchase: this._formData.availableForPurchase,
         canPurchase: this._formData.canPurchase,
         images: this._formData.images,
-        description: this._formData.description ?? undefined,
         excludeRootProductImages: this._formData.excludeRootProductImages,
         url: this._formData.url ?? undefined,
         weight: this._formData.weight ?? undefined,
         lengthCm: this._formData.lengthCm ?? undefined,
         widthCm: this._formData.widthCm ?? undefined,
         heightCm: this._formData.heightCm ?? undefined,
-        metaDescription: this._formData.metaDescription ?? undefined,
-        pageTitle: this._formData.pageTitle ?? undefined,
-        noIndex: this._formData.noIndex,
-        openGraphImage: this._formData.openGraphImage ?? undefined,
         shoppingFeedTitle: this._formData.shoppingFeedTitle ?? undefined,
         shoppingFeedDescription: this._formData.shoppingFeedDescription ?? undefined,
         shoppingFeedColour: this._formData.shoppingFeedColour ?? undefined,
         shoppingFeedMaterial: this._formData.shoppingFeedMaterial ?? undefined,
         shoppingFeedSize: this._formData.shoppingFeedSize ?? undefined,
-        excludeFromCustomLabels: this._formData.excludeFromCustomLabels,
         removeFromFeed: this._formData.removeFromFeed,
       };
 
@@ -119,14 +113,6 @@ export class MerchelloVariantDetailModalElement extends UmbModalBaseElement<
           Dimensions
         </uui-button>
         <uui-button
-          look=${this._activeSection === "seo" ? "primary" : "secondary"}
-          compact
-          @click=${() => (this._activeSection = "seo")}
-          label="SEO">
-          <uui-icon name="icon-globe"></uui-icon>
-          SEO
-        </uui-button>
-        <uui-button
           look=${this._activeSection === "feed" ? "primary" : "secondary"}
           compact
           @click=${() => (this._activeSection = "feed")}
@@ -152,8 +138,6 @@ export class MerchelloVariantDetailModalElement extends UmbModalBaseElement<
         return this._renderBasicSection();
       case "dimensions":
         return this._renderDimensionsSection();
-      case "seo":
-        return this._renderSeoSection();
       case "feed":
         return this._renderFeedSection();
       case "stock":
@@ -277,16 +261,6 @@ export class MerchelloVariantDetailModalElement extends UmbModalBaseElement<
             </div>
           </div>
         </div>
-
-        <div class="form-field full-width">
-          <label>Description</label>
-          <uui-textarea
-            .value=${this._formData.description || ""}
-            @input=${(e: Event) => (this._formData = { ...this._formData, description: (e.target as HTMLTextAreaElement).value })}
-            placeholder="Describe this variant...">
-          </uui-textarea>
-          <small class="hint">Variant-specific description (overrides product description)</small>
-        </div>
       </div>
     `;
   }
@@ -353,46 +327,6 @@ export class MerchelloVariantDetailModalElement extends UmbModalBaseElement<
     `;
   }
 
-  private _renderSeoSection(): unknown {
-    return html`
-      <div class="section-content">
-        <div class="form-grid">
-          <div class="form-field full-width">
-            <label>Page Title</label>
-            <uui-input
-              .value=${this._formData.pageTitle || ""}
-              @input=${(e: Event) => (this._formData = { ...this._formData, pageTitle: (e.target as HTMLInputElement).value })}>
-            </uui-input>
-          </div>
-
-          <div class="form-field full-width">
-            <label>Meta Description</label>
-            <uui-textarea
-              .value=${this._formData.metaDescription || ""}
-              @input=${(e: Event) => (this._formData = { ...this._formData, metaDescription: (e.target as HTMLTextAreaElement).value })}>
-            </uui-textarea>
-          </div>
-
-          <div class="form-field full-width">
-            <label>URL Slug</label>
-            <uui-input
-              .value=${this._formData.url || ""}
-              @input=${(e: Event) => (this._formData = { ...this._formData, url: (e.target as HTMLInputElement).value })}>
-            </uui-input>
-          </div>
-
-          <div class="form-field toggle-field">
-            <uui-toggle
-              .checked=${this._formData.noIndex ?? false}
-              @change=${(e: Event) => (this._formData = { ...this._formData, noIndex: (e.target as any).checked })}>
-            </uui-toggle>
-            <label>No Index (hide from search engines)</label>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
   private _renderFeedSection(): unknown {
     return html`
       <div class="section-content">
@@ -447,14 +381,6 @@ export class MerchelloVariantDetailModalElement extends UmbModalBaseElement<
                     .value=${this._formData.shoppingFeedSize || ""}
                     @input=${(e: Event) => (this._formData = { ...this._formData, shoppingFeedSize: (e.target as HTMLInputElement).value })}>
                   </uui-input>
-                </div>
-
-                <div class="form-field toggle-field">
-                  <uui-toggle
-                    .checked=${this._formData.excludeFromCustomLabels ?? false}
-                    @change=${(e: Event) => (this._formData = { ...this._formData, excludeFromCustomLabels: (e.target as any).checked })}>
-                  </uui-toggle>
-                  <label>Exclude from custom labels</label>
                 </div>
               </div>
             `

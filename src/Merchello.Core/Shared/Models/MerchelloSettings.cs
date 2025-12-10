@@ -90,6 +90,13 @@ public class MerchelloSettings
     public string[] OptionUiAliases { get; set; } = ["dropdown", "colour", "image"];
 
     /// <summary>
+    /// The DataType key (GUID) for the Product Description rich text editor.
+    /// This DataType can be configured in Settings > Data Types.
+    /// If null or not found, a default DataType will be created on startup.
+    /// </summary>
+    public Guid? ProductDescriptionDataTypeKey { get; set; }
+
+    /// <summary>
     /// Check if a country code is allowed by store settings.
     /// Returns true if no restrictions are configured or if the country is in the allowed list.
     /// </summary>

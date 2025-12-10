@@ -38,7 +38,16 @@ export interface ProductRootDetailDto {
   googleShoppingFeedCategory: string | null;
   hsCode: string | null;
   isDigitalProduct: boolean;
-  
+
+  description: string | null;
+
+  // SEO
+  metaDescription: string | null;
+  pageTitle: string | null;
+  noIndex: boolean;
+  openGraphImage: string | null;
+  canonicalUrl: string | null;
+
   taxGroupId: string;
   taxGroupName: string | null;
   productTypeId: string;
@@ -88,7 +97,6 @@ export interface ProductVariantDto {
   availableForPurchase: boolean;
   canPurchase: boolean;
   images: string[];
-  description: string | null;
   excludeRootProductImages: boolean;
   url: string | null;
   variantOptionsKey: string | null;
@@ -98,20 +106,13 @@ export interface ProductVariantDto {
   lengthCm: number | null;
   widthCm: number | null;
   heightCm: number | null;
-  
-  // SEO
-  metaDescription: string | null;
-  pageTitle: string | null;
-  noIndex: boolean;
-  openGraphImage: string | null;
-  
+
   // Shopping Feed
   shoppingFeedTitle: string | null;
   shoppingFeedDescription: string | null;
   shoppingFeedColour: string | null;
   shoppingFeedMaterial: string | null;
   shoppingFeedSize: string | null;
-  excludeFromCustomLabels: boolean;
   removeFromFeed: boolean;
   
   // Stock
@@ -131,6 +132,11 @@ export interface VariantWarehouseStockDto {
 export interface ProductOptionSettingsDto {
   optionTypeAliases: string[];
   optionUiAliases: string[];
+}
+
+export interface DescriptionEditorSettingsDto {
+  dataTypeKey: string | null;
+  propertyEditorUiAlias: string;
 }
 
 // Request types
@@ -165,6 +171,12 @@ export interface UpdateProductRootRequest {
   productTypeId?: string;
   categoryIds?: string[];
   warehouseIds?: string[];
+  description?: string;
+  metaDescription?: string;
+  pageTitle?: string;
+  noIndex?: boolean;
+  openGraphImage?: string;
+  canonicalUrl?: string;
 }
 
 export interface UpdateVariantRequest {
@@ -180,23 +192,17 @@ export interface UpdateVariantRequest {
   availableForPurchase?: boolean;
   canPurchase?: boolean;
   images?: string[];
-  description?: string;
   excludeRootProductImages?: boolean;
   url?: string;
   weight?: number;
   lengthCm?: number;
   widthCm?: number;
   heightCm?: number;
-  metaDescription?: string;
-  pageTitle?: string;
-  noIndex?: boolean;
-  openGraphImage?: string;
   shoppingFeedTitle?: string;
   shoppingFeedDescription?: string;
   shoppingFeedColour?: string;
   shoppingFeedMaterial?: string;
   shoppingFeedSize?: string;
-  excludeFromCustomLabels?: boolean;
   removeFromFeed?: boolean;
 }
 

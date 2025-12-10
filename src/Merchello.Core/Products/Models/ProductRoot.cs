@@ -91,5 +91,35 @@ public class ProductRoot
     /// Digital products do not require warehouse assignment or shipping options.
     /// </summary>
     public bool IsDigitalProduct { get; set; }
+
+    /// <summary>
+    /// The product description
+    /// </summary>
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// The meta description for SEO
+    /// </summary>
+    public string? MetaDescription { get; set; }
+
+    /// <summary>
+    /// The page title for SEO
+    /// </summary>
+    public string? PageTitle { get; set; }
+
+    /// <summary>
+    /// Whether this product should be hidden from search engines
+    /// </summary>
+    public bool NoIndex { get; set; }
+
+    /// <summary>
+    /// The Open Graph image media ID for social sharing
+    /// </summary>
+    public string? OpenGraphImage { get; set; }
+
+    /// <summary>
+    /// Optional canonical URL for SEO duplicate content handling
+    /// </summary>
+    public string? CanonicalUrl { get; set; }
 }
 

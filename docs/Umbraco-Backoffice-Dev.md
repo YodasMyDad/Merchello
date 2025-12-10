@@ -44,6 +44,7 @@
 | `propertyAction` | `label`, `icon` (uses `forPropertyEditorUis`) | — | — |
 | `searchProvider` | `label` | — | — |
 | `globalContext` | — | — | — |
+| `workspaceContext` | — | — | `Umb.Condition.WorkspaceAlias` |
 | `condition` | — | — | — |
 | `store` | — | — | — |
 | `repository` | — | — | — |
@@ -699,6 +700,137 @@ html`
 
 > **Note:** `kind` provides pre-configured behavior. Omitting required `kind` values will cause features to not work!
 
+## Context Communication
+
+### How Contexts Work
+
+A **Context** is a Controller that is provided for a certain scope. The scope is defined by the DOM hierarchy—components can only communicate with contexts that exist within their ancestor chain.
+
+**Key principles:**
+- Contexts are **DOM-scoped**: A component can only consume contexts provided by its ancestors
+- **Automatic lifecycle**: Contexts initialize when navigating to their scope and destroy when leaving
+- **Workspace isolation**: Multiple workspace instances maintain separate context scopes (no cross-contamination)
+
+### Workspace Context Extension
+
+Use `workspaceContext` to provide a context automatically when entering a specific workspace:
+
+```typescript
+// manifest.ts
+{
+  type: "workspaceContext",
+  alias: "My.Counter.Context",
+  name: "Counter Context",
+  api: () => import("./counter-context.js"),
+  conditions: [{ alias: "Umb.Condition.WorkspaceAlias", match: "Umb.Workspace.Document" }],
+}
+```
+
+### Complete Integration Example
+
+A working example showing context + action + view communication:
+
+```typescript
+// counter-context.ts
+import { UmbControllerBase } from "@umbraco-cms/backoffice/class-api";
+import { UmbContextToken } from "@umbraco-cms/backoffice/context-api";
+import { UmbNumberState } from "@umbraco-cms/backoffice/observable-api";
+import type { UmbControllerHost } from "@umbraco-cms/backoffice/controller-api";
+
+export const COUNTER_CONTEXT = new UmbContextToken<CounterContext>("CounterContext");
+
+export class CounterContext extends UmbControllerBase {
+  #count = new UmbNumberState(0);
+  readonly count = this.#count.asObservable();
+
+  constructor(host: UmbControllerHost) {
+    super(host, COUNTER_CONTEXT.toString());
+    this.provideContext(COUNTER_CONTEXT, this);
+  }
+
+  increment() {
+    this.#count.setValue(this.#count.getValue() + 1);
+  }
+
+  reset() {
+    this.#count.setValue(0);
+  }
+}
+
+export { CounterContext as api };
+
+// counter-action.ts (workspace action that triggers context)
+import { UmbWorkspaceActionBase } from "@umbraco-cms/backoffice/workspace";
+import { COUNTER_CONTEXT } from "./counter-context.js";
+
+export class IncrementAction extends UmbWorkspaceActionBase {
+  async execute() {
+    const context = await this.getContext(COUNTER_CONTEXT);
+    context?.increment();
+  }
+}
+
+export { IncrementAction as api };
+
+// counter-view.element.ts (workspace view that observes context)
+import { html, customElement, state } from "@umbraco-cms/backoffice/external/lit";
+import { UmbLitElement } from "@umbraco-cms/backoffice/lit-element";
+import { COUNTER_CONTEXT } from "./counter-context.js";
+
+@customElement("my-counter-view")
+export class CounterView extends UmbLitElement {
+  @state() private _count = 0;
+
+  constructor() {
+    super();
+    this.consumeContext(COUNTER_CONTEXT, (context) => {
+      this.observe(context.count, (value) => {
+        this._count = value;
+      });
+    });
+  }
+
+  render() {
+    return html`<uui-box headline="Counter"><p>Count: ${this._count}</p></uui-box>`;
+  }
+}
+
+export default CounterView;
+```
+
+```typescript
+// manifest.ts - Register all pieces
+export const manifests: Array<UmbExtensionManifest> = [
+  // 1. Context (provided when entering workspace)
+  {
+    type: "workspaceContext",
+    alias: "My.Counter.Context",
+    name: "Counter Context",
+    api: () => import("./counter-context.js"),
+    conditions: [{ alias: "Umb.Condition.WorkspaceAlias", match: "Umb.Workspace.Document" }],
+  },
+  // 2. Action (button that triggers context method)
+  {
+    type: "workspaceAction",
+    kind: "default",
+    alias: "My.Counter.Increment",
+    name: "Increment Counter",
+    api: () => import("./counter-action.js"),
+    meta: { label: "Increment", look: "primary" },
+    conditions: [{ alias: "Umb.Condition.WorkspaceAlias", match: "Umb.Workspace.Document" }],
+  },
+  // 3. View (displays context state)
+  {
+    type: "workspaceView",
+    alias: "My.Counter.View",
+    name: "Counter View",
+    js: () => import("./counter-view.element.js"),
+    meta: { label: "Counter", pathname: "counter", icon: "icon-calculator" },
+    conditions: [{ alias: "Umb.Condition.WorkspaceAlias", match: "Umb.Workspace.Document" }],
+  },
+];
+```
+
 ## Best Practices
 1. Use lazy imports: `js: () => import('./file.js')` for elements
 2. Use `api: () => import('./file.js')` for context/action classes
@@ -1330,3 +1462,263 @@ uui-breadcrumbs {
 See [product-detail.element.ts](../src/Merchello/Client/src/products/components/product-detail.element.ts) for a complete implementation of the workspace editor pattern.
 
 See [variant-detail.element.ts](../src/Merchello/Client/src/products/components/variant-detail.element.ts) for an example of a child entity view with breadcrumb navigation in the footer.
+
+---
+
+## Using Umbraco Property Editors with DataType Configuration
+
+When you want to use Umbraco's built-in property editors (like TipTap Rich Text, Media Picker, etc.) in your custom components with configuration from a DataType, follow this pattern.
+
+### Why Use DataType Configuration?
+
+- Users can customize the editor through Settings > Data Types (toolbar options, allowed extensions, etc.)
+- Consistent with how Umbraco content editors work
+- Configuration is stored in Umbraco and can be changed without code changes
+
+### Step 1: Import the Property Editor Package (CRITICAL!)
+
+Custom elements must be imported before they can be used. Without this, the element renders as empty.
+
+```typescript
+// Import the package to register the custom element
+import "@umbraco-cms/backoffice/tiptap";  // For umb-input-tiptap
+import "@umbraco-cms/backoffice/media";   // For umb-input-media (if needed)
+```
+
+### Step 2: Load DataType Configuration
+
+Use `UmbDataTypeDetailRepository` to fetch the DataType configuration. This handles authentication automatically.
+
+```typescript
+import { UmbDataTypeDetailRepository } from "@umbraco-cms/backoffice/data-type";
+import { UmbPropertyEditorConfigCollection } from "@umbraco-cms/backoffice/property-editor";
+import type { UmbPropertyEditorConfigCollection as UmbPropertyEditorConfigCollectionType } from "@umbraco-cms/backoffice/property-editor";
+
+@customElement("my-editor")
+export class MyEditor extends UmbElementMixin(LitElement) {
+  // State to hold the configuration
+  @state() private _editorConfig: UmbPropertyEditorConfigCollectionType | undefined = undefined;
+
+  // Repository for loading DataType configuration
+  #dataTypeRepository = new UmbDataTypeDetailRepository(this);
+
+  async connectedCallback() {
+    super.connectedCallback();
+    
+    // Load the DataType configuration
+    // The dataTypeKey should come from your API/settings
+    const dataTypeKey = "your-datatype-guid-here";
+    await this._loadDataTypeConfig(dataTypeKey);
+  }
+
+  private async _loadDataTypeConfig(dataTypeKey: string): Promise<void> {
+    try {
+      // Request the DataType through Umbraco's repository (handles auth)
+      const { data } = await this.#dataTypeRepository.requestByUnique(dataTypeKey);
+      
+      if (!data) {
+        console.error("DataType not found:", dataTypeKey);
+        this._setFallbackConfig();
+        return;
+      }
+
+      // Observe the DataType to get its configuration reactively
+      this.observe(
+        await this.#dataTypeRepository.byUnique(dataTypeKey),
+        (dataType) => {
+          if (!dataType) return;
+          
+          // Create the config collection from the DataType's values
+          // Values is an array like: [{alias: "extensions", value: [...]}, {alias: "toolbar", value: [...]}]
+          this._editorConfig = new UmbPropertyEditorConfigCollection(dataType.values);
+        },
+        '_observeDataType',
+      );
+    } catch (error) {
+      console.error("Failed to load DataType configuration:", error);
+      this._setFallbackConfig();
+    }
+  }
+
+  private _setFallbackConfig(): void {
+    // Provide sensible defaults if DataType cannot be loaded
+    this._editorConfig = new UmbPropertyEditorConfigCollection([
+      { alias: "extensions", value: ["Umb.Tiptap.Bold", "Umb.Tiptap.Italic"] },
+      { alias: "toolbar", value: [[["Umb.Tiptap.Toolbar.Bold", "Umb.Tiptap.Toolbar.Italic"]]] },
+    ]);
+  }
+}
+```
+
+### Step 3: Render the Property Editor
+
+Pass the configuration to the property editor component:
+
+```typescript
+private _renderEditor(): unknown {
+  // Show loading state while config is being fetched
+  if (!this._editorConfig) {
+    return html`<uui-loader-bar></uui-loader-bar>`;
+  }
+
+  return html`
+    <umb-input-tiptap
+      .configuration=${this._editorConfig}
+      .value=${this._value || ""}
+      @change=${this._handleChange}>
+    </umb-input-tiptap>
+  `;
+}
+
+private _handleChange(e: Event): void {
+  const target = e.target as HTMLElement & { value?: string };
+  this._value = target?.value || "";
+}
+```
+
+### DataType Values Structure
+
+The DataType's `values` property is an array of `{alias, value}` pairs. Different property editors expect different aliases:
+
+**TipTap Rich Text Editor:**
+```typescript
+[
+  {
+    alias: "extensions",
+    value: [
+      "Umb.Tiptap.RichTextEssentials",
+      "Umb.Tiptap.Bold",
+      "Umb.Tiptap.Italic",
+      "Umb.Tiptap.Link",
+      // ... more extension aliases
+    ]
+  },
+  {
+    alias: "toolbar",
+    value: [
+      [  // Rows
+        [  // Groups
+          "Umb.Tiptap.Toolbar.Bold",
+          "Umb.Tiptap.Toolbar.Italic"
+        ],
+        [
+          "Umb.Tiptap.Toolbar.Link",
+          "Umb.Tiptap.Toolbar.Unlink"
+        ]
+      ]
+    ]
+  },
+  { alias: "maxImageSize", value: 800 },
+  { alias: "overlaySize", value: "medium" }
+]
+```
+
+### Backend: Ensure DataType Exists
+
+For a robust solution, create a service that ensures your DataType exists on startup:
+
+```csharp
+// MerchelloDataTypeInitializer.cs
+public class MerchelloDataTypeInitializer
+{
+    private readonly IDataTypeService _dataTypeService;
+    private readonly PropertyEditorCollection _propertyEditors;
+    private readonly IConfigurationEditorJsonSerializer _serializer;
+
+    public async Task EnsureDataTypeExistsAsync()
+    {
+        // Check if DataType already exists
+        var dataType = await _dataTypeService.GetAsync(YOUR_DATATYPE_KEY);
+        if (dataType != null) return;
+
+        // Get the property editor (e.g., Rich Text)
+        if (!_propertyEditors.TryGet("Umbraco.RichText", out var propertyEditor))
+            return;
+
+        // Create DataType with configuration
+        dataType = new DataType(propertyEditor, _serializer, -1)
+        {
+            Name = "My Rich Text Editor",
+            EditorUiAlias = "Umb.PropertyEditorUi.Tiptap",
+            ConfigurationData = new Dictionary<string, object>
+            {
+                { "extensions", new[] { "Umb.Tiptap.Bold", "Umb.Tiptap.Italic", /* ... */ } },
+                { "toolbar", new[] { new[] { new[] { "Umb.Tiptap.Toolbar.Bold" } } } },
+            }
+        };
+
+        await _dataTypeService.CreateAsync(dataType, Constants.Security.SuperUserKey);
+    }
+}
+```
+
+### Backend: Expose DataType Key via API
+
+Create an endpoint to expose the DataType key to the frontend:
+
+```csharp
+[HttpGet("settings/description-editor")]
+public IActionResult GetDescriptionEditorSettings()
+{
+    return Ok(new {
+        DataTypeKey = _initializer.GetDataTypeKey(),
+        PropertyEditorUiAlias = "Umb.PropertyEditorUi.Tiptap"
+    });
+}
+```
+
+### Common Mistakes
+
+1. **Forgetting to import the package** - The custom element won't be registered, rendering blank:
+   ```typescript
+   // WRONG - element renders empty
+   html`<umb-input-tiptap .configuration=${config}></umb-input-tiptap>`
+   
+   // CORRECT - import package first
+   import "@umbraco-cms/backoffice/tiptap";
+   html`<umb-input-tiptap .configuration=${config}></umb-input-tiptap>`
+   ```
+
+2. **Using plain fetch instead of repository** - Will get 401 Unauthorized because auth token isn't included:
+   ```typescript
+   // WRONG - no auth token
+   const response = await fetch(`/umbraco/management/api/v1/data-type/${key}`);
+   
+   // CORRECT - repository handles auth
+   const { data } = await this.#dataTypeRepository.requestByUnique(key);
+   ```
+
+3. **Not checking if config is loaded** - Component may render before config is ready:
+   ```typescript
+   // WRONG - may render with undefined config
+   return html`<umb-input-tiptap .configuration=${this._config}></umb-input-tiptap>`;
+   
+   // CORRECT - show loading state
+   if (!this._config) return html`<uui-loader-bar></uui-loader-bar>`;
+   return html`<umb-input-tiptap .configuration=${this._config}></umb-input-tiptap>`;
+   ```
+
+4. **Wrong value structure for config** - Must be array of `{alias, value}` objects:
+   ```typescript
+   // WRONG - plain object
+   new UmbPropertyEditorConfigCollection({ extensions: [...], toolbar: [...] });
+   
+   // CORRECT - array of alias/value pairs
+   new UmbPropertyEditorConfigCollection([
+     { alias: "extensions", value: [...] },
+     { alias: "toolbar", value: [...] }
+   ]);
+   ```
+
+### Available Property Editor Components
+
+| Component | Package Import | Property Editor UI Alias |
+|-----------|---------------|-------------------------|
+| `umb-input-tiptap` | `@umbraco-cms/backoffice/tiptap` | `Umb.PropertyEditorUi.Tiptap` |
+| `umb-input-media` | `@umbraco-cms/backoffice/media` | `Umb.PropertyEditorUi.MediaPicker` |
+| `umb-input-content-picker` | `@umbraco-cms/backoffice/content` | `Umb.PropertyEditorUi.ContentPicker` |
+| `umb-input-date-time` | `@umbraco-cms/backoffice/datetime` | `Umb.PropertyEditorUi.DatePicker` |
+
+### Complete Example
+
+See [product-detail.element.ts](../src/Merchello/Client/src/products/components/product-detail.element.ts) for a complete implementation using TipTap with DataType configuration.

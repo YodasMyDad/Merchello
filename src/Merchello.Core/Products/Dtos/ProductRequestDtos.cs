@@ -36,6 +36,15 @@ public class UpdateProductRootRequest
     public Guid? ProductTypeId { get; set; }
     public List<Guid>? CategoryIds { get; set; }
     public List<Guid>? WarehouseIds { get; set; }
+
+    public string? Description { get; set; }
+
+    // SEO
+    public string? MetaDescription { get; set; }
+    public string? PageTitle { get; set; }
+    public bool? NoIndex { get; set; }
+    public string? OpenGraphImage { get; set; }
+    public string? CanonicalUrl { get; set; }
 }
 
 /// <summary>
@@ -73,7 +82,6 @@ public class UpdateVariantRequest
     public bool? AvailableForPurchase { get; set; }
     public bool? CanPurchase { get; set; }
     public List<Guid>? Images { get; set; }
-    public string? Description { get; set; }
     public bool? ExcludeRootProductImages { get; set; }
     public string? Url { get; set; }
 
@@ -83,19 +91,12 @@ public class UpdateVariantRequest
     public decimal? WidthCm { get; set; }
     public decimal? HeightCm { get; set; }
 
-    // SEO
-    public string? MetaDescription { get; set; }
-    public string? PageTitle { get; set; }
-    public bool? NoIndex { get; set; }
-    public string? OpenGraphImage { get; set; }
-
     // Shopping Feed
     public string? ShoppingFeedTitle { get; set; }
     public string? ShoppingFeedDescription { get; set; }
     public string? ShoppingFeedColour { get; set; }
     public string? ShoppingFeedMaterial { get; set; }
     public string? ShoppingFeedSize { get; set; }
-    public bool? ExcludeFromCustomLabels { get; set; }
     public bool? RemoveFromFeed { get; set; }
 }
 

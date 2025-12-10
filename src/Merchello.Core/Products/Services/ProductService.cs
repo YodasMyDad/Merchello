@@ -1296,6 +1296,12 @@ public class ProductService(
             if (request.HsCode != null) productRoot.HsCode = request.HsCode;
             if (request.IsDigitalProduct.HasValue) productRoot.IsDigitalProduct = request.IsDigitalProduct.Value;
             if (request.RootImages != null) productRoot.RootImages = request.RootImages.Select(g => g.ToString()).ToList();
+            if (request.Description != null) productRoot.Description = request.Description;
+            if (request.MetaDescription != null) productRoot.MetaDescription = request.MetaDescription;
+            if (request.PageTitle != null) productRoot.PageTitle = request.PageTitle;
+            if (request.NoIndex.HasValue) productRoot.NoIndex = request.NoIndex.Value;
+            if (request.OpenGraphImage != null) productRoot.OpenGraphImage = request.OpenGraphImage;
+            if (request.CanonicalUrl != null) productRoot.CanonicalUrl = request.CanonicalUrl;
 
             // Update tax group
             if (request.TaxGroupId.HasValue && request.TaxGroupId.Value != productRoot.TaxGroupId)
@@ -1456,7 +1462,6 @@ public class ProductService(
             if (request.PreviousPrice.HasValue) variant.PreviousPrice = request.PreviousPrice.Value;
             if (request.AvailableForPurchase.HasValue) variant.AvailableForPurchase = request.AvailableForPurchase.Value;
             if (request.CanPurchase.HasValue) variant.CanPurchase = request.CanPurchase.Value;
-            if (request.Description != null) variant.Description = request.Description;
             if (request.ExcludeRootProductImages.HasValue) variant.ExcludeRootProductImages = request.ExcludeRootProductImages.Value;
             if (request.Url != null) variant.Url = request.Url;
             if (request.Images != null) variant.Images = request.Images.Select(g => g.ToString()).ToList();
@@ -1467,19 +1472,12 @@ public class ProductService(
             if (request.WidthCm.HasValue) variant.WidthCm = request.WidthCm.Value;
             if (request.HeightCm.HasValue) variant.HeightCm = request.HeightCm.Value;
 
-            // SEO
-            if (request.MetaDescription != null) variant.MetaDescription = request.MetaDescription;
-            if (request.PageTitle != null) variant.PageTitle = request.PageTitle;
-            if (request.NoIndex.HasValue) variant.NoIndex = request.NoIndex.Value;
-            if (request.OpenGraphImage != null) variant.OpenGraphImage = request.OpenGraphImage;
-
             // Shopping Feed
             if (request.ShoppingFeedTitle != null) variant.ShoppingFeedTitle = request.ShoppingFeedTitle;
             if (request.ShoppingFeedDescription != null) variant.ShoppingFeedDescription = request.ShoppingFeedDescription;
             if (request.ShoppingFeedColour != null) variant.ShoppingFeedColour = request.ShoppingFeedColour;
             if (request.ShoppingFeedMaterial != null) variant.ShoppingFeedMaterial = request.ShoppingFeedMaterial;
             if (request.ShoppingFeedSize != null) variant.ShoppingFeedSize = request.ShoppingFeedSize;
-            if (request.ExcludeFromCustomLabels.HasValue) variant.ExcludeFromCustomLabels = request.ExcludeFromCustomLabels.Value;
             if (request.RemoveFromFeed.HasValue) variant.RemoveFromFeed = request.RemoveFromFeed.Value;
 
             variant.DateUpdated = DateTime.Now;
@@ -1700,6 +1698,12 @@ public class ProductService(
             GoogleShoppingFeedCategory = productRoot.GoogleShoppingFeedCategory,
             HsCode = productRoot.HsCode,
             IsDigitalProduct = productRoot.IsDigitalProduct,
+            Description = productRoot.Description,
+            MetaDescription = productRoot.MetaDescription,
+            PageTitle = productRoot.PageTitle,
+            NoIndex = productRoot.NoIndex,
+            OpenGraphImage = productRoot.OpenGraphImage,
+            CanonicalUrl = productRoot.CanonicalUrl,
             TaxGroupId = productRoot.TaxGroupId,
             TaxGroupName = productRoot.TaxGroup?.Name,
             ProductTypeId = productRoot.ProductTypeId,
@@ -1769,7 +1773,6 @@ public class ProductService(
             AvailableForPurchase = product.AvailableForPurchase,
             CanPurchase = product.CanPurchase,
             Images = product.Images.Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToList(),
-            Description = product.Description,
             ExcludeRootProductImages = product.ExcludeRootProductImages,
             Url = product.Url,
             VariantOptionsKey = product.VariantOptionsKey,
@@ -1777,16 +1780,11 @@ public class ProductService(
             LengthCm = product.LengthCm,
             WidthCm = product.WidthCm,
             HeightCm = product.HeightCm,
-            MetaDescription = product.MetaDescription,
-            PageTitle = product.PageTitle,
-            NoIndex = product.NoIndex,
-            OpenGraphImage = product.OpenGraphImage,
             ShoppingFeedTitle = product.ShoppingFeedTitle,
             ShoppingFeedDescription = product.ShoppingFeedDescription,
             ShoppingFeedColour = product.ShoppingFeedColour,
             ShoppingFeedMaterial = product.ShoppingFeedMaterial,
             ShoppingFeedSize = product.ShoppingFeedSize,
-            ExcludeFromCustomLabels = product.ExcludeFromCustomLabels,
             RemoveFromFeed = product.RemoveFromFeed,
             TotalStock = product.ProductWarehouses?.Sum(pw => pw.Stock) ?? 0,
             WarehouseStock = product.ProductWarehouses?.Select(pw => new VariantWarehouseStockDto

@@ -152,7 +152,6 @@ public static class ProductServiceDbSeedExtensions
 
                 product.AvailableForPurchase = true;
                 product.Images = [$"https://prd.place/600/800?seed={product.Id}"];
-                product.Description = description ?? $"High quality {name}";
                 product.Weight = weight;
 
                 // Add filters
