@@ -4,7 +4,7 @@ import { UMB_WORKSPACE_CONTEXT as S } from "@umbraco-cms/backoffice/workspace";
 import { UmbModalToken as v, UMB_MODAL_MANAGER_CONTEXT as x } from "@umbraco-cms/backoffice/modal";
 import { M as h } from "./merchello-api-C2InYbkz.js";
 import { M as O } from "./create-supplier-modal.token-D_m5XdXY.js";
-import { e as k, h as T, i as M } from "./navigation-Cp3wi1pC.js";
+import { f as k, i as T, j as M } from "./navigation-DnzDaPpA.js";
 import { b as A } from "./badge.styles-C_lNgH9O.js";
 const R = new v("Merchello.ServiceRegion.Modal", {
   modal: {
@@ -988,4 +988,4 @@ export {
   o as MerchelloWarehouseDetailElement,
   V as default
 };
-//# sourceMappingURL=warehouse-detail.element-Ch6_42UE.js.map
+//# sourceMappingURL=warehouse-detail.element-D09wQ6xH.js.map

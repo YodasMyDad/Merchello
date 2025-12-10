@@ -2,9 +2,9 @@ import { html as a, nothing as c, css as m, state as u, customElement as h } fro
 import { UmbModalBaseElement as _ } from "@umbraco-cms/backoffice/modal";
 import { M as g } from "./merchello-api-C2InYbkz.js";
 import { C as p } from "./order.types-B45a7FtJ.js";
-import "./order-table.element-DEwc7IIr.js";
+import "./order-table.element-BhZ4JcIX.js";
 import "./merchello-empty-state.element-mt97UoA5.js";
-import { n as f } from "./navigation-Cp3wi1pC.js";
+import { n as f } from "./navigation-DnzDaPpA.js";
 var v = Object.defineProperty, b = Object.getOwnPropertyDescriptor, d = (r, e, o, i) => {
   for (var t = i > 1 ? void 0 : i ? b(e, o) : e, l = r.length - 1, n; l >= 0; l--)
     (n = r[l]) && (t = (i ? n(e, o, t) : n(t)) || t);
@@ -141,4 +141,4 @@ export {
   s as MerchelloCustomerOrdersModalElement,
   E as default
 };
-//# sourceMappingURL=customer-orders-modal.element-DYijVxoe.js.map
+//# sourceMappingURL=customer-orders-modal.element-C1zPSS_y.js.map

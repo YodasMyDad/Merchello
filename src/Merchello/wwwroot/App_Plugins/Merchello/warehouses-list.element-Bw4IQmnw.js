@@ -1,7 +1,7 @@
 import { LitElement as g, html as i, nothing as d, css as b, state as l, customElement as m } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin as f } from "@umbraco-cms/backoffice/element-api";
 import { M as h } from "./merchello-api-C2InYbkz.js";
-import { d as v, e as p, f as _ } from "./navigation-Cp3wi1pC.js";
+import { e as v, f as p, h as _ } from "./navigation-DnzDaPpA.js";
 import { b as y } from "./badge.styles-C_lNgH9O.js";
 import "./merchello-empty-state.element-mt97UoA5.js";
 var w = Object.defineProperty, x = Object.getOwnPropertyDescriptor, s = (e, a, n, t) => {
@@ -346,4 +346,4 @@ export {
   r as MerchelloWarehousesListElement,
   A as default
 };
-//# sourceMappingURL=warehouses-list.element-DWpXBiSs.js.map
+//# sourceMappingURL=warehouses-list.element-Bw4IQmnw.js.map

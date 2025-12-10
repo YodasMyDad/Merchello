@@ -1045,3 +1045,288 @@ export function navigateToProductDetail(productId: string): void {
   navigateToMerchelloWorkspace(PRODUCT_ENTITY_TYPE, `edit/${productId}`);
 }
 ```
+
+---
+
+## Workspace Editor Layout Pattern
+
+When creating edit/detail views that need to match Umbraco's content editor look and feel (for consistency and future property editor reuse), follow these patterns:
+
+### Component Hierarchy
+
+```
+umb-body-layout (outer - header-fit-height main-no-padding)
+├── slot="header"
+│   ├── uui-button (back button)
+│   └── div#header
+│       ├── umb-icon (entity type icon)
+│       └── uui-input (name input - transparent style)
+├── umb-body-layout (inner - header-fit-height header-no-padding)
+│   ├── slot="header"
+│   │   └── uui-tab-group (content tabs with href routing)
+│   └── main content (has default padding)
+│       └── div.tab-content (flex column with gap)
+│           └── uui-box containers (property groups)
+└── slot="footer"
+    └── umb-footer-layout
+        └── slot="actions" (save button)
+```
+
+**Key attributes:**
+- Outer `umb-body-layout`: `main-no-padding` - prevents double padding around inner layout
+- Inner `umb-body-layout`: `header-no-padding` - tabs sit flush without extra padding
+
+### Header Layout
+
+The header should have a back button, entity icon, and name input:
+
+```typescript
+render() {
+  return html`
+    <umb-body-layout header-fit-height main-no-padding>
+      <!-- Back button -->
+      <uui-button slot="header" compact href=${getBackHref()} label="Back" class="back-button">
+        <uui-icon name="icon-arrow-left"></uui-icon>
+      </uui-button>
+
+      <!-- Entity icon + name input -->
+      <div id="header" slot="header">
+        <umb-icon name="icon-box"></umb-icon>
+        <uui-input
+          id="name-input"
+          .value=${this._formData.name || ""}
+          @input=${this._handleNameChange}
+          placeholder="Enter name..."
+          ?invalid=${!!this._fieldErrors.name}>
+        </uui-input>
+      </div>
+
+      <!-- Inner layout with tabs + content -->
+      <umb-body-layout header-fit-height header-no-padding>
+        ${this._renderTabs()}  <!-- tabs go in slot="header" -->
+
+        <!-- Router slot for URL tracking (hidden via CSS) -->
+        <umb-router-slot .routes=${this._routes} @init=${...} @change=${...}></umb-router-slot>
+
+        <!-- Tab content rendered in main slot (has default padding) -->
+        <div class="tab-content">
+          ${this._renderActiveTabContent()}  <!-- uui-box containers go here -->
+        </div>
+      </umb-body-layout>
+
+      <!-- Footer -->
+      <umb-footer-layout slot="footer">
+        <uui-button slot="actions" look="primary" color="positive" @click=${this._handleSave}>
+          Save
+        </uui-button>
+      </umb-footer-layout>
+    </umb-body-layout>
+  `;
+}
+```
+
+### Header Styling
+
+```css
+#header {
+  display: flex;
+  align-items: center;
+  gap: var(--uui-size-space-3);
+  flex: 1;
+  padding: var(--uui-size-space-4) 0;  /* Vertical padding for breathing room */
+}
+
+#header umb-icon {
+  font-size: 24px;
+  color: var(--uui-color-text-alt);
+}
+
+#name-input {
+  flex: 1 1 auto;
+  --uui-input-border-color: transparent;
+  --uui-input-background-color: transparent;
+  font-size: var(--uui-type-h5-size);
+  font-weight: 700;
+}
+
+#name-input:hover,
+#name-input:focus-within {
+  --uui-input-border-color: var(--uui-color-border);
+  --uui-input-background-color: var(--uui-color-surface);
+}
+
+.back-button {
+  margin-right: var(--uui-size-space-2);
+}
+```
+
+### Tab Navigation with URL Routing
+
+Use `href` on tabs for URL-based routing (enables deep-linking):
+
+```typescript
+private _renderTabs(): unknown {
+  return html`
+    <uui-tab-group slot="header">
+      <uui-tab
+        label="Details"
+        href="${this._routerPath}/tab/details"
+        ?active=${this._activePath.includes("tab/details")}>
+        Details
+        ${this._hasDetailsErrors() ? html`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : nothing}
+      </uui-tab>
+      <uui-tab
+        label="Settings"
+        href="${this._routerPath}/tab/settings"
+        ?active=${this._activePath.includes("tab/settings")}>
+        Settings
+      </uui-tab>
+    </uui-tab-group>
+  `;
+}
+```
+
+### Tab Styling
+
+```css
+:host {
+  --uui-tab-background: var(--uui-color-surface);
+}
+
+uui-tab-group {
+  --uui-tab-divider: var(--uui-color-border);
+  width: 100%;
+}
+
+/* Hide router-slot - we use it only for URL tracking, content is rendered inline */
+umb-router-slot {
+  display: none;
+}
+```
+
+**Note:** The `umb-router-slot` is hidden because we only use it for URL tracking (so tab URLs work for deep-linking). The actual tab content is rendered inline based on the active path from router events.
+
+### Property Layout (umb-property-layout)
+
+Use `umb-property-layout` for 2-column label/editor layout. This gives you:
+- 200px label column + flexible editor column
+- Sticky labels on scroll (horizontal mode)
+- Support for mandatory and invalid states
+
+```typescript
+html`
+  <umb-property-layout
+    label="Product Type"
+    description="Categorize your product for reporting"
+    ?mandatory=${true}
+    ?invalid=${!!this._fieldErrors.productType}>
+    <uui-select
+      slot="editor"
+      .options=${this._getProductTypeOptions()}
+      @change=${this._handleProductTypeChange}>
+    </uui-select>
+  </umb-property-layout>
+`
+```
+
+**Attributes:**
+- `label`: Property name displayed in left column
+- `description`: Help text shown below label
+- `mandatory`: Shows required asterisk
+- `invalid`: Shows error badge indicator
+- `orientation`: `'horizontal'` (default) or `'vertical'` (label above editor)
+
+### Property Grouping with uui-box
+
+Wrap related properties in `<uui-box headline="Group Name">`:
+
+```typescript
+html`
+  <uui-box headline="Basic Information">
+    <umb-property-layout label="Name" ...></umb-property-layout>
+    <umb-property-layout label="Description" ...></umb-property-layout>
+  </uui-box>
+
+  <uui-box headline="Pricing">
+    <umb-property-layout label="Price" ...></umb-property-layout>
+    <umb-property-layout label="Tax Group" ...></umb-property-layout>
+  </uui-box>
+`
+```
+
+**Box Styling:**
+```css
+uui-box {
+  --uui-box-default-padding: var(--uui-size-space-5);  /* Padding on all sides */
+}
+
+/* Use .tab-content wrapper with gap instead of margins on boxes */
+.tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--uui-size-space-5);  /* Consistent spacing between boxes */
+}
+```
+
+### Validation Hints on Tabs
+
+Display validation state on tabs using badges in the `extra` slot:
+
+```typescript
+// For errors (red, attention-grabbing)
+${hasErrors ? html`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : nothing}
+
+// For warnings (yellow)
+${hasWarnings ? html`<uui-badge slot="extra" color="warning">!</uui-badge>` : nothing}
+```
+
+### Footer Breadcrumb Navigation
+
+For child entities (e.g., a variant of a product, an item within a parent), add breadcrumb navigation in the footer to show hierarchy and enable quick navigation back to the parent:
+
+```typescript
+private _renderFooter(): unknown {
+  return html`
+    <umb-footer-layout slot="footer">
+      <!-- Breadcrumb in default slot (before actions) -->
+      <uui-breadcrumbs>
+        <uui-breadcrumb-item href=${getParentDetailHref(this._parentId)}>
+          ${this._parentName || "Parent"}
+        </uui-breadcrumb-item>
+        <uui-breadcrumb-item>
+          ${this._currentItemName || "Current Item"}
+        </uui-breadcrumb-item>
+      </uui-breadcrumbs>
+
+      <!-- Save button in actions slot -->
+      <uui-button
+        slot="actions"
+        look="primary"
+        color="positive"
+        @click=${this._handleSave}
+        ?disabled=${this._isSaving}>
+        ${this._isSaving ? "Saving..." : "Save Changes"}
+      </uui-button>
+    </umb-footer-layout>
+  `;
+}
+```
+
+**Key points:**
+- Place `<uui-breadcrumbs>` in the default slot (no slot attribute needed)
+- Use `href` on breadcrumb items for navigation (enables Ctrl+Click to open in new tab)
+- The last item (current page) should NOT have an href - it represents the current location
+- Combine with a back button in the header for dual navigation options
+
+**Breadcrumb styling:**
+```css
+uui-breadcrumbs {
+  font-size: 0.875rem;
+}
+```
+
+### Complete Example
+
+See [product-detail.element.ts](../src/Merchello/Client/src/products/components/product-detail.element.ts) for a complete implementation of the workspace editor pattern.
+
+See [variant-detail.element.ts](../src/Merchello/Client/src/products/components/variant-detail.element.ts) for an example of a child entity view with breadcrumb navigation in the footer.

@@ -2,7 +2,7 @@ import { LitElement as d, html as l, nothing as h, css as b, property as u, cust
 import { UmbElementMixin as p } from "@umbraco-cms/backoffice/element-api";
 import { a as f, O as g } from "./order.types-B45a7FtJ.js";
 import { c as v, g as _, d as k, a as y, e as C } from "./formatting-33NafgjJ.js";
-import { g as $ } from "./navigation-Cp3wi1pC.js";
+import { g as $ } from "./navigation-DnzDaPpA.js";
 import { b as S } from "./badge.styles-C_lNgH9O.js";
 var w = Object.defineProperty, E = Object.getOwnPropertyDescriptor, r = (e, t, a, s) => {
   for (var c = s > 1 ? void 0 : s ? E(t, a) : t, o = e.length - 1, n; o >= 0; o--)
@@ -203,4 +203,4 @@ r([
 i = r([
   m("merchello-order-table")
 ], i);
-//# sourceMappingURL=order-table.element-DEwc7IIr.js.map
+//# sourceMappingURL=order-table.element-BhZ4JcIX.js.map

@@ -88,7 +88,7 @@ export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
           </uui-table-cell>
         `;
       case "rootName":
-        return html`<uui-table-cell class="product-name"><a href=${getProductDetailHref(product.id)}>${product.rootName}</a></uui-table-cell>`;
+        return html`<uui-table-cell class="product-name"><a href=${getProductDetailHref(product.productRootId)}>${product.rootName}</a></uui-table-cell>`;
       case "sku":
         return html`<uui-table-cell>${product.sku ?? "-"}</uui-table-cell>`;
       case "price":

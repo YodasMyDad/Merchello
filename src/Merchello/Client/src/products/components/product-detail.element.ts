@@ -6,6 +6,7 @@ import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
+import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
 import type { MerchelloProductDetailWorkspaceContext } from "@products/contexts/product-detail-workspace.context.js";
 import type {
   ProductRootDetailDto,
@@ -20,12 +21,10 @@ import type {
 import type { TaxGroupDto } from "@orders/types/order.types.js";
 import type { WarehouseDto } from "@shipping/types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
-import { MERCHELLO_VARIANT_DETAIL_MODAL } from "@products/modals/variant-detail-modal.token.js";
 import { MERCHELLO_OPTION_EDITOR_MODAL } from "@products/modals/option-editor-modal.token.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
-import { getProductsListHref } from "@shared/utils/navigation.js";
-
-type TabId = "details" | "variants" | "options";
+import { getProductsListHref, getVariantDetailHref } from "@shared/utils/navigation.js";
+import "@shared/components/editable-text-list.element.js";
 
 interface SelectOption {
   name: string;
@@ -39,10 +38,14 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   @state() private _isLoading = true;
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
-  @state() private _activeTab: TabId = "details";
   @state() private _optionSettings: ProductOptionSettingsDto | null = null;
   @state() private _validationAttempted = false;
   @state() private _fieldErrors: Record<string, string> = {};
+
+  // Tab routing state
+  @state() private _routes: UmbRoute[] = [];
+  @state() private _routerPath?: string;
+  @state() private _activePath = "";
 
   // Form state
   @state() private _formData: Partial<ProductRootDetailDto> = {};
@@ -85,6 +88,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadReferenceData();
+    this._createRoutes();
   }
 
   disconnectedCallback(): void {
@@ -112,6 +116,67 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       console.error("Failed to load reference data:", error);
       // Component will still function but with limited options
     }
+  }
+
+  /**
+   * Creates routes for tab navigation.
+   * The router-slot is hidden via CSS - we use it purely for URL tracking.
+   * Content is rendered inline based on _getActiveTab().
+   */
+  private _createRoutes(): void {
+    // Simple stub component - router-slot is hidden, content rendered inline
+    const stubComponent = (): HTMLElement => document.createElement("div");
+
+    this._routes = [
+      {
+        path: "tab/details",
+        component: stubComponent,
+      },
+      {
+        path: "tab/variants",
+        component: stubComponent,
+      },
+      {
+        path: "tab/options",
+        component: stubComponent,
+      },
+      {
+        path: "",
+        redirectTo: "tab/details",
+      },
+    ];
+  }
+
+  /**
+   * Gets the currently active tab based on the route path
+   */
+  private _getActiveTab(): "details" | "variants" | "options" {
+    if (this._activePath.includes("tab/variants")) return "variants";
+    if (this._activePath.includes("tab/options")) return "options";
+    return "details";
+  }
+
+  /**
+   * Checks if there are validation errors on the details tab
+   */
+  private _hasDetailsErrors(): boolean {
+    return !!(this._fieldErrors.rootName || this._fieldErrors.taxGroupId || this._fieldErrors.productTypeId || this._fieldErrors.warehouseIds);
+  }
+
+  /**
+   * Gets validation hint for a specific tab
+   */
+  private _getTabHint(tab: "details" | "variants" | "options"): { color: string } | null {
+    if (tab === "details" && this._validationAttempted && this._hasDetailsErrors()) {
+      return { color: "danger" };
+    }
+    if (tab === "variants" && this._hasVariantWarnings()) {
+      return { color: "warning" };
+    }
+    if (tab === "options" && this._hasOptionWarnings()) {
+      return { color: "warning" };
+    }
+    return null;
   }
 
   private _handleInputChange(field: keyof ProductRootDetailDto, value: string): void {
@@ -270,14 +335,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   }
 
   /**
-   * Gets validation CSS class for a field
-   */
-  private _getFieldClass(fieldName: string): string {
-    if (!this._validationAttempted) return "";
-    return this._fieldErrors[fieldName] ? "field-error" : "";
-  }
-
-  /**
    * Checks if there are warnings for variants tab
    */
   private _hasVariantWarnings(): boolean {
@@ -297,47 +354,39 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   private _renderTabs(): unknown {
     const variantCount = this._product?.variants.length ?? 0;
     const optionCount = this._product?.productOptions.length ?? 0;
-    const hasVariantWarnings = this._hasVariantWarnings();
-    const hasOptionWarnings = this._hasOptionWarnings();
+    const activeTab = this._getActiveTab();
+    const detailsHint = this._getTabHint("details");
+    const variantsHint = this._getTabHint("variants");
+    const optionsHint = this._getTabHint("options");
 
     return html`
-      <uui-tab-group>
+      <uui-tab-group slot="header">
         <uui-tab
           label="Details"
-          ?active=${this._activeTab === "details"}
-          @click=${() => (this._activeTab = "details")}>
-          <span class="tab-label">
-            <uui-icon name="icon-info"></uui-icon>
-            Details
-          </span>
+          href="${this._routerPath}/tab/details"
+          ?active=${activeTab === "details"}>
+          Details
+          ${detailsHint ? html`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : nothing}
         </uui-tab>
 
         ${variantCount > 1
           ? html`
               <uui-tab
                 label="Variants"
-                ?active=${this._activeTab === "variants"}
-                @click=${() => (this._activeTab = "variants")}>
-                <span class="tab-label">
-                  <uui-icon name="icon-layers"></uui-icon>
-                  Variants
-                  ${hasVariantWarnings ? html`<uui-icon name="icon-alert" class="tab-warning"></uui-icon>` : nothing}
-                  <span class="tab-count">(${variantCount})</span>
-                </span>
+                href="${this._routerPath}/tab/variants"
+                ?active=${activeTab === "variants"}>
+                Variants (${variantCount})
+                ${variantsHint ? html`<uui-badge slot="extra" color="warning">!</uui-badge>` : nothing}
               </uui-tab>
             `
           : nothing}
 
         <uui-tab
           label="Options"
-          ?active=${this._activeTab === "options"}
-          @click=${() => (this._activeTab = "options")}>
-          <span class="tab-label">
-            <uui-icon name="icon-settings"></uui-icon>
-            Options
-            ${hasOptionWarnings ? html`<uui-icon name="icon-alert" class="tab-warning"></uui-icon>` : nothing}
-            <span class="tab-count">(${optionCount})</span>
-          </span>
+          href="${this._routerPath}/tab/options"
+          ?active=${activeTab === "options"}>
+          Options (${optionCount})
+          ${optionsHint ? html`<uui-badge slot="extra" color="warning">!</uui-badge>` : nothing}
         </uui-tab>
       </uui-tab-group>
     `;
@@ -374,73 +423,77 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           : nothing}
 
         <uui-box headline="Basic Information">
-          <div class="form-grid">
-            <div class="form-field full-width ${this._getFieldClass('rootName')}">
-              <label>Product Name <span class="required">*</span></label>
-              <uui-input
-                type="text"
-                .value=${this._formData.rootName || ""}
-                @input=${(e: Event) => this._handleInputChange("rootName", (e.target as HTMLInputElement).value)}
-                @blur=${() => this._validateForm()}
-                placeholder="Enter product name"
-                aria-required="true">
-              </uui-input>
-              ${this._fieldErrors.rootName ? html`<span class="field-error-message">${this._fieldErrors.rootName}</span>` : nothing}
-            </div>
+          <umb-property-layout
+            label="Product Type"
+            description="Categorize your product for reporting and organization"
+            ?mandatory=${true}
+            ?invalid=${!!this._fieldErrors.productTypeId}>
+            <uui-select
+              slot="editor"
+              .options=${this._getProductTypeOptions()}
+              @change=${this._handleProductTypeChange}>
+            </uui-select>
+          </umb-property-layout>
 
-            <div class="form-field ${this._getFieldClass('productTypeId')}">
-              <label>Product Type <span class="required">*</span></label>
-              <uui-select
-                .options=${this._getProductTypeOptions()}
-                @change=${this._handleProductTypeChange}
-                aria-required="true">
-              </uui-select>
-              ${this._fieldErrors.productTypeId ? html`<span class="field-error-message">${this._fieldErrors.productTypeId}</span>` : nothing}
-              <small class="hint">Categorize your product for reporting and organization</small>
-            </div>
+          <umb-property-layout
+            label="Tax Group"
+            description="Tax rate applied to this product"
+            ?mandatory=${true}
+            ?invalid=${!!this._fieldErrors.taxGroupId}>
+            <uui-select
+              slot="editor"
+              .options=${this._getTaxGroupOptions()}
+              @change=${this._handleTaxGroupChange}>
+            </uui-select>
+          </umb-property-layout>
 
-            <div class="form-field ${this._getFieldClass('taxGroupId')}">
-              <label>Tax Group <span class="required">*</span></label>
-              <uui-select .options=${this._getTaxGroupOptions()} @change=${this._handleTaxGroupChange} aria-required="true"> </uui-select>
-              ${this._fieldErrors.taxGroupId ? html`<span class="field-error-message">${this._fieldErrors.taxGroupId}</span>` : nothing}
-              <small class="hint">Tax rate applied to this product</small>
-            </div>
+          <umb-property-layout
+            label="Digital Product"
+            description="No shipping costs, instant delivery, no warehouse needed">
+            <uui-toggle
+              slot="editor"
+              .checked=${this._formData.isDigitalProduct ?? false}
+              @change=${(e: Event) => this._handleToggleChange("isDigitalProduct", (e.target as any).checked)}>
+            </uui-toggle>
+          </umb-property-layout>
 
-            <div class="form-field full-width">
-              <div class="toggle-field">
-                <uui-toggle
-                  .checked=${this._formData.isDigitalProduct ?? false}
-                  @change=${(e: Event) =>
-                    this._handleToggleChange("isDigitalProduct", (e.target as any).checked)}>
-                </uui-toggle>
-                <label>Digital Product</label>
-              </div>
-              <small class="hint">No shipping costs, instant delivery, no warehouse needed</small>
-            </div>
-          </div>
+          <umb-property-layout
+            label="Selling Points"
+            description="Key features or benefits to display on your storefront">
+            <merchello-editable-text-list
+              slot="editor"
+              .items=${this._formData.sellingPoints || []}
+              @change=${this._handleSellingPointsChange}
+              placeholder="e.g., Free shipping, 30-day returns">
+            </merchello-editable-text-list>
+          </umb-property-layout>
         </uui-box>
 
         <uui-box headline="Product Images">
-          <p class="hint">Add images that will be displayed on your storefront</p>
-          ${this._renderMediaPicker()}
+          <umb-property-layout
+            label="Images"
+            description="Add images that will be displayed on your storefront">
+            <div slot="editor">
+              ${this._renderMediaPicker()}
+            </div>
+          </umb-property-layout>
         </uui-box>
 
         ${!this._formData.isDigitalProduct
           ? html`
               <uui-box headline="Warehouses">
-                <p class="hint">Select which warehouses stock this product <span class="required">*</span></p>
-                ${this._renderWarehouseSelector()}
-                ${this._fieldErrors.warehouseIds ? html`<span class="field-error-message">${this._fieldErrors.warehouseIds}</span>` : nothing}
+                <umb-property-layout
+                  label="Stock Locations"
+                  description="Select which warehouses stock this product"
+                  ?mandatory=${true}
+                  ?invalid=${!!this._fieldErrors.warehouseIds}>
+                  <div slot="editor">
+                    ${this._renderWarehouseSelector()}
+                  </div>
+                </umb-property-layout>
               </uui-box>
             `
           : nothing}
-
-        <div class="actions">
-          <uui-button look="primary" color="positive" @click=${this._handleSave} ?disabled=${this._isSaving}>
-            <uui-icon name="icon-check"></uui-icon>
-            ${this._isSaving ? "Saving..." : isNew ? "Create Product" : "Save Changes"}
-          </uui-button>
-        </div>
       </div>
     `;
   }
@@ -455,7 +508,13 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         ?multiple=${true}
         @change=${this._handleMediaChange}>
       </umb-input-rich-media>
-      ${imageKeys.length === 0 ? html`<p class="hint">No images added yet. Click to add product images.</p>` : nothing}
+      ${imageKeys.length === 0 ? html`
+        <div class="empty-media-state">
+          <uui-icon name="icon-picture"></uui-icon>
+          <p>No images added yet</p>
+          <small>Click the button above to add product images</small>
+        </div>
+      ` : nothing}
     `;
   }
 
@@ -470,15 +529,15 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     const selectedWarehouseIds = this._formData.warehouseIds || [];
 
     return html`
-      <div class="warehouse-list">
+      <div class="warehouse-toggle-list">
         ${this._warehouses.map(
           (warehouse) => html`
-            <div class="checkbox-field">
-              <uui-checkbox
+            <div class="toggle-field">
+              <uui-toggle
                 .checked=${selectedWarehouseIds.includes(warehouse.id)}
                 @change=${(e: Event) => this._handleWarehouseToggle(warehouse.id, (e.target as any).checked)}>
-                ${warehouse.name} ${warehouse.code ? `(${warehouse.code})` : ""}
-              </uui-checkbox>
+              </uui-toggle>
+              <label>${warehouse.name} ${warehouse.code ? `(${warehouse.code})` : ""}</label>
             </div>
           `
         )}
@@ -528,9 +587,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   }
 
   private _renderVariantRow(variant: ProductVariantDto): unknown {
+    const variantHref = this._product ? getVariantDetailHref(this._product.id, variant.id) : "";
     return html`
-      <uui-table-row class="clickable" @click=${() => this._openVariantModal(variant)}>
-        <uui-table-cell @click=${(e: Event) => e.stopPropagation()}>
+      <uui-table-row>
+        <uui-table-cell>
           <uui-radio
             name="default-variant"
             .checked=${variant.default}
@@ -538,7 +598,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           </uui-radio>
         </uui-table-cell>
         <uui-table-cell>
-          <span class="variant-name">${variant.name || "Unnamed"}</span>
+          <a href=${variantHref} class="variant-link">${variant.name || "Unnamed"}</a>
         </uui-table-cell>
         <uui-table-cell>${variant.sku || "—"}</uui-table-cell>
         <uui-table-cell>$${variant.price.toFixed(2)}</uui-table-cell>
@@ -575,23 +635,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     } catch (error) {
       console.error("Failed to set default variant:", error);
       this.#notificationContext?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } });
-    }
-  }
-
-  private async _openVariantModal(variant: ProductVariantDto): Promise<void> {
-    if (!this.#modalManager || !this._product) return;
-
-    const modal = this.#modalManager.open(this, MERCHELLO_VARIANT_DETAIL_MODAL, {
-      data: {
-        productRootId: this._product.id,
-        variant: variant,
-        warehouses: this._warehouses,
-      },
-    });
-
-    const result = await modal.onSubmit().catch(() => undefined);
-    if (result?.saved) {
-      this.#workspaceContext?.reload();
     }
   }
 
@@ -864,6 +907,29 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     }
   }
 
+  /**
+   * Handles selling points change from the editable text list.
+   */
+  private _handleSellingPointsChange(e: CustomEvent): void {
+    const target = e.target as any;
+    const items = target?.items || [];
+    this._formData = { ...this._formData, sellingPoints: items };
+  }
+
+  /**
+   * Handles router slot initialization
+   */
+  private _onRouterInit(event: UmbRouterSlotInitEvent): void {
+    this._routerPath = event.target.absoluteRouterPath;
+  }
+
+  /**
+   * Handles router slot path changes
+   */
+  private _onRouterChange(event: UmbRouterSlotChangeEvent): void {
+    this._activePath = event.target.localActiveViewPath || "";
+  }
+
   render() {
     if (this._isLoading) {
       return html`
@@ -875,37 +941,56 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       `;
     }
 
-    const productName = this._product?.rootName || "Unnamed Product";
     const isNew = this.#workspaceContext?.isNew ?? true;
+    const activeTab = this._getActiveTab();
 
     return html`
-      <umb-body-layout header-fit-height>
-        <div class="product-detail-container">
-          <div class="page-header">
-            <div class="breadcrumb">
-              <a href=${getProductsListHref()} class="breadcrumb-link">
-                <uui-icon name="icon-chevron-left"></uui-icon>
-                Products
-              </a>
-              <span class="breadcrumb-separator">/</span>
-              <span class="breadcrumb-current">${isNew ? "New Product" : productName}</span>
-            </div>
-            ${!isNew && this._product?.rootUrl ? html`
-              <a href="${this._product.rootUrl}" target="_blank" class="view-on-site" title="View on website">
-                <uui-icon name="icon-out"></uui-icon>
-                View on Site
-              </a>
-            ` : nothing}
-          </div>
+      <umb-body-layout header-fit-height main-no-padding>
+        <!-- Header: back button + icon + name input -->
+        <uui-button slot="header" compact href=${getProductsListHref()} label="Back" class="back-button">
+          <uui-icon name="icon-arrow-left"></uui-icon>
+        </uui-button>
 
+        <div id="header" slot="header">
+          <umb-icon name="icon-box"></umb-icon>
+          <uui-input
+            id="name-input"
+            .value=${this._formData.rootName || ""}
+            @input=${(e: Event) => this._handleInputChange("rootName", (e.target as HTMLInputElement).value)}
+            placeholder=${isNew ? "Enter product name..." : "Product name"}
+            ?invalid=${!!this._fieldErrors.rootName}
+            aria-label="Product name"
+            aria-required="true">
+          </uui-input>
+        </div>
+
+        <!-- Inner body layout for tabs + content -->
+        <umb-body-layout header-fit-height header-no-padding>
           ${this._renderTabs()}
 
-          <div class="tab-panels">
-            ${this._activeTab === "details" ? this._renderDetailsTab() : nothing}
-            ${this._activeTab === "variants" ? this._renderVariantsTab() : nothing}
-            ${this._activeTab === "options" ? this._renderOptionsTab() : nothing}
-          </div>
-        </div>
+          <umb-router-slot
+            .routes=${this._routes}
+            @init=${this._onRouterInit}
+            @change=${this._onRouterChange}>
+          </umb-router-slot>
+
+          ${activeTab === "details" ? this._renderDetailsTab() : nothing}
+          ${activeTab === "variants" ? this._renderVariantsTab() : nothing}
+          ${activeTab === "options" ? this._renderOptionsTab() : nothing}
+        </umb-body-layout>
+
+        <!-- Footer with save button -->
+        <umb-footer-layout slot="footer">
+          <uui-button
+            slot="actions"
+            look="primary"
+            color="positive"
+            @click=${this._handleSave}
+            ?disabled=${this._isSaving}
+            label=${this._isSaving ? "Saving..." : isNew ? "Create Product" : "Save Changes"}>
+            ${this._isSaving ? "Saving..." : isNew ? "Create Product" : "Save Changes"}
+          </uui-button>
+        </umb-footer-layout>
       </umb-body-layout>
     `;
   }
@@ -915,74 +1000,44 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     css`
       :host {
         display: block;
+        width: 100%;
         height: 100%;
-        background: var(--uui-color-background);
+        --uui-tab-background: var(--uui-color-surface);
       }
 
-      .product-detail-container {
-        padding: var(--uui-size-layout-1);
-        max-width: 1400px;
-        margin: 0 auto;
-      }
-
-      .page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: var(--uui-size-space-4);
-        padding-bottom: var(--uui-size-space-3);
-        border-bottom: 1px solid var(--uui-color-border);
-      }
-
-      .breadcrumb {
+      /* Header layout */
+      #header {
         display: flex;
         align-items: center;
-        gap: var(--uui-size-space-2);
-        font-size: 0.875rem;
+        gap: var(--uui-size-space-3);
+        flex: 1;
+        padding: var(--uui-size-space-4) 0;
       }
 
-      .breadcrumb-link {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-1);
-        color: var(--uui-color-text);
-        text-decoration: none;
-        transition: color 0.2s;
-      }
-
-      .breadcrumb-link:hover {
-        color: var(--uui-color-selected);
-        text-decoration: underline;
-      }
-
-      .breadcrumb-separator {
+      #header umb-icon {
+        font-size: 24px;
         color: var(--uui-color-text-alt);
       }
 
-      .breadcrumb-current {
-        color: var(--uui-color-text);
-        font-weight: 600;
+      #name-input {
+        flex: 1 1 auto;
+        --uui-input-border-color: transparent;
+        --uui-input-background-color: transparent;
+        font-size: var(--uui-type-h5-size);
+        font-weight: 700;
       }
 
-      .view-on-site {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
-        color: var(--uui-color-text);
-        text-decoration: none;
-        font-size: 0.875rem;
-        padding: var(--uui-size-space-2) var(--uui-size-space-3);
-        border: 1px solid var(--uui-color-border);
-        border-radius: var(--uui-border-radius);
-        transition: all 0.2s;
+      #name-input:hover,
+      #name-input:focus-within {
+        --uui-input-border-color: var(--uui-color-border);
+        --uui-input-background-color: var(--uui-color-surface);
       }
 
-      .view-on-site:hover {
-        color: var(--uui-color-selected);
-        border-color: var(--uui-color-selected);
-        background: var(--uui-color-surface);
+      .back-button {
+        margin-right: var(--uui-size-space-2);
       }
 
+      /* Loading state */
       .loading {
         display: flex;
         justify-content: center;
@@ -990,65 +1045,59 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         min-height: 400px;
       }
 
+      /* Tab styling - Umbraco pattern */
       uui-tab-group {
-        margin-bottom: var(--uui-size-space-4);
+        --uui-tab-divider: var(--uui-color-border);
+        width: 100%;
       }
 
-      .tab-label {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
+      /* Hide router slot as we render content inline */
+      umb-router-slot {
+        display: none;
       }
 
-      .tab-warning {
-        color: var(--uui-color-warning);
+      /* Box styling - Umbraco pattern */
+      uui-box {
+        --uui-box-default-padding: var(--uui-size-space-5);
       }
 
-      .tab-count {
-        font-size: 0.85em;
-        opacity: 0.7;
+      /* Property layout adjustments */
+      umb-property-layout:first-child {
+        padding-top: 0;
       }
 
+      umb-property-layout:last-child {
+        padding-bottom: 0;
+      }
+
+      umb-property-layout uui-select,
+      umb-property-layout uui-input {
+        width: 100%;
+      }
+
+      /* Tab content */
       .tab-content {
         display: flex;
         flex-direction: column;
-        gap: var(--uui-size-space-4);
+        gap: var(--uui-size-space-5);
       }
 
-      .form-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: var(--uui-size-space-4);
-      }
-
-      .form-field {
+      /* Warehouse toggle list */
+      .warehouse-toggle-list {
         display: flex;
         flex-direction: column;
-        gap: var(--uui-size-space-2);
+        gap: var(--uui-size-space-4);
       }
 
-      .form-field.full-width {
-        grid-column: 1 / -1;
+      .warehouse-toggle-list .toggle-field {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-3);
       }
 
-      .form-field.field-error uui-input,
-      .form-field.field-error uui-select {
-        border-color: var(--uui-color-danger);
-      }
-
-      .form-field label {
-        font-weight: 600;
+      .warehouse-toggle-list label {
+        font-weight: normal;
         color: var(--uui-color-text);
-      }
-
-      .required {
-        color: var(--uui-color-danger);
-      }
-
-      .field-error-message {
-        color: var(--uui-color-danger);
-        font-size: 0.875rem;
-        margin-top: -var(--uui-size-space-1);
       }
 
       .hint {
@@ -1057,22 +1106,38 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         margin: 0;
       }
 
-      .toggle-field {
+      /* Empty media state */
+      .empty-media-state {
         display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: var(--uui-size-space-2);
+        justify-content: center;
+        padding: var(--uui-size-space-6);
+        margin-top: var(--uui-size-space-3);
+        background: var(--uui-color-surface);
+        border: 2px dashed var(--uui-color-border);
+        border-radius: var(--uui-border-radius);
+        color: var(--uui-color-text-alt);
+        text-align: center;
       }
 
-      .checkbox-field {
-        padding: var(--uui-size-space-2) 0;
+      .empty-media-state uui-icon {
+        font-size: 48px;
+        opacity: 0.5;
+        margin-bottom: var(--uui-size-space-2);
       }
 
-      .actions {
-        display: flex;
-        gap: var(--uui-size-space-3);
-        padding-top: var(--uui-size-space-4);
+      .empty-media-state p {
+        margin: 0 0 var(--uui-size-space-1) 0;
+        font-weight: 500;
       }
 
+      .empty-media-state small {
+        font-size: 0.875rem;
+        color: var(--uui-color-text-alt);
+      }
+
+      /* Info and error banners */
       .error-box {
         background: var(--uui-color-danger-surface);
         border-left: 3px solid var(--uui-color-danger);
@@ -1117,6 +1182,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         padding: var(--uui-size-space-3);
       }
 
+      /* Section headers */
       .section-header {
         display: flex;
         justify-content: space-between;
@@ -1134,6 +1200,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         margin: var(--uui-size-space-2) 0;
       }
 
+      /* Table styles */
       .table-container {
         overflow-x: auto;
       }
@@ -1142,18 +1209,18 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         width: 100%;
       }
 
-      .clickable {
-        cursor: pointer;
-      }
-
-      .clickable:hover {
-        background: var(--uui-color-surface-emphasis);
-      }
-
-      .variant-name {
+      .variant-link {
         font-weight: 500;
+        color: var(--uui-color-interactive);
+        text-decoration: none;
       }
 
+      .variant-link:hover {
+        text-decoration: underline;
+        color: var(--uui-color-interactive-emphasis);
+      }
+
+      /* Options */
       .options-list {
         display: flex;
         flex-direction: column;
@@ -1215,6 +1282,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         color: var(--uui-color-positive);
       }
 
+      /* Empty state for options */
       .empty-state {
         text-align: center;
         padding: var(--uui-size-space-6);
@@ -1235,6 +1303,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         color: var(--uui-color-text);
       }
 
+      /* Regenerate variants section */
       .regenerate-section {
         display: flex;
         flex-direction: column;
@@ -1253,10 +1322,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
       .regenerate-section uui-icon {
         color: var(--uui-color-warning);
-      }
-
-      .warehouse-list {
-        padding: var(--uui-size-space-3) 0;
       }
     `,
   ];
