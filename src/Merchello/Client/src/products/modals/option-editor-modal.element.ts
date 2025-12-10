@@ -5,12 +5,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { OptionEditorModalData, OptionEditorModalValue } from "./option-editor-modal.token.js";
 import type { ProductOptionDto, ProductOptionValueDto } from "@products/types/product.types.js";
-
-interface SelectOption {
-  name: string;
-  value: string;
-  selected?: boolean;
-}
+import type { SelectOption } from "@shared/types/index.js";
 
 @customElement("merchello-option-editor-modal")
 export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
@@ -144,7 +139,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     this._formData = { ...this._formData, values };
   }
 
-  private _updateValue(index: number, field: keyof ProductOptionValueDto, value: any): void {
+  private _updateValue(index: number, field: keyof ProductOptionValueDto, value: string | number | null): void {
     const values = [...(this._formData.values || [])];
     values[index] = { ...values[index], [field]: value };
     this._formData = { ...this._formData, values };
@@ -287,7 +282,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               <uui-toggle
                 slot="editor"
                 .checked=${this._formData.isVariant ?? false}
-                @change=${(e: Event) => (this._formData = { ...this._formData, isVariant: (e.target as any).checked })}>
+                @change=${(e: Event) => (this._formData = { ...this._formData, isVariant: (e.target as HTMLInputElement).checked })}>
               </uui-toggle>
             </umb-property-layout>
           </uui-box>

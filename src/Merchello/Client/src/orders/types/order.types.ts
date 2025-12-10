@@ -629,3 +629,18 @@ export const COMPACT_ORDER_COLUMNS: OrderColumnKey[] = [
   "fulfillmentStatus",
   "itemCount",
 ];
+
+// ============================================
+// Order Table Event Types
+// ============================================
+
+/** Event detail for order click */
+export interface OrderClickEventDetail {
+  orderId: string;
+  order: OrderListItemDto;
+}
+
+/** Event detail for selection change */
+export interface OrderSelectionChangeEventDetail {
+  selectedIds: string[];
+}

@@ -5,12 +5,7 @@ import type { ServiceRegionModalData, ServiceRegionModalValue } from "./service-
 import type { CountryInfo, SubdivisionInfo } from "@warehouses/types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
-
-interface SelectOption {
-  name: string;
-  value: string;
-  selected?: boolean;
-}
+import type { SelectOption } from "@shared/types/index.js";
 
 @customElement("merchello-service-region-modal")
 export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<

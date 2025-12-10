@@ -6,14 +6,9 @@ import type { WarehouseListDto, CountryInfo, SubdivisionInfo } from "@warehouses
 import type { TestShippingProviderRequestDto, TestShippingProviderResponseDto } from "@shipping/types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
+import type { SelectOption } from "@shared/types/index.js";
 
 const STORAGE_KEY = "merchello-test-provider-form";
-
-interface SelectOption {
-  name: string;
-  value: string;
-  selected?: boolean;
-}
 
 interface SavedFormValues {
   warehouseId?: string;

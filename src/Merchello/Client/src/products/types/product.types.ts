@@ -290,3 +290,18 @@ export const DEFAULT_PRODUCT_COLUMNS: ProductColumnKey[] = [
   "stock",
   "variants",
 ];
+
+// ============================================
+// Product Table Event Types
+// ============================================
+
+/** Event detail for product click */
+export interface ProductClickEventDetail {
+  productId: string;
+  product: ProductListItemDto;
+}
+
+/** Event detail for selection change */
+export interface ProductSelectionChangeEventDetail {
+  selectedIds: string[];
+}

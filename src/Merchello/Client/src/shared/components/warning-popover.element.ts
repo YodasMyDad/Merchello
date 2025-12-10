@@ -1,11 +1,10 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
+import type { WarningItem } from "@shared/types/index.js";
 
-export interface WarningItem {
-  type: "error" | "warning";
-  message: string;
-}
+// Re-export for backwards compatibility
+export type { WarningItem } from "@shared/types/index.js";
 
 /**
  * A warning indicator that shows a popover with details on hover.
