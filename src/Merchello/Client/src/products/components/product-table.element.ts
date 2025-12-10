@@ -1,22 +1,21 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import type { ProductListItemDto, ProductColumnKey } from "@products/types/product.types.js";
+import type {
+  ProductListItemDto,
+  ProductColumnKey,
+  ProductClickEventDetail,
+  ProductSelectionChangeEventDetail,
+} from "@products/types/product.types.js";
 import { PRODUCT_COLUMN_LABELS, DEFAULT_PRODUCT_COLUMNS } from "@products/types/product.types.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
 import { getProductDetailHref } from "@shared/utils/navigation.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
-import type { WarningItem } from "@shared/components/warning-popover.element.js";
+import type { WarningItem } from "@shared/types/index.js";
 import "@shared/components/warning-popover.element.js";
 
-export interface ProductClickEventDetail {
-  productId: string;
-  product: ProductListItemDto;
-}
-
-export interface ProductSelectionChangeEventDetail {
-  selectedIds: string[];
-}
+// Re-export event types for backwards compatibility
+export type { ProductClickEventDetail, ProductSelectionChangeEventDetail } from "@products/types/product.types.js";
 
 @customElement("merchello-product-table")
 export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {

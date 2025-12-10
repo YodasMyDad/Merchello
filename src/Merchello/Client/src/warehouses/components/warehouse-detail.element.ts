@@ -17,14 +17,9 @@ import {
   getWarehouseDetailHref,
 } from "@shared/utils/navigation.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
+import type { SelectOption } from "@shared/types/index.js";
 
 type TabId = "general" | "regions" | "options";
-
-interface SelectOption {
-  name: string;
-  value: string;
-  selected?: boolean;
-}
 
 @customElement("merchello-warehouse-detail")
 export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement) {

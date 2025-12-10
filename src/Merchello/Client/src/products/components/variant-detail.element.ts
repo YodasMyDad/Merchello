@@ -262,7 +262,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
             <uui-toggle
               slot="editor"
               .checked=${this._formData.onSale ?? false}
-              @change=${(e: Event) => (this._formData = { ...this._formData, onSale: (e.target as any).checked })}>
+              @change=${(e: Event) => (this._formData = { ...this._formData, onSale: (e.target as HTMLInputElement).checked })}>
             </uui-toggle>
           </umb-property-layout>
 
@@ -286,7 +286,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
             <uui-toggle
               slot="editor"
               .checked=${this._formData.availableForPurchase ?? true}
-              @change=${(e: Event) => (this._formData = { ...this._formData, availableForPurchase: (e.target as any).checked })}>
+              @change=${(e: Event) => (this._formData = { ...this._formData, availableForPurchase: (e.target as HTMLInputElement).checked })}>
             </uui-toggle>
           </umb-property-layout>
 
@@ -294,7 +294,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
             <uui-toggle
               slot="editor"
               .checked=${this._formData.canPurchase ?? true}
-              @change=${(e: Event) => (this._formData = { ...this._formData, canPurchase: (e.target as any).checked })}>
+              @change=${(e: Event) => (this._formData = { ...this._formData, canPurchase: (e.target as HTMLInputElement).checked })}>
             </uui-toggle>
           </umb-property-layout>
         </uui-box>
@@ -372,7 +372,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
             <uui-toggle
               slot="editor"
               .checked=${this._formData.removeFromFeed ?? false}
-              @change=${(e: Event) => (this._formData = { ...this._formData, removeFromFeed: (e.target as any).checked })}>
+              @change=${(e: Event) => (this._formData = { ...this._formData, removeFromFeed: (e.target as HTMLInputElement).checked })}>
             </uui-toggle>
           </umb-property-layout>
 

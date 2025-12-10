@@ -12,18 +12,13 @@ import type {
 } from "@products/types/product.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
+import type { SelectOption } from "@shared/types/index.js";
 import { MERCHELLO_CREATE_PRODUCT_MODAL } from "@products/modals/create-product-modal.token.js";
 import { navigateToProductDetail } from "@shared/utils/navigation.js";
 import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";
 import "./product-table.element.js";
 import type { ProductSelectionChangeEventDetail } from "./product-table.element.js";
-
-interface SelectOption {
-  name: string;
-  value: string;
-  selected?: boolean;
-}
 
 @customElement("merchello-products-list")
 export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {

@@ -24,18 +24,13 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import { MERCHELLO_OPTION_EDITOR_MODAL } from "@products/modals/option-editor-modal.token.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { getProductsListHref, getVariantDetailHref } from "@shared/utils/navigation.js";
+import type { SelectOption } from "@shared/types/index.js";
 import "@shared/components/editable-text-list.element.js";
 import { UmbDataTypeDetailRepository } from "@umbraco-cms/backoffice/data-type";
 import { UmbPropertyEditorConfigCollection } from "@umbraco-cms/backoffice/property-editor";
 import type { UmbPropertyEditorConfigCollection as UmbPropertyEditorConfigCollectionType } from "@umbraco-cms/backoffice/property-editor";
 // Import TipTap component to register the custom element
 import "@umbraco-cms/backoffice/tiptap";
-
-interface SelectOption {
-  name: string;
-  value: string;
-  selected?: boolean;
-}
 
 @customElement("merchello-product-detail")
 export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
@@ -587,7 +582,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             <uui-toggle
               slot="editor"
               .checked=${this._formData.isDigitalProduct ?? false}
-              @change=${(e: Event) => this._handleToggleChange("isDigitalProduct", (e.target as any).checked)}>
+              @change=${(e: Event) => this._handleToggleChange("isDigitalProduct", (e.target as HTMLInputElement).checked)}>
             </uui-toggle>
           </umb-property-layout>
 
@@ -700,9 +695,9 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   }
 
   private _handleMediaChange(e: CustomEvent): void {
-    const target = e.target as any;
+    const target = e.target as HTMLElement & { value?: Array<{ mediaKey?: string }> };
     const value = target?.value || [];
-    const imageKeys = value.map((item: any) => item.mediaKey).filter(Boolean);
+    const imageKeys = value.map((item) => item.mediaKey).filter(Boolean) as string[];
     this._formData = { ...this._formData, rootImages: imageKeys };
   }
 
@@ -753,7 +748,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             <uui-toggle
               slot="editor"
               .checked=${this._formData.noIndex ?? false}
-              @change=${(e: Event) => this._handleToggleChange("noIndex", (e.target as any).checked)}>
+              @change=${(e: Event) => this._handleToggleChange("noIndex", (e.target as HTMLInputElement).checked)}>
             </uui-toggle>
           </umb-property-layout>
         </uui-box>
@@ -853,7 +848,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   }
 
   private _handleOpenGraphImageChange(e: CustomEvent): void {
-    const target = e.target as any;
+    const target = e.target as HTMLElement & { value?: Array<{ mediaKey?: string }> };
     const value = target?.value || [];
     const imageKey = value.length > 0 ? value[0].mediaKey : null;
     this._formData = { ...this._formData, openGraphImage: imageKey };
@@ -869,7 +864,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             <div class="toggle-field">
               <uui-toggle
                 .checked=${selectedWarehouseIds.includes(warehouse.id)}
-                @change=${(e: Event) => this._handleWarehouseToggle(warehouse.id, (e.target as any).checked)}>
+                @change=${(e: Event) => this._handleWarehouseToggle(warehouse.id, (e.target as HTMLInputElement).checked)}>
               </uui-toggle>
               <label>${warehouse.name} ${warehouse.code ? `(${warehouse.code})` : ""}</label>
             </div>
@@ -1299,7 +1294,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
    * Handles selling points change from the editable text list.
    */
   private _handleSellingPointsChange(e: CustomEvent): void {
-    const target = e.target as any;
+    const target = e.target as HTMLElement & { items?: string[] };
     const items = target?.items || [];
     this._formData = { ...this._formData, sellingPoints: items };
   }

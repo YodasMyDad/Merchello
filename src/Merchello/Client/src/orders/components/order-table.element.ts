@@ -1,7 +1,12 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import type { OrderListItemDto, OrderColumnKey } from "@orders/types/order.types.js";
+import type {
+  OrderListItemDto,
+  OrderColumnKey,
+  OrderClickEventDetail,
+  OrderSelectionChangeEventDetail,
+} from "@orders/types/order.types.js";
 import { ORDER_COLUMN_LABELS, DEFAULT_ORDER_COLUMNS } from "@orders/types/order.types.js";
 import {
   formatCurrency,
@@ -13,16 +18,8 @@ import {
 import { getOrderDetailHref } from "@shared/utils/navigation.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 
-/** Event detail for order click */
-export interface OrderClickEventDetail {
-  orderId: string;
-  order: OrderListItemDto;
-}
-
-/** Event detail for selection change */
-export interface OrderSelectionChangeEventDetail {
-  selectedIds: string[];
-}
+// Re-export event types for backwards compatibility
+export type { OrderClickEventDetail, OrderSelectionChangeEventDetail } from "@orders/types/order.types.js";
 
 /**
  * Reusable order table component with configurable columns.
