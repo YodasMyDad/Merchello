@@ -7,14 +7,14 @@ class m extends r {
     super(e, o.toString()), this.workspaceAlias = "Merchello.Warehouse.Detail.Workspace", this.#t = !1, this.#s = new n(void 0), this.warehouse = this.#s.asObservable(), this.routes = new i(e), this.provideContext(o, this), this.routes.setRoutes([
       {
         path: "create",
-        component: () => import("./warehouse-detail.element-Ch6_42UE.js"),
+        component: () => import("./warehouse-detail.element-D09wQ6xH.js"),
         setup: () => {
           this.#t = !0, this.#e = void 0, this.#s.setValue(this._createEmptyWarehouse());
         }
       },
       {
         path: "edit/:id",
-        component: () => import("./warehouse-detail.element-Ch6_42UE.js"),
+        component: () => import("./warehouse-detail.element-D09wQ6xH.js"),
         setup: (s, t) => {
           this.#t = !1;
           const a = t.match.params.id;
@@ -82,4 +82,4 @@ export {
   m as MerchelloWarehouseDetailWorkspaceContext,
   m as api
 };
-//# sourceMappingURL=warehouse-detail-workspace.context-BSR3r_Lv.js.map
+//# sourceMappingURL=warehouse-detail-workspace.context-DxjpxjMI.js.map

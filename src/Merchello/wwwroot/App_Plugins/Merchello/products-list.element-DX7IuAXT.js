@@ -2,7 +2,7 @@ import { LitElement as y, nothing as v, html as r, css as f, property as h, stat
 import { UmbElementMixin as P } from "@umbraco-cms/backoffice/element-api";
 import { UmbModalToken as $, UMB_MODAL_MANAGER_CONTEXT as C } from "@umbraco-cms/backoffice/modal";
 import { M as b } from "./merchello-api-C2InYbkz.js";
-import { a as T, b as O } from "./navigation-Cp3wi1pC.js";
+import { a as T, b as O } from "./navigation-DnzDaPpA.js";
 import "./pagination.element-sDi4Myhy.js";
 import "./merchello-empty-state.element-mt97UoA5.js";
 import { a as m } from "./formatting-33NafgjJ.js";
@@ -263,7 +263,7 @@ let d = class extends P(y) {
           </uui-table-cell>
         `;
       case "rootName":
-        return r`<uui-table-cell class="product-name"><a href=${T(e.id)}>${e.rootName}</a></uui-table-cell>`;
+        return r`<uui-table-cell class="product-name"><a href=${T(e.productRootId)}>${e.rootName}</a></uui-table-cell>`;
       case "sku":
         return r`<uui-table-cell>${e.sku ?? "-"}</uui-table-cell>`;
       case "price":
@@ -600,4 +600,4 @@ export {
   o as MerchelloProductsListElement,
   Y as default
 };
-//# sourceMappingURL=products-list.element-Bi-Eh5uB.js.map
+//# sourceMappingURL=products-list.element-DX7IuAXT.js.map

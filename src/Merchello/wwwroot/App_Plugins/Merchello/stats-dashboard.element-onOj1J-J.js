@@ -2,7 +2,7 @@ import { LitElement as _, html as n, css as C, state as c, customElement as f } 
 import { UmbElementMixin as b } from "@umbraco-cms/backoffice/element-api";
 import { M as h } from "./merchello-api-C2InYbkz.js";
 import { f as v, a as y } from "./formatting-33NafgjJ.js";
-import "./order-table.element-DEwc7IIr.js";
+import "./order-table.element-BhZ4JcIX.js";
 var x = Object.defineProperty, $ = Object.getOwnPropertyDescriptor, m = (t) => {
   throw TypeError(t);
 }, l = (t, e, s, r) => {
@@ -180,4 +180,4 @@ export {
   i as MerchelloStatsDashboardElement,
   E as default
 };
-//# sourceMappingURL=stats-dashboard.element-CJVEqdMI.js.map
+//# sourceMappingURL=stats-dashboard.element-onOj1J-J.js.map

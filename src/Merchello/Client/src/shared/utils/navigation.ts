@@ -86,6 +86,21 @@ export function navigateToProductsList(): void {
   navigateToMerchelloWorkspace(PRODUCTS_ENTITY_TYPE, "products");
 }
 
+/**
+ * Generate the URL to view/edit a product variant detail.
+ * Use this in href attributes on links/buttons.
+ */
+export function getVariantDetailHref(productId: string, variantId: string): string {
+  return getMerchelloWorkspaceHref(PRODUCT_ENTITY_TYPE, `edit/${productId}/variant/${variantId}`);
+}
+
+/**
+ * Navigate programmatically to a product variant detail page using SPA routing.
+ */
+export function navigateToVariantDetail(productId: string, variantId: string): void {
+  navigateToMerchelloWorkspace(PRODUCT_ENTITY_TYPE, `edit/${productId}/variant/${variantId}`);
+}
+
 /** Entity type for warehouse detail workspace */
 export const WAREHOUSE_ENTITY_TYPE = "merchello-warehouse";
 

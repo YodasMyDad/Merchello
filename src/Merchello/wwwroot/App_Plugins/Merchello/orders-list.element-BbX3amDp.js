@@ -4,8 +4,8 @@ import { UmbModalToken as _, UMB_MODAL_MANAGER_CONTEXT as O } from "@umbraco-cms
 import { M as p } from "./merchello-api-C2InYbkz.js";
 import "./pagination.element-sDi4Myhy.js";
 import "./merchello-empty-state.element-mt97UoA5.js";
-import "./order-table.element-DEwc7IIr.js";
-import { n as T } from "./navigation-Cp3wi1pC.js";
+import "./order-table.element-BhZ4JcIX.js";
+import { n as T } from "./navigation-DnzDaPpA.js";
 const S = new _("Merchello.Export.Modal", {
   modal: {
     type: "sidebar",
@@ -399,4 +399,4 @@ export {
   r as MerchelloOrdersListElement,
   R as default
 };
-//# sourceMappingURL=orders-list.element-BjsURpT2.js.map
+//# sourceMappingURL=orders-list.element-BbX3amDp.js.map

@@ -68,7 +68,7 @@ const e = [
     type: "dashboard",
     alias: "Merchello.Dashboard.Stats",
     name: "Merchello Stats Dashboard",
-    element: () => import("./stats-dashboard.element-CJVEqdMI.js"),
+    element: () => import("./stats-dashboard.element-onOj1J-J.js"),
     meta: {
       label: "Stats",
       pathname: "stats"
@@ -199,7 +199,7 @@ const e = [
     type: "modal",
     alias: "Merchello.CustomerOrders.Modal",
     name: "Merchello Customer Orders Modal",
-    js: () => import("./customer-orders-modal.element-DYijVxoe.js")
+    js: () => import("./customer-orders-modal.element-C1zPSS_y.js")
   },
   // Workspace for orders list (when clicking "Orders" in tree)
   {
@@ -217,7 +217,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Orders.ListView",
     name: "Orders List View",
-    js: () => import("./orders-list.element-BjsURpT2.js"),
+    js: () => import("./orders-list.element-BbX3amDp.js"),
     weight: 100,
     meta: {
       label: "Orders",
@@ -280,7 +280,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Products.Workspace.View",
     name: "Merchello Products View",
-    js: () => import("./products-list.element-Bi-Eh5uB.js"),
+    js: () => import("./products-list.element-DX7IuAXT.js"),
     weight: 100,
     meta: {
       label: "Products",
@@ -300,7 +300,7 @@ const e = [
     kind: "routable",
     alias: "Merchello.Product.Detail.Workspace",
     name: "Product Detail Workspace",
-    api: () => import("./product-detail-workspace.context-BfA_-E4d.js"),
+    api: () => import("./product-detail-workspace.context-L22Uk4ZR.js"),
     meta: {
       entityType: "merchello-product"
     }
@@ -310,7 +310,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Product.Detail.View",
     name: "Product Detail View",
-    js: () => import("./product-detail.element-KOGAAGL1.js"),
+    js: () => import("./product-detail.element-CAk4L34n.js"),
     weight: 100,
     meta: {
       label: "Product",
@@ -493,7 +493,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Warehouses.ListView",
     name: "Merchello Warehouses List View",
-    js: () => import("./warehouses-list.element-DWpXBiSs.js"),
+    js: () => import("./warehouses-list.element-Bw4IQmnw.js"),
     weight: 100,
     meta: {
       label: "Warehouses",
@@ -516,7 +516,7 @@ const e = [
     kind: "routable",
     alias: "Merchello.Warehouse.Detail.Workspace",
     name: "Merchello Warehouse Detail Workspace",
-    api: () => import("./warehouse-detail-workspace.context-BSR3r_Lv.js"),
+    api: () => import("./warehouse-detail-workspace.context-DxjpxjMI.js"),
     meta: {
       entityType: "merchello-warehouse"
     }
@@ -526,7 +526,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Warehouse.Detail.View",
     name: "Merchello Warehouse Detail View",
-    js: () => import("./warehouse-detail.element-Ch6_42UE.js"),
+    js: () => import("./warehouse-detail.element-D09wQ6xH.js"),
     weight: 100,
     meta: {
       label: "Warehouse",
