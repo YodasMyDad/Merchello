@@ -91,7 +91,6 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     this._routes = [
       { path: "tab/basic", component: stubComponent },
       { path: "tab/dimensions", component: stubComponent },
-      { path: "tab/seo", component: stubComponent },
       { path: "tab/feed", component: stubComponent },
       { path: "tab/stock", component: stubComponent },
       { path: "", redirectTo: "tab/basic" },
@@ -101,9 +100,8 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
   /**
    * Gets the currently active tab based on the route path
    */
-  private _getActiveTab(): "basic" | "dimensions" | "seo" | "feed" | "stock" {
+  private _getActiveTab(): "basic" | "dimensions" | "feed" | "stock" {
     if (this._activePath.includes("tab/dimensions")) return "dimensions";
-    if (this._activePath.includes("tab/seo")) return "seo";
     if (this._activePath.includes("tab/feed")) return "feed";
     if (this._activePath.includes("tab/stock")) return "stock";
     return "basic";
@@ -128,23 +126,17 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
         availableForPurchase: this._formData.availableForPurchase,
         canPurchase: this._formData.canPurchase,
         images: this._formData.images,
-        description: this._formData.description ?? undefined,
         excludeRootProductImages: this._formData.excludeRootProductImages,
         url: this._formData.url ?? undefined,
         weight: this._formData.weight ?? undefined,
         lengthCm: this._formData.lengthCm ?? undefined,
         widthCm: this._formData.widthCm ?? undefined,
         heightCm: this._formData.heightCm ?? undefined,
-        metaDescription: this._formData.metaDescription ?? undefined,
-        pageTitle: this._formData.pageTitle ?? undefined,
-        noIndex: this._formData.noIndex,
-        openGraphImage: this._formData.openGraphImage ?? undefined,
         shoppingFeedTitle: this._formData.shoppingFeedTitle ?? undefined,
         shoppingFeedDescription: this._formData.shoppingFeedDescription ?? undefined,
         shoppingFeedColour: this._formData.shoppingFeedColour ?? undefined,
         shoppingFeedMaterial: this._formData.shoppingFeedMaterial ?? undefined,
         shoppingFeedSize: this._formData.shoppingFeedSize ?? undefined,
-        excludeFromCustomLabels: this._formData.excludeFromCustomLabels,
         removeFromFeed: this._formData.removeFromFeed,
       };
 
@@ -182,9 +174,6 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
         </uui-tab>
         <uui-tab label="Dimensions" href="${this._routerPath}/tab/dimensions" ?active=${activeTab === "dimensions"}>
           Dimensions
-        </uui-tab>
-        <uui-tab label="SEO" href="${this._routerPath}/tab/seo" ?active=${activeTab === "seo"}>
-          SEO
         </uui-tab>
         <uui-tab label="Shopping Feed" href="${this._routerPath}/tab/feed" ?active=${activeTab === "feed"}>
           Shopping Feed
@@ -309,17 +298,6 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
             </uui-toggle>
           </umb-property-layout>
         </uui-box>
-
-        <uui-box headline="Description">
-          <umb-property-layout label="Variant Description" description="Variant-specific description (overrides product description)">
-            <uui-textarea
-              slot="editor"
-              .value=${this._formData.description || ""}
-              @input=${(e: Event) => (this._formData = { ...this._formData, description: (e.target as HTMLTextAreaElement).value })}
-              placeholder="Describe this variant...">
-            </uui-textarea>
-          </umb-property-layout>
-        </uui-box>
       </div>
     `;
   }
@@ -386,46 +364,6 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  private _renderSeoTab(): unknown {
-    return html`
-      <div class="tab-content">
-        <uui-box headline="Search Engine Optimization">
-          <umb-property-layout label="Page Title" description="Title displayed in browser tab and search results">
-            <uui-input
-              slot="editor"
-              .value=${this._formData.pageTitle || ""}
-              @input=${(e: Event) => (this._formData = { ...this._formData, pageTitle: (e.target as HTMLInputElement).value })}>
-            </uui-input>
-          </umb-property-layout>
-
-          <umb-property-layout label="Meta Description" description="Description shown in search engine results">
-            <uui-textarea
-              slot="editor"
-              .value=${this._formData.metaDescription || ""}
-              @input=${(e: Event) => (this._formData = { ...this._formData, metaDescription: (e.target as HTMLTextAreaElement).value })}>
-            </uui-textarea>
-          </umb-property-layout>
-
-          <umb-property-layout label="URL Slug" description="The URL path for this variant">
-            <uui-input
-              slot="editor"
-              .value=${this._formData.url || ""}
-              @input=${(e: Event) => (this._formData = { ...this._formData, url: (e.target as HTMLInputElement).value })}>
-            </uui-input>
-          </umb-property-layout>
-
-          <umb-property-layout label="No Index" description="Hide from search engines">
-            <uui-toggle
-              slot="editor"
-              .checked=${this._formData.noIndex ?? false}
-              @change=${(e: Event) => (this._formData = { ...this._formData, noIndex: (e.target as any).checked })}>
-            </uui-toggle>
-          </umb-property-layout>
-        </uui-box>
-      </div>
-    `;
-  }
-
   private _renderFeedTab(): unknown {
     return html`
       <div class="tab-content">
@@ -478,14 +416,6 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
                     .value=${this._formData.shoppingFeedSize || ""}
                     @input=${(e: Event) => (this._formData = { ...this._formData, shoppingFeedSize: (e.target as HTMLInputElement).value })}>
                   </uui-input>
-                </umb-property-layout>
-
-                <umb-property-layout label="Exclude from Custom Labels" description="Exclude from custom label categorization">
-                  <uui-toggle
-                    slot="editor"
-                    .checked=${this._formData.excludeFromCustomLabels ?? false}
-                    @change=${(e: Event) => (this._formData = { ...this._formData, excludeFromCustomLabels: (e.target as any).checked })}>
-                  </uui-toggle>
                 </umb-property-layout>
               `
             : nothing}
@@ -644,7 +574,6 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
 
           ${activeTab === "basic" ? this._renderBasicTab() : nothing}
           ${activeTab === "dimensions" ? this._renderDimensionsTab() : nothing}
-          ${activeTab === "seo" ? this._renderSeoTab() : nothing}
           ${activeTab === "feed" ? this._renderFeedTab() : nothing}
           ${activeTab === "stock" ? this._renderStockTab() : nothing}
         </umb-body-layout>

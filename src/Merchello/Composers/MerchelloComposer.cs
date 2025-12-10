@@ -1,15 +1,18 @@
 using Asp.Versioning;
 using Merchello.Core;
 using Merchello.Core.Accounting.Handlers;
+using Merchello.Core.Data;
 using Merchello.Core.Data.Handlers;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
+using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Api.Management.OpenApi;
 using Umbraco.Cms.Api.Common.OpenApi;
@@ -28,6 +31,10 @@ namespace Merchello.Composers
 
             // Register seed data handler (runs after migrations, only seeds if no data exists)
             builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, SeedDataNotificationHandler>();
+
+            // Register DataType initializer (ensures Product Description TipTap DataType exists)
+            builder.Services.AddSingleton<MerchelloDataTypeInitializer>();
+            builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, InitializeMerchelloDataTypesHandler>();
 
             builder.Services.AddSingleton<IOperationIdHandler, CustomOperationHandler>();
 
@@ -80,6 +87,39 @@ namespace Merchello.Composers
             }
 
             public override string Handle(ApiDescription apiDescription) => $"{apiDescription.ActionDescriptor.RouteValues["action"]}";
+        }
+    }
+
+    /// <summary>
+    /// Notification handler that initializes Merchello DataTypes on application startup.
+    /// This ensures required DataTypes (like the Product Description TipTap editor) exist.
+    /// </summary>
+    public class InitializeMerchelloDataTypesHandler : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
+    {
+        private readonly MerchelloDataTypeInitializer _initializer;
+        private readonly ILogger<InitializeMerchelloDataTypesHandler> _logger;
+
+        public InitializeMerchelloDataTypesHandler(
+            MerchelloDataTypeInitializer initializer,
+            ILogger<InitializeMerchelloDataTypesHandler> logger)
+        {
+            _initializer = initializer;
+            _logger = logger;
+        }
+
+        public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var dataTypeKey = await _initializer.EnsureProductDescriptionDataTypeExistsAsync(cancellationToken);
+                _logger.LogInformation("Merchello DataTypes initialized. Product Description DataType: {Key}", dataTypeKey);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to initialize Merchello DataTypes");
+                // Don't throw - allow app to continue even if DataType creation fails
+                // The frontend will handle the missing DataType gracefully
+            }
         }
     }
 }

@@ -20,7 +20,6 @@ public class ProductDbMapping : IEntityTypeConfiguration<Product>
         builder.Property(x => x.Id).IsRequired();
 
         builder.Property(x => x.Name).HasMaxLength(500).IsRequired();
-        builder.Property(x => x.Description).HasMaxLength(5000);
 
         builder.Property(x => x.CostOfGoods).IsRequired().HasPrecision(18, 2);
         builder.Property(x => x.Price).IsRequired().HasPrecision(18, 2);
@@ -36,9 +35,6 @@ public class ProductDbMapping : IEntityTypeConfiguration<Product>
 
         builder.Property(x => x.DateCreated).IsRequired();
         builder.Property(x => x.DateUpdated).IsRequired();
-
-        builder.Property(x => x.MetaDescription).HasMaxLength(200);
-        builder.Property(x => x.PageTitle).HasMaxLength(100);
 
         builder.Property(x => x.ShoppingFeedTitle).HasMaxLength(200);
         builder.Property(x => x.ShoppingFeedDescription).HasMaxLength(100);

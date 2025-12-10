@@ -218,6 +218,7 @@ import type {
   ProductCategoryDto,
   ProductRootDetailDto,
   ProductOptionSettingsDto,
+  DescriptionEditorSettingsDto,
   CreateProductRootRequest,
   UpdateProductRootRequest,
   ProductVariantDto,
@@ -494,6 +495,9 @@ export const MerchelloApi = {
 
   /** Get product option settings (available type and UI aliases) */
   getProductOptionSettings: () => apiGet<ProductOptionSettingsDto>('settings/product-options'),
+
+  /** Get description editor settings (DataType key for TipTap rich text editor) */
+  getDescriptionEditorSettings: () => apiGet<DescriptionEditorSettingsDto>('settings/description-editor'),
 
   /** Get full product root with all variants and options */
   getProductDetail: (id: string) => apiGet<ProductRootDetailDto>(`products/${id}`),

@@ -449,13 +449,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<bool>("Default")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Description")
-                        .HasMaxLength(5000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("ExcludeFromCustomLabels")
-                        .HasColumnType("INTEGER");
-
                     b.Property<bool>("ExcludeRootProductImages")
                         .HasColumnType("INTEGER");
 
@@ -476,31 +469,17 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("MetaDescription")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("NoIndex")
-                        .HasColumnType("INTEGER");
-
                     b.Property<bool>("OnSale")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("OpenGraphImage")
-                        .HasColumnType("TEXT");
 
                     b.Property<string>("PackageConfigurations")
                         .IsRequired()
                         .HasMaxLength(4000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PageTitle")
-                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal?>("PreviousPrice")
@@ -648,6 +627,14 @@ namespace Merchello.Core.Sqlite.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("CanonicalUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(5000)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("GoogleShoppingFeedCategory")
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
@@ -658,6 +645,21 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<bool>("IsDigitalProduct")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("MetaDescription")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("NoIndex")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OpenGraphImage")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PageTitle")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ProductOptions")
                         .IsRequired()

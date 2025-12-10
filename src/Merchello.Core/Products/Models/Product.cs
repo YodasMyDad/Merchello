@@ -67,10 +67,6 @@ public class Product
     /// </summary>
     public List<string> Images { get; set; } = [];
 
-    /// <summary>
-    /// Product Description
-    /// </summary>
-    public string? Description { get; set; }
 
     /// <summary>
     /// If the user checks this, the root product images are not appended
@@ -102,25 +98,6 @@ public class Product
     /// </summary>
     public DateTime DateUpdated { get; set; } = DateTime.Now;
 
-    /// <summary>
-    /// The meta description
-    /// </summary>
-    public string? MetaDescription { get; set; }
-
-    /// <summary>
-    /// The page title
-    /// </summary>
-    public string? PageTitle { get; set; }
-
-    /// <summary>
-    /// Whether this product should be indexed
-    /// </summary>
-    public bool NoIndex { get; set; }
-
-    /// <summary>
-    /// The opengraph media Id
-    /// </summary>
-    public string? OpenGraphImage { get; set; }
 
     /// <summary>
     /// The title for the shopping feed
@@ -147,10 +124,6 @@ public class Product
     /// </summary>
     public string? ShoppingFeedSize { get; set; }
 
-    /// <summary>
-    /// If this is ticked, it will not fill in the custom labels in the feed
-    /// </summary>
-    public bool ExcludeFromCustomLabels  { get; set; }
 
     /// <summary>
     /// If this is ticked the product is removed from the product feed

@@ -454,13 +454,6 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<bool>("Default")
                         .HasColumnType("bit");
 
-                    b.Property<string>("Description")
-                        .HasMaxLength(5000)
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("ExcludeFromCustomLabels")
-                        .HasColumnType("bit");
-
                     b.Property<bool>("ExcludeRootProductImages")
                         .HasColumnType("bit");
 
@@ -481,32 +474,18 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<string>("MetaDescription")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<bool>("NoIndex")
-                        .HasColumnType("bit");
-
                     b.Property<bool>("OnSale")
                         .HasColumnType("bit");
-
-                    b.Property<string>("OpenGraphImage")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PackageConfigurations")
                         .IsRequired()
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
-
-                    b.Property<string>("PageTitle")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.Property<decimal?>("PreviousPrice")
                         .HasPrecision(18, 2)
@@ -653,6 +632,14 @@ namespace Merchello.Core.SqlServer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CanonicalUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(5000)
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("GoogleShoppingFeedCategory")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
@@ -663,6 +650,21 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<bool>("IsDigitalProduct")
                         .HasColumnType("bit");
+
+                    b.Property<string>("MetaDescription")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("NoIndex")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("OpenGraphImage")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("PageTitle")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("ProductOptions")
                         .IsRequired()

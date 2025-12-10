@@ -1,9 +1,11 @@
 using Asp.Versioning;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Data;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Merchello.Controllers;
@@ -16,7 +18,9 @@ namespace Merchello.Controllers;
 public class SettingsApiController(
     IOptions<MerchelloSettings> settings,
     ILocalityCatalog localityCatalog,
-    ITaxService taxService) : MerchelloApiControllerBase
+    ITaxService taxService,
+    MerchelloDataTypeInitializer dataTypeInitializer,
+    ILogger<SettingsApiController> logger) : MerchelloApiControllerBase
 {
     /// <summary>
     /// Get store settings for the admin UI
@@ -98,6 +102,36 @@ public class SettingsApiController(
             OptionUiAliases = settings.Value.OptionUiAliases
         });
     }
+
+    /// <summary>
+    /// Get the DataType key for the Product Description rich text editor.
+    /// This key can be used by the frontend to load the DataType configuration
+    /// from Umbraco's Management API.
+    /// </summary>
+    [HttpGet("settings/description-editor")]
+    [ProducesResponseType<DescriptionEditorSettingsDto>(StatusCodes.Status200OK)]
+    public IActionResult GetDescriptionEditorSettings()
+    {
+        try
+        {
+            var dataTypeKey = dataTypeInitializer.GetProductDescriptionDataTypeKey();
+            return Ok(new DescriptionEditorSettingsDto
+            {
+                DataTypeKey = dataTypeKey,
+                PropertyEditorUiAlias = MerchelloDataTypeInitializer.TIPTAP_PROPERTY_EDITOR_UI_ALIAS
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to get description editor settings");
+            // Return fallback with null key - frontend will use default config
+            return Ok(new DescriptionEditorSettingsDto
+            {
+                DataTypeKey = null,
+                PropertyEditorUiAlias = MerchelloDataTypeInitializer.TIPTAP_PROPERTY_EDITOR_UI_ALIAS
+            });
+        }
+    }
 }
 
 /// <summary>
@@ -175,4 +209,21 @@ public class ProductOptionSettingsDto
     /// Available option UI aliases (e.g., "dropdown", "colour", "image")
     /// </summary>
     public string[] OptionUiAliases { get; set; } = [];
+}
+
+/// <summary>
+/// Settings for the Product Description rich text editor
+/// </summary>
+public class DescriptionEditorSettingsDto
+{
+    /// <summary>
+    /// The DataType key (GUID) that can be used to fetch configuration
+    /// from Umbraco's Management API (/umbraco/management/api/v1/data-type/{key})
+    /// </summary>
+    public Guid? DataTypeKey { get; set; }
+
+    /// <summary>
+    /// The property editor UI alias to use (e.g., "Umb.PropertyEditorUi.Tiptap")
+    /// </summary>
+    public string PropertyEditorUiAlias { get; set; } = string.Empty;
 }

@@ -25,6 +25,11 @@ import { MERCHELLO_OPTION_EDITOR_MODAL } from "@products/modals/option-editor-mo
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { getProductsListHref, getVariantDetailHref } from "@shared/utils/navigation.js";
 import "@shared/components/editable-text-list.element.js";
+import { UmbDataTypeDetailRepository } from "@umbraco-cms/backoffice/data-type";
+import { UmbPropertyEditorConfigCollection } from "@umbraco-cms/backoffice/property-editor";
+import type { UmbPropertyEditorConfigCollection as UmbPropertyEditorConfigCollectionType } from "@umbraco-cms/backoffice/property-editor";
+// Import TipTap component to register the custom element
+import "@umbraco-cms/backoffice/tiptap";
 
 interface SelectOption {
   name: string;
@@ -57,6 +62,12 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   // Note: Categories loaded but not yet used in UI
   // @state() private _categories: ProductCategoryDto[] = [];
 
+  // Description editor configuration from Umbraco DataType
+  @state() private _descriptionEditorConfig: UmbPropertyEditorConfigCollectionType | undefined = undefined;
+
+  // Umbraco DataType repository for loading editor configuration
+  #dataTypeRepository = new UmbDataTypeDetailRepository(this);
+  
   #workspaceContext?: MerchelloProductDetailWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
@@ -98,11 +109,12 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
   private async _loadReferenceData(): Promise<void> {
     try {
-      const [taxGroups, productTypes, warehouses, optionSettings] = await Promise.all([
+      const [taxGroups, productTypes, warehouses, optionSettings, descriptionEditorSettings] = await Promise.all([
         MerchelloApi.getTaxGroups(),
         MerchelloApi.getProductTypes(),
         MerchelloApi.getWarehouses(),
         MerchelloApi.getProductOptionSettings(),
+        MerchelloApi.getDescriptionEditorSettings(),
       ]);
 
       // Prevent state updates if component was disconnected during async operation
@@ -112,10 +124,102 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       if (productTypes.data) this._productTypes = productTypes.data;
       if (warehouses.data) this._warehouses = warehouses.data;
       if (optionSettings.data) this._optionSettings = optionSettings.data;
+      // Load DataType configuration using Umbraco's repository (handles auth automatically)
+      if (descriptionEditorSettings.data?.dataTypeKey) {
+        await this._loadDataTypeConfig(descriptionEditorSettings.data.dataTypeKey);
+        // Check again after async operation
+        if (!this.#isConnected) return;
+      }
     } catch (error) {
       console.error("Failed to load reference data:", error);
       // Component will still function but with limited options
     }
+  }
+
+  /**
+   * Fetches the DataType configuration using Umbraco's DataType repository.
+   * This handles authentication automatically through Umbraco's internal mechanisms.
+   */
+  private async _loadDataTypeConfig(dataTypeKey: string): Promise<void> {
+    try {
+      console.log("[Merchello] Loading DataType config for:", dataTypeKey);
+      
+      // Request the DataType through Umbraco's repository (handles auth)
+      const { data, error } = await this.#dataTypeRepository.requestByUnique(dataTypeKey);
+      
+      if (error) {
+        console.error("[Merchello] Error requesting DataType:", error);
+        this._setFallbackEditorConfig();
+        return;
+      }
+
+      console.log("[Merchello] DataType request result:", data);
+      
+      // Observe the DataType to get its configuration
+      this.observe(
+        await this.#dataTypeRepository.byUnique(dataTypeKey),
+        (dataType) => {
+          console.log("[Merchello] DataType observed:", dataType);
+          if (!this.#isConnected) return;
+          
+          if (!dataType) {
+            console.warn("[Merchello] DataType not found, using fallback config");
+            this._setFallbackEditorConfig();
+            return;
+          }
+          
+          // Create the config collection from the DataType's values
+          console.log("[Merchello] DataType values:", dataType.values);
+          console.log("[Merchello] DataType values detail:", JSON.stringify(dataType.values, null, 2));
+          
+          // Check if extensions config exists
+          const hasExtensions = dataType.values?.some((v: { alias: string }) => v.alias === 'extensions');
+          const hasToolbar = dataType.values?.some((v: { alias: string }) => v.alias === 'toolbar');
+          console.log("[Merchello] Has extensions:", hasExtensions, "Has toolbar:", hasToolbar);
+          
+          if (!hasExtensions) {
+            console.warn("[Merchello] DataType is missing 'extensions' config. Delete it in Settings > Data Types and restart to recreate.");
+          }
+          
+          this._descriptionEditorConfig = new UmbPropertyEditorConfigCollection(dataType.values);
+        },
+        '_observeDescriptionDataType',
+      );
+    } catch (error) {
+      console.error("[Merchello] Failed to load DataType configuration:", error);
+      this._setFallbackEditorConfig();
+    }
+  }
+
+  /**
+   * Sets a fallback editor configuration if the DataType cannot be loaded.
+   */
+  private _setFallbackEditorConfig(): void {
+    console.log("[Merchello] Using fallback TipTap configuration");
+    this._descriptionEditorConfig = new UmbPropertyEditorConfigCollection([
+      {
+        alias: "toolbar",
+        value: [
+          [
+            ["Umb.Tiptap.Toolbar.Bold", "Umb.Tiptap.Toolbar.Italic", "Umb.Tiptap.Toolbar.Underline"],
+            ["Umb.Tiptap.Toolbar.BulletList", "Umb.Tiptap.Toolbar.OrderedList"],
+            ["Umb.Tiptap.Toolbar.Link", "Umb.Tiptap.Toolbar.Unlink"],
+          ],
+        ],
+      },
+      {
+        alias: "extensions",
+        value: [
+          "Umb.Tiptap.RichTextEssentials",
+          "Umb.Tiptap.Bold",
+          "Umb.Tiptap.Italic",
+          "Umb.Tiptap.Underline",
+          "Umb.Tiptap.Link",
+          "Umb.Tiptap.BulletList",
+          "Umb.Tiptap.OrderedList",
+        ],
+      },
+    ]);
   }
 
   /**
@@ -130,6 +234,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     this._routes = [
       {
         path: "tab/details",
+        component: stubComponent,
+      },
+      {
+        path: "tab/seo",
         component: stubComponent,
       },
       {
@@ -150,7 +258,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   /**
    * Gets the currently active tab based on the route path
    */
-  private _getActiveTab(): "details" | "variants" | "options" {
+  private _getActiveTab(): "details" | "seo" | "variants" | "options" {
+    if (this._activePath.includes("tab/seo")) return "seo";
     if (this._activePath.includes("tab/variants")) return "variants";
     if (this._activePath.includes("tab/options")) return "options";
     return "details";
@@ -290,6 +399,12 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       productTypeId: this._formData.productTypeId,
       categoryIds: this._formData.categoryIds,
       warehouseIds: this._formData.warehouseIds,
+      description: this._formData.description ?? undefined,
+      metaDescription: this._formData.metaDescription ?? undefined,
+      pageTitle: this._formData.pageTitle ?? undefined,
+      noIndex: this._formData.noIndex,
+      openGraphImage: this._formData.openGraphImage ?? undefined,
+      canonicalUrl: this._formData.canonicalUrl ?? undefined,
     };
 
     const { data, error } = await MerchelloApi.updateProduct(this._product.id, request);
@@ -367,6 +482,13 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           ?active=${activeTab === "details"}>
           Details
           ${detailsHint ? html`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : nothing}
+        </uui-tab>
+
+        <uui-tab
+          label="SEO"
+          href="${this._routerPath}/tab/seo"
+          ?active=${activeTab === "seo"}>
+          SEO
         </uui-tab>
 
         ${variantCount > 1
@@ -467,6 +589,14 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
               placeholder="e.g., Free shipping, 30-day returns">
             </merchello-editable-text-list>
           </umb-property-layout>
+
+          <umb-property-layout
+            label="Description"
+            description="Product description for your storefront. Edit the DataType in Settings > Data Types to customize the editor toolbar.">
+            <div slot="editor">
+              ${this._renderDescriptionEditor()}
+            </div>
+          </umb-property-layout>
         </uui-box>
 
         <uui-box headline="Product Images">
@@ -498,6 +628,39 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     `;
   }
 
+  /**
+   * Renders the Description rich text editor using Umbraco's TipTap input component.
+   * The editor configuration comes from a DataType that can be customized in Settings > Data Types.
+   */
+  private _renderDescriptionEditor(): unknown {
+    // Show loading state while config is being fetched
+    if (!this._descriptionEditorConfig) {
+      return html`<uui-loader-bar></uui-loader-bar>`;
+    }
+
+    return html`
+      <umb-input-tiptap
+        .configuration=${this._descriptionEditorConfig}
+        .value=${this._formData.description || ""}
+        @change=${this._handleDescriptionChange}>
+      </umb-input-tiptap>
+    `;
+  }
+
+  /**
+   * Handles changes from the Description rich text editor.
+   * Extracts the markup value and updates the form data.
+   */
+  private _handleDescriptionChange(e: Event): void {
+    const target = e.target as HTMLElement & { value?: string };
+    const markup = target?.value || "";
+    
+    this._formData = {
+      ...this._formData,
+      description: markup,
+    };
+  }
+
   private _renderMediaPicker(): unknown {
     const imageKeys = this._formData.rootImages || [];
     const mediaValue = imageKeys.map((key) => ({ key, mediaKey: key }));
@@ -523,6 +686,91 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     const value = target?.value || [];
     const imageKeys = value.map((item: any) => item.mediaKey).filter(Boolean);
     this._formData = { ...this._formData, rootImages: imageKeys };
+  }
+
+  private _renderSeoTab(): unknown {
+    const openGraphImageValue = this._formData.openGraphImage
+      ? [{ key: this._formData.openGraphImage, mediaKey: this._formData.openGraphImage }]
+      : [];
+
+    return html`
+      <div class="tab-content">
+        <uui-box headline="Search Engine Optimization">
+          <umb-property-layout
+            label="Page Title"
+            description="The title shown in browser tabs and search results">
+            <uui-input
+              slot="editor"
+              .value=${this._formData.pageTitle || ""}
+              @input=${(e: Event) => this._handleInputChange("pageTitle", (e.target as HTMLInputElement).value)}
+              placeholder="e.g., Blue T-Shirt | Your Store Name">
+            </uui-input>
+          </umb-property-layout>
+
+          <umb-property-layout
+            label="Meta Description"
+            description="The description shown in search results (recommended: 150-160 characters)">
+            <uui-textarea
+              slot="editor"
+              .value=${this._formData.metaDescription || ""}
+              @input=${(e: Event) => this._handleInputChange("metaDescription", (e.target as HTMLTextAreaElement).value)}
+              placeholder="A brief description for search engines...">
+            </uui-textarea>
+          </umb-property-layout>
+
+          <umb-property-layout
+            label="Canonical URL"
+            description="Optional URL to indicate the preferred version of this page for SEO">
+            <uui-input
+              slot="editor"
+              .value=${this._formData.canonicalUrl || ""}
+              @input=${(e: Event) => this._handleInputChange("canonicalUrl", (e.target as HTMLInputElement).value)}
+              placeholder="https://example.com/products/blue-t-shirt">
+            </uui-input>
+          </umb-property-layout>
+
+          <umb-property-layout
+            label="Hide from Search Engines"
+            description="Adds noindex meta tag to prevent search engines from indexing this page">
+            <uui-toggle
+              slot="editor"
+              .checked=${this._formData.noIndex ?? false}
+              @change=${(e: Event) => this._handleToggleChange("noIndex", (e.target as any).checked)}>
+            </uui-toggle>
+          </umb-property-layout>
+        </uui-box>
+
+        <uui-box headline="Social Sharing">
+          <umb-property-layout
+            label="Open Graph Image"
+            description="Image displayed when this page is shared on social media">
+            <div slot="editor">
+              <umb-input-rich-media
+                .value=${openGraphImageValue}
+                ?multiple=${false}
+                @change=${this._handleOpenGraphImageChange}>
+              </umb-input-rich-media>
+              ${!this._formData.openGraphImage
+                ? html`
+                    <div class="empty-media-state small">
+                      <uui-icon name="icon-share-alt"></uui-icon>
+                      <p>No image selected</p>
+                      <small>Recommended size: 1200×630 pixels</small>
+                    </div>
+                  `
+                : nothing}
+            </div>
+          </umb-property-layout>
+        </uui-box>
+      </div>
+    `;
+  }
+
+  private _handleOpenGraphImageChange(e: CustomEvent): void {
+    const target = e.target as any;
+    const value = target?.value || [];
+    const imageKey = value.length > 0 ? value[0].mediaKey : null;
+    this._formData = { ...this._formData, openGraphImage: imageKey };
   }
 
   private _renderWarehouseSelector(): unknown {
@@ -975,6 +1223,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           </umb-router-slot>
 
           ${activeTab === "details" ? this._renderDetailsTab() : nothing}
+          ${activeTab === "seo" ? this._renderSeoTab() : nothing}
           ${activeTab === "variants" ? this._renderVariantsTab() : nothing}
           ${activeTab === "options" ? this._renderOptionsTab() : nothing}
         </umb-body-layout>
@@ -1135,6 +1384,14 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       .empty-media-state small {
         font-size: 0.875rem;
         color: var(--uui-color-text-alt);
+      }
+
+      .empty-media-state.small {
+        padding: var(--uui-size-space-4);
+      }
+
+      .empty-media-state.small uui-icon {
+        font-size: 32px;
       }
 
       /* Info and error banners */
@@ -1322,6 +1579,15 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
       .regenerate-section uui-icon {
         color: var(--uui-color-warning);
+      }
+
+      /* Description editor styling */
+      umb-property-dataset {
+        display: block;
+      }
+
+      umb-property-dataset umb-property {
+        --umb-property-layout-description-display: none;
       }
     `,
   ];
