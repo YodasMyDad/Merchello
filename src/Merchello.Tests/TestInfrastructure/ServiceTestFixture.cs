@@ -7,6 +7,7 @@ using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Data;
 using Merchello.Core.Notifications;
+using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services;
@@ -209,6 +210,14 @@ public class ServiceTestFixture : IDisposable
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Product>>>>()))
                     .Returns((Func<MerchelloDbContext, Task<List<Product>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductRootDetailDto?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<ProductRootDetailDto?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductVariantDto?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<ProductVariantDto?>> func) => func(dbContext));
 
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductOption?>>>()))

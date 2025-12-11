@@ -665,4 +665,120 @@ public class ProductServiceTests
     }
 
     #endregion
+
+    #region GetProductRootWithDetails Tests
+
+    [Fact]
+    public async Task GetProductRootWithDetails_ReturnsProductOptionsWithMatchingVariantOptionsKeys()
+    {
+        // Arrange
+        var taxGroup = _dataBuilder.CreateTaxGroup();
+        var productType = _dataBuilder.CreateProductType();
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var createResult = await _productService.CreateProductRootOnly(
+            name: "Test Product",
+            price: 25.00m,
+            costOfGoods: 12.00m,
+            weight: 0.3m,
+            taxGroupId: taxGroup.Id,
+            productTypeId: productType.Id,
+            categoryIds: []);
+        var productRootId = createResult.ResultObject!.Id;
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Add Color option
+        await _productService.AddProductOption(
+            productRootId: productRootId,
+            name: "Color",
+            alias: "color",
+            sortOrder: 1,
+            optionTypeAlias: null,
+            optionUiAlias: null,
+            isVariant: true,
+            values: [
+                ("Red", "Color: Red", 1, "#FF0000", 0m, 0m, "-RED"),
+                ("Blue", "Color: Blue", 2, "#0000FF", 0m, 0m, "-BLUE")
+            ]);
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Add Size option
+        await _productService.AddProductOption(
+            productRootId: productRootId,
+            name: "Size",
+            alias: "size",
+            sortOrder: 2,
+            optionTypeAlias: null,
+            optionUiAlias: null,
+            isVariant: true,
+            values: [
+                ("Small", "Size: Small", 1, null, 0m, 0m, "-S"),
+                ("Large", "Size: Large", 2, null, 0m, 0m, "-L")
+            ]);
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Generate variants
+        await _productService.GenerateVariantsFromOptions(
+            productRootId, defaultPrice: 25.00m, defaultCostOfGoods: 12.00m);
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act - call the SAME method the API uses
+        var result = await _productService.GetProductRootWithDetails(productRootId);
+
+        // Assert - ProductOptions should be populated
+        result.ShouldNotBeNull();
+        result.ProductOptions.ShouldNotBeEmpty();
+        result.ProductOptions.Count.ShouldBe(2);
+
+        // Verify option values are present
+        var colorOption = result.ProductOptions.First(o => o.Name == "Color");
+        colorOption.Values.Count.ShouldBe(2);
+        colorOption.Values.ShouldContain(v => v.Name == "Red");
+        colorOption.Values.ShouldContain(v => v.Name == "Blue");
+
+        var sizeOption = result.ProductOptions.First(o => o.Name == "Size");
+        sizeOption.Values.Count.ShouldBe(2);
+        sizeOption.Values.ShouldContain(v => v.Name == "Small");
+        sizeOption.Values.ShouldContain(v => v.Name == "Large");
+
+        // Should have 4 variants (2 colors × 2 sizes)
+        result.Variants.Count.ShouldBe(4);
+
+        // Build lookup of all option value IDs to names
+        var valueIdToName = result.ProductOptions
+            .SelectMany(o => o.Values)
+            .ToDictionary(v => v.Id, v => v.Name);
+
+        // For each variant, verify VariantOptionsKey can be matched to option values
+        var guidRegex = new System.Text.RegularExpressions.Regex(
+            @"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        foreach (var variant in result.Variants)
+        {
+            variant.VariantOptionsKey.ShouldNotBeNullOrEmpty();
+
+            var guids = guidRegex.Matches(variant.VariantOptionsKey)
+                .Select(m => Guid.Parse(m.Value))
+                .ToList();
+
+            // Should have 2 GUIDs (one per option)
+            guids.Count.ShouldBe(2);
+
+            // Each GUID should match an option value
+            var matchedNames = new List<string>();
+            foreach (var guid in guids)
+            {
+                valueIdToName.ShouldContainKey(guid);
+                matchedNames.Add(valueIdToName[guid]);
+            }
+
+            // Verify we got one color and one size
+            matchedNames.ShouldContain(n => n == "Red" || n == "Blue");
+            matchedNames.ShouldContain(n => n == "Small" || n == "Large");
+        }
+    }
+
+    #endregion
 }
