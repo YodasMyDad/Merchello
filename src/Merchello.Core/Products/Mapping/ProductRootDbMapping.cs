@@ -29,7 +29,7 @@ public class ProductRootDbMapping : IEntityTypeConfiguration<ProductRoot>
         builder.Property(x => x.SellingPoints).ToJsonConversion(1500);
         builder.Property(x => x.GoogleShoppingFeedCategory).HasMaxLength(1000);
         builder.Property(x => x.RootUrl).HasMaxLength(1000);
-        builder.Property(x => x.HsCode).HasMaxLength(10);
+        builder.Property(x => x.DefaultPackageConfigurations).ToJsonConversion(4000);
 
         // SEO fields
         builder.Property(x => x.Description).HasMaxLength(5000);

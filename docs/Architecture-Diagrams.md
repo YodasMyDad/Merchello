@@ -61,7 +61,10 @@ Feature/
   │ Supplier             │ 1:N Warehouses                                     │
   │ Warehouse            │ N:1 Supplier, 1:N ServiceRegions, 1:N ShipOptions  │
   │ ProductRoot          │ 1:N Products, M:N Warehouses (via ProductRootWH)   │
+  │                      │ 1:N DefaultPackageConfigurations (ProductPackage)  │
   │ Product (variant)    │ M:N Warehouses (via ProductWarehouse for stock)    │
+  │                      │ 1:N PackageConfigurations (ProductPackage)         │
+  │                      │ HsCode (customs classification)                    │
   │ Invoice              │ 1:N Orders, 1:N Payments                           │
   │ Order                │ 1:N Shipments, 1:N LineItems                       │
   │ Shipment             │ N:1 Order, N:1 Warehouse                           │
@@ -321,6 +324,44 @@ Result:
 
 Customer selects shipping for each group → Invoice created with 2 Orders
 ```
+
+### Product Packaging System
+
+Products support multi-package shipping configurations with inheritance from root to variants.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ ProductRoot                                                      │
+│   └── DefaultPackageConfigurations: ProductPackage[]            │
+│         (Default packages - variants inherit if not overridden) │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ (inherits unless overridden)
+┌─────────────────────────────────────────────────────────────────┐
+│ Product (Variant)                                                │
+│   └── PackageConfigurations: ProductPackage[]                   │
+│   └── HsCode: string (customs/tariff classification)            │
+│         (Empty = use root defaults, Populated = override)       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**ProductPackage Model:**
+| Field | Type | Description |
+|-------|------|-------------|
+| Weight | decimal | Package weight in kg |
+| LengthCm | decimal? | Package length in cm |
+| WidthCm | decimal? | Package width in cm |
+| HeightCm | decimal? | Package height in cm |
+
+**Package Resolution (`GetEffectivePackages`):**
+1. If variant has `PackageConfigurations` populated → use variant's packages
+2. Otherwise → use `ProductRoot.DefaultPackageConfigurations`
+3. Each package × quantity = ShipmentPackage entries in shipping quote request
+
+**Why HsCode at Variant Level:**
+- Different variants may require different tariff classifications
+- Example: Cotton vs Polyester versions of same shirt have different HS codes
+- Enables accurate customs declarations per variant
 
 ---
 

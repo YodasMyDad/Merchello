@@ -77,9 +77,11 @@ public class ProductRoot
     public virtual ICollection<Product> Products { get; set; } = new HashSet<Product>();
 
     /// <summary>
-    /// Optional: Harmonized System (HS) code
+    /// Default package configurations for shipping.
+    /// When populated, these define how the product ships (one or more boxes).
+    /// Variants inherit these unless they define their own PackageConfigurations.
     /// </summary>
-    public string? HsCode { get; set; }
+    public List<ProductPackage> DefaultPackageConfigurations { get; set; } = [];
 
     /// <summary>
     /// The Categories this product is in

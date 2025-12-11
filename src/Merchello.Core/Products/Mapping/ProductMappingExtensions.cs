@@ -12,7 +12,7 @@ public static class ProductMappingExtensions
         destination.RootImages = source.RootImages?.ToList() ?? new List<string>();
         destination.SellingPoints = source.SellingPoints?.ToList() ?? new List<string>();
         destination.Videos = source.Videos?.ToList() ?? new List<string>();
-        destination.HsCode = source.HsCode;
+        destination.DefaultPackageConfigurations = source.DefaultPackageConfigurations.ToList();
         destination.ProductOptions = source.ProductOptions?.ToList() ?? new List<ProductOption>();
         destination.Description = source.Description;
         destination.MetaDescription = source.MetaDescription;
@@ -44,10 +44,7 @@ public static class ProductMappingExtensions
         destination.ShoppingFeedSize = source.ShoppingFeedSize;
         destination.RemoveFromFeed = source.RemoveFromFeed;
         destination.Url = source.Url;
-        destination.Weight = source.Weight;
-        destination.LengthCm = source.LengthCm;
-        destination.WidthCm = source.WidthCm;
-        destination.HeightCm = source.HeightCm;
+        destination.HsCode = source.HsCode;
         destination.PackageConfigurations = source.PackageConfigurations.ToList();
         // Not copying: ProductRoot, Filters, ShippingOptions, Default, VariantOptionsKey, Id
     }

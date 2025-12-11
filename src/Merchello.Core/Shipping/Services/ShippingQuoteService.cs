@@ -222,7 +222,7 @@ public class ShippingQuoteService(
         scope.Complete();
 
         List<ShippingQuoteItem> items = [];
-        decimal totalWeight = 0;
+        List<ShipmentPackage> packages = [];
 
         foreach (var lineItem in lineItems)
         {
@@ -238,8 +238,10 @@ public class ShippingQuoteService(
             }
 
             var snapshot = BuildProductSnapshot(product, countryCode, stateOrProvinceCode);
-            var weightPerItem = product.Weight ?? 0;
-            totalWeight += weightPerItem * Math.Max(lineItem.Quantity, 1);
+
+            // Get effective packages (variant override or root default)
+            var productPackages = GetEffectivePackages(product);
+            var totalWeightForItem = productPackages.Sum(p => p.Weight) * Math.Max(lineItem.Quantity, 1);
 
             items.Add(new ShippingQuoteItem
             {
@@ -247,15 +249,24 @@ public class ShippingQuoteService(
                 ProductId = product.Id,
                 Quantity = lineItem.Quantity,
                 IsShippable = true,
-                TotalWeightKg = weightPerItem * Math.Max(lineItem.Quantity, 1),
+                TotalWeightKg = totalWeightForItem,
                 DestinationCost = product.GetShippingAmountForCountry(countryCode, stateOrProvinceCode),
                 ProductSnapshot = snapshot
             });
-        }
 
-        var packages = totalWeight > 0
-            ? new[] { new ShipmentPackage(totalWeight) }
-            : Array.Empty<ShipmentPackage>();
+            // Build shipment packages for each configured package × quantity
+            for (var qty = 0; qty < Math.Max(lineItem.Quantity, 1); qty++)
+            {
+                foreach (var pkg in productPackages)
+                {
+                    packages.Add(new ShipmentPackage(
+                        pkg.Weight,
+                        pkg.LengthCm,
+                        pkg.WidthCm,
+                        pkg.HeightCm));
+                }
+            }
+        }
 
         var subtotal = lineItems.Sum(item => item.Amount * item.Quantity);
 
@@ -337,9 +348,24 @@ public class ShippingQuoteService(
         {
             ProductId = product.Id,
             Name = product.Name,
-            WeightKg = product.Weight,
+            WeightKg = GetEffectivePackages(product).Sum(p => p.Weight),
             ShippingOptions = options
         };
+    }
+
+    /// <summary>
+    /// Gets the effective package configurations for a product.
+    /// Returns variant's packages if defined, otherwise falls back to root's default packages.
+    /// </summary>
+    private static List<ProductPackage> GetEffectivePackages(Product product)
+    {
+        // Use variant packages if defined, otherwise inherit from root
+        if (product.PackageConfigurations.Count > 0)
+        {
+            return product.PackageConfigurations;
+        }
+
+        return product.ProductRoot?.DefaultPackageConfigurations ?? [];
     }
 
     /// <summary>

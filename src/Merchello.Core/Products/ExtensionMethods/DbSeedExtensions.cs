@@ -54,7 +54,10 @@ public static class ProductServiceDbSeedExtensions
             ProductTypeId = productType.Id,
             RootImages = images ?? [],
             SellingPoints = sellingPoints ?? [],
-            GoogleShoppingFeedCategory = googleShoppingCategory
+            GoogleShoppingFeedCategory = googleShoppingCategory,
+            DefaultPackageConfigurations = weight.HasValue
+                ? [new ProductPackage { Weight = weight.Value }]
+                : []
         };
 
         // Add categories
@@ -152,7 +155,7 @@ public static class ProductServiceDbSeedExtensions
 
                 product.AvailableForPurchase = true;
                 product.Images = [$"https://prd.place/600/800?seed={product.Id}"];
-                product.Weight = weight;
+                // Packages are inherited from ProductRoot.DefaultPackageConfigurations
 
                 // Add filters
                 if (color != "Default" && colorFilters != null)

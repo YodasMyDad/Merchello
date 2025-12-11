@@ -14,7 +14,7 @@ namespace Merchello.Core.Data;
 /// that users can customize through Umbraco's DataType management UI.
 /// Thread-safe singleton service.
 /// </summary>
-public class MerchelloDataTypeInitializer
+public class MerchelloDataTypeInitializer : IDisposable
 {
     private readonly IDataTypeService _dataTypeService;
     private readonly PropertyEditorCollection _propertyEditors;
@@ -268,5 +268,14 @@ public class MerchelloDataTypeInitializer
         };
 
         return dataType;
+    }
+
+    /// <summary>
+    /// Disposes resources used by the initializer.
+    /// </summary>
+    public void Dispose()
+    {
+        _initializationLock.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

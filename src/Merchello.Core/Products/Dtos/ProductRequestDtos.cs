@@ -30,12 +30,17 @@ public class UpdateProductRootRequest
     public List<string>? SellingPoints { get; set; }
     public List<string>? Videos { get; set; }
     public string? GoogleShoppingFeedCategory { get; set; }
-    public string? HsCode { get; set; }
     public bool? IsDigitalProduct { get; set; }
     public Guid? TaxGroupId { get; set; }
     public Guid? ProductTypeId { get; set; }
     public List<Guid>? CategoryIds { get; set; }
     public List<Guid>? WarehouseIds { get; set; }
+
+    /// <summary>
+    /// Default package configurations for shipping.
+    /// Variants inherit these unless they define their own.
+    /// </summary>
+    public List<ProductPackageDto>? DefaultPackageConfigurations { get; set; }
 
     public string? Description { get; set; }
 
@@ -59,10 +64,6 @@ public class CreateVariantRequest
     public decimal CostOfGoods { get; set; }
     public bool AvailableForPurchase { get; set; } = true;
     public bool CanPurchase { get; set; } = true;
-    public decimal? Weight { get; set; }
-    public decimal? LengthCm { get; set; }
-    public decimal? WidthCm { get; set; }
-    public decimal? HeightCm { get; set; }
 }
 
 /// <summary>
@@ -85,11 +86,16 @@ public class UpdateVariantRequest
     public bool? ExcludeRootProductImages { get; set; }
     public string? Url { get; set; }
 
-    // Dimensions
-    public decimal? Weight { get; set; }
-    public decimal? LengthCm { get; set; }
-    public decimal? WidthCm { get; set; }
-    public decimal? HeightCm { get; set; }
+    /// <summary>
+    /// HS Code for customs/tariff classification
+    /// </summary>
+    public string? HsCode { get; set; }
+
+    /// <summary>
+    /// Package configurations for shipping.
+    /// If provided, overrides the root product's DefaultPackageConfigurations.
+    /// </summary>
+    public List<ProductPackageDto>? PackageConfigurations { get; set; }
 
     // Shopping Feed
     public string? ShoppingFeedTitle { get; set; }

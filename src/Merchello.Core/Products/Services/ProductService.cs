@@ -1232,10 +1232,6 @@ public class ProductService(
                 true,
                 null);
 
-            defaultVariant.Weight = request.DefaultVariant.Weight;
-            defaultVariant.LengthCm = request.DefaultVariant.LengthCm;
-            defaultVariant.WidthCm = request.DefaultVariant.WidthCm;
-            defaultVariant.HeightCm = request.DefaultVariant.HeightCm;
             defaultVariant.AvailableForPurchase = request.DefaultVariant.AvailableForPurchase;
             defaultVariant.CanPurchase = request.DefaultVariant.CanPurchase;
 
@@ -1295,7 +1291,17 @@ public class ProductService(
             if (request.SellingPoints != null) productRoot.SellingPoints = request.SellingPoints;
             if (request.Videos != null) productRoot.Videos = request.Videos;
             if (request.GoogleShoppingFeedCategory != null) productRoot.GoogleShoppingFeedCategory = request.GoogleShoppingFeedCategory;
-            if (request.HsCode != null) productRoot.HsCode = request.HsCode;
+            if (request.DefaultPackageConfigurations != null)
+            {
+                productRoot.DefaultPackageConfigurations = request.DefaultPackageConfigurations
+                    .Select(p => new ProductPackage
+                    {
+                        Weight = p.Weight,
+                        LengthCm = p.LengthCm,
+                        WidthCm = p.WidthCm,
+                        HeightCm = p.HeightCm
+                    }).ToList();
+            }
             if (request.IsDigitalProduct.HasValue) productRoot.IsDigitalProduct = request.IsDigitalProduct.Value;
             if (request.RootImages != null) productRoot.RootImages = request.RootImages.Select(g => g.ToString()).ToList();
             if (request.Description != null) productRoot.Description = request.Description;
@@ -1468,11 +1474,21 @@ public class ProductService(
             if (request.Url != null) variant.Url = request.Url;
             if (request.Images != null) variant.Images = request.Images.Select(g => g.ToString()).ToList();
 
-            // Dimensions
-            if (request.Weight.HasValue) variant.Weight = request.Weight.Value;
-            if (request.LengthCm.HasValue) variant.LengthCm = request.LengthCm.Value;
-            if (request.WidthCm.HasValue) variant.WidthCm = request.WidthCm.Value;
-            if (request.HeightCm.HasValue) variant.HeightCm = request.HeightCm.Value;
+            // HS Code
+            if (request.HsCode != null) variant.HsCode = request.HsCode;
+
+            // Package configurations (overrides root if provided)
+            if (request.PackageConfigurations != null)
+            {
+                variant.PackageConfigurations = request.PackageConfigurations
+                    .Select(p => new ProductPackage
+                    {
+                        Weight = p.Weight,
+                        LengthCm = p.LengthCm,
+                        WidthCm = p.WidthCm,
+                        HeightCm = p.HeightCm
+                    }).ToList();
+            }
 
             // Shopping Feed
             if (request.ShoppingFeedTitle != null) variant.ShoppingFeedTitle = request.ShoppingFeedTitle;
@@ -1718,8 +1734,14 @@ public class ProductService(
             SellingPoints = productRoot.SellingPoints,
             Videos = productRoot.Videos,
             GoogleShoppingFeedCategory = productRoot.GoogleShoppingFeedCategory,
-            HsCode = productRoot.HsCode,
             IsDigitalProduct = productRoot.IsDigitalProduct,
+            DefaultPackageConfigurations = productRoot.DefaultPackageConfigurations.Select(p => new ProductPackageDto
+            {
+                Weight = p.Weight,
+                LengthCm = p.LengthCm,
+                WidthCm = p.WidthCm,
+                HeightCm = p.HeightCm
+            }).ToList(),
             Description = productRoot.Description,
             MetaDescription = productRoot.MetaDescription,
             PageTitle = productRoot.PageTitle,
@@ -1798,10 +1820,14 @@ public class ProductService(
             ExcludeRootProductImages = product.ExcludeRootProductImages,
             Url = product.Url,
             VariantOptionsKey = product.VariantOptionsKey,
-            Weight = product.Weight,
-            LengthCm = product.LengthCm,
-            WidthCm = product.WidthCm,
-            HeightCm = product.HeightCm,
+            HsCode = product.HsCode,
+            PackageConfigurations = product.PackageConfigurations.Select(p => new ProductPackageDto
+            {
+                Weight = p.Weight,
+                LengthCm = p.LengthCm,
+                WidthCm = p.WidthCm,
+                HeightCm = p.HeightCm
+            }).ToList(),
             ShoppingFeedTitle = product.ShoppingFeedTitle,
             ShoppingFeedDescription = product.ShoppingFeedDescription,
             ShoppingFeedColour = product.ShoppingFeedColour,

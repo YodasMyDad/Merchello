@@ -456,17 +456,13 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("TEXT");
 
-                    b.Property<decimal?>("HeightCm")
-                        .HasPrecision(18, 2)
+                    b.Property<string>("HsCode")
+                        .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Images")
                         .IsRequired()
                         .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal?>("LengthCm")
-                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
@@ -535,14 +531,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("VariantOptionsKey")
                         .HasMaxLength(1500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal?>("Weight")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal?>("WidthCm")
-                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -631,16 +619,17 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("DefaultPackageConfigurations")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Description")
                         .HasMaxLength(5000)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("GoogleShoppingFeedCategory")
                         .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("HsCode")
-                        .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDigitalProduct")

@@ -12,23 +12,14 @@ namespace Merchello.Core.Payments.Providers;
 /// <summary>
 /// Discovers and configures payment provider implementations.
 /// </summary>
-public class PaymentProviderManager : IPaymentProviderManager, IDisposable
+public class PaymentProviderManager(
+    ExtensionManager extensionManager,
+    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    ILogger<PaymentProviderManager> logger) : IPaymentProviderManager, IDisposable
 {
-    private readonly ExtensionManager _extensionManager;
-    private readonly IEFCoreScopeProvider<MerchelloDbContext> _efCoreScopeProvider;
-    private readonly ILogger<PaymentProviderManager> _logger;
+    private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private volatile IReadOnlyCollection<RegisteredPaymentProvider>? _cachedProviders;
     private bool _disposed;
-
-    public PaymentProviderManager(
-        ExtensionManager extensionManager,
-        IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
-        ILogger<PaymentProviderManager> logger)
-    {
-        _extensionManager = extensionManager;
-        _efCoreScopeProvider = efCoreScopeProvider;
-        _logger = logger;
-    }
 
     /// <inheritdoc />
     public async Task<IReadOnlyCollection<RegisteredPaymentProvider>> GetAvailableProvidersAsync(
@@ -41,72 +32,88 @@ public class PaymentProviderManager : IPaymentProviderManager, IDisposable
             return cached;
         }
 
-        // Discover all provider implementations from assemblies
-        var providerInstances = _extensionManager.GetInstances<IPaymentProvider>(useCaching: true)
-            .Where(p => p != null)
-            .Cast<IPaymentProvider>()
-            .ToList();
-
-        // Load all settings from database
-        using var scope = _efCoreScopeProvider.CreateScope();
-        var settings = await scope.ExecuteWithContextAsync(async db =>
-            await db.PaymentProviderSettings
-                .AsNoTracking()
-                .ToListAsync(cancellationToken));
-        scope.Complete();
-
-        List<RegisteredPaymentProvider> registeredProviders = [];
-        HashSet<string> aliases = new(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var provider in providerInstances)
+        // Thread-safe initialization using semaphore
+        await _cacheLock.WaitAsync(cancellationToken);
+        try
         {
-            var metadata = provider.Metadata;
-            if (string.IsNullOrWhiteSpace(metadata.Alias))
+            // Double-check after acquiring lock
+            cached = _cachedProviders;
+            if (cached != null)
             {
-                _logger.LogWarning(
-                    "Payment provider {ProviderType} has an empty alias and will be ignored.",
-                    provider.GetType().FullName);
-                continue;
+                return cached;
             }
 
-            if (!aliases.Add(metadata.Alias))
-            {
-                _logger.LogWarning(
-                    "Duplicate payment provider alias '{Alias}' detected. Provider {ProviderType} will be skipped.",
-                    metadata.Alias, provider.GetType().FullName);
-                continue;
-            }
+            // Discover all provider implementations from assemblies
+            var providerInstances = extensionManager.GetInstances<IPaymentProvider>(useCaching: true)
+                .Where(p => p != null)
+                .Cast<IPaymentProvider>()
+                .ToList();
 
-            // Find matching setting from database
-            var setting = settings.FirstOrDefault(s =>
-                string.Equals(s.ProviderAlias, metadata.Alias, StringComparison.OrdinalIgnoreCase));
+            // Load all settings from database
+            using var scope = efCoreScopeProvider.CreateScope();
+            var settings = await scope.ExecuteWithContextAsync(async db =>
+                await db.PaymentProviderSettings
+                    .AsNoTracking()
+                    .ToListAsync(cancellationToken));
+            scope.Complete();
 
-            // Configure the provider with its settings
-            try
+            List<RegisteredPaymentProvider> registeredProviders = [];
+            HashSet<string> aliases = new(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var provider in providerInstances)
             {
-                PaymentProviderConfiguration? configuration = null;
-                if (setting != null)
+                var metadata = provider.Metadata;
+                if (string.IsNullOrWhiteSpace(metadata.Alias))
                 {
-                    configuration = new PaymentProviderConfiguration(setting.Configuration, setting.IsTestMode);
+                    logger.LogWarning(
+                        "Payment provider {ProviderType} has an empty alias and will be ignored.",
+                        provider.GetType().FullName);
+                    continue;
                 }
 
-                await provider.ConfigureAsync(configuration, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Failed to configure payment provider '{Alias}'. Provider will be skipped.",
-                    metadata.Alias);
-                continue;
+                if (!aliases.Add(metadata.Alias))
+                {
+                    logger.LogWarning(
+                        "Duplicate payment provider alias '{Alias}' detected. Provider {ProviderType} will be skipped.",
+                        metadata.Alias, provider.GetType().FullName);
+                    continue;
+                }
+
+                // Find matching setting from database
+                var setting = settings.FirstOrDefault(s =>
+                    string.Equals(s.ProviderAlias, metadata.Alias, StringComparison.OrdinalIgnoreCase));
+
+                // Configure the provider with its settings
+                try
+                {
+                    PaymentProviderConfiguration? configuration = null;
+                    if (setting != null)
+                    {
+                        configuration = new PaymentProviderConfiguration(setting.Configuration, setting.IsTestMode);
+                    }
+
+                    await provider.ConfigureAsync(configuration, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(
+                        ex,
+                        "Failed to configure payment provider '{Alias}'. Provider will be skipped.",
+                        metadata.Alias);
+                    continue;
+                }
+
+                registeredProviders.Add(new RegisteredPaymentProvider(provider, setting));
             }
 
-            registeredProviders.Add(new RegisteredPaymentProvider(provider, setting));
+            // Thread-safe assignment - volatile write ensures visibility
+            _cachedProviders = registeredProviders;
+            return registeredProviders;
         }
-
-        // Thread-safe assignment - volatile write ensures visibility
-        _cachedProviders = registeredProviders;
-        return registeredProviders;
+        finally
+        {
+            _cacheLock.Release();
+        }
     }
 
     /// <inheritdoc />
@@ -153,7 +160,7 @@ public class PaymentProviderManager : IPaymentProviderManager, IDisposable
     public async Task<IEnumerable<PaymentProviderSetting>> GetProviderSettingsAsync(
         CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var settings = await scope.ExecuteWithContextAsync(async db =>
             await db.PaymentProviderSettings
                 .AsNoTracking()
@@ -168,7 +175,7 @@ public class PaymentProviderManager : IPaymentProviderManager, IDisposable
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         var setting = await scope.ExecuteWithContextAsync(async db =>
             await db.PaymentProviderSettings
                 .AsNoTracking()
@@ -199,7 +206,7 @@ public class PaymentProviderManager : IPaymentProviderManager, IDisposable
             return result;
         }
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var existing = await db.PaymentProviderSettings
@@ -255,7 +262,7 @@ public class PaymentProviderManager : IPaymentProviderManager, IDisposable
     {
         var result = new CrudResult<bool>();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var setting = await db.PaymentProviderSettings
@@ -291,7 +298,7 @@ public class PaymentProviderManager : IPaymentProviderManager, IDisposable
     {
         var result = new CrudResult<bool>();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var setting = await db.PaymentProviderSettings
@@ -312,7 +319,7 @@ public class PaymentProviderManager : IPaymentProviderManager, IDisposable
             await db.SaveChangesAsync(cancellationToken);
             result.ResultObject = true;
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Payment provider '{Alias}' has been {Status}.",
                 setting.ProviderAlias,
                 enabled ? "enabled" : "disabled");
@@ -333,7 +340,7 @@ public class PaymentProviderManager : IPaymentProviderManager, IDisposable
         var result = new CrudResult<bool>();
         var idList = orderedIds.ToList();
 
-        using var scope = _efCoreScopeProvider.CreateScope();
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var settings = await db.PaymentProviderSettings
@@ -386,7 +393,7 @@ public class PaymentProviderManager : IPaymentProviderManager, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Error disposing payment provider {ProviderAlias}", registered.Metadata.Alias);
+                    logger.LogWarning(ex, "Error disposing payment provider {ProviderAlias}", registered.Metadata.Alias);
                 }
             }
         }
@@ -402,6 +409,7 @@ public class PaymentProviderManager : IPaymentProviderManager, IDisposable
 
         DisposeProviders();
         _cachedProviders = null;
+        _cacheLock.Dispose();
 
         GC.SuppressFinalize(this);
     }

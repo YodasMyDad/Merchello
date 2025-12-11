@@ -15,6 +15,7 @@ public class ShippingProviderManager(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     ILogger<ShippingProviderManager> logger) : IShippingProviderManager, IDisposable
 {
+    private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private volatile IReadOnlyCollection<RegisteredShippingProvider>? _cachedProviders;
     private bool _disposed;
 
@@ -27,55 +28,71 @@ public class ShippingProviderManager(
             return cached;
         }
 
-        var providerInstances = extensionManager.GetInstances<IShippingProvider>(useCaching: true)
-            .Where(p => p != null)
-            .Cast<IShippingProvider>()
-            .ToList();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        var configurations = await scope.ExecuteWithContextAsync(async db =>
-            await db.ShippingProviderConfigurations
-                .AsNoTracking()
-                .ToListAsync(cancellationToken));
-        scope.Complete();
-
-        List<RegisteredShippingProvider> registeredProviders = [];
-        HashSet<string> keys = new(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var provider in providerInstances)
+        // Thread-safe initialization using semaphore
+        await _cacheLock.WaitAsync(cancellationToken);
+        try
         {
-            var metadata = provider.Metadata;
-            if (string.IsNullOrWhiteSpace(metadata.Key))
+            // Double-check after acquiring lock
+            cached = _cachedProviders;
+            if (cached != null)
             {
-                logger.LogWarning("Shipping provider {ProviderType} has an empty metadata key and will be ignored.", provider.GetType().FullName);
-                continue;
+                return cached;
             }
 
-            if (!keys.Add(metadata.Key))
+            var providerInstances = extensionManager.GetInstances<IShippingProvider>(useCaching: true)
+                .Where(p => p != null)
+                .Cast<IShippingProvider>()
+                .ToList();
+
+            using var scope = efCoreScopeProvider.CreateScope();
+            var configurations = await scope.ExecuteWithContextAsync(async db =>
+                await db.ShippingProviderConfigurations
+                    .AsNoTracking()
+                    .ToListAsync(cancellationToken));
+            scope.Complete();
+
+            List<RegisteredShippingProvider> registeredProviders = [];
+            HashSet<string> keys = new(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var provider in providerInstances)
             {
-                logger.LogWarning("Duplicate shipping provider key '{ProviderKey}' detected. Provider {ProviderType} will be skipped.", metadata.Key, provider.GetType().FullName);
-                continue;
+                var metadata = provider.Metadata;
+                if (string.IsNullOrWhiteSpace(metadata.Key))
+                {
+                    logger.LogWarning("Shipping provider {ProviderType} has an empty metadata key and will be ignored.", provider.GetType().FullName);
+                    continue;
+                }
+
+                if (!keys.Add(metadata.Key))
+                {
+                    logger.LogWarning("Duplicate shipping provider key '{ProviderKey}' detected. Provider {ProviderType} will be skipped.", metadata.Key, provider.GetType().FullName);
+                    continue;
+                }
+
+                var configuration = configurations.FirstOrDefault(cfg =>
+                    string.Equals(cfg.ProviderKey, metadata.Key, StringComparison.OrdinalIgnoreCase));
+
+                try
+                {
+                    await provider.ConfigureAsync(configuration, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to configure shipping provider {ProviderKey}. Provider will be skipped.", metadata.Key);
+                    continue;
+                }
+
+                registeredProviders.Add(new RegisteredShippingProvider(provider, configuration));
             }
 
-            var configuration = configurations.FirstOrDefault(cfg =>
-                string.Equals(cfg.ProviderKey, metadata.Key, StringComparison.OrdinalIgnoreCase));
-
-            try
-            {
-                await provider.ConfigureAsync(configuration, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to configure shipping provider {ProviderKey}. Provider will be skipped.", metadata.Key);
-                continue;
-            }
-
-            registeredProviders.Add(new RegisteredShippingProvider(provider, configuration));
+            // Thread-safe assignment - volatile write ensures visibility
+            _cachedProviders = registeredProviders;
+            return registeredProviders;
         }
-
-        // Thread-safe assignment - volatile write ensures visibility
-        _cachedProviders = registeredProviders;
-        return registeredProviders;
+        finally
+        {
+            _cacheLock.Release();
+        }
     }
 
     public async Task<IReadOnlyCollection<RegisteredShippingProvider>> GetEnabledProvidersAsync(CancellationToken cancellationToken = default)
@@ -262,6 +279,7 @@ public class ShippingProviderManager(
 
         DisposeProviders();
         _cachedProviders = null;
+        _cacheLock.Dispose();
 
         GC.SuppressFinalize(this);
     }

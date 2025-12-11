@@ -183,28 +183,15 @@ public class Product
     public virtual ICollection<ShippingOption> ExcludedShippingOptions { get; set; } = [];
 
     /// <summary>
-    /// Product weight in kilograms for shipping calculations
+    /// Optional: Harmonized System (HS) code for customs/tariff classification.
+    /// Stored at variant level since different variants may have different materials/compositions.
     /// </summary>
-    public decimal? Weight { get; set; }
+    public string? HsCode { get; set; }
 
     /// <summary>
-    /// Product length in centimeters for shipping calculations
-    /// </summary>
-    public decimal? LengthCm { get; set; }
-
-    /// <summary>
-    /// Product width in centimeters for shipping calculations
-    /// </summary>
-    public decimal? WidthCm { get; set; }
-
-    /// <summary>
-    /// Product height in centimeters for shipping calculations
-    /// </summary>
-    public decimal? HeightCm { get; set; }
-
-    /// <summary>
-    /// Package configurations for items shipped in multiple boxes.
-    /// When populated, these override the single Weight/Dimensions for shipping calculations.
+    /// Package configurations for shipping.
+    /// When populated, these override the root product's DefaultPackageConfigurations.
+    /// If empty, the variant inherits packages from ProductRoot.DefaultPackageConfigurations.
     /// </summary>
     public List<ProductPackage> PackageConfigurations { get; set; } = [];
 }

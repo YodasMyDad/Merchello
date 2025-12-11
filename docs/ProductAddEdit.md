@@ -16,11 +16,13 @@ ProductRoot (Container)
 ├── TaxGroup, ProductType, Categories
 ├── ProductOptions[] (generates variants when IsVariant=true)
 ├── IsDigitalProduct (skips shipping requirements)
+├── DefaultPackageConfigurations[] (default shipping packages)
 └── Products[] (Variants)
     ├── Default (bool - one variant is the default)
     ├── Name, SKU, GTIN, Price, CostOfGoods
     ├── Images[], Description
-    ├── Dimensions (Weight, Length, Width, Height)
+    ├── HsCode (customs/tariff classification)
+    ├── PackageConfigurations[] (shipping packages, inherits from root if empty)
     ├── SEO (MetaDescription, PageTitle, NoIndex)
     ├── ShoppingFeed fields
     └── ProductWarehouses[] (stock per warehouse)
@@ -121,8 +123,8 @@ public class ProductRootDetailDto
     public List<string> SellingPoints { get; set; } = [];
     public List<string> Videos { get; set; } = [];
     public string? GoogleShoppingFeedCategory { get; set; }
-    public string? HsCode { get; set; }
     public bool IsDigitalProduct { get; set; }
+    public List<ProductPackageDto> DefaultPackageConfigurations { get; set; } = [];
     
     // Related entities
     public Guid TaxGroupId { get; set; }
@@ -182,13 +184,11 @@ public class ProductVariantDto
     public bool ExcludeRootProductImages { get; set; }
     public string? Url { get; set; }
     public string? VariantOptionsKey { get; set; }
-    
-    // Dimensions
-    public decimal? Weight { get; set; }
-    public decimal? LengthCm { get; set; }
-    public decimal? WidthCm { get; set; }
-    public decimal? HeightCm { get; set; }
-    
+
+    // Shipping
+    public string? HsCode { get; set; }  // Customs/tariff classification
+    public List<ProductPackageDto> PackageConfigurations { get; set; } = [];  // Empty = inherit from root
+
     // SEO
     public string? MetaDescription { get; set; }
     public string? PageTitle { get; set; }
@@ -218,6 +218,14 @@ public class VariantWarehouseStockDto
     public int? ReorderQuantity { get; set; }
     public bool TrackStock { get; set; }
 }
+
+public class ProductPackageDto
+{
+    public decimal Weight { get; set; }      // Weight in kg
+    public decimal? LengthCm { get; set; }   // Length in cm
+    public decimal? WidthCm { get; set; }    // Width in cm
+    public decimal? HeightCm { get; set; }   // Height in cm
+}
 ```
 
 ### 2.2 Create/Update Request DTOs
@@ -245,8 +253,8 @@ public class UpdateProductRootRequest
     public List<string>? SellingPoints { get; set; }
     public List<string>? Videos { get; set; }
     public string? GoogleShoppingFeedCategory { get; set; }
-    public string? HsCode { get; set; }
     public bool? IsDigitalProduct { get; set; }
+    public List<ProductPackageDto>? DefaultPackageConfigurations { get; set; }
     public Guid? TaxGroupId { get; set; }
     public Guid? ProductTypeId { get; set; }
     public List<Guid>? CategoryIds { get; set; }
@@ -269,6 +277,8 @@ public class UpdateVariantRequest
     public string? Name { get; set; }
     public string? Sku { get; set; }
     public decimal? Price { get; set; }
+    public string? HsCode { get; set; }  // Customs/tariff classification
+    public List<ProductPackageDto>? PackageConfigurations { get; set; }  // Shipping packages
     // ... etc
 }
 
@@ -407,8 +417,8 @@ export interface ProductRootDetailDto {
   sellingPoints: string[];
   videos: string[];
   googleShoppingFeedCategory: string | null;
-  hsCode: string | null;
   isDigitalProduct: boolean;
+  defaultPackageConfigurations: ProductPackageDto[];
   
   taxGroupId: string;
   taxGroupName: string | null;
@@ -463,13 +473,11 @@ export interface ProductVariantDto {
   excludeRootProductImages: boolean;
   url: string | null;
   variantOptionsKey: string | null;
-  
-  // Dimensions
-  weight: number | null;
-  lengthCm: number | null;
-  widthCm: number | null;
-  heightCm: number | null;
-  
+
+  // Shipping
+  hsCode: string | null;
+  packageConfigurations: ProductPackageDto[];
+
   // SEO
   metaDescription: string | null;
   pageTitle: string | null;
@@ -497,6 +505,13 @@ export interface VariantWarehouseStockDto {
   reorderPoint: number | null;
   reorderQuantity: number | null;
   trackStock: boolean;
+}
+
+export interface ProductPackageDto {
+  weight: number;
+  lengthCm: number | null;
+  widthCm: number | null;
+  heightCm: number | null;
 }
 
 export interface ProductOptionSettingsDto {
@@ -530,8 +545,8 @@ export interface UpdateProductRootRequest {
   sellingPoints?: string[];
   videos?: string[];
   googleShoppingFeedCategory?: string;
-  hsCode?: string;
   isDigitalProduct?: boolean;
+  defaultPackageConfigurations?: ProductPackageDto[];
   taxGroupId?: string;
   productTypeId?: string;
   categoryIds?: string[];
@@ -554,10 +569,8 @@ export interface UpdateVariantRequest {
   description?: string;
   excludeRootProductImages?: boolean;
   url?: string;
-  weight?: number;
-  lengthCm?: number;
-  widthCm?: number;
-  heightCm?: number;
+  hsCode?: string;
+  packageConfigurations?: ProductPackageDto[];
   metaDescription?: string;
   pageTitle?: string;
   noIndex?: boolean;
@@ -756,8 +769,8 @@ export class MerchelloProductDetailWorkspaceContext extends UmbControllerBase im
       sellingPoints: [],
       videos: [],
       googleShoppingFeedCategory: null,
-      hsCode: null,
       isDigitalProduct: false,
+      defaultPackageConfigurations: [],
       taxGroupId: "",
       taxGroupName: null,
       productTypeId: "",
@@ -1279,7 +1292,7 @@ export class MerchelloVariantDetailModalElement extends UmbModalBaseElement<
   @state() private _formData: Partial<ProductVariantDto> = {};
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
-  @state() private _activeSection: "basic" | "dimensions" | "seo" | "feed" | "stock" = "basic";
+  @state() private _activeSection: "basic" | "shipping" | "seo" | "feed" | "stock" = "basic";
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -1309,10 +1322,8 @@ export class MerchelloVariantDetailModalElement extends UmbModalBaseElement<
       description: this._formData.description,
       excludeRootProductImages: this._formData.excludeRootProductImages,
       url: this._formData.url,
-      weight: this._formData.weight,
-      lengthCm: this._formData.lengthCm,
-      widthCm: this._formData.widthCm,
-      heightCm: this._formData.heightCm,
+      hsCode: this._formData.hsCode,
+      packageConfigurations: this._formData.packageConfigurations,
       metaDescription: this._formData.metaDescription,
       pageTitle: this._formData.pageTitle,
       noIndex: this._formData.noIndex,
@@ -1343,27 +1354,27 @@ export class MerchelloVariantDetailModalElement extends UmbModalBaseElement<
         <div class="modal-content">
           <!-- Section Navigation -->
           <div class="section-nav">
-            <uui-button 
+            <uui-button
               look=${this._activeSection === "basic" ? "primary" : "secondary"}
               @click=${() => this._activeSection = "basic"}>
               Basic Info
             </uui-button>
-            <uui-button 
-              look=${this._activeSection === "dimensions" ? "primary" : "secondary"}
-              @click=${() => this._activeSection = "dimensions"}>
-              Dimensions
+            <uui-button
+              look=${this._activeSection === "shipping" ? "primary" : "secondary"}
+              @click=${() => this._activeSection = "shipping"}>
+              Shipping
             </uui-button>
-            <uui-button 
+            <uui-button
               look=${this._activeSection === "seo" ? "primary" : "secondary"}
               @click=${() => this._activeSection = "seo"}>
               SEO
             </uui-button>
-            <uui-button 
+            <uui-button
               look=${this._activeSection === "feed" ? "primary" : "secondary"}
               @click=${() => this._activeSection = "feed"}>
               Shopping Feed
             </uui-button>
-            <uui-button 
+            <uui-button
               look=${this._activeSection === "stock" ? "primary" : "secondary"}
               @click=${() => this._activeSection = "stock"}>
               Stock
@@ -1400,8 +1411,8 @@ export class MerchelloVariantDetailModalElement extends UmbModalBaseElement<
     switch (this._activeSection) {
       case "basic":
         return this._renderBasicSection();
-      case "dimensions":
-        return this._renderDimensionsSection();
+      case "shipping":
+        return this._renderShippingSection();
       case "seo":
         return this._renderSeoSection();
       case "feed":
@@ -1532,50 +1543,31 @@ export class MerchelloVariantDetailModalElement extends UmbModalBaseElement<
     `;
   }
 
-  private _renderDimensionsSection(): unknown {
+  private _renderShippingSection(): unknown {
+    // Note: Shipping packages are now managed via PackageConfigurations
+    // which inherit from ProductRoot.DefaultPackageConfigurations unless overridden
     return html`
       <div class="section-content">
-        <p class="section-hint">These dimensions are used for shipping rate calculations.</p>
-        <div class="form-grid">
-          <div class="form-field">
-            <label>Weight (kg)</label>
-            <uui-input
-              type="number"
-              step="0.01"
-              .value=${String(this._formData.weight ?? "")}
-              @input=${(e: Event) => this._formData = { ...this._formData, weight: parseFloat((e.target as HTMLInputElement).value) || undefined }}>
-            </uui-input>
-          </div>
-          
-          <div class="form-field">
-            <label>Length (cm)</label>
-            <uui-input
-              type="number"
-              step="0.1"
-              .value=${String(this._formData.lengthCm ?? "")}
-              @input=${(e: Event) => this._formData = { ...this._formData, lengthCm: parseFloat((e.target as HTMLInputElement).value) || undefined }}>
-            </uui-input>
-          </div>
-          
-          <div class="form-field">
-            <label>Width (cm)</label>
-            <uui-input
-              type="number"
-              step="0.1"
-              .value=${String(this._formData.widthCm ?? "")}
-              @input=${(e: Event) => this._formData = { ...this._formData, widthCm: parseFloat((e.target as HTMLInputElement).value) || undefined }}>
-            </uui-input>
-          </div>
-          
-          <div class="form-field">
-            <label>Height (cm)</label>
-            <uui-input
-              type="number"
-              step="0.1"
-              .value=${String(this._formData.heightCm ?? "")}
-              @input=${(e: Event) => this._formData = { ...this._formData, heightCm: parseFloat((e.target as HTMLInputElement).value) || undefined }}>
-            </uui-input>
-          </div>
+        <p class="section-hint">Configure shipping packages and customs classification for this variant.</p>
+
+        <div class="form-field">
+          <label>HS Code</label>
+          <uui-input
+            .value=${this._formData.hsCode ?? ""}
+            placeholder="Harmonized System code for customs"
+            @input=${(e: Event) => this._formData = { ...this._formData, hsCode: (e.target as HTMLInputElement).value }}>
+          </uui-input>
+          <small class="hint">Customs/tariff classification code for international shipping</small>
+        </div>
+
+        <div class="packages-section">
+          <h4>Shipping Packages</h4>
+          <p class="hint">
+            ${this._formData.packageConfigurations?.length
+              ? "This variant uses custom package configurations."
+              : "Using default packages from product root. Add packages here to override."}
+          </p>
+          <!-- Package configuration UI would go here -->
         </div>
       </div>
     `;

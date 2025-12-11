@@ -157,7 +157,8 @@ This ensures:
 2. BuildRequestAsync() → ShippingQuoteRequest
        │ - Loads products with shipping options (includes ServiceType)
        │ - Builds ShippingQuoteItem per line item
-       │ - Creates ShipmentPackage with total weight
+       │ - For each product: calls GetEffectivePackages() to get package configs
+       │ - Creates ShipmentPackage[] (one per package × quantity ordered)
        ▼
 3. Check Cache (key: basket + destination + product quantities)
        │
@@ -185,6 +186,28 @@ This ensures:
 |--------|-----------|---------|
 | `GetRatesAsync` | Flat-rate providers | Returns all configured rates |
 | `GetRatesForServicesAsync` | External providers (FedEx, UPS) | Fetches rates filtered to only enabled service types |
+
+### Package Resolution
+
+Products can ship in multiple packages. The `ShippingQuoteService` resolves packages via `GetEffectivePackages()`:
+
+```
+ProductRoot.DefaultPackageConfigurations ─────┐
+                                              ├──► GetEffectivePackages(Product)
+Product.PackageConfigurations ────────────────┘
+       │
+       ▼ (returns)
+If Product.PackageConfigurations.Any() → variant packages
+Else → ProductRoot.DefaultPackageConfigurations
+       │
+       ▼ (for each package × quantity)
+ShipmentPackage[] in ShippingQuoteRequest.Packages
+```
+
+**Example**: Customer orders 2x T-Shirt (variant ships in 2 boxes each)
+- GetEffectivePackages returns 2 ProductPackage configs
+- 2 items × 2 packages = 4 ShipmentPackage entries sent to provider
+- Provider calculates rates based on all package dimensions/weights
 
 The `GetRatesForServicesAsync` method receives:
 - `serviceTypes`: List of service codes to fetch (e.g., `["FEDEX_GROUND", "FEDEX_2_DAY"]`)

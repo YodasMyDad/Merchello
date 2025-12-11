@@ -1,16 +1,16 @@
-import { LitElement as k, nothing as l, html as r, css as E, property as $, state as c, customElement as O } from "@umbraco-cms/backoffice/external/lit";
-import { UmbElementMixin as C } from "@umbraco-cms/backoffice/element-api";
+import { LitElement as P, nothing as l, html as r, css as I, property as D, state as c, customElement as C } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as E } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT as V } from "@umbraco-cms/backoffice/workspace";
 import { UmbModalToken as M, UMB_MODAL_MANAGER_CONTEXT as U } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT as N } from "@umbraco-cms/backoffice/notification";
-import { M as g } from "./merchello-api-gshzVGsw.js";
+import { M as m } from "./merchello-api-gshzVGsw.js";
 import { b as G } from "./badge.styles-C_lNgH9O.js";
-import { c as R, d as L } from "./navigation-DnzDaPpA.js";
-import { UmbChangeEvent as F } from "@umbraco-cms/backoffice/event";
+import { c as R, d as F } from "./navigation-DnzDaPpA.js";
+import { UmbChangeEvent as L } from "@umbraco-cms/backoffice/event";
 import { UmbDataTypeDetailRepository as W } from "@umbraco-cms/backoffice/data-type";
-import { UmbPropertyEditorConfigCollection as T } from "@umbraco-cms/backoffice/property-editor";
+import { UmbPropertyEditorConfigCollection as k } from "@umbraco-cms/backoffice/property-editor";
 import "@umbraco-cms/backoffice/tiptap";
-const I = new M(
+const T = new M(
   "Merchello.OptionEditor.Modal",
   {
     modal: {
@@ -19,12 +19,12 @@ const I = new M(
     }
   }
 );
-var B = Object.defineProperty, K = Object.getOwnPropertyDescriptor, _ = (e, t, i, a) => {
-  for (var o = a > 1 ? void 0 : a ? K(t, i) : t, s = e.length - 1, u; s >= 0; s--)
+var j = Object.defineProperty, B = Object.getOwnPropertyDescriptor, y = (e, t, i, a) => {
+  for (var o = a > 1 ? void 0 : a ? B(t, i) : t, s = e.length - 1, u; s >= 0; s--)
     (u = e[s]) && (o = (a ? u(t, i, o) : u(o)) || o);
-  return a && o && B(t, i, o), o;
+  return a && o && j(t, i, o), o;
 };
-let v = class extends C(k) {
+let v = class extends E(P) {
   constructor() {
     super(...arguments), this.items = [], this.placeholder = "Add item...", this.readonly = !1, this._newItemValue = "", this._editingIndex = null, this._editingValue = "";
   }
@@ -99,7 +99,7 @@ let v = class extends C(k) {
    * Dispatches a change event with the new items array.
    */
   _dispatchChange(e) {
-    this.items = e, this.dispatchEvent(new F());
+    this.items = e, this.dispatchEvent(new L());
   }
   render() {
     return r`
@@ -204,7 +204,7 @@ let v = class extends C(k) {
     `;
   }
 };
-v.styles = E`
+v.styles = I`
     :host {
       display: block;
     }
@@ -292,44 +292,44 @@ v.styles = E`
       font-style: italic;
     }
   `;
-_([
-  $({ type: Array })
+y([
+  D({ type: Array })
 ], v.prototype, "items", 2);
-_([
-  $({ type: String })
+y([
+  D({ type: String })
 ], v.prototype, "placeholder", 2);
-_([
-  $({ type: Boolean })
+y([
+  D({ type: Boolean })
 ], v.prototype, "readonly", 2);
-_([
+y([
   c()
 ], v.prototype, "_newItemValue", 2);
-_([
+y([
   c()
 ], v.prototype, "_editingIndex", 2);
-_([
+y([
   c()
 ], v.prototype, "_editingValue", 2);
-v = _([
-  O("merchello-editable-text-list")
+v = y([
+  C("merchello-editable-text-list")
 ], v);
-var j = Object.defineProperty, H = Object.getOwnPropertyDescriptor, S = (e) => {
+var H = Object.defineProperty, K = Object.getOwnPropertyDescriptor, S = (e) => {
   throw TypeError(e);
 }, h = (e, t, i, a) => {
-  for (var o = a > 1 ? void 0 : a ? H(t, i) : t, s = e.length - 1, u; s >= 0; s--)
+  for (var o = a > 1 ? void 0 : a ? K(t, i) : t, s = e.length - 1, u; s >= 0; s--)
     (u = e[s]) && (o = (a ? u(t, i, o) : u(o)) || o);
-  return a && o && j(t, i, o), o;
-}, P = (e, t, i) => t.has(e) || S("Cannot " + i), n = (e, t, i) => (P(e, t, "read from private field"), t.get(e)), w = (e, t, i) => t.has(e) ? S("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), x = (e, t, i, a) => (P(e, t, "write to private field"), t.set(e, i), i), D, p, b, m, f;
-let d = class extends C(k) {
+  return a && o && H(t, i, o), o;
+}, O = (e, t, i) => t.has(e) || S("Cannot " + i), n = (e, t, i) => (O(e, t, "read from private field"), t.get(e)), w = (e, t, i) => t.has(e) ? S("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), x = (e, t, i, a) => (O(e, t, "write to private field"), t.set(e, i), i), $, p, _, g, f;
+let d = class extends E(P) {
   constructor() {
-    super(), this._product = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._optionSettings = null, this._validationAttempted = !1, this._fieldErrors = {}, this._routes = [], this._activePath = "", this._formData = {}, this._taxGroups = [], this._productTypes = [], this._warehouses = [], this._descriptionEditorConfig = void 0, w(this, D, new W(this)), w(this, p), w(this, b), w(this, m), w(this, f, !1), this.consumeContext(V, (e) => {
+    super(), this._product = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._optionSettings = null, this._validationAttempted = !1, this._fieldErrors = {}, this._routes = [], this._activePath = "", this._formData = {}, this._taxGroups = [], this._productTypes = [], this._warehouses = [], this._descriptionEditorConfig = void 0, w(this, $, new W(this)), w(this, p), w(this, _), w(this, g), w(this, f, !1), this.consumeContext(V, (e) => {
       x(this, p, e), n(this, p) && this.observe(n(this, p).product, (t) => {
         this._product = t ?? null, t && (this._formData = { ...t }), this._isLoading = !t;
       });
     }), this.consumeContext(U, (e) => {
-      x(this, b, e);
+      x(this, _, e);
     }), this.consumeContext(N, (e) => {
-      x(this, m, e);
+      x(this, g, e);
     });
   }
   connectedCallback() {
@@ -341,11 +341,11 @@ let d = class extends C(k) {
   async _loadReferenceData() {
     try {
       const [e, t, i, a, o] = await Promise.all([
-        g.getTaxGroups(),
-        g.getProductTypes(),
-        g.getWarehouses(),
-        g.getProductOptionSettings(),
-        g.getDescriptionEditorSettings()
+        m.getTaxGroups(),
+        m.getProductTypes(),
+        m.getWarehouses(),
+        m.getProductOptionSettings(),
+        m.getDescriptionEditorSettings()
       ]);
       if (!n(this, f) || (e.data && (this._taxGroups = e.data), t.data && (this._productTypes = t.data), i.data && (this._warehouses = i.data), a.data && (this._optionSettings = a.data), o.data?.dataTypeKey && (await this._loadDataTypeConfig(o.data.dataTypeKey), !n(this, f))))
         return;
@@ -360,13 +360,13 @@ let d = class extends C(k) {
   async _loadDataTypeConfig(e) {
     try {
       console.log("[Merchello] Loading DataType config for:", e);
-      const { data: t, error: i } = await n(this, D).requestByUnique(e);
+      const { data: t, error: i } = await n(this, $).requestByUnique(e);
       if (i) {
         console.error("[Merchello] Error requesting DataType:", i), this._setFallbackEditorConfig();
         return;
       }
       console.log("[Merchello] DataType request result:", t), this.observe(
-        await n(this, D).byUnique(e),
+        await n(this, $).byUnique(e),
         (a) => {
           if (console.log("[Merchello] DataType observed:", a), !n(this, f)) return;
           if (!a) {
@@ -375,7 +375,7 @@ let d = class extends C(k) {
           }
           console.log("[Merchello] DataType values:", a.values), console.log("[Merchello] DataType values detail:", JSON.stringify(a.values, null, 2));
           const o = a.values?.some((u) => u.alias === "extensions"), s = a.values?.some((u) => u.alias === "toolbar");
-          console.log("[Merchello] Has extensions:", o, "Has toolbar:", s), o || console.warn("[Merchello] DataType is missing 'extensions' config. Delete it in Settings > Data Types and restart to recreate."), this._descriptionEditorConfig = new T(a.values);
+          console.log("[Merchello] Has extensions:", o, "Has toolbar:", s), o || console.warn("[Merchello] DataType is missing 'extensions' config. Delete it in Settings > Data Types and restart to recreate."), this._descriptionEditorConfig = new k(a.values);
         },
         "_observeDescriptionDataType"
       );
@@ -387,7 +387,7 @@ let d = class extends C(k) {
    * Sets a fallback editor configuration if the DataType cannot be loaded.
    */
   _setFallbackEditorConfig() {
-    console.log("[Merchello] Using fallback TipTap configuration"), this._descriptionEditorConfig = new T([
+    console.log("[Merchello] Using fallback TipTap configuration"), this._descriptionEditorConfig = new k([
       {
         alias: "toolbar",
         value: [
@@ -429,6 +429,10 @@ let d = class extends C(k) {
         component: e
       },
       {
+        path: "tab/shipping",
+        component: e
+      },
+      {
         path: "tab/seo",
         component: e
       },
@@ -450,7 +454,7 @@ let d = class extends C(k) {
    * Gets the currently active tab based on the route path
    */
   _getActiveTab() {
-    return this._activePath.includes("tab/media") ? "media" : this._activePath.includes("tab/seo") ? "seo" : this._activePath.includes("tab/variants") ? "variants" : this._activePath.includes("tab/options") ? "options" : "details";
+    return this._activePath.includes("tab/media") ? "media" : this._activePath.includes("tab/shipping") ? "shipping" : this._activePath.includes("tab/seo") ? "seo" : this._activePath.includes("tab/variants") ? "variants" : this._activePath.includes("tab/options") ? "options" : "details";
   }
   /**
    * Checks if there are validation errors on the details tab
@@ -523,12 +527,12 @@ let d = class extends C(k) {
         price: 0,
         costOfGoods: 0
       }
-    }, { data: t, error: i } = await g.createProduct(e);
+    }, { data: t, error: i } = await m.createProduct(e);
     if (i) {
-      this._errorMessage = i.message, n(this, m)?.peek("danger", { data: { headline: "Failed to create product", message: i.message } });
+      this._errorMessage = i.message, n(this, g)?.peek("danger", { data: { headline: "Failed to create product", message: i.message } });
       return;
     }
-    t && (n(this, p)?.updateProduct(t), n(this, m)?.peek("positive", { data: { headline: "Product created", message: `"${t.rootName}" has been created successfully` } }), this._validationAttempted = !1, this._fieldErrors = {});
+    t && (n(this, p)?.updateProduct(t), n(this, g)?.peek("positive", { data: { headline: "Product created", message: `"${t.rootName}" has been created successfully` } }), this._validationAttempted = !1, this._fieldErrors = {});
   }
   async _updateProduct() {
     if (!this._product?.id) return;
@@ -539,7 +543,6 @@ let d = class extends C(k) {
       sellingPoints: this._formData.sellingPoints,
       videos: this._formData.videos,
       googleShoppingFeedCategory: this._formData.googleShoppingFeedCategory ?? void 0,
-      hsCode: this._formData.hsCode ?? void 0,
       isDigitalProduct: this._formData.isDigitalProduct,
       taxGroupId: this._formData.taxGroupId,
       productTypeId: this._formData.productTypeId,
@@ -550,13 +553,14 @@ let d = class extends C(k) {
       pageTitle: this._formData.pageTitle ?? void 0,
       noIndex: this._formData.noIndex,
       openGraphImage: this._formData.openGraphImage ?? void 0,
-      canonicalUrl: this._formData.canonicalUrl ?? void 0
-    }, { data: t, error: i } = await g.updateProduct(this._product.id, e);
+      canonicalUrl: this._formData.canonicalUrl ?? void 0,
+      defaultPackageConfigurations: this._formData.defaultPackageConfigurations
+    }, { data: t, error: i } = await m.updateProduct(this._product.id, e);
     if (i) {
-      this._errorMessage = i.message, n(this, m)?.peek("danger", { data: { headline: "Failed to save product", message: i.message } });
+      this._errorMessage = i.message, n(this, g)?.peek("danger", { data: { headline: "Failed to save product", message: i.message } });
       return;
     }
-    t && (n(this, p)?.updateProduct(t), n(this, m)?.peek("positive", { data: { headline: "Product saved", message: "Changes have been saved successfully" } }));
+    t && (n(this, p)?.updateProduct(t), n(this, g)?.peek("positive", { data: { headline: "Product saved", message: "Changes have been saved successfully" } }));
   }
   /**
    * Validates the form and sets field-level errors
@@ -597,6 +601,15 @@ let d = class extends C(k) {
           ?active=${i === "media"}>
           Media
         </uui-tab>
+
+        ${this._formData.isDigitalProduct ? l : r`
+              <uui-tab
+                label="Shipping"
+                href="${this._routerPath}/tab/shipping"
+                ?active=${i === "shipping"}>
+                Shipping
+              </uui-tab>
+            `}
 
         <uui-tab
           label="SEO"
@@ -736,6 +749,132 @@ let d = class extends C(k) {
       </div>
     `;
   }
+  // ============================================
+  // Shipping Tab - Package Management
+  // ============================================
+  /**
+   * Add a new package configuration
+   */
+  _addPackage() {
+    const e = [...this._formData.defaultPackageConfigurations ?? []];
+    e.push({ weight: 0, lengthCm: null, widthCm: null, heightCm: null }), this._formData = { ...this._formData, defaultPackageConfigurations: e };
+  }
+  /**
+   * Remove a package by index
+   */
+  _removePackage(e) {
+    const t = [...this._formData.defaultPackageConfigurations ?? []];
+    t.splice(e, 1), this._formData = { ...this._formData, defaultPackageConfigurations: t };
+  }
+  /**
+   * Update a package field
+   */
+  _updatePackage(e, t, i) {
+    const a = [...this._formData.defaultPackageConfigurations ?? []];
+    a[e] = { ...a[e], [t]: i }, this._formData = { ...this._formData, defaultPackageConfigurations: a };
+  }
+  _renderShippingTab() {
+    const e = this._formData.defaultPackageConfigurations ?? [], t = n(this, p)?.isNew ?? !0;
+    return r`
+      <div class="tab-content">
+        <uui-box class="info-banner">
+          <div class="info-content">
+            <uui-icon name="icon-info"></uui-icon>
+            <div>
+              <strong>Default Shipping Packages</strong>
+              <p>Define the default package configurations for this product. These are used for shipping rate calculations and can be overridden at the variant level.</p>
+            </div>
+          </div>
+        </uui-box>
+
+        <uui-box headline="Package Configurations">
+          ${e.length > 0 ? r`
+                <div class="packages-list">
+                  ${e.map((i, a) => this._renderPackageCard(i, a))}
+                </div>
+              ` : r`
+                <div class="empty-state">
+                  <uui-icon name="icon-box"></uui-icon>
+                  <p>No packages configured</p>
+                  <p class="hint">Add a package to enable shipping rate calculations with carriers like FedEx, UPS, and DHL</p>
+                </div>
+              `}
+
+          <uui-button
+            look="placeholder"
+            class="add-package-button"
+            ?disabled=${t}
+            @click=${() => this._addPackage()}>
+            <uui-icon name="icon-add"></uui-icon>
+            Add Package
+          </uui-button>
+        </uui-box>
+      </div>
+    `;
+  }
+  _renderPackageCard(e, t) {
+    return r`
+      <div class="package-card">
+        <div class="package-header">
+          <span class="package-number">Package ${t + 1}</span>
+          <uui-button
+            compact
+            look="secondary"
+            color="danger"
+            label="Remove package"
+            @click=${() => this._removePackage(t)}>
+            <uui-icon name="icon-trash"></uui-icon>
+          </uui-button>
+        </div>
+        <div class="package-fields">
+          <div class="field-group">
+            <label>Weight (kg) *</label>
+            <uui-input
+              type="number"
+              step="0.01"
+              min="0"
+              .value=${String(e.weight ?? "")}
+              @input=${(i) => this._updatePackage(t, "weight", parseFloat(i.target.value) || 0)}
+              placeholder="0.50">
+            </uui-input>
+          </div>
+          <div class="field-group">
+            <label>Length (cm)</label>
+            <uui-input
+              type="number"
+              step="0.1"
+              min="0"
+              .value=${String(e.lengthCm ?? "")}
+              @input=${(i) => this._updatePackage(t, "lengthCm", parseFloat(i.target.value) || null)}
+              placeholder="20">
+            </uui-input>
+          </div>
+          <div class="field-group">
+            <label>Width (cm)</label>
+            <uui-input
+              type="number"
+              step="0.1"
+              min="0"
+              .value=${String(e.widthCm ?? "")}
+              @input=${(i) => this._updatePackage(t, "widthCm", parseFloat(i.target.value) || null)}
+              placeholder="15">
+            </uui-input>
+          </div>
+          <div class="field-group">
+            <label>Height (cm)</label>
+            <uui-input
+              type="number"
+              step="0.1"
+              min="0"
+              .value=${String(e.heightCm ?? "")}
+              @input=${(i) => this._updatePackage(t, "heightCm", parseFloat(i.target.value) || null)}
+              placeholder="10">
+            </uui-input>
+          </div>
+        </div>
+      </div>
+    `;
+  }
   /**
    * Renders the Description rich text editor using Umbraco's TipTap input component.
    * The editor configuration comes from a DataType that can be customized in Settings > Data Types.
@@ -864,7 +1003,7 @@ let d = class extends C(k) {
     `;
   }
   _renderGoogleSearchPreview() {
-    const e = this._formData.pageTitle || this._formData.rootName || "Product Title", t = this._formData.metaDescription || "No meta description set. Add a description to improve search visibility.", i = this._formData.canonicalUrl || "https://yourstore.com/products/product-name", a = this._formatUrlAsBreadcrumb(i), o = 60, s = 160, u = e.length > o, y = t.length > s, z = u ? e.substring(0, o - 3) + "..." : e, A = y ? t.substring(0, s - 3) + "..." : t;
+    const e = this._formData.pageTitle || this._formData.rootName || "Product Title", t = this._formData.metaDescription || "No meta description set. Add a description to improve search visibility.", i = this._formData.canonicalUrl || "https://yourstore.com/products/product-name", a = this._formatUrlAsBreadcrumb(i), o = 60, s = 160, u = e.length > o, b = t.length > s, z = u ? e.substring(0, o - 3) + "..." : e, A = b ? t.substring(0, s - 3) + "..." : t;
     return r`
       <div class="google-preview">
         <div class="google-preview-header">
@@ -883,8 +1022,8 @@ let d = class extends C(k) {
         <span class="${u ? "stat-warning" : "stat-ok"}">
           Title: ${e.length}/${o} chars ${u ? "(will be truncated)" : ""}
         </span>
-        <span class="${y ? "stat-warning" : "stat-ok"}">
-          Description: ${t.length}/${s} chars ${y ? "(will be truncated)" : ""}
+        <span class="${b ? "stat-warning" : "stat-ok"}">
+          Description: ${t.length}/${s} chars ${b ? "(will be truncated)" : ""}
         </span>
       </div>
     `;
@@ -992,16 +1131,16 @@ let d = class extends C(k) {
    */
   _getVariantOptionDescription(e) {
     if (!e.variantOptionsKey || !this._product) return null;
-    const t = e.variantOptionsKey.split("-"), i = [];
-    for (const a of t)
-      for (const o of this._product.productOptions) {
-        const s = o.values.find((u) => u.id === a);
-        if (s) {
-          i.push(s.name);
+    const t = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, i = e.variantOptionsKey.match(t) || [], a = [];
+    for (const o of i)
+      for (const s of this._product.productOptions) {
+        const u = s.values.find((b) => b.id === o);
+        if (u) {
+          a.push(u.name);
           break;
         }
       }
-    return i.length > 0 ? i.join(" / ") : null;
+    return a.length > 0 ? a.join(" / ") : null;
   }
   async _handleSetDefaultVariant(e) {
     if (!this._product || this._product.variants.find((o) => o.id === e)?.default) return;
@@ -1013,14 +1152,14 @@ let d = class extends C(k) {
     }));
     this._product = { ...this._product, variants: a };
     try {
-      const { error: o } = await g.setDefaultVariant(i, e);
-      console.log("API response:", { error: o }), o ? (console.error("Failed to set default variant:", o), n(this, m)?.peek("danger", { data: { headline: "Failed to set default variant", message: o.message } }), await n(this, p)?.reload()) : (n(this, m)?.peek("positive", { data: { headline: "Default variant updated", message: "" } }), await n(this, p)?.reload(), console.log("After reload, variants:", this._product?.variants.map((s) => ({ id: s.id, name: s.name, default: s.default }))));
+      const { error: o } = await m.setDefaultVariant(i, e);
+      console.log("API response:", { error: o }), o ? (console.error("Failed to set default variant:", o), n(this, g)?.peek("danger", { data: { headline: "Failed to set default variant", message: o.message } }), await n(this, p)?.reload()) : (n(this, g)?.peek("positive", { data: { headline: "Default variant updated", message: "" } }), await n(this, p)?.reload(), console.log("After reload, variants:", this._product?.variants.map((s) => ({ id: s.id, name: s.name, default: s.default }))));
     } catch (o) {
-      console.error("Failed to set default variant:", o), n(this, m)?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } }), await n(this, p)?.reload();
+      console.error("Failed to set default variant:", o), n(this, g)?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } }), await n(this, p)?.reload();
     }
   }
   _renderOptionsTab() {
-    const e = this._formData.productOptions ?? [], t = n(this, p)?.isNew ?? !0, i = e.filter((u) => u.isVariant), a = i.reduce((u, y) => u * (y.values.length || 1), i.length > 0 ? 1 : 0), o = this._optionSettings?.maxProductOptions ?? 5, s = e.length >= o;
+    const e = this._formData.productOptions ?? [], t = n(this, p)?.isNew ?? !0, i = e.filter((u) => u.isVariant), a = i.reduce((u, b) => u * (b.values.length || 1), i.length > 0 ? 1 : 0), o = this._optionSettings?.maxProductOptions ?? 5, s = e.length >= o;
     return r`
       <div class="tab-content">
         ${t ? r`
@@ -1114,8 +1253,8 @@ let d = class extends C(k) {
     `;
   }
   async _addNewOption() {
-    if (!n(this, b) || !this._optionSettings) return;
-    const t = await n(this, b).open(this, I, {
+    if (!n(this, _) || !this._optionSettings) return;
+    const t = await n(this, _).open(this, T, {
       data: {
         option: void 0,
         settings: this._optionSettings
@@ -1131,8 +1270,8 @@ let d = class extends C(k) {
     }
   }
   async _editOption(e) {
-    if (!n(this, b) || !this._optionSettings) return;
-    const i = await n(this, b).open(this, I, {
+    if (!n(this, _) || !this._optionSettings) return;
+    const i = await n(this, _).open(this, T, {
       data: {
         option: e,
         settings: this._optionSettings
@@ -1212,13 +1351,13 @@ Are you sure you want to continue?`;
             skuSuffix: s.skuSuffix ?? void 0
           }))
         }));
-        n(this, m)?.peek("default", { data: { headline: "Saving options...", message: "Variants will be regenerated" } });
-        const { data: t, error: i } = await g.saveProductOptions(this._product.id, e);
+        n(this, g)?.peek("default", { data: { headline: "Saving options...", message: "Variants will be regenerated" } });
+        const { data: t, error: i } = await m.saveProductOptions(this._product.id, e);
         if (!n(this, f)) return;
-        !i && t ? (this._formData = { ...this._formData, productOptions: t }, n(this, m)?.peek("positive", { data: { headline: "Options saved", message: "Variants have been regenerated" } }), n(this, p)?.reload()) : i && (console.error("Failed to save options:", i), this._errorMessage = "Failed to save options: " + i.message, n(this, m)?.peek("danger", { data: { headline: "Failed to save options", message: i.message } }));
+        !i && t ? (this._formData = { ...this._formData, productOptions: t }, n(this, g)?.peek("positive", { data: { headline: "Options saved", message: "Variants have been regenerated" } }), n(this, p)?.reload()) : i && (console.error("Failed to save options:", i), this._errorMessage = "Failed to save options: " + i.message, n(this, g)?.peek("danger", { data: { headline: "Failed to save options", message: i.message } }));
       } catch (e) {
         if (!n(this, f)) return;
-        console.error("Failed to save options:", e), this._errorMessage = e instanceof Error ? e.message : "Failed to save options", n(this, m)?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } });
+        console.error("Failed to save options:", e), this._errorMessage = e instanceof Error ? e.message : "Failed to save options", n(this, g)?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } });
       }
     }
   }
@@ -1254,7 +1393,7 @@ Are you sure you want to continue?`;
     return r`
       <umb-body-layout header-fit-height main-no-padding>
         <!-- Header: back button + icon + name input -->
-        <uui-button slot="header" compact href=${L()} label="Back" class="back-button">
+        <uui-button slot="header" compact href=${F()} label="Back" class="back-button">
           <uui-icon name="icon-arrow-left"></uui-icon>
         </uui-button>
 
@@ -1283,6 +1422,7 @@ Are you sure you want to continue?`;
 
           ${t === "details" ? this._renderDetailsTab() : l}
           ${t === "media" ? this._renderMediaTab() : l}
+          ${t === "shipping" ? this._renderShippingTab() : l}
           ${t === "seo" ? this._renderSeoTab() : l}
           ${t === "variants" ? this._renderVariantsTab() : l}
           ${t === "options" ? this._renderOptionsTab() : l}
@@ -1304,14 +1444,14 @@ Are you sure you want to continue?`;
     `;
   }
 };
-D = /* @__PURE__ */ new WeakMap();
+$ = /* @__PURE__ */ new WeakMap();
 p = /* @__PURE__ */ new WeakMap();
-b = /* @__PURE__ */ new WeakMap();
-m = /* @__PURE__ */ new WeakMap();
+_ = /* @__PURE__ */ new WeakMap();
+g = /* @__PURE__ */ new WeakMap();
 f = /* @__PURE__ */ new WeakMap();
 d.styles = [
   G,
-  E`
+  I`
       :host {
         display: block;
         width: 100%;
@@ -1741,6 +1881,59 @@ d.styles = [
       umb-property-dataset umb-property {
         --umb-property-layout-description-display: none;
       }
+
+      /* Package cards */
+      .packages-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-4);
+        margin-bottom: var(--uui-size-space-4);
+      }
+
+      .package-card {
+        background: var(--uui-color-surface-alt);
+        border: 1px solid var(--uui-color-border);
+        border-radius: var(--uui-border-radius);
+        padding: var(--uui-size-space-4);
+      }
+
+      .package-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--uui-size-space-3);
+      }
+
+      .package-number {
+        font-weight: 600;
+        color: var(--uui-color-text);
+      }
+
+      .package-fields {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: var(--uui-size-space-3);
+      }
+
+      .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-1);
+      }
+
+      .field-group label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--uui-color-text-alt);
+      }
+
+      .field-group uui-input {
+        width: 100%;
+      }
+
+      .add-package-button {
+        width: 100%;
+      }
     `
 ];
 h([
@@ -1789,11 +1982,11 @@ h([
   c()
 ], d.prototype, "_descriptionEditorConfig", 2);
 d = h([
-  O("merchello-product-detail")
+  C("merchello-product-detail")
 ], d);
 const se = d;
 export {
   d as MerchelloProductDetailElement,
   se as default
 };
-//# sourceMappingURL=product-detail.element-aGNiGPSV.js.map
+//# sourceMappingURL=product-detail.element-My7hBwkE.js.map

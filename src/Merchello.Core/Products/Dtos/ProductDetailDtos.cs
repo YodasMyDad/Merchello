@@ -12,8 +12,13 @@ public class ProductRootDetailDto
     public List<string> SellingPoints { get; set; } = [];
     public List<string> Videos { get; set; } = [];
     public string? GoogleShoppingFeedCategory { get; set; }
-    public string? HsCode { get; set; }
     public bool IsDigitalProduct { get; set; }
+
+    /// <summary>
+    /// Default package configurations for shipping.
+    /// Variants inherit these unless they define their own.
+    /// </summary>
+    public List<ProductPackageDto> DefaultPackageConfigurations { get; set; } = [];
 
     public string? Description { get; set; }
 
@@ -91,11 +96,16 @@ public class ProductVariantDto
     public string? Url { get; set; }
     public string? VariantOptionsKey { get; set; }
 
-    // Dimensions
-    public decimal? Weight { get; set; }
-    public decimal? LengthCm { get; set; }
-    public decimal? WidthCm { get; set; }
-    public decimal? HeightCm { get; set; }
+    /// <summary>
+    /// HS Code for customs/tariff classification (variant-level)
+    /// </summary>
+    public string? HsCode { get; set; }
+
+    /// <summary>
+    /// Package configurations for shipping.
+    /// If empty, inherits from ProductRoot.DefaultPackageConfigurations.
+    /// </summary>
+    public List<ProductPackageDto> PackageConfigurations { get; set; } = [];
 
     // Shopping Feed
     public string? ShoppingFeedTitle { get; set; }
@@ -121,4 +131,30 @@ public class VariantWarehouseStockDto
     public int? ReorderPoint { get; set; }
     public int? ReorderQuantity { get; set; }
     public bool TrackStock { get; set; }
+}
+
+/// <summary>
+/// Package configuration for shipping calculations
+/// </summary>
+public class ProductPackageDto
+{
+    /// <summary>
+    /// Package weight in kilograms
+    /// </summary>
+    public decimal Weight { get; set; }
+
+    /// <summary>
+    /// Package length in centimeters
+    /// </summary>
+    public decimal? LengthCm { get; set; }
+
+    /// <summary>
+    /// Package width in centimeters
+    /// </summary>
+    public decimal? WidthCm { get; set; }
+
+    /// <summary>
+    /// Package height in centimeters
+    /// </summary>
+    public decimal? HeightCm { get; set; }
 }

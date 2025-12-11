@@ -6,7 +6,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
 import type { MerchelloProductDetailWorkspaceContext } from "@products/contexts/product-detail-workspace.context.js";
-import type { ProductRootDetailDto, ProductVariantDto, UpdateVariantRequest } from "@products/types/product.types.js";
+import type { ProductRootDetailDto, ProductVariantDto, ProductPackageDto, UpdateVariantRequest } from "@products/types/product.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { getProductDetailHref } from "@shared/utils/navigation.js";
@@ -90,7 +90,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
 
     this._routes = [
       { path: "tab/basic", component: stubComponent },
-      { path: "tab/dimensions", component: stubComponent },
+      { path: "tab/packages", component: stubComponent },
       { path: "tab/feed", component: stubComponent },
       { path: "tab/stock", component: stubComponent },
       { path: "", redirectTo: "tab/basic" },
@@ -100,8 +100,8 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
   /**
    * Gets the currently active tab based on the route path
    */
-  private _getActiveTab(): "basic" | "dimensions" | "feed" | "stock" {
-    if (this._activePath.includes("tab/dimensions")) return "dimensions";
+  private _getActiveTab(): "basic" | "packages" | "feed" | "stock" {
+    if (this._activePath.includes("tab/packages")) return "packages";
     if (this._activePath.includes("tab/feed")) return "feed";
     if (this._activePath.includes("tab/stock")) return "stock";
     return "basic";
@@ -128,10 +128,8 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
         images: this._formData.images,
         excludeRootProductImages: this._formData.excludeRootProductImages,
         url: this._formData.url ?? undefined,
-        weight: this._formData.weight ?? undefined,
-        lengthCm: this._formData.lengthCm ?? undefined,
-        widthCm: this._formData.widthCm ?? undefined,
-        heightCm: this._formData.heightCm ?? undefined,
+        hsCode: this._formData.hsCode ?? undefined,
+        packageConfigurations: this._formData.packageConfigurations,
         shoppingFeedTitle: this._formData.shoppingFeedTitle ?? undefined,
         shoppingFeedDescription: this._formData.shoppingFeedDescription ?? undefined,
         shoppingFeedColour: this._formData.shoppingFeedColour ?? undefined,
@@ -172,8 +170,8 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
         <uui-tab label="Basic Info" href="${this._routerPath}/tab/basic" ?active=${activeTab === "basic"}>
           Basic Info
         </uui-tab>
-        <uui-tab label="Dimensions" href="${this._routerPath}/tab/dimensions" ?active=${activeTab === "dimensions"}>
-          Dimensions
+        <uui-tab label="Shipping Packages" href="${this._routerPath}/tab/packages" ?active=${activeTab === "packages"}>
+          Shipping Packages
         </uui-tab>
         <uui-tab label="Shopping Feed" href="${this._routerPath}/tab/feed" ?active=${activeTab === "feed"}>
           Shopping Feed
@@ -282,7 +280,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
         </uui-box>
 
         <uui-box headline="Availability">
-          <umb-property-layout label="Available for Purchase" description="Show on website, allow add to cart">
+          <umb-property-layout label="Visible on Website" description="Show this variant on your storefront and allow customers to add it to their cart">
             <uui-toggle
               slot="editor"
               .checked=${this._formData.availableForPurchase ?? true}
@@ -290,7 +288,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
             </uui-toggle>
           </umb-property-layout>
 
-          <umb-property-layout label="Can Purchase" description="Allow checkout (stock/inventory check)">
+          <umb-property-layout label="Allow Purchase" description="Enable checkout for this variant (used for stock/inventory validation)">
             <uui-toggle
               slot="editor"
               .checked=${this._formData.canPurchase ?? true}
@@ -298,68 +296,252 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
             </uui-toggle>
           </umb-property-layout>
         </uui-box>
+
+        <uui-box headline="URL & Customs">
+          <umb-property-layout label="URL Slug" description="Custom URL path for this variant (optional)">
+            <uui-input
+              slot="editor"
+              .value=${this._formData.url || ""}
+              @input=${(e: Event) => (this._formData = { ...this._formData, url: (e.target as HTMLInputElement).value })}
+              placeholder="/products/my-product/blue-large">
+            </uui-input>
+          </umb-property-layout>
+
+          <umb-property-layout label="HS Code" description="Harmonized System code for customs/tariff classification">
+            <uui-input
+              slot="editor"
+              .value=${this._formData.hsCode || ""}
+              @input=${(e: Event) => (this._formData = { ...this._formData, hsCode: (e.target as HTMLInputElement).value })}
+              placeholder="6109.10"
+              maxlength="10">
+            </uui-input>
+          </umb-property-layout>
+        </uui-box>
       </div>
     `;
   }
 
-  private _renderDimensionsTab(): unknown {
+  /**
+   * Check if variant is overriding root packages
+   */
+  private _isOverridingPackages(): boolean {
+    return (this._formData.packageConfigurations?.length ?? 0) > 0;
+  }
+
+  /**
+   * Get effective packages - variant's own or inherited from root
+   */
+  private _getEffectivePackages(): ProductPackageDto[] {
+    if (this._isOverridingPackages()) {
+      return this._formData.packageConfigurations ?? [];
+    }
+    return this._product?.defaultPackageConfigurations ?? [];
+  }
+
+  /**
+   * Toggle package override mode
+   */
+  private _togglePackageOverride(): void {
+    if (this._isOverridingPackages()) {
+      // Clear variant packages to inherit from root
+      this._formData = { ...this._formData, packageConfigurations: [] };
+    } else {
+      // Copy root packages to variant for editing
+      const rootPackages = this._product?.defaultPackageConfigurations ?? [];
+      this._formData = {
+        ...this._formData,
+        packageConfigurations: rootPackages.length > 0
+          ? rootPackages.map((p) => ({ ...p }))
+          : [{ weight: 0, lengthCm: null, widthCm: null, heightCm: null }],
+      };
+    }
+  }
+
+  /**
+   * Add a new package
+   */
+  private _addPackage(): void {
+    const packages = [...(this._formData.packageConfigurations ?? [])];
+    packages.push({ weight: 0, lengthCm: null, widthCm: null, heightCm: null });
+    this._formData = { ...this._formData, packageConfigurations: packages };
+  }
+
+  /**
+   * Remove a package by index
+   */
+  private _removePackage(index: number): void {
+    const packages = [...(this._formData.packageConfigurations ?? [])];
+    packages.splice(index, 1);
+    this._formData = { ...this._formData, packageConfigurations: packages };
+  }
+
+  /**
+   * Update a package field
+   */
+  private _updatePackage(index: number, field: keyof ProductPackageDto, value: number | null): void {
+    const packages = [...(this._formData.packageConfigurations ?? [])];
+    packages[index] = { ...packages[index], [field]: value };
+    this._formData = { ...this._formData, packageConfigurations: packages };
+  }
+
+  private _renderPackagesTab(): unknown {
+    const isOverriding = this._isOverridingPackages();
+    const effectivePackages = this._getEffectivePackages();
+    const hasRootPackages = (this._product?.defaultPackageConfigurations?.length ?? 0) > 0;
+
     return html`
       <div class="tab-content">
         <uui-box class="info-banner">
           <div class="info-content">
             <uui-icon name="icon-info"></uui-icon>
             <div>
-              <strong>Shipping Dimensions</strong>
-              <p>These dimensions are used for shipping rate calculations with carriers like FedEx, UPS, and DHL.</p>
+              <strong>Shipping Packages</strong>
+              <p>Define package configurations for shipping rate calculations. Products can ship in multiple packages.</p>
             </div>
           </div>
         </uui-box>
 
-        <uui-box headline="Package Dimensions">
-          <umb-property-layout label="Weight (kg)" description="Package weight in kilograms">
+        ${hasRootPackages
+          ? html`
+              <uui-box headline="Package Settings">
+                <umb-property-layout
+                  label="Override Product Packages"
+                  description="By default, this variant inherits packages from the product. Enable to define variant-specific packages.">
+                  <uui-toggle
+                    slot="editor"
+                    .checked=${isOverriding}
+                    @change=${() => this._togglePackageOverride()}>
+                  </uui-toggle>
+                </umb-property-layout>
+              </uui-box>
+            `
+          : nothing}
+
+        <uui-box headline=${isOverriding ? "Variant Packages" : hasRootPackages ? "Inherited from Product" : "Packages"}>
+          ${!isOverriding && hasRootPackages
+            ? html`
+                <div class="inherited-notice">
+                  <uui-icon name="icon-link"></uui-icon>
+                  <span>These packages are inherited from the product. Enable override above to customize.</span>
+                </div>
+              `
+            : nothing}
+
+          ${effectivePackages.length > 0
+            ? html`
+                <div class="packages-list">
+                  ${effectivePackages.map((pkg, index) => this._renderPackageCard(pkg, index, isOverriding))}
+                </div>
+              `
+            : html`
+                <div class="empty-state">
+                  <uui-icon name="icon-box"></uui-icon>
+                  <p>No packages configured</p>
+                  <p class="hint">Add a package to enable shipping rate calculations</p>
+                </div>
+              `}
+
+          ${isOverriding || !hasRootPackages
+            ? html`
+                <uui-button
+                  look="placeholder"
+                  class="add-package-button"
+                  @click=${() => this._addPackage()}>
+                  <uui-icon name="icon-add"></uui-icon>
+                  Add Package
+                </uui-button>
+              `
+            : nothing}
+        </uui-box>
+      </div>
+    `;
+  }
+
+  private _renderPackageCard(pkg: ProductPackageDto, index: number, editable: boolean): unknown {
+    const dimensionText = pkg.lengthCm && pkg.widthCm && pkg.heightCm
+      ? `${pkg.lengthCm} × ${pkg.widthCm} × ${pkg.heightCm} cm`
+      : "No dimensions";
+
+    if (!editable) {
+      return html`
+        <div class="package-card readonly">
+          <div class="package-header">
+            <span class="package-number">Package ${index + 1}</span>
+            <span class="badge badge-muted">Inherited</span>
+          </div>
+          <div class="package-details">
+            <div class="package-stat">
+              <span class="label">Weight</span>
+              <span class="value">${pkg.weight} kg</span>
+            </div>
+            <div class="package-stat">
+              <span class="label">Dimensions</span>
+              <span class="value">${dimensionText}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    return html`
+      <div class="package-card">
+        <div class="package-header">
+          <span class="package-number">Package ${index + 1}</span>
+          <uui-button
+            compact
+            look="secondary"
+            color="danger"
+            label="Remove package"
+            @click=${() => this._removePackage(index)}>
+            <uui-icon name="icon-trash"></uui-icon>
+          </uui-button>
+        </div>
+        <div class="package-fields">
+          <div class="field-group">
+            <label>Weight (kg) *</label>
             <uui-input
-              slot="editor"
               type="number"
               step="0.01"
-              .value=${String(this._formData.weight ?? "")}
-              @input=${(e: Event) => (this._formData = { ...this._formData, weight: parseFloat((e.target as HTMLInputElement).value) || undefined })}
+              min="0"
+              .value=${String(pkg.weight ?? "")}
+              @input=${(e: Event) => this._updatePackage(index, "weight", parseFloat((e.target as HTMLInputElement).value) || 0)}
               placeholder="0.50">
             </uui-input>
-          </umb-property-layout>
-
-          <umb-property-layout label="Length (cm)" description="Longest side">
+          </div>
+          <div class="field-group">
+            <label>Length (cm)</label>
             <uui-input
-              slot="editor"
               type="number"
               step="0.1"
-              .value=${String(this._formData.lengthCm ?? "")}
-              @input=${(e: Event) => (this._formData = { ...this._formData, lengthCm: parseFloat((e.target as HTMLInputElement).value) || undefined })}
+              min="0"
+              .value=${String(pkg.lengthCm ?? "")}
+              @input=${(e: Event) => this._updatePackage(index, "lengthCm", parseFloat((e.target as HTMLInputElement).value) || null)}
               placeholder="20">
             </uui-input>
-          </umb-property-layout>
-
-          <umb-property-layout label="Width (cm)" description="Middle side">
+          </div>
+          <div class="field-group">
+            <label>Width (cm)</label>
             <uui-input
-              slot="editor"
               type="number"
               step="0.1"
-              .value=${String(this._formData.widthCm ?? "")}
-              @input=${(e: Event) => (this._formData = { ...this._formData, widthCm: parseFloat((e.target as HTMLInputElement).value) || undefined })}
+              min="0"
+              .value=${String(pkg.widthCm ?? "")}
+              @input=${(e: Event) => this._updatePackage(index, "widthCm", parseFloat((e.target as HTMLInputElement).value) || null)}
               placeholder="15">
             </uui-input>
-          </umb-property-layout>
-
-          <umb-property-layout label="Height (cm)" description="Shortest side">
+          </div>
+          <div class="field-group">
+            <label>Height (cm)</label>
             <uui-input
-              slot="editor"
               type="number"
               step="0.1"
-              .value=${String(this._formData.heightCm ?? "")}
-              @input=${(e: Event) => (this._formData = { ...this._formData, heightCm: parseFloat((e.target as HTMLInputElement).value) || undefined })}
+              min="0"
+              .value=${String(pkg.heightCm ?? "")}
+              @input=${(e: Event) => this._updatePackage(index, "heightCm", parseFloat((e.target as HTMLInputElement).value) || null)}
               placeholder="10">
             </uui-input>
-          </umb-property-layout>
-        </uui-box>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -573,7 +755,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
           </umb-router-slot>
 
           ${activeTab === "basic" ? this._renderBasicTab() : nothing}
-          ${activeTab === "dimensions" ? this._renderDimensionsTab() : nothing}
+          ${activeTab === "packages" ? this._renderPackagesTab() : nothing}
           ${activeTab === "feed" ? this._renderFeedTab() : nothing}
           ${activeTab === "stock" ? this._renderStockTab() : nothing}
         </umb-body-layout>
@@ -754,6 +936,105 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       /* Breadcrumbs */
       uui-breadcrumbs {
         font-size: 0.875rem;
+      }
+
+      /* Package cards */
+      .packages-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-4);
+        margin-bottom: var(--uui-size-space-4);
+      }
+
+      .package-card {
+        background: var(--uui-color-surface-alt);
+        border: 1px solid var(--uui-color-border);
+        border-radius: var(--uui-border-radius);
+        padding: var(--uui-size-space-4);
+      }
+
+      .package-card.readonly {
+        opacity: 0.8;
+      }
+
+      .package-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--uui-size-space-3);
+      }
+
+      .package-number {
+        font-weight: 600;
+        color: var(--uui-color-text);
+      }
+
+      .package-details {
+        display: flex;
+        gap: var(--uui-size-space-6);
+      }
+
+      .package-stat {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-1);
+      }
+
+      .package-stat .label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: var(--uui-color-text-alt);
+      }
+
+      .package-stat .value {
+        font-weight: 500;
+      }
+
+      .package-fields {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: var(--uui-size-space-3);
+      }
+
+      .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-1);
+      }
+
+      .field-group label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--uui-color-text-alt);
+      }
+
+      .field-group uui-input {
+        width: 100%;
+      }
+
+      .inherited-notice {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+        padding: var(--uui-size-space-3);
+        background: var(--uui-color-surface-alt);
+        border-radius: var(--uui-border-radius);
+        margin-bottom: var(--uui-size-space-4);
+        color: var(--uui-color-text-alt);
+        font-size: 0.875rem;
+      }
+
+      .inherited-notice uui-icon {
+        color: var(--uui-color-selected);
+      }
+
+      .add-package-button {
+        width: 100%;
+      }
+
+      .badge-muted {
+        background: var(--uui-color-surface-emphasis);
+        color: var(--uui-color-text-alt);
       }
     `,
   ];

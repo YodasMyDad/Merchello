@@ -326,7 +326,7 @@ namespace Merchello.Core.Sqlite.Migrations
                     RootUrl = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
                     SellingPoints = table.Column<string>(type: "TEXT", maxLength: 1500, nullable: false),
                     Videos = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
-                    HsCode = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true),
+                    DefaultPackageConfigurations = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: false),
                     IsDigitalProduct = table.Column<bool>(type: "INTEGER", nullable: false),
                     Description = table.Column<string>(type: "TEXT", maxLength: 5000, nullable: true),
                     MetaDescription = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
@@ -561,10 +561,7 @@ namespace Merchello.Core.Sqlite.Migrations
                     VariantOptionsKey = table.Column<string>(type: "TEXT", maxLength: 1500, nullable: true),
                     Url = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
                     ShippingRestrictionMode = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    Weight = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    LengthCm = table.Column<decimal>(type: "TEXT", precision: 18, scale: 2, nullable: true),
-                    WidthCm = table.Column<decimal>(type: "TEXT", precision: 18, scale: 2, nullable: true),
-                    HeightCm = table.Column<decimal>(type: "TEXT", precision: 18, scale: 2, nullable: true),
+                    HsCode = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true),
                     PackageConfigurations = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: false)
                 },
                 constraints: table =>

@@ -47,11 +47,10 @@ public class ProductDbMapping : IEntityTypeConfiguration<Product>
 
         builder.Property(x => x.Url).HasMaxLength(1000);
 
-        // Shipping dimensions
-        builder.Property(x => x.Weight).HasPrecision(18, 4);
-        builder.Property(x => x.LengthCm).HasPrecision(18, 2);
-        builder.Property(x => x.WidthCm).HasPrecision(18, 2);
-        builder.Property(x => x.HeightCm).HasPrecision(18, 2);
+        // HS Code for customs/tariff classification (variant-level)
+        builder.Property(x => x.HsCode).HasMaxLength(10);
+
+        // Package configurations for shipping (overrides root if populated)
         builder.Property(x => x.PackageConfigurations).ToJsonConversion(4000);
 
         builder.HasIndex(e => e.Price);

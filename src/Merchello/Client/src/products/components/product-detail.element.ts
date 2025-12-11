@@ -15,6 +15,7 @@ import type {
   ProductOptionSettingsDto,
   ProductOptionValueDto,
   ProductTypeDto,
+  ProductPackageDto,
   UpdateProductRootRequest,
   CreateProductRootRequest,
 } from "@products/types/product.types.js";
@@ -236,6 +237,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         component: stubComponent,
       },
       {
+        path: "tab/shipping",
+        component: stubComponent,
+      },
+      {
         path: "tab/seo",
         component: stubComponent,
       },
@@ -257,8 +262,9 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   /**
    * Gets the currently active tab based on the route path
    */
-  private _getActiveTab(): "details" | "media" | "seo" | "variants" | "options" {
+  private _getActiveTab(): "details" | "media" | "shipping" | "seo" | "variants" | "options" {
     if (this._activePath.includes("tab/media")) return "media";
+    if (this._activePath.includes("tab/shipping")) return "shipping";
     if (this._activePath.includes("tab/seo")) return "seo";
     if (this._activePath.includes("tab/variants")) return "variants";
     if (this._activePath.includes("tab/options")) return "options";
@@ -393,7 +399,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       sellingPoints: this._formData.sellingPoints,
       videos: this._formData.videos,
       googleShoppingFeedCategory: this._formData.googleShoppingFeedCategory ?? undefined,
-      hsCode: this._formData.hsCode ?? undefined,
       isDigitalProduct: this._formData.isDigitalProduct,
       taxGroupId: this._formData.taxGroupId,
       productTypeId: this._formData.productTypeId,
@@ -405,6 +410,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       noIndex: this._formData.noIndex,
       openGraphImage: this._formData.openGraphImage ?? undefined,
       canonicalUrl: this._formData.canonicalUrl ?? undefined,
+      defaultPackageConfigurations: this._formData.defaultPackageConfigurations,
     };
 
     const { data, error } = await MerchelloApi.updateProduct(this._product.id, request);
@@ -490,6 +496,17 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           ?active=${activeTab === "media"}>
           Media
         </uui-tab>
+
+        ${!this._formData.isDigitalProduct
+          ? html`
+              <uui-tab
+                label="Shipping"
+                href="${this._routerPath}/tab/shipping"
+                ?active=${activeTab === "shipping"}>
+                Shipping
+              </uui-tab>
+            `
+          : nothing}
 
         <uui-tab
           label="SEO"
@@ -637,6 +654,145 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             </div>
           </umb-property-layout>
         </uui-box>
+      </div>
+    `;
+  }
+
+  // ============================================
+  // Shipping Tab - Package Management
+  // ============================================
+
+  /**
+   * Add a new package configuration
+   */
+  private _addPackage(): void {
+    const packages = [...(this._formData.defaultPackageConfigurations ?? [])];
+    packages.push({ weight: 0, lengthCm: null, widthCm: null, heightCm: null });
+    this._formData = { ...this._formData, defaultPackageConfigurations: packages };
+  }
+
+  /**
+   * Remove a package by index
+   */
+  private _removePackage(index: number): void {
+    const packages = [...(this._formData.defaultPackageConfigurations ?? [])];
+    packages.splice(index, 1);
+    this._formData = { ...this._formData, defaultPackageConfigurations: packages };
+  }
+
+  /**
+   * Update a package field
+   */
+  private _updatePackage(index: number, field: keyof ProductPackageDto, value: number | null): void {
+    const packages = [...(this._formData.defaultPackageConfigurations ?? [])];
+    packages[index] = { ...packages[index], [field]: value };
+    this._formData = { ...this._formData, defaultPackageConfigurations: packages };
+  }
+
+  private _renderShippingTab(): unknown {
+    const packages = this._formData.defaultPackageConfigurations ?? [];
+    const isNew = this.#workspaceContext?.isNew ?? true;
+
+    return html`
+      <div class="tab-content">
+        <uui-box class="info-banner">
+          <div class="info-content">
+            <uui-icon name="icon-info"></uui-icon>
+            <div>
+              <strong>Default Shipping Packages</strong>
+              <p>Define the default package configurations for this product. These are used for shipping rate calculations and can be overridden at the variant level.</p>
+            </div>
+          </div>
+        </uui-box>
+
+        <uui-box headline="Package Configurations">
+          ${packages.length > 0
+            ? html`
+                <div class="packages-list">
+                  ${packages.map((pkg, index) => this._renderPackageCard(pkg, index))}
+                </div>
+              `
+            : html`
+                <div class="empty-state">
+                  <uui-icon name="icon-box"></uui-icon>
+                  <p>No packages configured</p>
+                  <p class="hint">Add a package to enable shipping rate calculations with carriers like FedEx, UPS, and DHL</p>
+                </div>
+              `}
+
+          <uui-button
+            look="placeholder"
+            class="add-package-button"
+            ?disabled=${isNew}
+            @click=${() => this._addPackage()}>
+            <uui-icon name="icon-add"></uui-icon>
+            Add Package
+          </uui-button>
+        </uui-box>
+      </div>
+    `;
+  }
+
+  private _renderPackageCard(pkg: ProductPackageDto, index: number): unknown {
+    return html`
+      <div class="package-card">
+        <div class="package-header">
+          <span class="package-number">Package ${index + 1}</span>
+          <uui-button
+            compact
+            look="secondary"
+            color="danger"
+            label="Remove package"
+            @click=${() => this._removePackage(index)}>
+            <uui-icon name="icon-trash"></uui-icon>
+          </uui-button>
+        </div>
+        <div class="package-fields">
+          <div class="field-group">
+            <label>Weight (kg) *</label>
+            <uui-input
+              type="number"
+              step="0.01"
+              min="0"
+              .value=${String(pkg.weight ?? "")}
+              @input=${(e: Event) => this._updatePackage(index, "weight", parseFloat((e.target as HTMLInputElement).value) || 0)}
+              placeholder="0.50">
+            </uui-input>
+          </div>
+          <div class="field-group">
+            <label>Length (cm)</label>
+            <uui-input
+              type="number"
+              step="0.1"
+              min="0"
+              .value=${String(pkg.lengthCm ?? "")}
+              @input=${(e: Event) => this._updatePackage(index, "lengthCm", parseFloat((e.target as HTMLInputElement).value) || null)}
+              placeholder="20">
+            </uui-input>
+          </div>
+          <div class="field-group">
+            <label>Width (cm)</label>
+            <uui-input
+              type="number"
+              step="0.1"
+              min="0"
+              .value=${String(pkg.widthCm ?? "")}
+              @input=${(e: Event) => this._updatePackage(index, "widthCm", parseFloat((e.target as HTMLInputElement).value) || null)}
+              placeholder="15">
+            </uui-input>
+          </div>
+          <div class="field-group">
+            <label>Height (cm)</label>
+            <uui-input
+              type="number"
+              step="0.1"
+              min="0"
+              .value=${String(pkg.heightCm ?? "")}
+              @input=${(e: Event) => this._updatePackage(index, "heightCm", parseFloat((e.target as HTMLInputElement).value) || null)}
+              placeholder="10">
+            </uui-input>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -960,7 +1116,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   private _getVariantOptionDescription(variant: ProductVariantDto): string | null {
     if (!variant.variantOptionsKey || !this._product) return null;
 
-    const guids = variant.variantOptionsKey.split('-');
+    // GUIDs contain hyphens, so we can't simply split by '-'
+    // Use regex to extract complete GUID patterns
+    const guidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+    const guids = variant.variantOptionsKey.match(guidRegex) || [];
     const descriptions: string[] = [];
 
     for (const guid of guids) {
@@ -1359,6 +1518,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
           ${activeTab === "details" ? this._renderDetailsTab() : nothing}
           ${activeTab === "media" ? this._renderMediaTab() : nothing}
+          ${activeTab === "shipping" ? this._renderShippingTab() : nothing}
           ${activeTab === "seo" ? this._renderSeoTab() : nothing}
           ${activeTab === "variants" ? this._renderVariantsTab() : nothing}
           ${activeTab === "options" ? this._renderOptionsTab() : nothing}
@@ -1811,6 +1971,59 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
       umb-property-dataset umb-property {
         --umb-property-layout-description-display: none;
+      }
+
+      /* Package cards */
+      .packages-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-4);
+        margin-bottom: var(--uui-size-space-4);
+      }
+
+      .package-card {
+        background: var(--uui-color-surface-alt);
+        border: 1px solid var(--uui-color-border);
+        border-radius: var(--uui-border-radius);
+        padding: var(--uui-size-space-4);
+      }
+
+      .package-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--uui-size-space-3);
+      }
+
+      .package-number {
+        font-weight: 600;
+        color: var(--uui-color-text);
+      }
+
+      .package-fields {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: var(--uui-size-space-3);
+      }
+
+      .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-1);
+      }
+
+      .field-group label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--uui-color-text-alt);
+      }
+
+      .field-group uui-input {
+        width: 100%;
+      }
+
+      .add-package-button {
+        width: 100%;
       }
     `,
   ];

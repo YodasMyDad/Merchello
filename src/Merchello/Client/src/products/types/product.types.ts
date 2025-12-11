@@ -28,6 +28,13 @@ export interface ProductListItemDto {
 }
 
 // Full product root for editing
+export interface ProductPackageDto {
+  weight: number;
+  lengthCm: number | null;
+  widthCm: number | null;
+  heightCm: number | null;
+}
+
 export interface ProductRootDetailDto {
   id: string;
   rootName: string;
@@ -36,8 +43,8 @@ export interface ProductRootDetailDto {
   sellingPoints: string[];
   videos: string[];
   googleShoppingFeedCategory: string | null;
-  hsCode: string | null;
   isDigitalProduct: boolean;
+  defaultPackageConfigurations: ProductPackageDto[];
 
   description: string | null;
 
@@ -100,12 +107,12 @@ export interface ProductVariantDto {
   excludeRootProductImages: boolean;
   url: string | null;
   variantOptionsKey: string | null;
-  
-  // Dimensions
-  weight: number | null;
-  lengthCm: number | null;
-  widthCm: number | null;
-  heightCm: number | null;
+
+  // HS Code for customs/tariff classification
+  hsCode: string | null;
+
+  // Package configurations (inherits from root if empty)
+  packageConfigurations: ProductPackageDto[];
 
   // Shopping Feed
   shoppingFeedTitle: string | null;
@@ -114,7 +121,7 @@ export interface ProductVariantDto {
   shoppingFeedMaterial: string | null;
   shoppingFeedSize: string | null;
   removeFromFeed: boolean;
-  
+
   // Stock
   totalStock: number;
   warehouseStock: VariantWarehouseStockDto[];
@@ -167,7 +174,6 @@ export interface UpdateProductRootRequest {
   sellingPoints?: string[];
   videos?: string[];
   googleShoppingFeedCategory?: string;
-  hsCode?: string;
   isDigitalProduct?: boolean;
   taxGroupId?: string;
   productTypeId?: string;
@@ -179,6 +185,7 @@ export interface UpdateProductRootRequest {
   noIndex?: boolean;
   openGraphImage?: string;
   canonicalUrl?: string;
+  defaultPackageConfigurations?: ProductPackageDto[];
 }
 
 export interface UpdateVariantRequest {
@@ -196,10 +203,8 @@ export interface UpdateVariantRequest {
   images?: string[];
   excludeRootProductImages?: boolean;
   url?: string;
-  weight?: number;
-  lengthCm?: number;
-  widthCm?: number;
-  heightCm?: number;
+  hsCode?: string;
+  packageConfigurations?: ProductPackageDto[];
   shoppingFeedTitle?: string;
   shoppingFeedDescription?: string;
   shoppingFeedColour?: string;

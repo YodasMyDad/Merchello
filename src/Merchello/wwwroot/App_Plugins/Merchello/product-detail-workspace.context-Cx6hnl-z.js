@@ -7,14 +7,14 @@ class v extends r {
     super(t, i.toString()), this.workspaceAlias = "Merchello.Product.Detail.Workspace", this.#t = !1, this.#o = new n(void 0), this.product = this.#o.asObservable(), this.#a = new d(void 0), this.variantId = this.#a.asObservable(), this.routes = new l(t), this.provideContext(i, this), this.routes.setRoutes([
       {
         path: "create",
-        component: () => import("./product-detail.element-aGNiGPSV.js"),
+        component: () => import("./product-detail.element-My7hBwkE.js"),
         setup: () => {
           this.#t = !0, this.#e = void 0, this.#a.setValue(void 0), this.#o.setValue(this._createEmptyProduct());
         }
       },
       {
         path: "edit/:id/variant/:variantId",
-        component: () => import("./variant-detail.element-BbupJ9X5.js"),
+        component: () => import("./variant-detail.element-B2ougEUS.js"),
         setup: (o, e) => {
           this.#t = !1;
           const a = e.match.params.id, s = e.match.params.variantId;
@@ -23,7 +23,7 @@ class v extends r {
       },
       {
         path: "edit/:id",
-        component: () => import("./product-detail.element-aGNiGPSV.js"),
+        component: () => import("./product-detail.element-My7hBwkE.js"),
         setup: (o, e) => {
           this.#t = !1, this.#a.setValue(void 0);
           const a = e.match.params.id;
@@ -69,8 +69,8 @@ class v extends r {
       sellingPoints: [],
       videos: [],
       googleShoppingFeedCategory: null,
-      hsCode: null,
       isDigitalProduct: !1,
+      defaultPackageConfigurations: [],
       description: null,
       metaDescription: null,
       pageTitle: null,
@@ -92,4 +92,4 @@ export {
   v as MerchelloProductDetailWorkspaceContext,
   v as api
 };
-//# sourceMappingURL=product-detail-workspace.context-DMqfJRoH.js.map
+//# sourceMappingURL=product-detail-workspace.context-Cx6hnl-z.js.map

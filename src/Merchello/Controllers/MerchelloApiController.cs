@@ -21,10 +21,10 @@ public class MerchelloApiController(
 
     [HttpGet("whatsMyName")]
     [ProducesResponseType<string>(StatusCodes.Status200OK)]
-    public string WhatsMyName()
+    public async Task<string> WhatsMyNameAsync()
     {
         // So we can see a long request in the dashboard with a spinning progress wheel
-        Thread.Sleep(2000);
+        await Task.Delay(2000);
 
         var currentUser = backOfficeSecurityAccessor.BackOfficeSecurity?.CurrentUser;
         return currentUser?.Name ?? "I have no idea who you are";

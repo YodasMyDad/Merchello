@@ -339,10 +339,14 @@ public class ProductsApiController(IProductService productService) : MerchelloAp
             ExcludeRootProductImages = product.ExcludeRootProductImages,
             Url = product.Url,
             VariantOptionsKey = product.VariantOptionsKey,
-            Weight = product.Weight,
-            LengthCm = product.LengthCm,
-            WidthCm = product.WidthCm,
-            HeightCm = product.HeightCm,
+            HsCode = product.HsCode,
+            PackageConfigurations = product.PackageConfigurations.Select(p => new ProductPackageDto
+            {
+                Weight = p.Weight,
+                LengthCm = p.LengthCm,
+                WidthCm = p.WidthCm,
+                HeightCm = p.HeightCm
+            }).ToList(),
             ShoppingFeedTitle = product.ShoppingFeedTitle,
             ShoppingFeedDescription = product.ShoppingFeedDescription,
             ShoppingFeedColour = product.ShoppingFeedColour,

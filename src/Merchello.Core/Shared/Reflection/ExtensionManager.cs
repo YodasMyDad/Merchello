@@ -68,8 +68,8 @@ namespace Merchello.Core.Shared.Reflection
     {
       var type = typeof(T);
 
-      if (useCaching && AssemblyManager.Types.ContainsKey(type))
-        return AssemblyManager.Types[type];
+      if (useCaching && AssemblyManager.TryGetTypes(type, out var cachedTypes))
+        return cachedTypes;
 
       List<Type> implementations = [];
 
@@ -79,7 +79,7 @@ namespace Merchello.Core.Shared.Reflection
             implementations.Add(exportedType);
 
       if (useCaching)
-        AssemblyManager.Types[type] = implementations;
+        AssemblyManager.CacheTypes(type, implementations);
 
       return implementations;
     }
