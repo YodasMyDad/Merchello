@@ -1,26 +1,25 @@
 using Merchello.Core.Accounting.Models;
-using Merchello.Core.Data;
-using Merchello.Core.Products.Factories;
+using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Warehouses.Models;
 
 namespace Merchello.Core.Products.ExtensionMethods;
 
 /// <summary>
-/// Extension methods for database seeding - helps create products with variants
+/// Extension methods for database seeding - helps create products with variants.
+/// Uses ProductService methods to ensure consistency with application behavior.
 /// </summary>
 public static class ProductServiceDbSeedExtensions
 {
     /// <summary>
     /// Creates a product root with auto-generated variants from colors and sizes.
-    /// This is a helper method specifically for database seeding scenarios.
-    /// Adds the product to the context but does NOT save - caller must call SaveChangesAsync.
+    /// Uses ProductService methods internally to ensure proper variant key generation.
     /// </summary>
-    public static CrudResult<ProductRoot> CreateProductRootWithVariants(
-        this MerchelloDbContext context,
-        ProductFactory productFactory,
+    public static async Task<CrudResult<ProductRoot>> CreateProductRootWithVariantsAsync(
+        this IProductService productService,
         string name,
         string? description,
         decimal price,
@@ -28,152 +27,178 @@ public static class ProductServiceDbSeedExtensions
         ProductType productType,
         List<ProductCategory>? categories = null,
         decimal? weight = null,
-        List<string>? images = null,
         List<string>? sellingPoints = null,
         string? googleShoppingCategory = null,
         string[]? colors = null,
         string[]? sizes = null,
-        List<ProductFilter>? colorFilters = null,
-        List<ProductFilter>? sizeFilters = null,
         List<(Warehouse warehouse, int priority)>? warehouses = null,
         List<(int warehouseIndex, int minStock, int maxStock, bool trackStock)>? warehouseStockRanges = null,
-        decimal costOfGoodsPercentage = 0.4m)
+        decimal costOfGoodsPercentage = 0.4m,
+        CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<ProductRoot>();
         var random = new Random(42); // Fixed seed for reproducibility
+        var costOfGoods = Math.Round(price * costOfGoodsPercentage, 2, MidpointRounding.AwayFromZero);
 
-        // Create product root
-        var productRoot = new ProductRoot
+        // Step 1: Create product root with default variant
+        // ProductService handles RootUrl generation via SlugHelper
+        var createRequest = new CreateProductRootRequest
         {
-            Id = Guid.NewGuid(),
             RootName = name,
-            RootUrl = name.ToLower().Replace(" ", "-"),
-            TaxGroup = taxGroup,
             TaxGroupId = taxGroup.Id,
-            ProductType = productType,
             ProductTypeId = productType.Id,
-            RootImages = images ?? [],
-            SellingPoints = sellingPoints ?? [],
-            GoogleShoppingFeedCategory = googleShoppingCategory,
-            DefaultPackageConfigurations = weight.HasValue
-                ? [new ProductPackage { Weight = weight.Value }]
-                : []
+            CategoryIds = categories?.Select(c => c.Id).ToList(),
+            WarehouseIds = warehouses?.Select(w => w.warehouse.Id).ToList(),
+            IsDigitalProduct = false,
+            DefaultVariant = new CreateVariantRequest
+            {
+                Name = name,
+                Price = price,
+                CostOfGoods = costOfGoods,
+                AvailableForPurchase = true,
+                CanPurchase = true
+            }
         };
 
-        // Add categories
-        if (categories != null)
+        var createResult = await productService.CreateProductRoot(createRequest, cancellationToken);
+        if (!createResult.Successful || createResult.ResultObject == null)
         {
-            foreach (var category in categories)
-            {
-                productRoot.Categories.Add(category);
-            }
+            CopyErrorMessages(createResult, result);
+            return result;
         }
 
-        // Create product options if colors/sizes specified
-        if (colors != null && colors.Length > 0)
+        var productRootId = createResult.ResultObject.Id;
+
+        // Step 2: Update product root with additional fields (RootUrl already set by CreateProductRoot)
+        var updateRequest = new UpdateProductRootRequest
         {
-            var colorOption = new ProductOption
-            {
-                Id = Guid.NewGuid(),
-                Name = "Color",
-                Alias = "color",
-                SortOrder = 1,
-                OptionTypeAlias = "color",
-                OptionUiAlias = "dropdown",
-                ProductOptionValues = colors.Select((c, i) => new ProductOptionValue
-                {
-                    Id = Guid.NewGuid(),
-                    Name = c,
-                    FullName = c,
-                    SortOrder = i
-                }).ToList()
-            };
-            productRoot.ProductOptions.Add(colorOption);
+            SellingPoints = sellingPoints,
+            GoogleShoppingFeedCategory = googleShoppingCategory,
+            Description = description,
+            DefaultPackageConfigurations = weight.HasValue
+                ? [new ProductPackageDto { Weight = weight.Value }]
+                : null
+        };
+
+        var updateResult = await productService.UpdateProductRoot(productRootId, updateRequest, cancellationToken);
+        if (!updateResult.Successful)
+        {
+            CopyErrorMessages(updateResult, result);
+            return result;
         }
 
-        if (sizes != null && sizes.Length > 0)
-        {
-            var sizeOption = new ProductOption
-            {
-                Id = Guid.NewGuid(),
-                Name = "Size",
-                Alias = "size",
-                SortOrder = 2,
-                OptionTypeAlias = "size",
-                OptionUiAlias = "dropdown",
-                ProductOptionValues = sizes.Select((s, i) => new ProductOptionValue
-                {
-                    Id = Guid.NewGuid(),
-                    Name = s,
-                    FullName = s,
-                    SortOrder = i
-                }).ToList()
-            };
-            productRoot.ProductOptions.Add(sizeOption);
-        }
+        // Step 3: Add product options if colors/sizes specified
+        var hasOptions = (colors != null && colors.Length > 0) || (sizes != null && sizes.Length > 0);
 
-        // Add warehouse associations
-        if (warehouses != null)
+        if (hasOptions)
         {
-            foreach (var (warehouse, priority) in warehouses)
+            var options = new List<SaveProductOptionRequest>();
+
+            if (colors != null && colors.Length > 0)
             {
-                productRoot.ProductRootWarehouses.Add(new ProductRootWarehouse
+                options.Add(new SaveProductOptionRequest
                 {
-                    ProductRootId = productRoot.Id,
-                    WarehouseId = warehouse.Id,
-                    PriorityOrder = priority
+                    Name = "Color",
+                    Alias = "color",
+                    SortOrder = 1,
+                    OptionTypeAlias = "color",
+                    OptionUiAlias = "dropdown",
+                    IsVariant = true,
+                    Values = colors.Select((c, i) => new SaveOptionValueRequest
+                    {
+                        Name = c,
+                        FullName = c,
+                        SortOrder = i
+                    }).ToList()
                 });
             }
-        }
 
-        // Generate variants
-        var costOfGoods = price * costOfGoodsPercentage;
-        var colorArray = colors ?? ["Default"];
-        var sizeArray = sizes ?? ["Default"];
-        var variantIndex = 0;
-
-        foreach (var color in colorArray)
-        {
-            foreach (var size in sizeArray)
+            if (sizes != null && sizes.Length > 0)
             {
-                var variantName = BuildVariantName(name, color, size);
-                var variantKey = (color != "Default" || size != "Default")
-                    ? $"{color.ToLower()}-{size.ToLower()}"
-                    : null;
-                var sku = GenerateSku(name, color, size);
-
-                var product = productFactory.Create(
-                    productRoot,
-                    variantName,
-                    price,
-                    costOfGoods,
-                    string.Empty, // gtin
-                    sku,
-                    variantIndex == 0, // isDefault
-                    variantKey
-                );
-
-                product.AvailableForPurchase = true;
-                product.Images = [$"https://prd.place/600/800?seed={product.Id}"];
-                // Packages are inherited from ProductRoot.DefaultPackageConfigurations
-
-                // Add filters
-                if (color != "Default" && colorFilters != null)
+                options.Add(new SaveProductOptionRequest
                 {
-                    var colorFilter = colorFilters.FirstOrDefault(f => f.Name == color);
-                    if (colorFilter != null)
-                        product.Filters.Add(colorFilter);
+                    Name = "Size",
+                    Alias = "size",
+                    SortOrder = 2,
+                    OptionTypeAlias = "size",
+                    OptionUiAlias = "dropdown",
+                    IsVariant = true,
+                    Values = sizes.Select((s, i) => new SaveOptionValueRequest
+                    {
+                        Name = s,
+                        FullName = s,
+                        SortOrder = i
+                    }).ToList()
+                });
+            }
+
+            var optionsResult = await productService.SaveProductOptions(productRootId, options, cancellationToken);
+            if (!optionsResult.Successful)
+            {
+                CopyErrorMessages(optionsResult, result);
+                return result;
+            }
+
+            // Step 4: Generate variants from options
+            // ProductService handles SKU generation for each variant
+            var variantsResult = await productService.GenerateVariantsFromOptions(
+                productRootId, price, costOfGoods, cancellationToken);
+            if (!variantsResult.Successful || variantsResult.ResultObject == null)
+            {
+                CopyErrorMessages(variantsResult, result);
+                return result;
+            }
+
+            // Step 5: Update variants with images and stock
+            var variants = variantsResult.ResultObject;
+            var productRoot = await productService.GetProductRoot(productRootId, includeProducts: true, cancellationToken: cancellationToken);
+
+            if (productRoot != null)
+            {
+                foreach (var variant in variants)
+                {
+                    // Update variant with image (SKU already set by ProductService)
+                    await productService.UpdateVariant(productRootId, variant.Id, new UpdateVariantRequest
+                    {
+                        Images = [Guid.NewGuid()], // Placeholder - real seeding would use actual media keys
+                        AvailableForPurchase = true
+                    }, cancellationToken);
+
+                    // Update stock for each warehouse
+                    if (warehouses != null && warehouseStockRanges != null)
+                    {
+                        foreach (var (warehouseIndex, minStock, maxStock, trackStock) in warehouseStockRanges)
+                        {
+                            if (warehouseIndex < warehouses.Count)
+                            {
+                                var warehouse = warehouses[warehouseIndex].warehouse;
+                                var stock = random.Next(minStock, maxStock + 1);
+                                var reorderPoint = trackStock ? Math.Max(5, (int)(maxStock * 0.25)) : (int?)null;
+
+                                await productService.UpdateVariantStock(
+                                    variant.Id,
+                                    warehouse.Id,
+                                    stock,
+                                    reorderPoint,
+                                    trackStock,
+                                    cancellationToken);
+                            }
+                        }
+                    }
                 }
 
-                if (size != "Default" && sizeFilters != null)
-                {
-                    var sizeFilter = sizeFilters.FirstOrDefault(f => f.Name == size);
-                    if (sizeFilter != null)
-                        product.Filters.Add(sizeFilter);
-                }
+                result.ResultObject = productRoot;
+            }
+        }
+        else
+        {
+            // No options - just update the default variant with stock
+            var productRoot = await productService.GetProductRoot(productRootId, includeProducts: true, cancellationToken: cancellationToken);
 
-                // Add stock for each warehouse
-                if (warehouses != null && warehouseStockRanges != null)
+            if (productRoot != null)
+            {
+                var defaultVariant = productRoot.Products.FirstOrDefault();
+                if (defaultVariant != null && warehouses != null && warehouseStockRanges != null)
                 {
                     foreach (var (warehouseIndex, minStock, maxStock, trackStock) in warehouseStockRanges)
                     {
@@ -183,56 +208,29 @@ public static class ProductServiceDbSeedExtensions
                             var stock = random.Next(minStock, maxStock + 1);
                             var reorderPoint = trackStock ? Math.Max(5, (int)(maxStock * 0.25)) : (int?)null;
 
-                            var productWarehouse = new ProductWarehouse
-                            {
-                                ProductId = product.Id,
-                                WarehouseId = warehouse.Id,
-                                Stock = stock,
-                                TrackStock = trackStock,
-                                ReorderPoint = reorderPoint,
-                                ReorderQuantity = trackStock ? (maxStock - minStock) : null
-                            };
-
-                            product.ProductWarehouses.Add(productWarehouse);
-                            // Explicitly add to context to ensure EF Core tracks it
-                            context.ProductWarehouses.Add(productWarehouse);
+                            await productService.UpdateVariantStock(
+                                defaultVariant.Id,
+                                warehouse.Id,
+                                stock,
+                                reorderPoint,
+                                trackStock,
+                                cancellationToken);
                         }
                     }
                 }
 
-                productRoot.Products.Add(product);
-                variantIndex++;
+                result.ResultObject = productRoot;
             }
         }
-
-        // Add to context (caller must call SaveChangesAsync)
-        context.RootProducts.Add(productRoot);
-
-        result.ResultObject = productRoot;
 
         return result;
     }
 
-    private static string BuildVariantName(string rootName, string color, string size)
+    private static void CopyErrorMessages<TSource, TDest>(CrudResult<TSource> source, CrudResult<TDest> dest)
     {
-        List<string> parts = [rootName];
-        if (color != "Default") parts.Add(color);
-        if (size != "Default") parts.Add(size);
-        return string.Join(" - ", parts);
-    }
-
-    private static string GenerateSku(string rootName, string color, string size)
-    {
-        var prefix = rootName.Substring(0, Math.Min(3, rootName.Length)).ToUpper();
-        List<string> parts = ["PRD", prefix];
-
-        if (color != "Default")
-            parts.Add(color.Substring(0, Math.Min(3, color.Length)).ToUpper());
-
-        if (size != "Default")
-            parts.Add(size.ToUpper());
-
-        return string.Join("-", parts);
+        foreach (var errorMessage in source.Messages.ErrorMessages())
+        {
+            dest.AddErrorMessage(errorMessage.Message ?? "Unknown error");
+        }
     }
 }
-

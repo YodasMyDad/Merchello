@@ -1,283 +1,197 @@
-import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
-import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
-import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
-import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
-import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
-import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
-import type { MerchelloProductDetailWorkspaceContext } from "@products/contexts/product-detail-workspace.context.js";
-import type { ProductRootDetailDto, ProductVariantDto, ProductPackageDto, UpdateVariantRequest } from "@products/types/product.types.js";
-import { MerchelloApi } from "@api/merchello-api.js";
-import { badgeStyles } from "@shared/styles/badge.styles.js";
-import { getProductDetailHref } from "@shared/utils/navigation.js";
-import "@products/components/shared/variant-basic-info.element.js";
-import "@products/components/shared/variant-feed-settings.element.js";
-import "@products/components/shared/variant-stock-display.element.js";
-
-@customElement("merchello-variant-detail")
-export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
-  @state() private _product: ProductRootDetailDto | null = null;
-  @state() private _variant: ProductVariantDto | null = null;
-  @state() private _isLoading = true;
-  @state() private _isSaving = false;
-  @state() private _errorMessage: string | null = null;
-
-  // Tab routing state
-  @state() private _routes: UmbRoute[] = [];
-  @state() private _routerPath?: string;
-  @state() private _activePath = "";
-
-  // Form state - copy of variant data for editing
-  @state() private _formData: Partial<ProductVariantDto> = {};
-
-  #workspaceContext?: MerchelloProductDetailWorkspaceContext;
-  #notificationContext?: UmbNotificationContext;
-  #variantId: string | undefined;
-  #isConnected = false;
-
+import { LitElement as P, html as r, nothing as l, css as C, state as c, customElement as $ } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as D } from "@umbraco-cms/backoffice/element-api";
+import { UMB_WORKSPACE_CONTEXT as x } from "@umbraco-cms/backoffice/workspace";
+import { UMB_NOTIFICATION_CONTEXT as w } from "@umbraco-cms/backoffice/notification";
+import { M as S } from "./merchello-api-gshzVGsw.js";
+import { b as z } from "./badge.styles-C_lNgH9O.js";
+import { a as _ } from "./navigation-DnzDaPpA.js";
+import "./variant-stock-display.element-DB0dmWH_.js";
+var F = Object.defineProperty, T = Object.getOwnPropertyDescriptor, k = (a) => {
+  throw TypeError(a);
+}, u = (a, e, t, o) => {
+  for (var i = o > 1 ? void 0 : o ? T(e, t) : e, f = a.length - 1, b; f >= 0; f--)
+    (b = a[f]) && (i = (o ? b(e, t, i) : b(i)) || i);
+  return o && i && F(e, t, i), i;
+}, y = (a, e, t) => e.has(a) || k("Cannot " + t), n = (a, e, t) => (y(a, e, "read from private field"), e.get(a)), v = (a, e, t) => e.has(a) ? k("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(a) : e.set(a, t), g = (a, e, t, o) => (y(a, e, "write to private field"), e.set(a, t), t), d, p, m, h;
+let s = class extends D(P) {
   constructor() {
-    super();
-    this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
-      this.#workspaceContext = context as MerchelloProductDetailWorkspaceContext;
-      if (this.#workspaceContext) {
-        this.observe(this.#workspaceContext.product, (product) => {
-          this._product = product ?? null;
-          this._updateVariantFromProduct();
-        });
-        this.observe(this.#workspaceContext.variantId, (variantId) => {
-          this.#variantId = variantId;
-          this._updateVariantFromProduct();
-        });
-      }
-    });
-    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
-      this.#notificationContext = context;
+    super(), this._product = null, this._variant = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._routes = [], this._activePath = "", this._formData = {}, v(this, d), v(this, p), v(this, m), v(this, h, !1), this.consumeContext(x, (a) => {
+      g(this, d, a), n(this, d) && (this.observe(n(this, d).product, (e) => {
+        this._product = e ?? null, this._updateVariantFromProduct();
+      }), this.observe(n(this, d).variantId, (e) => {
+        g(this, m, e), this._updateVariantFromProduct();
+      }));
+    }), this.consumeContext(w, (a) => {
+      g(this, p, a);
     });
   }
-
-  connectedCallback(): void {
-    super.connectedCallback();
-    this.#isConnected = true;
-    this._createRoutes();
+  connectedCallback() {
+    super.connectedCallback(), g(this, h, !0), this._createRoutes();
   }
-
-  disconnectedCallback(): void {
-    super.disconnectedCallback();
-    this.#isConnected = false;
+  disconnectedCallback() {
+    super.disconnectedCallback(), g(this, h, !1);
   }
-
   /**
    * Updates variant data from the loaded product
    */
-  private _updateVariantFromProduct(): void {
-    if (!this._product || !this.#variantId) {
-      this._variant = null;
-      this._isLoading = true;
+  _updateVariantFromProduct() {
+    if (!this._product || !n(this, m)) {
+      this._variant = null, this._isLoading = !0;
       return;
     }
-
-    const variant = this._product.variants.find((v) => v.id === this.#variantId);
-    if (variant) {
-      this._variant = variant;
-      this._formData = { ...variant };
-      this._isLoading = false;
-    }
+    const a = this._product.variants.find((e) => e.id === n(this, m));
+    a && (this._variant = a, this._formData = { ...a }, this._isLoading = !1);
   }
-
   /**
    * Creates routes for tab navigation.
    * The router-slot is hidden via CSS - we use it purely for URL tracking.
    */
-  private _createRoutes(): void {
-    const stubComponent = (): HTMLElement => document.createElement("div");
-
+  _createRoutes() {
+    const a = () => document.createElement("div");
     this._routes = [
-      { path: "tab/basic", component: stubComponent },
-      { path: "tab/packages", component: stubComponent },
-      { path: "tab/feed", component: stubComponent },
-      { path: "tab/stock", component: stubComponent },
-      { path: "", redirectTo: "tab/basic" },
+      { path: "tab/basic", component: a },
+      { path: "tab/packages", component: a },
+      { path: "tab/feed", component: a },
+      { path: "tab/stock", component: a },
+      { path: "", redirectTo: "tab/basic" }
     ];
   }
-
   /**
    * Gets the currently active tab based on the route path
    */
-  private _getActiveTab(): "basic" | "packages" | "feed" | "stock" {
-    if (this._activePath.includes("tab/packages")) return "packages";
-    if (this._activePath.includes("tab/feed")) return "feed";
-    if (this._activePath.includes("tab/stock")) return "stock";
-    return "basic";
+  _getActiveTab() {
+    return this._activePath.includes("tab/packages") ? "packages" : this._activePath.includes("tab/feed") ? "feed" : this._activePath.includes("tab/stock") ? "stock" : "basic";
   }
-
-  private async _handleSave(): Promise<void> {
-    if (!this._product || !this._variant) return;
-
-    this._isSaving = true;
-    this._errorMessage = null;
-
-    try {
-      const request: UpdateVariantRequest = {
-        name: this._formData.name ?? undefined,
-        sku: this._formData.sku ?? undefined,
-        gtin: this._formData.gtin ?? undefined,
-        supplierSku: this._formData.supplierSku ?? undefined,
-        price: this._formData.price,
-        costOfGoods: this._formData.costOfGoods,
-        onSale: this._formData.onSale,
-        previousPrice: this._formData.previousPrice ?? undefined,
-        availableForPurchase: this._formData.availableForPurchase,
-        canPurchase: this._formData.canPurchase,
-        images: this._formData.images,
-        excludeRootProductImages: this._formData.excludeRootProductImages,
-        url: this._formData.url ?? undefined,
-        hsCode: this._formData.hsCode ?? undefined,
-        packageConfigurations: this._formData.packageConfigurations,
-        shoppingFeedTitle: this._formData.shoppingFeedTitle ?? undefined,
-        shoppingFeedDescription: this._formData.shoppingFeedDescription ?? undefined,
-        shoppingFeedColour: this._formData.shoppingFeedColour ?? undefined,
-        shoppingFeedMaterial: this._formData.shoppingFeedMaterial ?? undefined,
-        shoppingFeedSize: this._formData.shoppingFeedSize ?? undefined,
-        removeFromFeed: this._formData.removeFromFeed,
-      };
-
-      const { error } = await MerchelloApi.updateVariant(this._product.id, this._variant.id, request);
-
-      if (!this.#isConnected) return;
-
-      if (error) {
-        this._errorMessage = error.message;
-        this.#notificationContext?.peek("danger", { data: { headline: "Failed to save variant", message: error.message } });
-        return;
+  async _handleSave() {
+    if (!(!this._product || !this._variant)) {
+      this._isSaving = !0, this._errorMessage = null;
+      try {
+        const a = {
+          name: this._formData.name ?? void 0,
+          sku: this._formData.sku ?? void 0,
+          gtin: this._formData.gtin ?? void 0,
+          supplierSku: this._formData.supplierSku ?? void 0,
+          price: this._formData.price,
+          costOfGoods: this._formData.costOfGoods,
+          onSale: this._formData.onSale,
+          previousPrice: this._formData.previousPrice ?? void 0,
+          availableForPurchase: this._formData.availableForPurchase,
+          canPurchase: this._formData.canPurchase,
+          images: this._formData.images,
+          excludeRootProductImages: this._formData.excludeRootProductImages,
+          url: this._formData.url ?? void 0,
+          hsCode: this._formData.hsCode ?? void 0,
+          packageConfigurations: this._formData.packageConfigurations,
+          shoppingFeedTitle: this._formData.shoppingFeedTitle ?? void 0,
+          shoppingFeedDescription: this._formData.shoppingFeedDescription ?? void 0,
+          shoppingFeedColour: this._formData.shoppingFeedColour ?? void 0,
+          shoppingFeedMaterial: this._formData.shoppingFeedMaterial ?? void 0,
+          shoppingFeedSize: this._formData.shoppingFeedSize ?? void 0,
+          removeFromFeed: this._formData.removeFromFeed
+        }, { error: e } = await S.updateVariant(this._product.id, this._variant.id, a);
+        if (!n(this, h)) return;
+        if (e) {
+          this._errorMessage = e.message, n(this, p)?.peek("danger", { data: { headline: "Failed to save variant", message: e.message } });
+          return;
+        }
+        n(this, p)?.peek("positive", { data: { headline: "Variant saved", message: "Changes have been saved successfully" } }), n(this, d)?.reload();
+      } catch (a) {
+        if (!n(this, h)) return;
+        this._errorMessage = a instanceof Error ? a.message : "An unexpected error occurred", n(this, p)?.peek("danger", { data: { headline: "Error", message: this._errorMessage } }), console.error("Variant save failed:", a);
+      } finally {
+        this._isSaving = !1;
       }
-
-      this.#notificationContext?.peek("positive", { data: { headline: "Variant saved", message: "Changes have been saved successfully" } });
-
-      // Reload the product to get updated variant data
-      this.#workspaceContext?.reload();
-    } catch (error) {
-      if (!this.#isConnected) return;
-      this._errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
-      this.#notificationContext?.peek("danger", { data: { headline: "Error", message: this._errorMessage } });
-      console.error("Variant save failed:", error);
-    } finally {
-      this._isSaving = false;
     }
   }
-
-  private _renderTabs(): unknown {
-    const activeTab = this._getActiveTab();
-
-    return html`
+  _renderTabs() {
+    const a = this._getActiveTab();
+    return r`
       <uui-tab-group slot="header">
-        <uui-tab label="Basic Info" href="${this._routerPath}/tab/basic" ?active=${activeTab === "basic"}>
+        <uui-tab label="Basic Info" href="${this._routerPath}/tab/basic" ?active=${a === "basic"}>
           Basic Info
         </uui-tab>
-        <uui-tab label="Shipping Packages" href="${this._routerPath}/tab/packages" ?active=${activeTab === "packages"}>
+        <uui-tab label="Shipping Packages" href="${this._routerPath}/tab/packages" ?active=${a === "packages"}>
           Shipping Packages
         </uui-tab>
-        <uui-tab label="Shopping Feed" href="${this._routerPath}/tab/feed" ?active=${activeTab === "feed"}>
+        <uui-tab label="Shopping Feed" href="${this._routerPath}/tab/feed" ?active=${a === "feed"}>
           Shopping Feed
         </uui-tab>
-        <uui-tab label="Stock" href="${this._routerPath}/tab/stock" ?active=${activeTab === "stock"}>
+        <uui-tab label="Stock" href="${this._routerPath}/tab/stock" ?active=${a === "stock"}>
           Stock
         </uui-tab>
       </uui-tab-group>
     `;
   }
-
-  private _renderBasicTab(): unknown {
-    return html`
+  _renderBasicTab() {
+    return r`
       <div class="tab-content">
-        ${this._errorMessage
-          ? html`
+        ${this._errorMessage ? r`
               <uui-box class="error-box">
                 <div class="error-message">
                   <uui-icon name="icon-alert"></uui-icon>
                   <span>${this._errorMessage}</span>
                 </div>
               </uui-box>
-            `
-          : nothing}
+            ` : l}
 
         <merchello-variant-basic-info
           .formData=${this._formData}
-          .showVariantName=${true}
-          @variant-change=${(e: CustomEvent) => (this._formData = e.detail)}>
+          .showVariantName=${!0}
+          @variant-change=${(a) => this._formData = a.detail}>
         </merchello-variant-basic-info>
       </div>
     `;
   }
-
   /**
    * Check if variant is overriding root packages
    */
-  private _isOverridingPackages(): boolean {
+  _isOverridingPackages() {
     return (this._formData.packageConfigurations?.length ?? 0) > 0;
   }
-
   /**
    * Get effective packages - variant's own or inherited from root
    */
-  private _getEffectivePackages(): ProductPackageDto[] {
-    if (this._isOverridingPackages()) {
-      return this._formData.packageConfigurations ?? [];
-    }
-    return this._product?.defaultPackageConfigurations ?? [];
+  _getEffectivePackages() {
+    return this._isOverridingPackages() ? this._formData.packageConfigurations ?? [] : this._product?.defaultPackageConfigurations ?? [];
   }
-
   /**
    * Toggle package override mode
    */
-  private _togglePackageOverride(): void {
-    if (this._isOverridingPackages()) {
-      // Clear variant packages to inherit from root
+  _togglePackageOverride() {
+    if (this._isOverridingPackages())
       this._formData = { ...this._formData, packageConfigurations: [] };
-    } else {
-      // Copy root packages to variant for editing
-      const rootPackages = this._product?.defaultPackageConfigurations ?? [];
+    else {
+      const a = this._product?.defaultPackageConfigurations ?? [];
       this._formData = {
         ...this._formData,
-        packageConfigurations: rootPackages.length > 0
-          ? rootPackages.map((p) => ({ ...p }))
-          : [{ weight: 0, lengthCm: null, widthCm: null, heightCm: null }],
+        packageConfigurations: a.length > 0 ? a.map((e) => ({ ...e })) : [{ weight: 0, lengthCm: null, widthCm: null, heightCm: null }]
       };
     }
   }
-
   /**
    * Add a new package
    */
-  private _addPackage(): void {
-    const packages = [...(this._formData.packageConfigurations ?? [])];
-    packages.push({ weight: 0, lengthCm: null, widthCm: null, heightCm: null });
-    this._formData = { ...this._formData, packageConfigurations: packages };
+  _addPackage() {
+    const a = [...this._formData.packageConfigurations ?? []];
+    a.push({ weight: 0, lengthCm: null, widthCm: null, heightCm: null }), this._formData = { ...this._formData, packageConfigurations: a };
   }
-
   /**
    * Remove a package by index
    */
-  private _removePackage(index: number): void {
-    const packages = [...(this._formData.packageConfigurations ?? [])];
-    packages.splice(index, 1);
-    this._formData = { ...this._formData, packageConfigurations: packages };
+  _removePackage(a) {
+    const e = [...this._formData.packageConfigurations ?? []];
+    e.splice(a, 1), this._formData = { ...this._formData, packageConfigurations: e };
   }
-
   /**
    * Update a package field
    */
-  private _updatePackage(index: number, field: keyof ProductPackageDto, value: number | null): void {
-    const packages = [...(this._formData.packageConfigurations ?? [])];
-    packages[index] = { ...packages[index], [field]: value };
-    this._formData = { ...this._formData, packageConfigurations: packages };
+  _updatePackage(a, e, t) {
+    const o = [...this._formData.packageConfigurations ?? []];
+    o[a] = { ...o[a], [e]: t }, this._formData = { ...this._formData, packageConfigurations: o };
   }
-
-  private _renderPackagesTab(): unknown {
-    const isOverriding = this._isOverridingPackages();
-    const effectivePackages = this._getEffectivePackages();
-    const hasRootPackages = (this._product?.defaultPackageConfigurations?.length ?? 0) > 0;
-
-    return html`
+  _renderPackagesTab() {
+    const a = this._isOverridingPackages(), e = this._getEffectivePackages(), t = (this._product?.defaultPackageConfigurations?.length ?? 0) > 0;
+    return r`
       <div class="tab-content">
         <uui-box class="info-banner">
           <div class="info-content">
@@ -289,39 +203,33 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
           </div>
         </uui-box>
 
-        ${hasRootPackages
-          ? html`
+        ${t ? r`
               <uui-box headline="Package Settings">
                 <umb-property-layout
                   label="Override Product Packages"
                   description="By default, this variant inherits packages from the product. Enable to define variant-specific packages.">
                   <uui-toggle
                     slot="editor"
-                    .checked=${isOverriding}
+                    .checked=${a}
                     @change=${() => this._togglePackageOverride()}>
                   </uui-toggle>
                 </umb-property-layout>
               </uui-box>
-            `
-          : nothing}
+            ` : l}
 
-        <uui-box headline=${isOverriding ? "Variant Packages" : hasRootPackages ? "Inherited from Product" : "Packages"}>
-          ${!isOverriding && hasRootPackages
-            ? html`
+        <uui-box headline=${a ? "Variant Packages" : t ? "Inherited from Product" : "Packages"}>
+          ${!a && t ? r`
                 <div class="inherited-notice">
                   <uui-icon name="icon-link"></uui-icon>
                   <span>These packages are inherited from the product. Enable override above to customize.</span>
                 </div>
-              `
-            : nothing}
+              ` : l}
 
-          ${effectivePackages.length > 0
-            ? html`
+          ${e.length > 0 ? r`
                 <div class="packages-list">
-                  ${effectivePackages.map((pkg, index) => this._renderPackageCard(pkg, index, isOverriding))}
+                  ${e.map((o, i) => this._renderPackageCard(o, i, a))}
                 </div>
-              `
-            : html`
+              ` : r`
                 <div class="empty-state">
                   <uui-icon name="icon-box"></uui-icon>
                   <p>No packages configured</p>
@@ -329,8 +237,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
                 </div>
               `}
 
-          ${isOverriding || !hasRootPackages
-            ? html`
+          ${a || !t ? r`
                 <uui-button
                   look="placeholder"
                   class="add-package-button"
@@ -338,49 +245,23 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
                   <uui-icon name="icon-add"></uui-icon>
                   Add Package
                 </uui-button>
-              `
-            : nothing}
+              ` : l}
         </uui-box>
       </div>
     `;
   }
-
-  private _renderPackageCard(pkg: ProductPackageDto, index: number, editable: boolean): unknown {
-    const dimensionText = pkg.lengthCm && pkg.widthCm && pkg.heightCm
-      ? `${pkg.lengthCm} × ${pkg.widthCm} × ${pkg.heightCm} cm`
-      : "No dimensions";
-
-    if (!editable) {
-      return html`
-        <div class="package-card readonly">
-          <div class="package-header">
-            <span class="package-number">Package ${index + 1}</span>
-            <span class="badge badge-muted">Inherited</span>
-          </div>
-          <div class="package-details">
-            <div class="package-stat">
-              <span class="label">Weight</span>
-              <span class="value">${pkg.weight} kg</span>
-            </div>
-            <div class="package-stat">
-              <span class="label">Dimensions</span>
-              <span class="value">${dimensionText}</span>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    return html`
+  _renderPackageCard(a, e, t) {
+    const o = a.lengthCm && a.widthCm && a.heightCm ? `${a.lengthCm} × ${a.widthCm} × ${a.heightCm} cm` : "No dimensions";
+    return t ? r`
       <div class="package-card">
         <div class="package-header">
-          <span class="package-number">Package ${index + 1}</span>
+          <span class="package-number">Package ${e + 1}</span>
           <uui-button
             compact
             look="secondary"
             color="danger"
             label="Remove package"
-            @click=${() => this._removePackage(index)}>
+            @click=${() => this._removePackage(e)}>
             <uui-icon name="icon-trash"></uui-icon>
           </uui-button>
         </div>
@@ -391,8 +272,8 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
               type="number"
               step="0.01"
               min="0"
-              .value=${String(pkg.weight ?? "")}
-              @input=${(e: Event) => this._updatePackage(index, "weight", parseFloat((e.target as HTMLInputElement).value) || 0)}
+              .value=${String(a.weight ?? "")}
+              @input=${(i) => this._updatePackage(e, "weight", parseFloat(i.target.value) || 0)}
               placeholder="0.50">
             </uui-input>
           </div>
@@ -402,8 +283,8 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
               type="number"
               step="0.1"
               min="0"
-              .value=${String(pkg.lengthCm ?? "")}
-              @input=${(e: Event) => this._updatePackage(index, "lengthCm", parseFloat((e.target as HTMLInputElement).value) || null)}
+              .value=${String(a.lengthCm ?? "")}
+              @input=${(i) => this._updatePackage(e, "lengthCm", parseFloat(i.target.value) || null)}
               placeholder="20">
             </uui-input>
           </div>
@@ -413,8 +294,8 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
               type="number"
               step="0.1"
               min="0"
-              .value=${String(pkg.widthCm ?? "")}
-              @input=${(e: Event) => this._updatePackage(index, "widthCm", parseFloat((e.target as HTMLInputElement).value) || null)}
+              .value=${String(a.widthCm ?? "")}
+              @input=${(i) => this._updatePackage(e, "widthCm", parseFloat(i.target.value) || null)}
               placeholder="15">
             </uui-input>
           </div>
@@ -424,29 +305,44 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
               type="number"
               step="0.1"
               min="0"
-              .value=${String(pkg.heightCm ?? "")}
-              @input=${(e: Event) => this._updatePackage(index, "heightCm", parseFloat((e.target as HTMLInputElement).value) || null)}
+              .value=${String(a.heightCm ?? "")}
+              @input=${(i) => this._updatePackage(e, "heightCm", parseFloat(i.target.value) || null)}
               placeholder="10">
             </uui-input>
           </div>
         </div>
       </div>
-    `;
+    ` : r`
+        <div class="package-card readonly">
+          <div class="package-header">
+            <span class="package-number">Package ${e + 1}</span>
+            <span class="badge badge-muted">Inherited</span>
+          </div>
+          <div class="package-details">
+            <div class="package-stat">
+              <span class="label">Weight</span>
+              <span class="value">${a.weight} kg</span>
+            </div>
+            <div class="package-stat">
+              <span class="label">Dimensions</span>
+              <span class="value">${o}</span>
+            </div>
+          </div>
+        </div>
+      `;
   }
-
-  private _renderFeedTab(): unknown {
-    return html`
+  _renderFeedTab() {
+    return r`
       <div class="tab-content">
         <merchello-variant-feed-settings
           .formData=${this._formData}
-          @variant-change=${(e: CustomEvent) => (this._formData = e.detail)}>
+          @variant-change=${(a) => this._formData = a.detail}>
         </merchello-variant-feed-settings>
       </div>
     `;
   }
-
-  private _renderStockTab(): unknown {
-    return html`
+  _renderStockTab() {
+    return r`
       <div class="tab-content">
         <merchello-variant-stock-display
           .warehouseStock=${this._formData.warehouseStock ?? []}>
@@ -454,13 +350,12 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       </div>
     `;
   }
-
-  private _renderFooter(): unknown {
-    return html`
+  _renderFooter() {
+    return r`
       <umb-footer-layout slot="footer">
         <!-- Breadcrumb in default slot -->
         <uui-breadcrumbs>
-          <uui-breadcrumb-item href=${getProductDetailHref(this._product?.id || "")}>
+          <uui-breadcrumb-item href=${_(this._product?.id || "")}>
             ${this._product?.rootName || "Product"}
           </uui-breadcrumb-item>
           <uui-breadcrumb-item>
@@ -481,39 +376,32 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       </umb-footer-layout>
     `;
   }
-
   /**
    * Handles router slot initialization
    */
-  private _onRouterInit(event: UmbRouterSlotInitEvent): void {
-    this._routerPath = event.target.absoluteRouterPath;
+  _onRouterInit(a) {
+    this._routerPath = a.target.absoluteRouterPath;
   }
-
   /**
    * Handles router slot path changes
    */
-  private _onRouterChange(event: UmbRouterSlotChangeEvent): void {
-    this._activePath = event.target.localActiveViewPath || "";
+  _onRouterChange(a) {
+    this._activePath = a.target.localActiveViewPath || "";
   }
-
   render() {
-    if (this._isLoading) {
-      return html`
+    if (this._isLoading)
+      return r`
         <umb-body-layout header-fit-height>
           <div class="loading">
             <uui-loader></uui-loader>
           </div>
         </umb-body-layout>
       `;
-    }
-
-    const activeTab = this._getActiveTab();
-    const backHref = this._product?.id ? getProductDetailHref(this._product.id) : "";
-
-    return html`
+    const a = this._getActiveTab(), e = this._product?.id ? _(this._product.id) : "";
+    return r`
       <umb-body-layout header-fit-height main-no-padding>
         <!-- Header: back button + icon + name input -->
-        <uui-button slot="header" compact href=${backHref} label="Back to Product" class="back-button">
+        <uui-button slot="header" compact href=${e} label="Back to Product" class="back-button">
           <uui-icon name="icon-arrow-left"></uui-icon>
         </uui-button>
 
@@ -522,7 +410,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
           <uui-input
             id="name-input"
             .value=${this._formData.name || ""}
-            @input=${(e: Event) => (this._formData = { ...this._formData, name: (e.target as HTMLInputElement).value })}
+            @input=${(t) => this._formData = { ...this._formData, name: t.target.value }}
             placeholder="Variant name"
             aria-label="Variant name">
           </uui-input>
@@ -538,10 +426,10 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
             @change=${this._onRouterChange}>
           </umb-router-slot>
 
-          ${activeTab === "basic" ? this._renderBasicTab() : nothing}
-          ${activeTab === "packages" ? this._renderPackagesTab() : nothing}
-          ${activeTab === "feed" ? this._renderFeedTab() : nothing}
-          ${activeTab === "stock" ? this._renderStockTab() : nothing}
+          ${a === "basic" ? this._renderBasicTab() : l}
+          ${a === "packages" ? this._renderPackagesTab() : l}
+          ${a === "feed" ? this._renderFeedTab() : l}
+          ${a === "stock" ? this._renderStockTab() : l}
         </umb-body-layout>
 
         <!-- Footer with breadcrumb + save button -->
@@ -549,10 +437,14 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       </umb-body-layout>
     `;
   }
-
-  static styles = [
-    badgeStyles,
-    css`
+};
+d = /* @__PURE__ */ new WeakMap();
+p = /* @__PURE__ */ new WeakMap();
+m = /* @__PURE__ */ new WeakMap();
+h = /* @__PURE__ */ new WeakMap();
+s.styles = [
+  z,
+  C`
       :host {
         display: block;
         width: 100%;
@@ -820,14 +712,41 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
         background: var(--uui-color-surface-emphasis);
         color: var(--uui-color-text-alt);
       }
-    `,
-  ];
-}
-
-export default MerchelloVariantDetailElement;
-
-declare global {
-  interface HTMLElementTagNameMap {
-    "merchello-variant-detail": MerchelloVariantDetailElement;
-  }
-}
+    `
+];
+u([
+  c()
+], s.prototype, "_product", 2);
+u([
+  c()
+], s.prototype, "_variant", 2);
+u([
+  c()
+], s.prototype, "_isLoading", 2);
+u([
+  c()
+], s.prototype, "_isSaving", 2);
+u([
+  c()
+], s.prototype, "_errorMessage", 2);
+u([
+  c()
+], s.prototype, "_routes", 2);
+u([
+  c()
+], s.prototype, "_routerPath", 2);
+u([
+  c()
+], s.prototype, "_activePath", 2);
+u([
+  c()
+], s.prototype, "_formData", 2);
+s = u([
+  $("merchello-variant-detail")
+], s);
+const W = s;
+export {
+  s as MerchelloVariantDetailElement,
+  W as default
+};
+//# sourceMappingURL=variant-detail.element-BjCWmPTk.js.map

@@ -27,6 +27,9 @@ import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { getProductsListHref, getVariantDetailHref } from "@shared/utils/navigation.js";
 import type { SelectOption } from "@shared/types/index.js";
 import "@shared/components/editable-text-list.element.js";
+import "@products/components/shared/variant-basic-info.element.js";
+import "@products/components/shared/variant-feed-settings.element.js";
+import "@products/components/shared/variant-stock-display.element.js";
 import { UmbDataTypeDetailRepository } from "@umbraco-cms/backoffice/data-type";
 import { UmbPropertyEditorConfigCollection } from "@umbraco-cms/backoffice/property-editor";
 import type { UmbPropertyEditorConfigCollection as UmbPropertyEditorConfigCollectionType } from "@umbraco-cms/backoffice/property-editor";
@@ -61,6 +64,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   // Description editor configuration from Umbraco DataType
   @state() private _descriptionEditorConfig: UmbPropertyEditorConfigCollectionType | undefined = undefined;
 
+  // Variant form state (for single-variant products)
+  @state() private _variantFormData: Partial<ProductVariantDto> = {};
+  @state() private _variantFieldErrors: Record<string, string> = {};
+
   // Umbraco DataType repository for loading editor configuration
   #dataTypeRepository = new UmbDataTypeDetailRepository(this);
   
@@ -78,6 +85,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           this._product = product ?? null;
           if (product) {
             this._formData = { ...product };
+            // For single-variant products, populate variant form data
+            if (product.variants.length === 1) {
+              this._variantFormData = { ...product.variants[0] };
+            }
           }
           this._isLoading = !product;
         });
@@ -233,6 +244,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         component: stubComponent,
       },
       {
+        path: "tab/basic-info",
+        component: stubComponent,
+      },
+      {
         path: "tab/media",
         component: stubComponent,
       },
@@ -242,6 +257,14 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       },
       {
         path: "tab/seo",
+        component: stubComponent,
+      },
+      {
+        path: "tab/feed",
+        component: stubComponent,
+      },
+      {
+        path: "tab/stock",
         component: stubComponent,
       },
       {
@@ -262,10 +285,13 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   /**
    * Gets the currently active tab based on the route path
    */
-  private _getActiveTab(): "details" | "media" | "shipping" | "seo" | "variants" | "options" {
+  private _getActiveTab(): "details" | "basic-info" | "media" | "shipping" | "seo" | "feed" | "stock" | "variants" | "options" {
+    if (this._activePath.includes("tab/basic-info")) return "basic-info";
     if (this._activePath.includes("tab/media")) return "media";
     if (this._activePath.includes("tab/shipping")) return "shipping";
     if (this._activePath.includes("tab/seo")) return "seo";
+    if (this._activePath.includes("tab/feed")) return "feed";
+    if (this._activePath.includes("tab/stock")) return "stock";
     if (this._activePath.includes("tab/variants")) return "variants";
     if (this._activePath.includes("tab/options")) return "options";
     return "details";
@@ -276,6 +302,21 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
    */
   private _hasDetailsErrors(): boolean {
     return !!(this._fieldErrors.rootName || this._fieldErrors.taxGroupId || this._fieldErrors.productTypeId || this._fieldErrors.warehouseIds);
+  }
+
+  /**
+   * Checks if this product has only one variant (simple product)
+   * Single-variant products show merged tabs instead of the Variants tab
+   */
+  private _isSingleVariant(): boolean {
+    return (this._product?.variants.length ?? 0) === 1;
+  }
+
+  /**
+   * Checks if there are validation errors on the basic info tab (single-variant mode)
+   */
+  private _hasBasicInfoErrors(): boolean {
+    return !!(this._variantFieldErrors.sku || this._variantFieldErrors.price);
   }
 
   /**
@@ -368,8 +409,9 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       rootImages: this._formData.rootImages,
       isDigitalProduct: this._formData.isDigitalProduct || false,
       defaultVariant: {
-        price: 0,
-        costOfGoods: 0,
+        sku: this._variantFormData.sku ?? undefined,
+        price: this._variantFormData.price ?? 0,
+        costOfGoods: this._variantFormData.costOfGoods ?? 0,
       },
     };
 
@@ -421,10 +463,50 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       return;
     }
 
+    // For single-variant products, also save variant data
+    if (this._isSingleVariant() && this._product.variants[0]) {
+      const variantError = await this._saveVariantData(this._product.id, this._product.variants[0].id);
+      if (variantError) {
+        this._errorMessage = variantError.message;
+        this.#notificationContext?.peek("danger", { data: { headline: "Failed to save variant data", message: variantError.message } });
+        return;
+      }
+    }
+
     if (data) {
-      this.#workspaceContext?.updateProduct(data);
+      // Reload to get updated variant data
+      await this.#workspaceContext?.reload();
       this.#notificationContext?.peek("positive", { data: { headline: "Product saved", message: "Changes have been saved successfully" } });
     }
+  }
+
+  /**
+   * Saves variant data for single-variant products
+   */
+  private async _saveVariantData(productId: string, variantId: string): Promise<Error | null> {
+    const request = {
+      sku: this._variantFormData.sku ?? undefined,
+      gtin: this._variantFormData.gtin ?? undefined,
+      supplierSku: this._variantFormData.supplierSku ?? undefined,
+      price: this._variantFormData.price,
+      costOfGoods: this._variantFormData.costOfGoods,
+      onSale: this._variantFormData.onSale,
+      previousPrice: this._variantFormData.previousPrice ?? undefined,
+      availableForPurchase: this._variantFormData.availableForPurchase,
+      canPurchase: this._variantFormData.canPurchase,
+      url: this._variantFormData.url ?? undefined,
+      hsCode: this._variantFormData.hsCode ?? undefined,
+      // Shopping feed
+      shoppingFeedTitle: this._variantFormData.shoppingFeedTitle ?? undefined,
+      shoppingFeedDescription: this._variantFormData.shoppingFeedDescription ?? undefined,
+      shoppingFeedColour: this._variantFormData.shoppingFeedColour ?? undefined,
+      shoppingFeedMaterial: this._variantFormData.shoppingFeedMaterial ?? undefined,
+      shoppingFeedSize: this._variantFormData.shoppingFeedSize ?? undefined,
+      removeFromFeed: this._variantFormData.removeFromFeed,
+    };
+
+    const { error } = await MerchelloApi.updateVariant(productId, variantId, request);
+    return error ?? null;
   }
 
   /**
@@ -433,8 +515,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   private _validateForm(): boolean {
     this._validationAttempted = true;
     this._fieldErrors = {};
+    this._variantFieldErrors = {};
     this._errorMessage = null;
 
+    // Product root validation
     if (!this._formData.rootName?.trim()) {
       this._fieldErrors.rootName = "Product name is required";
     }
@@ -448,11 +532,23 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       this._fieldErrors.warehouseIds = "At least one warehouse is required for physical products";
     }
 
-    const hasErrors = Object.keys(this._fieldErrors).length > 0;
-    if (hasErrors) {
+    // Variant validation for single-variant products
+    if (this._isSingleVariant()) {
+      if (!this._variantFormData.sku?.trim()) {
+        this._variantFieldErrors.sku = "SKU is required";
+      }
+      if ((this._variantFormData.price ?? 0) < 0) {
+        this._variantFieldErrors.price = "Price must be 0 or greater";
+      }
+    }
+
+    const hasProductErrors = Object.keys(this._fieldErrors).length > 0;
+    const hasVariantErrors = Object.keys(this._variantFieldErrors).length > 0;
+
+    if (hasProductErrors || hasVariantErrors) {
       this._errorMessage = "Please fix the errors below before saving";
     }
-    return !hasErrors;
+    return !hasProductErrors && !hasVariantErrors;
   }
 
   /**
@@ -475,6 +571,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   private _renderTabs(): unknown {
     const variantCount = this._product?.variants.length ?? 0;
     const optionCount = this._product?.productOptions.length ?? 0;
+    const isSingleVariant = this._isSingleVariant();
     const activeTab = this._getActiveTab();
     const detailsHint = this._getTabHint("details");
     const variantsHint = this._getTabHint("variants");
@@ -489,6 +586,18 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           Details
           ${detailsHint ? html`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : nothing}
         </uui-tab>
+
+        ${isSingleVariant
+          ? html`
+              <uui-tab
+                label="Basic Info"
+                href="${this._routerPath}/tab/basic-info"
+                ?active=${activeTab === "basic-info"}>
+                Basic Info
+                ${this._validationAttempted && this._hasBasicInfoErrors() ? html`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : nothing}
+              </uui-tab>
+            `
+          : nothing}
 
         <uui-tab
           label="Media"
@@ -514,6 +623,28 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           ?active=${activeTab === "seo"}>
           SEO
         </uui-tab>
+
+        ${isSingleVariant
+          ? html`
+              <uui-tab
+                label="Shopping Feed"
+                href="${this._routerPath}/tab/feed"
+                ?active=${activeTab === "feed"}>
+                Shopping Feed
+              </uui-tab>
+            `
+          : nothing}
+
+        ${isSingleVariant
+          ? html`
+              <uui-tab
+                label="Stock"
+                href="${this._routerPath}/tab/stock"
+                ?active=${activeTab === "stock"}>
+                Stock
+              </uui-tab>
+            `
+          : nothing}
 
         ${variantCount > 1
           ? html`
@@ -1175,6 +1306,48 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     }
   }
 
+  /**
+   * Renders the Basic Info tab for single-variant products using shared component
+   */
+  private _renderBasicInfoTab(): unknown {
+    return html`
+      <div class="tab-content">
+        <merchello-variant-basic-info
+          .formData=${this._variantFormData}
+          .fieldErrors=${this._variantFieldErrors}
+          @variant-change=${(e: CustomEvent) => (this._variantFormData = e.detail)}>
+        </merchello-variant-basic-info>
+      </div>
+    `;
+  }
+
+  /**
+   * Renders the Shopping Feed tab for single-variant products using shared component
+   */
+  private _renderShoppingFeedTab(): unknown {
+    return html`
+      <div class="tab-content">
+        <merchello-variant-feed-settings
+          .formData=${this._variantFormData}
+          @variant-change=${(e: CustomEvent) => (this._variantFormData = e.detail)}>
+        </merchello-variant-feed-settings>
+      </div>
+    `;
+  }
+
+  /**
+   * Renders the Stock tab for single-variant products using shared component (read-only)
+   */
+  private _renderStockTab(): unknown {
+    return html`
+      <div class="tab-content">
+        <merchello-variant-stock-display
+          .warehouseStock=${this._variantFormData.warehouseStock ?? []}>
+        </merchello-variant-stock-display>
+      </div>
+    `;
+  }
+
   private _renderOptionsTab(): unknown {
     const options = this._formData.productOptions ?? [];
     const isNew = this.#workspaceContext?.isNew ?? true;
@@ -1517,9 +1690,12 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           </umb-router-slot>
 
           ${activeTab === "details" ? this._renderDetailsTab() : nothing}
+          ${activeTab === "basic-info" && this._isSingleVariant() ? this._renderBasicInfoTab() : nothing}
           ${activeTab === "media" ? this._renderMediaTab() : nothing}
           ${activeTab === "shipping" ? this._renderShippingTab() : nothing}
           ${activeTab === "seo" ? this._renderSeoTab() : nothing}
+          ${activeTab === "feed" && this._isSingleVariant() ? this._renderShoppingFeedTab() : nothing}
+          ${activeTab === "stock" && this._isSingleVariant() ? this._renderStockTab() : nothing}
           ${activeTab === "variants" ? this._renderVariantsTab() : nothing}
           ${activeTab === "options" ? this._renderOptionsTab() : nothing}
         </umb-body-layout>

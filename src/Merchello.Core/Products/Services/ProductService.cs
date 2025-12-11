@@ -179,8 +179,14 @@ public class ProductService(
                     var productTemplate = products.FirstOrDefault();
 
                     // We are changing from a single product, to variants
-                    CreateVariantsNew(db, productRootDb, productTemplate!.Price, productTemplate.CostOfGoods,
+                    var duplicateSkus = await CreateVariantsNewAsync(db, productRootDb, productTemplate!.Price, productTemplate.CostOfGoods,
                         productTemplate.Gtin ?? "", productTemplate.Sku ?? "");
+
+                    if (duplicateSkus.Count != 0)
+                    {
+                        result.AddErrorMessage($"Duplicate SKUs found: {string.Join(", ", duplicateSkus)}");
+                        return;
+                    }
 
                     // Delete the initial product - cascade delete will cleanup ProductWarehouse records
                     foreach (var product in products)
@@ -216,10 +222,26 @@ public class ProductService(
             // Are there product options? If so we are creating variants, if not we are creating a single default product
             if (productOptions.Any(o => o.IsVariant))
             {
-                CreateVariantsNew(db, productRoot, price, costOfGoods, gtin, sku);
+                var duplicateSkus = await CreateVariantsNewAsync(db, productRoot, price, costOfGoods, gtin, sku);
+                if (duplicateSkus.Count != 0)
+                {
+                    result.AddErrorMessage($"Duplicate SKUs found: {string.Join(", ", duplicateSkus)}");
+                    return;
+                }
             }
             else
             {
+                // Validate SKU uniqueness for single product
+                if (!string.IsNullOrEmpty(sku))
+                {
+                    var skuExists = await db.Products.AnyAsync(p => p.Sku == sku);
+                    if (skuExists)
+                    {
+                        result.AddErrorMessage($"SKU '{sku}' already exists");
+                        return;
+                    }
+                }
+
                 var product = productFactory.Create(productRoot, productRoot.RootName ?? "Missing Root Name", price,
                     costOfGoods, gtin, sku, true);
                 db.Products.Add(product);
@@ -338,6 +360,7 @@ public class ProductService(
             {
                 Id = Guid.NewGuid(),
                 RootName = name,
+                RootUrl = slugHelper.GenerateSlug(name),
                 TaxGroup = taxGroup,
                 TaxGroupId = taxGroupId,
                 ProductType = productType,
@@ -469,7 +492,13 @@ public class ProductService(
                 db.Products.RemoveRange(productRoot.Products);
             }
 
-            CreateVariantsNew(db, productRoot, defaultPrice, defaultCostOfGoods, "", "");
+            var duplicateSkus = await CreateVariantsNewAsync(db, productRoot, defaultPrice, defaultCostOfGoods, "", "", cancellationToken);
+            if (duplicateSkus.Count != 0)
+            {
+                result.AddErrorMessage($"Duplicate SKUs found: {string.Join(", ", duplicateSkus)}");
+                return;
+            }
+
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             generatedVariants = await db.Products
@@ -674,9 +703,11 @@ public class ProductService(
 
 
     /// <summary>
-    /// Creates new variants from the product options
+    /// Creates new variants from the product options.
+    /// Validates SKU uniqueness before creating variants.
     /// </summary>
-    private void CreateVariantsNew(MerchelloDbContext db, ProductRoot productRoot, decimal price, decimal costOfGoods, string gtin, string sku)
+    /// <returns>List of duplicate SKUs if any exist, otherwise empty list</returns>
+    private async Task<List<string>> CreateVariantsNewAsync(MerchelloDbContext db, ProductRoot productRoot, decimal price, decimal costOfGoods, string gtin, string baseSku, CancellationToken cancellationToken = default)
     {
         // Create the different versions of the product from the product options
         var variantOptions = productRoot.ProductOptions
@@ -685,16 +716,61 @@ public class ProductService(
             .CartesianObjects()
             .ToList();
 
+        // Pre-generate all SKUs to check for duplicates
+        var variantData = new List<(IEnumerable<ProductOptionValue> Options, string Name, string Sku)>();
         for (var index = 0; index < variantOptions.Count; index++)
         {
             var variantOption = variantOptions[index];
             var variantKeyName = variantOption.GenerateVariantKeyName();
-            var product = productFactory.Create(productRoot, $"{productRoot.RootName} - {variantKeyName.Name}", price,
+            var variantName = $"{productRoot.RootName} - {variantKeyName.Name}";
+            var variantSku = GenerateVariantSku(variantName, baseSku);
+            variantData.Add((variantOption, variantName, variantSku));
+        }
+
+        // Check all SKUs for duplicates in the database
+        var skusToCheck = variantData.Select(v => v.Sku).ToList();
+        var existingSkus = await db.Products
+            .Where(p => p.Sku != null && skusToCheck.Contains(p.Sku))
+            .Select(p => p.Sku!)
+            .ToListAsync(cancellationToken);
+
+        if (existingSkus.Count != 0)
+        {
+            return existingSkus;
+        }
+
+        // No duplicates, create all variants
+        for (var index = 0; index < variantData.Count; index++)
+        {
+            var (options, name, sku) = variantData[index];
+            var variantKeyName = options.GenerateVariantKeyName();
+
+            var product = productFactory.Create(productRoot, name, price,
                 costOfGoods, gtin, sku,
                 index == 0, variantKeyName.Key);
-            // Save the product
             db.Products.Add(product);
         }
+
+        return [];
+    }
+
+    /// <summary>
+    /// Generates a unique SKU for a variant based on variant name.
+    /// Uses SlugHelper to create a URL-safe, hyphenated format.
+    /// SKUs are guaranteed to be unique since variant names are unique.
+    /// </summary>
+    private string GenerateVariantSku(string variantName, string baseSku)
+    {
+        // Generate SKU from variant name using SlugHelper for consistent formatting
+        var generatedSku = slugHelper.GenerateSlug(variantName).ToUpperInvariant();
+
+        // If a base SKU was provided, prepend it
+        if (!string.IsNullOrEmpty(baseSku))
+        {
+            return $"{baseSku}-{generatedSku}";
+        }
+
+        return generatedSku;
     }
 
     /// <summary>
@@ -1206,10 +1282,22 @@ public class ProductService(
                 ? await db.ProductCategories.Where(c => request.CategoryIds.Contains(c.Id)).ToListAsync(cancellationToken)
                 : [];
 
+            // Validate SKU uniqueness if one was provided
+            if (!string.IsNullOrEmpty(request.DefaultVariant.Sku))
+            {
+                var skuExists = await db.Products.AnyAsync(p => p.Sku == request.DefaultVariant.Sku, cancellationToken);
+                if (skuExists)
+                {
+                    result.AddErrorMessage($"SKU '{request.DefaultVariant.Sku}' already exists");
+                    return;
+                }
+            }
+
             productRoot = new ProductRoot
             {
                 Id = Guid.NewGuid(),
                 RootName = request.RootName,
+                RootUrl = slugHelper.GenerateSlug(request.RootName),
                 TaxGroup = taxGroup,
                 TaxGroupId = request.TaxGroupId,
                 ProductType = productType,
@@ -1277,6 +1365,7 @@ public class ProductService(
             productRoot = await db.RootProducts
                 .Include(pr => pr.Categories)
                 .Include(pr => pr.ProductRootWarehouses)
+                .Include(pr => pr.Products)
                 .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
 
             if (productRoot == null)
@@ -1286,7 +1375,17 @@ public class ProductService(
             }
 
             // Update simple properties
-            if (request.RootName != null) productRoot.RootName = request.RootName;
+            if (request.RootName != null)
+            {
+                productRoot.RootName = request.RootName;
+
+                // For single-variant products, sync variant name with root name
+                if (productRoot.Products.Count == 1)
+                {
+                    var singleVariant = productRoot.Products.First();
+                    singleVariant.Name = request.RootName;
+                }
+            }
             if (request.RootUrl != null) productRoot.RootUrl = request.RootUrl;
             if (request.SellingPoints != null) productRoot.SellingPoints = request.SellingPoints;
             if (request.Videos != null) productRoot.Videos = request.Videos;
@@ -1457,6 +1556,17 @@ public class ProductService(
             {
                 result.AddErrorMessage("Variant not found");
                 return;
+            }
+
+            // Validate SKU uniqueness if being updated
+            if (request.Sku != null && request.Sku != variant.Sku)
+            {
+                var skuExists = await db.Products.AnyAsync(p => p.Sku == request.Sku && p.Id != variantId, cancellationToken);
+                if (skuExists)
+                {
+                    result.AddErrorMessage($"SKU '{request.Sku}' already exists");
+                    return;
+                }
             }
 
             // Update properties if provided
@@ -1703,7 +1813,12 @@ public class ProductService(
                 }
 
                 // Generate new variants
-                CreateVariantsNew(db, productRoot, defaultPrice, defaultCostOfGoods, "", "");
+                var duplicateSkus = await CreateVariantsNewAsync(db, productRoot, defaultPrice, defaultCostOfGoods, "", "", cancellationToken);
+                if (duplicateSkus.Count != 0)
+                {
+                    result.AddErrorMessage($"Duplicate SKUs found: {string.Join(", ", duplicateSkus)}");
+                    return;
+                }
 
                 await db.SaveChangesAsync(cancellationToken);
 
