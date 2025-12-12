@@ -75,6 +75,23 @@ public interface ICheckoutService
     /// </summary>
     Task DeleteBasket(Guid basketId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Creates a new basket with the specified currency
+    /// </summary>
+    /// <param name="currency">Currency code (defaults to GBP)</param>
+    /// <param name="currencySymbol">Currency symbol (defaults to £)</param>
+    /// <param name="customerId">Optional customer ID for logged-in users</param>
+    /// <returns>A new basket instance</returns>
+    Basket CreateBasket(string currency = "GBP", string currencySymbol = "£", Guid? customerId = null);
+
+    /// <summary>
+    /// Creates a line item for a product
+    /// </summary>
+    /// <param name="product">The product to add</param>
+    /// <param name="quantity">Quantity (defaults to 1)</param>
+    /// <returns>A new line item instance</returns>
+    LineItem CreateLineItem(Products.Models.Product product, int quantity = 1);
+
     // Convenience facade methods: location availability (delegates to ILocationsService)
     Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<RegionAvailability>> GetAvailableRegionsAsync(string countryCode, CancellationToken cancellationToken = default);

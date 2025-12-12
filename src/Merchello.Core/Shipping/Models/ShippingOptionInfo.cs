@@ -8,6 +8,12 @@ public class ShippingOptionInfo
     public int DaysTo { get; set; }
     public bool IsNextDay { get; set; }
     public decimal Cost { get; set; }
+
+    /// <summary>
+    /// The provider key (e.g., "flat-rate", "fedex", "ups").
+    /// </summary>
+    public string ProviderKey { get; set; } = "flat-rate";
+
     public string DeliveryTimeDescription => IsNextDay
         ? "Next Day Delivery"
         : $"{DaysFrom}-{DaysTo} days";

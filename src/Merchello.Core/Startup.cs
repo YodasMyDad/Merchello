@@ -31,6 +31,8 @@ using Merchello.Core.Payments.Services;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Warehouses.Services;
 using Merchello.Core.Warehouses.Services.Interfaces;
+using Merchello.Core.Reporting.Services;
+using Merchello.Core.Reporting.Services.Interfaces;
 using Merchello.Core.Suppliers.Factories;
 using Merchello.Core.Suppliers.Services;
 using Merchello.Core.Suppliers.Services.Interfaces;
@@ -113,6 +115,7 @@ public static class Startup
         builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
         builder.Services.AddScoped<IProductService, ProductService>();
         builder.Services.AddScoped<ITaxService, TaxService>();
+        builder.Services.AddScoped<IReportingService, ReportingService>();
 
         // Payment services
         builder.Services.AddScoped<IPaymentProviderManager, PaymentProviderManager>();

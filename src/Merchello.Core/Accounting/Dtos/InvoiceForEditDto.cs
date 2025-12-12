@@ -25,6 +25,16 @@ public class InvoiceForEditDto
     public List<DiscountLineItemDto> OrderDiscounts { get; set; } = [];
 
     /// <summary>
+    /// Shipping address country code (for region validation when adding products)
+    /// </summary>
+    public string? ShippingCountryCode { get; set; }
+
+    /// <summary>
+    /// Shipping address region/state code (for region validation when adding products)
+    /// </summary>
+    public string? ShippingRegion { get; set; }
+
+    /// <summary>
     /// Subtotal before discounts (products + custom items)
     /// </summary>
     public decimal SubTotal { get; set; }

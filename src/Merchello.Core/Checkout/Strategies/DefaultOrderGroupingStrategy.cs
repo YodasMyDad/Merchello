@@ -169,7 +169,8 @@ public class DefaultOrderGroupingStrategy(
                     DaysFrom = so.DaysFrom,
                     DaysTo = so.DaysTo,
                     IsNextDay = so.IsNextDay,
-                    Cost = so.FixedCost ?? 0
+                    Cost = so.FixedCost ?? 0,
+                    ProviderKey = so.ProviderKey
                 }).ToList()
             };
 

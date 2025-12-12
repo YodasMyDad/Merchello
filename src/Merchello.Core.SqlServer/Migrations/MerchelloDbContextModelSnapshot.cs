@@ -570,7 +570,6 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("HexColour")
-                        .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 

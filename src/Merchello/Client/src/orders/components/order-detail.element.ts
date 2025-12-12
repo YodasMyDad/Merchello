@@ -485,7 +485,10 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
         </div>
         <div class="fulfillment-shipping-method">
           <uui-icon name="icon-truck"></uui-icon>
-          <span>${fulfillmentOrder.deliveryMethod}</span>
+          <div class="fulfillment-shipping-details">
+            <span class="fulfillment-shipping-name">${fulfillmentOrder.deliveryMethod}</span>
+            <span class="fulfillment-shipping-cost">${formatCurrency(fulfillmentOrder.shippingCost)}</span>
+          </div>
         </div>
         <div class="fulfillment-line-items">
           ${fulfillmentOrder.lineItems.map(
@@ -1205,6 +1208,23 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     .fulfillment-shipping-method uui-icon {
       color: var(--uui-color-text-alt);
+    }
+
+    .fulfillment-shipping-details {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex: 1;
+      gap: var(--uui-size-space-2);
+    }
+
+    .fulfillment-shipping-name {
+      flex: 1;
+    }
+
+    .fulfillment-shipping-cost {
+      font-weight: 600;
+      color: var(--uui-color-text);
     }
 
     .fulfillment-line-items {

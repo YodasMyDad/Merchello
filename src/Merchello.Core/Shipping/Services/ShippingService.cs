@@ -427,4 +427,20 @@ public class ShippingService(
         // Fall back to fixed cost
         return shippingOption.FixedCost;
     }
+
+    /// <summary>
+    /// Gets a shipping option by its ID
+    /// </summary>
+    public async Task<ShippingOption?> GetShippingOptionByIdAsync(
+        Guid shippingOptionId,
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.ShippingOptions
+                .Include(so => so.Warehouse)
+                .FirstOrDefaultAsync(so => so.Id == shippingOptionId, cancellationToken));
+        scope.Complete();
+        return result;
+    }
 }

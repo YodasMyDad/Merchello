@@ -465,50 +465,8 @@ public class ProductService(
         decimal defaultCostOfGoods,
         CancellationToken cancellationToken = default)
     {
-        var result = new CrudResult<List<Product>>();
-        List<Product>? generatedVariants = null;
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var productRoot = await db.RootProducts
-                .Include(pr => pr.Products)
-                .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
-
-            if (productRoot == null)
-            {
-                result.AddErrorMessage("Product root not found");
-                return;
-            }
-
-            if (!productRoot.ProductOptions.Any(o => o.IsVariant))
-            {
-                result.AddErrorMessage("Cannot generate variants without variant options");
-                return;
-            }
-
-            if (productRoot.Products.Any())
-            {
-                db.Products.RemoveRange(productRoot.Products);
-            }
-
-            var duplicateSkus = await CreateVariantsNewAsync(db, productRoot, defaultPrice, defaultCostOfGoods, "", "", cancellationToken);
-            if (duplicateSkus.Count != 0)
-            {
-                result.AddErrorMessage($"Duplicate SKUs found: {string.Join(", ", duplicateSkus)}");
-                return;
-            }
-
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-
-            generatedVariants = await db.Products
-                .Where(p => p.ProductRootId == productRootId)
-                .ToListAsync(cancellationToken);
-        });
-
-        scope.Complete();
-        result.ResultObject = generatedVariants;
-        return result;
+        // Delegate to the centralized RegenerateVariants with price/cost overrides
+        return await RegenerateVariants(productRootId, defaultPrice, defaultCostOfGoods, cancellationToken);
     }
 
     /// <summary>
@@ -550,6 +508,11 @@ public class ProductService(
             }
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+
+            logger.LogDebug(
+                "UpdateVariantStock: Variant {VariantId}, Warehouse {WarehouseId}, Stock {Stock}, TrackStock {TrackStock}",
+                variantId, warehouseId, stock, trackStock);
+
             result.ResultObject = true;
         });
 
@@ -1085,6 +1048,42 @@ public class ProductService(
             if (parameters.FilterKeys?.Any() == true)
             {
                 baseQuery = baseQuery.Where(x => x.Filters.Any(pc => parameters.FilterKeys.Contains(pc.Id)));
+            }
+
+            // Search filter - applied at DB level for performance
+            if (!string.IsNullOrWhiteSpace(parameters.Search))
+            {
+                var searchLower = parameters.Search.ToLower();
+                baseQuery = baseQuery.Where(x =>
+                    (x.ProductRoot.RootName != null && x.ProductRoot.RootName.ToLower().Contains(searchLower)) ||
+                    (x.Sku != null && x.Sku.ToLower().Contains(searchLower)));
+            }
+
+            // Availability filter - applied at DB level
+            if (parameters.AvailabilityFilter == ProductAvailabilityFilter.Available)
+            {
+                baseQuery = baseQuery.Where(x => x.AvailableForPurchase && x.CanPurchase);
+            }
+            else if (parameters.AvailabilityFilter == ProductAvailabilityFilter.Unavailable)
+            {
+                baseQuery = baseQuery.Where(x => !x.AvailableForPurchase || !x.CanPurchase);
+            }
+
+            // Stock status filter - applied at DB level using ProductWarehouses
+            if (parameters.StockStatusFilter != ProductStockStatusFilter.All)
+            {
+                var threshold = parameters.LowStockThreshold;
+                baseQuery = parameters.StockStatusFilter switch
+                {
+                    ProductStockStatusFilter.InStock => baseQuery.Where(x =>
+                        x.ProductWarehouses.Sum(pw => pw.Stock) > threshold),
+                    ProductStockStatusFilter.LowStock => baseQuery.Where(x =>
+                        x.ProductWarehouses.Sum(pw => pw.Stock) > 0 &&
+                        x.ProductWarehouses.Sum(pw => pw.Stock) <= threshold),
+                    ProductStockStatusFilter.OutOfStock => baseQuery.Where(x =>
+                        x.ProductWarehouses.Sum(pw => pw.Stock) <= 0),
+                    _ => baseQuery
+                };
             }
 
             // Build the result query (collapsed to one variant per root when filters are applied)
@@ -1762,12 +1761,12 @@ public class ProductService(
             // Check if there are any variant options (that generate variants)
             var hasVariantOptions = options.Any(o => o.IsVariant);
 
-            logger.LogInformation("SaveProductOptions: Saved {OptionCount} options for product {ProductRootId}. HasVariantOptions: {HasVariantOptions}",
+            logger.LogDebug("SaveProductOptions: Saved {OptionCount} options for product {ProductRootId}. HasVariantOptions: {HasVariantOptions}",
                 options.Count, productRootId, hasVariantOptions);
 
             // Always regenerate to ensure variants match current options
             // This handles: adding variant options, removing variant options, changing option values
-            var regenerateResult = await RegenerateVariants(productRootId, cancellationToken);
+            var regenerateResult = await RegenerateVariants(productRootId, cancellationToken: cancellationToken);
             if (!regenerateResult.Successful)
             {
                 result.AddWarningMessage("Options saved but variant regeneration had issues: " +
@@ -1781,7 +1780,15 @@ public class ProductService(
     /// <summary>
     /// Regenerates variants based on current options. Called internally when options are saved.
     /// </summary>
-    private async Task<CrudResult<List<Product>>> RegenerateVariants(Guid productRootId, CancellationToken cancellationToken = default)
+    /// <param name="productRootId">The product root ID</param>
+    /// <param name="priceOverride">Optional price override. If null, uses existing default product price.</param>
+    /// <param name="costOverride">Optional cost override. If null, uses existing default product cost.</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    private async Task<CrudResult<List<Product>>> RegenerateVariants(
+        Guid productRootId,
+        decimal? priceOverride = null,
+        decimal? costOverride = null,
+        CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<List<Product>>();
         List<Product>? generatedVariants = null;
@@ -1826,17 +1833,19 @@ public class ProductService(
                 else
                 {
                     // Create a default product
-                    var product = productFactory.Create(productRoot, productRoot.RootName ?? "Default", 0, 0, "", "", true, null);
+                    var defaultPrice = priceOverride ?? 0;
+                    var defaultCost = costOverride ?? 0;
+                    var product = productFactory.Create(productRoot, productRoot.RootName ?? "Default", defaultPrice, defaultCost, "", "", true, null);
                     db.Products.Add(product);
                     generatedVariants = [product];
                 }
             }
             else
             {
-                // Get template values from existing products
+                // Get template values from existing products (use overrides if provided)
                 var template = productRoot.Products.FirstOrDefault(p => p.Default) ?? productRoot.Products.FirstOrDefault();
-                var defaultPrice = template?.Price ?? 0;
-                var defaultCostOfGoods = template?.CostOfGoods ?? 0;
+                var defaultPrice = priceOverride ?? template?.Price ?? 0;
+                var defaultCostOfGoods = costOverride ?? template?.CostOfGoods ?? 0;
 
                 // Remove all existing products
                 foreach (var product in productRoot.Products.ToList())
@@ -1864,6 +1873,10 @@ public class ProductService(
 
         scope.Complete();
         result.ResultObject = generatedVariants;
+
+        logger.LogDebug("RegenerateVariants: Generated {VariantCount} variants for product {ProductRootId}",
+            generatedVariants?.Count ?? 0, productRootId);
+
         return result;
     }
 
@@ -2001,6 +2014,154 @@ public class ProductService(
             WarehouseStock = warehouseStock
         };
     }
+
+    #region Filter Operations
+
+    /// <summary>
+    /// Creates a new product filter group
+    /// </summary>
+    public async Task<CrudResult<ProductFilterGroup>> CreateFilterGroup(
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<ProductFilterGroup>();
+
+        var filterGroup = new ProductFilterGroup
+        {
+            Id = GuidExtensions.NewSequentialGuid,
+            Name = name
+        };
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            db.ProductFilterGroups.Add(filterGroup);
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+        });
+        scope.Complete();
+
+        result.ResultObject = filterGroup;
+        return result;
+    }
+
+    /// <summary>
+    /// Creates a new product filter within a filter group
+    /// </summary>
+    public async Task<CrudResult<ProductFilter>> CreateFilter(
+        Guid filterGroupId,
+        string name,
+        string? hexColour = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<ProductFilter>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            // Get the current filter count for sort order
+            var filterCount = await db.ProductFilters
+                .CountAsync(f => f.ProductFilterGroupId == filterGroupId, cancellationToken);
+
+            // Verify filter group exists
+            var filterGroupExists = await db.ProductFilterGroups
+                .AnyAsync(fg => fg.Id == filterGroupId, cancellationToken);
+
+            if (!filterGroupExists)
+            {
+                result.AddErrorMessage($"Filter group with ID {filterGroupId} not found");
+                return;
+            }
+
+            var filter = new ProductFilter
+            {
+                Id = GuidExtensions.NewSequentialGuid,
+                Name = name,
+                HexColour = hexColour,
+                SortOrder = filterCount,
+                ProductFilterGroupId = filterGroupId  // Explicitly set FK
+            };
+
+            db.ProductFilters.Add(filter);  // Add directly to DbSet
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+
+            result.ResultObject = filter;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    #endregion
+
+    #region Query/Count Operations
+
+    /// <summary>
+    /// Checks if any products exist in the database
+    /// </summary>
+    public async Task<bool> AnyProductsExistAsync(CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.RootProducts.AnyAsync(cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Gets the total count of products
+    /// </summary>
+    public async Task<int> GetProductCountAsync(CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.Products.CountAsync(cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Gets all products with their TaxGroup loaded for invoice/basket creation
+    /// </summary>
+    public async Task<List<Product>> GetAllProductsWithTaxGroupAsync(CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.Products
+                .Include(p => p.ProductRoot)
+                    .ThenInclude(pr => pr!.TaxGroup)
+                .ToListAsync(cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Gets product IDs grouped by country availability (products that have stock in warehouses serving each country)
+    /// </summary>
+    public async Task<Dictionary<string, HashSet<Guid>>> GetProductIdsByCountryAvailabilityAsync(CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            // Load data first then process in-memory to avoid SQL APPLY (not supported by SQLite)
+            var productWarehouseData = await db.ProductWarehouses
+                .Where(pw => pw.Stock > 0 || !pw.TrackStock)
+                .Include(pw => pw.Warehouse)
+                    .ThenInclude(w => w.ServiceRegions)
+                .Select(pw => new { pw.ProductId, pw.Warehouse.ServiceRegions })
+                .ToListAsync(cancellationToken);
+
+            return productWarehouseData
+                .SelectMany(pw => pw.ServiceRegions.Select(sr => new { sr.CountryCode, pw.ProductId }))
+                .GroupBy(x => x.CountryCode)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(x => x.ProductId).Distinct().ToHashSet());
+        });
+        scope.Complete();
+        return result;
+    }
+
+    #endregion
 }
 
 // Temporary compatibility: remove once legacy using directive is cleaned.

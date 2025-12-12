@@ -50,6 +50,7 @@ public class MerchelloDbContext : DbContext
     // Shipping DbSets
     public DbSet<Shipment> Shipments => Set<Shipment>();
     public DbSet<ShippingOption> ShippingOptions => Set<ShippingOption>();
+    public DbSet<ShippingCost> ShippingCosts => Set<ShippingCost>();
     public DbSet<ShippingWeightTier> ShippingWeightTiers => Set<ShippingWeightTier>();
     public DbSet<ShippingProviderConfiguration> ShippingProviderConfigurations => Set<ShippingProviderConfiguration>();
 

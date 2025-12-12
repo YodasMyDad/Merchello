@@ -244,7 +244,7 @@ public static class InvoiceSeedExtensions
         List<Product> products,
         List<Warehouse> warehouses,
         decimal taxRate = 20m,
-        int count = 100)
+        int count = 150)
     {
         var customers = GetSampleCustomers();
         var channels = new[] { "Online Store", "Online Store", "Online Store", "Shop", "POS", "Draft order" };
@@ -258,8 +258,23 @@ public static class InvoiceSeedExtensions
             var customer = customers[Random.Next(customers.Count)];
             var channel = channels[Random.Next(channels.Length)];
 
-            // Pick random warehouse and one of its shipping options
-            var warehouse = warehouses[Random.Next(warehouses.Count)];
+            // Get the shipping address (use billing if no separate shipping)
+            var shippingAddress = customer.shipping ?? customer.billing;
+
+            // CRITICAL FIX: Find warehouses that can serve this customer's region
+            var countryCode = shippingAddress.CountryCode ?? "GB"; // Default to GB if missing
+            var eligibleWarehouses = warehouses
+                .Where(w => w.CanServeRegion(countryCode, shippingAddress.CountyState.RegionCode))
+                .ToList();
+
+            // Skip this order if no warehouse can serve this region (shouldn't happen with proper config)
+            if (eligibleWarehouses.Count == 0)
+            {
+                continue;
+            }
+
+            // Pick from eligible warehouses
+            var warehouse = eligibleWarehouses[Random.Next(eligibleWarehouses.Count)];
             var shippingOptions = warehouse.ShippingOptions.ToList();
             var shippingOption = shippingOptions.Count > 0
                 ? shippingOptions[Random.Next(shippingOptions.Count)]
@@ -274,7 +289,7 @@ public static class InvoiceSeedExtensions
                 name: p.Name,
                 qty: Random.Next(1, 4),
                 price: p.Price,
-                taxRate: taxRate,
+                taxRate,
                 productId: (Guid?)p.Id
             )).ToList();
 
@@ -285,7 +300,7 @@ public static class InvoiceSeedExtensions
             context.CreateInvoiceWithOrders(
                 invoiceNumber: $"{invoicePrefix}{i:D4}",
                 billingAddress: customer.billing,
-                shippingAddress: customer.shipping ?? customer.billing,
+                shippingAddress: shippingAddress,
                 channel: channel,
                 lineItems: lineItems,
                 warehouse: warehouse,
@@ -325,7 +340,7 @@ public static class InvoiceSeedExtensions
     {
         return
         [
-            // UK Customers
+            // ============ UK CUSTOMERS (5) ============
             (new Address
             {
                 Name = "John Smith",
@@ -364,17 +379,7 @@ public static class InvoiceSeedExtensions
                 PostalCode = "M1 1AE",
                 Country = "United Kingdom",
                 CountryCode = "GB"
-            }, new Address
-            {
-                Name = "Sarah Johnson",
-                Phone = "+44 161 496 0123",
-                AddressOne = "78 Residential Lane",
-                TownCity = "Salford",
-                CountyState = new CountyState { Name = "Greater Manchester", RegionCode = "MAN" },
-                PostalCode = "M5 4WT",
-                Country = "United Kingdom",
-                CountryCode = "GB"
-            }),
+            }, null),
 
             (new Address
             {
@@ -404,19 +409,18 @@ public static class InvoiceSeedExtensions
 
             (new Address
             {
-                Name = "Oliver Davis",
-                Email = "oliver.d@example.com",
-                Phone = "+44 113 496 0321",
-                Company = "Davis Enterprises",
-                AddressOne = "56 The Headrow",
-                TownCity = "Leeds",
-                CountyState = new CountyState { Name = "West Yorkshire", RegionCode = "WYK" },
-                PostalCode = "LS1 8EQ",
+                Name = "Lucy Thompson",
+                Email = "lucy.t@example.com",
+                Phone = "+44 121 496 0987",
+                AddressOne = "42 New Street",
+                TownCity = "Birmingham",
+                CountyState = new CountyState { Name = "West Midlands", RegionCode = "WMD" },
+                PostalCode = "B2 4QA",
                 Country = "United Kingdom",
                 CountryCode = "GB"
             }, null),
 
-            // US Customers
+            // ============ US CUSTOMERS (5) ============
             (new Address
             {
                 Name = "Michael Anderson",
@@ -437,9 +441,9 @@ public static class InvoiceSeedExtensions
                 Email = "emily.m@example.com",
                 Phone = "+1 310 555 0198",
                 AddressOne = "8500 Wilshire Blvd",
-                TownCity = "Beverly Hills",
+                TownCity = "Los Angeles",
                 CountyState = new CountyState { Name = "California", RegionCode = "CA" },
-                PostalCode = "90211",
+                PostalCode = "90048",
                 Country = "United States",
                 CountryCode = "US"
             }, null),
@@ -458,43 +462,112 @@ public static class InvoiceSeedExtensions
                 CountryCode = "US"
             }, null),
 
-            // Customer with different shipping address
             (new Address
             {
-                Name = "Sophie Taylor",
-                Email = "sophie.t@example.com",
-                Phone = "+44 117 496 0654",
-                AddressOne = "89 Queen Square",
-                TownCity = "Bristol",
-                CountyState = new CountyState { Name = "Bristol", RegionCode = "BST" },
-                PostalCode = "BS1 4LH",
-                Country = "United Kingdom",
-                CountryCode = "GB"
-            }, new Address
-            {
-                Name = "Sophie Taylor (Work)",
-                Email = "sophie.t@example.com",
-                Phone = "+44 117 496 0654",
-                Company = "Taylor Designs",
-                AddressOne = "15 Temple Way",
-                TownCity = "Bristol",
-                CountyState = new CountyState { Name = "Bristol", RegionCode = "BST" },
-                PostalCode = "BS2 0BY",
-                Country = "United Kingdom",
-                CountryCode = "GB"
-            }),
+                Name = "Jennifer Garcia",
+                Email = "j.garcia@example.com",
+                Phone = "+1 305 555 0189",
+                AddressOne = "1200 Brickell Ave",
+                AddressTwo = "Suite 800",
+                TownCity = "Miami",
+                CountyState = new CountyState { Name = "Florida", RegionCode = "FL" },
+                PostalCode = "33131",
+                Country = "United States",
+                CountryCode = "US"
+            }, null),
 
             (new Address
             {
-                Name = "Lucy Thompson",
-                Email = "lucy.t@example.com",
-                Phone = "+44 121 496 0987",
-                AddressOne = "42 New Street",
-                TownCity = "Birmingham",
-                CountyState = new CountyState { Name = "West Midlands", RegionCode = "WMD" },
-                PostalCode = "B2 4QA",
-                Country = "United Kingdom",
-                CountryCode = "GB"
+                Name = "Robert Chen",
+                Email = "r.chen@example.com",
+                Phone = "+1 206 555 0234",
+                AddressOne = "400 Pine Street",
+                TownCity = "Seattle",
+                CountyState = new CountyState { Name = "Washington", RegionCode = "WA" },
+                PostalCode = "98101",
+                Country = "United States",
+                CountryCode = "US"
+            }, null),
+
+            // ============ EU CUSTOMERS (4) ============
+            (new Address
+            {
+                Name = "Hans Mueller",
+                Email = "h.mueller@example.com",
+                Phone = "+49 30 1234 5678",
+                AddressOne = "Friedrichstraße 123",
+                TownCity = "Berlin",
+                CountyState = new CountyState { Name = "Berlin", RegionCode = "BE" },
+                PostalCode = "10117",
+                Country = "Germany",
+                CountryCode = "DE"
+            }, null),
+
+            (new Address
+            {
+                Name = "Marie Dubois",
+                Email = "m.dubois@example.com",
+                Phone = "+33 1 42 68 53 00",
+                AddressOne = "25 Avenue des Champs-Élysées",
+                TownCity = "Paris",
+                CountyState = new CountyState { Name = "Île-de-France", RegionCode = "IDF" },
+                PostalCode = "75008",
+                Country = "France",
+                CountryCode = "FR"
+            }, null),
+
+            (new Address
+            {
+                Name = "Jan van der Berg",
+                Email = "j.vanderberg@example.com",
+                Phone = "+31 20 555 1234",
+                AddressOne = "Keizersgracht 100",
+                TownCity = "Amsterdam",
+                CountyState = new CountyState { Name = "North Holland", RegionCode = "NH" },
+                PostalCode = "1015 CV",
+                Country = "Netherlands",
+                CountryCode = "NL"
+            }, null),
+
+            (new Address
+            {
+                Name = "Carlos Rodriguez",
+                Email = "c.rodriguez@example.com",
+                Phone = "+34 91 555 4321",
+                AddressOne = "Gran Vía 45",
+                TownCity = "Madrid",
+                CountyState = new CountyState { Name = "Madrid", RegionCode = "MD" },
+                PostalCode = "28013",
+                Country = "Spain",
+                CountryCode = "ES"
+            }, null),
+
+            // ============ CANADA CUSTOMERS (2) ============
+            (new Address
+            {
+                Name = "Sophie Tremblay",
+                Email = "s.tremblay@example.com",
+                Phone = "+1 416 555 0199",
+                AddressOne = "100 King Street West",
+                AddressTwo = "Suite 1600",
+                TownCity = "Toronto",
+                CountyState = new CountyState { Name = "Ontario", RegionCode = "ON" },
+                PostalCode = "M5X 1A9",
+                Country = "Canada",
+                CountryCode = "CA"
+            }, null),
+
+            (new Address
+            {
+                Name = "James Liu",
+                Email = "j.liu@example.com",
+                Phone = "+1 604 555 0178",
+                AddressOne = "1055 Dunsmuir Street",
+                TownCity = "Vancouver",
+                CountyState = new CountyState { Name = "British Columbia", RegionCode = "BC" },
+                PostalCode = "V7X 1L3",
+                Country = "Canada",
+                CountryCode = "CA"
             }, null)
         ];
     }

@@ -246,6 +246,13 @@ import type {
   UpdateSupplierDto,
 } from '@suppliers/types.js';
 
+// Import analytics types
+import type {
+  AnalyticsSummaryDto,
+  TimeSeriesDataPointDto,
+  SalesBreakdownDto,
+} from '../analytics/types/analytics.types.js';
+
 // Helper to build query string from params
 function buildQueryString(params?: Record<string, unknown>): string {
   if (!params) return '';
@@ -656,4 +663,24 @@ export const MerchelloApi = {
   /** Get regions/states for a country */
   getLocalityRegions: (countryCode: string) =>
     apiGet<SubdivisionInfo[]>(`countries/${countryCode}/regions`),
+
+  // ============================================
+  // Analytics & Reporting API
+  // ============================================
+
+  /** Get analytics summary for KPI cards */
+  getAnalyticsSummary: (startDate: string, endDate: string) =>
+    apiGet<AnalyticsSummaryDto>(`reporting/summary?startDate=${startDate}&endDate=${endDate}`),
+
+  /** Get daily sales time series data */
+  getSalesTimeSeries: (startDate: string, endDate: string) =>
+    apiGet<TimeSeriesDataPointDto[]>(`reporting/sales-timeseries?startDate=${startDate}&endDate=${endDate}`),
+
+  /** Get daily average order value time series data */
+  getAovTimeSeries: (startDate: string, endDate: string) =>
+    apiGet<TimeSeriesDataPointDto[]>(`reporting/aov-timeseries?startDate=${startDate}&endDate=${endDate}`),
+
+  /** Get sales breakdown (gross, discounts, returns, net, shipping, taxes) */
+  getSalesBreakdown: (startDate: string, endDate: string) =>
+    apiGet<SalesBreakdownDto>(`reporting/breakdown?startDate=${startDate}&endDate=${endDate}`),
 };

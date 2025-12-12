@@ -139,23 +139,13 @@ public static class ProductServiceDbSeedExtensions
                 return result;
             }
 
-            // Step 4: Generate variants from options
-            // ProductService handles SKU generation for each variant
-            var variantsResult = await productService.GenerateVariantsFromOptions(
-                productRootId, price, costOfGoods, cancellationToken);
-            if (!variantsResult.Successful || variantsResult.ResultObject == null)
-            {
-                CopyErrorMessages(variantsResult, result);
-                return result;
-            }
-
-            // Step 5: Update variants with images and stock
-            var variants = variantsResult.ResultObject;
+            // Step 4: Get product root with variants (SaveProductOptions auto-regenerates variants)
             var productRoot = await productService.GetProductRoot(productRootId, includeProducts: true, cancellationToken: cancellationToken);
 
-            if (productRoot != null)
+            if (productRoot != null && productRoot.Products.Any())
             {
-                foreach (var variant in variants)
+                // Step 5: Update variants with images and stock
+                foreach (var variant in productRoot.Products)
                 {
                     // Update variant with image (SKU already set by ProductService)
                     await productService.UpdateVariant(productRootId, variant.Id, new UpdateVariantRequest

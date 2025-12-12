@@ -15,9 +15,23 @@ import type {
 } from "@orders/types/order.types.js";
 import type { CreateOrderModalData, CreateOrderModalValue } from "./create-order-modal.token.js";
 import { MERCHELLO_ADD_CUSTOM_ITEM_MODAL } from "./add-custom-item-modal.token.js";
+import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-picker-modal.token.js";
 
 interface PendingCustomItem extends AddCustomItemDto {
   tempId: string;
+}
+
+interface PendingProduct {
+  tempId: string;
+  productId: string;
+  productRootId: string;
+  name: string;
+  sku: string | null;
+  price: number;
+  quantity: number;
+  imageUrl: string | null;
+  warehouseId: string;
+  warehouseName: string;
 }
 
 function createEmptyAddress(): AddressDto {
@@ -45,6 +59,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
   @state() private _shippingAddress: AddressDto = createEmptyAddress();
   @state() private _useShippingAddress: boolean = false;
   @state() private _customItems: PendingCustomItem[] = [];
+  @state() private _pendingProducts: PendingProduct[] = [];
 
   // Customer search state
   @state() private _customerSearchResults: CustomerLookupResultDto[] = [];
@@ -220,6 +235,60 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     this._customItems = this._customItems.filter((item) => item.tempId !== tempId);
   }
 
+  private async _openProductPickerModal(): Promise<void> {
+    if (!this.#modalManager) return;
+
+    // Get shipping address for region validation
+    const shippingAddress = this._useShippingAddress ? this._shippingAddress : this._billingAddress;
+
+    // Get existing pending product IDs to exclude from picker
+    const excludeProductIds = this._pendingProducts.map((p) => p.productId);
+
+    const modal = this.#modalManager.open(this, MERCHELLO_PRODUCT_PICKER_MODAL, {
+      data: {
+        config: {
+          currencySymbol: this._currencySymbol,
+          shippingAddress: shippingAddress.countryCode
+            ? {
+                countryCode: shippingAddress.countryCode,
+                stateCode: shippingAddress.countyState ?? undefined,
+              }
+            : null,
+          excludeProductIds,
+        },
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.selections?.length) {
+      // Add selected products to pending products
+      const newProducts: PendingProduct[] = result.selections.map((selection) => ({
+        tempId: `product-${Date.now()}-${selection.productId}`,
+        productId: selection.productId,
+        productRootId: selection.productRootId,
+        name: selection.name,
+        sku: selection.sku,
+        price: selection.price,
+        quantity: 1, // Always add as qty 1
+        imageUrl: selection.imageUrl,
+        warehouseId: selection.warehouseId,
+        warehouseName: selection.warehouseName,
+      }));
+
+      this._pendingProducts = [...this._pendingProducts, ...newProducts];
+    }
+  }
+
+  private _removePendingProduct(tempId: string): void {
+    this._pendingProducts = this._pendingProducts.filter((p) => p.tempId !== tempId);
+  }
+
+  private _updatePendingProductQuantity(tempId: string, quantity: number): void {
+    this._pendingProducts = this._pendingProducts.map((p) =>
+      p.tempId === tempId ? { ...p, quantity: Math.max(1, quantity) } : p
+    );
+  }
+
   private _validateForm(): boolean {
     const errors: Record<string, string> = {};
 
@@ -273,7 +342,9 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
   }
 
   private _getSubtotal(): number {
-    return this._customItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const customItemsTotal = this._customItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const productsTotal = this._pendingProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
+    return customItemsTotal + productsTotal;
   }
 
   /** Options for country dropdown - uui-select requires .options property */
@@ -575,10 +646,55 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     `;
   }
 
+  private _renderPendingProduct(product: PendingProduct) {
+    return html`
+      <div class="line-item pending-product">
+        <div class="line-item-product">
+          <div class="line-item-image">
+            ${product.imageUrl
+              ? html`<img src=${product.imageUrl} alt=${product.name} />`
+              : html`<div class="placeholder-image product"><uui-icon name="icon-box"></uui-icon></div>`}
+          </div>
+          <div class="line-item-details">
+            <div class="line-item-name">${product.name}</div>
+            <div class="line-item-sku">${product.sku ?? "No SKU"}</div>
+            <div class="warehouse-info">
+              <uui-icon name="icon-home"></uui-icon>
+              ${product.warehouseName || "Default warehouse"}
+            </div>
+          </div>
+        </div>
+        <div class="line-item-price">${this._currencySymbol}${product.price.toFixed(2)}</div>
+        <div class="line-item-quantity">
+          <uui-input
+            type="number"
+            .value=${product.quantity.toString()}
+            @input=${(e: Event) =>
+              this._updatePendingProductQuantity(product.tempId, parseInt((e.target as HTMLInputElement).value) || 1)}
+            min="1"
+          ></uui-input>
+        </div>
+        <div class="line-item-total">${this._currencySymbol}${(product.price * product.quantity).toFixed(2)}</div>
+        <div class="line-item-actions">
+          <uui-button
+            look="secondary"
+            compact
+            @click=${() => this._removePendingProduct(product.tempId)}
+            title="Remove product"
+          >
+            <uui-icon name="icon-delete"></uui-icon>
+          </uui-button>
+        </div>
+      </div>
+    `;
+  }
+
   private _renderItemsSection() {
+    const hasItems = this._customItems.length > 0 || this._pendingProducts.length > 0;
+
     return html`
       <uui-box headline="Items">
-        ${this._customItems.length > 0 ? html`
+        ${hasItems ? html`
           <div class="items-table">
             <div class="items-header">
               <div class="header-cell product">Product</div>
@@ -588,6 +704,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
               <div class="header-cell actions"></div>
             </div>
             <div class="items-list">
+              ${this._pendingProducts.map((product) => this._renderPendingProduct(product))}
               ${this._customItems.map((item) => this._renderCustomItem(item))}
             </div>
           </div>
@@ -598,7 +715,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
         `}
 
         <div class="add-items-actions">
-          <uui-button look="secondary" disabled>
+          <uui-button look="secondary" @click=${this._openProductPickerModal}>
             <uui-icon name="icon-add"></uui-icon>
             Add product
           </uui-button>
@@ -883,6 +1000,36 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     .placeholder-image.custom {
       background: var(--uui-color-positive-emphasis);
       color: white;
+    }
+
+    .placeholder-image.product {
+      background: var(--uui-color-surface-alt);
+      color: var(--uui-color-text-alt);
+    }
+
+    .line-item-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: var(--uui-border-radius);
+    }
+
+    .warehouse-info {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+      margin-top: 2px;
+    }
+
+    .warehouse-info uui-icon {
+      font-size: 0.75rem;
+    }
+
+    .line-item-quantity uui-input {
+      width: 60px;
+      text-align: right;
     }
 
     .line-item-details {

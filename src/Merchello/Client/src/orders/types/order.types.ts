@@ -366,6 +366,10 @@ export interface InvoiceForEditDto {
   orders: OrderForEditDto[];
   /** Order-level discounts (coupons, etc.) - can be viewed and removed */
   orderDiscounts: DiscountLineItemDto[];
+  /** Shipping address country code (for region validation when adding products) */
+  shippingCountryCode: string | null;
+  /** Shipping address region/state code (for region validation when adding products) */
+  shippingRegion: string | null;
   /** Subtotal before discounts (products + custom items) */
   subTotal: number;
   /** Total discount amount (always positive) */

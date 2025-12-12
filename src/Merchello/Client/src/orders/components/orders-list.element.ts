@@ -305,25 +305,52 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
           <uui-button look="primary" color="positive" label="Create order" @click=${this._handleCreateOrder}>Create order</uui-button>
         </div>
 
-        <!-- Stats Bar -->
-        <div class="stats-bar">
-          <div class="stat-item">
-            <div class="stat-label">Today</div>
-            <div class="stat-value">Orders</div>
-            <div class="stat-number">${this._stats?.ordersToday ?? 0}</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">Items ordered</div>
-            <div class="stat-number">${this._stats?.itemsOrderedToday ?? 0}</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">Orders fulfilled</div>
-            <div class="stat-number">${this._stats?.ordersFulfilledToday ?? 0}</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">Orders delivered</div>
-            <div class="stat-number">${this._stats?.ordersDeliveredToday ?? 0}</div>
-          </div>
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+          <uui-box>
+            <div class="stat-content">
+              <div class="stat-icon stat-icon--orders">
+                <uui-icon name="icon-receipt-dollar"></uui-icon>
+              </div>
+              <div class="stat-details">
+                <div class="stat-number">${this._stats?.ordersToday ?? 0}</div>
+                <div class="stat-label">Orders Today</div>
+              </div>
+            </div>
+          </uui-box>
+          <uui-box>
+            <div class="stat-content">
+              <div class="stat-icon stat-icon--items">
+                <uui-icon name="icon-box"></uui-icon>
+              </div>
+              <div class="stat-details">
+                <div class="stat-number">${this._stats?.itemsOrderedToday ?? 0}</div>
+                <div class="stat-label">Items Ordered</div>
+              </div>
+            </div>
+          </uui-box>
+          <uui-box>
+            <div class="stat-content">
+              <div class="stat-icon stat-icon--fulfilled">
+                <uui-icon name="icon-check"></uui-icon>
+              </div>
+              <div class="stat-details">
+                <div class="stat-number">${this._stats?.ordersFulfilledToday ?? 0}</div>
+                <div class="stat-label">Orders Fulfilled</div>
+              </div>
+            </div>
+          </uui-box>
+          <uui-box>
+            <div class="stat-content">
+              <div class="stat-icon stat-icon--delivered">
+                <uui-icon name="icon-truck"></uui-icon>
+              </div>
+              <div class="stat-details">
+                <div class="stat-number">${this._stats?.ordersDeliveredToday ?? 0}</div>
+                <div class="stat-label">Orders Delivered</div>
+              </div>
+            </div>
+          </uui-box>
         </div>
 
         <!-- Search and Tabs Row -->
@@ -407,35 +434,72 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       margin-bottom: var(--uui-size-space-4);
     }
 
-    .stats-bar {
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--uui-size-space-5);
+      margin-bottom: var(--uui-size-space-5);
+    }
+
+    .stats-grid uui-box {
+      --uui-box-default-padding: var(--uui-size-space-4);
+    }
+
+    .stat-content {
       display: flex;
+      align-items: center;
       gap: var(--uui-size-space-4);
-      padding: var(--uui-size-space-4);
-      background: var(--uui-color-surface);
-      border: 1px solid var(--uui-color-border);
-      border-radius: var(--uui-border-radius);
-      margin-bottom: var(--uui-size-space-4);
-      overflow-x: auto;
     }
 
-    .stat-item {
-      flex: 1;
-      min-width: 120px;
+    .stat-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      flex-shrink: 0;
     }
 
-    .stat-label {
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
-      margin-bottom: var(--uui-size-space-1);
+    .stat-icon uui-icon {
+      font-size: 24px;
     }
 
-    .stat-value {
-      font-size: 0.875rem;
-      font-weight: 500;
+    .stat-icon--orders {
+      background: rgba(59, 130, 246, 0.15);
+      color: #3b82f6;
+    }
+
+    .stat-icon--items {
+      background: rgba(168, 85, 247, 0.15);
+      color: #a855f7;
+    }
+
+    .stat-icon--fulfilled {
+      background: rgba(34, 197, 94, 0.15);
+      color: #22c55e;
+    }
+
+    .stat-icon--delivered {
+      background: rgba(249, 115, 22, 0.15);
+      color: #f97316;
+    }
+
+    .stat-details {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-1);
     }
 
     .stat-number {
-      font-size: 0.875rem;
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--uui-color-text);
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: var(--uui-type-small-size);
       color: var(--uui-color-text-alt);
     }
 

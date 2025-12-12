@@ -430,6 +430,44 @@ public class CheckoutService(
         return filtered;
     }
 
+    /// <summary>
+    /// Creates a new basket with the specified currency
+    /// </summary>
+    public Basket CreateBasket(string currency = "GBP", string currencySymbol = "£", Guid? customerId = null)
+    {
+        return new Basket
+        {
+            Id = Shared.Extensions.GuidExtensions.NewSequentialGuid,
+            Currency = currency,
+            CurrencySymbol = currencySymbol,
+            CustomerId = customerId,
+            DateCreated = DateTime.UtcNow,
+            DateUpdated = DateTime.UtcNow
+        };
+    }
+
+    /// <summary>
+    /// Creates a line item for a product
+    /// </summary>
+    public LineItem CreateLineItem(Products.Models.Product product, int quantity = 1)
+    {
+        // Get tax rate from the product's TaxGroup if available
+        var taxRate = product.ProductRoot?.TaxGroup?.TaxPercentage ?? 0m;
+
+        return new LineItem
+        {
+            Id = Shared.Extensions.GuidExtensions.NewSequentialGuid,
+            ProductId = product.Id,
+            Sku = product.Sku,
+            Name = product.Name,
+            Quantity = quantity,
+            Amount = product.Price,
+            IsTaxable = taxRate > 0,
+            TaxRate = taxRate,
+            LineItemType = LineItemType.Product
+        };
+    }
+
     private sealed class NoopLocationsService : ILocationsService
     {
         public Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesAsync(CancellationToken ct = default)

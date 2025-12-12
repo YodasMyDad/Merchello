@@ -3,16 +3,21 @@ using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
+using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Merchello.Controllers;
 
 [ApiVersion("1.0")]
 [ApiExplorerSettings(GroupName = "Merchello")]
-public class ProductsApiController(IProductService productService) : MerchelloApiControllerBase
+public class ProductsApiController(
+    IProductService productService,
+    IOptions<MerchelloSettings> merchelloSettings) : MerchelloApiControllerBase
 {
+    private readonly MerchelloSettings _settings = merchelloSettings.Value;
     #region Product Detail Endpoints
 
     /// <summary>
@@ -193,7 +198,14 @@ public class ProductsApiController(IProductService productService) : MerchelloAp
             IncludeProductWarehouses = true,
             IncludeSiblingVariants = true,
             IncludeProductRootWarehouses = true,
-            AllVariants = false
+            AllVariants = false,
+            // DB-level filtering via service
+            Search = query.Search,
+            AvailabilityFilter = MapAvailabilityFilter(query.Availability),
+            StockStatusFilter = MapStockStatusFilter(query.StockStatus),
+            LowStockThreshold = _settings.LowStockThreshold,
+            // Sorting by name at DB level
+            OrderBy = ProductOrderBy.ProductRoot
         };
 
         if (query.CategoryId.HasValue)
@@ -205,11 +217,6 @@ public class ProductsApiController(IProductService productService) : MerchelloAp
 
         var items = result.Items.Select(MapToListItem).ToList();
 
-        items = ApplyFilters(items, query);
-
-        // Sort alphabetically by name
-        items = items.OrderBy(p => p.RootName, StringComparer.OrdinalIgnoreCase).ToList();
-
         return new ProductPageDto
         {
             Items = items,
@@ -217,6 +224,33 @@ public class ProductsApiController(IProductService productService) : MerchelloAp
             PageSize = query.PageSize,
             TotalItems = result.TotalItems,
             TotalPages = result.TotalPages
+        };
+    }
+
+    /// <summary>
+    /// Maps availability filter string to enum
+    /// </summary>
+    private static ProductAvailabilityFilter MapAvailabilityFilter(string? availability)
+    {
+        return availability?.ToLower() switch
+        {
+            "available" => ProductAvailabilityFilter.Available,
+            "unavailable" => ProductAvailabilityFilter.Unavailable,
+            _ => ProductAvailabilityFilter.All
+        };
+    }
+
+    /// <summary>
+    /// Maps stock status filter string to enum
+    /// </summary>
+    private static ProductStockStatusFilter MapStockStatusFilter(string? stockStatus)
+    {
+        return stockStatus?.ToLower() switch
+        {
+            "in-stock" => ProductStockStatusFilter.InStock,
+            "low-stock" => ProductStockStatusFilter.LowStock,
+            "out-of-stock" => ProductStockStatusFilter.OutOfStock,
+            _ => ProductStockStatusFilter.All
         };
     }
 
@@ -277,41 +311,6 @@ public class ProductsApiController(IProductService productService) : MerchelloAp
             HasShippingOptions = hasShippingOptions,
             IsDigitalProduct = isDigitalProduct
         };
-    }
-
-    private static List<ProductListItemDto> ApplyFilters(List<ProductListItemDto> items, ProductQueryDto query)
-    {
-        if (!string.IsNullOrWhiteSpace(query.Search))
-        {
-            var search = query.Search.ToLower();
-            items = items.Where(p =>
-                (p.RootName?.ToLower().Contains(search) == true) ||
-                (p.Sku?.ToLower().Contains(search) == true)
-            ).ToList();
-        }
-
-        if (!string.IsNullOrEmpty(query.Availability) && query.Availability != "all")
-        {
-            items = query.Availability switch
-            {
-                "available" => items.Where(p => p.Purchaseable).ToList(),
-                "unavailable" => items.Where(p => !p.Purchaseable).ToList(),
-                _ => items
-            };
-        }
-
-        if (!string.IsNullOrEmpty(query.StockStatus) && query.StockStatus != "all")
-        {
-            items = query.StockStatus switch
-            {
-                "in-stock" => items.Where(p => p.TotalStock > 10).ToList(),
-                "low-stock" => items.Where(p => p.TotalStock > 0 && p.TotalStock <= 10).ToList(),
-                "out-of-stock" => items.Where(p => p.TotalStock <= 0).ToList(),
-                _ => items
-            };
-        }
-
-        return items;
     }
 
     #endregion

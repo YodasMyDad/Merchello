@@ -24,6 +24,7 @@ public static class MerchelloDbContextExtensions
         {
             logger.LogError(e, "Error when calling EF SaveChangesAsync");
             result.Messages.Add(new ResultMessage { ResultMessageType = ResultMessageType.Error, Message = $"{e.Message} - {e.InnerException?.Message}"});
+            throw; // Re-throw to prevent scope.Complete() and allow proper transaction rollback
         }
         return result;
     }

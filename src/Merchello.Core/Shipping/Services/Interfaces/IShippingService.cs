@@ -49,5 +49,13 @@ public interface IShippingService
         string countryCode,
         string? stateOrProvinceCode = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a shipping option by its ID
+    /// </summary>
+    /// <param name="shippingOptionId">The shipping option ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The shipping option or null if not found</returns>
+    Task<ShippingOption?> GetShippingOptionByIdAsync(Guid shippingOptionId, CancellationToken cancellationToken = default);
 }
 

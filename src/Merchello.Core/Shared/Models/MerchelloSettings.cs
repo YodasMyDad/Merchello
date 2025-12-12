@@ -103,6 +103,13 @@ public class MerchelloSettings
     public int MaxOptionValuesPerOption { get; set; } = 20;
 
     /// <summary>
+    /// Stock quantity threshold for "low stock" status (default: 10).
+    /// Products with stock at or below this value (but greater than 0) are considered low stock.
+    /// Used in product listing filters and inventory management.
+    /// </summary>
+    public int LowStockThreshold { get; set; } = 10;
+
+    /// <summary>
     /// The DataType key (GUID) for the Product Description rich text editor.
     /// This DataType can be configured in Settings > Data Types.
     /// If null or not found, a default DataType will be created on startup.

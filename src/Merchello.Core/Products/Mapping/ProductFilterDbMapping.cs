@@ -14,7 +14,7 @@ public class ProductFilterDbMapping : IEntityTypeConfiguration<ProductFilter>
         builder.Property(x => x.Id).IsRequired();
 
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
-        builder.Property(x => x.HexColour).HasMaxLength(150).IsRequired();
+        builder.Property(x => x.HexColour).HasMaxLength(150).IsRequired(false);
 
         builder.HasOne(d => d.ParentGroup)
             .WithMany(p => p.Filters)

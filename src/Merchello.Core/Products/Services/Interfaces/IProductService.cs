@@ -47,5 +47,15 @@ public interface IProductService
 
     // Options operations (variants are automatically regenerated when options are saved)
     Task<CrudResult<List<ProductOption>>> SaveProductOptions(Guid productRootId, List<SaveProductOptionRequest> options, CancellationToken cancellationToken = default);
+
+    // Filter operations
+    Task<CrudResult<ProductFilterGroup>> CreateFilterGroup(string name, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductFilter>> CreateFilter(Guid filterGroupId, string name, string? hexColour = null, CancellationToken cancellationToken = default);
+
+    // Query/count operations for seeding
+    Task<bool> AnyProductsExistAsync(CancellationToken cancellationToken = default);
+    Task<int> GetProductCountAsync(CancellationToken cancellationToken = default);
+    Task<List<Product>> GetAllProductsWithTaxGroupAsync(CancellationToken cancellationToken = default);
+    Task<Dictionary<string, HashSet<Guid>>> GetProductIdsByCountryAvailabilityAsync(CancellationToken cancellationToken = default);
 }
 

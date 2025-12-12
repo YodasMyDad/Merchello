@@ -3,6 +3,7 @@ using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shipping.Models;
 using Merchello.Core.Warehouses.Dtos;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
@@ -223,7 +224,7 @@ public class WarehouseService(
     #region Warehouse CRUD Operations
 
     /// <summary>
-    /// Creates a new warehouse
+    /// Creates a new warehouse with optional service regions and shipping options
     /// </summary>
     public async Task<CrudResult<Warehouse>> CreateWarehouse(
         CreateWarehouseParameters parameters,
@@ -237,10 +238,85 @@ public class WarehouseService(
         warehouse.AutomationMethod = parameters.AutomationMethod;
         warehouse.ExtendedData = parameters.ExtendedData ?? [];
 
+        // Build service regions list
+        var serviceRegions = new List<WarehouseServiceRegion>();
+        if (parameters.ServiceRegions != null)
+        {
+            foreach (var (countryCode, stateOrProvinceCode, isExcluded) in parameters.ServiceRegions)
+            {
+                serviceRegions.Add(new WarehouseServiceRegion
+                {
+                    WarehouseId = warehouse.Id,
+                    CountryCode = countryCode,
+                    StateOrProvinceCode = stateOrProvinceCode,
+                    IsExcluded = isExcluded
+                });
+            }
+        }
+
+        // Build shipping options and costs lists
+        var shippingOptions = new List<ShippingOption>();
+        var shippingCosts = new List<ShippingCost>();
+        if (parameters.ShippingOptions != null)
+        {
+            foreach (var shippingConfig in parameters.ShippingOptions)
+            {
+                var shippingOption = new ShippingOption
+                {
+                    WarehouseId = warehouse.Id,
+                    Name = shippingConfig.Name,
+                    DaysFrom = shippingConfig.DaysFrom,
+                    DaysTo = shippingConfig.DaysTo,
+                    FixedCost = shippingConfig.Cost,
+                    IsNextDay = shippingConfig.IsNextDay,
+                    NextDayCutOffTime = shippingConfig.NextDayCutOffTime,
+                    ProviderKey = shippingConfig.ProviderKey,
+                    ServiceType = shippingConfig.ServiceType,
+                    ProviderSettings = shippingConfig.ProviderSettings,
+                    IsEnabled = shippingConfig.IsEnabled,
+                    CreateDate = DateTime.UtcNow,
+                    UpdateDate = DateTime.UtcNow
+                };
+                shippingOptions.Add(shippingOption);
+
+                // Build country-specific costs
+                if (shippingConfig.CountrySpecificCosts != null)
+                {
+                    foreach (var (countryCode, cost) in shippingConfig.CountrySpecificCosts)
+                    {
+                        shippingCosts.Add(new ShippingCost
+                        {
+                            ShippingOptionId = shippingOption.Id,
+                            CountryCode = countryCode,
+                            Cost = cost
+                        });
+                    }
+                }
+                else
+                {
+                    // Add default wildcard cost
+                    shippingCosts.Add(new ShippingCost
+                    {
+                        ShippingOptionId = shippingOption.Id,
+                        CountryCode = "*",
+                        Cost = shippingConfig.Cost
+                    });
+                }
+            }
+        }
+
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
+            // Explicitly add all entities - don't rely on cascade
             db.Warehouses.Add(warehouse);
+            if (serviceRegions.Count > 0)
+                db.WarehouseServiceRegions.AddRange(serviceRegions);
+            if (shippingOptions.Count > 0)
+                db.ShippingOptions.AddRange(shippingOptions);
+            if (shippingCosts.Count > 0)
+                db.ShippingCosts.AddRange(shippingCosts);
+
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
         });
         scope.Complete();

@@ -61,6 +61,23 @@ public class InvoiceService(
         using var scope = efCoreScopeProvider.CreateScope();
         var invoice = await scope.ExecuteWithContextAsync(async db =>
         {
+            // Generate next invoice number
+            var lastInvoice = await db.Invoices
+                .OrderByDescending(i => i.DateCreated)
+                .Select(i => i.InvoiceNumber)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var nextNumber = 1;
+            if (!string.IsNullOrEmpty(lastInvoice))
+            {
+                var numericPart = lastInvoice.Replace(_settings.InvoiceNumberPrefix, "");
+                if (int.TryParse(numericPart, out var lastNumber))
+                {
+                    nextNumber = lastNumber + 1;
+                }
+            }
+            var invoiceNumber = $"{_settings.InvoiceNumberPrefix}{nextNumber:D4}";
+
             // Load shipping options to get costs
             var shippingOptionIds = checkoutSession.SelectedShippingOptions.Values.ToList();
             var shippingOptions = await db.ShippingOptions
@@ -71,7 +88,10 @@ public class InvoiceService(
             // Create the invoice
             var newInvoice = new Invoice
             {
+                InvoiceNumber = invoiceNumber,
                 CustomerId = basket.CustomerId,
+                BillingAddress = checkoutSession.BillingAddress,
+                ShippingAddress = checkoutSession.ShippingAddress,
                 SubTotal = basket.SubTotal,
                 Discount = basket.Discount,
                 AdjustedSubTotal = basket.AdjustedSubTotal,
@@ -201,102 +221,93 @@ public class InvoiceService(
 
             newInvoice.Orders = orders;
 
-            // Use transaction to ensure order creation and stock reservation are atomic
-            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            // Recalculate invoice totals from actual order line items and shipping
+            RecalculateInvoiceTotals(newInvoice, orders);
 
-            try
+            // Save invoice and orders to database
+            db.Invoices.Add(newInvoice);
+            await db.SaveChangesAsync(cancellationToken);
+
+            // Reserve stock for each order
+            foreach (var order in orders)
             {
-                // Save orders to database first
-                db.Invoices.Add(newInvoice);
-                await db.SaveChangesAsync(cancellationToken);
+                List<string> reservationResults = [];
+                var hasUntrackedItems = false;
+                var allReservationsSuccessful = true;
 
-                // Reserve stock for each order
-                foreach (var order in orders)
+                foreach (var lineItem in (order.LineItems ?? []).Where(li => li.ProductId.HasValue))
                 {
-                    List<string> reservationResults = [];
-                    var hasUntrackedItems = false;
-                    var allReservationsSuccessful = true;
+                    var isTracked = await inventoryService.IsStockTrackedAsync(
+                        lineItem.ProductId!.Value,
+                        order.WarehouseId,
+                        cancellationToken);
 
-                    foreach (var lineItem in (order.LineItems ?? []).Where(li => li.ProductId.HasValue))
+                    if (!isTracked)
                     {
-                        var isTracked = await inventoryService.IsStockTrackedAsync(
-                            lineItem.ProductId!.Value,
-                            order.WarehouseId,
-                            cancellationToken);
-
-                        if (!isTracked)
-                        {
-                            hasUntrackedItems = true;
-                            reservationResults.Add($"Item '{lineItem.Name}' - Stock tracking disabled");
-                            continue;
-                        }
-
-                        var reservationResult = await inventoryService.ReserveStockAsync(
-                            lineItem.ProductId!.Value,
-                            order.WarehouseId,
-                            lineItem.Quantity,
-                            cancellationToken);
-
-                        if (!reservationResult.ResultObject)
-                        {
-                            allReservationsSuccessful = false;
-                            var errorMessage = reservationResult.Messages.FirstOrDefault()?.Message ?? "Unknown error";
-                            reservationResults.Add($"Item '{lineItem.Name}' - {errorMessage}");
-                        }
-                        else
-                        {
-                            reservationResults.Add($"Item '{lineItem.Name}' - Reserved {lineItem.Quantity} units");
-                        }
+                        hasUntrackedItems = true;
+                        reservationResults.Add($"Item '{lineItem.Name}' - Stock tracking disabled");
+                        continue;
                     }
 
-                    // Set order status based on reservation results
-                    if (!allReservationsSuccessful)
-                    {
-                        // Stock reservation failed - throw exception to trigger rollback in catch block
-                        throw new InvalidOperationException(
-                            $"Failed to reserve stock for order: {string.Join("; ", reservationResults)}");
-                    }
+                    var reservationResult = await inventoryService.ReserveStockAsync(
+                        lineItem.ProductId!.Value,
+                        order.WarehouseId,
+                        lineItem.Quantity,
+                        cancellationToken);
 
-                    // Determine initial order status
-                    var hasAnyTrackedItems = false;
-                    foreach (var li in (order.LineItems ?? []).Where(x => x.ProductId.HasValue))
+                    if (!reservationResult.ResultObject)
                     {
-                        if (await inventoryService.IsStockTrackedAsync(li.ProductId!.Value, order.WarehouseId, cancellationToken))
-                        {
-                            hasAnyTrackedItems = true;
-                            break;
-                        }
-                    }
-
-                    if (hasUntrackedItems && !hasAnyTrackedItems)
-                    {
-                        // All items are untracked - ready to fulfill immediately
-                        order.Status = OrderStatus.ReadyToFulfill;
+                        allReservationsSuccessful = false;
+                        var errorMessage = reservationResult.Messages.FirstOrDefault()?.Message ?? "Unknown error";
+                        reservationResults.Add($"Item '{lineItem.Name}' - {errorMessage}");
                     }
                     else
                     {
-                        // Has tracked items and stock was successfully reserved
-                        order.Status = OrderStatus.ReadyToFulfill;
+                        reservationResults.Add($"Item '{lineItem.Name}' - Reserved {lineItem.Quantity} units");
                     }
-
-                    logger.LogInformation("Order {OrderId} stock reservations: {Reservations}",
-                        order.Id, string.Join("; ", reservationResults));
                 }
 
-                // Save updated order statuses
-                await db.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
+                // Set order status based on reservation results
+                if (!allReservationsSuccessful)
+                {
+                    // Stock reservation failed - throw exception
+                    throw new InvalidOperationException(
+                        $"Failed to reserve stock for order: {string.Join("; ", reservationResults)}");
+                }
 
-                logger.LogInformation("Created invoice {InvoiceId} with {OrderCount} orders from {GroupCount} warehouse groups",
-                    newInvoice.Id, orders.Count, shippingResult.WarehouseGroups.Count);
+                // Determine initial order status
+                var hasAnyTrackedItems = false;
+                foreach (var li in (order.LineItems ?? []).Where(x => x.ProductId.HasValue))
+                {
+                    if (await inventoryService.IsStockTrackedAsync(li.ProductId!.Value, order.WarehouseId, cancellationToken))
+                    {
+                        hasAnyTrackedItems = true;
+                        break;
+                    }
+                }
 
-                return newInvoice;
+                if (hasUntrackedItems && !hasAnyTrackedItems)
+                {
+                    // All items are untracked - ready to fulfill immediately
+                    order.Status = OrderStatus.ReadyToFulfill;
+                }
+                else
+                {
+                    // Has tracked items and stock was successfully reserved
+                    order.Status = OrderStatus.ReadyToFulfill;
+                }
+
+                logger.LogInformation("Order {OrderId} stock reservations: {Reservations}",
+                    order.Id, string.Join("; ", reservationResults));
             }
-            catch
-            {
-                await transaction.RollbackAsync(cancellationToken);
-                throw;
-            }
+
+            // Save updated order statuses
+            await db.SaveChangesAsync(cancellationToken);
+
+            logger.LogInformation("Created invoice {InvoiceId} with {OrderCount} orders from {GroupCount} warehouse groups",
+                newInvoice.Id, orders.Count, shippingResult.WarehouseGroups.Count);
+
+            return newInvoice;
         });
 
         scope.Complete();
@@ -1683,6 +1694,19 @@ public class InvoiceService(
     }
 
     /// <inheritdoc />
+    public async Task<int> GetInvoiceCountAsync(CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var count = await scope.ExecuteWithContextAsync(async db =>
+            await db.Invoices
+                .AsNoTracking()
+                .CountAsync(i => !i.IsDeleted, cancellationToken));
+        scope.Complete();
+
+        return count;
+    }
+
+    /// <inheritdoc />
     public async Task<List<Invoice>> GetInvoicesByBillingEmailAsync(
         string email,
         CancellationToken cancellationToken = default)
@@ -1846,6 +1870,8 @@ public class InvoiceService(
                 CurrencyCode = _settings.StoreCurrencyCode,
                 Orders = orders.Select(o => MapOrderForEdit(o, shippingOptionNames, stockInfoMap)).ToList(),
                 OrderDiscounts = orderLevelDiscounts,
+                ShippingCountryCode = invoice.ShippingAddress.CountryCode,
+                ShippingRegion = invoice.ShippingAddress.CountyState.RegionCode,
                 SubTotal = subTotal,
                 DiscountTotal = discountTotal,
                 AdjustedSubTotal = adjustedSubTotal,

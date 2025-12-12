@@ -23,6 +23,7 @@ import { DiscountType } from "@orders/types/order.types.js";
 import type { EditOrderModalData, EditOrderModalValue } from "./edit-order-modal.token.js";
 import { MERCHELLO_ADD_CUSTOM_ITEM_MODAL } from "./add-custom-item-modal.token.js";
 import { MERCHELLO_ADD_DISCOUNT_MODAL } from "./add-discount-modal.token.js";
+import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-picker-modal.token.js";
 
 interface EditableLineItem extends LineItemForEditDto {
   isRemoved: boolean;
@@ -46,6 +47,19 @@ interface PendingOrderDiscount extends LineItemDiscountDto {
   tempId: string;
 }
 
+interface PendingProduct {
+  tempId: string;
+  productId: string;
+  productRootId: string;
+  name: string;
+  sku: string | null;
+  price: number;
+  quantity: number;
+  imageUrl: string | null;
+  warehouseId: string;
+  warehouseName: string;
+}
+
 @customElement("merchello-edit-order-modal")
 export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
   EditOrderModalData,
@@ -61,6 +75,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
   @state() private _orders: EditableOrder[] = [];
   @state() private _lineItems: EditableLineItem[] = [];
   @state() private _customItems: PendingCustomItem[] = [];
+  @state() private _pendingProducts: PendingProduct[] = [];
 
   // Tax groups for custom items
   @state() private _taxGroups: TaxGroupDto[] = [];
@@ -390,6 +405,65 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     this._refreshPreview();
   }
 
+  private async _openProductPickerModal(): Promise<void> {
+    if (!this.#modalManager || !this._invoice) return;
+
+    // Get existing product IDs to exclude from picker
+    const existingProductIds = this._lineItems
+      .filter((li) => li.productId && !li.isRemoved)
+      .map((li) => li.productId!);
+
+    // Also exclude pending products
+    const pendingProductIds = this._pendingProducts.map((p) => p.productId);
+
+    const modal = this.#modalManager.open(this, MERCHELLO_PRODUCT_PICKER_MODAL, {
+      data: {
+        config: {
+          currencySymbol: this._invoice.currencySymbol,
+          shippingAddress: this._invoice.shippingCountryCode
+            ? {
+                countryCode: this._invoice.shippingCountryCode,
+                stateCode: this._invoice.shippingRegion ?? undefined,
+              }
+            : null,
+          excludeProductIds: [...existingProductIds, ...pendingProductIds],
+        },
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.selections?.length) {
+      // Add selected products to pending products
+      const newProducts: PendingProduct[] = result.selections.map((selection) => ({
+        tempId: `product-${Date.now()}-${selection.productId}`,
+        productId: selection.productId,
+        productRootId: selection.productRootId,
+        name: selection.name,
+        sku: selection.sku,
+        price: selection.price,
+        quantity: 1, // Always add as qty 1
+        imageUrl: selection.imageUrl,
+        warehouseId: selection.warehouseId,
+        warehouseName: selection.warehouseName,
+      }));
+
+      this._pendingProducts = [...this._pendingProducts, ...newProducts];
+      this._refreshPreview();
+    }
+  }
+
+  private _removePendingProduct(tempId: string): void {
+    this._pendingProducts = this._pendingProducts.filter((p) => p.tempId !== tempId);
+    this._refreshPreview();
+  }
+
+  private _updatePendingProductQuantity(tempId: string, quantity: number): void {
+    this._pendingProducts = this._pendingProducts.map((p) =>
+      p.tempId === tempId ? { ...p, quantity: Math.max(1, quantity) } : p
+    );
+    this._refreshPreview();
+  }
+
   private _removePendingOrderDiscount(tempId: string): void {
     this._pendingOrderDiscounts = this._pendingOrderDiscounts.filter((d) => d.tempId !== tempId);
     this._refreshPreview();
@@ -421,6 +495,9 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
     // Check for custom items
     if (this._customItems.length > 0) return true;
+
+    // Check for pending products
+    if (this._pendingProducts.length > 0) return true;
 
     // Check for shipping changes per order
     if (this._orders.some((o) => o.newShippingCost !== o.shippingCost)) return true;
@@ -902,6 +979,60 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     `;
   }
 
+  private _renderPendingProduct(product: PendingProduct) {
+    const currencySymbol = this._invoice?.currencySymbol ?? "£";
+
+    return html`
+      <div class="line-item pending-product">
+        <div class="line-item-product">
+          <div class="line-item-image">
+            ${product.imageUrl
+              ? html`<img src=${product.imageUrl} alt=${product.name} />`
+              : html`<div class="placeholder-image product"><uui-icon name="icon-box"></uui-icon></div>`}
+          </div>
+
+          <div class="line-item-details">
+            <div class="line-item-name">${product.name}</div>
+            <div class="line-item-sku">${product.sku ?? "No SKU"}</div>
+            <div class="warehouse-info">
+              <uui-icon name="icon-home"></uui-icon>
+              ${product.warehouseName || "Default warehouse"}
+            </div>
+          </div>
+        </div>
+
+        <div class="line-item-price">
+          ${currencySymbol}${product.price.toFixed(2)}
+        </div>
+
+        <div class="line-item-quantity">
+          <uui-input
+            type="number"
+            .value=${product.quantity.toString()}
+            @input=${(e: Event) =>
+              this._updatePendingProductQuantity(product.tempId, parseInt((e.target as HTMLInputElement).value) || 1)}
+            min="1"
+          ></uui-input>
+        </div>
+
+        <div class="line-item-total">
+          ${currencySymbol}${(product.price * product.quantity).toFixed(2)}
+        </div>
+
+        <div class="line-item-actions">
+          <uui-button
+            look="secondary"
+            compact
+            @click=${() => this._removePendingProduct(product.tempId)}
+            title="Remove product"
+          >
+            <uui-icon name="icon-delete"></uui-icon>
+          </uui-button>
+        </div>
+      </div>
+    `;
+  }
+
   render() {
     if (this._isLoading) {
       return html`<umb-body-layout headline="Edit Order">${this._renderLoading()}</umb-body-layout>`;
@@ -954,9 +1085,28 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
             </div>
           ` : nothing}
 
+          <!-- Pending Products Section (if any) -->
+          ${this._pendingProducts.length > 0 ? html`
+            <div class="items-section pending-products-section">
+              <div class="section-header">
+                <h4>Products to Add</h4>
+              </div>
+              <div class="items-header">
+                <div class="header-cell product">Product</div>
+                <div class="header-cell price">Price</div>
+                <div class="header-cell quantity">Quantity</div>
+                <div class="header-cell total">Total</div>
+                <div class="header-cell actions"></div>
+              </div>
+              <div class="items-list">
+                ${this._pendingProducts.map((product) => this._renderPendingProduct(product))}
+              </div>
+            </div>
+          ` : nothing}
+
           <!-- Add Items Actions -->
           <div class="add-items-section">
-            <uui-button look="secondary" @click=${() => {}} disabled>
+            <uui-button look="secondary" @click=${this._openProductPickerModal}>
               <uui-icon name="icon-add"></uui-icon>
               Add product
             </uui-button>
@@ -1524,6 +1674,37 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
     .custom-items-section .section-header h4 {
       color: var(--uui-color-positive);
+    }
+
+    /* Pending Products Section */
+    .pending-products-section {
+      border-color: var(--uui-color-current);
+    }
+
+    .pending-products-section .section-header {
+      background: rgba(var(--uui-color-current-rgb), 0.1);
+    }
+
+    .pending-products-section .section-header h4 {
+      color: var(--uui-color-current);
+    }
+
+    .placeholder-image.product {
+      background: var(--uui-color-surface-alt);
+      color: var(--uui-color-text-alt);
+    }
+
+    .warehouse-info {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+      margin-top: 2px;
+    }
+
+    .warehouse-info uui-icon {
+      font-size: 0.75rem;
     }
 
     /* Payment Section */
