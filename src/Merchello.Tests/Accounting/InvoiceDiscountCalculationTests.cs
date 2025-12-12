@@ -44,6 +44,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var inventoryService = new Mock<IInventoryService>().Object;
         var statusHandler = _fixture.GetService<Core.Accounting.Handlers.IOrderStatusHandler>();
         var paymentService = new Mock<IPaymentService>().Object;
+        var productService = new Mock<IProductService>().Object;
         var notificationPublisher = new Mock<IMerchelloNotificationPublisher>().Object;
         var settings = Options.Create(new MerchelloSettings { DefaultRounding = MidpointRounding.AwayFromZero });
         var logger = new Mock<ILogger<InvoiceService>>().Object;
@@ -54,6 +55,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             inventoryService,
             statusHandler,
             paymentService,
+            productService,
             notificationPublisher,
             settings,
             logger);

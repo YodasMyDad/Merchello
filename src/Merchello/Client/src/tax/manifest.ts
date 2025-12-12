@@ -1,4 +1,8 @@
 export const manifests: Array<UmbExtensionManifest> = [
+  // ============================================
+  // Tax Workspace
+  // ============================================
+
   // Workspace for tax (when clicking "Tax" in tree)
   {
     type: "workspace",
@@ -7,20 +11,20 @@ export const manifests: Array<UmbExtensionManifest> = [
     name: "Merchello Tax Workspace",
     meta: {
       entityType: "merchello-tax",
-      headline: "Tax",
+      headline: "Tax Groups",
     },
   },
 
-  // Workspace view for tax
+  // Workspace view for tax groups list
   {
     type: "workspaceView",
     alias: "Merchello.Tax.Workspace.View",
-    name: "Merchello Tax View",
+    name: "Merchello Tax Groups View",
     js: () => import("./tax-workspace.element.js"),
     weight: 100,
     meta: {
-      label: "Tax",
-      pathname: "tax",
+      label: "Tax Groups",
+      pathname: "tax-groups",
       icon: "icon-calculator",
     },
     conditions: [
@@ -29,5 +33,17 @@ export const manifests: Array<UmbExtensionManifest> = [
         match: "Merchello.Tax.Workspace",
       },
     ],
+  },
+
+  // ============================================
+  // Modals
+  // ============================================
+
+  // Tax group modal (handles both create and edit)
+  {
+    type: "modal",
+    alias: "Merchello.TaxGroup.Modal",
+    name: "Merchello Tax Group Modal",
+    js: () => import("./modals/tax-group-modal.element.js"),
   },
 ];

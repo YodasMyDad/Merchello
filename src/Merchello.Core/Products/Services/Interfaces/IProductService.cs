@@ -57,5 +57,14 @@ public interface IProductService
     Task<int> GetProductCountAsync(CancellationToken cancellationToken = default);
     Task<List<Product>> GetAllProductsWithTaxGroupAsync(CancellationToken cancellationToken = default);
     Task<Dictionary<string, HashSet<Guid>>> GetProductIdsByCountryAvailabilityAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the first image GUID for multiple products by their IDs.
+    /// Falls back from variant images to root images.
+    /// </summary>
+    /// <param name="productIds">The product (variant) IDs to look up</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Dictionary mapping ProductId to first available image GUID (or null if no images)</returns>
+    Task<Dictionary<Guid, string?>> GetProductImagesAsync(IEnumerable<Guid> productIds, CancellationToken cancellationToken = default);
 }
 

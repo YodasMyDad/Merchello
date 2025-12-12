@@ -2161,6 +2161,33 @@ public class ProductService(
         return result;
     }
 
+    /// <summary>
+    /// Gets the first image GUID for multiple products by their IDs.
+    /// Falls back from variant images to root images.
+    /// </summary>
+    public async Task<Dictionary<Guid, string?>> GetProductImagesAsync(IEnumerable<Guid> productIds, CancellationToken cancellationToken = default)
+    {
+        var ids = productIds.ToList();
+        if (ids.Count == 0)
+            return new Dictionary<Guid, string?>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var products = await db.Products
+                .Include(p => p.ProductRoot)
+                .Where(p => ids.Contains(p.Id))
+                .Select(p => new { p.Id, p.Images, RootImages = p.ProductRoot!.RootImages })
+                .ToListAsync(cancellationToken);
+
+            return products.ToDictionary(
+                p => p.Id,
+                p => p.Images.FirstOrDefault() ?? p.RootImages.FirstOrDefault());
+        });
+        scope.Complete();
+        return result;
+    }
+
     #endregion
 }
 

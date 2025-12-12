@@ -25,6 +25,9 @@ import { MERCHELLO_ADD_CUSTOM_ITEM_MODAL } from "./add-custom-item-modal.token.j
 import { MERCHELLO_ADD_DISCOUNT_MODAL } from "./add-discount-modal.token.js";
 import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-picker-modal.token.js";
 
+// Import shared components
+import "@shared/components/product-image.element.js";
+
 interface EditableLineItem extends LineItemForEditDto {
   isRemoved: boolean;
   returnToStock: boolean; // For removals and quantity decreases
@@ -747,9 +750,11 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       <div class="line-item ${hasInsufficientStock ? 'has-error' : ''}">
         <div class="line-item-product">
           <div class="line-item-image">
-            ${lineItem.imageUrl
-              ? html`<img src=${lineItem.imageUrl} alt=${lineItem.name ?? ""} />`
-              : html`<div class="placeholder-image"><uui-icon name="icon-picture"></uui-icon></div>`}
+            <merchello-product-image
+              media-key=${lineItem.imageUrl || nothing}
+              size="medium"
+              alt=${lineItem.name || ""}>
+            </merchello-product-image>
           </div>
 
           <div class="line-item-details">
@@ -986,9 +991,11 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       <div class="line-item pending-product">
         <div class="line-item-product">
           <div class="line-item-image">
-            ${product.imageUrl
-              ? html`<img src=${product.imageUrl} alt=${product.name} />`
-              : html`<div class="placeholder-image product"><uui-icon name="icon-box"></uui-icon></div>`}
+            <merchello-product-image
+              media-key=${product.imageUrl || nothing}
+              size="medium"
+              alt=${product.name || ""}>
+            </merchello-product-image>
           </div>
 
           <div class="line-item-details">

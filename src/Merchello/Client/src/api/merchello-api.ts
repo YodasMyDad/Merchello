@@ -235,13 +235,13 @@ import type {
   UpdateWarehouseDto,
   ServiceRegionDto,
   CreateServiceRegionDto,
-  CreateSupplierDto,
   CountryInfo,
   SubdivisionInfo,
 } from '@warehouses/types.js';
 
 // Import supplier types
 import type {
+  CreateSupplierDto,
   SupplierListItemDto,
   UpdateSupplierDto,
 } from '@suppliers/types.js';
@@ -252,6 +252,12 @@ import type {
   TimeSeriesDataPointDto,
   SalesBreakdownDto,
 } from '../analytics/types/analytics.types.js';
+
+// Import tax types
+import type {
+  CreateTaxGroupDto,
+  UpdateTaxGroupDto,
+} from '../tax/types.js';
 
 // Helper to build query string from params
 function buildQueryString(params?: Record<string, unknown>): string {
@@ -288,7 +294,27 @@ export const MerchelloApi = {
   // Store Settings
   getSettings: () => apiGet<StoreSettingsDto>('settings'),
   getCountries: () => apiGet<CountryDto[]>('countries'),
+
+  // ============================================
+  // Tax Groups API
+  // ============================================
+
+  /** Get all tax groups */
   getTaxGroups: () => apiGet<TaxGroupDto[]>('tax-groups'),
+
+  /** Get a single tax group by ID */
+  getTaxGroup: (id: string) => apiGet<TaxGroupDto>(`tax-groups/${id}`),
+
+  /** Create a new tax group */
+  createTaxGroup: (data: CreateTaxGroupDto) =>
+    apiPost<TaxGroupDto>('tax-groups', data),
+
+  /** Update an existing tax group */
+  updateTaxGroup: (id: string, data: UpdateTaxGroupDto) =>
+    apiPut<TaxGroupDto>(`tax-groups/${id}`, data),
+
+  /** Delete a tax group */
+  deleteTaxGroup: (id: string) => apiDelete(`tax-groups/${id}`),
 
   // Orders API
   getOrders: (params?: OrderListParams) => {
@@ -640,6 +666,9 @@ export const MerchelloApi = {
 
   /** Get all suppliers with warehouse count */
   getSuppliers: () => apiGet<SupplierListItemDto[]>('suppliers'),
+
+  /** Get a single supplier by ID */
+  getSupplier: (id: string) => apiGet<SupplierListItemDto>(`suppliers/${id}`),
 
   /** Create a new supplier */
   createSupplier: (data: CreateSupplierDto) =>

@@ -72,17 +72,14 @@ export interface CreateServiceRegionDto {
   isExcluded: boolean;
 }
 
-// Supplier DTO
+// Supplier DTO (used when selecting supplier for warehouses)
 export interface SupplierDto {
   id: string;
   name: string;
   code?: string;
 }
 
-export interface CreateSupplierDto {
-  name: string;
-  code?: string;
-}
+// NOTE: CreateSupplierDto is now in @suppliers/types.ts
 
 // Locality DTOs (from backend ILocalityCatalog)
 export interface CountryInfo {

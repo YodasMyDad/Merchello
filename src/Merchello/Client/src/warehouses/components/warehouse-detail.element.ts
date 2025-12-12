@@ -11,7 +11,7 @@ import type { WarehouseDetailDto, SupplierDto, CountryInfo, ServiceRegionDto } f
 import type { MerchelloWarehouseDetailWorkspaceContext } from "@warehouses/contexts/warehouse-detail-workspace.context.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { MERCHELLO_SERVICE_REGION_MODAL } from "@warehouses/modals/service-region-modal.token.js";
-import { MERCHELLO_CREATE_SUPPLIER_MODAL } from "@warehouses/modals/create-supplier-modal.token.js";
+import { MERCHELLO_SUPPLIER_MODAL } from "@suppliers/modals/supplier-modal.token.js";
 import { MERCHELLO_SHIPPING_OPTION_DETAIL_MODAL } from "@shipping/modals/shipping-option-detail-modal.token.js";
 import type { ShippingOptionDto } from "@shipping/types.js";
 import {
@@ -197,13 +197,13 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
   private async _openCreateSupplierModal(): Promise<void> {
     if (!this.#modalManager) return;
 
-    const modal = this.#modalManager.open(this, MERCHELLO_CREATE_SUPPLIER_MODAL, {
+    const modal = this.#modalManager.open(this, MERCHELLO_SUPPLIER_MODAL, {
       data: {},
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.supplier) {
+    if (result?.created && result.supplier) {
       this._suppliers = [...this._suppliers, result.supplier];
       this._formData = { ...this._formData, supplierId: result.supplier.id };
     }

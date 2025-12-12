@@ -10,6 +10,9 @@ import type { FulfillmentSummaryDto, ShipmentDetailDto } from "@orders/types/ord
 import type { MerchelloOrderDetailWorkspaceContext } from "@orders/contexts/order-detail-workspace.context.js";
 import { MERCHELLO_SHIPMENT_EDIT_MODAL } from "@orders/modals/shipment-edit-modal.token.js";
 
+// Import shared components
+import "@shared/components/product-image.element.js";
+
 @customElement("merchello-shipments-view")
 export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
   @state() private _invoiceId: string | null = null;
@@ -176,9 +179,11 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
             (item) => html`
               <div class="item-row">
                 <div class="item-image">
-                  ${item.imageUrl
-                    ? html`<img src="${item.imageUrl}" alt="${item.name}" />`
-                    : html`<div class="placeholder-image"></div>`}
+                  <merchello-product-image
+                    media-key=${item.imageUrl || nothing}
+                    size="medium"
+                    alt=${item.name || ""}>
+                  </merchello-product-image>
                 </div>
                 <div class="item-info">
                   <div class="item-name">${item.name || "Unknown item"}</div>

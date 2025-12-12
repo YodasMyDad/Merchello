@@ -166,3 +166,52 @@ export function getWarehousesListHref(): string {
 export function navigateToWarehousesList(): void {
   navigateToMerchelloWorkspace(WAREHOUSES_ENTITY_TYPE, "warehouses");
 }
+
+/** Entity type for supplier detail workspace */
+export const SUPPLIER_ENTITY_TYPE = "merchello-supplier";
+
+/** Entity type for suppliers list workspace */
+export const SUPPLIERS_ENTITY_TYPE = "merchello-suppliers";
+
+/**
+ * Generate the URL to view/edit a supplier detail.
+ * Use this in href attributes on links/buttons.
+ */
+export function getSupplierDetailHref(supplierId: string): string {
+  return getMerchelloWorkspaceHref(SUPPLIER_ENTITY_TYPE, `edit/${supplierId}`);
+}
+
+/**
+ * Generate the URL to create a new supplier.
+ */
+export function getSupplierCreateHref(): string {
+  return getMerchelloWorkspaceHref(SUPPLIER_ENTITY_TYPE, "create");
+}
+
+/**
+ * Navigate programmatically to a supplier detail page using SPA routing.
+ */
+export function navigateToSupplierDetail(supplierId: string): void {
+  navigateToMerchelloWorkspace(SUPPLIER_ENTITY_TYPE, `edit/${supplierId}`);
+}
+
+/**
+ * Navigate programmatically to create a new supplier.
+ */
+export function navigateToSupplierCreate(): void {
+  navigateToMerchelloWorkspace(SUPPLIER_ENTITY_TYPE, "create");
+}
+
+/**
+ * Generate the URL to the suppliers list.
+ */
+export function getSuppliersListHref(): string {
+  return getMerchelloWorkspaceHref(SUPPLIERS_ENTITY_TYPE, "suppliers");
+}
+
+/**
+ * Navigate programmatically to the suppliers list using SPA routing.
+ */
+export function navigateToSuppliersList(): void {
+  navigateToMerchelloWorkspace(SUPPLIERS_ENTITY_TYPE, "suppliers");
+}

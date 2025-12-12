@@ -1,10 +1,13 @@
-import { html, css } from "@umbraco-cms/backoffice/external/lit";
+import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatShortDate } from "@shared/utils/formatting.js";
 import type { ShipmentEditModalData, ShipmentEditModalValue } from "./shipment-edit-modal.token.js";
 import type { UpdateShipmentDto } from "@orders/types/order.types.js";
+
+// Import shared components
+import "@shared/components/product-image.element.js";
 
 @customElement("merchello-shipment-edit-modal")
 export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
@@ -132,9 +135,11 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
               (item) => html`
                 <div class="item-row">
                   <div class="item-image">
-                    ${item.imageUrl
-                      ? html`<img src="${item.imageUrl}" alt="${item.name}" />`
-                      : html`<div class="placeholder-image"></div>`}
+                    <merchello-product-image
+                      media-key=${item.imageUrl || nothing}
+                      size="small"
+                      alt=${item.name || ""}>
+                    </merchello-product-image>
                   </div>
                   <div class="item-info">
                     <div class="item-name">${item.name || "Unknown item"}</div>

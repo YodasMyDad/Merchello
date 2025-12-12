@@ -27,6 +27,9 @@ import "./shipments-view.element.js";
 // Import the payment panel component
 import "./payment-panel.element.js";
 
+// Import shared components
+import "@shared/components/product-image.element.js";
+
 @customElement("merchello-order-detail")
 export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
   @state() private _order: OrderDetailDto | null = null;
@@ -495,9 +498,11 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             (item) => html`
               <div class="fulfillment-line-item">
                 <div class="fulfillment-item-image">
-                  ${item.imageUrl
-                    ? html`<img src="${item.imageUrl}" alt="${item.name}" />`
-                    : html`<div class="fulfillment-placeholder-image"></div>`}
+                  <merchello-product-image
+                    media-key=${item.imageUrl || nothing}
+                    size="large"
+                    alt=${item.name || ""}>
+                  </merchello-product-image>
                 </div>
                 <div class="fulfillment-item-details">
                   <div class="fulfillment-item-name">${item.name}</div>

@@ -7,8 +7,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { SupplierListItemDto } from "./types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
-import { MERCHELLO_CREATE_SUPPLIER_MODAL } from "@warehouses/modals/create-supplier-modal.token.js";
-import { MERCHELLO_EDIT_SUPPLIER_MODAL } from "./modals/edit-supplier-modal.token.js";
+import { MERCHELLO_SUPPLIER_MODAL } from "./modals/supplier-modal.token.js";
 import "@shared/components/merchello-empty-state.element.js";
 
 @customElement("merchello-suppliers-list")
@@ -65,19 +64,19 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
   }
 
   private async _handleAddSupplier(): Promise<void> {
-    const modal = this.#modalManager?.open(this, MERCHELLO_CREATE_SUPPLIER_MODAL, {
+    const modal = this.#modalManager?.open(this, MERCHELLO_SUPPLIER_MODAL, {
       data: {},
     });
 
     const result = await modal?.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.supplier) {
+    if (result?.created) {
       this._loadSuppliers();
     }
   }
 
   private async _handleEditSupplier(supplier: SupplierListItemDto): Promise<void> {
-    const modal = this.#modalManager?.open(this, MERCHELLO_EDIT_SUPPLIER_MODAL, {
+    const modal = this.#modalManager?.open(this, MERCHELLO_SUPPLIER_MODAL, {
       data: { supplier },
     });
 
@@ -157,13 +156,13 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
 
     return html`
       <uui-table-row class="clickable" @click=${() => this._handleEditSupplier(supplier)}>
-        <uui-table-cell class="name-cell">
-          <span class="supplier-name">${supplier.name}</span>
-          ${supplier.code ? html`<span class="supplier-code">${supplier.code}</span>` : nothing}
+        <uui-table-cell>
+          <div class="supplier-info">
+            <span class="supplier-name">${supplier.name}</span>
+            ${supplier.code ? html`<span class="supplier-code">${supplier.code}</span>` : nothing}
+          </div>
         </uui-table-cell>
-        <uui-table-cell class="count-cell">
-          <span class="warehouse-count">${supplier.warehouseCount}</span>
-        </uui-table-cell>
+        <uui-table-cell>${supplier.warehouseCount}</uui-table-cell>
         <uui-table-cell>
           <div class="actions-cell">
             <uui-button
@@ -284,14 +283,19 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
       }
 
       .table-container {
+        overflow-x: auto;
         background: var(--uui-color-surface);
         border: 1px solid var(--uui-color-border);
         border-radius: var(--uui-border-radius);
-        overflow: hidden;
       }
 
       .supplier-table {
         width: 100%;
+      }
+
+      uui-table-head-cell,
+      uui-table-cell {
+        white-space: nowrap;
       }
 
       uui-table-row.clickable {
@@ -302,8 +306,7 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
         background: var(--uui-color-surface-emphasis);
       }
 
-      .name-cell {
-        min-width: 200px;
+      .supplier-info {
         display: flex;
         flex-direction: column;
         gap: var(--uui-size-space-1);
@@ -311,7 +314,7 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
 
       .supplier-name {
         font-weight: 500;
-        color: var(--uui-color-text);
+        color: var(--uui-color-interactive);
       }
 
       .supplier-code {
@@ -319,29 +322,12 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
         color: var(--uui-color-text-alt);
       }
 
-      .count-cell {
-        text-align: center;
-      }
-
-      .warehouse-count {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 24px;
-        height: 24px;
-        padding: 0 8px;
-        background: var(--uui-color-surface-alt);
-        border-radius: 12px;
-        font-size: 0.875rem;
-        font-weight: 500;
-      }
-
       .actions-header {
         text-align: right;
       }
 
       .actions-cell {
-        display: inline-flex;
+        display: flex;
         gap: var(--uui-size-space-1);
         justify-content: flex-end;
       }

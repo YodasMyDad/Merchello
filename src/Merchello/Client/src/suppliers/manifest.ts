@@ -39,11 +39,11 @@ export const manifests: Array<UmbExtensionManifest> = [
   // Modals
   // ============================================
 
-  // Edit supplier modal
+  // Supplier modal (handles both create and edit)
   {
     type: "modal",
-    alias: "Merchello.EditSupplier.Modal",
-    name: "Merchello Edit Supplier Modal",
-    js: () => import("./modals/edit-supplier-modal.element.js"),
+    alias: "Merchello.Supplier.Modal",
+    name: "Merchello Supplier Modal",
+    js: () => import("./modals/supplier-modal.element.js"),
   },
 ];

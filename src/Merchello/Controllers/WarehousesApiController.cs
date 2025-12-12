@@ -261,6 +261,29 @@ public class WarehousesApiController(
     }
 
     /// <summary>
+    /// Get a single supplier by ID
+    /// </summary>
+    [HttpGet("suppliers/{id:guid}")]
+    [ProducesResponseType<SupplierListDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetSupplier(Guid id, CancellationToken ct)
+    {
+        var supplier = await supplierService.GetSupplierByIdAsync(id, ct);
+        if (supplier == null)
+        {
+            return NotFound();
+        }
+
+        return Ok(new SupplierListDto
+        {
+            Id = supplier.Id,
+            Name = supplier.Name,
+            Code = supplier.Code,
+            WarehouseCount = supplier.Warehouses?.Count ?? 0
+        });
+    }
+
+    /// <summary>
     /// Create a new supplier
     /// </summary>
     [HttpPost("suppliers")]

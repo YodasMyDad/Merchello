@@ -82,12 +82,4 @@ export const manifests: Array<UmbExtensionManifest> = [
     name: "Merchello Service Region Modal",
     js: () => import("./modals/service-region-modal.element.js"),
   },
-
-  // Create supplier modal
-  {
-    type: "modal",
-    alias: "Merchello.CreateSupplier.Modal",
-    name: "Merchello Create Supplier Modal",
-    js: () => import("./modals/create-supplier-modal.element.js"),
-  },
 ];

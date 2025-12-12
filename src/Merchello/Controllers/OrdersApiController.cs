@@ -9,6 +9,7 @@ using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Products.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Umbraco.Cms.Core.Security;
@@ -20,6 +21,7 @@ namespace Merchello.Controllers;
 public class OrdersApiController(
     IPaymentService paymentService,
     IInvoiceService invoiceService,
+    IProductService productService,
     IBackOfficeSecurityAccessor backOfficeSecurityAccessor) : MerchelloApiControllerBase
 {
     /// <summary>
@@ -158,7 +160,15 @@ public class OrdersApiController(
         var shippingOptionIds = invoice.Orders?.Select(o => o.ShippingOptionId).Distinct().ToList() ?? [];
         var shippingOptionNames = await invoiceService.GetShippingOptionNamesAsync(shippingOptionIds);
 
-        var detail = MapToDetail(invoice, shippingOptionNames);
+        // Lookup product images for line items
+        var productIds = invoice.Orders?
+            .SelectMany(o => o.LineItems ?? [])
+            .Where(li => li.ProductId.HasValue)
+            .Select(li => li.ProductId!.Value)
+            .Distinct() ?? [];
+        var productImages = await productService.GetProductImagesAsync(productIds);
+
+        var detail = MapToDetail(invoice, shippingOptionNames, productImages);
 
         // Get customer order count by billing email
         var billingEmail = invoice.BillingAddress?.Email;
@@ -418,7 +428,7 @@ public class OrdersApiController(
         };
     }
 
-    private OrderDetailDto MapToDetail(Invoice invoice, Dictionary<Guid, string> shippingOptionNames)
+    private OrderDetailDto MapToDetail(Invoice invoice, Dictionary<Guid, string> shippingOptionNames, Dictionary<Guid, string?> productImages)
     {
         var orders = invoice.Orders?.ToList() ?? [];
         var payments = invoice.Payments?.ToList() ?? [];
@@ -452,7 +462,7 @@ public class OrdersApiController(
             FulfillmentStatus = GetFulfillmentStatus(orders),
             BillingAddress = MapAddress(invoice.BillingAddress),
             ShippingAddress = MapAddress(invoice.ShippingAddress),
-            Orders = orders.Select(o => MapFulfillmentOrder(o, shippingOptionNames)).ToList(),
+            Orders = orders.Select(o => MapFulfillmentOrder(o, shippingOptionNames, productImages)).ToList(),
             Notes = invoice.Notes?.Select(n => new InvoiceNoteDto
             {
                 Date = n.DateCreated,
@@ -484,7 +494,7 @@ public class OrdersApiController(
         };
     }
 
-    private static FulfillmentOrderDto MapFulfillmentOrder(Order order, Dictionary<Guid, string> shippingOptionNames)
+    private static FulfillmentOrderDto MapFulfillmentOrder(Order order, Dictionary<Guid, string> shippingOptionNames, Dictionary<Guid, string?> productImages)
     {
         var deliveryMethod = shippingOptionNames.TryGetValue(order.ShippingOptionId, out var name)
             ? name
@@ -506,7 +516,7 @@ public class OrdersApiController(
                 Quantity = li.Quantity,
                 Amount = li.Amount,
                 OriginalAmount = li.OriginalAmount,
-                ImageUrl = null // Would come from product lookup
+                ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null
             }).ToList() ?? [],
             Shipments = order.Shipments?.Select(s => new ShipmentDto
             {

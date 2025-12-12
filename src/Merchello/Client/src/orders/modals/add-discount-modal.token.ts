@@ -27,7 +27,7 @@ export const MERCHELLO_ADD_DISCOUNT_MODAL = new UmbModalToken<
 >("Merchello.AddDiscount.Modal", {
   modal: {
     type: "dialog",
-    size: "small",
+    size: "medium",
   },
 });
 

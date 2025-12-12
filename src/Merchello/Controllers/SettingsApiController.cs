@@ -1,5 +1,4 @@
 using Asp.Versioning;
-using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Shared.Models;
@@ -18,7 +17,6 @@ namespace Merchello.Controllers;
 public class SettingsApiController(
     IOptions<MerchelloSettings> settings,
     ILocalityCatalog localityCatalog,
-    ITaxService taxService,
     MerchelloDataTypeInitializer dataTypeInitializer,
     ILogger<SettingsApiController> logger) : MerchelloApiControllerBase
 {
@@ -68,23 +66,6 @@ public class SettingsApiController(
             CountryCode = r.CountryCode,
             RegionCode = r.RegionCode,
             Name = r.Name
-        }).ToList();
-        return Ok(result);
-    }
-
-    /// <summary>
-    /// Get list of tax groups for tax rate selection
-    /// </summary>
-    [HttpGet("tax-groups")]
-    [ProducesResponseType<List<TaxGroupDto>>(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetTaxGroups(CancellationToken ct)
-    {
-        var taxGroups = await taxService.GetTaxGroups(ct);
-        var result = taxGroups.Select(tg => new TaxGroupDto
-        {
-            Id = tg.Id,
-            Name = tg.Name ?? "Unnamed",
-            TaxPercentage = tg.TaxPercentage
         }).ToList();
         return Ok(result);
     }
@@ -153,27 +134,6 @@ public class RegionDto
     public string CountryCode { get; set; } = string.Empty;
     public string RegionCode { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Tax group data for dropdowns
-/// </summary>
-public class TaxGroupDto
-{
-    /// <summary>
-    /// Tax group ID
-    /// </summary>
-    public Guid Id { get; set; }
-
-    /// <summary>
-    /// Tax group name
-    /// </summary>
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Tax percentage rate
-    /// </summary>
-    public decimal TaxPercentage { get; set; }
 }
 
 /// <summary>

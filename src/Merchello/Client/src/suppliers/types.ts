@@ -6,6 +6,12 @@ export interface SupplierListItemDto {
   warehouseCount: number;
 }
 
+// Create supplier DTO
+export interface CreateSupplierDto {
+  name: string;
+  code?: string;
+}
+
 // Update supplier DTO
 export interface UpdateSupplierDto {
   name: string;

@@ -21,6 +21,6 @@ export const MERCHELLO_SHIPPING_COST_MODAL = new UmbModalToken<
 >("Merchello.ShippingCost.Modal", {
   modal: {
     type: "dialog",
-    size: "small",
+    size: "medium",
   },
 });

@@ -21,6 +21,6 @@ export const MERCHELLO_SHIPPING_WEIGHT_TIER_MODAL = new UmbModalToken<
 >("Merchello.ShippingWeightTier.Modal", {
   modal: {
     type: "dialog",
-    size: "small",
+    size: "medium",
   },
 });

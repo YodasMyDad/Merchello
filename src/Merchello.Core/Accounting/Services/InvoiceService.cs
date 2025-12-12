@@ -35,6 +35,7 @@ public class InvoiceService(
     IInventoryService inventoryService,
     IOrderStatusHandler statusHandler,
     IPaymentService paymentService,
+    IProductService productService,
     IMerchelloNotificationPublisher notificationPublisher,
     IOptions<MerchelloSettings> settings,
     ILogger<InvoiceService> logger) : IInvoiceService
@@ -1313,40 +1314,53 @@ public class InvoiceService(
         CancellationToken cancellationToken = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
+        var invoice = await scope.ExecuteWithContextAsync(async db =>
         {
-            var invoice = await db.Invoices
+            return await db.Invoices
                 .AsNoTracking()
                 .Include(i => i.Orders)!
                     .ThenInclude(o => o.LineItems)
                 .Include(i => i.Orders)!
                     .ThenInclude(o => o.Shipments)
                 .FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
+        });
 
-            if (invoice == null)
-            {
-                return null;
-            }
+        if (invoice == null)
+        {
+            scope.Complete();
+            return null;
+        }
 
-            // Load warehouse names
+        // Load warehouse names
+        var warehouseNames = await scope.ExecuteWithContextAsync(async db =>
+        {
             var warehouseIds = invoice.Orders?.Select(o => o.WarehouseId).Distinct().ToList() ?? [];
-            var warehouseNames = await db.Warehouses
+            return await db.Warehouses
                 .AsNoTracking()
                 .Where(w => warehouseIds.Contains(w.Id))
                 .ToDictionaryAsync(w => w.Id, w => w.Name ?? "Unknown Warehouse", cancellationToken);
+        });
 
-            // Load shipping option names
+        // Load shipping option names
+        var shippingOptionNames = await scope.ExecuteWithContextAsync(async db =>
+        {
             var shippingOptionIds = invoice.Orders?.Select(o => o.ShippingOptionId).Distinct().ToList() ?? [];
-            var shippingOptionNames = await db.ShippingOptions
+            return await db.ShippingOptions
                 .AsNoTracking()
                 .Where(so => shippingOptionIds.Contains(so.Id))
                 .ToDictionaryAsync(so => so.Id, so => so.Name ?? "Unknown", cancellationToken);
-
-            return MapToFulfillmentSummary(invoice, warehouseNames, shippingOptionNames);
         });
-        scope.Complete();
 
-        return result;
+        // Load product images
+        var productIds = invoice.Orders?
+            .SelectMany(o => o.LineItems ?? [])
+            .Where(li => li.ProductId.HasValue)
+            .Select(li => li.ProductId!.Value)
+            .Distinct() ?? [];
+        var productImages = await productService.GetProductImagesAsync(productIds, cancellationToken);
+
+        scope.Complete();
+        return MapToFulfillmentSummary(invoice, warehouseNames, shippingOptionNames, productImages);
     }
 
     /// <inheritdoc />
@@ -1574,7 +1588,7 @@ public class InvoiceService(
         return success;
     }
 
-    private static FulfillmentSummaryDto MapToFulfillmentSummary(Invoice invoice, Dictionary<Guid, string> warehouseNames, Dictionary<Guid, string> shippingOptionNames)
+    private static FulfillmentSummaryDto MapToFulfillmentSummary(Invoice invoice, Dictionary<Guid, string> warehouseNames, Dictionary<Guid, string> shippingOptionNames, Dictionary<Guid, string?> productImages)
     {
         var orders = invoice.Orders?.ToList() ?? [];
 
@@ -1583,11 +1597,11 @@ public class InvoiceService(
             InvoiceId = invoice.Id,
             InvoiceNumber = invoice.InvoiceNumber,
             OverallStatus = GetFulfillmentStatus(orders),
-            Orders = orders.Select(o => MapToOrderFulfillment(o, warehouseNames, shippingOptionNames)).ToList()
+            Orders = orders.Select(o => MapToOrderFulfillment(o, warehouseNames, shippingOptionNames, productImages)).ToList()
         };
     }
 
-    private static OrderFulfillmentDto MapToOrderFulfillment(Order order, Dictionary<Guid, string> warehouseNames, Dictionary<Guid, string> shippingOptionNames)
+    private static OrderFulfillmentDto MapToOrderFulfillment(Order order, Dictionary<Guid, string> warehouseNames, Dictionary<Guid, string> shippingOptionNames, Dictionary<Guid, string?> productImages)
     {
         var lineItems = order.LineItems?
             .Where(li => li.LineItemType == LineItemType.Product)
@@ -1626,14 +1640,14 @@ public class InvoiceService(
                 Name = li.Name,
                 OrderedQuantity = li.Quantity,
                 ShippedQuantity = shippedQuantities.TryGetValue(li.Id, out var shipped) ? shipped : 0,
-                ImageUrl = null,
+                ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null,
                 Amount = li.Amount
             }).ToList(),
-            Shipments = shipments.Select(MapToShipmentDetail).ToList()
+            Shipments = shipments.Select(s => MapToShipmentDetail(s, productImages)).ToList()
         };
     }
 
-    private static ShipmentDetailDto MapToShipmentDetail(Shipment shipment)
+    private static ShipmentDetailDto MapToShipmentDetail(Shipment shipment, Dictionary<Guid, string?> productImages)
     {
         return new ShipmentDetailDto
         {
@@ -1651,7 +1665,7 @@ public class InvoiceService(
                 Sku = li.Sku,
                 Name = li.Name,
                 Quantity = li.Quantity,
-                ImageUrl = null
+                ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null
             }).ToList() ?? []
         };
     }

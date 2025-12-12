@@ -19,7 +19,7 @@ export const MERCHELLO_ADD_CUSTOM_ITEM_MODAL = new UmbModalToken<
 >("Merchello.AddCustomItem.Modal", {
   modal: {
     type: "dialog",
-    size: "small",
+    size: "medium",
   },
 });
 

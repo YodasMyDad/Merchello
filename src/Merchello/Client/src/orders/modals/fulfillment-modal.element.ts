@@ -12,6 +12,9 @@ import type {
 } from "@orders/types/order.types.js";
 import type { FulfillmentModalData, FulfillmentModalValue } from "./fulfillment-modal.token.js";
 
+// Import shared components
+import "@shared/components/product-image.element.js";
+
 interface SelectedItem {
   lineItemId: string;
   quantity: number;
@@ -460,9 +463,11 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
           aria-label="Select ${item.name || 'item'}"
         ></uui-checkbox>
         <div class="item-image">
-          ${item.imageUrl
-            ? html`<img src="${item.imageUrl}" alt="${item.name}" />`
-            : html`<div class="placeholder-image"></div>`}
+          <merchello-product-image
+            media-key=${item.imageUrl || nothing}
+            size="medium"
+            alt=${item.name || ""}>
+          </merchello-product-image>
         </div>
         <div class="item-details">
           <div class="item-name">${item.name || "Unknown item"}</div>
