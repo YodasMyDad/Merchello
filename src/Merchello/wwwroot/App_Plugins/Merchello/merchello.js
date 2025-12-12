@@ -680,7 +680,7 @@ const e = [
     type: "modal",
     alias: "Merchello.TestProvider.Modal",
     name: "Test Shipping Provider Modal",
-    js: () => import("./test-provider-modal.element-miEClnq3.js")
+    js: () => import("./test-provider-modal.element-MOodjpN9.js")
   },
   // Shipping option detail modal
   {

@@ -66,10 +66,99 @@ Providers can have two types of configuration:
    - Required before provider can be used (if `RequiresGlobalConfig = true`)
 
 2. **Per-Method Configuration** (`GetMethodConfigFieldsAsync`)
-   - Method name, service level, delivery days, markup
+   - Method name, delivery days, markup percentage
    - Stored in `ShippingOption.ProviderSettings` as JSON
    - Each warehouse can have multiple methods from same provider
-   - `ServiceType` field identifies the carrier service (e.g., `FEDEX_GROUND`)
+   - Service type selection is handled via `GetSupportedServiceTypesAsync`
+
+---
+
+## Service Types Model
+
+External providers must declare their supported service types via `GetSupportedServiceTypesAsync`. This provides:
+
+- **Type Safety**: No magic strings - service types are concrete models
+- **DRY**: Display names defined once, not duplicated in code
+- **UI Generation**: Dropdowns auto-generated from provider metadata
+
+```csharp
+/// <summary>
+/// Concrete model for shipping service types.
+/// </summary>
+public record ShippingServiceType
+{
+    public required string Code { get; init; }         // e.g., "FEDEX_GROUND"
+    public required string DisplayName { get; init; } // e.g., "FedEx Ground"
+    public string? Description { get; init; }         // Optional details
+    public required string ProviderKey { get; init; } // e.g., "fedex"
+}
+```
+
+### Implementing GetSupportedServiceTypesAsync
+
+External providers should define their service types as a static list:
+
+```csharp
+private static readonly IReadOnlyList<ShippingServiceType> SupportedServiceTypes =
+[
+    new ShippingServiceType { Code = "FEDEX_GROUND", DisplayName = "FedEx Ground", ProviderKey = "fedex" },
+    new ShippingServiceType { Code = "FEDEX_2_DAY", DisplayName = "FedEx 2Day", ProviderKey = "fedex" },
+    new ShippingServiceType { Code = "STANDARD_OVERNIGHT", DisplayName = "FedEx Standard Overnight", ProviderKey = "fedex" }
+];
+
+public override ValueTask<IReadOnlyList<ShippingServiceType>> GetSupportedServiceTypesAsync(
+    CancellationToken cancellationToken = default)
+{
+    return ValueTask.FromResult(SupportedServiceTypes);
+}
+```
+
+### Using ServiceType in GetRatesAsync
+
+Set the `ServiceType` property on `ShippingServiceLevel` instead of using `ExtendedProperties`:
+
+```csharp
+// Create a lookup for O(1) service type resolution
+private static readonly Dictionary<string, ShippingServiceType> ServiceTypeLookup =
+    SupportedServiceTypes.ToDictionary(st => st.Code, StringComparer.OrdinalIgnoreCase);
+
+public override async Task<ShippingRateQuote?> GetRatesAsync(
+    ShippingQuoteRequest request, CancellationToken ct = default)
+{
+    var response = await _carrierClient.GetRatesAsync(request, ct);
+
+    var serviceLevels = response.Rates.Select(rate =>
+    {
+        // Resolve concrete service type from lookup
+        var serviceType = ServiceTypeLookup.GetValueOrDefault(rate.ServiceCode);
+
+        return new ShippingServiceLevel
+        {
+            ServiceCode = $"fedex-{rate.ServiceCode.ToLower()}",
+            ServiceName = serviceType?.DisplayName ?? rate.ServiceName,
+            TotalCost = rate.TotalCost,
+            CurrencyCode = rate.CurrencyCode,
+            ServiceType = serviceType ?? new ShippingServiceType
+            {
+                Code = rate.ServiceCode,
+                DisplayName = rate.ServiceName,
+                ProviderKey = Metadata.Key
+            },
+            ExtendedProperties = new Dictionary<string, string>
+            {
+                ["trackingUrlTemplate"] = "https://carrier.com/track?num={trackingNumber}"
+            }
+        };
+    }).ToList();
+
+    return new ShippingRateQuote
+    {
+        ProviderKey = Metadata.Key,
+        ProviderName = Metadata.DisplayName,
+        ServiceLevels = serviceLevels
+    };
+}
+```
 
 ---
 
@@ -85,36 +174,39 @@ public override async Task<ShippingRateQuote?> GetRatesForServicesAsync(
     CancellationToken ct = default)
 {
     // 1. Fetch rates from carrier API
-    var allRates = await _carrierClient.GetRatesAsync(request, ct);
+    var quote = await GetRatesAsync(request, ct);
+    if (quote == null) return null;
 
-    // 2. Filter to only requested service types
-    var filteredRates = allRates.Where(r => serviceTypes.Contains(r.ServiceCode));
-
-    // 3. Apply per-method markup from ShippingOption.ProviderSettings
-    var serviceLevels = filteredRates.Select(rate =>
-    {
-        var option = options.FirstOrDefault(o => o.ServiceType == rate.ServiceCode);
-        var markup = GetMarkupFromSettings(option?.ProviderSettings);
-        var adjustedCost = rate.TotalCost * (1 + markup / 100);
-
-        return new ShippingServiceLevel
+    // 2. Filter to only requested service types using the ServiceType property
+    var serviceTypeSet = new HashSet<string>(serviceTypes, StringComparer.OrdinalIgnoreCase);
+    var filteredLevels = quote.ServiceLevels
+        .Where(sl => sl.ServiceType?.Code is not null && serviceTypeSet.Contains(sl.ServiceType.Code))
+        .Select(sl =>
         {
-            ServiceCode = rate.ServiceCode,
-            ServiceName = option?.Name ?? rate.ServiceName, // Use custom name if set
-            TotalCost = adjustedCost,
-            CurrencyCode = rate.CurrencyCode,
-            ExtendedProperties = new Dictionary<string, string>
+            var option = options.FirstOrDefault(o =>
+                string.Equals(o.ServiceType, sl.ServiceType!.Code, StringComparison.OrdinalIgnoreCase));
+
+            // Apply markup from ProviderSettings
+            var markup = GetMarkupFromSettings(option?.ProviderSettings);
+            var adjustedCost = sl.TotalCost * (1 + markup / 100);
+
+            return new ShippingServiceLevel
             {
-                ["fedexServiceType"] = rate.ServiceCode  // For filtering by base class
-            }
-        };
-    }).ToList();
+                ServiceCode = sl.ServiceCode,
+                ServiceName = option?.Name ?? sl.ServiceName,
+                TotalCost = adjustedCost,
+                CurrencyCode = sl.CurrencyCode,
+                ServiceType = sl.ServiceType,
+                ExtendedProperties = sl.ExtendedProperties
+            };
+        })
+        .ToList();
 
     return new ShippingRateQuote
     {
         ProviderKey = Metadata.Key,
         ProviderName = Metadata.DisplayName,
-        ServiceLevels = serviceLevels
+        ServiceLevels = filteredLevels
     };
 }
 ```
@@ -124,7 +216,7 @@ public override async Task<ShippingRateQuote?> GetRatesForServicesAsync(
 - Product restrictions (`AllowedShippingOptions`/`ExcludedShippingOptions`) only work when services are ShippingOption records
 - Each warehouse can enable different services (East Coast: Ground only, West Coast: Ground + 2Day)
 
-The default `ShippingProviderBase` implementation calls `GetRatesAsync` and filters results by checking `ExtendedProperties` for keys ending in `ServiceType`.
+The default `ShippingProviderBase` implementation calls `GetRatesAsync` and filters by `serviceLevel.ServiceType?.Code`.
 
 ---
 
@@ -151,17 +243,36 @@ public class FedExShippingProvider : ShippingProviderBase
         SupportsInternational = true,
         RequiresFullAddress = true,
         SetupInstructions = "Create a FedEx Developer account at developer.fedex.com to obtain API credentials.",
-        // ConfigCapabilities determine what UI elements are shown for per-warehouse methods
         ConfigCapabilities = new ProviderConfigCapabilities
         {
-            HasLocationBasedCosts = false,  // Rates from FedEx API, not config tables
-            HasWeightTiers = false,         // Weight handled by FedEx
-            UsesLiveRates = true,           // Fetches rates at runtime
-            RequiresGlobalConfig = true     // API credentials needed first
+            HasLocationBasedCosts = false,
+            HasWeightTiers = false,
+            UsesLiveRates = true,
+            RequiresGlobalConfig = true
         }
     };
 
-    // GLOBAL CONFIG: API credentials (stored in merchelloShippingProviderConfigurations)
+    // Define supported service types once - used for UI dropdowns and rate mapping
+    private static readonly IReadOnlyList<ShippingServiceType> SupportedServiceTypes =
+    [
+        new ShippingServiceType { Code = "FEDEX_GROUND", DisplayName = "FedEx Ground", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "FEDEX_2_DAY", DisplayName = "FedEx 2Day", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "STANDARD_OVERNIGHT", DisplayName = "FedEx Standard Overnight", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "PRIORITY_OVERNIGHT", DisplayName = "FedEx Priority Overnight", ProviderKey = "fedex" }
+    ];
+
+    // O(1) lookup for service type resolution
+    private static readonly Dictionary<string, ShippingServiceType> ServiceTypeLookup =
+        SupportedServiceTypes.ToDictionary(st => st.Code, StringComparer.OrdinalIgnoreCase);
+
+    // Declare supported service types - UI generates dropdown from this
+    public override ValueTask<IReadOnlyList<ShippingServiceType>> GetSupportedServiceTypesAsync(
+        CancellationToken ct = default)
+    {
+        return ValueTask.FromResult(SupportedServiceTypes);
+    }
+
+    // GLOBAL CONFIG: API credentials
     public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken ct = default)
     {
@@ -170,27 +281,19 @@ public class FedExShippingProvider : ShippingProviderBase
             new() { Key = "accountNumber", Label = "Account Number", FieldType = ConfigurationFieldType.Text, IsRequired = true },
             new() { Key = "apiKey", Label = "API Key", FieldType = ConfigurationFieldType.Password, IsSensitive = true, IsRequired = true },
             new() { Key = "secretKey", Label = "Secret Key", FieldType = ConfigurationFieldType.Password, IsSensitive = true, IsRequired = true },
-            new() { Key = "meterNumber", Label = "Meter Number", FieldType = ConfigurationFieldType.Text, IsRequired = false },
             new() { Key = "environment", Label = "Environment", FieldType = ConfigurationFieldType.Select, IsRequired = true,
                     Options = [new("sandbox", "Sandbox"), new("production", "Production")] }
         ]);
     }
 
-    // PER-METHOD CONFIG: Settings for each shipping method in a warehouse (stored in ShippingOption.ProviderSettings)
+    // PER-METHOD CONFIG: Additional settings (service type selection handled by GetSupportedServiceTypesAsync)
     public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetMethodConfigFieldsAsync(
         CancellationToken ct = default)
     {
         return ValueTask.FromResult<IEnumerable<ShippingProviderConfigurationField>>(
         [
-            new() { Key = "name", Label = "Method Name", FieldType = ConfigurationFieldType.Text, IsRequired = true,
-                    Placeholder = "e.g., FedEx Ground" },
-            new() { Key = "serviceType", Label = "Service Type", FieldType = ConfigurationFieldType.Select, IsRequired = true,
-                    Options = [
-                        new("FEDEX_GROUND", "FedEx Ground"),
-                        new("FEDEX_2_DAY", "FedEx 2Day"),
-                        new("STANDARD_OVERNIGHT", "Standard Overnight"),
-                        new("PRIORITY_OVERNIGHT", "Priority Overnight")
-                    ] },
+            new() { Key = "name", Label = "Method Name", FieldType = ConfigurationFieldType.Text, IsRequired = false,
+                    Placeholder = "e.g., FedEx Ground (optional, defaults to service type name)" },
             new() { Key = "markup", Label = "Markup %", FieldType = ConfigurationFieldType.Percentage,
                     Description = "Percentage to add to FedEx rates" }
         ]);
@@ -211,10 +314,7 @@ public class FedExShippingProvider : ShippingProviderBase
 
     public override bool IsAvailableFor(ShippingQuoteRequest request)
     {
-        // FedEx requires full address for accurate rates
         if (request.IsEstimateMode) return false;
-        
-        // Must have at least one shippable item with weight
         return request.Items.Any(i => i.IsShippable && i.TotalWeightKg > 0);
     }
 
@@ -223,34 +323,33 @@ public class FedExShippingProvider : ShippingProviderBase
     {
         if (!IsAvailableFor(request)) return null;
 
-        var fedexRequest = new FedExRateRequest
-        {
-            AccountNumber = _accountNumber,
-            Origin = MapToFedExAddress(request.OriginAddress),
-            Destination = MapToFedExAddress(request.DestinationAddress),
-            Packages = request.Packages.Select(p => new FedExPackage
-            {
-                Weight = p.WeightKg,
-                Length = p.LengthCm,
-                Width = p.WidthCm,
-                Height = p.HeightCm
-            }).ToList()
-        };
+        var response = await _fedexClient.GetRatesAsync(/* ... */, ct);
 
-        var response = await _fedexClient.GetRatesAsync(fedexRequest, ct);
-
-        var serviceLevels = response.Rates.Select(rate => new ShippingServiceLevel
+        var serviceLevels = response.Rates.Select(rate =>
         {
-            ServiceCode = $"fedex-{rate.ServiceType.ToLower()}",
-            ServiceName = rate.ServiceName,
-            TotalCost = rate.TotalCharge,
-            CurrencyCode = rate.Currency,
-            TransitTime = TimeSpan.FromDays(rate.TransitDays),
-            EstimatedDeliveryDate = rate.DeliveryDate,
-            ExtendedProperties = new Dictionary<string, string>
+            // Resolve concrete service type from lookup
+            var serviceType = ServiceTypeLookup.GetValueOrDefault(rate.ServiceType);
+
+            return new ShippingServiceLevel
             {
-                ["fedexServiceType"] = rate.ServiceType  // Used for filtering
-            }
+                ServiceCode = $"fedex-{rate.ServiceType.ToLower()}",
+                ServiceName = serviceType?.DisplayName ?? rate.ServiceName,
+                TotalCost = rate.TotalCharge,
+                CurrencyCode = rate.Currency,
+                TransitTime = TimeSpan.FromDays(rate.TransitDays),
+                EstimatedDeliveryDate = rate.DeliveryDate,
+                // Set the concrete ServiceType property
+                ServiceType = serviceType ?? new ShippingServiceType
+                {
+                    Code = rate.ServiceType,
+                    DisplayName = rate.ServiceName,
+                    ProviderKey = Metadata.Key
+                },
+                ExtendedProperties = new Dictionary<string, string>
+                {
+                    ["trackingUrlTemplate"] = "https://www.fedex.com/fedextrack/?trknbr={trackingNumber}"
+                }
+            };
         }).ToList();
 
         return new ShippingRateQuote
@@ -270,22 +369,18 @@ public class FedExShippingProvider : ShippingProviderBase
     {
         if (!IsAvailableFor(request)) return null;
 
-        // Fetch all rates
         var allRates = await GetRatesAsync(request, ct);
         if (allRates == null) return null;
 
-        // Filter to requested services and apply markup
+        // Filter using concrete ServiceType property
         var serviceTypeSet = new HashSet<string>(serviceTypes, StringComparer.OrdinalIgnoreCase);
         var filteredLevels = allRates.ServiceLevels
-            .Where(sl => sl.ExtendedProperties?.TryGetValue("fedexServiceType", out var st) == true
-                         && serviceTypeSet.Contains(st))
+            .Where(sl => sl.ServiceType?.Code is not null && serviceTypeSet.Contains(sl.ServiceType.Code))
             .Select(sl =>
             {
-                var fedexServiceType = sl.ExtendedProperties!["fedexServiceType"];
                 var option = shippingOptions.FirstOrDefault(o =>
-                    string.Equals(o.ServiceType, fedexServiceType, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(o.ServiceType, sl.ServiceType!.Code, StringComparison.OrdinalIgnoreCase));
 
-                // Apply markup from ProviderSettings
                 var markup = GetMarkupFromSettings(option?.ProviderSettings);
                 var adjustedCost = sl.TotalCost * (1 + markup / 100);
 
@@ -297,6 +392,7 @@ public class FedExShippingProvider : ShippingProviderBase
                     CurrencyCode = sl.CurrencyCode,
                     TransitTime = sl.TransitTime,
                     EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
+                    ServiceType = sl.ServiceType,
                     ExtendedProperties = sl.ExtendedProperties
                 };
             })
@@ -344,12 +440,30 @@ public class UpsShippingProvider : ShippingProviderBase
         RequiresFullAddress = true,
         ConfigCapabilities = new ProviderConfigCapabilities
         {
-            HasLocationBasedCosts = false,  // Rates from UPS API
+            HasLocationBasedCosts = false,
             HasWeightTiers = false,
             UsesLiveRates = true,
-            RequiresGlobalConfig = true     // API credentials required
+            RequiresGlobalConfig = true
         }
     };
+
+    // Define supported service types
+    private static readonly IReadOnlyList<ShippingServiceType> SupportedServiceTypes =
+    [
+        new ShippingServiceType { Code = "03", DisplayName = "UPS Ground", ProviderKey = "ups" },
+        new ShippingServiceType { Code = "02", DisplayName = "UPS 2nd Day Air", ProviderKey = "ups" },
+        new ShippingServiceType { Code = "01", DisplayName = "UPS Next Day Air", ProviderKey = "ups" },
+        new ShippingServiceType { Code = "14", DisplayName = "UPS Next Day Air Early", ProviderKey = "ups" }
+    ];
+
+    private static readonly Dictionary<string, ShippingServiceType> ServiceTypeLookup =
+        SupportedServiceTypes.ToDictionary(st => st.Code, StringComparer.OrdinalIgnoreCase);
+
+    public override ValueTask<IReadOnlyList<ShippingServiceType>> GetSupportedServiceTypesAsync(
+        CancellationToken ct = default)
+    {
+        return ValueTask.FromResult(SupportedServiceTypes);
+    }
 
     // Global config: API credentials
     public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(
@@ -364,20 +478,13 @@ public class UpsShippingProvider : ShippingProviderBase
         ]);
     }
 
-    // Per-method config: Service selection, markup
+    // Per-method config: markup (service type selection handled by GetSupportedServiceTypesAsync)
     public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetMethodConfigFieldsAsync(
         CancellationToken ct = default)
     {
         return ValueTask.FromResult<IEnumerable<ShippingProviderConfigurationField>>(
         [
-            new() { Key = "name", Label = "Display Name", FieldType = ConfigurationFieldType.Text, IsRequired = true },
-            new() { Key = "serviceCode", Label = "UPS Service", FieldType = ConfigurationFieldType.Select, IsRequired = true,
-                    Options = [
-                        new("03", "UPS Ground"),
-                        new("02", "UPS 2nd Day Air"),
-                        new("01", "UPS Next Day Air"),
-                        new("14", "UPS Next Day Air Early")
-                    ] },
+            new() { Key = "name", Label = "Display Name", FieldType = ConfigurationFieldType.Text, IsRequired = false },
             new() { Key = "markup", Label = "Markup %", FieldType = ConfigurationFieldType.Percentage }
         ]);
     }
@@ -410,17 +517,27 @@ public class UpsShippingProvider : ShippingProviderBase
         {
             ProviderKey = Metadata.Key,
             ProviderName = Metadata.DisplayName,
-            ServiceLevels = rates.Select(r => new ShippingServiceLevel
+            ServiceLevels = rates.Select(r =>
             {
-                ServiceCode = $"ups-{r.ServiceCode}",
-                ServiceName = r.ServiceDescription,
-                TotalCost = r.TotalCharges,
-                CurrencyCode = r.CurrencyCode,
-                EstimatedDeliveryDate = r.GuaranteedDeliveryDate,
-                ExtendedProperties = new Dictionary<string, string>
+                var serviceType = ServiceTypeLookup.GetValueOrDefault(r.ServiceCode);
+                return new ShippingServiceLevel
                 {
-                    ["trackingUrlTemplate"] = "https://www.ups.com/track?tracknum={trackingNumber}"
-                }
+                    ServiceCode = $"ups-{r.ServiceCode}",
+                    ServiceName = serviceType?.DisplayName ?? r.ServiceDescription,
+                    TotalCost = r.TotalCharges,
+                    CurrencyCode = r.CurrencyCode,
+                    EstimatedDeliveryDate = r.GuaranteedDeliveryDate,
+                    ServiceType = serviceType ?? new ShippingServiceType
+                    {
+                        Code = r.ServiceCode,
+                        DisplayName = r.ServiceDescription,
+                        ProviderKey = Metadata.Key
+                    },
+                    ExtendedProperties = new Dictionary<string, string>
+                    {
+                        ["trackingUrlTemplate"] = "https://www.ups.com/track?tracknum={trackingNumber}"
+                    }
+                };
             }).ToList()
         };
     }
@@ -841,6 +958,51 @@ async function selectShippingOption(basketId: string, providerKey: string, servi
 
 ---
 
+## Testing Provider Configuration
+
+The backoffice includes a **Test** button for configured shipping providers. This allows users to verify their API credentials and validate configured service types.
+
+### How Testing Works
+
+1. User clicks **Test** on a configured provider
+2. Enters test destination (country, postal code) and package details
+3. System fetches all configured `ShippingOption` records for that provider
+4. Calls `GetRatesAsync()` to fetch all available rates from the carrier API
+5. Compares returned service types against configured service types
+6. Shows results grouped into:
+   - **Configured Service Types**: Shows ✓ for valid (rate returned) or ✗ for invalid (no rate)
+   - **Other Available Services**: Additional services returned by API that aren't configured
+
+### Service Type Extraction
+
+The test endpoint reads service types from the concrete `ServiceType` property on `ShippingServiceLevel`:
+
+```csharp
+// In GetRatesAsync(), set the ServiceType property:
+return new ShippingServiceLevel
+{
+    ServiceCode = $"fedex-{rate.ServiceType.ToLower()}",
+    ServiceName = serviceType?.DisplayName ?? rate.ServiceName,
+    TotalCost = rate.TotalCharge,
+    ServiceType = ServiceTypeLookup.GetValueOrDefault(rate.ServiceType)
+               ?? new ShippingServiceType
+               {
+                   Code = rate.ServiceType,
+                   DisplayName = rate.ServiceName,
+                   ProviderKey = Metadata.Key
+               }
+};
+```
+
+### Why This Matters
+
+- Users can verify their carrier API credentials are working
+- Invalid service types (removed by carrier, misspelled, etc.) are immediately visible
+- Helps troubleshoot "why isn't this service showing?" issues
+- Validates that per-warehouse service configurations are correct
+
+---
+
 ## Notes
 
 - Sensitive config values (API keys) should be encrypted at rest
@@ -848,11 +1010,13 @@ async function selectShippingOption(basketId: string, providerKey: string, servi
 - Use `IsTestMode` from configuration to switch between sandbox/production
 - Providers auto-discovered via assembly scanning - no DI registration needed
 - Return `null` from `GetRatesAsync` if provider cannot service the request
-- Use `ExtendedProperties` for provider-specific data (tracking URL templates, etc.)
+- External providers **must** implement `GetSupportedServiceTypesAsync` to declare available service types
+- Set `ServiceType` property on `ShippingServiceLevel` for proper filtering - don't use magic strings in `ExtendedProperties`
+- Use `ExtendedProperties` only for truly optional metadata (tracking URL templates, etc.)
 - Weight should be in kilograms, dimensions in centimeters
 - Always check `IsAvailableFor` before making expensive API calls
-- For external providers, include the service type in `ExtendedProperties` with a key ending in `ServiceType` (e.g., `fedexServiceType`, `upsServiceType`) - the base class uses this for filtering
 - Override `GetRatesForServicesAsync` for efficient per-service filtering with markup support
+
 
 
 

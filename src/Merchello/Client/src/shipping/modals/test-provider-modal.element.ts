@@ -393,6 +393,11 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
     const { success, serviceLevels, errors } = this._testResult;
     const currencySymbol = getCurrencySymbol();
 
+    // Separate configured vs other available service types
+    const configuredLevels = serviceLevels.filter((sl) => sl.isConfigured);
+    const otherLevels = serviceLevels.filter((sl) => !sl.isConfigured);
+    const hasConfigured = configuredLevels.length > 0;
+
     return html`
       <div class="results-section">
         <h3>Results</h3>
@@ -408,36 +413,73 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
             `
           : nothing}
 
-        ${serviceLevels.length > 0
+        ${hasConfigured
           ? html`
-              <div class="service-levels">
-                ${serviceLevels.map(
-                  (level) => html`
-                    <div class="service-level-card">
-                      <div class="service-header">
-                        <span class="service-name">${level.serviceName}</span>
-                        <span class="service-cost">${currencySymbol}${level.totalCost.toFixed(2)}</span>
-                      </div>
-                      <div class="service-details">
-                        <span class="service-code">${level.serviceCode}</span>
-                        ${level.transitTime
-                          ? html`<span class="transit-time">Transit: ${level.transitTime}</span>`
-                          : nothing}
-                        ${level.estimatedDeliveryDate
-                          ? html`<span class="delivery-date">Est. delivery: ${new Date(level.estimatedDeliveryDate).toLocaleDateString()}</span>`
-                          : nothing}
-                      </div>
-                      ${level.description
-                        ? html`<p class="service-description">${level.description}</p>`
-                        : nothing}
-                    </div>
-                  `
-                )}
+              <div class="results-group">
+                <h4>Configured Service Types</h4>
+                <div class="service-levels">
+                  ${configuredLevels.map((level) => this._renderServiceLevelCard(level, currencySymbol, true))}
+                </div>
               </div>
             `
-          : success
-            ? html`<p class="no-results">No service levels returned for this destination.</p>`
-            : nothing}
+          : nothing}
+
+        ${otherLevels.length > 0
+          ? html`
+              <div class="results-group">
+                <h4>${hasConfigured ? "Other Available Services" : "Available Service Types"}</h4>
+                <div class="service-levels">
+                  ${otherLevels.map((level) => this._renderServiceLevelCard(level, currencySymbol, false))}
+                </div>
+              </div>
+            `
+          : nothing}
+
+        ${serviceLevels.length === 0 && success
+          ? html`<p class="no-results">No service levels returned for this destination.</p>`
+          : nothing}
+      </div>
+    `;
+  }
+
+  private _renderServiceLevelCard(
+    level: import("@shipping/types.js").TestShippingServiceLevelDto,
+    currencySymbol: string,
+    showValidation: boolean
+  ): unknown {
+    const isValid = level.isValid !== false;
+
+    return html`
+      <div class="service-level-card ${!isValid ? "invalid" : ""}">
+        <div class="service-header">
+          <span class="service-name">
+            ${showValidation
+              ? isValid
+                ? html`<uui-icon name="icon-check" class="valid-icon"></uui-icon>`
+                : html`<uui-icon name="icon-wrong" class="invalid-icon"></uui-icon>`
+              : nothing}
+            ${level.serviceType || level.serviceName}
+          </span>
+          ${isValid
+            ? html`<span class="service-cost">${currencySymbol}${level.totalCost.toFixed(2)}</span>`
+            : html`<span class="service-invalid">Invalid / Not Available</span>`}
+        </div>
+        ${isValid
+          ? html`
+              <div class="service-details">
+                <span class="service-code">${level.serviceCode}</span>
+                ${level.transitTime
+                  ? html`<span class="transit-time">Transit: ${level.transitTime}</span>`
+                  : nothing}
+                ${level.estimatedDeliveryDate
+                  ? html`<span class="delivery-date">Est. delivery: ${new Date(level.estimatedDeliveryDate).toLocaleDateString()}</span>`
+                  : nothing}
+              </div>
+              ${level.description
+                ? html`<p class="service-description">${level.description}</p>`
+                : nothing}
+            `
+          : nothing}
       </div>
     `;
   }
@@ -625,14 +667,49 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
       align-items: center;
     }
 
-    .service-name {
-      font-weight: 600;
-    }
-
     .service-cost {
       font-weight: 700;
       font-size: 1.125rem;
       color: var(--uui-color-positive);
+    }
+
+    .service-invalid {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--uui-color-danger);
+    }
+
+    .results-group {
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .results-group h4 {
+      margin: 0 0 var(--uui-size-space-2) 0;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--uui-color-text-alt);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .service-name {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      font-weight: 600;
+    }
+
+    .valid-icon {
+      color: var(--uui-color-positive);
+    }
+
+    .invalid-icon {
+      color: var(--uui-color-danger);
+    }
+
+    .service-level-card.invalid {
+      border-color: var(--uui-color-danger);
+      background: color-mix(in srgb, var(--uui-color-danger) 5%, var(--uui-color-surface));
     }
 
     .service-details {

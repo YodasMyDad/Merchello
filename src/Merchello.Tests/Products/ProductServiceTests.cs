@@ -62,7 +62,7 @@ public class ProductServiceTests
     }
 
     [Fact]
-    public async Task GenerateVariantsFromOptions_WithNoVariantOptions_ReturnsError()
+    public async Task GenerateVariantsFromOptions_WithNoVariantOptions_CreatesDefaultProduct()
     {
         // Arrange
         var taxGroup = _dataBuilder.CreateTaxGroup();
@@ -81,14 +81,15 @@ public class ProductServiceTests
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
-        // Act - try to generate variants with no variant options
+        // Act - generate variants with no variant options
         var result = await _productService.GenerateVariantsFromOptions(
             productRootId, defaultPrice: 19.99m, defaultCostOfGoods: 10.00m);
 
-        // Assert - service requires variant options to generate variants
-        result.Successful.ShouldBeFalse();
-        result.Messages.ShouldNotBeEmpty();
-        result.Messages.First().Message!.ShouldContain("variant options");
+        // Assert - service creates a single default product when no variant options exist
+        result.Successful.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+        result.ResultObject.Count.ShouldBe(1);
+        result.ResultObject.First().Default.ShouldBeTrue();
     }
 
     #endregion

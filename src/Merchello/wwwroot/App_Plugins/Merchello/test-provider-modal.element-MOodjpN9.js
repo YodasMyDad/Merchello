@@ -1,48 +1,48 @@
-import { html as n, nothing as u, css as C, state as o, customElement as b } from "@umbraco-cms/backoffice/external/lit";
-import { UmbModalBaseElement as w } from "@umbraco-cms/backoffice/modal";
-import { M as c } from "./merchello-api-BSrPLgGs.js";
-import { a as $, g as v } from "./store-settings-CoNaLkN5.js";
-var S = Object.defineProperty, x = Object.getOwnPropertyDescriptor, f = (t) => {
-  throw TypeError(t);
-}, r = (t, e, a, l) => {
-  for (var s = l > 1 ? void 0 : l ? x(e, a) : e, h = t.length - 1, p; h >= 0; h--)
-    (p = t[h]) && (s = (l ? p(e, a, s) : p(s)) || s);
-  return l && s && S(e, a, s), s;
-}, y = (t, e, a) => e.has(t) || f("Cannot " + a), g = (t, e, a) => (y(t, e, "read from private field"), e.get(t)), O = (t, e, a) => e.has(t) ? f("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(t) : e.set(t, a), _ = (t, e, a, l) => (y(t, e, "write to private field"), e.set(t, a), a), d;
-const m = "merchello-test-provider-form";
-let i = class extends w {
+import { html as s, nothing as l, css as b, state as a, customElement as w } from "@umbraco-cms/backoffice/external/lit";
+import { UmbModalBaseElement as $ } from "@umbraco-cms/backoffice/modal";
+import { M as v } from "./merchello-api-BSrPLgGs.js";
+import { a as S, g as _ } from "./store-settings-CoNaLkN5.js";
+var x = Object.defineProperty, z = Object.getOwnPropertyDescriptor, C = (i) => {
+  throw TypeError(i);
+}, r = (i, e, o, n) => {
+  for (var u = n > 1 ? void 0 : n ? z(e, o) : e, h = i.length - 1, p; h >= 0; h--)
+    (p = i[h]) && (u = (n ? p(e, o, u) : p(u)) || u);
+  return n && u && x(e, o, u), u;
+}, y = (i, e, o) => e.has(i) || C("Cannot " + o), g = (i, e, o) => (y(i, e, "read from private field"), e.get(i)), O = (i, e, o) => e.has(i) ? C("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(i) : e.set(i, o), m = (i, e, o, n) => (y(i, e, "write to private field"), e.set(i, o), o), c;
+const f = "merchello-test-provider-form";
+let t = class extends $ {
   constructor() {
-    super(...arguments), this._warehouseId = "", this._countryCode = "", this._stateOrProvinceCode = "", this._postalCode = "", this._city = "", this._weightKg = 1, this._lengthCm = "", this._widthCm = "", this._heightCm = "", this._itemsSubtotal = 100, this._warehouses = [], this._countries = [], this._regions = [], this._isLoadingData = !0, this._isLoadingRegions = !1, this._isTesting = !1, this._errorMessage = null, O(this, d, !1);
+    super(...arguments), this._warehouseId = "", this._countryCode = "", this._stateOrProvinceCode = "", this._postalCode = "", this._city = "", this._weightKg = 1, this._lengthCm = "", this._widthCm = "", this._heightCm = "", this._itemsSubtotal = 100, this._warehouses = [], this._countries = [], this._regions = [], this._isLoadingData = !0, this._isLoadingRegions = !1, this._isTesting = !1, this._errorMessage = null, O(this, c, !1);
   }
   connectedCallback() {
-    super.connectedCallback(), _(this, d, !0), this._loadInitialData(), this._restoreSavedValues();
+    super.connectedCallback(), m(this, c, !0), this._loadInitialData(), this._restoreSavedValues();
   }
   disconnectedCallback() {
-    super.disconnectedCallback(), _(this, d, !1);
+    super.disconnectedCallback(), m(this, c, !1);
   }
   async _loadInitialData() {
-    this._isLoadingData = !0, $();
-    const [t, e] = await Promise.all([
-      c.getWarehousesList(),
-      c.getLocalityCountries()
+    this._isLoadingData = !0, S();
+    const [i, e] = await Promise.all([
+      v.getWarehousesList(),
+      v.getLocalityCountries()
     ]);
-    if (g(this, d)) {
-      if (t.error) {
-        this._errorMessage = t.error.message, this._isLoadingData = !1;
+    if (g(this, c)) {
+      if (i.error) {
+        this._errorMessage = i.error.message, this._isLoadingData = !1;
         return;
       }
       if (e.error) {
         this._errorMessage = e.error.message, this._isLoadingData = !1;
         return;
       }
-      this._warehouses = t.data ?? [], this._countries = e.data ?? [], this._warehouses.length === 1 && !this._warehouseId && (this._warehouseId = this._warehouses[0].id), this._countryCode && await this._loadRegions(this._countryCode), this._isLoadingData = !1;
+      this._warehouses = i.data ?? [], this._countries = e.data ?? [], this._warehouses.length === 1 && !this._warehouseId && (this._warehouseId = this._warehouses[0].id), this._countryCode && await this._loadRegions(this._countryCode), this._isLoadingData = !1;
     }
   }
   _restoreSavedValues() {
     try {
-      const t = localStorage.getItem(m);
-      if (t) {
-        const e = JSON.parse(t);
+      const i = localStorage.getItem(f);
+      if (i) {
+        const e = JSON.parse(i);
         e.warehouseId && (this._warehouseId = e.warehouseId), e.countryCode && (this._countryCode = e.countryCode), e.stateOrProvinceCode && (this._stateOrProvinceCode = e.stateOrProvinceCode), e.postalCode && (this._postalCode = e.postalCode), e.city && (this._city = e.city), e.weightKg !== void 0 && (this._weightKg = e.weightKg), e.lengthCm !== void 0 && (this._lengthCm = String(e.lengthCm)), e.widthCm !== void 0 && (this._widthCm = String(e.widthCm)), e.heightCm !== void 0 && (this._heightCm = String(e.heightCm)), e.itemsSubtotal !== void 0 && (this._itemsSubtotal = e.itemsSubtotal);
       }
     } catch {
@@ -50,7 +50,7 @@ let i = class extends w {
   }
   _saveFormValues() {
     try {
-      const t = {
+      const i = {
         warehouseId: this._warehouseId,
         countryCode: this._countryCode,
         stateOrProvinceCode: this._stateOrProvinceCode,
@@ -62,17 +62,17 @@ let i = class extends w {
         heightCm: this._heightCm ? parseFloat(this._heightCm) : void 0,
         itemsSubtotal: this._itemsSubtotal
       };
-      localStorage.setItem(m, JSON.stringify(t));
+      localStorage.setItem(f, JSON.stringify(i));
     } catch {
     }
   }
-  async _loadRegions(t) {
+  async _loadRegions(i) {
     this._isLoadingRegions = !0, this._regions = [];
-    const { data: e } = await c.getLocalityRegions(t);
-    g(this, d) && (e && (this._regions = e), this._isLoadingRegions = !1);
+    const { data: e } = await v.getLocalityRegions(i);
+    g(this, c) && (e && (this._regions = e), this._isLoadingRegions = !1);
   }
-  _handleCountryChange(t) {
-    const e = t.target.value;
+  _handleCountryChange(i) {
+    const e = i.target.value;
     this._countryCode = e, this._stateOrProvinceCode = "", e ? this._loadRegions(e) : this._regions = [];
   }
   async _handleTest() {
@@ -81,8 +81,8 @@ let i = class extends w {
       return;
     }
     this._isTesting = !0, this._errorMessage = null, this._testResult = void 0, this._saveFormValues();
-    const t = this.data?.configuration.id;
-    if (!t) {
+    const i = this.data?.configuration.id;
+    if (!i) {
       this._errorMessage = "Configuration ID missing.", this._isTesting = !1;
       return;
     }
@@ -97,13 +97,13 @@ let i = class extends w {
       widthCm: this._widthCm ? parseFloat(this._widthCm) : void 0,
       heightCm: this._heightCm ? parseFloat(this._heightCm) : void 0,
       itemsSubtotal: this._itemsSubtotal
-    }, { data: a, error: l } = await c.testShippingProvider(t, e);
-    if (g(this, d)) {
-      if (l) {
-        this._errorMessage = l.message, this._isTesting = !1;
+    }, { data: o, error: n } = await v.testShippingProvider(i, e);
+    if (g(this, c)) {
+      if (n) {
+        this._errorMessage = n.message, this._isTesting = !1;
         return;
       }
-      this._testResult = a, this._isTesting = !1;
+      this._testResult = o, this._isTesting = !1;
     }
   }
   _handleClose() {
@@ -113,37 +113,37 @@ let i = class extends w {
   _getWarehouseOptions() {
     return [
       { name: "Select warehouse...", value: "", selected: !this._warehouseId },
-      ...this._warehouses.map((t) => ({
-        name: t.name || t.code || "Unnamed Warehouse",
-        value: t.id,
-        selected: t.id === this._warehouseId
+      ...this._warehouses.map((i) => ({
+        name: i.name || i.code || "Unnamed Warehouse",
+        value: i.id,
+        selected: i.id === this._warehouseId
       }))
     ];
   }
   _getCountryOptions() {
     return [
       { name: "Select country...", value: "", selected: !this._countryCode },
-      ...this._countries.map((t) => ({
-        name: t.name,
-        value: t.code,
-        selected: t.code === this._countryCode
+      ...this._countries.map((i) => ({
+        name: i.name,
+        value: i.code,
+        selected: i.code === this._countryCode
       }))
     ];
   }
   _getRegionOptions() {
     return this._isLoadingRegions ? [{ name: "Loading...", value: "", selected: !0 }] : [
       { name: "All regions", value: "", selected: !this._stateOrProvinceCode },
-      ...this._regions.map((t) => ({
-        name: t.name,
-        value: t.regionCode,
-        selected: t.regionCode === this._stateOrProvinceCode
+      ...this._regions.map((i) => ({
+        name: i.name,
+        value: i.regionCode,
+        selected: i.regionCode === this._stateOrProvinceCode
       }))
     ];
   }
   // Render methods
   _renderForm() {
-    const t = v();
-    return n`
+    const i = _();
+    return s`
       <div class="form-section">
         <h3>Origin</h3>
         <div class="form-row">
@@ -249,7 +249,7 @@ let i = class extends w {
         </div>
 
         <div class="form-row">
-          <label>Item Value (${t})</label>
+          <label>Item Value (${i})</label>
           <uui-input
             type="number"
             min="0"
@@ -263,48 +263,69 @@ let i = class extends w {
     `;
   }
   _renderResults() {
-    if (!this._testResult) return u;
-    const { success: t, serviceLevels: e, errors: a } = this._testResult, l = v();
-    return n`
+    if (!this._testResult) return l;
+    const { success: i, serviceLevels: e, errors: o } = this._testResult, n = _(), u = e.filter((d) => d.isConfigured), h = e.filter((d) => !d.isConfigured), p = u.length > 0;
+    return s`
       <div class="results-section">
         <h3>Results</h3>
 
-        ${a.length > 0 ? n`
+        ${o.length > 0 ? s`
               <div class="result-errors">
                 <uui-icon name="icon-alert"></uui-icon>
                 <ul>
-                  ${a.map((s) => n`<li>${s}</li>`)}
+                  ${o.map((d) => s`<li>${d}</li>`)}
                 </ul>
               </div>
-            ` : u}
+            ` : l}
 
-        ${e.length > 0 ? n`
-              <div class="service-levels">
-                ${e.map(
-      (s) => n`
-                    <div class="service-level-card">
-                      <div class="service-header">
-                        <span class="service-name">${s.serviceName}</span>
-                        <span class="service-cost">${l}${s.totalCost.toFixed(2)}</span>
-                      </div>
-                      <div class="service-details">
-                        <span class="service-code">${s.serviceCode}</span>
-                        ${s.transitTime ? n`<span class="transit-time">Transit: ${s.transitTime}</span>` : u}
-                        ${s.estimatedDeliveryDate ? n`<span class="delivery-date">Est. delivery: ${new Date(s.estimatedDeliveryDate).toLocaleDateString()}</span>` : u}
-                      </div>
-                      ${s.description ? n`<p class="service-description">${s.description}</p>` : u}
-                    </div>
-                  `
-    )}
+        ${p ? s`
+              <div class="results-group">
+                <h4>Configured Service Types</h4>
+                <div class="service-levels">
+                  ${u.map((d) => this._renderServiceLevelCard(d, n, !0))}
+                </div>
               </div>
-            ` : t ? n`<p class="no-results">No service levels returned for this destination.</p>` : u}
+            ` : l}
+
+        ${h.length > 0 ? s`
+              <div class="results-group">
+                <h4>${p ? "Other Available Services" : "Available Service Types"}</h4>
+                <div class="service-levels">
+                  ${h.map((d) => this._renderServiceLevelCard(d, n, !1))}
+                </div>
+              </div>
+            ` : l}
+
+        ${e.length === 0 && i ? s`<p class="no-results">No service levels returned for this destination.</p>` : l}
+      </div>
+    `;
+  }
+  _renderServiceLevelCard(i, e, o) {
+    const n = i.isValid !== !1;
+    return s`
+      <div class="service-level-card ${n ? "" : "invalid"}">
+        <div class="service-header">
+          <span class="service-name">
+            ${o ? n ? s`<uui-icon name="icon-check" class="valid-icon"></uui-icon>` : s`<uui-icon name="icon-wrong" class="invalid-icon"></uui-icon>` : l}
+            ${i.serviceType || i.serviceName}
+          </span>
+          ${n ? s`<span class="service-cost">${e}${i.totalCost.toFixed(2)}</span>` : s`<span class="service-invalid">Invalid / Not Available</span>`}
+        </div>
+        ${n ? s`
+              <div class="service-details">
+                <span class="service-code">${i.serviceCode}</span>
+                ${i.transitTime ? s`<span class="transit-time">Transit: ${i.transitTime}</span>` : l}
+                ${i.estimatedDeliveryDate ? s`<span class="delivery-date">Est. delivery: ${new Date(i.estimatedDeliveryDate).toLocaleDateString()}</span>` : l}
+              </div>
+              ${i.description ? s`<p class="service-description">${i.description}</p>` : l}
+            ` : l}
       </div>
     `;
   }
   render() {
-    const t = this.data?.configuration.displayName ?? "Provider";
-    return this._isLoadingData ? n`
-        <umb-body-layout headline="Test ${t}">
+    const i = this.data?.configuration.displayName ?? "Provider";
+    return this._isLoadingData ? s`
+        <umb-body-layout headline="Test ${i}">
           <div id="main">
             <div class="loading">
               <uui-loader></uui-loader>
@@ -312,10 +333,10 @@ let i = class extends w {
             </div>
           </div>
         </umb-body-layout>
-      ` : n`
-      <umb-body-layout headline="Test ${t}">
+      ` : s`
+      <umb-body-layout headline="Test ${i}">
         <div id="main">
-          ${this._errorMessage ? n`
+          ${this._errorMessage ? s`
                 <div class="error-banner">
                   <uui-icon name="icon-alert"></uui-icon>
                   <span>${this._errorMessage}</span>
@@ -327,7 +348,7 @@ let i = class extends w {
                     Dismiss
                   </uui-button>
                 </div>
-              ` : u}
+              ` : l}
 
           ${this._renderForm()}
           ${this._renderResults()}
@@ -344,7 +365,7 @@ let i = class extends w {
             ?disabled=${this._isTesting || !this._warehouseId || !this._countryCode}
             @click=${this._handleTest}
           >
-            ${this._isTesting ? n`<uui-loader-circle></uui-loader-circle>` : u}
+            ${this._isTesting ? s`<uui-loader-circle></uui-loader-circle>` : l}
             ${this._isTesting ? "Testing..." : "Test Provider"}
           </uui-button>
         </div>
@@ -352,8 +373,8 @@ let i = class extends w {
     `;
   }
 };
-d = /* @__PURE__ */ new WeakMap();
-i.styles = C`
+c = /* @__PURE__ */ new WeakMap();
+t.styles = b`
     :host {
       display: block;
     }
@@ -478,14 +499,49 @@ i.styles = C`
       align-items: center;
     }
 
-    .service-name {
-      font-weight: 600;
-    }
-
     .service-cost {
       font-weight: 700;
       font-size: 1.125rem;
       color: var(--uui-color-positive);
+    }
+
+    .service-invalid {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--uui-color-danger);
+    }
+
+    .results-group {
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .results-group h4 {
+      margin: 0 0 var(--uui-size-space-2) 0;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--uui-color-text-alt);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .service-name {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      font-weight: 600;
+    }
+
+    .valid-icon {
+      color: var(--uui-color-positive);
+    }
+
+    .invalid-icon {
+      color: var(--uui-color-danger);
+    }
+
+    .service-level-card.invalid {
+      border-color: var(--uui-color-danger);
+      background: color-mix(in srgb, var(--uui-color-danger) 5%, var(--uui-color-surface));
     }
 
     .service-details {
@@ -514,65 +570,65 @@ i.styles = C`
     }
   `;
 r([
-  o()
-], i.prototype, "_warehouseId", 2);
+  a()
+], t.prototype, "_warehouseId", 2);
 r([
-  o()
-], i.prototype, "_countryCode", 2);
+  a()
+], t.prototype, "_countryCode", 2);
 r([
-  o()
-], i.prototype, "_stateOrProvinceCode", 2);
+  a()
+], t.prototype, "_stateOrProvinceCode", 2);
 r([
-  o()
-], i.prototype, "_postalCode", 2);
+  a()
+], t.prototype, "_postalCode", 2);
 r([
-  o()
-], i.prototype, "_city", 2);
+  a()
+], t.prototype, "_city", 2);
 r([
-  o()
-], i.prototype, "_weightKg", 2);
+  a()
+], t.prototype, "_weightKg", 2);
 r([
-  o()
-], i.prototype, "_lengthCm", 2);
+  a()
+], t.prototype, "_lengthCm", 2);
 r([
-  o()
-], i.prototype, "_widthCm", 2);
+  a()
+], t.prototype, "_widthCm", 2);
 r([
-  o()
-], i.prototype, "_heightCm", 2);
+  a()
+], t.prototype, "_heightCm", 2);
 r([
-  o()
-], i.prototype, "_itemsSubtotal", 2);
+  a()
+], t.prototype, "_itemsSubtotal", 2);
 r([
-  o()
-], i.prototype, "_warehouses", 2);
+  a()
+], t.prototype, "_warehouses", 2);
 r([
-  o()
-], i.prototype, "_countries", 2);
+  a()
+], t.prototype, "_countries", 2);
 r([
-  o()
-], i.prototype, "_regions", 2);
+  a()
+], t.prototype, "_regions", 2);
 r([
-  o()
-], i.prototype, "_isLoadingData", 2);
+  a()
+], t.prototype, "_isLoadingData", 2);
 r([
-  o()
-], i.prototype, "_isLoadingRegions", 2);
+  a()
+], t.prototype, "_isLoadingRegions", 2);
 r([
-  o()
-], i.prototype, "_isTesting", 2);
+  a()
+], t.prototype, "_isTesting", 2);
 r([
-  o()
-], i.prototype, "_testResult", 2);
+  a()
+], t.prototype, "_testResult", 2);
 r([
-  o()
-], i.prototype, "_errorMessage", 2);
-i = r([
-  b("merchello-test-provider-modal")
-], i);
-const T = i;
+  a()
+], t.prototype, "_errorMessage", 2);
+t = r([
+  w("merchello-test-provider-modal")
+], t);
+const R = t;
 export {
-  i as MerchelloTestProviderModalElement,
-  T as default
+  t as MerchelloTestProviderModalElement,
+  R as default
 };
-//# sourceMappingURL=test-provider-modal.element-miEClnq3.js.map
+//# sourceMappingURL=test-provider-modal.element-MOodjpN9.js.map

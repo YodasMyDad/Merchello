@@ -30,6 +30,17 @@ public abstract class ShippingProviderBase : IShippingProvider
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Default implementation returns an empty list for providers without service types (e.g., flat-rate).
+    /// External providers (FedEx, UPS) should override to return their supported service types.
+    /// </remarks>
+    public virtual ValueTask<IReadOnlyList<ShippingServiceType>> GetSupportedServiceTypesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return ValueTask.FromResult<IReadOnlyList<ShippingServiceType>>(Array.Empty<ShippingServiceType>());
+    }
+
+    /// <inheritdoc />
     public virtual ValueTask ConfigureAsync(ShippingProviderConfiguration? configuration,
         CancellationToken cancellationToken = default)
     {
@@ -60,31 +71,19 @@ public abstract class ShippingProviderBase : IShippingProvider
         if (quote == null)
             return null;
 
-        // Filter to only requested service types
+        // Filter to only requested service types using the concrete ServiceType property
         var serviceTypeSet = new HashSet<string>(serviceTypes, StringComparer.OrdinalIgnoreCase);
         var filteredLevels = quote.ServiceLevels
             .Where(sl =>
             {
-                // Check ExtendedProperties for provider-specific service type keys
-                // Common patterns: fedexServiceType, upsServiceType, serviceType, etc.
-                if (sl.ExtendedProperties != null)
+                // Primary: use the concrete ServiceType property
+                if (sl.ServiceType?.Code is not null && serviceTypeSet.Contains(sl.ServiceType.Code))
                 {
-                    foreach (var (key, value) in sl.ExtendedProperties)
-                    {
-                        if (key.EndsWith("ServiceType", StringComparison.OrdinalIgnoreCase) &&
-                            serviceTypeSet.Contains(value))
-                        {
-                            return true;
-                        }
-                    }
+                    return true;
                 }
 
-                // Fallback: check if ServiceCode matches exactly or contains the service type
-                if (serviceTypeSet.Contains(sl.ServiceCode))
-                    return true;
-
-                return serviceTypes.Any(st =>
-                    sl.ServiceCode.Contains(st, StringComparison.OrdinalIgnoreCase));
+                // Fallback for flat-rate providers without service types: match ServiceCode directly
+                return serviceTypeSet.Contains(sl.ServiceCode);
             })
             .ToList();
 

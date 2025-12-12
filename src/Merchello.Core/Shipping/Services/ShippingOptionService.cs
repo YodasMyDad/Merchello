@@ -61,6 +61,19 @@ public class ShippingOptionService(
         return options;
     }
 
+    public async Task<List<string>> GetConfiguredServiceTypesAsync(string providerKey, CancellationToken ct = default)
+    {
+        using var scope = scopeProvider.CreateScope();
+        var serviceTypes = await scope.ExecuteWithContextAsync(async db =>
+            await db.ShippingOptions
+                .Where(o => o.ProviderKey == providerKey && !string.IsNullOrEmpty(o.ServiceType))
+                .Select(o => o.ServiceType!)
+                .Distinct()
+                .ToListAsync(ct));
+        scope.Complete();
+        return serviceTypes;
+    }
+
     public async Task<ShippingOptionDetailDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         using var scope = scopeProvider.CreateScope();

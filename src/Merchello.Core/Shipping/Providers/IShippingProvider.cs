@@ -21,10 +21,25 @@ public interface IShippingProvider
 
     /// <summary>
     /// Gets configuration fields for per-warehouse shipping method setup.
-    /// Returns fields like name, delivery days, service level selection, markup.
+    /// Returns fields like name, delivery days, markup percentage.
     /// These are rendered as a dynamic form in the shipping method configuration UI.
     /// </summary>
+    /// <remarks>
+    /// Service type selection is handled separately via <see cref="GetSupportedServiceTypesAsync"/>.
+    /// </remarks>
     ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetMethodConfigFieldsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the service types supported by this provider (e.g., FedEx Ground, FedEx 2Day).
+    /// Used to generate service type dropdowns in the UI and for filtering shipping rates.
+    /// </summary>
+    /// <remarks>
+    /// Returns an empty list for providers that don't use service types (e.g., flat-rate).
+    /// External carrier providers should return all available service types.
+    /// </remarks>
+    /// <returns>A list of supported service types with their codes and display names.</returns>
+    ValueTask<IReadOnlyList<ShippingServiceType>> GetSupportedServiceTypesAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>

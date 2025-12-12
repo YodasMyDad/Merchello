@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.ShippingProviders.FedEx.Models;
 
@@ -60,14 +61,21 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
             ### 4. Testing
 
             Use the Sandbox environment for testing:
-            - Sandbox credentials are provided in the Developer Portal
+            - Use your own **API Key** and **Secret Key** from the Developer Portal
+            - Use the FedEx test account number for sandbox requests:
+              - **Test Account Number:** `740561073`
+              - **Test Meter Number:** `118794267`
             - Test with sample addresses before going live
+
+            > **Note:** Do not use your production account number in sandbox mode.
+            > The test account number above is provided by FedEx for sandbox testing.
 
             ### 5. Going Live
 
             1. Complete FedEx production access requirements
             2. Switch to "Production" environment in settings
             3. Update credentials with production API keys
+            4. Replace the test account number with your actual FedEx account number
             """,
         ConfigCapabilities = new ProviderConfigCapabilities
         {
@@ -77,6 +85,35 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
             RequiresGlobalConfig = true
         }
     };
+
+    /// <summary>
+    /// Static list of FedEx service types. Defined once and reused for both
+    /// GetSupportedServiceTypesAsync and rate response mapping.
+    /// </summary>
+    private static readonly IReadOnlyList<ShippingServiceType> SupportedServiceTypes =
+    [
+        new ShippingServiceType { Code = "FEDEX_GROUND", DisplayName = "FedEx Ground", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "FEDEX_2_DAY", DisplayName = "FedEx 2Day", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "FEDEX_2_DAY_AM", DisplayName = "FedEx 2Day A.M.", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "STANDARD_OVERNIGHT", DisplayName = "FedEx Standard Overnight", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "PRIORITY_OVERNIGHT", DisplayName = "FedEx Priority Overnight", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "FIRST_OVERNIGHT", DisplayName = "FedEx First Overnight", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "INTERNATIONAL_ECONOMY", DisplayName = "FedEx International Economy", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "INTERNATIONAL_PRIORITY", DisplayName = "FedEx International Priority", ProviderKey = "fedex" }
+    ];
+
+    /// <summary>
+    /// Lookup dictionary for O(1) service type resolution.
+    /// </summary>
+    private static readonly Dictionary<string, ShippingServiceType> ServiceTypeLookup =
+        SupportedServiceTypes.ToDictionary(st => st.Code, StringComparer.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override ValueTask<IReadOnlyList<ShippingServiceType>> GetSupportedServiceTypesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return ValueTask.FromResult(SupportedServiceTypes);
+    }
 
     /// <inheritdoc />
     public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(
@@ -129,6 +166,10 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Service type selection is handled via GetSupportedServiceTypesAsync - the UI generates
+    /// the dropdown from that list. This method only returns additional configuration fields.
+    /// </remarks>
     public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetMethodConfigFieldsAsync(
         CancellationToken cancellationToken = default)
     {
@@ -138,29 +179,10 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
             {
                 Key = "name",
                 Label = "Method Name",
-                Description = "Display name shown to customers",
+                Description = "Display name shown to customers (optional, defaults to service type name)",
                 FieldType = ConfigurationFieldType.Text,
-                IsRequired = true,
+                IsRequired = false,
                 Placeholder = "e.g., FedEx Ground"
-            },
-            new ShippingProviderConfigurationField
-            {
-                Key = "serviceType",
-                Label = "Service Type",
-                Description = "FedEx service to use for this method",
-                FieldType = ConfigurationFieldType.Select,
-                IsRequired = true,
-                Options =
-                [
-                    new SelectOption { Value = "FEDEX_GROUND", Label = "FedEx Ground" },
-                    new SelectOption { Value = "FEDEX_2_DAY", Label = "FedEx 2Day" },
-                    new SelectOption { Value = "FEDEX_2_DAY_AM", Label = "FedEx 2Day A.M." },
-                    new SelectOption { Value = "STANDARD_OVERNIGHT", Label = "FedEx Standard Overnight" },
-                    new SelectOption { Value = "PRIORITY_OVERNIGHT", Label = "FedEx Priority Overnight" },
-                    new SelectOption { Value = "FIRST_OVERNIGHT", Label = "FedEx First Overnight" },
-                    new SelectOption { Value = "INTERNATIONAL_ECONOMY", Label = "FedEx International Economy" },
-                    new SelectOption { Value = "INTERNATIONAL_PRIORITY", Label = "FedEx International Priority" }
-                ]
             },
             new ShippingProviderConfigurationField
             {
@@ -341,17 +363,25 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
                         transitTime = TimeSpan.FromDays(days);
                     }
 
+                    // Resolve the concrete service type from our defined list
+                    var serviceType = ServiceTypeLookup.GetValueOrDefault(detail.ServiceType);
+
                     serviceLevels.Add(new ShippingServiceLevel
                     {
                         ServiceCode = $"fedex-{detail.ServiceType.ToLowerInvariant()}",
-                        ServiceName = GetServiceDisplayName(detail.ServiceType) ?? detail.ServiceName ?? detail.ServiceType,
+                        ServiceName = serviceType?.DisplayName ?? detail.ServiceName ?? detail.ServiceType,
                         TotalCost = totalCost,
                         CurrencyCode = currency,
                         TransitTime = transitTime,
                         Description = BuildTransitDescription(detail),
+                        ServiceType = serviceType ?? new ShippingServiceType
+                        {
+                            Code = detail.ServiceType,
+                            DisplayName = detail.ServiceName ?? detail.ServiceType,
+                            ProviderKey = Metadata.Key
+                        },
                         ExtendedProperties = new Dictionary<string, string>
                         {
-                            ["fedexServiceType"] = detail.ServiceType,
                             ["trackingUrlTemplate"] = "https://www.fedex.com/fedextrack/?trknbr={trackingNumber}"
                         }
                     });
@@ -417,11 +447,8 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
 
         foreach (var sl in quote.ServiceLevels)
         {
-            // Get the FedEx service type from extended properties
-            if (sl.ExtendedProperties?.TryGetValue("fedexServiceType", out var fedexType) != true)
-                continue;
-
-            // Only include if in requested service types
+            // Get the FedEx service type from the concrete ServiceType property
+            var fedexType = sl.ServiceType?.Code;
             if (fedexType is null || !serviceTypeSet.Contains(fedexType))
                 continue;
 
@@ -461,6 +488,7 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
                 TransitTime = sl.TransitTime,
                 EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
                 Description = sl.Description,
+                ServiceType = sl.ServiceType,
                 ExtendedProperties = extendedProps
             });
         }
@@ -543,22 +571,6 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
                 }
             }
         ];
-    }
-
-    private static string? GetServiceDisplayName(string serviceType)
-    {
-        return serviceType switch
-        {
-            "FEDEX_GROUND" => "FedEx Ground",
-            "FEDEX_2_DAY" => "FedEx 2Day",
-            "FEDEX_2_DAY_AM" => "FedEx 2Day A.M.",
-            "STANDARD_OVERNIGHT" => "FedEx Standard Overnight",
-            "PRIORITY_OVERNIGHT" => "FedEx Priority Overnight",
-            "FIRST_OVERNIGHT" => "FedEx First Overnight",
-            "INTERNATIONAL_ECONOMY" => "FedEx International Economy",
-            "INTERNATIONAL_PRIORITY" => "FedEx International Priority",
-            _ => null
-        };
     }
 
     private static string? BuildTransitDescription(FedExRateReplyDetail detail)

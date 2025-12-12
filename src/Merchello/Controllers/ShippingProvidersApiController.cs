@@ -5,6 +5,7 @@ using Merchello.Core.Shared.Types;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
+using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -20,6 +21,7 @@ namespace Merchello.Controllers;
 public class ShippingProvidersApiController(
     IShippingProviderManager providerManager,
     IWarehouseService warehouseService,
+    IShippingOptionService shippingOptionService,
     IOptions<MerchelloSettings> merchelloSettings) : MerchelloApiControllerBase
 {
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
@@ -363,7 +365,13 @@ public class ShippingProvidersApiController(
             ]
         };
 
-        // 4. Get rates from the provider
+        // 4. Get configured service types for this provider
+        var configuredServiceTypes = await shippingOptionService.GetConfiguredServiceTypesAsync(
+            provider.Metadata.Key,
+            cancellationToken);
+        var configuredSet = new HashSet<string>(configuredServiceTypes, StringComparer.OrdinalIgnoreCase);
+
+        // 5. Get rates from the provider
         var response = new TestShippingProviderResponseDto
         {
             ProviderKey = provider.Metadata.Key,
@@ -388,19 +396,53 @@ public class ShippingProvidersApiController(
                 return Ok(response);
             }
 
+            // Track which configured service types were returned
+            var returnedServiceTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             response.Success = quote.Errors.Count == 0;
-            response.ServiceLevels = quote.ServiceLevels.Select(sl => new TestShippingServiceLevelDto
+            response.ServiceLevels = quote.ServiceLevels.Select(sl =>
             {
-                ServiceCode = sl.ServiceCode,
-                ServiceName = sl.ServiceName,
-                TotalCost = sl.TotalCost,
-                CurrencyCode = sl.CurrencyCode,
-                TransitTime = sl.TransitTime?.TotalDays > 0
-                    ? $"{(int)sl.TransitTime.Value.TotalDays} day{((int)sl.TransitTime.Value.TotalDays != 1 ? "s" : "")}"
-                    : null,
-                EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
-                Description = sl.Description
+                // Extract service type from extended properties (provider-specific key)
+                var serviceType = ExtractServiceType(sl);
+                if (!string.IsNullOrEmpty(serviceType))
+                {
+                    returnedServiceTypes.Add(serviceType);
+                }
+
+                return new TestShippingServiceLevelDto
+                {
+                    ServiceCode = sl.ServiceCode,
+                    ServiceType = serviceType,
+                    ServiceName = sl.ServiceName,
+                    TotalCost = sl.TotalCost,
+                    CurrencyCode = sl.CurrencyCode,
+                    TransitTime = sl.TransitTime?.TotalDays > 0
+                        ? $"{(int)sl.TransitTime.Value.TotalDays} day{((int)sl.TransitTime.Value.TotalDays != 1 ? "s" : "")}"
+                        : null,
+                    EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
+                    Description = sl.Description,
+                    IsConfigured = !string.IsNullOrEmpty(serviceType) && configuredSet.Contains(serviceType),
+                    IsValid = true
+                };
             }).ToList();
+
+            // Add configured service types that were NOT returned (invalid/unavailable)
+            foreach (var configuredType in configuredServiceTypes)
+            {
+                if (!returnedServiceTypes.Contains(configuredType))
+                {
+                    response.ServiceLevels.Add(new TestShippingServiceLevelDto
+                    {
+                        ServiceCode = $"{provider.Metadata.Key}-{configuredType.ToLowerInvariant()}",
+                        ServiceType = configuredType,
+                        ServiceName = configuredType,
+                        TotalCost = 0,
+                        CurrencyCode = _settings.StoreCurrencyCode ?? "GBP",
+                        IsConfigured = true,
+                        IsValid = false
+                    });
+                }
+            }
 
             response.Errors = quote.Errors.ToList();
         }
@@ -411,6 +453,15 @@ public class ShippingProvidersApiController(
         }
 
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Extract service type code from a shipping service level.
+    /// Uses the concrete ServiceType property instead of magic strings in ExtendedProperties.
+    /// </summary>
+    private static string? ExtractServiceType(ShippingServiceLevel sl)
+    {
+        return sl.ServiceType?.Code;
     }
 
     // ============================================

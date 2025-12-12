@@ -253,6 +253,8 @@ export interface TestShippingProviderResponseDto {
 export interface TestShippingServiceLevelDto {
   /** Unique service code (e.g., "fedex-ground") */
   serviceCode: string;
+  /** Raw service type code from the provider (e.g., "FEDEX_GROUND") */
+  serviceType?: string;
   /** Human-readable service name (e.g., "FedEx Ground") */
   serviceName: string;
   /** Total shipping cost */
@@ -265,4 +267,8 @@ export interface TestShippingServiceLevelDto {
   estimatedDeliveryDate?: string;
   /** Additional description */
   description?: string;
+  /** Whether this service type has a configured ShippingOption in the system */
+  isConfigured?: boolean;
+  /** Whether the provider returned a valid rate for this service type */
+  isValid?: boolean;
 }

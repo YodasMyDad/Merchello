@@ -9,6 +9,12 @@ public interface IShippingOptionService
     // Shipping Options
     Task<List<ShippingOptionDto>> GetAllAsync(CancellationToken ct = default);
     Task<ShippingOptionDetailDto?> GetByIdAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>
+    /// Get distinct service types configured for a provider.
+    /// Used by the test functionality to validate configured shipping methods.
+    /// </summary>
+    Task<List<string>> GetConfiguredServiceTypesAsync(string providerKey, CancellationToken ct = default);
     Task<CrudResult<ShippingOption>> CreateAsync(CreateShippingOptionDto dto, CancellationToken ct = default);
     Task<CrudResult<ShippingOption>> UpdateAsync(Guid id, CreateShippingOptionDto dto, CancellationToken ct = default);
     Task<CrudResult<bool>> DeleteAsync(Guid id, CancellationToken ct = default);
