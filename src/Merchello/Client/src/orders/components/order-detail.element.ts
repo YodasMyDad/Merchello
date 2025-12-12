@@ -5,16 +5,21 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
+import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
 import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
+import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
+import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { UMB_CURRENT_USER_CONTEXT, type UmbCurrentUserModel } from "@umbraco-cms/backoffice/current-user";
-import type { OrderDetailDto, AddressDto, FulfillmentOrderDto, InvoicePaymentStatus, InvoiceNoteDto } from "@orders/types/order.types.js";
+import { InvoicePaymentStatus } from "@orders/types/order.types.js";
+import type { OrderDetailDto, AddressDto, FulfillmentOrderDto, InvoiceNoteDto } from "@orders/types/order.types.js";
 import type { MerchelloOrderDetailWorkspaceContext } from "@orders/contexts/order-detail-workspace.context.js";
 import { MERCHELLO_FULFILLMENT_MODAL } from "@orders/modals/fulfillment-modal.token.js";
 import { MERCHELLO_EDIT_ORDER_MODAL } from "@orders/modals/edit-order-modal.token.js";
 import { MERCHELLO_CUSTOMER_ORDERS_MODAL } from "@orders/modals/customer-orders-modal.token.js";
 import { formatCurrency, formatDateTime } from "@shared/utils/formatting.js";
 import { MerchelloApi, type CountryDto } from "@api/merchello-api.js";
+import { getOrdersListHref } from "@shared/utils/navigation.js";
 
 // Import the shipments view component
 import "./shipments-view.element.js";
@@ -26,7 +31,11 @@ import "./payment-panel.element.js";
 export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
   @state() private _order: OrderDetailDto | null = null;
   @state() private _isLoading = true;
-  @state() private _activeTab: "details" | "shipments" | "payments" = "details";
+
+  // Tab routing state
+  @state() private _routes: UmbRoute[] = [];
+  @state() private _routerPath?: string;
+  @state() private _activePath = "";
   @state() private _newNoteText: string = "";
   @state() private _visibleToCustomer: boolean = false;
   @state() private _isPostingNote: boolean = false;
@@ -47,6 +56,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
   #workspaceContext?: MerchelloOrderDetailWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
+  #notificationContext?: UmbNotificationContext;
   #isConnected = false;
 
   constructor() {
@@ -68,12 +78,40 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
         this._currentUser = currentUser;
       });
     });
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
+      this.#notificationContext = context;
+    });
     this._loadCountries();
   }
 
   connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
+    this._createRoutes();
+  }
+
+  private _createRoutes(): void {
+    const stubComponent = (): HTMLElement => document.createElement("div");
+    this._routes = [
+      { path: "tab/details", component: stubComponent },
+      { path: "tab/shipments", component: stubComponent },
+      { path: "tab/payments", component: stubComponent },
+      { path: "", redirectTo: "tab/details" },
+    ];
+  }
+
+  private _getActiveTab(): "details" | "shipments" | "payments" {
+    if (this._activePath.includes("tab/shipments")) return "shipments";
+    if (this._activePath.includes("tab/payments")) return "payments";
+    return "details";
+  }
+
+  private _onRouterInit(event: UmbRouterSlotInitEvent): void {
+    this._routerPath = event.target.absoluteRouterPath;
+  }
+
+  private _onRouterChange(event: UmbRouterSlotChangeEvent): void {
+    this._activePath = event.target.localActiveViewPath || "";
   }
 
   disconnectedCallback(): void {
@@ -116,29 +154,37 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
   private async _openFulfillmentModal(): Promise<void> {
     if (!this._order || !this.#modalManager) return;
 
+    const orderId = this._order.id;
     const modal = this.#modalManager.open(this, MERCHELLO_FULFILLMENT_MODAL, {
-      data: { invoiceId: this._order.id },
+      data: { invoiceId: orderId },
     });
 
     // Wait for modal to close (submit or reject)
     await modal.onSubmit().catch(() => undefined);
 
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
+
     // Always refresh the order data when modal closes to ensure status is up to date
-    this.#workspaceContext?.load(this._order.id);
+    this.#workspaceContext?.load(orderId);
   }
 
   private async _openEditOrderModal(): Promise<void> {
     if (!this._order || !this.#modalManager) return;
 
+    const orderId = this._order.id;
     const modal = this.#modalManager.open(this, MERCHELLO_EDIT_ORDER_MODAL, {
-      data: { invoiceId: this._order.id },
+      data: { invoiceId: orderId },
     });
 
     // Wait for modal to close (submit or reject)
     await modal.onSubmit().catch(() => undefined);
 
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
+
     // Refresh the order data when modal closes
-    this.#workspaceContext?.load(this._order.id);
+    this.#workspaceContext?.load(orderId);
   }
 
   private async _openCustomerOrdersModal(): Promise<void> {
@@ -157,14 +203,14 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
   private _getPaymentStatusBadgeClass(status: InvoicePaymentStatus): string {
     switch (status) {
-      case 30: // Paid
+      case InvoicePaymentStatus.Paid:
         return "paid";
-      case 20: // PartiallyPaid
+      case InvoicePaymentStatus.PartiallyPaid:
         return "partial";
-      case 50: // Refunded
-      case 40: // PartiallyRefunded
+      case InvoicePaymentStatus.Refunded:
+      case InvoicePaymentStatus.PartiallyRefunded:
         return "refunded";
-      case 10: // AwaitingPayment
+      case InvoicePaymentStatus.AwaitingPayment:
         return "awaiting";
       default:
         return "unpaid";
@@ -298,8 +344,16 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     if (result.error) {
       console.error('Failed to save address:', result.error);
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to save", message: result.error.message || "Could not save address changes" }
+      });
       return;
     }
+
+    // Show success notification
+    this.#notificationContext?.peek("positive", {
+      data: { headline: "Address updated", message: "Changes have been saved successfully" }
+    });
 
     // Reload order data and close edit mode
     this._editingSection = null;
@@ -336,8 +390,16 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     if (error) {
       console.error('Failed to save purchase order:', error);
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to save", message: error.message || "Could not save purchase order" }
+      });
       return;
     }
+
+    // Show success notification
+    this.#notificationContext?.peek("positive", {
+      data: { headline: "Purchase order updated", message: "Changes have been saved successfully" }
+    });
 
     // Reload order data and close edit mode
     this._editingPurchaseOrder = false;
@@ -519,10 +581,6 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     return groups;
   }
 
-  private _handleTabClick(tab: "details" | "shipments" | "payments"): void {
-    this._activeTab = tab;
-  }
-
   private _handlePaymentChange(): void {
     // Reload order data when payment changes
     if (this._order) {
@@ -549,8 +607,16 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     if (error) {
       this._noteError = error.message || "Failed to post note";
       console.error("Failed to post note:", error);
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to post note", message: error.message || "Could not save the note" }
+      });
       return;
     }
+
+    // Show success notification
+    this.#notificationContext?.peek("positive", {
+      data: { headline: "Note added", message: "Your note has been posted" }
+    });
 
     // Clear form and reload order
     this._newNoteText = "";
@@ -576,54 +642,65 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     }
 
     const order = this._order;
+    const activeTab = this._getActiveTab();
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-      <div class="order-detail">
-        <!-- Header -->
-        <div class="order-header">
-          <div class="header-left">
+        <!-- Back button -->
+        <uui-button slot="header" compact href=${getOrdersListHref()} label="Back to orders" class="back-button">
+          <uui-icon name="icon-arrow-left"></uui-icon>
+        </uui-button>
+
+        <!-- Header with order info -->
+        <div id="header" slot="header">
+          <umb-icon name="icon-receipt"></umb-icon>
+          <div class="header-title">
             <h1>${order.invoiceNumber || "Order"}</h1>
-            <span class="badge ${this._getPaymentStatusBadgeClass(order.paymentStatus)}">${order.paymentStatusDisplay}</span>
-            <span class="badge ${order.fulfillmentStatus.toLowerCase().replace(" ", "-")}">${order.fulfillmentStatus}</span>
+            <span class="order-meta">${formatDateTime(order.dateCreated)} from ${order.channel}</span>
           </div>
-          <div class="header-right">
-            <uui-button look="primary" label="Edit" @click=${this._openEditOrderModal}>Edit</uui-button>
-          </div>
-        </div>
-        <div class="order-meta">
-          ${formatDateTime(order.dateCreated)} from ${order.channel}
+          <span class="badge ${this._getPaymentStatusBadgeClass(order.paymentStatus)}">${order.paymentStatusDisplay}</span>
+          <span class="badge ${order.fulfillmentStatus.toLowerCase().replace(" ", "-")}">${order.fulfillmentStatus}</span>
         </div>
 
-        <!-- Tabs -->
-        <uui-tab-group>
-          <uui-tab
-            label="Details"
-            ?active=${this._activeTab === "details"}
-            @click=${() => this._handleTabClick("details")}
-          >
-            Details
-          </uui-tab>
-          <uui-tab
-            label="Shipments"
-            ?active=${this._activeTab === "shipments"}
-            @click=${() => this._handleTabClick("shipments")}
-          >
-            Shipments
-          </uui-tab>
-          <uui-tab
-            label="Payments"
-            ?active=${this._activeTab === "payments"}
-            @click=${() => this._handleTabClick("payments")}
-          >
-            Payments
-          </uui-tab>
-        </uui-tab-group>
+        <!-- Inner layout with tabs -->
+        <umb-body-layout header-fit-height header-no-padding>
+          <!-- Tabs in header slot -->
+          <uui-tab-group slot="header">
+            <uui-tab
+              label="Details"
+              href="${this._routerPath}/tab/details"
+              ?active=${activeTab === "details"}
+            >
+              Details
+            </uui-tab>
+            <uui-tab
+              label="Shipments"
+              href="${this._routerPath}/tab/shipments"
+              ?active=${activeTab === "shipments"}
+            >
+              Shipments
+            </uui-tab>
+            <uui-tab
+              label="Payments"
+              href="${this._routerPath}/tab/payments"
+              ?active=${activeTab === "payments"}
+            >
+              Payments
+            </uui-tab>
+          </uui-tab-group>
 
-        <!-- Tab Content -->
-        ${this._activeTab === "shipments"
+          <!-- Hidden router slot for URL tracking -->
+          <umb-router-slot
+            .routes=${this._routes}
+            @init=${this._onRouterInit}
+            @change=${this._onRouterChange}
+          ></umb-router-slot>
+
+          <!-- Tab Content -->
+          <div class="tab-content">
+        ${activeTab === "shipments"
           ? html`<merchello-shipments-view></merchello-shipments-view>`
-          : this._activeTab === "payments"
+          : activeTab === "payments"
           ? html`
               <merchello-payment-panel
                 invoiceId=${order.id}
@@ -920,7 +997,15 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
           </div>
         </div>
         `}
-      </div>
+          </div>
+        </umb-body-layout>
+
+        <!-- Footer -->
+        <umb-footer-layout slot="footer">
+          <uui-button slot="actions" look="primary" label="Edit Order" @click=${this._openEditOrderModal}>
+            Edit Order
+          </uui-button>
+        </umb-footer-layout>
       </umb-body-layout>
     `;
   }
@@ -928,11 +1013,60 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
   static styles = css`
     :host {
       display: block;
+      width: 100%;
       height: 100%;
-      background: var(--uui-color-background);
+      --uui-tab-background: var(--uui-color-surface);
     }
 
-    .order-detail {
+    /* Hide router slot - used only for URL tracking */
+    umb-router-slot {
+      display: none;
+    }
+
+    /* Header styling */
+    .back-button {
+      margin-right: var(--uui-size-space-2);
+    }
+
+    #header {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+      flex: 1;
+      padding: var(--uui-size-space-4) 0;
+    }
+
+    #header umb-icon {
+      font-size: 24px;
+      color: var(--uui-color-text-alt);
+    }
+
+    .header-title {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .header-title h1 {
+      margin: 0;
+      font-size: var(--uui-type-h5-size);
+      font-weight: 700;
+    }
+
+    .order-meta {
+      color: var(--uui-color-text-alt);
+      font-size: 0.75rem;
+    }
+
+    /* Tab styling */
+    uui-tab-group {
+      --uui-tab-divider: var(--uui-color-border);
+      width: 100%;
+    }
+
+    /* Tab content */
+    .tab-content {
       padding: var(--uui-size-layout-1);
     }
 
@@ -947,40 +1081,6 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
-    }
-
-    .order-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: var(--uui-size-space-2);
-    }
-
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: var(--uui-size-space-2);
-    }
-
-    .header-left h1 {
-      margin: 0;
-      font-size: 1.25rem;
-      font-weight: 600;
-    }
-
-    .header-right {
-      display: flex;
-      gap: var(--uui-size-space-2);
-    }
-
-    .order-meta {
-      color: var(--uui-color-text-alt);
-      font-size: 0.875rem;
-      margin-bottom: var(--uui-size-space-4);
-    }
-
-    uui-tab-group {
-      margin-bottom: var(--uui-size-space-4);
     }
 
     .badge {

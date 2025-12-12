@@ -30,6 +30,7 @@ import "@shared/components/editable-text-list.element.js";
 import "@products/components/shared/variant-basic-info.element.js";
 import "@products/components/shared/variant-feed-settings.element.js";
 import "@products/components/shared/variant-stock-display.element.js";
+import type { StockSettingsChangeDetail } from "@products/components/shared/variant-stock-display.element.js";
 import { UmbDataTypeDetailRepository } from "@umbraco-cms/backoffice/data-type";
 import { UmbPropertyEditorConfigCollection } from "@umbraco-cms/backoffice/property-editor";
 import type { UmbPropertyEditorConfigCollection as UmbPropertyEditorConfigCollectionType } from "@umbraco-cms/backoffice/property-editor";
@@ -503,6 +504,13 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       shoppingFeedMaterial: this._variantFormData.shoppingFeedMaterial ?? undefined,
       shoppingFeedSize: this._variantFormData.shoppingFeedSize ?? undefined,
       removeFromFeed: this._variantFormData.removeFromFeed,
+      // Warehouse stock settings
+      warehouseStock: this._variantFormData.warehouseStock?.map((ws) => ({
+        warehouseId: ws.warehouseId,
+        stock: ws.stock,
+        reorderPoint: ws.reorderPoint,
+        trackStock: ws.trackStock,
+      })),
     };
 
     const { error } = await MerchelloApi.updateVariant(productId, variantId, request);
@@ -997,6 +1005,32 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       <div class="tab-content">
         <uui-box headline="Search Engine Optimization">
           <umb-property-layout
+            label="Product URL"
+            description="The URL path for this product on your storefront">
+            <uui-input
+              slot="editor"
+              .value=${this._formData.rootUrl || ""}
+              @input=${(e: Event) => this._handleInputChange("rootUrl", (e.target as HTMLInputElement).value)}
+              placeholder="/products/my-product">
+            </uui-input>
+          </umb-property-layout>
+
+          ${this._isSingleVariant()
+            ? html`
+                <umb-property-layout
+                  label="Variant URL Slug"
+                  description="Custom URL path for this variant">
+                  <uui-input
+                    slot="editor"
+                    .value=${this._variantFormData.url || ""}
+                    @input=${(e: Event) => (this._variantFormData = { ...this._variantFormData, url: (e.target as HTMLInputElement).value })}
+                    placeholder="/products/my-product/default">
+                  </uui-input>
+                </umb-property-layout>
+              `
+            : nothing}
+
+          <umb-property-layout
             label="Page Title"
             description="The title shown in browser tabs and search results">
             <uui-input
@@ -1336,16 +1370,31 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   }
 
   /**
-   * Renders the Stock tab for single-variant products using shared component (read-only)
+   * Renders the Stock tab for single-variant products using shared component
    */
   private _renderStockTab(): unknown {
     return html`
       <div class="tab-content">
         <merchello-variant-stock-display
-          .warehouseStock=${this._variantFormData.warehouseStock ?? []}>
+          .warehouseStock=${this._variantFormData.warehouseStock ?? []}
+          @stock-settings-change=${this._handleStockSettingsChange}>
         </merchello-variant-stock-display>
       </div>
     `;
+  }
+
+  private _handleStockSettingsChange(e: CustomEvent<StockSettingsChangeDetail>): void {
+    const { warehouseId, stock, reorderPoint, trackStock } = e.detail;
+    const updatedStock = (this._variantFormData.warehouseStock ?? []).map((ws) => {
+      if (ws.warehouseId !== warehouseId) return ws;
+      return {
+        ...ws,
+        ...(stock !== undefined && { stock }),
+        ...(reorderPoint !== undefined && { reorderPoint }),
+        ...(trackStock !== undefined && { trackStock }),
+      };
+    });
+    this._variantFormData = { ...this._variantFormData, warehouseStock: updatedStock };
   }
 
   private _renderOptionsTab(): unknown {

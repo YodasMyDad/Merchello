@@ -211,6 +211,14 @@ export interface UpdateVariantRequest {
   shoppingFeedMaterial?: string;
   shoppingFeedSize?: string;
   removeFromFeed?: boolean;
+  warehouseStock?: UpdateWarehouseStockRequest[];
+}
+
+export interface UpdateWarehouseStockRequest {
+  warehouseId: string;
+  stock?: number;
+  reorderPoint?: number | null;
+  trackStock?: boolean;
 }
 
 export interface SaveProductOptionRequest {

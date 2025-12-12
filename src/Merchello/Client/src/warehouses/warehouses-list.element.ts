@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
+import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
+import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { WarehouseListDto } from "@warehouses/types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import {
@@ -18,9 +20,25 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
   @state() private _errorMessage: string | null = null;
   @state() private _isDeleting: string | null = null;
 
+  #notificationContext?: UmbNotificationContext;
+  #isConnected = false;
+
+  constructor() {
+    super();
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
+      this.#notificationContext = context;
+    });
+  }
+
   connectedCallback(): void {
     super.connectedCallback();
+    this.#isConnected = true;
     this._loadWarehouses();
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#isConnected = false;
   }
 
   private async _loadWarehouses(): Promise<void> {
@@ -28,6 +46,8 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
     this._errorMessage = null;
 
     const { data, error } = await MerchelloApi.getWarehousesList();
+
+    if (!this.#isConnected) return;
 
     if (error) {
       this._errorMessage = error.message;
@@ -60,13 +80,21 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
 
     const { error } = await MerchelloApi.deleteWarehouse(warehouse.id);
 
+    if (!this.#isConnected) return;
+
     this._isDeleting = null;
 
     if (error) {
       this._errorMessage = `Failed to delete warehouse: ${error.message}`;
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to delete", message: error.message || "Could not delete warehouse" }
+      });
       return;
     }
 
+    this.#notificationContext?.peek("positive", {
+      data: { headline: "Warehouse deleted", message: "The warehouse has been deleted successfully" }
+    });
     this._loadWarehouses();
   }
 

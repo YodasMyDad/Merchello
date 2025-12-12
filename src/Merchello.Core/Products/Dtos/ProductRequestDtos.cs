@@ -104,6 +104,11 @@ public class UpdateVariantRequest
     public string? ShoppingFeedMaterial { get; set; }
     public string? ShoppingFeedSize { get; set; }
     public bool? RemoveFromFeed { get; set; }
+
+    /// <summary>
+    /// Warehouse stock settings to update
+    /// </summary>
+    public List<UpdateWarehouseStockRequest>? WarehouseStock { get; set; }
 }
 
 /// <summary>

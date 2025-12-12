@@ -3,6 +3,8 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
+import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
+import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { SupplierListItemDto } from "./types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { MERCHELLO_CREATE_SUPPLIER_MODAL } from "@warehouses/modals/create-supplier-modal.token.js";
@@ -17,17 +19,28 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
   @state() private _isDeleting: string | null = null;
 
   #modalManager?: UmbModalManagerContext;
+  #notificationContext?: UmbNotificationContext;
+  #isConnected = false;
 
   constructor() {
     super();
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
       this.#modalManager = context;
     });
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
+      this.#notificationContext = context;
+    });
   }
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.#isConnected = true;
     this._loadSuppliers();
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#isConnected = false;
   }
 
   private async _loadSuppliers(): Promise<void> {
@@ -35,6 +48,8 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
     this._errorMessage = null;
 
     const { data, error } = await MerchelloApi.getSuppliers();
+
+    if (!this.#isConnected) return;
 
     if (error) {
       this._errorMessage = error.message;
@@ -55,6 +70,7 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
     });
 
     const result = await modal?.onSubmit().catch(() => undefined);
+    if (!this.#isConnected) return;
     if (result?.supplier) {
       this._loadSuppliers();
     }
@@ -66,6 +82,7 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
     });
 
     const result = await modal?.onSubmit().catch(() => undefined);
+    if (!this.#isConnected) return;
     if (result?.updated) {
       this._loadSuppliers();
     }
@@ -85,13 +102,21 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
 
     const { error } = await MerchelloApi.deleteSupplier(supplier.id);
 
+    if (!this.#isConnected) return;
+
     this._isDeleting = null;
 
     if (error) {
       this._errorMessage = `Failed to delete supplier: ${error.message}`;
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to delete", message: error.message || "Could not delete supplier" }
+      });
       return;
     }
 
+    this.#notificationContext?.peek("positive", {
+      data: { headline: "Supplier deleted", message: "The supplier has been deleted successfully" }
+    });
     this._loadSuppliers();
   }
 

@@ -3,6 +3,8 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
+import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
+import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { OrderListItemDto, OrderStatsDto, OrderListParams, OrderColumnKey } from "@orders/types/order.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
@@ -31,22 +33,29 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
 
   private _searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   #modalManager?: UmbModalManagerContext;
+  #notificationContext?: UmbNotificationContext;
+  #isConnected = false;
 
   constructor() {
     super();
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
       this.#modalManager = context;
     });
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
+      this.#notificationContext = context;
+    });
   }
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.#isConnected = true;
     this._loadOrders();
     this._loadStats();
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.#isConnected = false;
     if (this._searchDebounceTimer) {
       clearTimeout(this._searchDebounceTimer);
     }
@@ -77,6 +86,8 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
 
     const { data, error } = await MerchelloApi.getOrders(params);
 
+    if (!this.#isConnected) return;
+
     if (error) {
       this._errorMessage = error.message;
       this._isLoading = false;
@@ -94,6 +105,7 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
 
   private async _loadStats(): Promise<void> {
     const { data } = await MerchelloApi.getOrderStats();
+    if (!this.#isConnected) return;
     if (data) {
       this._stats = data;
     }
@@ -161,12 +173,21 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     const ids = Array.from(this._selectedOrders);
     const { error } = await MerchelloApi.deleteOrders(ids);
 
+    if (!this.#isConnected) return;
+
     this._isDeleting = false;
 
     if (error) {
       this._errorMessage = `Failed to delete orders: ${error.message}`;
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to delete", message: error.message || "Could not delete orders" }
+      });
       return;
     }
+
+    this.#notificationContext?.peek("positive", {
+      data: { headline: "Orders deleted", message: `${count} order${count !== 1 ? "s" : ""} deleted successfully` }
+    });
 
     // Clear selection and reload
     this._selectedOrders = new Set();
@@ -190,6 +211,7 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
+    if (!this.#isConnected) return;
     if (result?.created && result.invoiceId) {
       // Navigate to the new order using SPA routing
       navigateToOrderDetail(result.invoiceId);

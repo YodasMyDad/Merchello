@@ -1,72 +1,23 @@
 import {
   LitElement,
-  css,
   html,
   customElement,
 } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
+import "@shared/components/workspace-placeholder.element.js";
 
 @customElement("merchello-customers-workspace")
 export class MerchelloCustomersWorkspaceElement extends UmbElementMixin(LitElement) {
   render() {
     return html`
-      <umb-body-layout header-fit-height main-no-padding>
-        <div class="content">
-          <uui-box headline="Customers">
-            <div class="placeholder">
-              <uui-icon name="icon-users"></uui-icon>
-              <h2>Customers</h2>
-              <p>Customer management coming soon.</p>
-              <p class="hint">This section will allow you to view and manage customer accounts, order history, and preferences.</p>
-            </div>
-          </uui-box>
-        </div>
-      </umb-body-layout>
+      <merchello-workspace-placeholder
+        icon="icon-users"
+        title="Customers"
+        description="Customer management coming soon."
+        hint="This section will allow you to view and manage customer accounts, order history, and preferences.">
+      </merchello-workspace-placeholder>
     `;
   }
-
-  static styles = [
-    css`
-      :host {
-        display: block;
-        height: 100%;
-      }
-
-      .content {
-        padding: var(--uui-size-layout-1);
-      }
-
-      .placeholder {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: var(--uui-size-layout-4);
-        text-align: center;
-      }
-
-      .placeholder uui-icon {
-        font-size: 4rem;
-        color: var(--uui-color-border-emphasis);
-        margin-bottom: var(--uui-size-space-4);
-      }
-
-      .placeholder h2 {
-        margin: 0 0 var(--uui-size-space-2) 0;
-        color: var(--uui-color-text);
-      }
-
-      .placeholder p {
-        margin: 0;
-        color: var(--uui-color-text-alt);
-      }
-
-      .placeholder .hint {
-        margin-top: var(--uui-size-space-4);
-        font-size: 0.875rem;
-      }
-    `,
-  ];
 }
 
 export default MerchelloCustomersWorkspaceElement;
@@ -76,4 +27,3 @@ declare global {
     "merchello-customers-workspace": MerchelloCustomersWorkspaceElement;
   }
 }
-

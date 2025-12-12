@@ -204,36 +204,36 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
               `
             : nothing}
 
-          <div class="form-section">
-            <div class="form-row">
-              <label>Country <span class="required">*</span></label>
+          <uui-box>
+            <umb-property-layout
+              label="Country"
+              description="Select the country this region applies to"
+              ?mandatory=${true}
+              ?invalid=${!!this._errors.country}>
               <uui-select
+                slot="editor"
                 label="Country"
                 .options=${this._getCountryOptions()}
                 @change=${this._handleCountryChange}>
               </uui-select>
-              <span class="hint">Select the country this region applies to</span>
-              ${this._errors.country
-                ? html`<span class="field-error">${this._errors.country}</span>`
-                : nothing}
-            </div>
+            </umb-property-layout>
 
-            <div class="form-row">
-              <label>State/Province</label>
+            <umb-property-layout
+              label="State/Province"
+              description=${this._regions.length === 0 && this._countryCode && !this._isLoadingRegions
+                ? "No subdivisions available — rule applies to entire country"
+                : "Leave as 'All regions' to apply to entire country"}>
               <uui-select
+                slot="editor"
                 label="State/Province"
                 .options=${this._getRegionOptions()}
                 ?disabled=${!this._countryCode || (!hasRegions && !this._isLoadingRegions)}
                 @change=${this._handleStateChange}>
               </uui-select>
-              ${this._regions.length === 0 && this._countryCode && !this._isLoadingRegions
-                ? html`<span class="hint">No subdivisions available — rule applies to entire country</span>`
-                : html`<span class="hint">Leave as "All regions" to apply to entire country</span>`}
-            </div>
-          </div>
+            </umb-property-layout>
+          </uui-box>
 
-          <div class="mode-section">
-            <label>Shipping Mode</label>
+          <uui-box headline="Shipping Mode">
             <div class="mode-cards">
               <div
                 class="mode-card ${!this._isExcluded ? "active" : ""}"
@@ -271,7 +271,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
                     <span>Orders to this region can be fulfilled from this warehouse</span>
                   </div>
                 `}
-          </div>
+          </uui-box>
         </div>
 
         <div slot="actions">
@@ -334,42 +334,21 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
         line-height: 1.5;
       }
 
-      /* Form sections */
-      .form-section {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-4);
+      /* Property layout in uui-box */
+      uui-box umb-property-layout {
+        --umb-property-layout-label-width: 140px;
       }
 
-      .form-row {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-1);
+      uui-box umb-property-layout:first-child {
+        padding-top: 0;
       }
 
-      label {
-        font-weight: 600;
-        font-size: 0.8125rem;
+      uui-box umb-property-layout:last-child {
+        padding-bottom: 0;
       }
 
-      .required {
-        color: var(--uui-color-danger);
-      }
-
-      uui-select {
+      uui-box umb-property-layout uui-select {
         width: 100%;
-      }
-
-      .hint {
-        font-size: 0.75rem;
-        color: var(--uui-color-text-alt);
-      }
-
-      /* Mode section */
-      .mode-section {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-3);
       }
 
       .mode-cards {

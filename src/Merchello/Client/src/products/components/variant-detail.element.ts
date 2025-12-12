@@ -13,6 +13,7 @@ import { getProductDetailHref } from "@shared/utils/navigation.js";
 import "@products/components/shared/variant-basic-info.element.js";
 import "@products/components/shared/variant-feed-settings.element.js";
 import "@products/components/shared/variant-stock-display.element.js";
+import type { StockSettingsChangeDetail } from "@products/components/shared/variant-stock-display.element.js";
 
 @customElement("merchello-variant-detail")
 export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
@@ -94,6 +95,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     this._routes = [
       { path: "tab/basic", component: stubComponent },
       { path: "tab/packages", component: stubComponent },
+      { path: "tab/seo", component: stubComponent },
       { path: "tab/feed", component: stubComponent },
       { path: "tab/stock", component: stubComponent },
       { path: "", redirectTo: "tab/basic" },
@@ -103,8 +105,9 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
   /**
    * Gets the currently active tab based on the route path
    */
-  private _getActiveTab(): "basic" | "packages" | "feed" | "stock" {
+  private _getActiveTab(): "basic" | "packages" | "seo" | "feed" | "stock" {
     if (this._activePath.includes("tab/packages")) return "packages";
+    if (this._activePath.includes("tab/seo")) return "seo";
     if (this._activePath.includes("tab/feed")) return "feed";
     if (this._activePath.includes("tab/stock")) return "stock";
     return "basic";
@@ -139,6 +142,12 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
         shoppingFeedMaterial: this._formData.shoppingFeedMaterial ?? undefined,
         shoppingFeedSize: this._formData.shoppingFeedSize ?? undefined,
         removeFromFeed: this._formData.removeFromFeed,
+        warehouseStock: this._formData.warehouseStock?.map((ws) => ({
+          warehouseId: ws.warehouseId,
+          stock: ws.stock,
+          reorderPoint: ws.reorderPoint,
+          trackStock: ws.trackStock,
+        })),
       };
 
       const { error } = await MerchelloApi.updateVariant(this._product.id, this._variant.id, request);
@@ -173,8 +182,11 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
         <uui-tab label="Basic Info" href="${this._routerPath}/tab/basic" ?active=${activeTab === "basic"}>
           Basic Info
         </uui-tab>
-        <uui-tab label="Shipping Packages" href="${this._routerPath}/tab/packages" ?active=${activeTab === "packages"}>
-          Shipping Packages
+        <uui-tab label="Shipping" href="${this._routerPath}/tab/packages" ?active=${activeTab === "packages"}>
+          Shipping
+        </uui-tab>
+        <uui-tab label="SEO" href="${this._routerPath}/tab/seo" ?active=${activeTab === "seo"}>
+          SEO
         </uui-tab>
         <uui-tab label="Shopping Feed" href="${this._routerPath}/tab/feed" ?active=${activeTab === "feed"}>
           Shopping Feed
@@ -189,17 +201,6 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
   private _renderBasicTab(): unknown {
     return html`
       <div class="tab-content">
-        ${this._errorMessage
-          ? html`
-              <uui-box class="error-box">
-                <div class="error-message">
-                  <uui-icon name="icon-alert"></uui-icon>
-                  <span>${this._errorMessage}</span>
-                </div>
-              </uui-box>
-            `
-          : nothing}
-
         <merchello-variant-basic-info
           .formData=${this._formData}
           .showVariantName=${true}
@@ -283,7 +284,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
           <div class="info-content">
             <uui-icon name="icon-info"></uui-icon>
             <div>
-              <strong>Shipping Packages</strong>
+              <strong>Shipping</strong>
               <p>Define package configurations for shipping rate calculations. Products can ship in multiple packages.</p>
             </div>
           </div>
@@ -449,10 +450,44 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     return html`
       <div class="tab-content">
         <merchello-variant-stock-display
-          .warehouseStock=${this._formData.warehouseStock ?? []}>
+          .warehouseStock=${this._formData.warehouseStock ?? []}
+          @stock-settings-change=${this._handleStockSettingsChange}>
         </merchello-variant-stock-display>
       </div>
     `;
+  }
+
+  private _renderSeoTab(): unknown {
+    return html`
+      <div class="tab-content">
+        <uui-box headline="Search Engine Optimization">
+          <umb-property-layout
+            label="URL Slug"
+            description="Custom URL path for this variant">
+            <uui-input
+              slot="editor"
+              .value=${this._formData.url || ""}
+              @input=${(e: Event) => (this._formData = { ...this._formData, url: (e.target as HTMLInputElement).value })}
+              placeholder="/products/my-product/blue-large">
+            </uui-input>
+          </umb-property-layout>
+        </uui-box>
+      </div>
+    `;
+  }
+
+  private _handleStockSettingsChange(e: CustomEvent<StockSettingsChangeDetail>): void {
+    const { warehouseId, stock, reorderPoint, trackStock } = e.detail;
+    const updatedStock = (this._formData.warehouseStock ?? []).map((ws) => {
+      if (ws.warehouseId !== warehouseId) return ws;
+      return {
+        ...ws,
+        ...(stock !== undefined && { stock }),
+        ...(reorderPoint !== undefined && { reorderPoint }),
+        ...(trackStock !== undefined && { trackStock }),
+      };
+    });
+    this._formData = { ...this._formData, warehouseStock: updatedStock };
   }
 
   private _renderFooter(): unknown {
@@ -538,8 +573,20 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
             @change=${this._onRouterChange}>
           </umb-router-slot>
 
+          ${this._errorMessage
+            ? html`
+                <uui-box class="error-box">
+                  <div class="error-message">
+                    <uui-icon name="icon-alert"></uui-icon>
+                    <span>${this._errorMessage}</span>
+                  </div>
+                </uui-box>
+              `
+            : nothing}
+
           ${activeTab === "basic" ? this._renderBasicTab() : nothing}
           ${activeTab === "packages" ? this._renderPackagesTab() : nothing}
+          ${activeTab === "seo" ? this._renderSeoTab() : nothing}
           ${activeTab === "feed" ? this._renderFeedTab() : nothing}
           ${activeTab === "stock" ? this._renderStockTab() : nothing}
         </umb-body-layout>

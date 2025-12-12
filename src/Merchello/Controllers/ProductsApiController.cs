@@ -263,7 +263,7 @@ public class ProductsApiController(IProductService productService) : MerchelloAp
             Id = product.Id,
             ProductRootId = product.ProductRootId,
             RootName = product.ProductRoot?.RootName ?? product.Name ?? "Unknown",
-            Sku = product.Sku,
+            Sku = variantCount > 1 ? null : product.Sku,
             Price = product.Price,
             MinPrice = minPrice,
             MaxPrice = maxPrice,

@@ -30,6 +30,7 @@ namespace Merchello.Core.Shared.Extensions;
                 str = ApplyReplacements(str, Configuration.CharacterReplacements);
                 str = RemoveDiacritics(str);
                 str = DeleteCharacters(str, Configuration.DeniedCharactersRegex);
+                str = CollapseConsecutiveHyphens(str);
                 return str;
             }
 
@@ -72,6 +73,11 @@ namespace Merchello.Core.Shared.Extensions;
         private static string DeleteCharacters(string str, string regex)
         {
             return Regex.Replace(str, regex, "");
+        }
+
+        private static string CollapseConsecutiveHyphens(string str)
+        {
+            return Regex.Replace(str, @"-{2,}", "-");
         }
 
         public class Config

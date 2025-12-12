@@ -84,6 +84,11 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
     uui-box {
       --uui-box-default-padding: var(--uui-size-space-5);
     }
+
+    umb-property-layout uui-input,
+    umb-property-layout uui-textarea {
+      width: 100%;
+    }
   `;
 }
 

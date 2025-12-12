@@ -2,15 +2,51 @@ import { LitElement, html, css } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import type { VariantWarehouseStockDto } from "@products/types/product.types.js";
-import { badgeStyles } from "@shared/styles/badge.styles.js";
+
+export interface StockSettingsChangeDetail {
+  warehouseId: string;
+  stock?: number;
+  reorderPoint?: number | null;
+  trackStock?: boolean;
+}
 
 /**
- * Shared component for displaying variant stock information (read-only).
+ * Shared component for displaying and editing variant stock settings.
  * Used by both product-detail (single-variant mode) and variant-detail.
+ *
+ * @fires stock-settings-change - Fired when any stock setting changes
  */
 @customElement("merchello-variant-stock-display")
 export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElement) {
   @property({ type: Array }) warehouseStock: VariantWarehouseStockDto[] = [];
+
+  private _emitChange(detail: StockSettingsChangeDetail): void {
+    this.dispatchEvent(
+      new CustomEvent("stock-settings-change", {
+        detail,
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private _handleStockChange(warehouseId: string, value: string): void {
+    const stock = parseInt(value, 10);
+    if (!isNaN(stock) && stock >= 0) {
+      this._emitChange({ warehouseId, stock });
+    }
+  }
+
+  private _handleReorderPointChange(warehouseId: string, value: string): void {
+    const reorderPoint = value === "" ? null : parseInt(value, 10);
+    if (reorderPoint === null || (!isNaN(reorderPoint) && reorderPoint >= 0)) {
+      this._emitChange({ warehouseId, reorderPoint });
+    }
+  }
+
+  private _handleTrackStockChange(warehouseId: string, trackStock: boolean): void {
+    this._emitChange({ warehouseId, trackStock });
+  }
 
   render() {
     const totalStock = this.warehouseStock.reduce((sum, ws) => sum + ws.stock, 0);
@@ -21,7 +57,7 @@ export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElem
           <uui-icon name="icon-info"></uui-icon>
           <div>
             <strong>Stock Management</strong>
-            <p>Stock levels are managed per warehouse. To adjust stock, create a shipment from the Orders section or use the Inventory management tools.</p>
+            <p>Manage stock levels per warehouse. Set reorder points to receive alerts when stock runs low. Disable "Track Stock" for unlimited availability.</p>
           </div>
         </div>
       </uui-box>
@@ -45,17 +81,31 @@ export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElem
                       <uui-table-row>
                         <uui-table-cell><strong>${ws.warehouseName}</strong></uui-table-cell>
                         <uui-table-cell>
-                          <span class="badge ${ws.stock === 0 ? "badge-danger" : ws.stock < 10 ? "badge-warning" : "badge-positive"}">
-                            ${ws.stock} units
-                          </span>
+                          <uui-input
+                            type="number"
+                            min="0"
+                            class="stock-input"
+                            .value=${String(ws.stock)}
+                            ?disabled=${!ws.trackStock}
+                            @change=${(e: Event) => this._handleStockChange(ws.warehouseId, (e.target as HTMLInputElement).value)}>
+                          </uui-input>
                         </uui-table-cell>
                         <uui-table-cell>
-                          <span class="stock-value">${ws.reorderPoint ?? "Not set"}</span>
+                          <uui-input
+                            type="number"
+                            min="0"
+                            class="stock-input"
+                            placeholder="Not set"
+                            .value=${ws.reorderPoint != null ? String(ws.reorderPoint) : ""}
+                            ?disabled=${!ws.trackStock}
+                            @change=${(e: Event) => this._handleReorderPointChange(ws.warehouseId, (e.target as HTMLInputElement).value)}>
+                          </uui-input>
                         </uui-table-cell>
                         <uui-table-cell>
-                          <uui-badge color=${ws.trackStock ? "positive" : "default"}>
-                            ${ws.trackStock ? "Enabled" : "Disabled"}
-                          </uui-badge>
+                          <uui-toggle
+                            .checked=${ws.trackStock}
+                            @change=${(e: Event) => this._handleTrackStockChange(ws.warehouseId, (e.target as HTMLInputElement).checked)}>
+                          </uui-toggle>
                         </uui-table-cell>
                       </uui-table-row>
                     `
@@ -75,7 +125,6 @@ export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElem
   }
 
   static styles = [
-    badgeStyles,
     css`
       :host {
         display: contents;
@@ -122,8 +171,12 @@ export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElem
         overflow-x: auto;
       }
 
-      .stock-value {
-        color: var(--uui-color-text-alt);
+      .stock-input {
+        width: 100px;
+      }
+
+      uui-table-cell uui-toggle {
+        margin: 0;
       }
 
       .empty-state {

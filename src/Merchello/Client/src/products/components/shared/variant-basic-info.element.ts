@@ -63,6 +63,16 @@ export class MerchelloVariantBasicInfoElement extends UmbElementMixin(LitElement
             placeholder="SUP-001">
           </uui-input>
         </umb-property-layout>
+
+        <umb-property-layout label="HS Code" description="Harmonized System code for customs/tariff classification">
+          <uui-input
+            slot="editor"
+            .value=${this.formData.hsCode || ""}
+            @input=${(e: Event) => this._updateField("hsCode", (e.target as HTMLInputElement).value)}
+            placeholder="6109.10"
+            maxlength="10">
+          </uui-input>
+        </umb-property-layout>
       </uui-box>
 
       <uui-box headline="Pricing">
@@ -127,27 +137,6 @@ export class MerchelloVariantBasicInfoElement extends UmbElementMixin(LitElement
           </uui-toggle>
         </umb-property-layout>
       </uui-box>
-
-      <uui-box headline="URL & Customs">
-        <umb-property-layout label="URL Slug" description="Custom URL path (optional)">
-          <uui-input
-            slot="editor"
-            .value=${this.formData.url || ""}
-            @input=${(e: Event) => this._updateField("url", (e.target as HTMLInputElement).value)}
-            placeholder="/products/my-product">
-          </uui-input>
-        </umb-property-layout>
-
-        <umb-property-layout label="HS Code" description="Harmonized System code for customs/tariff classification">
-          <uui-input
-            slot="editor"
-            .value=${this.formData.hsCode || ""}
-            @input=${(e: Event) => this._updateField("hsCode", (e.target as HTMLInputElement).value)}
-            placeholder="6109.10"
-            maxlength="10">
-          </uui-input>
-        </umb-property-layout>
-      </uui-box>
     `;
   }
 
@@ -162,6 +151,11 @@ export class MerchelloVariantBasicInfoElement extends UmbElementMixin(LitElement
 
     uui-box + uui-box {
       margin-top: var(--uui-size-space-5);
+    }
+
+    umb-property-layout uui-input,
+    umb-property-layout uui-textarea {
+      width: 100%;
     }
   `;
 }

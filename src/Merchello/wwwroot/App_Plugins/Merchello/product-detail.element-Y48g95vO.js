@@ -1,0 +1,2169 @@
+import { LitElement as T, nothing as n, html as r, css as P, property as $, state as c, customElement as I } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as C } from "@umbraco-cms/backoffice/element-api";
+import { UMB_WORKSPACE_CONTEXT as V } from "@umbraco-cms/backoffice/workspace";
+import { UmbModalToken as A, UMB_MODAL_MANAGER_CONTEXT as U } from "@umbraco-cms/backoffice/modal";
+import { UMB_NOTIFICATION_CONTEXT as M } from "@umbraco-cms/backoffice/notification";
+import { M as m } from "./merchello-api-gshzVGsw.js";
+import { b as N } from "./badge.styles-C_lNgH9O.js";
+import { c as G, d as R } from "./navigation-D1KCp5wk.js";
+import { UmbChangeEvent as L } from "@umbraco-cms/backoffice/event";
+import "./variant-stock-display.element-D7hBvtXE.js";
+import { UmbDataTypeDetailRepository as B } from "@umbraco-cms/backoffice/data-type";
+import { UmbPropertyEditorConfigCollection as k } from "@umbraco-cms/backoffice/property-editor";
+import "@umbraco-cms/backoffice/tiptap";
+const S = new A(
+  "Merchello.OptionEditor.Modal",
+  {
+    modal: {
+      type: "sidebar",
+      size: "medium"
+    }
+  }
+);
+var W = Object.defineProperty, j = Object.getOwnPropertyDescriptor, y = (t, e, i, a) => {
+  for (var o = a > 1 ? void 0 : a ? j(e, i) : e, s = t.length - 1, u; s >= 0; s--)
+    (u = t[s]) && (o = (a ? u(e, i, o) : u(o)) || o);
+  return a && o && W(e, i, o), o;
+};
+let f = class extends C(T) {
+  constructor() {
+    super(...arguments), this.items = [], this.placeholder = "Add item...", this.readonly = !1, this._newItemValue = "", this._editingIndex = null, this._editingValue = "";
+  }
+  /**
+   * Handles adding a new item when Enter is pressed or Add button is clicked.
+   */
+  _handleAddItem() {
+    const t = this._newItemValue.trim();
+    if (!t || this.readonly) return;
+    const e = [...this.items, t];
+    this._newItemValue = "", this._dispatchChange(e);
+  }
+  /**
+   * Handles input in the new item field.
+   */
+  _handleNewItemInput(t) {
+    this._newItemValue = t.target.value;
+  }
+  /**
+   * Handles Enter key press in the new item field.
+   */
+  _handleNewItemKeyDown(t) {
+    t.key === "Enter" && (t.preventDefault(), this._handleAddItem());
+  }
+  /**
+   * Handles removing an item by index.
+   */
+  _handleRemoveItem(t) {
+    if (this.readonly) return;
+    const e = this.items.filter((i, a) => a !== t);
+    this._dispatchChange(e);
+  }
+  /**
+   * Starts editing an item.
+   */
+  _handleStartEdit(t) {
+    this.readonly || (this._editingIndex = t, this._editingValue = this.items[t]);
+  }
+  /**
+   * Handles input in the edit field.
+   */
+  _handleEditInput(t) {
+    this._editingValue = t.target.value;
+  }
+  /**
+   * Saves the edited item.
+   */
+  _handleSaveEdit() {
+    if (this._editingIndex === null) return;
+    const t = this._editingValue.trim();
+    if (!t)
+      this._handleRemoveItem(this._editingIndex);
+    else {
+      const e = [...this.items];
+      e[this._editingIndex] = t, this._dispatchChange(e);
+    }
+    this._editingIndex = null, this._editingValue = "";
+  }
+  /**
+   * Cancels editing.
+   */
+  _handleCancelEdit() {
+    this._editingIndex = null, this._editingValue = "";
+  }
+  /**
+   * Handles Enter and Escape keys in the edit field.
+   */
+  _handleEditKeyDown(t) {
+    t.key === "Enter" ? (t.preventDefault(), this._handleSaveEdit()) : t.key === "Escape" && (t.preventDefault(), this._handleCancelEdit());
+  }
+  /**
+   * Dispatches a change event with the new items array.
+   */
+  _dispatchChange(t) {
+    this.items = t, this.dispatchEvent(new L());
+  }
+  render() {
+    return r`
+      <div class="editable-list-container">
+        ${this.items.length > 0 ? r`
+              <ul class="item-list">
+                ${this.items.map((t, e) => this._renderItem(t, e))}
+              </ul>
+            ` : n}
+
+        ${this.readonly ? n : r`
+              <div class="add-item-row">
+                <uui-input
+                  type="text"
+                  .value=${this._newItemValue}
+                  @input=${this._handleNewItemInput}
+                  @keydown=${this._handleNewItemKeyDown}
+                  placeholder=${this.placeholder}
+                  class="add-item-input">
+                </uui-input>
+                <uui-button
+                  compact
+                  look="primary"
+                  color="positive"
+                  @click=${this._handleAddItem}
+                  ?disabled=${!this._newItemValue.trim()}
+                  label="Add item"
+                  aria-label="Add item">
+                  <uui-icon name="icon-add"></uui-icon>
+                </uui-button>
+              </div>
+            `}
+
+        ${this.items.length === 0 && this.readonly ? r`<p class="empty-hint">No items added.</p>` : n}
+      </div>
+    `;
+  }
+  _renderItem(t, e) {
+    return this._editingIndex === e ? r`
+        <li class="item-row editing">
+          <uui-input
+            type="text"
+            .value=${this._editingValue}
+            @input=${this._handleEditInput}
+            @keydown=${this._handleEditKeyDown}
+            @blur=${this._handleSaveEdit}
+            class="edit-input"
+            autofocus>
+          </uui-input>
+          <div class="item-actions">
+            <uui-button
+              compact
+              look="secondary"
+              @click=${this._handleSaveEdit}
+              label="Save"
+              aria-label="Save changes">
+              <uui-icon name="icon-check"></uui-icon>
+            </uui-button>
+            <uui-button
+              compact
+              look="secondary"
+              @click=${this._handleCancelEdit}
+              label="Cancel"
+              aria-label="Cancel editing">
+              <uui-icon name="icon-wrong"></uui-icon>
+            </uui-button>
+          </div>
+        </li>
+      ` : r`
+      <li class="item-row">
+        <span
+          class="item-text ${this.readonly ? "" : "editable"}"
+          @click=${() => !this.readonly && this._handleStartEdit(e)}
+          @keydown=${(a) => a.key === "Enter" && !this.readonly && this._handleStartEdit(e)}
+          tabindex=${this.readonly ? -1 : 0}
+          role=${this.readonly ? n : "button"}
+          aria-label=${this.readonly ? n : `Edit "${t}"`}>
+          ${t}
+        </span>
+        ${this.readonly ? n : r`
+              <div class="item-actions">
+                <uui-button
+                  compact
+                  look="secondary"
+                  @click=${() => this._handleStartEdit(e)}
+                  label="Edit"
+                  aria-label="Edit ${t}">
+                  <uui-icon name="icon-edit"></uui-icon>
+                </uui-button>
+                <uui-button
+                  compact
+                  look="secondary"
+                  color="danger"
+                  @click=${() => this._handleRemoveItem(e)}
+                  label="Remove"
+                  aria-label="Remove ${t}">
+                  <uui-icon name="icon-trash"></uui-icon>
+                </uui-button>
+              </div>
+            `}
+      </li>
+    `;
+  }
+};
+f.styles = P`
+    :host {
+      display: block;
+    }
+
+    .editable-list-container {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-3);
+    }
+
+    .item-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+    }
+
+    .item-row {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+      padding: var(--uui-size-space-3);
+      background: var(--uui-color-surface);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .item-row:hover {
+      border-color: var(--uui-color-border-emphasis);
+    }
+
+    .item-row.editing {
+      border-color: var(--uui-color-selected);
+      box-shadow: 0 0 0 1px var(--uui-color-selected);
+    }
+
+    .item-text {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .item-text.editable {
+      cursor: pointer;
+      padding: var(--uui-size-space-1) var(--uui-size-space-2);
+      margin: calc(-1 * var(--uui-size-space-1)) calc(-1 * var(--uui-size-space-2));
+      border-radius: var(--uui-border-radius);
+      transition: background-color 0.15s ease;
+    }
+
+    .item-text.editable:hover,
+    .item-text.editable:focus {
+      background: var(--uui-color-surface-alt);
+      outline: none;
+    }
+
+    .edit-input {
+      flex: 1;
+    }
+
+    .item-actions {
+      display: flex;
+      gap: var(--uui-size-space-1);
+      flex-shrink: 0;
+    }
+
+    .add-item-row {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      align-items: center;
+    }
+
+    .add-item-input {
+      flex: 1;
+    }
+
+    .empty-hint {
+      margin: 0;
+      color: var(--uui-color-text-alt);
+      font-size: 0.875rem;
+      font-style: italic;
+    }
+  `;
+y([
+  $({ type: Array })
+], f.prototype, "items", 2);
+y([
+  $({ type: String })
+], f.prototype, "placeholder", 2);
+y([
+  $({ type: Boolean })
+], f.prototype, "readonly", 2);
+y([
+  c()
+], f.prototype, "_newItemValue", 2);
+y([
+  c()
+], f.prototype, "_editingIndex", 2);
+y([
+  c()
+], f.prototype, "_editingValue", 2);
+f = y([
+  I("merchello-editable-text-list")
+], f);
+var K = Object.defineProperty, H = Object.getOwnPropertyDescriptor, E = (t) => {
+  throw TypeError(t);
+}, p = (t, e, i, a) => {
+  for (var o = a > 1 ? void 0 : a ? H(e, i) : e, s = t.length - 1, u; s >= 0; s--)
+    (u = t[s]) && (o = (a ? u(e, i, o) : u(o)) || o);
+  return a && o && K(e, i, o), o;
+}, O = (t, e, i) => e.has(t) || E("Cannot " + i), l = (t, e, i) => (O(t, e, "read from private field"), e.get(t)), w = (t, e, i) => e.has(t) ? E("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(t) : e.set(t, i), D = (t, e, i, a) => (O(t, e, "write to private field"), e.set(t, i), i), x, h, _, g, v;
+let d = class extends C(T) {
+  constructor() {
+    super(), this._product = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._optionSettings = null, this._validationAttempted = !1, this._fieldErrors = {}, this._routes = [], this._activePath = "", this._formData = {}, this._taxGroups = [], this._productTypes = [], this._warehouses = [], this._descriptionEditorConfig = void 0, this._variantFormData = {}, this._variantFieldErrors = {}, w(this, x, new B(this)), w(this, h), w(this, _), w(this, g), w(this, v, !1), this.consumeContext(V, (t) => {
+      D(this, h, t), l(this, h) && this.observe(l(this, h).product, (e) => {
+        this._product = e ?? null, e && (this._formData = { ...e }, e.variants.length === 1 && (this._variantFormData = { ...e.variants[0] })), this._isLoading = !e;
+      });
+    }), this.consumeContext(U, (t) => {
+      D(this, _, t);
+    }), this.consumeContext(M, (t) => {
+      D(this, g, t);
+    });
+  }
+  connectedCallback() {
+    super.connectedCallback(), D(this, v, !0), this._loadReferenceData(), this._createRoutes();
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback(), D(this, v, !1);
+  }
+  async _loadReferenceData() {
+    try {
+      const [t, e, i, a, o] = await Promise.all([
+        m.getTaxGroups(),
+        m.getProductTypes(),
+        m.getWarehouses(),
+        m.getProductOptionSettings(),
+        m.getDescriptionEditorSettings()
+      ]);
+      if (!l(this, v) || (t.data && (this._taxGroups = t.data), e.data && (this._productTypes = e.data), i.data && (this._warehouses = i.data), a.data && (this._optionSettings = a.data), o.data?.dataTypeKey && (await this._loadDataTypeConfig(o.data.dataTypeKey), !l(this, v))))
+        return;
+    } catch (t) {
+      console.error("Failed to load reference data:", t);
+    }
+  }
+  /**
+   * Fetches the DataType configuration using Umbraco's DataType repository.
+   * This handles authentication automatically through Umbraco's internal mechanisms.
+   */
+  async _loadDataTypeConfig(t) {
+    try {
+      console.log("[Merchello] Loading DataType config for:", t);
+      const { data: e, error: i } = await l(this, x).requestByUnique(t);
+      if (i) {
+        console.error("[Merchello] Error requesting DataType:", i), this._setFallbackEditorConfig();
+        return;
+      }
+      console.log("[Merchello] DataType request result:", e), this.observe(
+        await l(this, x).byUnique(t),
+        (a) => {
+          if (console.log("[Merchello] DataType observed:", a), !l(this, v)) return;
+          if (!a) {
+            console.warn("[Merchello] DataType not found, using fallback config"), this._setFallbackEditorConfig();
+            return;
+          }
+          console.log("[Merchello] DataType values:", a.values), console.log("[Merchello] DataType values detail:", JSON.stringify(a.values, null, 2));
+          const o = a.values?.some((u) => u.alias === "extensions"), s = a.values?.some((u) => u.alias === "toolbar");
+          console.log("[Merchello] Has extensions:", o, "Has toolbar:", s), o || console.warn("[Merchello] DataType is missing 'extensions' config. Delete it in Settings > Data Types and restart to recreate."), this._descriptionEditorConfig = new k(a.values);
+        },
+        "_observeDescriptionDataType"
+      );
+    } catch (e) {
+      console.error("[Merchello] Failed to load DataType configuration:", e), this._setFallbackEditorConfig();
+    }
+  }
+  /**
+   * Sets a fallback editor configuration if the DataType cannot be loaded.
+   */
+  _setFallbackEditorConfig() {
+    console.log("[Merchello] Using fallback TipTap configuration"), this._descriptionEditorConfig = new k([
+      {
+        alias: "toolbar",
+        value: [
+          [
+            ["Umb.Tiptap.Toolbar.Bold", "Umb.Tiptap.Toolbar.Italic", "Umb.Tiptap.Toolbar.Underline"],
+            ["Umb.Tiptap.Toolbar.BulletList", "Umb.Tiptap.Toolbar.OrderedList"],
+            ["Umb.Tiptap.Toolbar.Link", "Umb.Tiptap.Toolbar.Unlink"]
+          ]
+        ]
+      },
+      {
+        alias: "extensions",
+        value: [
+          "Umb.Tiptap.RichTextEssentials",
+          "Umb.Tiptap.Bold",
+          "Umb.Tiptap.Italic",
+          "Umb.Tiptap.Underline",
+          "Umb.Tiptap.Link",
+          "Umb.Tiptap.BulletList",
+          "Umb.Tiptap.OrderedList"
+        ]
+      }
+    ]);
+  }
+  /**
+   * Creates routes for tab navigation.
+   * The router-slot is hidden via CSS - we use it purely for URL tracking.
+   * Content is rendered inline based on _getActiveTab().
+   */
+  _createRoutes() {
+    const t = () => document.createElement("div");
+    this._routes = [
+      {
+        path: "tab/details",
+        component: t
+      },
+      {
+        path: "tab/basic-info",
+        component: t
+      },
+      {
+        path: "tab/media",
+        component: t
+      },
+      {
+        path: "tab/shipping",
+        component: t
+      },
+      {
+        path: "tab/seo",
+        component: t
+      },
+      {
+        path: "tab/feed",
+        component: t
+      },
+      {
+        path: "tab/stock",
+        component: t
+      },
+      {
+        path: "tab/variants",
+        component: t
+      },
+      {
+        path: "tab/options",
+        component: t
+      },
+      {
+        path: "",
+        redirectTo: "tab/details"
+      }
+    ];
+  }
+  /**
+   * Gets the currently active tab based on the route path
+   */
+  _getActiveTab() {
+    return this._activePath.includes("tab/basic-info") ? "basic-info" : this._activePath.includes("tab/media") ? "media" : this._activePath.includes("tab/shipping") ? "shipping" : this._activePath.includes("tab/seo") ? "seo" : this._activePath.includes("tab/feed") ? "feed" : this._activePath.includes("tab/stock") ? "stock" : this._activePath.includes("tab/variants") ? "variants" : this._activePath.includes("tab/options") ? "options" : "details";
+  }
+  /**
+   * Checks if there are validation errors on the details tab
+   */
+  _hasDetailsErrors() {
+    return !!(this._fieldErrors.rootName || this._fieldErrors.taxGroupId || this._fieldErrors.productTypeId || this._fieldErrors.warehouseIds);
+  }
+  /**
+   * Checks if this product has only one variant (simple product)
+   * Single-variant products show merged tabs instead of the Variants tab
+   */
+  _isSingleVariant() {
+    return (this._product?.variants.length ?? 0) === 1;
+  }
+  /**
+   * Checks if there are validation errors on the basic info tab (single-variant mode)
+   */
+  _hasBasicInfoErrors() {
+    return !!(this._variantFieldErrors.sku || this._variantFieldErrors.price);
+  }
+  /**
+   * Gets validation hint for a specific tab
+   */
+  _getTabHint(t) {
+    return t === "details" && this._validationAttempted && this._hasDetailsErrors() ? { color: "danger" } : t === "variants" && this._hasVariantWarnings() ? { color: "warning" } : t === "options" && this._hasOptionWarnings() ? { color: "warning" } : null;
+  }
+  _handleInputChange(t, e) {
+    this._formData = { ...this._formData, [t]: e };
+  }
+  _handleToggleChange(t, e) {
+    this._formData = { ...this._formData, [t]: e };
+  }
+  _getTaxGroupOptions() {
+    return [
+      { name: "Select tax group...", value: "", selected: !this._formData.taxGroupId },
+      ...this._taxGroups.map((t) => ({
+        name: t.name,
+        value: t.id,
+        selected: t.id === this._formData.taxGroupId
+      }))
+    ];
+  }
+  _getProductTypeOptions() {
+    return [
+      { name: "Select product type...", value: "", selected: !this._formData.productTypeId },
+      ...this._productTypes.map((t) => ({
+        name: t.name,
+        value: t.id,
+        selected: t.id === this._formData.productTypeId
+      }))
+    ];
+  }
+  _handleTaxGroupChange(t) {
+    const e = t.target;
+    this._formData = { ...this._formData, taxGroupId: e.value };
+  }
+  _handleProductTypeChange(t) {
+    const e = t.target;
+    this._formData = { ...this._formData, productTypeId: e.value };
+  }
+  async _handleSave() {
+    if (this._validateForm()) {
+      this._isSaving = !0, this._errorMessage = null;
+      try {
+        l(this, h)?.isNew ?? !0 ? await this._createProduct() : await this._updateProduct();
+      } catch (t) {
+        this._errorMessage = t instanceof Error ? t.message : "An unexpected error occurred", console.error("Save failed:", t);
+      } finally {
+        this._isSaving = !1;
+      }
+    }
+  }
+  async _createProduct() {
+    const t = {
+      rootName: this._formData.rootName || "",
+      taxGroupId: this._formData.taxGroupId || "",
+      productTypeId: this._formData.productTypeId || "",
+      categoryIds: this._formData.categoryIds,
+      warehouseIds: this._formData.warehouseIds,
+      rootImages: this._formData.rootImages,
+      isDigitalProduct: this._formData.isDigitalProduct || !1,
+      defaultVariant: {
+        sku: this._variantFormData.sku ?? void 0,
+        price: this._variantFormData.price ?? 0,
+        costOfGoods: this._variantFormData.costOfGoods ?? 0
+      }
+    }, { data: e, error: i } = await m.createProduct(t);
+    if (i) {
+      this._errorMessage = i.message, l(this, g)?.peek("danger", { data: { headline: "Failed to create product", message: i.message } });
+      return;
+    }
+    e && (l(this, h)?.updateProduct(e), l(this, g)?.peek("positive", { data: { headline: "Product created", message: `"${e.rootName}" has been created successfully` } }), this._validationAttempted = !1, this._fieldErrors = {});
+  }
+  async _updateProduct() {
+    if (!this._product?.id) return;
+    const t = {
+      rootName: this._formData.rootName,
+      rootImages: this._formData.rootImages,
+      rootUrl: this._formData.rootUrl ?? void 0,
+      sellingPoints: this._formData.sellingPoints,
+      videos: this._formData.videos,
+      googleShoppingFeedCategory: this._formData.googleShoppingFeedCategory ?? void 0,
+      isDigitalProduct: this._formData.isDigitalProduct,
+      taxGroupId: this._formData.taxGroupId,
+      productTypeId: this._formData.productTypeId,
+      categoryIds: this._formData.categoryIds,
+      warehouseIds: this._formData.warehouseIds,
+      description: this._formData.description ?? void 0,
+      metaDescription: this._formData.metaDescription ?? void 0,
+      pageTitle: this._formData.pageTitle ?? void 0,
+      noIndex: this._formData.noIndex,
+      openGraphImage: this._formData.openGraphImage ?? void 0,
+      canonicalUrl: this._formData.canonicalUrl ?? void 0,
+      defaultPackageConfigurations: this._formData.defaultPackageConfigurations
+    }, { data: e, error: i } = await m.updateProduct(this._product.id, t);
+    if (i) {
+      this._errorMessage = i.message, l(this, g)?.peek("danger", { data: { headline: "Failed to save product", message: i.message } });
+      return;
+    }
+    if (this._isSingleVariant() && this._product.variants[0]) {
+      const a = await this._saveVariantData(this._product.id, this._product.variants[0].id);
+      if (a) {
+        this._errorMessage = a.message, l(this, g)?.peek("danger", { data: { headline: "Failed to save variant data", message: a.message } });
+        return;
+      }
+    }
+    e && (await l(this, h)?.reload(), l(this, g)?.peek("positive", { data: { headline: "Product saved", message: "Changes have been saved successfully" } }));
+  }
+  /**
+   * Saves variant data for single-variant products
+   */
+  async _saveVariantData(t, e) {
+    const i = {
+      sku: this._variantFormData.sku ?? void 0,
+      gtin: this._variantFormData.gtin ?? void 0,
+      supplierSku: this._variantFormData.supplierSku ?? void 0,
+      price: this._variantFormData.price,
+      costOfGoods: this._variantFormData.costOfGoods,
+      onSale: this._variantFormData.onSale,
+      previousPrice: this._variantFormData.previousPrice ?? void 0,
+      availableForPurchase: this._variantFormData.availableForPurchase,
+      canPurchase: this._variantFormData.canPurchase,
+      url: this._variantFormData.url ?? void 0,
+      hsCode: this._variantFormData.hsCode ?? void 0,
+      // Shopping feed
+      shoppingFeedTitle: this._variantFormData.shoppingFeedTitle ?? void 0,
+      shoppingFeedDescription: this._variantFormData.shoppingFeedDescription ?? void 0,
+      shoppingFeedColour: this._variantFormData.shoppingFeedColour ?? void 0,
+      shoppingFeedMaterial: this._variantFormData.shoppingFeedMaterial ?? void 0,
+      shoppingFeedSize: this._variantFormData.shoppingFeedSize ?? void 0,
+      removeFromFeed: this._variantFormData.removeFromFeed,
+      // Warehouse stock settings
+      warehouseStock: this._variantFormData.warehouseStock?.map((o) => ({
+        warehouseId: o.warehouseId,
+        stock: o.stock,
+        reorderPoint: o.reorderPoint,
+        trackStock: o.trackStock
+      }))
+    }, { error: a } = await m.updateVariant(t, e, i);
+    return a ?? null;
+  }
+  /**
+   * Validates the form and sets field-level errors
+   */
+  _validateForm() {
+    this._validationAttempted = !0, this._fieldErrors = {}, this._variantFieldErrors = {}, this._errorMessage = null, this._formData.rootName?.trim() || (this._fieldErrors.rootName = "Product name is required"), this._formData.taxGroupId || (this._fieldErrors.taxGroupId = "Tax group is required"), this._formData.productTypeId || (this._fieldErrors.productTypeId = "Product type is required"), !this._formData.isDigitalProduct && (!this._formData.warehouseIds || this._formData.warehouseIds.length === 0) && (this._fieldErrors.warehouseIds = "At least one warehouse is required for physical products"), this._isSingleVariant() && (this._variantFormData.sku?.trim() || (this._variantFieldErrors.sku = "SKU is required"), (this._variantFormData.price ?? 0) < 0 && (this._variantFieldErrors.price = "Price must be 0 or greater"));
+    const t = Object.keys(this._fieldErrors).length > 0, e = Object.keys(this._variantFieldErrors).length > 0;
+    return (t || e) && (this._errorMessage = "Please fix the errors below before saving"), !t && !e;
+  }
+  /**
+   * Checks if there are warnings for variants tab
+   */
+  _hasVariantWarnings() {
+    return this._product?.variants ? this._product.variants.some((t) => !t.sku || t.price === 0) : !1;
+  }
+  /**
+   * Checks if there are warnings for options tab
+   */
+  _hasOptionWarnings() {
+    const t = this._product?.variants.length ?? 0, e = this._product?.productOptions.length ?? 0;
+    return t > 1 && e === 0;
+  }
+  _renderTabs() {
+    const t = this._product?.variants.length ?? 0, e = this._product?.productOptions.length ?? 0, i = this._isSingleVariant(), a = this._getActiveTab(), o = this._getTabHint("details"), s = this._getTabHint("variants"), u = this._getTabHint("options");
+    return r`
+      <uui-tab-group slot="header">
+        <uui-tab
+          label="Details"
+          href="${this._routerPath}/tab/details"
+          ?active=${a === "details"}>
+          Details
+          ${o ? r`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : n}
+        </uui-tab>
+
+        ${i ? r`
+              <uui-tab
+                label="Basic Info"
+                href="${this._routerPath}/tab/basic-info"
+                ?active=${a === "basic-info"}>
+                Basic Info
+                ${this._validationAttempted && this._hasBasicInfoErrors() ? r`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : n}
+              </uui-tab>
+            ` : n}
+
+        <uui-tab
+          label="Media"
+          href="${this._routerPath}/tab/media"
+          ?active=${a === "media"}>
+          Media
+        </uui-tab>
+
+        ${this._formData.isDigitalProduct ? n : r`
+              <uui-tab
+                label="Shipping"
+                href="${this._routerPath}/tab/shipping"
+                ?active=${a === "shipping"}>
+                Shipping
+              </uui-tab>
+            `}
+
+        <uui-tab
+          label="SEO"
+          href="${this._routerPath}/tab/seo"
+          ?active=${a === "seo"}>
+          SEO
+        </uui-tab>
+
+        ${i ? r`
+              <uui-tab
+                label="Shopping Feed"
+                href="${this._routerPath}/tab/feed"
+                ?active=${a === "feed"}>
+                Shopping Feed
+              </uui-tab>
+            ` : n}
+
+        ${i ? r`
+              <uui-tab
+                label="Stock"
+                href="${this._routerPath}/tab/stock"
+                ?active=${a === "stock"}>
+                Stock
+              </uui-tab>
+            ` : n}
+
+        ${t > 1 ? r`
+              <uui-tab
+                label="Variants"
+                href="${this._routerPath}/tab/variants"
+                ?active=${a === "variants"}>
+                Variants (${t})
+                ${s ? r`<uui-badge slot="extra" color="warning">!</uui-badge>` : n}
+              </uui-tab>
+            ` : n}
+
+        <uui-tab
+          label="Options"
+          href="${this._routerPath}/tab/options"
+          ?active=${a === "options"}>
+          Options (${e})
+          ${u ? r`<uui-badge slot="extra" color="warning">!</uui-badge>` : n}
+        </uui-tab>
+      </uui-tab-group>
+    `;
+  }
+  _renderDetailsTab() {
+    const t = l(this, h)?.isNew ?? !0;
+    return r`
+      <div class="tab-content">
+        ${t ? r`
+              <uui-box class="info-banner">
+                <div class="info-content">
+                  <uui-icon name="icon-lightbulb"></uui-icon>
+                  <div>
+                    <strong>Getting Started</strong>
+                    <p>Fill in the basic product information below. You can add variants and options after creating the product.</p>
+                  </div>
+                </div>
+              </uui-box>
+            ` : n}
+
+        ${this._errorMessage ? r`
+              <uui-box class="error-box">
+                <div class="error-message">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>${this._errorMessage}</span>
+                </div>
+              </uui-box>
+            ` : n}
+
+        <uui-box headline="Basic Information">
+          <umb-property-layout
+            label="Product Type"
+            description="Categorize your product for reporting and organization"
+            ?mandatory=${!0}
+            ?invalid=${!!this._fieldErrors.productTypeId}>
+            <uui-select
+              slot="editor"
+              .options=${this._getProductTypeOptions()}
+              @change=${this._handleProductTypeChange}>
+            </uui-select>
+          </umb-property-layout>
+
+          <umb-property-layout
+            label="Tax Group"
+            description="Tax rate applied to this product"
+            ?mandatory=${!0}
+            ?invalid=${!!this._fieldErrors.taxGroupId}>
+            <uui-select
+              slot="editor"
+              .options=${this._getTaxGroupOptions()}
+              @change=${this._handleTaxGroupChange}>
+            </uui-select>
+          </umb-property-layout>
+
+          <umb-property-layout
+            label="Digital Product"
+            description="No shipping costs, instant delivery, no warehouse needed">
+            <uui-toggle
+              slot="editor"
+              .checked=${this._formData.isDigitalProduct ?? !1}
+              @change=${(e) => this._handleToggleChange("isDigitalProduct", e.target.checked)}>
+            </uui-toggle>
+          </umb-property-layout>
+
+          <umb-property-layout
+            label="Selling Points"
+            description="Key features or benefits to display on your storefront">
+            <merchello-editable-text-list
+              slot="editor"
+              .items=${this._formData.sellingPoints || []}
+              @change=${this._handleSellingPointsChange}
+              placeholder="e.g., Free shipping, 30-day returns">
+            </merchello-editable-text-list>
+          </umb-property-layout>
+
+          <umb-property-layout
+            label="Description"
+            description="Product description for your storefront. Edit the DataType in Settings > Data Types to customize the editor toolbar.">
+            <div slot="editor">
+              ${this._renderDescriptionEditor()}
+            </div>
+          </umb-property-layout>
+        </uui-box>
+
+        ${this._formData.isDigitalProduct ? n : r`
+              <uui-box headline="Warehouses">
+                <umb-property-layout
+                  label="Stock Locations"
+                  description="Select which warehouses stock this product"
+                  ?mandatory=${!0}
+                  ?invalid=${!!this._fieldErrors.warehouseIds}>
+                  <div slot="editor">
+                    ${this._renderWarehouseSelector()}
+                  </div>
+                </umb-property-layout>
+              </uui-box>
+            `}
+      </div>
+    `;
+  }
+  _renderMediaTab() {
+    return r`
+      <div class="tab-content">
+        <uui-box headline="Product Images">
+          <umb-property-layout
+            label="Images"
+            description="Add images that will be displayed on your storefront. These images are shared across all variants.">
+            <div slot="editor">
+              ${this._renderMediaPicker()}
+            </div>
+          </umb-property-layout>
+        </uui-box>
+      </div>
+    `;
+  }
+  // ============================================
+  // Shipping Tab - Package Management
+  // ============================================
+  /**
+   * Add a new package configuration
+   */
+  _addPackage() {
+    const t = [...this._formData.defaultPackageConfigurations ?? []];
+    t.push({ weight: 0, lengthCm: null, widthCm: null, heightCm: null }), this._formData = { ...this._formData, defaultPackageConfigurations: t };
+  }
+  /**
+   * Remove a package by index
+   */
+  _removePackage(t) {
+    const e = [...this._formData.defaultPackageConfigurations ?? []];
+    e.splice(t, 1), this._formData = { ...this._formData, defaultPackageConfigurations: e };
+  }
+  /**
+   * Update a package field
+   */
+  _updatePackage(t, e, i) {
+    const a = [...this._formData.defaultPackageConfigurations ?? []];
+    a[t] = { ...a[t], [e]: i }, this._formData = { ...this._formData, defaultPackageConfigurations: a };
+  }
+  _renderShippingTab() {
+    const t = this._formData.defaultPackageConfigurations ?? [], e = l(this, h)?.isNew ?? !0;
+    return r`
+      <div class="tab-content">
+        <uui-box class="info-banner">
+          <div class="info-content">
+            <uui-icon name="icon-info"></uui-icon>
+            <div>
+              <strong>Default Shipping Packages</strong>
+              <p>Define the default package configurations for this product. These are used for shipping rate calculations and can be overridden at the variant level.</p>
+            </div>
+          </div>
+        </uui-box>
+
+        <uui-box headline="Package Configurations">
+          ${t.length > 0 ? r`
+                <div class="packages-list">
+                  ${t.map((i, a) => this._renderPackageCard(i, a))}
+                </div>
+              ` : r`
+                <div class="empty-state">
+                  <uui-icon name="icon-box"></uui-icon>
+                  <p>No packages configured</p>
+                  <p class="hint">Add a package to enable shipping rate calculations with carriers like FedEx, UPS, and DHL</p>
+                </div>
+              `}
+
+          <uui-button
+            look="placeholder"
+            class="add-package-button"
+            ?disabled=${e}
+            @click=${() => this._addPackage()}>
+            <uui-icon name="icon-add"></uui-icon>
+            Add Package
+          </uui-button>
+        </uui-box>
+      </div>
+    `;
+  }
+  _renderPackageCard(t, e) {
+    return r`
+      <div class="package-card">
+        <div class="package-header">
+          <span class="package-number">Package ${e + 1}</span>
+          <uui-button
+            compact
+            look="secondary"
+            color="danger"
+            label="Remove package"
+            @click=${() => this._removePackage(e)}>
+            <uui-icon name="icon-trash"></uui-icon>
+          </uui-button>
+        </div>
+        <div class="package-fields">
+          <div class="field-group">
+            <label>Weight (kg) *</label>
+            <uui-input
+              type="number"
+              step="0.01"
+              min="0"
+              .value=${String(t.weight ?? "")}
+              @input=${(i) => this._updatePackage(e, "weight", parseFloat(i.target.value) || 0)}
+              placeholder="0.50">
+            </uui-input>
+          </div>
+          <div class="field-group">
+            <label>Length (cm)</label>
+            <uui-input
+              type="number"
+              step="0.1"
+              min="0"
+              .value=${String(t.lengthCm ?? "")}
+              @input=${(i) => this._updatePackage(e, "lengthCm", parseFloat(i.target.value) || null)}
+              placeholder="20">
+            </uui-input>
+          </div>
+          <div class="field-group">
+            <label>Width (cm)</label>
+            <uui-input
+              type="number"
+              step="0.1"
+              min="0"
+              .value=${String(t.widthCm ?? "")}
+              @input=${(i) => this._updatePackage(e, "widthCm", parseFloat(i.target.value) || null)}
+              placeholder="15">
+            </uui-input>
+          </div>
+          <div class="field-group">
+            <label>Height (cm)</label>
+            <uui-input
+              type="number"
+              step="0.1"
+              min="0"
+              .value=${String(t.heightCm ?? "")}
+              @input=${(i) => this._updatePackage(e, "heightCm", parseFloat(i.target.value) || null)}
+              placeholder="10">
+            </uui-input>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  /**
+   * Renders the Description rich text editor using Umbraco's TipTap input component.
+   * The editor configuration comes from a DataType that can be customized in Settings > Data Types.
+   */
+  _renderDescriptionEditor() {
+    return this._descriptionEditorConfig ? r`
+      <umb-input-tiptap
+        .configuration=${this._descriptionEditorConfig}
+        .value=${this._formData.description || ""}
+        @change=${this._handleDescriptionChange}>
+      </umb-input-tiptap>
+    ` : r`<uui-loader-bar></uui-loader-bar>`;
+  }
+  /**
+   * Handles changes from the Description rich text editor.
+   * Extracts the markup value and updates the form data.
+   */
+  _handleDescriptionChange(t) {
+    const i = t.target?.value || "";
+    this._formData = {
+      ...this._formData,
+      description: i
+    };
+  }
+  _renderMediaPicker() {
+    const t = this._formData.rootImages || [], e = t.map((i) => ({ key: i, mediaKey: i }));
+    return r`
+      <umb-input-rich-media
+        .value=${e}
+        ?multiple=${!0}
+        @change=${this._handleMediaChange}>
+      </umb-input-rich-media>
+      ${t.length === 0 ? r`
+        <div class="empty-media-state">
+          <uui-icon name="icon-picture"></uui-icon>
+          <p>No images added yet</p>
+          <small>Click the button above to add product images</small>
+        </div>
+      ` : n}
+    `;
+  }
+  _handleMediaChange(t) {
+    const a = (t.target?.value || []).map((o) => o.mediaKey).filter(Boolean);
+    this._formData = { ...this._formData, rootImages: a };
+  }
+  _renderSeoTab() {
+    const t = this._formData.openGraphImage ? [{ key: this._formData.openGraphImage, mediaKey: this._formData.openGraphImage }] : [];
+    return r`
+      <div class="tab-content">
+        <uui-box headline="Search Engine Optimization">
+          <umb-property-layout
+            label="Product URL"
+            description="The URL path for this product on your storefront">
+            <uui-input
+              slot="editor"
+              .value=${this._formData.rootUrl || ""}
+              @input=${(e) => this._handleInputChange("rootUrl", e.target.value)}
+              placeholder="/products/my-product">
+            </uui-input>
+          </umb-property-layout>
+
+          ${this._isSingleVariant() ? r`
+                <umb-property-layout
+                  label="Variant URL Slug"
+                  description="Custom URL path for this variant">
+                  <uui-input
+                    slot="editor"
+                    .value=${this._variantFormData.url || ""}
+                    @input=${(e) => this._variantFormData = { ...this._variantFormData, url: e.target.value }}
+                    placeholder="/products/my-product/default">
+                  </uui-input>
+                </umb-property-layout>
+              ` : n}
+
+          <umb-property-layout
+            label="Page Title"
+            description="The title shown in browser tabs and search results">
+            <uui-input
+              slot="editor"
+              .value=${this._formData.pageTitle || ""}
+              @input=${(e) => this._handleInputChange("pageTitle", e.target.value)}
+              placeholder="e.g., Blue T-Shirt | Your Store Name">
+            </uui-input>
+          </umb-property-layout>
+
+          <umb-property-layout
+            label="Meta Description"
+            description="The description shown in search results (recommended: 150-160 characters)">
+            <uui-textarea
+              slot="editor"
+              .value=${this._formData.metaDescription || ""}
+              @input=${(e) => this._handleInputChange("metaDescription", e.target.value)}
+              placeholder="A brief description for search engines...">
+            </uui-textarea>
+          </umb-property-layout>
+
+          <umb-property-layout
+            label="Canonical URL"
+            description="Optional URL to indicate the preferred version of this page for SEO">
+            <uui-input
+              slot="editor"
+              .value=${this._formData.canonicalUrl || ""}
+              @input=${(e) => this._handleInputChange("canonicalUrl", e.target.value)}
+              placeholder="https://example.com/products/blue-t-shirt">
+            </uui-input>
+          </umb-property-layout>
+
+          <umb-property-layout
+            label="Hide from Search Engines"
+            description="Adds noindex meta tag to prevent search engines from indexing this page">
+            <uui-toggle
+              slot="editor"
+              .checked=${this._formData.noIndex ?? !1}
+              @change=${(e) => this._handleToggleChange("noIndex", e.target.checked)}>
+            </uui-toggle>
+          </umb-property-layout>
+        </uui-box>
+
+        <uui-box headline="Social Sharing">
+          <umb-property-layout
+            label="Open Graph Image"
+            description="Image displayed when this page is shared on social media">
+            <div slot="editor">
+              <umb-input-rich-media
+                .value=${t}
+                ?multiple=${!1}
+                @change=${this._handleOpenGraphImageChange}>
+              </umb-input-rich-media>
+              ${this._formData.openGraphImage ? n : r`
+                    <div class="empty-media-state small">
+                      <uui-icon name="icon-share-alt"></uui-icon>
+                      <p>No image selected</p>
+                      <small>Recommended size: 1200×630 pixels</small>
+                    </div>
+                  `}
+            </div>
+          </umb-property-layout>
+        </uui-box>
+
+        <uui-box headline="Search Preview">
+          <umb-property-layout
+            label="Google Search Result"
+            description="Preview how this product may appear in Google search results">
+            <div slot="editor">
+              ${this._renderGoogleSearchPreview()}
+            </div>
+          </umb-property-layout>
+        </uui-box>
+      </div>
+    `;
+  }
+  _renderGoogleSearchPreview() {
+    const t = this._formData.pageTitle || this._formData.rootName || "Product Title", e = this._formData.metaDescription || "No meta description set. Add a description to improve search visibility.", i = this._formData.canonicalUrl || "https://yourstore.com/products/product-name", a = this._formatUrlAsBreadcrumb(i), o = 60, s = 160, u = t.length > o, b = e.length > s, F = u ? t.substring(0, o - 3) + "..." : t, z = b ? e.substring(0, s - 3) + "..." : e;
+    return r`
+      <div class="google-preview">
+        <div class="google-preview-header">
+          <div class="google-preview-favicon">
+            <uui-icon name="icon-globe"></uui-icon>
+          </div>
+          <div class="google-preview-site">
+            <div class="google-preview-site-name">Your Store</div>
+            <div class="google-preview-url">${a}</div>
+          </div>
+        </div>
+        <div class="google-preview-title">${F}</div>
+        <div class="google-preview-description">${z}</div>
+      </div>
+      <div class="google-preview-stats">
+        <span class="${u ? "stat-warning" : "stat-ok"}">
+          Title: ${t.length}/${o} chars ${u ? "(will be truncated)" : ""}
+        </span>
+        <span class="${b ? "stat-warning" : "stat-ok"}">
+          Description: ${e.length}/${s} chars ${b ? "(will be truncated)" : ""}
+        </span>
+      </div>
+    `;
+  }
+  _formatUrlAsBreadcrumb(t) {
+    try {
+      const e = new URL(t), i = e.pathname.split("/").filter((a) => a);
+      return i.length === 0 ? e.hostname : `${e.hostname} › ${i.join(" › ")}`;
+    } catch {
+      return t;
+    }
+  }
+  _handleOpenGraphImageChange(t) {
+    const i = t.target?.value || [], a = i.length > 0 ? i[0].mediaKey : null;
+    this._formData = { ...this._formData, openGraphImage: a };
+  }
+  _renderWarehouseSelector() {
+    const t = this._formData.warehouseIds || [];
+    return r`
+      <div class="warehouse-toggle-list">
+        ${this._warehouses.map(
+      (e) => r`
+            <div class="toggle-field">
+              <uui-toggle
+                .checked=${t.includes(e.id)}
+                @change=${(i) => this._handleWarehouseToggle(e.id, i.target.checked)}>
+              </uui-toggle>
+              <label>${e.name} ${e.code ? `(${e.code})` : ""}</label>
+            </div>
+          `
+    )}
+        ${this._warehouses.length === 0 ? r`<p class="hint">No warehouses available. Create a warehouse first.</p>` : n}
+      </div>
+    `;
+  }
+  _handleWarehouseToggle(t, e) {
+    const i = this._formData.warehouseIds || [];
+    e ? this._formData = { ...this._formData, warehouseIds: [...i, t] } : this._formData = { ...this._formData, warehouseIds: i.filter((a) => a !== t) };
+  }
+  _renderVariantsTab() {
+    const t = this._product?.variants ?? [];
+    return r`
+      <div class="tab-content">
+        <div class="section-header">
+          <h3>Product Variants</h3>
+          <p class="section-description">
+            Click a row to edit variant details. Select a variant as the default using the radio button.
+          </p>
+        </div>
+
+        <div class="table-container">
+          <uui-table class="data-table">
+            <uui-table-head>
+              <uui-table-head-cell style="width: 60px;">Default</uui-table-head-cell>
+              <uui-table-head-cell>Variant</uui-table-head-cell>
+              <uui-table-head-cell>SKU</uui-table-head-cell>
+              <uui-table-head-cell>Price</uui-table-head-cell>
+              <uui-table-head-cell>Stock</uui-table-head-cell>
+              <uui-table-head-cell>Status</uui-table-head-cell>
+            </uui-table-head>
+            ${t.map((e) => this._renderVariantRow(e))}
+          </uui-table>
+        </div>
+      </div>
+    `;
+  }
+  _renderVariantRow(t) {
+    const e = this._product ? G(this._product.id, t.id) : "", i = this._getVariantOptionDescription(t);
+    return r`
+      <uui-table-row>
+        <uui-table-cell>
+          <uui-radio
+            name="default-variant-${t.productRootId}"
+            ?checked=${t.default}
+            @click=${(a) => {
+      a.preventDefault(), this._handleSetDefaultVariant(t.id);
+    }}>
+          </uui-radio>
+        </uui-table-cell>
+        <uui-table-cell>
+          <div class="variant-name-cell">
+            <a href=${e} class="variant-link">${t.name || "Unnamed"}</a>
+            ${i ? r`<span class="variant-options-text">${i}</span>` : n}
+          </div>
+        </uui-table-cell>
+        <uui-table-cell>${t.sku || "—"}</uui-table-cell>
+        <uui-table-cell>$${t.price.toFixed(2)}</uui-table-cell>
+        <uui-table-cell>
+          <span class="badge ${this._getStockBadgeClass(t.totalStock)}">${t.totalStock}</span>
+        </uui-table-cell>
+        <uui-table-cell>
+          <span class="badge ${t.availableForPurchase ? "badge-positive" : "badge-danger"}">
+            ${t.availableForPurchase ? "Available" : "Unavailable"}
+          </span>
+        </uui-table-cell>
+      </uui-table-row>
+    `;
+  }
+  _getStockBadgeClass(t) {
+    return t === 0 ? "badge-danger" : t < 10 ? "badge-warning" : "badge-positive";
+  }
+  /**
+   * Parses the variant's option key and returns a human-readable description
+   * of the option value combination (e.g., "Red / Large / Cotton")
+   */
+  _getVariantOptionDescription(t) {
+    if (!t.variantOptionsKey || !this._product) return null;
+    const e = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, i = t.variantOptionsKey.match(e) || [], a = [];
+    for (const o of i)
+      for (const s of this._product.productOptions) {
+        const u = s.values.find((b) => b.id === o);
+        if (u) {
+          a.push(u.name);
+          break;
+        }
+      }
+    return a.length > 0 ? a.join(" / ") : null;
+  }
+  async _handleSetDefaultVariant(t) {
+    if (!this._product || this._product.variants.find((o) => o.id === t)?.default) return;
+    const i = this._product.id;
+    console.log("Setting default variant:", { productRootId: i, variantId: t });
+    const a = this._product.variants.map((o) => ({
+      ...o,
+      default: o.id === t
+    }));
+    this._product = { ...this._product, variants: a };
+    try {
+      const { error: o } = await m.setDefaultVariant(i, t);
+      console.log("API response:", { error: o }), o ? (console.error("Failed to set default variant:", o), l(this, g)?.peek("danger", { data: { headline: "Failed to set default variant", message: o.message } }), await l(this, h)?.reload()) : (l(this, g)?.peek("positive", { data: { headline: "Default variant updated", message: "" } }), await l(this, h)?.reload(), console.log("After reload, variants:", this._product?.variants.map((s) => ({ id: s.id, name: s.name, default: s.default }))));
+    } catch (o) {
+      console.error("Failed to set default variant:", o), l(this, g)?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } }), await l(this, h)?.reload();
+    }
+  }
+  /**
+   * Renders the Basic Info tab for single-variant products using shared component
+   */
+  _renderBasicInfoTab() {
+    return r`
+      <div class="tab-content">
+        <merchello-variant-basic-info
+          .formData=${this._variantFormData}
+          .fieldErrors=${this._variantFieldErrors}
+          @variant-change=${(t) => this._variantFormData = t.detail}>
+        </merchello-variant-basic-info>
+      </div>
+    `;
+  }
+  /**
+   * Renders the Shopping Feed tab for single-variant products using shared component
+   */
+  _renderShoppingFeedTab() {
+    return r`
+      <div class="tab-content">
+        <merchello-variant-feed-settings
+          .formData=${this._variantFormData}
+          @variant-change=${(t) => this._variantFormData = t.detail}>
+        </merchello-variant-feed-settings>
+      </div>
+    `;
+  }
+  /**
+   * Renders the Stock tab for single-variant products using shared component
+   */
+  _renderStockTab() {
+    return r`
+      <div class="tab-content">
+        <merchello-variant-stock-display
+          .warehouseStock=${this._variantFormData.warehouseStock ?? []}
+          @stock-settings-change=${this._handleStockSettingsChange}>
+        </merchello-variant-stock-display>
+      </div>
+    `;
+  }
+  _handleStockSettingsChange(t) {
+    const { warehouseId: e, stock: i, reorderPoint: a, trackStock: o } = t.detail, s = (this._variantFormData.warehouseStock ?? []).map((u) => u.warehouseId !== e ? u : {
+      ...u,
+      ...i !== void 0 && { stock: i },
+      ...a !== void 0 && { reorderPoint: a },
+      ...o !== void 0 && { trackStock: o }
+    });
+    this._variantFormData = { ...this._variantFormData, warehouseStock: s };
+  }
+  _renderOptionsTab() {
+    const t = this._formData.productOptions ?? [], e = l(this, h)?.isNew ?? !0, i = t.filter((u) => u.isVariant), a = i.reduce((u, b) => u * (b.values.length || 1), i.length > 0 ? 1 : 0), o = this._optionSettings?.maxProductOptions ?? 5, s = t.length >= o;
+    return r`
+      <div class="tab-content">
+        ${e ? r`
+              <uui-box class="info-banner warning">
+                <div class="info-content">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <div>
+                    <strong>Save Required</strong>
+                    <p>You must save the product before adding options.</p>
+                  </div>
+                </div>
+              </uui-box>
+            ` : r`
+              <uui-box class="info-banner">
+                <div class="info-content">
+                  <uui-icon name="icon-lightbulb"></uui-icon>
+                  <div>
+                    <strong>About Product Options</strong>
+                    <p>Options with "Generates Variants" create all combinations (e.g., 3 sizes × 4 colors = 12 variants). Options without this are add-ons that modify price.</p>
+                  </div>
+                </div>
+              </uui-box>
+            `}
+
+        <div class="section-header">
+          <div>
+            <h3>Product Options <span class="option-count">${t.length}/${o}</span></h3>
+            ${a > 0 ? r`<small class="hint">Will generate ${a} variant${a !== 1 ? "s" : ""}</small>` : n}
+          </div>
+          <uui-button
+            look="primary"
+            color="positive"
+            label="Add Option"
+            ?disabled=${e || s}
+            @click=${this._addNewOption}>
+            <uui-icon name="icon-add"></uui-icon>
+            Add Option
+          </uui-button>
+        </div>
+
+        ${t.length > 0 ? r` <div class="options-list">${t.map((u) => this._renderOptionCard(u))}</div> ` : e ? n : r`
+              <div class="empty-state">
+                <uui-icon name="icon-layers"></uui-icon>
+                <p>No options configured</p>
+                <p class="hint">Use the <strong>Add Option</strong> button above to add options like Size, Color, or Material</p>
+              </div>
+            `}
+
+      </div>
+    `;
+  }
+  _renderOptionCard(t) {
+    return r`
+      <uui-box class="option-card">
+        <div class="option-header">
+          <div class="option-info">
+            <strong>${t.name}</strong>
+            <span class="badge ${t.isVariant ? "badge-positive" : "badge-default"}">
+              ${t.isVariant ? "Generates Variants" : "Add-on"}
+            </span>
+            ${t.optionUiAlias ? r` <span class="badge badge-default">${t.optionUiAlias}</span> ` : n}
+          </div>
+          <div class="option-actions">
+            <uui-button compact look="secondary" @click=${() => this._editOption(t)} label="Edit option" aria-label="Edit ${t.name}">
+              <uui-icon name="icon-edit"></uui-icon>
+            </uui-button>
+            <uui-button compact look="primary" color="danger" @click=${() => this._deleteOption(t.id)} label="Delete option" aria-label="Delete ${t.name}">
+              <uui-icon name="icon-trash"></uui-icon>
+            </uui-button>
+          </div>
+        </div>
+
+        <div class="option-values">
+          ${t.values.map((e) => this._renderOptionValue(e, t.optionUiAlias))}
+          ${t.values.length === 0 ? r`<p class="hint">No values added yet</p>` : n}
+        </div>
+      </uui-box>
+    `;
+  }
+  _renderOptionValue(t, e) {
+    return r`
+      <div class="option-value-chip">
+        ${e === "colour" && t.hexValue ? r` <span class="color-swatch" style="background-color: ${t.hexValue}"></span> ` : n}
+        <span>${t.name}</span>
+        ${t.priceAdjustment !== 0 ? r`
+              <span class="price-adjustment">
+                ${t.priceAdjustment > 0 ? "+" : ""}$${t.priceAdjustment.toFixed(2)}
+              </span>
+            ` : n}
+      </div>
+    `;
+  }
+  async _addNewOption() {
+    if (!l(this, _) || !this._optionSettings) return;
+    const e = await l(this, _).open(this, S, {
+      data: {
+        option: void 0,
+        settings: this._optionSettings
+      }
+    }).onSubmit().catch(() => {
+    });
+    if (e?.saved && e.option) {
+      const i = this._formData.productOptions || [];
+      this._formData = {
+        ...this._formData,
+        productOptions: [...i, e.option]
+      }, await this._saveOptions();
+    }
+  }
+  async _editOption(t) {
+    if (!l(this, _) || !this._optionSettings) return;
+    const i = await l(this, _).open(this, S, {
+      data: {
+        option: t,
+        settings: this._optionSettings
+      }
+    }).onSubmit().catch(() => {
+    });
+    if (i?.saved) {
+      if (i.deleted)
+        await this._deleteOption(t.id);
+      else if (i.option) {
+        const a = this._formData.productOptions || [], o = a.findIndex((s) => s.id === t.id);
+        o !== -1 && (a[o] = i.option, this._formData = { ...this._formData, productOptions: [...a] }, await this._saveOptions());
+      }
+    }
+  }
+  async _deleteOption(t) {
+    const i = this._formData.productOptions?.find((s) => s.id === t)?.name || "this option";
+    if (!confirm(`Are you sure you want to delete "${i}"? This action cannot be undone.`)) return;
+    const o = (this._formData.productOptions || []).filter((s) => s.id !== t);
+    this._formData = { ...this._formData, productOptions: o }, await this._saveOptions();
+  }
+  /**
+   * Confirms with user before saving options that will regenerate variants.
+   * Returns true if user confirms or no confirmation needed, false if cancelled.
+   */
+  _confirmVariantRegeneration() {
+    const e = (this._formData.productOptions || []).filter((o) => o.isVariant), i = this._product?.variants.length ?? 0, a = e.length > 0 ? e.reduce((o, s) => o * (s.values.length || 1), 1) : 1;
+    if (i > 0 && e.length > 0) {
+      const o = `⚠️ WARNING: Saving these options will regenerate all product variants.
+
+Current variants: ${i}
+New variants to create: ${a}
+
+This will DELETE all existing variants and create new ones.
+Any variant-specific data (pricing, stock levels, images, SKUs) will need to be re-entered manually.
+
+Are you sure you want to continue?`;
+      return confirm(o);
+    }
+    if (i > 1 && e.length === 0) {
+      const o = `⚠️ WARNING: Removing all variant options will collapse this product to a single variant.
+
+Current variants: ${i}
+After save: 1 variant (default only)
+
+${i - 1} variants will be DELETED.
+Only the default variant will be kept.
+
+Are you sure you want to continue?`;
+      return confirm(o);
+    }
+    return !0;
+  }
+  async _saveOptions() {
+    if (this._product?.id) {
+      if (!this._confirmVariantRegeneration()) {
+        l(this, h)?.reload();
+        return;
+      }
+      try {
+        const t = (this._formData.productOptions || []).map((a, o) => ({
+          id: a.id,
+          name: a.name,
+          alias: a.alias ?? void 0,
+          sortOrder: o,
+          optionTypeAlias: a.optionTypeAlias ?? void 0,
+          optionUiAlias: a.optionUiAlias ?? void 0,
+          isVariant: a.isVariant,
+          values: a.values.map((s, u) => ({
+            id: s.id,
+            name: s.name,
+            sortOrder: u,
+            hexValue: s.hexValue ?? void 0,
+            mediaKey: s.mediaKey ?? void 0,
+            priceAdjustment: s.priceAdjustment,
+            costAdjustment: s.costAdjustment,
+            skuSuffix: s.skuSuffix ?? void 0
+          }))
+        }));
+        l(this, g)?.peek("default", { data: { headline: "Saving options...", message: "Variants will be regenerated" } });
+        const { data: e, error: i } = await m.saveProductOptions(this._product.id, t);
+        if (!l(this, v)) return;
+        !i && e ? (this._formData = { ...this._formData, productOptions: e }, l(this, g)?.peek("positive", { data: { headline: "Options saved", message: "Variants have been regenerated" } }), l(this, h)?.reload()) : i && (console.error("Failed to save options:", i), this._errorMessage = "Failed to save options: " + i.message, l(this, g)?.peek("danger", { data: { headline: "Failed to save options", message: i.message } }));
+      } catch (t) {
+        if (!l(this, v)) return;
+        console.error("Failed to save options:", t), this._errorMessage = t instanceof Error ? t.message : "Failed to save options", l(this, g)?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } });
+      }
+    }
+  }
+  /**
+   * Handles selling points change from the editable text list.
+   */
+  _handleSellingPointsChange(t) {
+    const i = t.target?.items || [];
+    this._formData = { ...this._formData, sellingPoints: i };
+  }
+  /**
+   * Handles router slot initialization
+   */
+  _onRouterInit(t) {
+    this._routerPath = t.target.absoluteRouterPath;
+  }
+  /**
+   * Handles router slot path changes
+   */
+  _onRouterChange(t) {
+    this._activePath = t.target.localActiveViewPath || "";
+  }
+  render() {
+    if (this._isLoading)
+      return r`
+        <umb-body-layout header-fit-height>
+          <div class="loading">
+            <uui-loader></uui-loader>
+          </div>
+        </umb-body-layout>
+      `;
+    const t = l(this, h)?.isNew ?? !0, e = this._getActiveTab();
+    return r`
+      <umb-body-layout header-fit-height main-no-padding>
+        <!-- Header: back button + icon + name input -->
+        <uui-button slot="header" compact href=${R()} label="Back" class="back-button">
+          <uui-icon name="icon-arrow-left"></uui-icon>
+        </uui-button>
+
+        <div id="header" slot="header">
+          <umb-icon name="icon-box"></umb-icon>
+          <uui-input
+            id="name-input"
+            .value=${this._formData.rootName || ""}
+            @input=${(i) => this._handleInputChange("rootName", i.target.value)}
+            placeholder=${t ? "Enter product name..." : "Product name"}
+            ?invalid=${!!this._fieldErrors.rootName}
+            aria-label="Product name"
+            aria-required="true">
+          </uui-input>
+        </div>
+
+        <!-- Inner body layout for tabs + content -->
+        <umb-body-layout header-fit-height header-no-padding>
+          ${this._renderTabs()}
+
+          <umb-router-slot
+            .routes=${this._routes}
+            @init=${this._onRouterInit}
+            @change=${this._onRouterChange}>
+          </umb-router-slot>
+
+          ${e === "details" ? this._renderDetailsTab() : n}
+          ${e === "basic-info" && this._isSingleVariant() ? this._renderBasicInfoTab() : n}
+          ${e === "media" ? this._renderMediaTab() : n}
+          ${e === "shipping" ? this._renderShippingTab() : n}
+          ${e === "seo" ? this._renderSeoTab() : n}
+          ${e === "feed" && this._isSingleVariant() ? this._renderShoppingFeedTab() : n}
+          ${e === "stock" && this._isSingleVariant() ? this._renderStockTab() : n}
+          ${e === "variants" ? this._renderVariantsTab() : n}
+          ${e === "options" ? this._renderOptionsTab() : n}
+        </umb-body-layout>
+
+        <!-- Footer with save button -->
+        <umb-footer-layout slot="footer">
+          <uui-button
+            slot="actions"
+            look="primary"
+            color="positive"
+            @click=${this._handleSave}
+            ?disabled=${this._isSaving}
+            label=${this._isSaving ? "Saving..." : t ? "Create Product" : "Save Changes"}>
+            ${this._isSaving ? "Saving..." : t ? "Create Product" : "Save Changes"}
+          </uui-button>
+        </umb-footer-layout>
+      </umb-body-layout>
+    `;
+  }
+};
+x = /* @__PURE__ */ new WeakMap();
+h = /* @__PURE__ */ new WeakMap();
+_ = /* @__PURE__ */ new WeakMap();
+g = /* @__PURE__ */ new WeakMap();
+v = /* @__PURE__ */ new WeakMap();
+d.styles = [
+  N,
+  P`
+      :host {
+        display: block;
+        width: 100%;
+        height: 100%;
+        --uui-tab-background: var(--uui-color-surface);
+      }
+
+      /* Header layout */
+      #header {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-3);
+        flex: 1;
+        padding: var(--uui-size-space-4) 0;
+      }
+
+      #header umb-icon {
+        font-size: 24px;
+        color: var(--uui-color-text-alt);
+      }
+
+      #name-input {
+        flex: 1 1 auto;
+        --uui-input-border-color: transparent;
+        --uui-input-background-color: transparent;
+        font-size: var(--uui-type-h5-size);
+        font-weight: 700;
+      }
+
+      #name-input:hover,
+      #name-input:focus-within {
+        --uui-input-border-color: var(--uui-color-border);
+        --uui-input-background-color: var(--uui-color-surface);
+      }
+
+      .back-button {
+        margin-right: var(--uui-size-space-2);
+      }
+
+      /* Loading state */
+      .loading {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 400px;
+      }
+
+      /* Tab styling - Umbraco pattern */
+      uui-tab-group {
+        --uui-tab-divider: var(--uui-color-border);
+        width: 100%;
+      }
+
+      /* Hide router slot as we render content inline */
+      umb-router-slot {
+        display: none;
+      }
+
+      /* Box styling - Umbraco pattern */
+      uui-box {
+        --uui-box-default-padding: var(--uui-size-space-5);
+      }
+
+      /* Property layout adjustments */
+      umb-property-layout:first-child {
+        padding-top: 0;
+      }
+
+      umb-property-layout:last-child {
+        padding-bottom: 0;
+      }
+
+      umb-property-layout uui-select,
+      umb-property-layout uui-input {
+        width: 100%;
+      }
+
+      /* Tab content */
+      .tab-content {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-5);
+      }
+
+      /* Warehouse toggle list */
+      .warehouse-toggle-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-4);
+      }
+
+      .warehouse-toggle-list .toggle-field {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-3);
+      }
+
+      .warehouse-toggle-list label {
+        font-weight: normal;
+        color: var(--uui-color-text);
+      }
+
+      .hint {
+        font-size: 0.875rem;
+        color: var(--uui-color-text-alt);
+        margin: 0;
+      }
+
+      /* Empty media state */
+      .empty-media-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: var(--uui-size-space-6);
+        margin-top: var(--uui-size-space-3);
+        background: var(--uui-color-surface);
+        border: 2px dashed var(--uui-color-border);
+        border-radius: var(--uui-border-radius);
+        color: var(--uui-color-text-alt);
+        text-align: center;
+      }
+
+      .empty-media-state uui-icon {
+        font-size: 48px;
+        opacity: 0.5;
+        margin-bottom: var(--uui-size-space-2);
+      }
+
+      .empty-media-state p {
+        margin: 0 0 var(--uui-size-space-1) 0;
+        font-weight: 500;
+      }
+
+      .empty-media-state small {
+        font-size: 0.875rem;
+        color: var(--uui-color-text-alt);
+      }
+
+      .empty-media-state.small {
+        padding: var(--uui-size-space-4);
+      }
+
+      .empty-media-state.small uui-icon {
+        font-size: 32px;
+      }
+
+      /* Info and error banners */
+      .error-box {
+        background: var(--uui-color-danger-surface);
+        border-left: 3px solid var(--uui-color-danger);
+      }
+
+      .info-banner {
+        background: var(--uui-color-surface);
+        border-left: 3px solid var(--uui-color-selected);
+      }
+
+      .info-banner.warning {
+        background: var(--uui-color-warning-surface);
+        border-left-color: var(--uui-color-warning);
+      }
+
+      .info-content {
+        display: flex;
+        gap: var(--uui-size-space-3);
+        padding: var(--uui-size-space-3);
+      }
+
+      .info-content uui-icon {
+        font-size: 24px;
+        flex-shrink: 0;
+      }
+
+      .info-content strong {
+        display: block;
+        margin-bottom: var(--uui-size-space-1);
+      }
+
+      .info-content p {
+        margin: 0;
+        color: var(--uui-color-text-alt);
+      }
+
+      .error-message {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+        color: var(--uui-color-danger);
+        padding: var(--uui-size-space-3);
+      }
+
+      /* Section headers */
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--uui-size-space-3);
+      }
+
+      .section-header h3 {
+        margin: 0;
+        font-size: 1.25rem;
+      }
+
+      .option-count {
+        font-size: 0.875rem;
+        font-weight: normal;
+        color: var(--uui-color-text-alt);
+        margin-left: var(--uui-size-space-2);
+      }
+
+      .section-description {
+        color: var(--uui-color-text-alt);
+        margin: var(--uui-size-space-2) 0;
+      }
+
+      /* Table styles */
+      .table-container {
+        overflow-x: auto;
+      }
+
+      .data-table {
+        width: 100%;
+      }
+
+      .variant-name-cell {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-1);
+      }
+
+      .variant-link {
+        font-weight: 500;
+        color: var(--uui-color-interactive);
+        text-decoration: none;
+      }
+
+      .variant-link:hover {
+        text-decoration: underline;
+        color: var(--uui-color-interactive-emphasis);
+      }
+
+      .variant-options-text {
+        font-size: 0.8125rem;
+        color: var(--uui-color-text-alt);
+      }
+
+      /* Options */
+      .options-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-3);
+      }
+
+      .option-card {
+        background: var(--uui-color-surface);
+      }
+
+      .option-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--uui-size-space-3);
+        border-bottom: 1px solid var(--uui-color-border);
+      }
+
+      .option-info {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+        flex-wrap: wrap;
+      }
+
+      .option-actions {
+        display: flex;
+        gap: var(--uui-size-space-2);
+      }
+
+      .option-values {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--uui-size-space-2);
+        padding: var(--uui-size-space-3);
+        min-height: 60px;
+        align-items: center;
+      }
+
+      .option-value-chip {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-1);
+        padding: var(--uui-size-space-2) var(--uui-size-space-3);
+        background: var(--uui-color-surface-alt);
+        border-radius: var(--uui-border-radius);
+        font-size: 0.875rem;
+      }
+
+      .color-swatch {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 1px solid var(--uui-color-border);
+      }
+
+      .price-adjustment {
+        font-weight: 600;
+        color: var(--uui-color-positive);
+      }
+
+      /* Empty state for options */
+      .empty-state {
+        text-align: center;
+        padding: var(--uui-size-space-6);
+        color: var(--uui-color-text-alt);
+      }
+
+      .empty-state uui-icon {
+        font-size: 48px;
+        opacity: 0.5;
+        margin-bottom: var(--uui-size-space-3);
+      }
+
+      .empty-state p {
+        margin: var(--uui-size-space-2) 0;
+      }
+
+      .empty-state strong {
+        color: var(--uui-color-text);
+      }
+
+      /* Google Search Preview - Updated 2024/2025 styling */
+      .google-preview {
+        font-family: Arial, sans-serif;
+        max-width: 600px;
+        padding: var(--uui-size-space-4);
+        background: #fff;
+        border: 1px solid var(--uui-color-border);
+        border-radius: var(--uui-border-radius);
+      }
+
+      .google-preview-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 4px;
+      }
+
+      .google-preview-favicon {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: #f1f3f4;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .google-preview-favicon uui-icon {
+        font-size: 16px;
+        color: #5f6368;
+      }
+
+      .google-preview-site {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      .google-preview-site-name {
+        font-size: 14px;
+        color: #202124;
+        line-height: 1.3;
+      }
+
+      .google-preview-url {
+        font-size: 12px;
+        color: #4d5156;
+        line-height: 1.3;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .google-preview-title {
+        font-size: 20px;
+        color: #1a0dab;
+        line-height: 1.3;
+        margin-bottom: 4px;
+        word-wrap: break-word;
+      }
+
+      .google-preview-title:hover {
+        text-decoration: underline;
+        cursor: pointer;
+      }
+
+      .google-preview-description {
+        font-size: 14px;
+        color: #4d5156;
+        line-height: 1.58;
+        word-wrap: break-word;
+      }
+
+      .google-preview-stats {
+        display: flex;
+        gap: var(--uui-size-space-4);
+        margin-top: var(--uui-size-space-3);
+        font-size: 12px;
+        flex-wrap: wrap;
+      }
+
+      .google-preview-stats .stat-ok {
+        color: var(--uui-color-positive);
+      }
+
+      .google-preview-stats .stat-warning {
+        color: var(--uui-color-warning);
+      }
+
+      /* Description editor styling */
+      umb-property-dataset {
+        display: block;
+      }
+
+      umb-property-dataset umb-property {
+        --umb-property-layout-description-display: none;
+      }
+
+      /* Package cards */
+      .packages-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-4);
+        margin-bottom: var(--uui-size-space-4);
+      }
+
+      .package-card {
+        background: var(--uui-color-surface-alt);
+        border: 1px solid var(--uui-color-border);
+        border-radius: var(--uui-border-radius);
+        padding: var(--uui-size-space-4);
+      }
+
+      .package-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--uui-size-space-3);
+      }
+
+      .package-number {
+        font-weight: 600;
+        color: var(--uui-color-text);
+      }
+
+      .package-fields {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: var(--uui-size-space-3);
+      }
+
+      .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-1);
+      }
+
+      .field-group label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--uui-color-text-alt);
+      }
+
+      .field-group uui-input {
+        width: 100%;
+      }
+
+      .add-package-button {
+        width: 100%;
+      }
+    `
+];
+p([
+  c()
+], d.prototype, "_product", 2);
+p([
+  c()
+], d.prototype, "_isLoading", 2);
+p([
+  c()
+], d.prototype, "_isSaving", 2);
+p([
+  c()
+], d.prototype, "_errorMessage", 2);
+p([
+  c()
+], d.prototype, "_optionSettings", 2);
+p([
+  c()
+], d.prototype, "_validationAttempted", 2);
+p([
+  c()
+], d.prototype, "_fieldErrors", 2);
+p([
+  c()
+], d.prototype, "_routes", 2);
+p([
+  c()
+], d.prototype, "_routerPath", 2);
+p([
+  c()
+], d.prototype, "_activePath", 2);
+p([
+  c()
+], d.prototype, "_formData", 2);
+p([
+  c()
+], d.prototype, "_taxGroups", 2);
+p([
+  c()
+], d.prototype, "_productTypes", 2);
+p([
+  c()
+], d.prototype, "_warehouses", 2);
+p([
+  c()
+], d.prototype, "_descriptionEditorConfig", 2);
+p([
+  c()
+], d.prototype, "_variantFormData", 2);
+p([
+  c()
+], d.prototype, "_variantFieldErrors", 2);
+d = p([
+  I("merchello-product-detail")
+], d);
+const nt = d;
+export {
+  d as MerchelloProductDetailElement,
+  nt as default
+};
+//# sourceMappingURL=product-detail.element-Y48g95vO.js.map

@@ -36,6 +36,9 @@ export function navigateToMerchelloWorkspace(entityType: string, routePath: stri
 /** Entity type for order detail workspace */
 export const ORDER_ENTITY_TYPE = "merchello-order";
 
+/** Entity type for orders list workspace */
+export const ORDERS_ENTITY_TYPE = "merchello-orders";
+
 /**
  * Generate the URL to view/edit an order detail.
  * Use this in href attributes on links/buttons.
@@ -49,6 +52,20 @@ export function getOrderDetailHref(orderId: string): string {
  */
 export function navigateToOrderDetail(orderId: string): void {
   navigateToMerchelloWorkspace(ORDER_ENTITY_TYPE, `edit/${orderId}`);
+}
+
+/**
+ * Generate the URL to the orders list.
+ */
+export function getOrdersListHref(): string {
+  return getMerchelloWorkspaceHref(ORDERS_ENTITY_TYPE, "orders");
+}
+
+/**
+ * Navigate programmatically to the orders list using SPA routing.
+ */
+export function navigateToOrdersList(): void {
+  navigateToMerchelloWorkspace(ORDERS_ENTITY_TYPE, "orders");
 }
 
 /** Entity type for product detail workspace */

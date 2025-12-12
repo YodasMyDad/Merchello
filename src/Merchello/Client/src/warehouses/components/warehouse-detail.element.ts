@@ -2,8 +2,11 @@ import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
+import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
 import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
+import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
+import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { WarehouseDetailDto, SupplierDto, CountryInfo, ServiceRegionDto } from "@warehouses/types.js";
 import type { MerchelloWarehouseDetailWorkspaceContext } from "@warehouses/contexts/warehouse-detail-workspace.context.js";
 import { MerchelloApi } from "@api/merchello-api.js";
@@ -27,7 +30,11 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
   @state() private _isLoading = true;
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
-  @state() private _activeTab: TabId = "general";
+
+  // Tab routing state
+  @state() private _routes: UmbRoute[] = [];
+  @state() private _routerPath?: string;
+  @state() private _activePath = "";
 
   // Form state
   @state() private _formData: Partial<WarehouseDetailDto> = {};
@@ -39,6 +46,8 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
   #workspaceContext?: MerchelloWarehouseDetailWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
+  #notificationContext?: UmbNotificationContext;
+  #isConnected = false;
 
   constructor() {
     super();
@@ -57,16 +66,56 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
       this.#modalManager = context;
     });
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
+      this.#notificationContext = context;
+    });
   }
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.#isConnected = true;
+    this._createRoutes();
     this._loadSuppliers();
     this._loadCountries();
   }
 
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#isConnected = false;
+  }
+
+  // Tab routing
+  private _createRoutes(): void {
+    const stubComponent = (): HTMLElement => document.createElement("div");
+    this._routes = [
+      { path: "tab/general", component: stubComponent },
+      { path: "tab/regions", component: stubComponent },
+      { path: "tab/options", component: stubComponent },
+      { path: "", redirectTo: "tab/general" },
+    ];
+  }
+
+  private _getActiveTab(): TabId {
+    if (this._activePath.includes("tab/regions")) return "regions";
+    if (this._activePath.includes("tab/options")) return "options";
+    return "general";
+  }
+
+  private _onRouterInit(event: UmbRouterSlotInitEvent): void {
+    this._routerPath = event.target.absoluteRouterPath;
+  }
+
+  private _onRouterChange(event: UmbRouterSlotChangeEvent): void {
+    this._activePath = event.target.localActiveViewPath || "";
+    // Load shipping options when navigating to options tab
+    if (this._getActiveTab() === "options" && this._shippingOptions.length === 0) {
+      this._loadShippingOptions();
+    }
+  }
+
   private async _loadSuppliers(): Promise<void> {
     const { data } = await MerchelloApi.getSuppliers();
+    if (!this.#isConnected) return;
     if (data) {
       this._suppliers = data;
     }
@@ -74,6 +123,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
   private async _loadCountries(): Promise<void> {
     const { data } = await MerchelloApi.getLocalityCountries();
+    if (!this.#isConnected) return;
     if (data) {
       this._countries = data;
     }
@@ -82,16 +132,10 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
   private async _loadShippingOptions(): Promise<void> {
     if (!this._warehouse?.id) return;
     const { data } = await MerchelloApi.getShippingOptions();
+    if (!this.#isConnected) return;
     if (data) {
       // Filter to only this warehouse's options
       this._shippingOptions = data.filter((o) => o.warehouseId === this._warehouse?.id);
-    }
-  }
-
-  private _handleTabClick(tab: TabId): void {
-    this._activeTab = tab;
-    if (tab === "options" && this._shippingOptions.length === 0) {
-      this._loadShippingOptions();
     }
   }
 
@@ -158,6 +202,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
+    if (!this.#isConnected) return;
     if (result?.supplier) {
       this._suppliers = [...this._suppliers, result.supplier];
       this._formData = { ...this._formData, supplierId: result.supplier.id };
@@ -170,48 +215,66 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
     const isNew = this.#workspaceContext?.isNew ?? true;
 
-    if (isNew) {
-      // Create new warehouse
-      const { data, error } = await MerchelloApi.createWarehouse({
-        name: this._formData.name || "",
-        code: this._formData.code,
-        supplierId: this._formData.supplierId,
-        address: this._formData.address,
-      });
+    try {
+      if (isNew) {
+        // Create new warehouse
+        const { data, error } = await MerchelloApi.createWarehouse({
+          name: this._formData.name || "",
+          code: this._formData.code,
+          supplierId: this._formData.supplierId,
+          address: this._formData.address,
+        });
 
-      if (error) {
-        this._errorMessage = error.message;
+        if (!this.#isConnected) return;
+
+        if (error) {
+          this._errorMessage = error.message;
+          this.#notificationContext?.peek("danger", {
+            data: { headline: "Failed to create", message: error.message || "Could not create warehouse" }
+          });
+          return;
+        }
+
+        if (data) {
+          // Update context and navigate to edit route using SPA navigation
+          this.#workspaceContext?.updateWarehouse(data);
+          history.replaceState({}, "", getWarehouseDetailHref(data.id));
+          this.#notificationContext?.peek("positive", {
+            data: { headline: "Warehouse created", message: "The warehouse has been created successfully" }
+          });
+        }
+      } else {
+        // Update existing warehouse
+        const { data, error } = await MerchelloApi.updateWarehouse(this._warehouse!.id, {
+          name: this._formData.name,
+          code: this._formData.code,
+          supplierId: this._formData.supplierId,
+          clearSupplierId: !this._formData.supplierId && !!this._warehouse?.supplierId,
+          address: this._formData.address,
+        });
+
+        if (!this.#isConnected) return;
+
+        if (error) {
+          this._errorMessage = error.message;
+          this.#notificationContext?.peek("danger", {
+            data: { headline: "Failed to save", message: error.message || "Could not save changes" }
+          });
+          return;
+        }
+
+        if (data) {
+          this.#workspaceContext?.updateWarehouse(data);
+          this.#notificationContext?.peek("positive", {
+            data: { headline: "Changes saved", message: "The warehouse has been updated successfully" }
+          });
+        }
+      }
+    } finally {
+      if (this.#isConnected) {
         this._isSaving = false;
-        return;
-      }
-
-      if (data) {
-        // Update context and navigate to edit route using SPA navigation
-        this.#workspaceContext?.updateWarehouse(data);
-        history.replaceState({}, "", getWarehouseDetailHref(data.id));
-      }
-    } else {
-      // Update existing warehouse
-      const { data, error } = await MerchelloApi.updateWarehouse(this._warehouse!.id, {
-        name: this._formData.name,
-        code: this._formData.code,
-        supplierId: this._formData.supplierId,
-        clearSupplierId: !this._formData.supplierId && !!this._warehouse?.supplierId,
-        address: this._formData.address,
-      });
-
-      if (error) {
-        this._errorMessage = error.message;
-        this._isSaving = false;
-        return;
-      }
-
-      if (data) {
-        this.#workspaceContext?.updateWarehouse(data);
       }
     }
-
-    this._isSaving = false;
   }
 
   private async _handleDelete(): Promise<void> {
@@ -225,11 +288,19 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
     const { error } = await MerchelloApi.deleteWarehouse(this._warehouse.id);
 
+    if (!this.#isConnected) return;
+
     if (error) {
       this._errorMessage = `Failed to delete warehouse: ${error.message}`;
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to delete", message: error.message || "Could not delete warehouse" }
+      });
       return;
     }
 
+    this.#notificationContext?.peek("positive", {
+      data: { headline: "Warehouse deleted", message: "The warehouse has been deleted successfully" }
+    });
     navigateToWarehousesList();
   }
 
@@ -246,6 +317,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
+    if (!this.#isConnected) return;
     if (result?.saved) {
       this.#workspaceContext?.reload();
     }
@@ -262,13 +334,21 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
     const { error } = await MerchelloApi.deleteServiceRegion(this._warehouse.id, region.id);
 
+    if (!this.#isConnected) return;
+
     this._isDeletingRegion = null;
 
     if (error) {
       this._errorMessage = `Failed to delete region: ${error.message}`;
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to delete", message: error.message || "Could not delete region" }
+      });
       return;
     }
 
+    this.#notificationContext?.peek("positive", {
+      data: { headline: "Region deleted", message: "The service region has been removed" }
+    });
     this.#workspaceContext?.reload();
   }
 
@@ -284,6 +364,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
+    if (!this.#isConnected) return;
     if (result?.saved) {
       this._loadShippingOptions();
       this.#workspaceContext?.reload();
@@ -300,13 +381,21 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
     const { error } = await MerchelloApi.deleteShippingOption(option.id);
 
+    if (!this.#isConnected) return;
+
     this._isDeletingOption = null;
 
     if (error) {
       this._errorMessage = `Failed to delete option: ${error.message}`;
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to delete", message: error.message || "Could not delete shipping option" }
+      });
       return;
     }
 
+    this.#notificationContext?.peek("positive", {
+      data: { headline: "Option deleted", message: "The shipping option has been removed" }
+    });
     this._loadShippingOptions();
     this.#workspaceContext?.reload();
   }
@@ -328,57 +417,12 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     return html`<div class="loading"><uui-loader></uui-loader></div>`;
   }
 
-  private _renderTabs(): unknown {
-    const regionCount = this._warehouse?.serviceRegions.length ?? 0;
-    const optionCount = this._warehouse?.shippingOptionCount ?? 0;
-
-    return html`
-      <uui-tab-group>
-        <uui-tab
-          label="General"
-          ?active=${this._activeTab === "general"}
-          @click=${() => this._handleTabClick("general")}>
-          General
-        </uui-tab>
-        <uui-tab
-          label="Service Regions"
-          ?active=${this._activeTab === "regions"}
-          @click=${() => this._handleTabClick("regions")}>
-          <span class="tab-label">
-            Service Regions${regionCount === 0 ? html`<uui-icon name="icon-alert" class="tab-warning"></uui-icon>` : nothing}
-            <span class="tab-count">(${regionCount})</span>
-          </span>
-        </uui-tab>
-        <uui-tab
-          label="Shipping Options"
-          ?active=${this._activeTab === "options"}
-          @click=${() => this._handleTabClick("options")}>
-          <span class="tab-label">
-            Shipping Options${optionCount === 0 ? html`<uui-icon name="icon-alert" class="tab-warning"></uui-icon>` : nothing}
-            <span class="tab-count">(${optionCount})</span>
-          </span>
-        </uui-tab>
-      </uui-tab-group>
-    `;
-  }
-
   private _renderGeneralTab(): unknown {
     return html`
       <div class="tab-content">
         <!-- Basic Info Section -->
         <uui-box headline="Basic Information">
           <div class="form-grid">
-            <div class="form-field ${this._getValidationClass(this._formData.name, true)}">
-              <label>Name <span class="required">*</span></label>
-              <uui-input
-                type="text"
-                .value=${this._formData.name || ""}
-                @input=${(e: Event) => this._handleInputChange("name", (e.target as HTMLInputElement).value)}
-                placeholder="Main Warehouse"
-                label="Warehouse name">
-              </uui-input>
-            </div>
-
             <div class="form-field">
               <label>Code</label>
               <uui-input
@@ -786,7 +830,8 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
   }
 
   private _renderTabContent(): unknown {
-    switch (this._activeTab) {
+    const activeTab = this._getActiveTab();
+    switch (activeTab) {
       case "general":
         return this._renderGeneralTab();
       case "regions":
@@ -804,63 +849,109 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     }
 
     const isNew = this.#workspaceContext?.isNew ?? true;
-    const headline = isNew ? "New Warehouse" : this._warehouse?.name || "Warehouse";
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="warehouse-container">
-          <!-- Header -->
-          <div class="header">
-            <div class="header-left">
-              <a href=${getWarehousesListHref()}>
-                <uui-button
-                  look="secondary"
-                  compact
-                  label="Back to Warehouses">
-                  <uui-icon name="icon-arrow-left"></uui-icon>
-                  Back
-                </uui-button>
-              </a>
-              <h1>${headline}</h1>
-            </div>
-            <div class="header-actions">
-              ${!isNew
-                ? html`
-                    <uui-button
-                      look="primary"
-                      color="danger"
-                      label="Delete"
-                      @click=${this._handleDelete}>
-                      Delete
-                    </uui-button>
-                  `
-                : nothing}
-              <uui-button
-                look="primary"
-                color="positive"
-                label="Save"
-                ?disabled=${this._isSaving}
-                @click=${this._handleSave}>
-                ${this._isSaving ? "Saving..." : "Save"}
-              </uui-button>
-            </div>
-          </div>
+        <!-- Back button -->
+        <uui-button slot="header" compact href=${getWarehousesListHref()} label="Back to Warehouses" class="back-button">
+          <uui-icon name="icon-arrow-left"></uui-icon>
+        </uui-button>
 
+        <!-- Header with warehouse info -->
+        <div id="header" slot="header">
+          <umb-icon name="icon-box"></umb-icon>
+          <uui-input
+            id="name-input"
+            type="text"
+            .value=${this._formData.name || ""}
+            @input=${(e: Event) => this._handleInputChange("name", (e.target as HTMLInputElement).value)}
+            placeholder="Warehouse name"
+            label="Warehouse name">
+          </uui-input>
+        </div>
+
+        <!-- Inner layout with tabs -->
+        <umb-body-layout header-fit-height header-no-padding>
+          <!-- Error banner -->
           ${this._errorMessage
             ? html`
-                <div class="error-banner">
+                <div class="error-banner" slot="header">
                   <uui-icon name="icon-alert"></uui-icon>
                   <span>${this._errorMessage}</span>
                 </div>
               `
             : nothing}
 
-          <!-- Tabs -->
-          ${this._renderTabs()}
+          <!-- Tabs in header slot -->
+          <uui-tab-group slot="header">
+            <uui-tab
+              label="General"
+              href="${this._routerPath}/tab/general"
+              ?active=${this._getActiveTab() === "general"}>
+              General
+            </uui-tab>
+            <uui-tab
+              label="Service Regions"
+              href="${this._routerPath}/tab/regions"
+              ?active=${this._getActiveTab() === "regions"}>
+              <span class="tab-label">
+                Service Regions${(this._warehouse?.serviceRegions.length ?? 0) === 0 ? html`<uui-icon name="icon-alert" class="tab-warning"></uui-icon>` : nothing}
+                <span class="tab-count">(${this._warehouse?.serviceRegions.length ?? 0})</span>
+              </span>
+            </uui-tab>
+            <uui-tab
+              label="Shipping Options"
+              href="${this._routerPath}/tab/options"
+              ?active=${this._getActiveTab() === "options"}>
+              <span class="tab-label">
+                Shipping Options${(this._warehouse?.shippingOptionCount ?? 0) === 0 ? html`<uui-icon name="icon-alert" class="tab-warning"></uui-icon>` : nothing}
+                <span class="tab-count">(${this._warehouse?.shippingOptionCount ?? 0})</span>
+              </span>
+            </uui-tab>
+          </uui-tab-group>
 
-          <!-- Tab Content -->
-          ${this._renderTabContent()}
-        </div>
+          <!-- Hidden router slot for URL tracking -->
+          <umb-router-slot
+            .routes=${this._routes}
+            @init=${this._onRouterInit}
+            @change=${this._onRouterChange}>
+          </umb-router-slot>
+
+          <!-- Tab content -->
+          <div class="tab-content">
+            ${this._renderTabContent()}
+          </div>
+        </umb-body-layout>
+
+        <!-- Footer -->
+        <umb-footer-layout slot="footer">
+          <uui-breadcrumbs>
+            <uui-breadcrumb-item href=${getWarehousesListHref()}>Warehouses</uui-breadcrumb-item>
+            <uui-breadcrumb-item>${this._formData.name || "New Warehouse"}</uui-breadcrumb-item>
+          </uui-breadcrumbs>
+
+          ${!isNew
+            ? html`
+                <uui-button
+                  slot="actions"
+                  look="secondary"
+                  color="danger"
+                  label="Delete"
+                  @click=${this._handleDelete}>
+                  Delete
+                </uui-button>
+              `
+            : nothing}
+          <uui-button
+            slot="actions"
+            look="primary"
+            color="positive"
+            label="Save"
+            ?disabled=${this._isSaving}
+            @click=${this._handleSave}>
+            ${this._isSaving ? "Saving..." : "Save"}
+          </uui-button>
+        </umb-footer-layout>
       </umb-body-layout>
     `;
   }
@@ -870,42 +961,44 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     css`
       :host {
         display: block;
+        width: 100%;
         height: 100%;
-        background: var(--uui-color-background);
+        --uui-tab-background: var(--uui-color-surface);
       }
 
-      .warehouse-container {
-        max-width: 100%;
-        padding: var(--uui-size-layout-1);
+      /* Header styling */
+      .back-button {
+        margin-right: var(--uui-size-space-2);
       }
 
-      .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: var(--uui-size-space-4);
-      }
-
-      .header-left {
+      #header {
         display: flex;
         align-items: center;
-        gap: var(--uui-size-space-4);
+        gap: var(--uui-size-space-3);
+        flex: 1;
+        padding: var(--uui-size-space-4) 0;
       }
 
-      .header-left a {
-        text-decoration: none;
+      #header umb-icon {
+        font-size: 24px;
+        color: var(--uui-color-text-alt);
       }
 
-      .header-left h1 {
-        margin: 0;
-        font-size: 1.5rem;
+      #name-input {
+        flex: 1 1 auto;
+        --uui-input-border-color: transparent;
+        --uui-input-background-color: transparent;
+        font-size: var(--uui-type-h5-size);
+        font-weight: 700;
       }
 
-      .header-actions {
-        display: flex;
-        gap: var(--uui-size-space-2);
+      #name-input:hover,
+      #name-input:focus-within {
+        --uui-input-border-color: var(--uui-color-border);
+        --uui-input-background-color: var(--uui-color-surface);
       }
 
+      /* Error banner */
       .error-banner {
         display: flex;
         gap: var(--uui-size-space-3);
@@ -914,11 +1007,22 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
         background: var(--uui-color-danger-standalone);
         color: var(--uui-color-danger-contrast);
         border-radius: var(--uui-border-radius);
-        margin-bottom: var(--uui-size-space-4);
+        margin: var(--uui-size-space-3);
       }
 
+      /* Tab styling */
       uui-tab-group {
-        margin-bottom: var(--uui-size-space-4);
+        --uui-tab-divider: var(--uui-color-border);
+        width: 100%;
+      }
+
+      umb-router-slot {
+        display: none;
+      }
+
+      /* Breadcrumbs */
+      uui-breadcrumbs {
+        font-size: 0.875rem;
       }
 
       .tab-label {
@@ -1145,15 +1249,18 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
           grid-template-columns: 1fr;
         }
 
-        .header {
+        .header-content {
           flex-direction: column;
           align-items: flex-start;
-          gap: var(--uui-size-space-3);
         }
 
-        .header-actions {
+        .name-input {
+          max-width: 100%;
           width: 100%;
-          justify-content: flex-end;
+        }
+
+        .footer-left {
+          display: none;
         }
       }
     `,

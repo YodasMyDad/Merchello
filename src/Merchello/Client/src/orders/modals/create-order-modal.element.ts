@@ -390,15 +390,17 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     const updateFn = prefix === "billing" ? this._updateBillingField : this._updateShippingField;
 
     return html`
-      <div class="form-field ${error ? 'has-error' : ''}">
-        <label>${label}${required ? html`<span class="required">*</span>` : nothing}</label>
+      <umb-property-layout
+        label=${label}
+        ?mandatory=${required}
+        ?invalid=${!!error}>
         <uui-input
+          slot="editor"
           type=${type}
           .value=${value}
-          @input=${(e: Event) => updateFn.call(this, field, (e.target as HTMLInputElement).value || null)}
-        ></uui-input>
-        ${error ? html`<span class="error-text">${error}</span>` : nothing}
-      </div>
+          @input=${(e: Event) => updateFn.call(this, field, (e.target as HTMLInputElement).value || null)}>
+        </uui-input>
+      </umb-property-layout>
     `;
   }
 
@@ -407,32 +409,33 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     const updateFn = prefix === "billing" ? this._updateBillingField : this._updateShippingField;
 
     return html`
-      <div class="form-field ${error ? 'has-error' : ''}">
-        <label>Country<span class="required">*</span></label>
+      <umb-property-layout
+        label="Country"
+        ?mandatory=${true}
+        ?invalid=${!!error}>
         <uui-select
+          slot="editor"
           .options=${this._getCountryOptions(prefix)}
           @change=${(e: Event) => {
             const select = e.target as HTMLSelectElement;
             const country = this._countries.find((c) => c.code === select.value);
             updateFn.call(this, "countryCode", select.value || null);
             updateFn.call(this, "country", country?.name ?? null);
-          }}
-        ></uui-select>
-        ${error ? html`<span class="error-text">${error}</span>` : nothing}
-      </div>
+          }}>
+        </uui-select>
+      </umb-property-layout>
     `;
   }
 
   private _renderBillingAddressForm() {
     return html`
-      <div class="address-section">
-        <h3>Billing Address</h3>
-
+      <uui-box headline="Billing Address">
         <!-- Customer Search -->
         <div class="customer-search-wrapper">
-          <div class="form-field">
-            <label>Search existing customer</label>
-            <div class="search-input-wrapper">
+          <umb-property-layout
+            label="Search existing customer"
+            description="Search by email or name to auto-fill customer details">
+            <div slot="editor" class="search-input-wrapper">
               <uui-input
                 type="text"
                 placeholder="Search by email or name..."
@@ -441,22 +444,20 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
                   if (this._customerSearchResults.length > 0) {
                     this._showCustomerDropdown = true;
                   }
-                }}
-              >
+                }}>
                 ${this._isSearchingCustomer
                   ? html`<uui-loader-circle slot="append"></uui-loader-circle>`
                   : html`<uui-icon slot="prepend" name="icon-search"></uui-icon>`}
               </uui-input>
             </div>
-          </div>
+          </umb-property-layout>
 
           ${this._showCustomerDropdown ? html`
             <div class="customer-dropdown">
               ${this._customerSearchResults.map((customer) => html`
                 <button
                   class="customer-option"
-                  @click=${() => this._selectCustomer(customer)}
-                >
+                  @click=${() => this._selectCustomer(customer)}>
                   <div class="customer-info">
                     <span class="customer-name">${customer.name}</span>
                     <span class="customer-email">${customer.email}</span>
@@ -476,7 +477,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
           ` : nothing}
         </div>
 
-        <div class="address-grid">
+        <div class="address-fields">
           ${this._renderAddressField("billing", "name", "Name", "text", true)}
           ${this._renderAddressField("billing", "email", "Email", "email", true)}
           ${this._renderAddressField("billing", "phone", "Phone", "tel")}
@@ -488,41 +489,43 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
           ${this._renderAddressField("billing", "postalCode", "Postal Code", "text", true)}
           ${this._renderCountrySelect("billing")}
         </div>
-      </div>
+      </uui-box>
     `;
   }
 
   private _renderShippingAddressForm() {
     return html`
-      <div class="address-section">
-        <div class="section-header-with-toggle">
-          <h3>Shipping Address</h3>
-          <uui-checkbox
+      <uui-box headline="Shipping Address">
+        <umb-property-layout
+          label="Ship to different address"
+          description="Enable to enter a separate shipping address">
+          <uui-toggle
+            slot="editor"
             .checked=${this._useShippingAddress}
-            @change=${this._toggleShippingAddress}
-          >
-            Ship to different address
-          </uui-checkbox>
-        </div>
+            @change=${this._toggleShippingAddress}>
+          </uui-toggle>
+        </umb-property-layout>
 
         ${this._useShippingAddress ? html`
           <!-- Past shipping addresses dropdown -->
           ${this._selectedCustomer && this._selectedCustomer.pastShippingAddresses.length > 0 ? html`
-            <div class="form-field">
-              <label>Use a past shipping address</label>
+            <umb-property-layout
+              label="Use a past shipping address"
+              description="Select from customer's previous shipping addresses">
               <uui-select
+                slot="editor"
                 .options=${this._pastShippingAddressOptions}
                 @change=${(e: Event) => {
                   const index = parseInt((e.target as HTMLSelectElement).value);
                   if (!isNaN(index) && this._selectedCustomer) {
                     this._selectPastShippingAddress(this._selectedCustomer.pastShippingAddresses[index]);
                   }
-                }}
-              ></uui-select>
-            </div>
+                }}>
+              </uui-select>
+            </umb-property-layout>
           ` : nothing}
 
-          <div class="address-grid">
+          <div class="address-fields">
             ${this._renderAddressField("shipping", "name", "Name", "text", true)}
             ${this._renderAddressField("shipping", "phone", "Phone", "tel")}
             ${this._renderAddressField("shipping", "company", "Company")}
@@ -534,7 +537,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
             ${this._renderCountrySelect("shipping")}
           </div>
         ` : nothing}
-      </div>
+      </uui-box>
     `;
   }
 
@@ -574,9 +577,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
 
   private _renderItemsSection() {
     return html`
-      <div class="items-section">
-        <h3>Items</h3>
-
+      <uui-box headline="Items">
         ${this._customItems.length > 0 ? html`
           <div class="items-table">
             <div class="items-header">
@@ -606,7 +607,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
             Add custom item
           </uui-button>
         </div>
-      </div>
+      </uui-box>
     `;
   }
 
@@ -614,9 +615,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     const subtotal = this._getSubtotal();
 
     return html`
-      <div class="summary-section">
-        <h3>Order Summary</h3>
-
+      <uui-box headline="Order Summary">
         <div class="summary-row">
           <span>Subtotal</span>
           <span>${this._currencySymbol}${subtotal.toFixed(2)}</span>
@@ -641,7 +640,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
           Shipping and tax will be calculated after the order is created.
           You can edit the order to adjust these values.
         </p>
-      </div>
+      </uui-box>
     `;
   }
 
@@ -715,55 +714,33 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
       font-weight: 600;
     }
 
-    /* Address Section */
-    .address-section {
-      background: var(--uui-color-surface);
-      border: 1px solid var(--uui-color-border);
-      border-radius: var(--uui-border-radius);
-      padding: var(--uui-size-space-4);
+    /* Box styling */
+    uui-box {
+      --uui-box-default-padding: var(--uui-size-space-5);
     }
 
-    .section-header-with-toggle {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: var(--uui-size-space-4);
+    /* Property layout adjustments for modal context */
+    umb-property-layout {
+      --umb-property-layout-label-width: 180px;
     }
 
-    .section-header-with-toggle h3 {
-      margin: 0;
+    umb-property-layout:first-child {
+      padding-top: 0;
     }
 
-    .address-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--uui-size-space-4);
+    umb-property-layout:last-child {
+      padding-bottom: 0;
     }
 
-    .form-field {
+    umb-property-layout uui-input,
+    umb-property-layout uui-select {
+      width: 100%;
+    }
+
+    /* Address Fields Container */
+    .address-fields {
       display: flex;
       flex-direction: column;
-      gap: var(--uui-size-space-1);
-    }
-
-    .form-field label {
-      font-size: 0.875rem;
-      font-weight: 500;
-    }
-
-    .form-field .required {
-      color: var(--uui-color-danger);
-      margin-left: 2px;
-    }
-
-    .form-field.has-error uui-input,
-    .form-field.has-error uui-select {
-      --uui-input-border-color: var(--uui-color-danger);
-    }
-
-    .error-text {
-      font-size: 0.75rem;
-      color: var(--uui-color-danger);
     }
 
     /* Customer Search */
@@ -834,14 +811,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
       margin-top: var(--uui-size-space-2);
     }
 
-    /* Items Section */
-    .items-section {
-      background: var(--uui-color-surface);
-      border: 1px solid var(--uui-color-border);
-      border-radius: var(--uui-border-radius);
-      padding: var(--uui-size-space-4);
-    }
-
+    /* Items Table */
     .items-table {
       border: 1px solid var(--uui-color-border);
       border-radius: var(--uui-border-radius);
@@ -964,14 +934,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-2);
     }
 
-    /* Summary Section */
-    .summary-section {
-      background: var(--uui-color-surface);
-      border: 1px solid var(--uui-color-border);
-      border-radius: var(--uui-border-radius);
-      padding: var(--uui-size-space-4);
-    }
-
+    /* Summary Rows */
     .summary-row {
       display: flex;
       justify-content: space-between;

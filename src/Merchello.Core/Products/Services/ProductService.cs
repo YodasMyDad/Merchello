@@ -1608,6 +1608,38 @@ public class ProductService(
             if (request.ShoppingFeedSize != null) variant.ShoppingFeedSize = request.ShoppingFeedSize;
             if (request.RemoveFromFeed.HasValue) variant.RemoveFromFeed = request.RemoveFromFeed.Value;
 
+            // Warehouse stock settings
+            if (request.WarehouseStock != null)
+            {
+                foreach (var stockRequest in request.WarehouseStock)
+                {
+                    var existingStock = await db.ProductWarehouses
+                        .FirstOrDefaultAsync(pw => pw.ProductId == variantId && pw.WarehouseId == stockRequest.WarehouseId, cancellationToken);
+
+                    if (existingStock != null)
+                    {
+                        // Update existing record
+                        existingStock.Stock = stockRequest.Stock;
+                        existingStock.ReorderPoint = stockRequest.ReorderPoint;
+                        existingStock.ReorderQuantity = stockRequest.ReorderQuantity;
+                        existingStock.TrackStock = stockRequest.TrackStock;
+                    }
+                    else
+                    {
+                        // Create new record with default stock of 0
+                        db.ProductWarehouses.Add(new ProductWarehouse
+                        {
+                            ProductId = variantId,
+                            WarehouseId = stockRequest.WarehouseId,
+                            Stock = stockRequest.Stock,
+                            ReorderPoint = stockRequest.ReorderPoint,
+                            ReorderQuantity = stockRequest.ReorderQuantity,
+                            TrackStock = stockRequest.TrackStock
+                        });
+                    }
+                }
+            }
+
             variant.DateUpdated = DateTime.Now;
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
@@ -1870,7 +1902,8 @@ public class ProductService(
             CategoryIds = productRoot.Categories.Select(c => c.Id).ToList(),
             WarehouseIds = productRoot.ProductRootWarehouses.Select(prw => prw.WarehouseId).ToList(),
             ProductOptions = productRoot.ProductOptions.OrderBy(o => o.SortOrder).Select(MapToProductOptionDto).ToList(),
-            Variants = productRoot.Products.OrderByDescending(p => p.Default).ThenBy(p => p.Name).Select(MapToProductVariantDto).ToList()
+            Variants = productRoot.Products.OrderByDescending(p => p.Default).ThenBy(p => p.Name)
+                .Select(p => MapToProductVariantDto(p, productRoot.ProductRootWarehouses)).ToList()
         };
     }
 
@@ -1914,8 +1947,23 @@ public class ProductService(
     /// <summary>
     /// Maps a Product entity to a ProductVariantDto
     /// </summary>
-    private static ProductVariantDto MapToProductVariantDto(Product product)
+    private static ProductVariantDto MapToProductVariantDto(Product product, ICollection<ProductRootWarehouse> rootWarehouses)
     {
+        // Build warehouse stock from root warehouses, using actual stock if it exists
+        var warehouseStock = rootWarehouses.Select(rw =>
+        {
+            var existingStock = product.ProductWarehouses?.FirstOrDefault(pw => pw.WarehouseId == rw.WarehouseId);
+            return new VariantWarehouseStockDto
+            {
+                WarehouseId = rw.WarehouseId,
+                WarehouseName = rw.Warehouse?.Name,
+                Stock = existingStock?.Stock ?? 0,
+                ReorderPoint = existingStock?.ReorderPoint,
+                ReorderQuantity = existingStock?.ReorderQuantity,
+                TrackStock = existingStock?.TrackStock ?? true
+            };
+        }).ToList();
+
         return new ProductVariantDto
         {
             Id = product.Id,
@@ -1949,16 +1997,8 @@ public class ProductService(
             ShoppingFeedMaterial = product.ShoppingFeedMaterial,
             ShoppingFeedSize = product.ShoppingFeedSize,
             RemoveFromFeed = product.RemoveFromFeed,
-            TotalStock = product.ProductWarehouses?.Sum(pw => pw.Stock) ?? 0,
-            WarehouseStock = product.ProductWarehouses?.Select(pw => new VariantWarehouseStockDto
-            {
-                WarehouseId = pw.WarehouseId,
-                WarehouseName = pw.Warehouse?.Name,
-                Stock = pw.Stock,
-                ReorderPoint = pw.ReorderPoint,
-                ReorderQuantity = pw.ReorderQuantity,
-                TrackStock = pw.TrackStock
-            }).ToList() ?? []
+            TotalStock = warehouseStock.Sum(ws => ws.Stock),
+            WarehouseStock = warehouseStock
         };
     }
 }

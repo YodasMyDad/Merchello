@@ -390,53 +390,49 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
                   ? html`
                       <div class="tracking-section">
                         <h4>Tracking Information (optional)</h4>
-                        <div class="tracking-form">
-                          <div class="form-row">
-                            <label>
-                              Carrier
-                              <uui-input
-                                type="text"
-                                placeholder="e.g., UPS, FedEx, DHL"
-                                .value=${trackingInfo?.carrier ?? ""}
-                                @input=${(e: Event) =>
-                                  this._updateOrderTracking(
-                                    order.orderId,
-                                    "carrier",
-                                    (e.target as HTMLInputElement).value
-                                  )}
-                              ></uui-input>
-                            </label>
-                            <label>
-                              Tracking Number
-                              <uui-input
-                                type="text"
-                                placeholder="e.g., 1Z999AA10123456784"
-                                .value=${trackingInfo?.trackingNumber ?? ""}
-                                @input=${(e: Event) =>
-                                  this._updateOrderTracking(
-                                    order.orderId,
-                                    "trackingNumber",
-                                    (e.target as HTMLInputElement).value
-                                  )}
-                              ></uui-input>
-                            </label>
-                          </div>
-                          <div class="form-row">
-                            <label class="full-width">
-                              Tracking URL
-                              <uui-input
-                                type="text"
-                                placeholder="https://..."
-                                .value=${trackingInfo?.trackingUrl ?? ""}
-                                @input=${(e: Event) =>
-                                  this._updateOrderTracking(
-                                    order.orderId,
-                                    "trackingUrl",
-                                    (e.target as HTMLInputElement).value
-                                  )}
-                              ></uui-input>
-                            </label>
-                          </div>
+                        <div class="tracking-fields">
+                          <umb-property-layout label="Carrier">
+                            <uui-input
+                              slot="editor"
+                              type="text"
+                              placeholder="e.g., UPS, FedEx, DHL"
+                              .value=${trackingInfo?.carrier ?? ""}
+                              @input=${(e: Event) =>
+                                this._updateOrderTracking(
+                                  order.orderId,
+                                  "carrier",
+                                  (e.target as HTMLInputElement).value
+                                )}>
+                            </uui-input>
+                          </umb-property-layout>
+                          <umb-property-layout label="Tracking Number">
+                            <uui-input
+                              slot="editor"
+                              type="text"
+                              placeholder="e.g., 1Z999AA10123456784"
+                              .value=${trackingInfo?.trackingNumber ?? ""}
+                              @input=${(e: Event) =>
+                                this._updateOrderTracking(
+                                  order.orderId,
+                                  "trackingNumber",
+                                  (e.target as HTMLInputElement).value
+                                )}>
+                            </uui-input>
+                          </umb-property-layout>
+                          <umb-property-layout label="Tracking URL">
+                            <uui-input
+                              slot="editor"
+                              type="text"
+                              placeholder="https://..."
+                              .value=${trackingInfo?.trackingUrl ?? ""}
+                              @input=${(e: Event) =>
+                                this._updateOrderTracking(
+                                  order.orderId,
+                                  "trackingUrl",
+                                  (e.target as HTMLInputElement).value
+                                )}>
+                            </uui-input>
+                          </umb-property-layout>
                         </div>
                       </div>
                     `
@@ -922,45 +918,26 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
       margin-bottom: var(--uui-size-space-2);
     }
 
-    .tracking-form {
+    .tracking-fields {
       background: var(--uui-color-surface-alt);
       border-radius: var(--uui-border-radius);
       padding: var(--uui-size-space-3);
     }
 
-    .form-row {
-      display: flex;
-      gap: var(--uui-size-space-3);
-      margin-bottom: var(--uui-size-space-3);
+    .tracking-fields umb-property-layout {
+      --umb-property-layout-label-width: 140px;
     }
 
-    .form-row:last-child {
-      margin-bottom: 0;
+    .tracking-fields umb-property-layout:first-child {
+      padding-top: 0;
     }
 
-    .form-row label {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-1);
-      font-size: 0.875rem;
-      font-weight: 500;
+    .tracking-fields umb-property-layout:last-child {
+      padding-bottom: 0;
     }
 
-    .form-row label.full-width {
-      flex: 1;
-    }
-
-    .form-row input {
-      padding: var(--uui-size-space-2);
-      border: 1px solid var(--uui-color-border);
-      border-radius: var(--uui-border-radius);
-      font-size: 0.875rem;
-    }
-
-    .form-row input:focus {
-      outline: none;
-      border-color: var(--uui-color-interactive);
+    .tracking-fields umb-property-layout uui-input {
+      width: 100%;
     }
 
     .all-fulfilled {

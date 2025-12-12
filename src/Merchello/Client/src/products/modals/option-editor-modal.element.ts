@@ -458,6 +458,11 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     .empty-state strong {
       color: var(--uui-color-text);
     }
+
+    umb-property-layout uui-input,
+    umb-property-layout uui-select {
+      width: 100%;
+    }
   `;
 }
 
