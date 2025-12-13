@@ -13,10 +13,14 @@ using Merchello.Core.Products.Services;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services;
 using Merchello.Core.Caching.Models;
 using Merchello.Core.Shared.Reflection;
 using Merchello.Core.Caching.Services;
 using Merchello.Core.Caching.Services.Interfaces;
+using Merchello.Core.ExchangeRates.Models;
+using Merchello.Core.ExchangeRates.Providers;
+using Merchello.Core.ExchangeRates.Services;
 using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Services;
@@ -66,6 +70,7 @@ public static class Startup
         // Configure Merchello settings
         builder.Services.Configure<MerchelloSettings>(builder.Config.GetSection("Merchello"));
         builder.Services.Configure<CacheOptions>(builder.Config.GetSection("Merchello:Cache"));
+        builder.Services.Configure<ExchangeRateOptions>(builder.Config.GetSection("Merchello:ExchangeRates"));
 
         // Caching
         builder.Services.AddMemoryCache();
@@ -74,6 +79,12 @@ public static class Startup
         builder.Services.AddSingleton<ICacheService, CacheService>();
         builder.Services.AddScoped<ExtensionManager>();
         builder.Services.AddSingleton<SlugHelper>();
+        builder.Services.AddScoped<ICurrencyService, CurrencyService>();
+
+        // Exchange rates
+        builder.Services.AddScoped<IExchangeRateProviderManager, ExchangeRateProviderManager>();
+        builder.Services.AddScoped<IExchangeRateCache, ExchangeRateCache>();
+        builder.Services.AddHostedService<ExchangeRateRefreshJob>();
 
         // Register IHttpClientFactory for use by shipping/payment provider plugins
         // Plugins can use CreateClient() or CreateClient("name") without pre-registration
@@ -162,6 +173,7 @@ public static class Startup
         var paymentProviderType = typeof(IPaymentProvider);
         var shippingProviderType = typeof(IShippingProvider);
         var orderGroupingStrategyType = typeof(IOrderGroupingStrategy);
+        var exchangeRateProviderType = typeof(IExchangeRateProvider);
 
         var discoveredAssemblies = new HashSet<Assembly>();
 
@@ -185,7 +197,8 @@ public static class Startup
                     t.IsClass && !t.IsAbstract &&
                     (paymentProviderType.IsAssignableFrom(t) ||
                      shippingProviderType.IsAssignableFrom(t) ||
-                     orderGroupingStrategyType.IsAssignableFrom(t)));
+                     orderGroupingStrategyType.IsAssignableFrom(t) ||
+                     exchangeRateProviderType.IsAssignableFrom(t)));
 
                 if (hasProviders)
                 {

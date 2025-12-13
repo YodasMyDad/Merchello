@@ -32,17 +32,17 @@ public interface ICheckoutService
     /// <param name="lineItemId"></param>
     /// <param name="countryCode"></param>
     /// <param name="cancellationToken"></param>
-    Task RemoveFromBasketAsync(Basket basket, Guid lineItemId, string countryCode, CancellationToken cancellationToken = default);
+    Task RemoveFromBasketAsync(Basket basket, Guid lineItemId, string? countryCode, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Calculate the basket if there are any changes
     /// </summary>
     /// <param name="basket"></param>
-    /// <param name="countryCode">Defaults to GB</param>
+    /// <param name="countryCode">Country code for shipping/tax. When null, uses AllowedCountries from settings.</param>
     /// <param name="defaultTaxRate">Defaults to 20%</param>
     /// <param name="isShippingTaxable">Should we tax the shipping, defaults to true</param>
     /// <param name="cancellationToken"></param>
-    Task CalculateBasketAsync(Basket basket, string countryCode = "GB", decimal defaultTaxRate = 20, bool isShippingTaxable = true, CancellationToken cancellationToken = default);
+    Task CalculateBasketAsync(Basket basket, string? countryCode = null, decimal defaultTaxRate = 20, bool isShippingTaxable = true, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Get basket for a customer or anonymous user
@@ -63,12 +63,12 @@ public interface ICheckoutService
     /// <summary>
     /// Update line item quantity in basket
     /// </summary>
-    Task UpdateLineItemQuantity(Guid lineItemId, int quantity, string countryCode = "GB", CancellationToken cancellationToken = default);
+    Task UpdateLineItemQuantity(Guid lineItemId, int quantity, string? countryCode = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Remove line item from basket
     /// </summary>
-    Task RemoveLineItem(Guid lineItemId, string countryCode = "GB", CancellationToken cancellationToken = default);
+    Task RemoveLineItem(Guid lineItemId, string? countryCode = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Delete basket (used after order completion)
@@ -78,11 +78,11 @@ public interface ICheckoutService
     /// <summary>
     /// Creates a new basket with the specified currency
     /// </summary>
-    /// <param name="currency">Currency code (defaults to GBP)</param>
-    /// <param name="currencySymbol">Currency symbol (defaults to £)</param>
+    /// <param name="currency">Currency code (ISO 4217). When null, defaults to store currency.</param>
+    /// <param name="currencySymbol">Currency symbol snapshot. When null, defaults to store currency symbol.</param>
     /// <param name="customerId">Optional customer ID for logged-in users</param>
     /// <returns>A new basket instance</returns>
-    Basket CreateBasket(string currency = "GBP", string currencySymbol = "£", Guid? customerId = null);
+    Basket CreateBasket(string? currency = null, string? currencySymbol = null, Guid? customerId = null);
 
     /// <summary>
     /// Creates a line item for a product

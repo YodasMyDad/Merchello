@@ -1,18 +1,12 @@
-﻿using Merchello.Core.Accounting.Models;
-using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Extensions;
+using Merchello.Core.Accounting.Models;
+using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Shared.Services;
 
 namespace Merchello.Core.Accounting.Services;
 
-public class LineItemService : ILineItemService
+public class LineItemService(ICurrencyService currencyService) : ILineItemService
 {
-    /// <summary>
-    /// Adds an Adjustment
-    /// </summary>
-    /// <param name="currentAdjustments"></param>
-    /// <param name="adjustment"></param>
-    /// <param name="amountOfAdjustmentsAllowed"></param>
-    /// <returns></returns>
     public List<string> AddAdjustment(List<Adjustment> currentAdjustments, Adjustment adjustment,
         int amountOfAdjustmentsAllowed = 1)
     {
@@ -24,8 +18,6 @@ public class LineItemService : ILineItemService
 
         switch (adjustment.AdjustmentType)
         {
-            // we only allow adjustments of a singular type
-            // because you can't mix percentage and singular figure, so thrown an error if they are trying to add a different one
             case AdjustmentType.Figure when
                 currentAdjustments.Any(x => x.AdjustmentType == AdjustmentType.Percentage):
                 errors.Add(
@@ -49,73 +41,51 @@ public class LineItemService : ILineItemService
         return errors;
     }
 
-    /// <summary>
-    /// Add line item to a basket
-    /// </summary>
-    /// <param name="currentLineItems"></param>
-    /// <param name="newLineItem"></param>
-    /// <returns></returns>
     public List<string> AddLineItem(List<LineItem> currentLineItems, LineItem newLineItem)
     {
-        // Validate the line item
         var errors = newLineItem.ValidateLineItem();
         if (errors.Any())
         {
             return errors;
         }
 
-        // See if there is already one there (We ToList() as we are fishing in a out of collection)
         var sameLineItem =
             currentLineItems.FirstOrDefault(x =>
                 x.Sku == newLineItem.Sku && newLineItem.LineItemType == x.LineItemType);
 
         if (sameLineItem != null)
         {
-            // Update quantity
             newLineItem.Quantity += sameLineItem.Quantity;
 
-            // Sort any missing extended data
-            foreach (var ed in sameLineItem.ExtendedData)
+            foreach (var extendedDataEntry in sameLineItem.ExtendedData)
             {
-                newLineItem.ExtendedData.TryAdd(ed.Key, ed.Value);
+                newLineItem.ExtendedData.TryAdd(extendedDataEntry.Key, extendedDataEntry.Value);
             }
 
-            // Set the id the same
             newLineItem.Id = sameLineItem.Id;
-
-            // Remove the old line item
             currentLineItems.RemoveAll(x => x.Id == sameLineItem.Id);
-
-            // Now add the new updated one back in
             currentLineItems.Add(newLineItem);
         }
         else
         {
-            // New item so just add it
             currentLineItems.Add(newLineItem);
         }
 
         return errors;
     }
 
-    /// <summary>
-    /// Calculates the line items and returns a subtotal, including shipping and tax calculations.
-    /// </summary>
-    /// <param name="lineItems">The list of line items for the transaction.</param>
-    /// <param name="adjustments">The list of adjustments to be applied to the transaction.</param>
-    /// <param name="shippingAmount">The cost of shipping for the transaction.</param>
-    /// <param name="defaultTaxRate">We need to pass in the default tax rate as we need to use it for the shipping</param>
-    /// <param name="isShippingTaxable">Indicates whether shipping is taxable.</param>
-    /// <param name="rounding">The rounding method to be applied to the calculations.</param>
-    /// <returns>Tuple containing subtotal, discount, adjusted subtotal, tax, total, and shipping.</returns>
     public (decimal subTotal, decimal discount, decimal adjustedSubTotal, decimal tax, decimal total, decimal shipping)
         CalculateLineItems(
-            List<LineItem> lineItems, List<Adjustment> adjustments, decimal shippingAmount, decimal defaultTaxRate, bool isShippingTaxable = true,
-            MidpointRounding rounding = MidpointRounding.AwayFromZero)
+            List<LineItem> lineItems,
+            List<Adjustment> adjustments,
+            decimal shippingAmount,
+            decimal defaultTaxRate,
+            string currencyCode,
+            bool isShippingTaxable = true)
     {
         var subTotal = lineItems
             .Where(x => x.LineItemType == LineItemType.Product || x.LineItemType == LineItemType.Custom)
-            .Sum(item => Math.Round(item.Amount * item.Quantity, 2, rounding));
+            .Sum(item => currencyService.Round(item.Amount * item.Quantity, currencyCode));
 
         var totalAdjustmentFigures = adjustments
             .Where(x => x.AdjustmentType == AdjustmentType.Figure)
@@ -130,47 +100,45 @@ public class LineItemService : ILineItemService
 
         foreach (var item in lineItems.Where(x => x.LineItemType == LineItemType.Product || x.LineItemType == LineItemType.Custom))
         {
-            var originalItemTotal = Math.Round(item.Amount * item.Quantity, 2, rounding);
+            var originalItemTotal = currencyService.Round(item.Amount * item.Quantity, currencyCode);
             decimal itemDiscount = 0;
-            if (totalAdjustmentFigures > 0)
+
+            if (totalAdjustmentFigures > 0 && subTotal > 0)
             {
                 var itemProportion = originalItemTotal / subTotal;
-                itemDiscount = Math.Round(totalAdjustmentFigures * itemProportion, 2, rounding);
+                itemDiscount = currencyService.Round(totalAdjustmentFigures * itemProportion, currencyCode);
             }
 
             var adjustedItemTotal = originalItemTotal - itemDiscount;
 
             if (totalAdjustmentPercentages > 0)
             {
-                adjustedItemTotal = Math.Round(adjustedItemTotal * (1 - (totalAdjustmentPercentages / 100M)), 2,
-                    rounding);
+                adjustedItemTotal = currencyService.Round(
+                    adjustedItemTotal * (1 - (totalAdjustmentPercentages / 100M)),
+                    currencyCode);
             }
 
             if (item.IsTaxable)
             {
-                totalTax += Math.Round(adjustedItemTotal * (item.TaxRate / 100M), 2, rounding);
+                totalTax += currencyService.Round(adjustedItemTotal * (item.TaxRate / 100M), currencyCode);
             }
 
             adjustedSubTotal += adjustedItemTotal;
         }
 
-        // Use the defaultTaxRate for shipping tax calculation
         if (isShippingTaxable)
         {
-            totalTax += Math.Round(shippingAmount * (defaultTaxRate / 100M), 2, rounding);
+            totalTax += currencyService.Round(shippingAmount * (defaultTaxRate / 100M), currencyCode);
         }
 
         adjustedSubTotal = Math.Max(adjustedSubTotal, 0);
         totalTax = Math.Max(totalTax, 0);
 
-        // Include shipping in the total calculation.
         var totalIncludingShipping = adjustedSubTotal + totalTax + shippingAmount;
-
-        // Rounding the resulting total including shipping before returning.
-        var total = Math.Round(totalIncludingShipping, 2, rounding);
-
-        var discount = Math.Round(subTotal - adjustedSubTotal, 2, rounding);
+        var total = currencyService.Round(totalIncludingShipping, currencyCode);
+        var discount = currencyService.Round(subTotal - adjustedSubTotal, currencyCode);
 
         return (subTotal, discount, adjustedSubTotal, totalTax, total, shippingAmount);
     }
 }
+

@@ -31,6 +31,21 @@ public class WebhookProcessingResult
     public decimal? Amount { get; init; }
 
     /// <summary>
+    /// Optional settlement/payout currency reported by provider.
+    /// </summary>
+    public string? SettlementCurrency { get; init; }
+
+    /// <summary>
+    /// Optional settlement exchange rate reported by provider.
+    /// </summary>
+    public decimal? SettlementExchangeRate { get; init; }
+
+    /// <summary>
+    /// Optional settlement amount reported by provider (may be net of fees).
+    /// </summary>
+    public decimal? SettlementAmount { get; init; }
+
+    /// <summary>
     /// Error message if Success is false.
     /// </summary>
     public string? ErrorMessage { get; init; }
@@ -47,13 +62,19 @@ public class WebhookProcessingResult
         WebhookEventType eventType,
         string transactionId,
         Guid? invoiceId = null,
-        decimal? amount = null) => new()
+        decimal? amount = null,
+        string? settlementCurrency = null,
+        decimal? settlementExchangeRate = null,
+        decimal? settlementAmount = null) => new()
     {
         Success = true,
         EventType = eventType,
         TransactionId = transactionId,
         InvoiceId = invoiceId,
-        Amount = amount
+        Amount = amount,
+        SettlementCurrency = settlementCurrency,
+        SettlementExchangeRate = settlementExchangeRate,
+        SettlementAmount = settlementAmount
     };
 
     /// <summary>
@@ -116,4 +137,3 @@ public enum WebhookEventType
     /// </summary>
     Unknown
 }
-

@@ -6,6 +6,7 @@ using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Shared.Services;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
@@ -22,8 +23,10 @@ public class OrdersApiController(
     IPaymentService paymentService,
     IInvoiceService invoiceService,
     IProductService productService,
+    ICurrencyService currencyService,
     IBackOfficeSecurityAccessor backOfficeSecurityAccessor) : MerchelloApiControllerBase
 {
+    private readonly ICurrencyService _currencyService = currencyService;
     /// <summary>
     /// Get paginated list of orders/invoices
     /// </summary>
@@ -396,7 +399,7 @@ public class OrdersApiController(
         var payments = invoice.Payments?.ToList() ?? [];
 
         // Use centralized payment status calculation from PaymentService
-        var paymentDetails = paymentService.CalculatePaymentStatus(payments, invoice.Total);
+        var paymentDetails = paymentService.CalculatePaymentStatus(payments, invoice.Total, invoice.CurrencyCode);
 
         var itemCount = orders.SelectMany(o => o.LineItems ?? []).Sum(li => li.Quantity);
 
@@ -417,7 +420,13 @@ public class OrdersApiController(
             DateCreated = invoice.DateCreated,
             CustomerName = invoice.BillingAddress?.Name ?? "Unknown",
             Channel = invoice.Channel,
+            CurrencyCode = invoice.CurrencyCode,
+            CurrencySymbol = invoice.CurrencySymbol,
+            StoreCurrencyCode = invoice.StoreCurrencyCode,
+            StoreCurrencySymbol = _currencyService.GetCurrency(invoice.StoreCurrencyCode).Symbol,
             Total = invoice.Total,
+            TotalInStoreCurrency = invoice.TotalInStoreCurrency,
+            IsMultiCurrency = !string.Equals(invoice.CurrencyCode, invoice.StoreCurrencyCode, StringComparison.OrdinalIgnoreCase),
             PaymentStatus = paymentDetails.Status,
             PaymentStatusDisplay = paymentDetails.StatusDisplay,
             FulfillmentStatus = fulfillmentStatus,
@@ -434,14 +443,27 @@ public class OrdersApiController(
         var payments = invoice.Payments?.ToList() ?? [];
 
         // Use centralized payment status calculation from PaymentService
-        var paymentDetails = paymentService.CalculatePaymentStatus(payments, invoice.Total);
+        var paymentDetails = paymentService.CalculatePaymentStatus(payments, invoice.Total, invoice.CurrencyCode);
         var shippingCost = orders.Sum(o => o.ShippingCost);
+        var shippingCostInStoreCurrency = orders.Sum(o => o.ShippingCostInStoreCurrency ?? o.ShippingCost);
 
         // Calculate discount total from discount line items
         var discountTotal = orders
             .SelectMany(o => o.LineItems ?? [])
             .Where(li => li.LineItemType == LineItemType.Discount)
             .Sum(li => Math.Abs(li.Amount));
+
+        var storePaid = payments
+            .Where(p => p.PaymentSuccess && p.PaymentType == PaymentType.Payment)
+            .Sum(p => p.AmountInStoreCurrency ?? p.Amount);
+
+        var storeRefunded = payments
+            .Where(p => p.PaymentSuccess && p.PaymentType is PaymentType.Refund or PaymentType.PartialRefund)
+            .Sum(p => Math.Abs(p.AmountInStoreCurrency ?? p.Amount));
+
+        var storeNet = storePaid - storeRefunded;
+        var storeInvoiceTotal = invoice.TotalInStoreCurrency ?? invoice.Total;
+        var storeBalanceDue = Math.Max(0, storeInvoiceTotal - storeNet);
 
         return new OrderDetailDto
         {
@@ -450,13 +472,27 @@ public class OrdersApiController(
             DateCreated = invoice.DateCreated,
             Channel = invoice.Channel,
             PurchaseOrder = invoice.PurchaseOrder,
+            CurrencyCode = invoice.CurrencyCode,
+            CurrencySymbol = invoice.CurrencySymbol,
+            StoreCurrencyCode = invoice.StoreCurrencyCode,
+            StoreCurrencySymbol = _currencyService.GetCurrency(invoice.StoreCurrencyCode).Symbol,
+            PricingExchangeRate = invoice.PricingExchangeRate,
+            PricingExchangeRateSource = invoice.PricingExchangeRateSource,
+            PricingExchangeRateTimestampUtc = invoice.PricingExchangeRateTimestampUtc,
             SubTotal = invoice.SubTotal,
             DiscountTotal = discountTotal,
             ShippingCost = shippingCost,
             Tax = invoice.Tax,
             Total = invoice.Total,
+            SubTotalInStoreCurrency = invoice.SubTotalInStoreCurrency,
+            DiscountTotalInStoreCurrency = invoice.DiscountInStoreCurrency,
+            ShippingCostInStoreCurrency = shippingCostInStoreCurrency,
+            TaxInStoreCurrency = invoice.TaxInStoreCurrency,
+            TotalInStoreCurrency = invoice.TotalInStoreCurrency,
             AmountPaid = paymentDetails.NetPayment,
             BalanceDue = paymentDetails.BalanceDue,
+            AmountPaidInStoreCurrency = storeNet,
+            BalanceDueInStoreCurrency = storeBalanceDue,
             PaymentStatus = paymentDetails.Status,
             PaymentStatusDisplay = paymentDetails.StatusDisplay,
             FulfillmentStatus = GetFulfillmentStatus(orders),

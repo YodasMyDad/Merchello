@@ -19,7 +19,10 @@ public class OrderDbMapping : IEntityTypeConfiguration<Order>
 
         builder.Property(x => x.WarehouseId).IsRequired();
         builder.Property(x => x.ShippingOptionId).IsRequired();
-        builder.Property(x => x.ShippingCost).HasPrecision(18, 2);
+        builder.Property(x => x.ShippingCost).HasPrecision(18, 4);
+        builder.Property(x => x.ShippingCostInStoreCurrency).HasPrecision(18, 4);
+        builder.Property(x => x.DeliveryDateSurcharge).HasPrecision(18, 4);
+        builder.Property(x => x.DeliveryDateSurchargeInStoreCurrency).HasPrecision(18, 4);
 
         // Status fields
         builder.Property(x => x.Status).IsRequired().HasDefaultValue(OrderStatus.Pending);

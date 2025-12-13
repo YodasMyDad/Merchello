@@ -5,6 +5,7 @@ using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Core.Shared.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,8 +18,10 @@ namespace Merchello.Controllers;
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class PaymentsApiController(
     IPaymentService paymentService,
-    IInvoiceService invoiceService) : MerchelloApiControllerBase
+    IInvoiceService invoiceService,
+    ICurrencyService currencyService) : MerchelloApiControllerBase
 {
+    private readonly ICurrencyService _currencyService = currencyService;
     /// <summary>
     /// Get all payments for an invoice
     /// </summary>
@@ -82,18 +85,37 @@ public class PaymentsApiController(
         var payments = await paymentService.GetPaymentsForInvoiceAsync(invoiceId, cancellationToken);
 
         // Use centralized payment status calculation from PaymentService
-        var details = paymentService.CalculatePaymentStatus(payments, invoice.Total);
+        var details = paymentService.CalculatePaymentStatus(payments, invoice.Total, invoice.CurrencyCode);
+
+        var storeInvoiceTotal = invoice.TotalInStoreCurrency ?? invoice.Total;
+        var storePaid = payments
+            .Where(p => p.PaymentSuccess && p.PaymentType == PaymentType.Payment)
+            .Sum(p => p.AmountInStoreCurrency ?? p.Amount);
+        var storeRefunded = payments
+            .Where(p => p.PaymentSuccess && p.PaymentType is PaymentType.Refund or PaymentType.PartialRefund)
+            .Sum(p => Math.Abs(p.AmountInStoreCurrency ?? p.Amount));
+        var storeNet = storePaid - storeRefunded;
+        var storeBalanceDue = Math.Max(0, storeInvoiceTotal - storeNet);
 
         return Ok(new PaymentStatusDto
         {
             InvoiceId = invoiceId,
+            CurrencyCode = invoice.CurrencyCode,
+            CurrencySymbol = invoice.CurrencySymbol,
+            StoreCurrencyCode = invoice.StoreCurrencyCode,
+            StoreCurrencySymbol = _currencyService.GetCurrency(invoice.StoreCurrencyCode).Symbol,
             Status = details.Status,
             StatusDisplay = details.StatusDisplay,
             InvoiceTotal = invoice.Total,
+            InvoiceTotalInStoreCurrency = invoice.TotalInStoreCurrency,
             TotalPaid = details.TotalPaid,
+            TotalPaidInStoreCurrency = storePaid,
             TotalRefunded = details.TotalRefunded,
+            TotalRefundedInStoreCurrency = storeRefunded,
             NetPayment = details.NetPayment,
-            BalanceDue = details.BalanceDue
+            NetPaymentInStoreCurrency = storeNet,
+            BalanceDue = details.BalanceDue,
+            BalanceDueInStoreCurrency = storeBalanceDue
         });
     }
 
@@ -211,7 +233,7 @@ public class PaymentsApiController(
     // Mapping Helpers
     // ============================================
 
-    private static PaymentDto MapToPaymentDto(Payment payment)
+    private PaymentDto MapToPaymentDto(Payment payment)
     {
         var existingRefunds = payment.Refunds?.Sum(r => Math.Abs(r.Amount)) ?? 0;
         var refundableAmount = payment.PaymentType == PaymentType.Payment
@@ -223,6 +245,13 @@ public class PaymentsApiController(
             Id = payment.Id,
             InvoiceId = payment.InvoiceId,
             Amount = payment.Amount,
+            CurrencyCode = payment.CurrencyCode,
+            CurrencySymbol = _currencyService.GetCurrency(payment.CurrencyCode).Symbol,
+            AmountInStoreCurrency = payment.AmountInStoreCurrency,
+            SettlementCurrencyCode = payment.SettlementCurrencyCode,
+            SettlementExchangeRate = payment.SettlementExchangeRate,
+            SettlementAmount = payment.SettlementAmount,
+            SettlementExchangeRateSource = payment.SettlementExchangeRateSource,
             PaymentMethod = payment.PaymentMethod,
             PaymentProviderAlias = payment.PaymentProviderAlias,
             PaymentType = payment.PaymentType,

@@ -28,7 +28,7 @@ public class ShippingWeightTierDbMapping : IEntityTypeConfiguration<ShippingWeig
 
         builder.Property(x => x.Surcharge)
             .IsRequired()
-            .HasColumnType("decimal(18,2)");
+            .HasColumnType("decimal(18,4)");
 
         builder.HasOne(x => x.ShippingOption)
             .WithMany(so => so.WeightTiers)

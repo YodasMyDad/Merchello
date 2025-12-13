@@ -24,7 +24,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("AdjustedSubTotal")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Adjustments")
@@ -35,6 +35,16 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<string>("Channel")
                         .IsRequired()
                         .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CurrencySymbol")
+                        .IsRequired()
+                        .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid?>("CustomerId")
@@ -50,7 +60,11 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Discount")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("DiscountInStoreCurrency")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("InvoiceNumber")
@@ -68,23 +82,53 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal?>("PricingExchangeRate")
+                        .HasPrecision(18, 8)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PricingExchangeRateSource")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PricingExchangeRateTimestampUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("PurchaseOrder")
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("StoreCurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("TEXT");
+
                     b.Property<decimal>("SubTotal")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("SubTotalInStoreCurrency")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Tax")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("TaxInStoreCurrency")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Total")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("TotalInStoreCurrency")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CurrencyCode");
 
                     b.HasIndex("IsDeleted");
 
@@ -98,7 +142,11 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("AmountInStoreCurrency")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("DateCreated")
@@ -132,7 +180,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal?>("OriginalAmount")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid?>("ProductId")
@@ -181,6 +229,11 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal?>("DeliveryDateSurcharge")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("DeliveryDateSurchargeInStoreCurrency")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("InternalNotes")
@@ -203,7 +256,11 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("ShippingCost")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("ShippingCostInStoreCurrency")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("ShippingOptionId")
@@ -231,7 +288,16 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("AmountInStoreCurrency")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("DateCreated")
@@ -269,6 +335,22 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("RefundReason")
                         .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("SettlementAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SettlementCurrencyCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("SettlementExchangeRate")
+                        .HasPrecision(18, 8)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SettlementExchangeRateSource")
+                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TransactionId")
@@ -316,7 +398,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("AdjustedSubTotal")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Adjustments")
@@ -347,7 +429,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Discount")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("LineItems")
@@ -356,7 +438,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Shipping")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ShippingAddress")
@@ -365,20 +447,61 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("SubTotal")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Tax")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Total")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
                     b.ToTable("merchelloBaskets", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.ExchangeRates.Models.ExchangeRateProviderSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ConfigurationJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastFetchedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastRatesJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProviderAlias")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdateDate")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("ProviderAlias")
+                        .IsUnique();
+
+                    b.ToTable("merchelloExchangeRateProviders", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.Payments.Models.PaymentProviderSetting", b =>
@@ -437,7 +560,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<decimal>("CostOfGoods")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("DateCreated")
@@ -479,11 +602,11 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal?>("PreviousPrice")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Price")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("ProductRootId")
@@ -849,7 +972,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Cost")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("CountryCode")
                         .IsRequired()
@@ -899,7 +1022,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal?>("FixedCost")
-                        .HasPrecision(18, 2)
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeliveryDateGuaranteed")
@@ -1036,7 +1159,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Surcharge")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<DateTime>("UpdateDate")
                         .HasColumnType("TEXT");

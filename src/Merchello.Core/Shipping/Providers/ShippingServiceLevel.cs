@@ -11,7 +11,7 @@ public class ShippingServiceLevel
     public required string ServiceCode { get; init; }
     public required string ServiceName { get; init; }
     public required decimal TotalCost { get; init; }
-    public string CurrencyCode { get; init; } = "GBP";
+    public required string CurrencyCode { get; init; }
     public TimeSpan? TransitTime { get; init; }
     public DateTime? EstimatedDeliveryDate { get; init; }
     public string? Description { get; init; }

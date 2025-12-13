@@ -13,4 +13,10 @@ public class OrderExportItemDto
     public decimal Tax { get; set; }
     public decimal Shipping { get; set; }
     public decimal Total { get; set; }
+    public string CurrencyCode { get; set; } = string.Empty;
+    public string StoreCurrencyCode { get; set; } = string.Empty;
+    public decimal? SubTotalInStoreCurrency { get; set; }
+    public decimal? TaxInStoreCurrency { get; set; }
+    public decimal? ShippingInStoreCurrency { get; set; }
+    public decimal? TotalInStoreCurrency { get; set; }
 }

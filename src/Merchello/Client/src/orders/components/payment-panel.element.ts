@@ -93,6 +93,8 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
       data: {
         invoiceId: this.invoiceId,
         balanceDue: this._status.balanceDue,
+        currencyCode: this._status.currencyCode,
+        currencySymbol: this._status.currencySymbol,
       },
     });
 
@@ -171,7 +173,7 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
               : nothing}
           </div>
           <div class="payment-amount ${isRefund ? 'negative' : ''}">
-            ${isRefund ? '-' : ''}${formatCurrency(Math.abs(payment.amount))}
+            ${isRefund ? '-' : ''}${formatCurrency(Math.abs(payment.amount), payment.currencyCode, payment.currencySymbol)}
           </div>
           <div class="payment-actions">
             ${!isRefund && payment.refundableAmount > 0
@@ -245,24 +247,24 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
                 <div class="status-details">
                   <div class="status-row">
                     <span>Invoice Total</span>
-                    <span>${formatCurrency(status.invoiceTotal)}</span>
+                    <span>${formatCurrency(status.invoiceTotal, status.currencyCode, status.currencySymbol)}</span>
                   </div>
                   <div class="status-row">
                     <span>Total Paid</span>
-                    <span class="positive">${formatCurrency(status.totalPaid)}</span>
+                    <span class="positive">${formatCurrency(status.totalPaid, status.currencyCode, status.currencySymbol)}</span>
                   </div>
                   ${status.totalRefunded > 0
                     ? html`
                         <div class="status-row">
                           <span>Total Refunded</span>
-                          <span class="negative">-${formatCurrency(status.totalRefunded)}</span>
+                          <span class="negative">-${formatCurrency(status.totalRefunded, status.currencyCode, status.currencySymbol)}</span>
                         </div>
                       `
                     : nothing}
                   <div class="status-row total">
                     <span>Balance Due</span>
                     <span class="${status.balanceDue > 0 ? 'negative' : ''}">
-                      ${formatCurrency(status.balanceDue)}
+                      ${formatCurrency(status.balanceDue, status.currencyCode, status.currencySymbol)}
                     </span>
                   </div>
                 </div>

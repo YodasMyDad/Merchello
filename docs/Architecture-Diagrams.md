@@ -108,6 +108,7 @@ public interface IShippingProvider
 - `GetConfigurationFieldsAsync`: Global config (API keys, account numbers)
 - `GetMethodConfigFieldsAsync`: Per-warehouse method config (service type, markup)
 - `GetRatesForServicesAsync`: Fetch rates filtered to only enabled service types
+- **Currency conversion**: External providers must convert rates to `request.CurrencyCode` using `IExchangeRateCache`
 
 **ShippingProviderManager**: Discovers providers → loads `ShippingProviderConfiguration` from DB → caches with settings
 

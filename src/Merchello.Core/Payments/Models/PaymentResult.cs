@@ -38,6 +38,21 @@ public class PaymentResult
     public decimal? Amount { get; init; }
 
     /// <summary>
+    /// Optional settlement/payout currency reported by provider (may differ from invoice currency).
+    /// </summary>
+    public string? SettlementCurrency { get; init; }
+
+    /// <summary>
+    /// Optional settlement exchange rate reported by provider.
+    /// </summary>
+    public decimal? SettlementExchangeRate { get; init; }
+
+    /// <summary>
+    /// Optional settlement amount reported by provider (may be net of fees).
+    /// </summary>
+    public decimal? SettlementAmount { get; init; }
+
+    /// <summary>
     /// Additional data from the provider.
     /// </summary>
     public Dictionary<string, object>? ProviderData { get; init; }

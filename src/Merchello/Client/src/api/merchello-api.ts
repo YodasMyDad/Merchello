@@ -259,6 +259,15 @@ import type {
   UpdateTaxGroupDto,
 } from '../tax/types.js';
 
+// Import exchange rate provider types
+import type {
+  ExchangeRateProviderDto,
+  ExchangeRateProviderFieldDto,
+  TestExchangeRateProviderResponseDto,
+  ExchangeRateSnapshotDto,
+  SaveExchangeRateProviderSettingsDto,
+} from '../exchange-rate-providers/types.js';
+
 // Helper to build query string from params
 function buildQueryString(params?: Record<string, unknown>): string {
   if (!params) return '';
@@ -712,4 +721,40 @@ export const MerchelloApi = {
   /** Get sales breakdown (gross, discounts, returns, net, shipping, taxes) */
   getSalesBreakdown: (startDate: string, endDate: string) =>
     apiGet<SalesBreakdownDto>(`reporting/breakdown?startDate=${startDate}&endDate=${endDate}`),
+
+  // ============================================
+  // Exchange Rate Providers API
+  // ============================================
+
+  /** Get all available exchange rate providers (discovered from assemblies) */
+  getAvailableExchangeRateProviders: () =>
+    apiGet<ExchangeRateProviderDto[]>('exchange-rate-providers/available'),
+
+  /** Get all exchange rate providers with their settings */
+  getExchangeRateProviders: () =>
+    apiGet<ExchangeRateProviderDto[]>('exchange-rate-providers'),
+
+  /** Get configuration fields for an exchange rate provider */
+  getExchangeRateProviderFields: (alias: string) =>
+    apiGet<ExchangeRateProviderFieldDto[]>(`exchange-rate-providers/${alias}/fields`),
+
+  /** Activate an exchange rate provider (only one can be active at a time) */
+  activateExchangeRateProvider: (alias: string) =>
+    apiPut<{ message: string }>(`exchange-rate-providers/${alias}/activate`),
+
+  /** Save exchange rate provider configuration settings */
+  saveExchangeRateProviderSettings: (alias: string, settings: SaveExchangeRateProviderSettingsDto) =>
+    apiPut<{ message: string }>(`exchange-rate-providers/${alias}/settings`, settings),
+
+  /** Test an exchange rate provider by fetching rates */
+  testExchangeRateProvider: (alias: string) =>
+    apiPost<TestExchangeRateProviderResponseDto>(`exchange-rate-providers/${alias}/test`),
+
+  /** Force refresh the exchange rate cache */
+  refreshExchangeRates: () =>
+    apiPost<{ message: string }>('exchange-rate-providers/refresh'),
+
+  /** Get the current exchange rate snapshot from cache */
+  getExchangeRateSnapshot: () =>
+    apiGet<ExchangeRateSnapshotDto>('exchange-rate-providers/snapshot'),
 };

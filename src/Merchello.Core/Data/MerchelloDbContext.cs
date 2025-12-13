@@ -1,6 +1,7 @@
 using System.Reflection;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shipping.Models;
@@ -56,6 +57,9 @@ public class MerchelloDbContext : DbContext
 
     // Payment Provider DbSets
     public DbSet<PaymentProviderSetting> PaymentProviderSettings => Set<PaymentProviderSetting>();
+
+    // Exchange Rate Provider DbSets
+    public DbSet<ExchangeRateProviderSetting> ExchangeRateProviderSettings => Set<ExchangeRateProviderSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

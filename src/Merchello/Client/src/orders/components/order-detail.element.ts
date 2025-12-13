@@ -477,6 +477,8 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     const statusLabel = this._getStatusLabel(fulfillmentOrder.status);
     const isFulfilled = this._order?.fulfillmentStatus === "Fulfilled";
     const statusClass = fulfillmentOrder.status >= 50 ? "shipped" : "unfulfilled";
+    const currencyCode = this._order?.currencyCode;
+    const currencySymbol = this._order?.currencySymbol;
 
     return html`
       <div class="card fulfillment-card">
@@ -487,10 +489,10 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
           </span>
         </div>
         <div class="fulfillment-shipping-method">
-          <uui-icon name="icon-truck"></uui-icon>
+            <uui-icon name="icon-truck"></uui-icon>
           <div class="fulfillment-shipping-details">
             <span class="fulfillment-shipping-name">${fulfillmentOrder.deliveryMethod}</span>
-            <span class="fulfillment-shipping-cost">${formatCurrency(fulfillmentOrder.shippingCost)}</span>
+            <span class="fulfillment-shipping-cost">${formatCurrency(fulfillmentOrder.shippingCost, currencyCode, currencySymbol)}</span>
           </div>
         </div>
         <div class="fulfillment-line-items">
@@ -509,11 +511,11 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                   <div class="fulfillment-item-variant">${item.sku || ''}</div>
                 </div>
                 <div class="fulfillment-item-pricing">
-                  <span class="fulfillment-item-price">${formatCurrency(item.amount)}</span>
+                  <span class="fulfillment-item-price">${formatCurrency(item.amount, currencyCode, currencySymbol)}</span>
                   <span class="fulfillment-item-multiply">×</span>
                   <span class="fulfillment-item-qty">${item.quantity}</span>
                 </div>
-                <div class="fulfillment-item-total">${formatCurrency(item.amount * item.quantity)}</div>
+                <div class="fulfillment-item-total">${formatCurrency(item.amount * item.quantity, currencyCode, currencySymbol)}</div>
               </div>
             `
           )}
@@ -734,42 +736,63 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                 <div class="summary-row">
                   <span>Subtotal</span>
                   <span>${order.orders.reduce((sum, o) => sum + o.lineItems.reduce((s, li) => s + li.quantity, 0), 0)} items</span>
-                  <span>${formatCurrency(order.subTotal)}</span>
+                  <span>${formatCurrency(order.subTotal, order.currencyCode, order.currencySymbol)}</span>
                 </div>
                 ${order.discountTotal > 0 ? html`
                   <div class="summary-row discount">
                     <span>Discounts</span>
                     <span></span>
-                    <span>-${formatCurrency(order.discountTotal)}</span>
+                    <span>-${formatCurrency(order.discountTotal, order.currencyCode, order.currencySymbol)}</span>
                   </div>
                 ` : nothing}
                 <div class="summary-row">
                   <span>Shipping</span>
                   <span>${order.orders[0]?.deliveryMethod || "Standard"}</span>
-                  <span>${formatCurrency(order.shippingCost)}</span>
+                  <span>${formatCurrency(order.shippingCost, order.currencyCode, order.currencySymbol)}</span>
                 </div>
                 ${order.tax > 0 ? html`
                   <div class="summary-row">
                     <span>Tax</span>
                     <span></span>
-                    <span>${formatCurrency(order.tax)}</span>
+                    <span>${formatCurrency(order.tax, order.currencyCode, order.currencySymbol)}</span>
                   </div>
                 ` : nothing}
                 <div class="summary-row total">
                   <span>Total</span>
                   <span></span>
-                  <span>${formatCurrency(order.total)}</span>
+                  <span>${formatCurrency(order.total, order.currencyCode, order.currencySymbol)}</span>
                 </div>
+                ${order.totalInStoreCurrency != null && order.storeCurrencyCode !== order.currencyCode ? html`
+                  <div class="summary-row">
+                    <span>Total (Store)</span>
+                    <span></span>
+                    <span>${formatCurrency(order.totalInStoreCurrency, order.storeCurrencyCode, order.storeCurrencySymbol)}</span>
+                  </div>
+                ` : nothing}
                 <div class="summary-row ${order.amountPaid > order.total ? 'overpaid' : order.amountPaid < order.total ? 'underpaid' : ''}">
                   <span>Paid</span>
                   <span></span>
-                  <span>${formatCurrency(order.amountPaid)}</span>
+                  <span>${formatCurrency(order.amountPaid, order.currencyCode, order.currencySymbol)}</span>
                 </div>
+                ${order.amountPaidInStoreCurrency != null && order.storeCurrencyCode !== order.currencyCode ? html`
+                  <div class="summary-row">
+                    <span>Paid (Store)</span>
+                    <span></span>
+                    <span>${formatCurrency(order.amountPaidInStoreCurrency, order.storeCurrencyCode, order.storeCurrencySymbol)}</span>
+                  </div>
+                ` : nothing}
                 ${order.balanceDue !== 0 ? html`
                   <div class="summary-row balance ${order.balanceDue > 0 ? 'underpaid' : 'overpaid'}">
                     <span>${order.balanceDue > 0 ? 'Balance Due' : 'Credit Due'}</span>
                     <span></span>
-                    <span>${order.balanceDue > 0 ? formatCurrency(order.balanceDue) : formatCurrency(Math.abs(order.balanceDue))}</span>
+                    <span>${order.balanceDue > 0 ? formatCurrency(order.balanceDue, order.currencyCode, order.currencySymbol) : formatCurrency(Math.abs(order.balanceDue), order.currencyCode, order.currencySymbol)}</span>
+                  </div>
+                ` : nothing}
+                ${order.balanceDueInStoreCurrency != null && order.storeCurrencyCode !== order.currencyCode ? html`
+                  <div class="summary-row">
+                    <span>${(order.balanceDueInStoreCurrency ?? 0) > 0 ? 'Balance Due (Store)' : 'Credit Due (Store)'}</span>
+                    <span></span>
+                    <span>${formatCurrency(Math.abs(order.balanceDueInStoreCurrency ?? 0), order.storeCurrencyCode, order.storeCurrencySymbol)}</span>
                   </div>
                 ` : nothing}
               </div>

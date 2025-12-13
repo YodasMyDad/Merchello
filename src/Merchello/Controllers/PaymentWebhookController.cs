@@ -150,7 +150,11 @@ public class PaymentWebhookController(
                                 ProviderAlias = providerAlias,
                                 TransactionId = result.TransactionId,
                                 Amount = result.Amount.Value,
-                                Description = "Payment via " + providerAlias + " webhook"
+                                Description = "Payment via " + providerAlias + " webhook",
+                                SettlementCurrencyCode = result.SettlementCurrency,
+                                SettlementExchangeRate = result.SettlementExchangeRate,
+                                SettlementAmount = result.SettlementAmount,
+                                SettlementExchangeRateSource = providerAlias
                             },
                             cancellationToken);
 
@@ -214,4 +218,3 @@ public class PaymentWebhookController(
         }
     }
 }
-

@@ -10,6 +10,13 @@ public class PaymentDto
     public Guid Id { get; set; }
     public Guid InvoiceId { get; set; }
     public decimal Amount { get; set; }
+    public string CurrencyCode { get; set; } = string.Empty;
+    public string CurrencySymbol { get; set; } = string.Empty;
+    public decimal? AmountInStoreCurrency { get; set; }
+    public string? SettlementCurrencyCode { get; set; }
+    public decimal? SettlementExchangeRate { get; set; }
+    public decimal? SettlementAmount { get; set; }
+    public string? SettlementExchangeRateSource { get; set; }
     public string? PaymentMethod { get; set; }
     public string? PaymentProviderAlias { get; set; }
     public PaymentType PaymentType { get; set; }

@@ -1,5 +1,11 @@
+using Merchello.Core.ExchangeRates.Models;
+using Merchello.Core.ExchangeRates.Services;
+using Merchello.Core.Shared.Services;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Providers.BuiltIn;
+using Merchello.Core.Shared.Models;
+using Microsoft.Extensions.Options;
+using Moq;
 using Shouldly;
 using Xunit;
 
@@ -7,7 +13,19 @@ namespace Merchello.Tests.Shipping;
 
 public class FlatRateShippingProviderTests
 {
-    private readonly FlatRateShippingProvider _provider = new();
+    private static FlatRateShippingProvider CreateProvider()
+    {
+        var settings = Options.Create(new MerchelloSettings { StoreCurrencyCode = "GBP" });
+        var exchangeRateCacheMock = new Mock<IExchangeRateCache>();
+        exchangeRateCacheMock.Setup(x => x.GetRateQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExchangeRateQuote(1m, DateTime.UtcNow, "mock"));
+        var currencyServiceMock = new Mock<ICurrencyService>();
+        currencyServiceMock.Setup(x => x.Round(It.IsAny<decimal>(), It.IsAny<string>()))
+            .Returns((decimal amount, string _) => Math.Round(amount, 2));
+        return new FlatRateShippingProvider(settings, exchangeRateCacheMock.Object, currencyServiceMock.Object);
+    }
+
+    private readonly FlatRateShippingProvider _provider = CreateProvider();
 
     #region Helper Methods
 

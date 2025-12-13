@@ -2,12 +2,17 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Checkout.Strategies.Models;
+using Merchello.Core.ExchangeRates.Models;
+using Merchello.Core.ExchangeRates.Services;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
 using Xunit;
@@ -17,14 +22,28 @@ namespace Merchello.Tests.Checkout.Strategies;
 public class DefaultOrderGroupingStrategyTests
 {
     private readonly Mock<IWarehouseService> _warehouseServiceMock;
+    private readonly Mock<IExchangeRateCache> _exchangeRateCacheMock;
+    private readonly Mock<ICurrencyService> _currencyServiceMock;
     private readonly Mock<ILogger<DefaultOrderGroupingStrategy>> _loggerMock;
     private readonly DefaultOrderGroupingStrategy _strategy;
 
     public DefaultOrderGroupingStrategyTests()
     {
         _warehouseServiceMock = new Mock<IWarehouseService>();
+        _exchangeRateCacheMock = new Mock<IExchangeRateCache>();
+        _exchangeRateCacheMock.Setup(x => x.GetRateQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExchangeRateQuote(1m, DateTime.UtcNow, "mock"));
+        _currencyServiceMock = new Mock<ICurrencyService>();
+        _currencyServiceMock.Setup(x => x.Round(It.IsAny<decimal>(), It.IsAny<string>()))
+            .Returns((decimal amount, string _) => Math.Round(amount, 2));
+        var settings = Options.Create(new MerchelloSettings { StoreCurrencyCode = "USD" });
         _loggerMock = new Mock<ILogger<DefaultOrderGroupingStrategy>>();
-        _strategy = new DefaultOrderGroupingStrategy(_warehouseServiceMock.Object, _loggerMock.Object);
+        _strategy = new DefaultOrderGroupingStrategy(
+            _warehouseServiceMock.Object,
+            _exchangeRateCacheMock.Object,
+            _currencyServiceMock.Object,
+            settings,
+            _loggerMock.Object);
     }
 
     [Fact]

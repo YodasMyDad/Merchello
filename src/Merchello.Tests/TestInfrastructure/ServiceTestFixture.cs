@@ -6,6 +6,8 @@ using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Data;
+using Merchello.Core.ExchangeRates.Models;
+using Merchello.Core.ExchangeRates.Services;
 using Merchello.Core.Notifications;
 using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Factories;
@@ -14,6 +16,7 @@ using Merchello.Core.Products.Services;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Models;
@@ -27,6 +30,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Scoping;
@@ -110,6 +114,23 @@ public class ServiceTestFixture : IDisposable
 
         // Utilities
         services.AddSingleton<SlugHelper>();
+
+        // Settings
+        var merchelloSettings = new MerchelloSettings { StoreCurrencyCode = "USD", DefaultRounding = MidpointRounding.AwayFromZero };
+        services.AddSingleton(Options.Create(merchelloSettings));
+
+        // Currency services
+        services.AddScoped<ICurrencyService, CurrencyService>();
+
+        // Mock exchange rate cache for testing (returns 1:1 rates)
+        var exchangeRateCacheMock = new Mock<IExchangeRateCache>();
+        exchangeRateCacheMock
+            .Setup(x => x.GetRateQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExchangeRateQuote(1m, DateTime.UtcNow, "mock"));
+        exchangeRateCacheMock
+            .Setup(x => x.GetRateAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1m);
+        services.AddSingleton(exchangeRateCacheMock.Object);
 
         // Services
         services.AddScoped<IOrderStatusHandler, DefaultOrderStatusHandler>();

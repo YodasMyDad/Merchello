@@ -5,6 +5,8 @@ export interface ManualPaymentModalData {
   invoiceId: string;
   /** The balance due on the invoice */
   balanceDue: number;
+  currencyCode: string;
+  currencySymbol: string;
 }
 
 export interface ManualPaymentModalValue {

@@ -74,7 +74,7 @@ public class CheckoutService(
     /// <param name="lineItemId"></param>
     /// <param name="countryCode"></param>
     /// <param name="cancellationToken"></param>
-    public async Task RemoveFromBasketAsync(Basket basket, Guid lineItemId, string countryCode, CancellationToken cancellationToken = default)
+    public async Task RemoveFromBasketAsync(Basket basket, Guid lineItemId, string? countryCode, CancellationToken cancellationToken = default)
     {
         var itemToRemove = basket.LineItems.FirstOrDefault(item => item.Id == lineItemId);
         if (itemToRemove != null)
@@ -101,12 +101,15 @@ public class CheckoutService(
     /// <param name="defaultTaxRate"></param>
     /// <param name="isShippingTaxable"></param>
     /// <param name="cancellationToken"></param>
-    public async Task CalculateBasketAsync(Basket basket, string countryCode = "GB", decimal defaultTaxRate = 20, bool isShippingTaxable = true, CancellationToken cancellationToken = default)
+    public async Task CalculateBasketAsync(Basket basket, string? countryCode = null, decimal defaultTaxRate = 20, bool isShippingTaxable = true, CancellationToken cancellationToken = default)
     {
+        // Resolve country code from settings if not provided
+        var resolvedCountryCode = countryCode ?? _settings.AllowedCountries?.FirstOrDefault() ?? "US";
+
         basket.Errors = basket.Errors.Where(error => !error.IsShippingError).ToList();
 
         var shippingQuotes = (await shippingQuoteService
-            .GetQuotesAsync(basket, countryCode, null, cancellationToken))
+            .GetQuotesAsync(basket, resolvedCountryCode, null, cancellationToken))
             .ToList();
 
         basket.AvailableShippingQuotes = shippingQuotes;
@@ -126,8 +129,9 @@ public class CheckoutService(
             .Select(level => level.TotalCost)
             .FirstOrDefault();
 
+        var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            lineItemService.CalculateLineItems(basket.LineItems, basket.Adjustments, shippingCost, defaultTaxRate, isShippingTaxable, _settings.DefaultRounding);
+            lineItemService.CalculateLineItems(basket.LineItems, basket.Adjustments, shippingCost, defaultTaxRate, currencyCode, isShippingTaxable);
 
         basket.SubTotal = subTotal;
         basket.Discount = discount;
@@ -254,6 +258,8 @@ public class CheckoutService(
                     basket = new Basket
                     {
                         CustomerId = parameters.CustomerId,
+                        Currency = _settings.StoreCurrencyCode,
+                        CurrencySymbol = _settings.CurrencySymbol,
                         DateCreated = DateTime.UtcNow,
                         DateUpdated = DateTime.UtcNow
                     };
@@ -261,7 +267,11 @@ public class CheckoutService(
                 }
 
                 // 2. Use CheckoutService to add the new item to the basket
-                await AddToBasketAsync(basket, parameters.ItemToAdd, "GB", cancellationToken);
+                var fallbackCountryCode = _settings.AllowedCountries?.FirstOrDefault() ?? "GB";
+                var countryCode = !string.IsNullOrWhiteSpace(basket.ShippingAddress.CountryCode)
+                    ? basket.ShippingAddress.CountryCode
+                    : fallbackCountryCode;
+                await AddToBasketAsync(basket, parameters.ItemToAdd, countryCode, cancellationToken);
 
                 // 3. Save the changes to the database
                 await db.SaveChangesAsync(cancellationToken);
@@ -286,7 +296,7 @@ public class CheckoutService(
     /// <summary>
     /// Update line item quantity in basket
     /// </summary>
-    public async Task UpdateLineItemQuantity(Guid lineItemId, int quantity, string countryCode = "GB", CancellationToken cancellationToken = default)
+    public async Task UpdateLineItemQuantity(Guid lineItemId, int quantity, string? countryCode = null, CancellationToken cancellationToken = default)
     {
         var basket = await GetBasket(new GetBasketParameters(), cancellationToken);
 
@@ -311,7 +321,7 @@ public class CheckoutService(
     /// <summary>
     /// Remove line item from basket
     /// </summary>
-    public async Task RemoveLineItem(Guid lineItemId, string countryCode = "GB", CancellationToken cancellationToken = default)
+    public async Task RemoveLineItem(Guid lineItemId, string? countryCode = null, CancellationToken cancellationToken = default)
     {
         var basket = await GetBasket(new GetBasketParameters(), cancellationToken);
 
@@ -433,13 +443,13 @@ public class CheckoutService(
     /// <summary>
     /// Creates a new basket with the specified currency
     /// </summary>
-    public Basket CreateBasket(string currency = "GBP", string currencySymbol = "£", Guid? customerId = null)
+    public Basket CreateBasket(string? currency = null, string? currencySymbol = null, Guid? customerId = null)
     {
         return new Basket
         {
             Id = Shared.Extensions.GuidExtensions.NewSequentialGuid,
-            Currency = currency,
-            CurrencySymbol = currencySymbol,
+            Currency = currency ?? _settings.StoreCurrencyCode,
+            CurrencySymbol = currencySymbol ?? _settings.CurrencySymbol,
             CustomerId = customerId,
             DateCreated = DateTime.UtcNow,
             DateUpdated = DateTime.UtcNow

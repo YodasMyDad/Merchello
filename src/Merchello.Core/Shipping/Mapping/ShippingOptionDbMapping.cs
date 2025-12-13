@@ -17,7 +17,7 @@ public class ShippingOptionDbMapping : IEntityTypeConfiguration<ShippingOption>
         //builder.Property(x => x.CountryCosts).ToJsonConversion(2000);
         builder.Property(x => x.CalculationMethod).HasMaxLength(1500);
         builder.Property(x => x.Name).HasMaxLength(350);
-        builder.Property(x => x.FixedCost).HasPrecision(18, 2);
+        builder.Property(x => x.FixedCost).HasPrecision(18, 4);
 
         builder.Property(x => x.ProviderKey)
             .HasMaxLength(50)

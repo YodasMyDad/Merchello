@@ -437,7 +437,7 @@ public class ShippingProvidersApiController(
                         ServiceType = configuredType,
                         ServiceName = configuredType,
                         TotalCost = 0,
-                        CurrencyCode = _settings.StoreCurrencyCode ?? "GBP",
+                        CurrencyCode = _settings.StoreCurrencyCode ?? "USD",
                         IsConfigured = true,
                         IsValid = false
                     });

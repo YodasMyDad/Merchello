@@ -65,7 +65,8 @@ public class ShippingQuoteService(
             ? countryCode
             : $"{countryCode}-{stateOrProvinceCode}";
 
-        return $"shipping-quote:{basket.Id}:{destination}:{productIds}";
+        var currency = basket.Currency ?? string.Empty;
+        return $"shipping-quote:{basket.Id}:{destination}:{currency}:{productIds}";
     }
 
     private async Task<List<ShippingRateQuote>> FetchQuotesFromProvidersAsync(

@@ -3,10 +3,13 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Data;
+using Merchello.Core.ExchangeRates.Models;
+using Merchello.Core.ExchangeRates.Services;
 using Merchello.Core.Notifications;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.Logging;
@@ -46,7 +49,11 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var paymentService = new Mock<IPaymentService>().Object;
         var productService = new Mock<IProductService>().Object;
         var notificationPublisher = new Mock<IMerchelloNotificationPublisher>().Object;
-        var settings = Options.Create(new MerchelloSettings { DefaultRounding = MidpointRounding.AwayFromZero });
+        var exchangeRateCacheMock = new Mock<IExchangeRateCache>();
+        exchangeRateCacheMock.Setup(x => x.GetRateQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExchangeRateQuote(1m, DateTime.UtcNow, "mock"));
+        var settings = Options.Create(new MerchelloSettings { DefaultRounding = MidpointRounding.AwayFromZero, StoreCurrencyCode = "USD" });
+        var currencyService = new CurrencyService(settings);
         var logger = new Mock<ILogger<InvoiceService>>().Object;
 
         return new InvoiceService(
@@ -57,6 +64,8 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             paymentService,
             productService,
             notificationPublisher,
+            exchangeRateCacheMock.Object,
+            currencyService,
             settings,
             logger);
     }

@@ -83,6 +83,8 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
 
   render() {
     const balanceDue = this.data?.balanceDue ?? 0;
+    const currencyCode = this.data?.currencyCode;
+    const currencySymbol = this.data?.currencySymbol;
 
     return html`
       <umb-body-layout headline="Record Manual Payment">
@@ -98,7 +100,7 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
 
           <div class="balance-info">
             <span>Balance Due:</span>
-            <strong>${formatCurrency(balanceDue)}</strong>
+            <strong>${formatCurrency(balanceDue, currencyCode, currencySymbol)}</strong>
           </div>
 
           <div class="form-field">

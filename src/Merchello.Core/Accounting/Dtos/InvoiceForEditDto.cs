@@ -10,8 +10,8 @@ public class InvoiceForEditDto
     public string FulfillmentStatus { get; set; } = string.Empty;
     public bool CanEdit { get; set; }
     public string? CannotEditReason { get; set; }
-    public string CurrencySymbol { get; set; } = "£";
-    public string CurrencyCode { get; set; } = "GBP";
+    public string CurrencySymbol { get; set; } = string.Empty;
+    public string CurrencyCode { get; set; } = string.Empty;
 
     /// <summary>
     /// All orders with their line items
