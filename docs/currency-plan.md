@@ -14,16 +14,30 @@ This plan has been validated against Shopify's multi-currency implementation:
 |---------|--------------|---------------------|
 | Store's home currency | **Store currency** | `StoreCurrencyCode` in settings |
 | What customer sees/pays | **Presentment currency** | `CurrencyCode` on Invoice |
-| What merchant receives | **Settlement currency** | `*InStoreCurrency` fields |
+| Store reporting currency | **Shop money** | `*InStoreCurrency` fields on Invoice/Orders/LineItems |
+| What payment provider settles | **Settlement currency** | `Payment.Settlement*` fields (optional but required for reconciliation) |
 
 **Key alignments:**
-- **Dual storage** - Shopify stores both `shop_money` and `presentment_money`; we store `Total` + `TotalInStoreCurrency`
-- **Exchange rate from payment provider** - Shopify uses real-time rates at payment time; we capture from Stripe/PayPal
-- **Reporting in store currency** - Shopify reports all revenue in store currency; we use `*InStoreCurrency` fields
-- **Display rates are approximate** - Shopify shows estimates until payment; we use `~` indicator
+- **Dual storage** - Shopify stores both `shop_money` and `presentment_money`; we store `Total` + `TotalInStoreCurrency` (and store breakdown where needed)
+- **Pricing rate is stored** - Shopify stores the order exchange rate used to compute presentment amounts; Merchello must store the pricing (quote) rate + timestamp/source on the Invoice
+- **Settlement is separate** - payout/settlement can differ (fees/FX timing); Merchello captures settlement info per Payment when providers expose it
+- **Reporting in store currency** - Shopify sales reports use `shop_money`; Merchello uses `*InStoreCurrency` fields
+- **Display rates are approximate** - prices may be approximate while browsing; once the rate is locked for checkout, presentment totals are exact and auditable
 - **Single store currency** - Shopify allows only ONE store currency per store; we follow the same pattern
 
 This approach is proven at scale and positions Merchello as an enterprise-grade solution.
+
+---
+
+## Enterprise Requirements (Non-Negotiable)
+
+These constraints make the feature correct and supportable at enterprise scale:
+
+- **Single currency per invoice**: an Invoice (and its Orders/LineItems/Payments/Refunds) must have one presentment currency code; never mix currencies within a single invoice total.
+- **No “today’s rate” recomputation**: store-currency amounts used for reporting must be persisted so reports never drift when rates change.
+- **Explicit FX audit trail**: persist the pricing rate (source + timestamp) used to compute presentment amounts; optionally persist settlement info per payment for reconciliation.
+- **Correct minor units**: 0- and 3-decimal currencies must be supported end-to-end (DB precision, rounding, formatting, provider integration).
+- **Centralised calculations**: only backend services calculate totals/taxes/discounts; UI is display-only.
 
 ---
 
@@ -42,7 +56,12 @@ This approach is proven at scale and positions Merchello as an enterprise-grade 
 
 ## 2. How Currency Conversion Works
 
-Multi-currency requires **two exchange rates** at different stages:
+Multi-currency separates **pricing** from **settlement**:
+
+- **Pricing/quote rate (presentment <-> store)**: lock the FX rate used to price the order; persist it in a defined direction (recommended: presentment -> store) so store equivalents can be computed as `store = presentment * PricingExchangeRate` (and `presentment = store / PricingExchangeRate`).
+- **Settlement rate (presentment -> store/payout)**: the payment provider’s FX rate used for settlement/payout/reconciliation (can differ due to timing, spreads, and fees).
+
+> Once an invoice is created, the presentment totals are not approximate. The "~" indicator only applies to converted previews while browsing.
 
 ### Display Rate (from Exchange Rate Provider)
 To show customers prices in their local currency, an exchange rate provider is **required**:
@@ -54,6 +73,14 @@ Exchange Rate Provider → 1 USD = 0.75 GBP (cached hourly)
                     ↓
 Customer (UK) → Sees ~£15.00 GBP
 ```
+
+### Pricing/Quote Rate (Rate Lock)
+
+At checkout (or at first add-to-basket), lock a pricing rate and persist it (rate + timestamp + source) so totals don't drift if rates change:
+
+- `PricingExchangeRate`: locked FX rate used to compute presentment prices
+- `PricingExchangeRateTimestampUtc`: when it was locked
+- `PricingExchangeRateSource`: which provider/source was used
 
 ### Settlement Rate (from Payment Provider)
 When the customer pays, Stripe handles the actual currency conversion:
@@ -67,10 +94,11 @@ Customer pays £15.00 GBP → Stripe converts → You receive ~$20 USD
 **Key distinction:**
 | Rate | Source | Purpose | When Used |
 |------|--------|---------|-----------|
-| **Display rate** | Exchange Rate Provider (Fixer, etc.) | Show prices to customers | Browsing/cart |
-| **Settlement rate** | Payment Provider (Stripe) | Actual conversion | Payment time |
+| **Display rate** | Exchange rate provider | Browsing previews | Browsing/cart |
+| **Pricing/quote rate** | Exchange rate provider | Locked checkout totals | Checkout / invoice creation |
+| **Settlement rate** | Payment provider | Settlement/payout/reconciliation | Payment capture / payout |
 
-These rates may differ slightly. The display rate is approximate (~); the settlement rate is final and stored on the invoice.
+These rates can differ. Merchello must store the pricing rate on the Invoice for auditability and stable reporting, and may store settlement details per Payment when available.
 
 ---
 
@@ -80,27 +108,45 @@ These rates may differ slightly. The display rate is approximate (~); the settle
 
 ```csharp
 // Customer's currency (what they see/pay)
-public string CurrencyCode { get; set; } = "USD";
-public string CurrencySymbol { get; set; } = "$";
+public string CurrencyCode { get; set; } = "USD"; // ISO 4217
+public string CurrencySymbol { get; set; } = "$"; // Convenience snapshot (prefer deriving via ICurrencyService)
+
+// Store currency snapshot (protects reporting if StoreCurrencyCode ever changes)
+public string StoreCurrencyCode { get; set; } = "USD"; // ISO 4217
+
+// Pricing FX rate locked for the order (recommended direction: presentment -> store)
+public decimal? PricingExchangeRate { get; set; }
+public string? PricingExchangeRateSource { get; set; } // "frankfurter", "manual", etc.
+public DateTime? PricingExchangeRateTimestampUtc { get; set; }
 
 // Store currency equivalents (for reporting)
 public decimal? SubTotalInStoreCurrency { get; set; }
+public decimal? DiscountInStoreCurrency { get; set; }
 public decimal? TaxInStoreCurrency { get; set; }
 public decimal? TotalInStoreCurrency { get; set; }
-public decimal? ExchangeRate { get; set; }  // Rate used for conversion
 ```
 
-**When invoice currency = store currency**: Store currency fields are null (or same as original).
+**When invoice currency = store currency**: Store currency fields may be null (or equal to the presentment fields). Use `COALESCE(*InStoreCurrency, *)` when querying.
 
-**When different**: Populated when payment is recorded with the rate from payment provider.
+**When different**: Store-currency fields must be populated at invoice creation time (Shopify-style “shop money”), using either:
+- store amounts already known at pricing time (preferred), or
+- the locked `PricingExchangeRate` (acceptable with clearly defined rounding rules).
+
+Settlement/payout details (which can differ) are captured per payment.
 
 ### 3.2 Payment Model ([Payment.cs](../src/Merchello.Core/Accounting/Models/Payment.cs))
 
 ```csharp
-public string CurrencyCode { get; set; } = "USD";       // Currency payment was made in
-public decimal? ExchangeRate { get; set; }               // Rate at payment time
-public decimal? AmountInStoreCurrency { get; set; }      // For reporting
-public string? ExchangeRateSource { get; set; }          // "stripe", "paypal", "manual"
+public string CurrencyCode { get; set; } = "USD"; // Payment currency (should match Invoice.CurrencyCode)
+
+// Store currency equivalent of this payment amount ("shop money" for reporting/payment status)
+public decimal? AmountInStoreCurrency { get; set; }
+
+// Optional settlement details from payment provider (for payout reconciliation; may be net of fees)
+public string? SettlementCurrencyCode { get; set; }
+public decimal? SettlementExchangeRate { get; set; }
+public decimal? SettlementAmount { get; set; }
+public string? SettlementExchangeRateSource { get; set; } // "stripe", "paypal", "manual"
 ```
 
 ### 3.3 Line Item Model
@@ -108,31 +154,53 @@ public string? ExchangeRateSource { get; set; }          // "stripe", "paypal", 
 Add store currency tracking to line items for detailed reporting:
 
 ```csharp
-public class InvoiceLineItem
-{
-    // ... existing fields ...
-    public decimal? AmountInStoreCurrency { get; set; }  // For reporting
-}
+// In Merchello.Core.Accounting.Models.LineItem
+public decimal? AmountInStoreCurrency { get; set; }  // Unit price in store currency
+```
+
+### 3.3.1 Order (Shipping) Model
+
+Shipping is stored on `Order` (not `Invoice`) in this codebase, so we must add store-currency equivalents there for reporting breakdown:
+
+```csharp
+// In Merchello.Core.Accounting.Models.Order
+public decimal? ShippingCostInStoreCurrency { get; set; }
+public decimal? DeliveryDateSurchargeInStoreCurrency { get; set; }
 ```
 
 **Important**: When invoice store currency amounts are updated, all line items must be recalculated in sync:
 
 ```csharp
-// In InvoiceService after payment with exchange rate
-public async Task UpdateStoreCurrencyAmountsAsync(Invoice invoice, decimal exchangeRate)
+// In InvoiceService - used after invoice creation or edits when a pricing rate is known
+private static void ApplyPricingRateToStoreAmounts(
+    ICurrencyService currencyService,
+    Invoice invoice,
+    IReadOnlyCollection<Order> orders,
+    decimal presentmentToStoreRate,
+    string source,
+    DateTime timestampUtc)
 {
-    invoice.ExchangeRate = exchangeRate;
-    invoice.SubTotalInStoreCurrency = invoice.SubTotal * exchangeRate;
-    invoice.TaxInStoreCurrency = invoice.Tax * exchangeRate;
-    invoice.TotalInStoreCurrency = invoice.Total * exchangeRate;
+    var storeCurrency = invoice.StoreCurrencyCode;
 
-    // Sync all line items
-    foreach (var item in invoice.Items)
+    invoice.PricingExchangeRate = presentmentToStoreRate;
+    invoice.PricingExchangeRateSource = source;
+    invoice.PricingExchangeRateTimestampUtc = timestampUtc;
+
+    invoice.SubTotalInStoreCurrency = currencyService.Round(invoice.SubTotal * presentmentToStoreRate, storeCurrency);
+    invoice.DiscountInStoreCurrency = currencyService.Round(invoice.Discount * presentmentToStoreRate, storeCurrency);
+    invoice.TaxInStoreCurrency = currencyService.Round(invoice.Tax * presentmentToStoreRate, storeCurrency);
+    invoice.TotalInStoreCurrency = currencyService.Round(invoice.Total * presentmentToStoreRate, storeCurrency);
+
+    foreach (var order in orders)
     {
-        item.AmountInStoreCurrency = item.Amount * exchangeRate;
-    }
+        order.ShippingCostInStoreCurrency = currencyService.Round(order.ShippingCost * presentmentToStoreRate, storeCurrency);
+        order.DeliveryDateSurchargeInStoreCurrency = currencyService.Round((order.DeliveryDateSurcharge ?? 0m) * presentmentToStoreRate, storeCurrency);
 
-    await _invoiceRepository.UpdateAsync(invoice);
+        foreach (var item in order.LineItems ?? [])
+        {
+            item.AmountInStoreCurrency = currencyService.Round(item.Amount * presentmentToStoreRate, storeCurrency);
+        }
+    }
 }
 ```
 
@@ -140,9 +208,29 @@ public async Task UpdateStoreCurrencyAmountsAsync(Invoice invoice, decimal excha
 
 | File | New Columns |
 |------|-------------|
-| [InvoiceDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/InvoiceDbMapping.cs) | CurrencyCode, CurrencySymbol, SubTotalInStoreCurrency, TaxInStoreCurrency, TotalInStoreCurrency, ExchangeRate |
-| [PaymentDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/PaymentDbMapping.cs) | CurrencyCode, ExchangeRate, AmountInStoreCurrency, ExchangeRateSource |
-| InvoiceLineItemDbMapping.cs | AmountInStoreCurrency |
+| [InvoiceDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/InvoiceDbMapping.cs) | CurrencyCode, CurrencySymbol, StoreCurrencyCode, PricingExchangeRate, PricingExchangeRateSource, PricingExchangeRateTimestampUtc, SubTotalInStoreCurrency, DiscountInStoreCurrency, TaxInStoreCurrency, TotalInStoreCurrency |
+| [PaymentDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/PaymentDbMapping.cs) | CurrencyCode, AmountInStoreCurrency, SettlementCurrencyCode, SettlementExchangeRate, SettlementAmount, SettlementExchangeRateSource |
+| [LineItemDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/LineItemDbMapping.cs) | AmountInStoreCurrency |
+| [OrderDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/OrderDbMapping.cs) | ShippingCostInStoreCurrency, DeliveryDateSurchargeInStoreCurrency |
+
+### 3.4.1 Database Precision Strategy (Enterprise Requirement)
+
+The current schema uses `decimal(18,2)` in many places. That is not compatible with 0- and 3-decimal currencies (e.g., JPY/KWD) and will silently lose precision.
+
+**Required change:**
+- Store monetary amounts using at least `decimal(18,4)` (or `HasPrecision(18, 4)`) across the domain.
+- Store FX rates using at least `decimal(18,8)` (or `HasPrecision(18, 8)`).
+
+**Places that must be upgraded (not exhaustive):**
+- `Invoice` totals (`SubTotal`, `Discount`, `AdjustedSubTotal`, `Tax`, `Total`, and new `*InStoreCurrency` fields)
+- `Payment.Amount` and new settlement/store fields
+- `LineItem.Amount`, `OriginalAmount`, and new `AmountInStoreCurrency`
+- `Order.ShippingCost` (and new `ShippingCostInStoreCurrency`)
+- `Basket` totals and line item JSON values
+- Product pricing (`Product.Price`, `Product.PreviousPrice`, `Product.CostOfGoods`)
+- Shipping configuration amounts (`ShippingOption.FixedCost`, `ShippingCost.Cost`, `ShippingWeightTier.Surcharge`)
+
+This must be done early (Phase 2) because it impacts migrations, calculations, and provider integrations.
 
 ### 3.5 Currency Service (Decimal Places & Formatting)
 
@@ -157,6 +245,8 @@ public interface ICurrencyService
     string FormatAmount(decimal amount, string currencyCode);
     decimal Round(decimal amount, string currencyCode);
     int GetDecimalPlaces(string currencyCode);
+    long ToMinorUnits(decimal amount, string currencyCode);
+    decimal FromMinorUnits(long minorUnits, string currencyCode);
 }
 
 public record CurrencyInfo(
@@ -171,18 +261,22 @@ public record CurrencyInfo(
 - Static dictionary for ISO 4217 currencies (common ones + fallback to 2 decimals)
 - Leverage .NET's `CultureInfo`/`RegionInfo` for symbols (as `MerchelloSettings` already does)
 - Decimal places from lookup table (not available from .NET APIs)
-- Zero-decimal currencies: `JPY, KRW, VND, CLP, PYG, GNF, RWF, UGX, BIF, XOF, XAF, KMF, DJF, MGA, VUV`
-- Three-decimal currencies: `KWD, BHD, OMR`
+- Minor units factor is `10^DecimalPlaces` (used for PSP integer amounts; do not hardcode `* 100`)
+- Zero-decimal currencies (examples): `JPY, KRW, VND, CLP, PYG, GNF, RWF, UGX, BIF, XOF, XAF, KMF, DJF, MGA, VUV, XPF`
+- Three-decimal currencies (examples): `KWD, BHD, OMR` (and other 3-decimal ISO 4217 currencies)
 
 **Where it's used:**
 - `InvoiceService` - formatting for display/notes
 - `PaymentService` - amount validation and rounding
+- Payment providers (e.g., Stripe) - conversion to/from minor units
 - Admin UI - displaying amounts correctly
 - Stripe provider - can delegate to this instead of its own HashSet
 
 **Location:** `src/Merchello.Core/Shared/Services/CurrencyService.cs`
 
-### 3.6 Fix: InvoiceForEditDto Hardcoded Currency
+### 3.6 Fix/Verify: InvoiceForEditDto Currency Defaults
+
+> Update: `InvoiceService.GetInvoiceForEditAsync()` already populates currency from store settings. The remaining work is to remove misleading GBP defaults from the DTO class and later populate from the invoice for multi-currency orders.
 
 **Current issue:** `InvoiceForEditDto` defaults to `CurrencyCode = "GBP"` and `CurrencySymbol = "£"` instead of reading from settings.
 
@@ -206,7 +300,7 @@ return new InvoiceForEditDto
 };
 ```
 
-This is a prerequisite fix before adding multi-currency support.
+Status: `GetInvoiceForEditAsync()` is fixed; update DTO defaults and later return invoice currency when multi-currency is enabled.
 
 ---
 
@@ -217,33 +311,55 @@ This is a prerequisite fix before adding multi-currency support.
 In [InvoiceService.CreateOrderFromBasketAsync()](../src/Merchello.Core/Accounting/Services/InvoiceService.cs):
 
 ```csharp
+var presentmentCurrency = basket.Currency ?? _settings.StoreCurrencyCode;
+var storeCurrency = _settings.StoreCurrencyCode;
+
 var newInvoice = new Invoice
 {
     // ... existing fields ...
-    CurrencyCode = basket.Currency ?? _settings.StoreCurrencyCode,
+    CurrencyCode = presentmentCurrency,
     CurrencySymbol = basket.CurrencySymbol ?? _settings.CurrencySymbol,
-    // Store currency fields populated later when payment recorded
+    StoreCurrencyCode = storeCurrency,
+    // Store-currency fields are populated at invoice creation time (shop money)
 };
+
+// After orders/line items are created:
+if (!string.Equals(presentmentCurrency, storeCurrency, StringComparison.OrdinalIgnoreCase))
+{
+    var rate = await _currencyConversionService.GetPresentmentToStoreRateAsync(presentmentCurrency, storeCurrency);
+    ApplyPricingRateToStoreAmounts(_currencyService, newInvoice, orders, rate, source: "frankfurter", timestampUtc: DateTime.UtcNow);
+}
 ```
 
 ### 4.2 Payment Recording
 
-When payment is processed, capture exchange rate from provider response:
+When payment is recorded, persist settlement metadata (when available) and compute store-equivalent "shop money" using the locked pricing rate:
 
 ```csharp
 // In PaymentService after successful payment
+var paymentAmount = paymentResult.Amount ?? request.Amount ?? 0m;
+var storeCurrency = invoice.StoreCurrencyCode;
+
 var payment = new Payment
 {
-    Amount = request.Amount,                    // £15.00
-    CurrencyCode = request.Currency,            // "GBP"
-    ExchangeRate = providerResult.ExchangeRate, // 0.75 (from Stripe)
-    AmountInStoreCurrency = providerResult.AmountInStoreCurrency, // $20.00
-    ExchangeRateSource = "stripe"
+    Amount = paymentAmount,
+    CurrencyCode = invoice.CurrencyCode,
+
+    // Store-equivalent "shop money" for reporting/payment status (pricing rate, not settlement)
+    AmountInStoreCurrency = string.Equals(invoice.CurrencyCode, storeCurrency, StringComparison.OrdinalIgnoreCase)
+        ? paymentAmount
+        : (invoice.PricingExchangeRate.HasValue
+            ? _currencyService.Round(paymentAmount * invoice.PricingExchangeRate.Value, storeCurrency)
+            : null),
+
+    // Optional settlement info for payout reconciliation
+    SettlementCurrencyCode = paymentResult.SettlementCurrency,
+    SettlementExchangeRate = paymentResult.SettlementExchangeRate,
+    SettlementAmount = paymentResult.SettlementAmount,
+    SettlementExchangeRateSource = request.ProviderAlias
 };
 
-// Update invoice with store currency totals
-invoice.TotalInStoreCurrency = CalculateStoreCurrencyTotal(invoice, payment.ExchangeRate);
-invoice.ExchangeRate = payment.ExchangeRate;
+// Do NOT overwrite invoice *InStoreCurrency totals here - those are based on the locked pricing rate at invoice creation.
 ```
 
 ### 4.3 Order List Query
@@ -321,7 +437,7 @@ public class CurrencyDisplaySettings
 
 ### 5.2 How It Works (When Enabled)
 
-All product prices are stored in store currency (e.g., USD). For customers in other regions, prices are converted for **display only** using a cached exchange rate.
+All product prices are stored in store currency (e.g., USD). For customers in other regions, prices are converted to a **presentment currency** for browsing and checkout. Browsing prices may be approximate, but checkout must lock a pricing rate and produce exact presentment totals.
 
 ```
 Product stored: $25.00 USD
@@ -389,6 +505,8 @@ When showing converted prices:
 - Checkout shows: "You'll be charged approximately £19.75 GBP"
 - Final charge may differ slightly due to real-time rate at payment
 
+> Enterprise note: once the pricing rate is locked for checkout, the presentment amount charged is exact. Only the store-currency equivalent can differ at settlement.
+
 ### 5.7 Basket Currency
 
 Once customer adds to basket, currency is locked:
@@ -396,8 +514,14 @@ Once customer adds to basket, currency is locked:
 ```csharp
 public class Basket
 {
-    public string CurrencyCode { get; set; }      // Locked at first add-to-cart
-    public decimal ExchangeRateAtCreation { get; set; }  // Rate when basket created
+    // Existing Merchello fields
+    public string? Currency { get; set; }            // ISO 4217, locked at first add-to-basket
+    public string? CurrencySymbol { get; set; }
+
+    // Recommended additions (enterprise correctness / auditability)
+    public decimal? PricingExchangeRate { get; set; } // presentment -> store
+    public string? PricingExchangeRateSource { get; set; }
+    public DateTime? PricingExchangeRateTimestampUtc { get; set; }
 }
 ```
 
@@ -412,18 +536,20 @@ public async Task ChangeCurrencyAsync(Basket basket, string newCurrencyCode)
 {
     if (basket.Currency == newCurrencyCode) return;
 
-    var rate = await _exchangeRateService.GetRateAsync(basket.Currency, newCurrencyCode);
+    var rate = await _exchangeRateCache.GetRateAsync(basket.Currency!, newCurrencyCode);
 
-    foreach (var item in basket.Items)
+    foreach (var item in basket.LineItems)
     {
-        item.Price = item.Price * rate;  // Convert to new currency
+        item.Amount = _currencyService.Round(item.Amount * rate, newCurrencyCode);
     }
 
     basket.Currency = newCurrencyCode;
-    basket.CurrencySymbol = GetSymbol(newCurrencyCode);
-    basket.ExchangeRateAtCreation = rate;
+    basket.CurrencySymbol = _currencyService.GetCurrency(newCurrencyCode).Symbol;
+    basket.PricingExchangeRate = await _exchangeRateCache.GetRateAsync(newCurrencyCode, _settings.StoreCurrencyCode);
+    basket.PricingExchangeRateSource = "frankfurter";
+    basket.PricingExchangeRateTimestampUtc = DateTime.UtcNow;
 
-    await _basketRepository.UpdateAsync(basket);
+    // Persist basket via CheckoutService/EF Core (no repository in this codebase)
 }
 ```
 
@@ -747,14 +873,14 @@ public class ExchangeRateFetchFailedNotification : INotification
 
 ### 7.1 Exchange Rate Support by Provider
 
-All major payment providers return exchange rate information in their API responses:
+Many payment providers can expose settlement FX data (rate/currency/amount), but availability varies by provider, region, and account configuration. Treat settlement fields as optional and do not depend on them for "shop money" reporting.
 
-| Provider | Exchange Rate in API | How It's Returned |
-|----------|---------------------|-------------------|
-| **Stripe** | Yes | `exchange_rate` on Charge/BalanceTransaction objects |
-| **PayPal** | Yes | `exchange_rate` in capture response; also FX Quote API |
-| **Braintree** | Yes | FX Optimizer with `exchangeRateQuoteId` for settlement |
-| **Worldpay** | Yes | FX API returns `bidRate`, `askRate`, `rateId` |
+| Provider | Settlement FX Data | Notes |
+|----------|--------------------|------|
+| **Stripe** | Yes | `exchange_rate` + amounts on `BalanceTransaction` (when available/expanded) |
+| **PayPal** | Usually | `exchange_rate` + receivable breakdown (gross/fee/net) |
+| **Braintree** | Depends | May require FX Optimizer/settlement reports; treat as optional |
+| **Worldpay** | Depends | May require separate FX APIs; treat as optional |
 
 ### 7.2 Existing Architecture Support
 
@@ -774,9 +900,9 @@ public class PaymentResult
 {
     // ... existing fields ...
 
-    // NEW: Multi-currency settlement info
-    public decimal? ExchangeRate { get; init; }
+    // NEW: Optional settlement/payout info (provider-specific; may be net of fees)
     public string? SettlementCurrency { get; init; }
+    public decimal? SettlementExchangeRate { get; init; }
     public decimal? SettlementAmount { get; init; }
 }
 ```
@@ -785,13 +911,21 @@ public class PaymentResult
 
 **Stripe:**
 ```csharp
-var charge = await _stripeClient.Charges.GetAsync(chargeId);
+var charge = await _stripeClient.Charges.GetAsync(chargeId, new ChargeGetOptions
+{
+    Expand = ["balance_transaction"]
+});
+
+var balance = charge.BalanceTransaction;
 return new PaymentResult
 {
     // ... existing fields ...
-    ExchangeRate = charge.BalanceTransaction?.ExchangeRate,
-    SettlementCurrency = charge.BalanceTransaction?.Currency,
-    SettlementAmount = charge.BalanceTransaction?.Amount / 100m
+    SettlementCurrency = balance?.Currency,
+    SettlementExchangeRate = balance?.ExchangeRate,
+    // Stripe amounts are in minor units (0/2/3 decimals). Do not assume `/ 100m`.
+    SettlementAmount = balance != null && !string.IsNullOrEmpty(balance.Currency)
+        ? _currencyService.FromMinorUnits(balance.Net, balance.Currency)
+        : null
 };
 ```
 
@@ -801,13 +935,13 @@ var capture = await _paypalClient.CapturePaymentAsync(orderId);
 return new PaymentResult
 {
     // ... existing fields ...
-    ExchangeRate = capture.SellerReceivableBreakdown?.ExchangeRate?.Value,
     SettlementCurrency = capture.SellerReceivableBreakdown?.NetAmount?.CurrencyCode,
+    SettlementExchangeRate = capture.SellerReceivableBreakdown?.ExchangeRate?.Value,
     SettlementAmount = capture.SellerReceivableBreakdown?.NetAmount?.Value
 };
 ```
 
-All providers that handle multi-currency will populate these fields consistently.
+Providers may populate these fields when available; the core payment flow must tolerate null settlement values.
 
 ---
 
@@ -843,7 +977,7 @@ All order edits are performed in the **customer's currency** (the currency the o
 | Custom item | Customer currency | £12.00 item |
 | Refund | Customer currency | Refund £5.00 |
 
-**Why?** The exchange rate is locked at payment time. Using the original rate ensures:
+**Why?** The pricing exchange rate is locked at checkout/invoice creation. Using the original rate ensures:
 - Customer fairness (no rate drift)
 - Accurate store currency reporting
 - Consistent audit trail
@@ -854,31 +988,24 @@ When an edit is made to a foreign currency order, recalculate store currency usi
 
 ```csharp
 // In EditInvoiceAsync after applying discount
-if (invoice.CurrencyCode != _settings.StoreCurrencyCode && invoice.ExchangeRate.HasValue)
+if (invoice.CurrencyCode != invoice.StoreCurrencyCode && invoice.PricingExchangeRate.HasValue)
 {
-    // Discount is in customer currency, convert to store currency
-    discountLineItem.AmountInStoreCurrency = discountLineItem.Amount * invoice.ExchangeRate.Value;
+    var rate = invoice.PricingExchangeRate.Value;
 
-    // Recalculate invoice store currency totals
-    invoice.SubTotalInStoreCurrency = invoice.SubTotal * invoice.ExchangeRate.Value;
-    invoice.TaxInStoreCurrency = invoice.Tax * invoice.ExchangeRate.Value;
-    invoice.TotalInStoreCurrency = invoice.Total * invoice.ExchangeRate.Value;
+    // Discount is in customer currency, convert to store currency
+    discountLineItem.AmountInStoreCurrency = discountLineItem.Amount * rate;
+
+    // Recalculate invoice store currency totals (shop money)
+    invoice.SubTotalInStoreCurrency = invoice.SubTotal * rate;
+    invoice.DiscountInStoreCurrency = invoice.Discount * rate;
+    invoice.TaxInStoreCurrency = invoice.Tax * rate;
+    invoice.TotalInStoreCurrency = invoice.Total * rate;
 }
 ```
 
 ### 9.3 Data Model Addition
 
-Add store currency tracking to discount line items:
-
-```csharp
-// LineItem extended data for discounts
-ExtendedData = new Dictionary<string, object>
-{
-    ["DiscountType"] = discountType,
-    ["DiscountValue"] = discountValue,
-    ["AmountInStoreCurrency"] = amountInStoreCurrency  // NEW
-}
-```
+Discount line items use the same `LineItem.AmountInStoreCurrency` property as all other line item types. Keep discount metadata (type/value) in `ExtendedData`, but do not store currency amounts there.
 
 ### 9.4 Admin UI for Order Edits
 
@@ -887,7 +1014,7 @@ When editing a foreign currency order:
 - **Show customer currency prominently**: "Order Currency: £ GBP"
 - **Input fields use customer currency**: Discount amount in £
 - **Show store equivalent**: "£5.00 discount (≈ $6.68 USD)"
-- **Lock indicator**: "Using exchange rate from payment: 1 USD = 0.749 GBP"
+- **Lock indicator**: "Using locked pricing rate: captured at order creation (source + timestamp)"
 
 ### 9.5 Refund Handling
 
@@ -898,8 +1025,9 @@ var refund = new Payment
 {
     Amount = -refundAmount,                    // -£5.00 (customer currency)
     CurrencyCode = invoice.CurrencyCode,       // "GBP"
-    ExchangeRate = invoice.ExchangeRate,       // Original rate
-    AmountInStoreCurrency = -refundAmount * invoice.ExchangeRate  // -$6.68
+    AmountInStoreCurrency = invoice.PricingExchangeRate.HasValue
+        ? -refundAmount * invoice.PricingExchangeRate.Value
+        : null
 };
 ```
 
@@ -909,8 +1037,8 @@ var refund = new Payment
 
 | Scenario | Handling |
 |----------|----------|
-| Order not yet paid | No exchange rate yet - edits still in customer currency, store amounts calculated when payment recorded |
-| Multiple partial payments | Use rate from first payment (or weighted average if needed) |
+| Missing pricing rate | Block edits/checkout until a pricing rate is captured (must not happen when multi-currency is enabled) |
+| Multiple payments/refunds | Invoice "shop money" uses locked pricing rate; settlement details (if any) are stored per payment |
 | Same currency order | Store currency fields null/same - no conversion needed |
 
 ---
@@ -929,16 +1057,17 @@ Each phase is broken into atomic tasks. Complete all tasks in a phase before mov
 - [ ] Create `src/Merchello.Core/Shared/Services/ICurrencyService.cs` interface
 - [ ] Create `src/Merchello.Core/Shared/Services/CurrencyService.cs` implementation
 - [ ] Add static dictionary with common currencies (code, symbol, decimal places)
-- [ ] Include zero-decimal currencies: `JPY, KRW, VND, CLP, PYG, GNF, RWF, UGX, BIF, XOF, XAF, KMF, DJF, MGA, VUV`
-- [ ] Include three-decimal currencies: `KWD, BHD, OMR`
+- [ ] Implement ISO 4217 minor units mapping (0/2/3) and drive `Round()` + `ToMinorUnits()`/`FromMinorUnits()` from it (do not hardcode `* 100`)
 - [ ] Register in DI container
-- [ ] Add unit tests for `Round()`, `FormatAmount()`, `GetDecimalPlaces()`
+- [ ] Add unit tests for `Round()`, `FormatAmount()`, `GetDecimalPlaces()`, `ToMinorUnits()`, `FromMinorUnits()`
 
-#### 1.2 Fix InvoiceForEditDto Hardcoded Currency
-- [ ] Update `GetInvoiceForEditAsync()` in `InvoiceService.cs`
-- [ ] Change `CurrencyCode` from hardcoded `"GBP"` to `_settings.StoreCurrencyCode`
-- [ ] Change `CurrencySymbol` from hardcoded `"£"` to `_settings.CurrencySymbol`
+#### 1.2 Fix InvoiceForEditDto Hardcoded Currency - COMPLETE
+- [x] Update `GetInvoiceForEditAsync()` in `InvoiceService.cs`
+- [x] Change `CurrencyCode` from hardcoded `"GBP"` to `_settings.StoreCurrencyCode`
+- [x] Change `CurrencySymbol` from hardcoded store symbol to `_settings.CurrencySymbol`
 - [ ] Verify in admin UI that correct currency displays
+
+> **Note:** This fix was implemented prior to this plan. See `InvoiceService.cs` lines 1883-1884.
 
 ---
 
@@ -951,19 +1080,25 @@ Each phase is broken into atomic tasks. Complete all tasks in a phase before mov
   ```csharp
   public string CurrencyCode { get; set; } = "USD";
   public string CurrencySymbol { get; set; } = "$";
+  public string StoreCurrencyCode { get; set; } = "USD";
+  public decimal? PricingExchangeRate { get; set; }             // Direction: presentment -> store
+  public string? PricingExchangeRateSource { get; set; }
+  public DateTime? PricingExchangeRateTimestampUtc { get; set; }
   public decimal? SubTotalInStoreCurrency { get; set; }
+  public decimal? DiscountInStoreCurrency { get; set; }
   public decimal? TaxInStoreCurrency { get; set; }
   public decimal? TotalInStoreCurrency { get; set; }
-  public decimal? ExchangeRate { get; set; }
   ```
 
 #### 2.2 Update Payment Model
 - [ ] Add to `Payment.cs`:
   ```csharp
   public string CurrencyCode { get; set; } = "USD";
-  public decimal? ExchangeRate { get; set; }
   public decimal? AmountInStoreCurrency { get; set; }
-  public string? ExchangeRateSource { get; set; }
+  public string? SettlementCurrencyCode { get; set; }
+  public decimal? SettlementExchangeRate { get; set; }
+  public decimal? SettlementAmount { get; set; }
+  public string? SettlementExchangeRateSource { get; set; }
   ```
 
 #### 2.3 Update LineItem Model
@@ -972,24 +1107,53 @@ Each phase is broken into atomic tasks. Complete all tasks in a phase before mov
   public decimal? AmountInStoreCurrency { get; set; }
   ```
 
+#### 2.3.1 Update Order Model (Shipping)
+- [ ] Add to `Order.cs`:
+  ```csharp
+  public decimal? ShippingCostInStoreCurrency { get; set; }
+  public decimal? DeliveryDateSurchargeInStoreCurrency { get; set; }
+  ```
+
 #### 2.4 Update PaymentResult Model
 - [ ] Add to `PaymentResult.cs`:
   ```csharp
-  public decimal? ExchangeRate { get; init; }
   public string? SettlementCurrency { get; init; }
+  public decimal? SettlementExchangeRate { get; init; }
   public decimal? SettlementAmount { get; init; }
   ```
 - [ ] Update factory methods if needed
 
 #### 2.5 Update Database Mappings
-- [ ] Update `InvoiceDbMapping.cs` - add all new columns with correct precision (18,2)
+- [ ] Update `InvoiceDbMapping.cs` - add all new columns and precision (see section 3.4.1)
 - [ ] Update `PaymentDbMapping.cs` - add all new columns
-- [ ] Update `LineItemDbMapping.cs` (or equivalent) - add `AmountInStoreCurrency`
+- [ ] Update `LineItemDbMapping.cs` - add `AmountInStoreCurrency`
+- [ ] Update `OrderDbMapping.cs` - add shipping store-currency fields
+- [ ] Upgrade existing monetary columns from `decimal(18,2)` to at least `decimal(18,4)` (Invoice/Payment/LineItem/Order/Basket/Product/Shipping config)
+- [ ] **Add index on `Invoice.CurrencyCode`** for filtering/grouping reports by currency
+- [ ] Consider composite index on `(DateCreated, CurrencyCode)` for time-series reports
 
 #### 2.6 Create and Run Migration
-- [ ] Run `migrations.ps1` to generate migration for all providers
+- [ ] Run `scripts/add-migration.ps1` to generate migration for all providers (SQLite + SQL Server)
 - [ ] Test migration on dev database
 - [ ] Verify columns created correctly
+
+#### 2.7 Migration Data Transformation (Existing Data)
+**Important:** Existing invoices need currency codes set for data integrity.
+
+- [ ] Add data migration to set `CurrencyCode`, `CurrencySymbol`, and `StoreCurrencyCode` for all existing invoices:
+  ```csharp
+  // In migration Up() method - set existing invoices to store default
+  migrationBuilder.Sql(@"
+      UPDATE merchelloInvoices
+      SET CurrencyCode = 'USD',  -- Replace with your store default
+          CurrencySymbol = '$',
+          StoreCurrencyCode = 'USD'
+      WHERE CurrencyCode IS NULL OR CurrencyCode = ''
+  ");
+  ```
+- [ ] Set legacy `Payment.CurrencyCode` to the store currency for existing payments (table: `merchelloPayments`)
+- [ ] Document that `*InStoreCurrency` fields can be NULL for legacy same-currency orders (this is correct behavior if you use `COALESCE`)
+- [ ] Verify existing invoice queries still work after migration
 
 ---
 
@@ -999,46 +1163,91 @@ Each phase is broken into atomic tasks. Complete all tasks in a phase before mov
 
 #### 3.1 Update CreateOrderFromBasketAsync
 - [ ] In `InvoiceService.CreateOrderFromBasketAsync()`:
-  - Copy `basket.Currency` to `invoice.CurrencyCode` (fallback to `_settings.StoreCurrencyCode`)
-  - Copy `basket.CurrencySymbol` to `invoice.CurrencySymbol` (fallback to `_settings.CurrencySymbol`)
-- [ ] If invoice currency equals store currency, leave `*InStoreCurrency` fields null
+  - Set `invoice.CurrencyCode` from `basket.Currency` (fallback to `_settings.StoreCurrencyCode`)
+  - Set `invoice.CurrencySymbol` from `basket.CurrencySymbol` (fallback to `_settings.CurrencySymbol` or derive via `ICurrencyService`)
+  - Set `invoice.StoreCurrencyCode` from `_settings.StoreCurrencyCode`
+  - If presentment != store:
+    - Lock a pricing rate (presentment -> store) and set `PricingExchangeRate*` fields
+    - Populate invoice `*InStoreCurrency` totals ("shop money") and sync `Order.*InStoreCurrency` + `LineItem.AmountInStoreCurrency`
+- [ ] If presentment == store, store-currency fields may be null or equal (use `COALESCE` downstream)
 
 #### 3.2 Update Invoice DTOs
 - [ ] Add currency fields to any invoice DTOs used by APIs
 - [ ] Update `InvoiceForEditDto` to read from invoice (not just settings)
 
+#### 3.3 Fix Hardcoded Currency Defaults
+
+**CRITICAL:** These defaults are hardcoded to GBP and must use store settings.
+
+**ShippingServiceLevel.cs** (line 14):
+```csharp
+// BEFORE - hardcoded!
+public string CurrencyCode { get; init; } = "GBP";
+
+// AFTER - providers must set explicitly (recommended)
+public required string CurrencyCode { get; init; }
+
+// OR - use a factory/builder that pulls from settings
+```
+- [ ] Change `ShippingServiceLevel.CurrencyCode` to `required` (no default)
+- [ ] Update `FlatRateShippingProvider` and all other providers to pass currency explicitly
+- [ ] Currency should come from `ShippingQuoteRequest.CurrencyCode` (basket currency) with fallback to `_settings.StoreCurrencyCode`
+
+**CheckoutService.cs** (line 436):
+```csharp
+// BEFORE - hardcoded GBP!
+public Basket CreateBasket(string currency = "GBP", string currencySymbol = "£", ...)
+
+// AFTER - use store settings
+public Basket CreateBasket(string? currency = null, string? currencySymbol = null, ...)
+{
+    return new Basket
+    {
+        Currency = currency ?? _settings.StoreCurrencyCode,
+        CurrencySymbol = currencySymbol ?? _settings.CurrencySymbol,
+        // ...
+    };
+}
+```
+- [ ] Update `CheckoutService.CreateBasket()` to default to store currency from settings
+- [ ] Update `AddToBasket()` (line 264) - currently hardcodes "GB" country code (separate issue but related)
+
+#### 3.4 Shipping Quotes: Currency Safety
+- [ ] Update `ShippingQuoteService.BuildCacheKey()` to include `basket.Currency` so quotes cannot be served in the wrong currency
+- [ ] Ensure flat-rate shipping costs (configured in store currency) are converted to the request/basket currency when different
+
 ---
 
 ### Phase 4: Payment Flow
 
-**Goal:** Capture exchange rate from payment providers and update invoice.
+**Goal:** Capture settlement info from payment providers (per payment) for reconciliation. Do not overwrite invoice "shop money" totals during payment recording.
 
 #### 4.1 Update Stripe Provider
 - [ ] In `StripePaymentProvider.cs`, after successful payment:
   - Extract `exchange_rate` from `BalanceTransaction`
   - Extract settlement currency and amount
-  - Populate `PaymentResult.ExchangeRate`, `SettlementCurrency`, `SettlementAmount`
+  - Populate `PaymentResult.SettlementExchangeRate`, `SettlementCurrency`, `SettlementAmount`
+- [ ] Update Stripe minor-unit conversion helpers to support 0/2/3-decimal currencies (delegate to `ICurrencyService.ToMinorUnits` / `FromMinorUnits`; do not hardcode `* 100`)
 - [ ] Update webhook handler to capture exchange rate from events
 
 #### 4.2 Update PaymentService
 - [ ] In `RecordPaymentAsync()`:
-  - Copy `PaymentResult.ExchangeRate` to `Payment.ExchangeRate`
-  - Set `Payment.CurrencyCode` from invoice
-  - Calculate `Payment.AmountInStoreCurrency` if exchange rate provided
-  - Set `Payment.ExchangeRateSource` (e.g., "stripe")
+  - Set `Payment.CurrencyCode` from the invoice (presentment currency)
+  - If provider returns settlement info, copy to:
+    - `Payment.SettlementCurrencyCode`
+    - `Payment.SettlementExchangeRate`
+    - `Payment.SettlementAmount`
+    - `Payment.SettlementExchangeRateSource`
+  - Set `Payment.AmountInStoreCurrency` using the locked `invoice.PricingExchangeRate` (shop money). Settlement fields are for reconciliation only.
 
-#### 4.3 Create UpdateStoreCurrencyAmountsAsync Method
-- [ ] Add method to `InvoiceService`:
-  ```csharp
-  public async Task UpdateStoreCurrencyAmountsAsync(Invoice invoice, decimal exchangeRate)
-  ```
-- [ ] Calculate and set `SubTotalInStoreCurrency`, `TaxInStoreCurrency`, `TotalInStoreCurrency`
-- [ ] Sync all line items with `AmountInStoreCurrency`
-- [ ] Call this method after payment is recorded (if exchange rate provided)
+#### 4.3 Do Not Overwrite Invoice Store Totals
+- [ ] Ensure payment recording does not modify invoice `*InStoreCurrency` totals (those are based on the locked pricing rate at invoice creation)
+- [ ] If legacy invoices have null `*InStoreCurrency` values, backfill via migration or admin job (never using “today’s” rates)
 
 #### 4.4 Update Manual Payment Recording
-- [ ] For manual payments, allow optional exchange rate input
-- [ ] If no rate provided and currencies differ, leave store amounts null (or require rate)
+- [ ] For manual payments, set `Payment.CurrencyCode = invoice.CurrencyCode`
+- [ ] Set `Payment.AmountInStoreCurrency` using `invoice.PricingExchangeRate` when presentment != store
+- [ ] Leave settlement fields null (manual payments are not PSP settlement events)
 
 ---
 
@@ -1048,17 +1257,104 @@ Each phase is broken into atomic tasks. Complete all tasks in a phase before mov
 
 #### 5.1 Update EditInvoiceAsync for Multi-Currency
 - [ ] All edit inputs (discounts, custom items) are in invoice currency
-- [ ] After applying edits, if `invoice.ExchangeRate` exists:
+- [ ] After applying edits, if `invoice.PricingExchangeRate` exists:
   - Recalculate `*InStoreCurrency` totals
   - Set `AmountInStoreCurrency` on new/modified line items
-- [ ] Add validation: if editing unpaid foreign currency order, warn that store amounts will be calculated at payment
+- [ ] Add validation: if editing a presentment != store invoice with no pricing rate, block or require a manual pricing rate (enterprise auditability)
 
 #### 5.2 Update Refund Flow
 - [ ] In refund creation:
   - Use `invoice.CurrencyCode` for refund currency
-  - Use `invoice.ExchangeRate` for refund exchange rate (original rate)
-  - Calculate `AmountInStoreCurrency` using original rate
+  - Use `invoice.PricingExchangeRate` for store-equivalent calculations (original pricing rate)
+  - Calculate `Payment.AmountInStoreCurrency` using the original pricing rate
 - [ ] Ensure refund reporting uses store currency amounts
+
+#### 5.3 Update Centralized Calculation Methods
+
+**CRITICAL**: These methods contain hardcoded 2-decimal rounding and must use `ICurrencyService` for currency-aware calculations.
+
+| Method | File | Lines | Changes Required |
+|--------|------|-------|------------------|
+| `RecalculateInvoiceTotals` | InvoiceService.cs | 2836-2904 | Use ICurrencyService for rounding; sync `*InStoreCurrency` fields |
+| `PreviewInvoiceEditAsync` | InvoiceService.cs | 1902-2250+ | "Single source of truth" - add exchange rate to all calculations |
+| `CalculateLineItems` | LineItemService.cs | 111-175 | Accept currency parameter; use ICurrencyService.Round() |
+| `CalculatePaymentStatus` | PaymentService.cs | 504-558 | Use ICurrencyService for decimal places; add store currency totals |
+| `CalculateBreakdown` | ReportingService.cs | 287-319 | Convert all amounts to store currency before summing |
+| `CalculateBasketAsync` | CheckoutService.cs | 104-136 | Pass currency through to CalculateLineItems |
+| `GetInvoiceForEditAsync` | InvoiceService.cs | 1757-1899 | Already uses settings (OK), but needs multi-currency support |
+| `CalculateShippingCost` | InvoiceService.cs | 318-359 | Ensure shipping costs are in invoice currency; persist store equivalents; do not assume store currency |
+| `CalculateDiscountAmount` | InvoiceService.cs | 2826-2834 | No changes needed (percentage/fixed amount math) |
+
+**Key Implementation Notes:**
+- `PreviewInvoiceEditAsync` is documented as "the single source of truth for all invoice calculations" (comment line 144-145). Frontend should NOT calculate locally.
+- All methods currently use `Math.Round(amount, 2, _settings.DefaultRounding)` - must change to `_currencyService.Round(amount, currencyCode)`
+- Replace currency formatting (`{amount:C}`, `.toFixed(2)`) with currency-code aware formatting using `ICurrencyService` (and frontend helpers that accept `currencyCode`)
+- `TaxExtensions.cs` is used in monetary calculations and currently hardcodes 2-decimal rounding (e.g., `PercentageAmount`). It must be updated to use `ICurrencyService` (or accept decimal places) for currency-correct rounding.
+
+#### 5.4 Update LineItemService.CalculateLineItems Signature
+
+**File:** `src/Merchello.Core/Accounting/Services/LineItemService.cs:111-114`
+
+The signature must change to accept currency for proper rounding:
+```csharp
+// BEFORE
+public (decimal subTotal, decimal discount, decimal adjustedSubTotal, decimal tax, decimal total, decimal shipping)
+    CalculateLineItems(
+        List<LineItem> lineItems,
+        List<Adjustment> adjustments,
+        decimal shippingAmount,
+        decimal defaultTaxRate,
+        bool isShippingTaxable = true,
+        MidpointRounding rounding = MidpointRounding.AwayFromZero)
+
+// AFTER - add currency parameter
+public (decimal subTotal, decimal discount, decimal adjustedSubTotal, decimal tax, decimal total, decimal shipping)
+    CalculateLineItems(
+        List<LineItem> lineItems,
+        List<Adjustment> adjustments,
+        decimal shippingAmount,
+        decimal defaultTaxRate,
+        string currencyCode,  // NEW - for decimal places
+        bool isShippingTaxable = true,
+        MidpointRounding rounding = MidpointRounding.AwayFromZero)
+```
+
+- [ ] Add `ICurrencyService` dependency to `LineItemService`
+- [ ] Add `currencyCode` parameter to `CalculateLineItems`
+- [ ] Replace all `Math.Round(amount, 2, rounding)` with `_currencyService.Round(amount, currencyCode)`
+- [ ] Update calling sites:
+  - `CheckoutService.CalculateBasketAsync` (line 130)
+  - `InvoiceService.RecalculateInvoiceTotals`
+  - Any other callers
+
+#### 5.5 Update ReportingService for Multi-Currency
+
+**CRITICAL:** Reports currently sum raw amounts which will mix currencies!
+
+**File:** `src/Merchello.Core/Reporting/Services/ReportingService.cs`
+
+**CalculateBreakdown** (lines 287-319) - must use store currency:
+```csharp
+// BEFORE - mixes currencies!
+var grossSales = invoices.Sum(i => i.SubTotal);
+var discounts = invoices.Sum(i => i.Discount);
+var taxes = invoices.Sum(i => i.Tax);
+
+// AFTER - use store currency amounts
+var grossSales = invoices.Sum(i => i.SubTotalInStoreCurrency ?? i.SubTotal);
+var discounts = invoices.Sum(i => i.DiscountInStoreCurrency ?? i.Discount);
+var taxes = invoices.Sum(i => i.TaxInStoreCurrency ?? i.Tax);
+var shippingCharges = invoices
+    .SelectMany(i => i.Orders ?? [])
+    .Sum(o => o.ShippingCostInStoreCurrency ?? o.ShippingCost);  // Requires Order.ShippingCostInStoreCurrency
+```
+
+- [ ] Update `CalculateBreakdown()` to use `*InStoreCurrency` fields
+- [ ] Update `GetAnalyticsSummaryAsync()` (line 60-61) - uses `i.SubTotal`, should use store currency
+- [ ] Update `GetSalesTimeSeriesAsync()` (line 149) - uses `i.Total`, should use store currency
+- [ ] Update `GetAverageOrderValueTimeSeriesAsync()` (line 203) - uses `i.Total`, should use store currency
+- [ ] `Order.ShippingCostInStoreCurrency` is required (shipping is part of totals and reports must not mix currencies)
+- [ ] Update refunds/returns reporting to use `Payment.AmountInStoreCurrency` (fallback to `Math.Abs(Amount)` only for legacy same-currency records)
 
 ---
 
@@ -1073,10 +1369,54 @@ Each phase is broken into atomic tasks. Complete all tasks in a phase before mov
 
 #### 6.2 Update Order Detail API
 - [ ] Return both customer currency and store currency amounts
-- [ ] Return exchange rate used
+- [ ] Return pricing exchange rate used (`PricingExchangeRate` + source + timestamp)
 - [ ] Format: "£17.85 GBP — Paid $23.81 USD (rate: 0.749)"
 
-#### 6.3 Update TypeScript (per TypeScript Guidelines)
+#### 6.3 Update C# DTOs (Backend)
+
+**HIGH Priority DTOs** (contain monetary amounts displayed to users):
+
+| DTO | File | Fields to Add |
+|-----|------|---------------|
+| `OrderDetailDto` | Accounting/Dtos/OrderDetailDto.cs | `CurrencyCode`, `CurrencySymbol`, `StoreCurrencyCode`, `PricingExchangeRate?`, `PricingExchangeRateSource?`, `PricingExchangeRateTimestampUtc?`, `TotalInStoreCurrency?` |
+| `OrderListItemDto` | Accounting/Dtos/OrderListItemDto.cs | `CurrencyCode`, `CurrencySymbol`, `StoreCurrencyCode`, `TotalInStoreCurrency?`, `IsMultiCurrency` |
+| `PreviewEditResultDto` | Accounting/Dtos/PreviewEditResultDto.cs | `CurrencyCode`, `CurrencySymbol`, `StoreCurrencyCode`, `PricingExchangeRate?` |
+| `OrderExportItemDto` | Accounting/Dtos/OrderExportItemDto.cs | `CurrencyCode`, `StoreCurrencyCode`, `TotalInStoreCurrency?` |
+| `DashboardStatsDto` | Accounting/Dtos/DashboardStatsDto.cs | `StoreCurrencyCode`, `StoreCurrencySymbol` (or derive via settings) |
+| `PaymentDto` | Payments/Dtos/PaymentDto.cs | `CurrencyCode`, `AmountInStoreCurrency?`, `SettlementCurrencyCode?`, `SettlementExchangeRate?`, `SettlementAmount?` |
+| `PaymentStatusDto` | Payments/Dtos/PaymentStatusDto.cs | `CurrencyCode`, `StoreCurrencyCode` |
+
+**MEDIUM Priority DTOs** (nested, may inherit from parent):
+
+| DTO | File | Notes |
+|-----|------|-------|
+| `LineItemDto` | Accounting/Dtos/LineItemDto.cs | Optional - can inherit from parent |
+| `LineItemForEditDto` | Accounting/Dtos/LineItemForEditDto.cs | Optional - can inherit from parent |
+| `FulfillmentOrderDto` | Accounting/Dtos/FulfillmentOrderDto.cs | Optional - can inherit from parent |
+| `FulfillmentSummaryDto` | Accounting/Dtos/FulfillmentSummaryDto.cs | Consider adding for completeness |
+| `DiscountLineItemDto` | Accounting/Dtos/DiscountLineItemDto.cs | Optional - can inherit from parent |
+
+**Reference Pattern** - `InvoiceForEditDto` has currency fields; defaults should be neutral and values should come from service mapping:
+```csharp
+public string CurrencySymbol { get; set; } = "£";
+public string CurrencyCode { get; set; } = "GBP";
+```
+
+#### 6.3.1 Update Controller Mapping Methods
+
+**OrdersApiController.cs** - Add currency to mapping methods:
+- [ ] `MapToListItem()` (~line 393) - Populate `CurrencyCode`, `CurrencySymbol` from invoice
+- [ ] `MapToDetail()` (~line 431) - Populate `CurrencyCode`, `CurrencySymbol` from invoice
+- [ ] Export methods - Ensure `OrderExportItemDto` includes currency
+- [ ] Dashboard stats - Ensure `DashboardStatsDto` includes store currency
+
+**PaymentsApiController.cs** - Add currency to payment responses:
+- [ ] Payment mapping - Populate `CurrencyCode`, `CurrencySymbol` from invoice
+- [ ] `GetPaymentStatus()` - Populate currency in `PaymentStatusDto`
+
+**Note**: Controller may need `MerchelloSettings` injected to access currency. `InvoiceService` already has `_settings`.
+
+#### 6.4 Update TypeScript (per TypeScript Guidelines)
 
 **File structure:**
 ```
@@ -1095,20 +1435,21 @@ src/backoffice/
 ```typescript
 // shared/types/currency.types.ts
 export interface CurrencyAmount {
-  amount: decimal;
+  amount: number;
   currencyCode: string;
-  currencySymbol: string;
+  currencySymbol?: string;
 }
 
 export interface MultiCurrencyInvoice {
   // Customer currency (what they paid)
-  total: decimal;
+  total: number;
   currencyCode: string;
   currencySymbol: string;
 
   // Store currency (for reporting)
-  totalInStoreCurrency?: decimal;
-  exchangeRate?: decimal;
+  storeCurrencyCode: string;
+  totalInStoreCurrency?: number;
+  pricingExchangeRate?: number;
 
   // Helper
   isMultiCurrency: boolean;  // true if currencyCode !== storeCurrencyCode
@@ -1121,7 +1462,8 @@ export interface MultiCurrencyInvoice {
 export interface InvoiceListItem {
   // ... existing fields ...
   currencyCode: string;
-  totalInStoreCurrency?: decimal;
+  storeCurrencyCode: string;
+  totalInStoreCurrency?: number;
   isMultiCurrency: boolean;
 }
 
@@ -1129,26 +1471,72 @@ export interface InvoiceForEdit {
   // ... existing fields ...
   currencyCode: string;
   currencySymbol: string;
-  exchangeRate?: decimal;
-  totalInStoreCurrency?: decimal;
+  storeCurrencyCode: string;
+  pricingExchangeRate?: number;
+  totalInStoreCurrency?: number;
 }
 ```
 
-#### 6.4 Update Order List Component
-- [ ] Update `orders-list.element.ts` to display store currency
-- [ ] Show currency indicator for foreign currency orders
-- [ ] Use `currencySymbol` from store settings for list totals
+#### 6.4 Update Frontend DTOs (order.types.ts)
 
-#### 6.5 Update Order Detail Component
-- [ ] Update `order-detail.element.ts` to show both currencies
-- [ ] Format: "£17.85 GBP — Paid $23.81 USD (rate: 0.749)"
-- [ ] Add helper `renderCurrencyAmount()` for consistent formatting
+**DTOs that need `currencyCode` and `currencySymbol` fields added:**
 
-#### 6.6 Update Order Edit UI
-- [ ] Show invoice currency prominently when editing
-- [ ] Input fields use invoice currency
-- [ ] Show store currency equivalent where helpful
-- [ ] Add currency indicator badge for multi-currency orders
+| DTO | Current State | Fields to Add |
+|-----|---------------|---------------|
+| `OrderListItemDto` | Only `total: number` | `currencyCode`, `currencySymbol`, `totalInStoreCurrency?`, `isMultiCurrency` |
+| `OrderDetailDto` | Multiple amounts, no currency | `currencyCode`, `currencySymbol`, `exchangeRate?`, `*InStoreCurrency` fields |
+| `FulfillmentOrderDto` | `shippingCost: number` | `currencyCode`, `currencySymbol` |
+| `LineItemDto` | `amount`, `originalAmount` | `currencyCode`, `currencySymbol`, `amountInStoreCurrency?` |
+| `PaymentDto` | `amount: number` | `currencyCode`, `currencySymbol`, `amountInStoreCurrency?` |
+| `PaymentStatusDto` | `invoiceTotal`, `totalPaid`, etc. | `currencyCode`, `currencySymbol` |
+| `InvoiceForEditDto` | **Already has currency** ✓ | No changes needed |
+
+#### 6.5 Update Formatting Utilities
+
+**File:** `src/Merchello/Client/src/shared/utils/formatting.ts`
+
+Current `formatCurrency()` uses global store currency. Update to:
+```typescript
+// Add optional currency parameter
+export function formatCurrency(amount: number, currencySymbol?: string): string {
+  const symbol = currencySymbol ?? getCurrencySymbol();
+  return `${symbol}${amount.toFixed(2)}`;
+}
+```
+
+#### 6.6 Update Order List Component
+- [ ] Update `orders-list.element.ts` (line 228) to use order-specific currency
+- [ ] Show currency indicator badge for foreign currency orders
+- [ ] Use `totalInStoreCurrency` for consistent sorting/filtering
+
+#### 6.7 Update Order Detail Component
+
+**File:** `src/Merchello/Client/src/orders/components/order-detail.element.ts`
+
+Currency displays to update:
+- Lines 493, 512, 516: Fulfillment card amounts
+- Lines 737-772: Payment summary (subtotal, discount, shipping, tax, total, paid, balance)
+- Pass `order.currencySymbol` to all `formatCurrency()` calls
+
+#### 6.8 Update Payment Panel Component
+
+**File:** `src/Merchello/Client/src/orders/components/payment-panel.element.ts`
+
+- Lines 248, 252, 258, 265: Payment status summary
+- Line 174: Payment history amounts
+- Pass currency from `PaymentStatusDto` and `PaymentDto`
+
+#### 6.9 Update Modal Components
+
+| Modal | File | Issue | Fix |
+|-------|------|-------|-----|
+| Manual Payment | `manual-payment-modal.element.ts` | Line 101 uses global currency | Pass currency in modal data |
+| Refund | `refund-modal.element.ts` | Lines 46, 97, 125 hardcoded | Pass currency in modal data |
+| Add Discount | `add-discount-modal.element.ts` | **Already OK** ✓ | Receives `currencySymbol` in data |
+| Add Custom Item | `add-custom-item-modal.element.ts` | **Already OK** ✓ | Receives `currencySymbol` in data |
+
+#### 6.10 Update Order Table Component
+- [ ] Update `order-table.element.ts` line 177 to use order-specific currency
 
 ---
 
@@ -1156,19 +1544,30 @@ export interface InvoiceForEdit {
 
 **Goal:** Ensure everything works end-to-end.
 
-#### 7.1 Update Seed Data
+#### 7.1 Unit Tests (per Developer Guidelines)
+- [ ] Add unit tests for `ICurrencyService.Round()`, `FormatAmount()`, `GetDecimalPlaces()`
+- [ ] Use **Shouldly** for assertions: `result.ShouldBe(expected)`, `decimals.ShouldBe(0)` for JPY
+- [ ] Test edge cases: zero-decimal currencies (JPY), three-decimal currencies (KWD)
+
+#### 7.2 Update Seed Data
 - [ ] Add test invoices with different currencies (GBP, EUR, JPY)
-- [ ] Include invoices with and without exchange rates
+- [ ] Include legacy same-currency invoices with null pricing rates and multi-currency invoices with pricing rates set
 - [ ] Include invoices with refunds in foreign currency
 
-#### 7.2 Manual Testing Checklist
+#### 7.3 Manual Testing Checklist
 - [ ] Create basket in store currency → invoice correct
 - [ ] Create basket in foreign currency → invoice has currency fields
-- [ ] Pay invoice → exchange rate captured from Stripe
+- [ ] Pay invoice → settlement exchange rate captured from provider (pricing rate already exists on invoice)
 - [ ] Edit paid foreign currency order → store amounts recalculate
 - [ ] Refund foreign currency order → uses original rate
 - [ ] Order list shows store currency
 - [ ] Order detail shows both currencies
+
+#### 7.4 Update Documentation
+- [ ] Update `docs/PaymentProviders-Architecture.md` - Add `SettlementExchangeRate`, `SettlementCurrency`, `SettlementAmount` fields to PaymentResult
+- [ ] Update `docs/PaymentProviders-DevGuide.md` - Document how providers should return exchange rate data
+- [ ] Update `docs/Architecture-Diagrams.md` - Add multi-currency flow, note `*InStoreCurrency` fields on Invoice/Payment
+- [ ] **Shipping Providers**: configured shipping costs are stored in store currency and must be converted to basket/invoice currency (and store equivalents persisted)
 
 ---
 
@@ -1197,7 +1596,7 @@ export interface InvoiceForEdit {
 
 #### 8.4 Caching Service
 - [ ] Create `src/Merchello.Core/ExchangeRates/Services/IExchangeRateCache.cs` interface
-- [ ] Create `ExchangeRateCache.cs` implementation using `IMemoryCache`
+- [ ] Create `ExchangeRateCache.cs` implementation using `ICacheService` (HybridCache)
 - [ ] Cache rates with configurable TTL (default 1 hour)
 - [ ] Store last successful rates in DB for fallback
 
@@ -1219,6 +1618,7 @@ export interface InvoiceForEdit {
 - [ ] Register `IExchangeRateProviderManager`
 - [ ] Register `IExchangeRateCache`
 - [ ] Register `ExchangeRateRefreshJob` as hosted service
+- [ ] Update `Merchello.Core/Startup.cs` assembly discovery to include `IExchangeRateProvider` so plugin providers are discoverable
 - [ ] Ensure providers auto-discovered via `ExtensionManager`
 
 ---
@@ -1298,17 +1698,41 @@ src/Merchello.Core/
 |------|---------|-------|
 | `Shared/Services/ICurrencyService.cs` | **NEW** - Currency metadata interface | 1 |
 | `Shared/Services/CurrencyService.cs` | **NEW** - Implementation with decimal places | 1 |
-| [InvoiceService.cs](../src/Merchello.Core/Accounting/Services/InvoiceService.cs) | Fix hardcoded GBP in GetInvoiceForEditAsync | 1 |
-| [Invoice.cs](../src/Merchello.Core/Accounting/Models/Invoice.cs) | Add currency + store currency fields | 2 |
-| [Payment.cs](../src/Merchello.Core/Accounting/Models/Payment.cs) | Add currency + exchange rate fields | 2 |
+| [InvoiceService.cs](../src/Merchello.Core/Accounting/Services/InvoiceService.cs) | ~~Fix hardcoded GBP~~ **DONE** (lines 1883-1884) | 1 ✓ |
+| [Invoice.cs](../src/Merchello.Core/Accounting/Models/Invoice.cs) | Add `CurrencyCode`, `StoreCurrencyCode`, `PricingExchangeRate*`, and `*InStoreCurrency` totals | 2 |
+| [Payment.cs](../src/Merchello.Core/Accounting/Models/Payment.cs) | Add `CurrencyCode`, `AmountInStoreCurrency`, and `Settlement*` fields | 2 |
 | [LineItem.cs](../src/Merchello.Core/Accounting/Models/LineItem.cs) | Add AmountInStoreCurrency field | 2 |
-| [PaymentResult.cs](../src/Merchello.Core/Payments/Models/PaymentResult.cs) | Add ExchangeRate, SettlementCurrency, SettlementAmount | 2 |
-| [InvoiceDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/InvoiceDbMapping.cs) | Map new columns | 2 |
+| [Order.cs](../src/Merchello.Core/Accounting/Models/Order.cs) | Add `ShippingCostInStoreCurrency` + `DeliveryDateSurchargeInStoreCurrency` | 2 |
+| [PaymentResult.cs](../src/Merchello.Core/Payments/Models/PaymentResult.cs) | Add SettlementExchangeRate, SettlementCurrency, SettlementAmount | 2 |
+| [InvoiceDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/InvoiceDbMapping.cs) | Map new columns + **add index on CurrencyCode** | 2 |
 | [PaymentDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/PaymentDbMapping.cs) | Map new columns | 2 |
 | [LineItemDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/LineItemDbMapping.cs) | Map AmountInStoreCurrency | 2 |
-| [InvoiceService.cs](../src/Merchello.Core/Accounting/Services/InvoiceService.cs) | Copy currency from basket, UpdateStoreCurrencyAmountsAsync | 3-5 |
-| [PaymentService.cs](../src/Merchello.Core/Payments/Services/PaymentService.cs) | Capture exchange rate, update invoice | 4 |
-| [StripePaymentProvider.cs](../src/Merchello.PaymentProviders/Stripe/StripePaymentProvider.cs) | Return exchange rate from BalanceTransaction | 4 |
+| [OrderDbMapping.cs](../src/Merchello.Core/Accounting/Mapping/OrderDbMapping.cs) | Map shipping store-currency fields | 2 |
+| [ShippingServiceLevel.cs](../src/Merchello.Core/Shipping/Providers/ShippingServiceLevel.cs) | **Fix CurrencyCode default** (change to `required`) | 3 |
+| [FlatRateShippingProvider.cs](../src/Merchello.Core/Shipping/Providers/BuiltIn/FlatRateShippingProvider.cs) | Pass currency explicitly | 3 |
+| [InvoiceService.cs](../src/Merchello.Core/Accounting/Services/InvoiceService.cs) | Copy currency from basket, lock pricing rate, populate/sync store amounts | 3-5 |
+| [PaymentService.cs](../src/Merchello.Core/Payments/Services/PaymentService.cs) | Persist settlement fields per payment, compute `AmountInStoreCurrency`, make `CalculatePaymentStatus` currency-aware | 4-5 |
+| [StripePaymentProvider.cs](../src/Merchello.PaymentProviders/Stripe/StripePaymentProvider.cs) | Return settlement currency/exchange rate/amount from BalanceTransaction | 4 |
+| [LineItemService.cs](../src/Merchello.Core/Accounting/Services/LineItemService.cs) | **Add currency parameter**, use ICurrencyService.Round() | 5 |
+| [CheckoutService.cs](../src/Merchello.Core/Checkout/Services/CheckoutService.cs) | **Fix CreateBasket defaults**, pass currency to CalculateLineItems | 3, 5 |
+| [ReportingService.cs](../src/Merchello.Core/Reporting/Services/ReportingService.cs) | **Use *InStoreCurrency fields** in all 4 methods | 5 |
+| `Accounting/Dtos/OrderDetailDto.cs` | Add CurrencyCode/CurrencySymbol + store currency + pricing rate metadata | 6 |
+| `Accounting/Dtos/OrderListItemDto.cs` | Add CurrencyCode/CurrencySymbol + StoreCurrencyCode + TotalInStoreCurrency + IsMultiCurrency | 6 |
+| `Accounting/Dtos/PreviewEditResultDto.cs` | Add CurrencyCode/CurrencySymbol + StoreCurrencyCode + PricingExchangeRate | 6 |
+| `Accounting/Dtos/OrderExportItemDto.cs` | Add CurrencyCode + StoreCurrencyCode + TotalInStoreCurrency (export in store currency) | 6 |
+| `Accounting/Dtos/DashboardStatsDto.cs` | Return store currency context (code/symbol) | 6 |
+| `Payments/Dtos/PaymentDto.cs` | Add CurrencyCode + AmountInStoreCurrency + Settlement* fields | 6 |
+| `Payments/Dtos/PaymentStatusDto.cs` | Add CurrencyCode + StoreCurrencyCode | 6 |
+| `Controllers/OrdersApiController.cs` | Update MapToListItem(), MapToDetail() with currency | 6 |
+| `Controllers/PaymentsApiController.cs` | Update payment mapping with currency | 6 |
+| `Client/src/orders/types/order.types.ts` | Add currency fields to 6 DTOs | 6 |
+| `Client/src/shared/utils/formatting.ts` | Add optional currencySymbol parameter | 6 |
+| `Client/src/orders/components/order-detail.element.ts` | Pass currency to formatCurrency calls | 6 |
+| `Client/src/orders/components/payment-panel.element.ts` | Pass currency to formatCurrency calls | 6 |
+| `Client/src/orders/components/orders-list.element.ts` | Use order-specific currency | 6 |
+| `Client/src/orders/components/order-table.element.ts` | Use order-specific currency | 6 |
+| `Client/src/orders/modals/manual-payment-modal.element.ts` | Receive currency in modal data | 6 |
+| `Client/src/orders/modals/refund-modal.element.ts` | Receive currency in modal data | 6 |
 | `ExchangeRates/Models/*.cs` | **NEW** - All model records in separate files | 8 |
 | `ExchangeRates/Providers/IExchangeRateProvider.cs` | **NEW** - Provider interface | 8 |
 | `ExchangeRates/Providers/ExchangeRateProviderManager.cs` | **NEW** - Provider manager | 8 |
@@ -1318,6 +1742,9 @@ src/Merchello.Core/
 | `ExchangeRates/Services/ExchangeRateCache.cs` | **NEW** - Cache implementation | 8 |
 | `ExchangeRates/Services/ExchangeRateRefreshJob.cs` | **NEW** - Background refresh | 8 |
 | `ExchangeRates/Notifications/*.cs` | **NEW** - Notification classes | 8 |
+| `docs/PaymentProviders-Architecture.md` | Document `PaymentResult` settlement fields (`SettlementExchangeRate`, `SettlementCurrency`, `SettlementAmount`) | 7 |
+| `docs/PaymentProviders-DevGuide.md` | Document how providers should return exchange rate data | 7 |
+| `docs/Architecture-Diagrams.md` | Add multi-currency flow diagram | 7 |
 
 ---
 
@@ -1325,18 +1752,22 @@ src/Merchello.Core/
 
 | Phase | Description | Effort | Dependency |
 |-------|-------------|--------|------------|
-| Phase 1 | Foundation & Fixes | 0.5 day | None |
+| Phase 1 | Foundation & Fixes | 0.25 day | None (1.2 already done) |
 | Phase 2 | Data Model Changes | 0.5 day | Phase 1 |
 | Phase 3 | Invoice Creation Flow | 0.5 day | Phase 2 |
 | Phase 4 | Payment Flow | 1 day | Phase 3 |
-| Phase 5 | Order Edits & Refunds | 1 day | Phase 4 |
-| Phase 6 | Admin Display | 1 day | Phase 5 |
+| Phase 5 | Order Edits, Refunds & Calculation Methods | 1.5 days | Phase 4 |
+| Phase 6 | Admin Display (C# DTOs + API + Frontend) | 2 days | Phase 5 |
 | Phase 7 | Testing & Seed Data | 0.5 day | Phase 6 |
 | Phase 8 | Exchange Rate Provider (Frankfurter) | 1.5 days | Phase 1 (can parallel) |
-| **Total MVP (Phases 1-8)** | | **6-7 days** | |
+| **Total MVP (Phases 1-8)** | | **8-9 days** | |
 | Phase 9 | Frontend Currency Display | 2-3 days | Phase 8 |
 
 **Note:** Phase 8 can be developed in parallel with Phases 2-7 since it only depends on Phase 1 (ICurrencyService).
+
+**Phase 5 includes:** Centralized calculation methods (RecalculateInvoiceTotals, PreviewInvoiceEditAsync, CalculateLineItems, CalculatePaymentStatus, etc.)
+
+**Phase 6 includes:** 7 C# DTOs, 2 controllers, 6 TypeScript DTOs, 5 components, 2 modals, formatting utilities.
 
 ---
 
@@ -1362,25 +1793,19 @@ src/Merchello.Core/
 - `Total` = £17.85 (what customer paid)
 - `CurrencyCode` = "GBP"
 - `TotalInStoreCurrency` = $23.81 (for reporting)
-- `ExchangeRate` = 0.749 (from Stripe)
+- `StoreCurrencyCode` = "USD"
+- `PricingExchangeRate` = 1.333 (presentment -> store, locked at order creation)
+- `PricingExchangeRateSource` = "frankfurter" (example)
+- `PricingExchangeRateTimestampUtc` = 2025-12-13T10:00:00Z (example)
 
 ---
 
 ## 14. Next Steps
 
-- [x] ~~Validate plan against Shopify's approach~~ (Done - see Shopify Alignment Validation section)
-- [x] ~~Confirm payment providers support exchange rate data~~ (Done - Stripe, PayPal, Braintree, Worldpay all confirmed)
-- [x] ~~Clarify basket currency change behavior~~ (Done - convert prices, not clear basket)
-- [x] ~~Clarify line item store currency tracking~~ (Done - sync all line items with invoice)
-- [x] ~~Add ICurrencyService for decimal places handling~~ (Done - see section 3.5)
-- [x] ~~Document InvoiceForEditDto hardcoded GBP fix~~ (Done - see section 3.6)
-- [x] ~~Restructure phases into manageable tasks~~ (Done - see section 10)
-- [x] ~~Add Frankfurter as default exchange rate provider~~ (Done - see section 6.5, 6.6)
-- [x] ~~Align with Developer Guidelines~~ (Done - feature folders, notifications, models in separate files)
-- [x] ~~Align with TypeScript Guidelines~~ (Done - interface over type, file naming conventions)
-- [ ] Begin Phase 1: Foundation & Fixes
-  - [ ] Create ICurrencyService
-  - [ ] Fix InvoiceForEditDto hardcoded currency
-- [ ] Phase 8 can start in parallel after Phase 1 completes
-- [ ] Continue through remaining phases sequentially
-
+- [ ] Phase 1: Implement `ICurrencyService` (rounding + minor units) and wire it into invoice/payment/line-item/tax calculations.
+- [ ] Phase 2: Add new currency columns + precision upgrades; run migrations/backfill on a copy of production data; validate indexes and query plans.
+- [ ] Phase 3: Lock `PricingExchangeRate` at invoice creation and persist all `*InStoreCurrency` values; fix shipping quote currency safety and hardcoded currency defaults.
+- [ ] Phase 4: Update payment providers to emit settlement metadata when available; persist it per `Payment` (do not overwrite invoice store totals).
+- [ ] Phase 5: Update centralized calculation methods + `ReportingService` to use store-currency fields and prevent mixed-currency sums.
+- [ ] Phase 6/7: Update DTOs/UI formatting to always include currency code; add tests and run full regression.
+- [ ] Rollout: keep multi-currency feature-flagged; enable per environment and reconcile reports (shop money vs settlement) before production.
