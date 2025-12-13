@@ -102,8 +102,9 @@ public interface IPaymentService
     /// </summary>
     /// <param name="payments">The payments for the invoice.</param>
     /// <param name="invoiceTotal">The invoice total amount.</param>
+    /// <param name="currencyCode">The invoice currency code for proper rounding (e.g., JPY has 0 decimals).</param>
     /// <returns>Full payment status details including totals and balance.</returns>
-    PaymentStatusDetails CalculatePaymentStatus(IEnumerable<Payment> payments, decimal invoiceTotal);
+    PaymentStatusDetails CalculatePaymentStatus(IEnumerable<Payment> payments, decimal invoiceTotal, string currencyCode);
 
     /// <summary>
     /// Record a manual/offline payment (for backoffice use).

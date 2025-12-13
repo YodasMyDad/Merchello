@@ -26,6 +26,13 @@ export interface PaymentDto {
   id: string;
   invoiceId: string;
   amount: number;
+  currencyCode: string;
+  currencySymbol: string;
+  amountInStoreCurrency?: number | null;
+  settlementCurrencyCode?: string | null;
+  settlementExchangeRate?: number | null;
+  settlementAmount?: number | null;
+  settlementExchangeRateSource?: string | null;
   paymentMethod?: string;
   paymentProviderAlias?: string;
   paymentType: PaymentType;
@@ -44,13 +51,22 @@ export interface PaymentDto {
 /** Invoice payment status response */
 export interface PaymentStatusDto {
   invoiceId: string;
+  currencyCode: string;
+  currencySymbol: string;
+  storeCurrencyCode: string;
+  storeCurrencySymbol: string;
   status: InvoicePaymentStatus;
   statusDisplay: string;
   invoiceTotal: number;
+  invoiceTotalInStoreCurrency?: number | null;
   totalPaid: number;
+  totalPaidInStoreCurrency?: number | null;
   totalRefunded: number;
+  totalRefundedInStoreCurrency?: number | null;
   netPayment: number;
+  netPaymentInStoreCurrency?: number | null;
   balanceDue: number;
+  balanceDueInStoreCurrency?: number | null;
 }
 
 /** Request to record a manual/offline payment */
@@ -93,7 +109,13 @@ export interface OrderListItemDto {
   dateCreated: string;
   customerName: string;
   channel: string;
+  currencyCode: string;
+  currencySymbol: string;
+  storeCurrencyCode: string;
+  storeCurrencySymbol: string;
   total: number;
+  totalInStoreCurrency?: number | null;
+  isMultiCurrency: boolean;
   paymentStatus: InvoicePaymentStatus;
   paymentStatusDisplay: string;
   fulfillmentStatus: string;
@@ -109,14 +131,28 @@ export interface OrderDetailDto {
   dateCreated: string;
   channel: string;
   purchaseOrder: string | null;
+  currencyCode: string;
+  currencySymbol: string;
+  storeCurrencyCode: string;
+  storeCurrencySymbol: string;
+  pricingExchangeRate?: number | null;
+  pricingExchangeRateSource?: string | null;
+  pricingExchangeRateTimestampUtc?: string | null;
   subTotal: number;
   /** Total discount amount (always positive) */
   discountTotal: number;
   shippingCost: number;
   tax: number;
   total: number;
+  subTotalInStoreCurrency?: number | null;
+  discountTotalInStoreCurrency?: number | null;
+  shippingCostInStoreCurrency?: number | null;
+  taxInStoreCurrency?: number | null;
+  totalInStoreCurrency?: number | null;
   amountPaid: number;
   balanceDue: number;
+  amountPaidInStoreCurrency?: number | null;
+  balanceDueInStoreCurrency?: number | null;
   paymentStatus: InvoicePaymentStatus;
   paymentStatusDisplay: string;
   fulfillmentStatus: string;
@@ -198,6 +234,8 @@ export interface OrderStatsDto {
 }
 
 export interface DashboardStatsDto {
+  storeCurrencyCode: string;
+  storeCurrencySymbol: string;
   ordersThisMonth: number;
   ordersChangePercent: number;
   revenueThisMonth: number;
@@ -342,6 +380,12 @@ export interface OrderExportItemDto {
   tax: number;
   shipping: number;
   total: number;
+  currencyCode: string;
+  storeCurrencyCode: string;
+  subTotalInStoreCurrency: number | null;
+  taxInStoreCurrency: number | null;
+  shippingInStoreCurrency: number | null;
+  totalInStoreCurrency: number | null;
 }
 
 // ============================================
@@ -510,6 +554,11 @@ export interface EditInvoiceResultDto {
  * All calculations are performed server-side - this is the single source of truth.
  */
 export interface PreviewEditResultDto {
+  currencyCode: string;
+  currencySymbol: string;
+  storeCurrencyCode: string;
+  storeCurrencySymbol: string;
+  pricingExchangeRate?: number | null;
   /** Subtotal before discounts (products + custom items) */
   subTotal: number;
   /** Total discount amount (always positive) */
@@ -522,6 +571,7 @@ export interface PreviewEditResultDto {
   tax: number;
   /** Grand total (AdjustedSubTotal + Tax + ShippingTotal) */
   total: number;
+  totalInStoreCurrency?: number | null;
   /** Per-line-item calculated totals for display */
   lineItems: LineItemPreviewDto[];
   /** Validation warnings (e.g., discount exceeds item value) */

@@ -70,6 +70,11 @@ public class LineItem
     public decimal Amount { get; set; }
 
     /// <summary>
+    /// Unit price in store currency (for reporting).
+    /// </summary>
+    public decimal? AmountInStoreCurrency { get; set; }
+
+    /// <summary>
     /// Optional value, only added when the line item price has been manually changed from the original
     /// </summary>
     public decimal? OriginalAmount { get; set; }

@@ -21,7 +21,7 @@ public class ShippingCostDbMapping : IEntityTypeConfiguration<ShippingCost>
 
         builder.Property(x => x.Cost)
             .IsRequired()
-            .HasColumnType("decimal(18,2)"); // Common for monetary values
+            .HasColumnType("decimal(18,4)"); // Monetary values require more than 2dp for multi-currency support
 
         builder.HasOne(x => x.ShippingOption)
             .WithMany(so => so.ShippingCosts)

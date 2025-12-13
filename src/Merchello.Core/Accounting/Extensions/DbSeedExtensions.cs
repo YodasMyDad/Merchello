@@ -262,7 +262,7 @@ public static class InvoiceSeedExtensions
             var shippingAddress = customer.shipping ?? customer.billing;
 
             // CRITICAL FIX: Find warehouses that can serve this customer's region
-            var countryCode = shippingAddress.CountryCode ?? "GB"; // Default to GB if missing
+            var countryCode = shippingAddress.CountryCode ?? "US"; // Default to US if missing
             var eligibleWarehouses = warehouses
                 .Where(w => w.CanServeRegion(countryCode, shippingAddress.CountyState.RegionCode))
                 .ToList();

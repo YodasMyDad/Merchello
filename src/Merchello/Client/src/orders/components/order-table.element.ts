@@ -174,7 +174,14 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
         return html`<uui-table-cell>${order.channel}</uui-table-cell>`;
 
       case "total":
-        return html`<uui-table-cell>${formatCurrency(order.total)}</uui-table-cell>`;
+        return html`
+          <uui-table-cell>
+            ${formatCurrency(order.totalInStoreCurrency ?? order.total, order.storeCurrencyCode, order.storeCurrencySymbol)}
+            ${order.isMultiCurrency
+              ? html`<span class="currency-indicator">${order.currencyCode}</span>`
+              : nothing}
+          </uui-table-cell>
+        `;
 
       case "paymentStatus":
         return html`
@@ -275,6 +282,15 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
 
       .order-number a:hover {
         text-decoration: underline;
+      }
+
+      .currency-indicator {
+        margin-left: var(--uui-size-space-2);
+        padding: 1px 6px;
+        border: 1px solid var(--uui-color-border);
+        border-radius: 999px;
+        font-size: 0.7rem;
+        color: var(--uui-color-text-alt);
       }
     `,
   ];

@@ -6,6 +6,7 @@ using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
+using Merchello.Core.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -19,10 +20,12 @@ namespace Merchello.Core.Payments.Services;
 public class PaymentService(
     IPaymentProviderManager providerManager,
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    ICurrencyService currencyService,
     IOptions<MerchelloSettings> settings,
     ILogger<PaymentService> logger) : IPaymentService
 {
     private readonly MerchelloSettings _settings = settings.Value;
+    private readonly ICurrencyService _currencyService = currencyService;
 
     /// <inheritdoc />
     public async Task<PaymentSessionResult> CreatePaymentSessionAsync(
@@ -55,7 +58,7 @@ public class PaymentService(
         {
             InvoiceId = parameters.InvoiceId,
             Amount = invoice.Total,
-            Currency = _settings.StoreCurrencyCode,
+            Currency = invoice.CurrencyCode,
             ReturnUrl = parameters.ReturnUrl,
             CancelUrl = parameters.CancelUrl,
             Description = $"Payment for Invoice {invoice.InvoiceNumber}",
@@ -127,7 +130,11 @@ public class PaymentService(
                         InvoiceId = request.InvoiceId,
                         ProviderAlias = request.ProviderAlias,
                         TransactionId = paymentResult.TransactionId ?? Guid.NewGuid().ToString("N"),
-                        Amount = paymentResult.Amount ?? request.Amount ?? 0
+                        Amount = paymentResult.Amount ?? request.Amount ?? 0,
+                        SettlementCurrencyCode = paymentResult.SettlementCurrency,
+                        SettlementExchangeRate = paymentResult.SettlementExchangeRate,
+                        SettlementAmount = paymentResult.SettlementAmount,
+                        SettlementExchangeRateSource = request.ProviderAlias
                     },
                     cancellationToken);
             }
@@ -176,9 +183,10 @@ public class PaymentService(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
-            // Check if invoice exists
-            var invoiceExists = await db.Invoices.AnyAsync(i => i.Id == parameters.InvoiceId, cancellationToken);
-            if (!invoiceExists)
+            var invoice = await db.Invoices
+                .AsNoTracking()
+                .FirstOrDefaultAsync(i => i.Id == parameters.InvoiceId, cancellationToken);
+            if (invoice == null)
             {
                 result.Messages.Add(new ResultMessage
                 {
@@ -188,18 +196,16 @@ public class PaymentService(
                 return;
             }
 
-            // Check for duplicate transaction ID
-            var duplicateTransaction = await db.Payments
-                .AnyAsync(p => p.TransactionId == parameters.TransactionId, cancellationToken);
-            if (duplicateTransaction)
+            // Check for duplicate transaction ID (single query to avoid race condition)
+            var existingPayment = await db.Payments
+                .FirstOrDefaultAsync(p => p.TransactionId == parameters.TransactionId, cancellationToken);
+            if (existingPayment != null)
             {
                 logger.LogWarning(
                     "Duplicate payment transaction {TransactionId} for invoice {InvoiceId}. Ignoring.",
                     parameters.TransactionId, parameters.InvoiceId);
 
                 // Return existing payment as success (idempotent)
-                var existingPayment = await db.Payments
-                    .FirstAsync(p => p.TransactionId == parameters.TransactionId, cancellationToken);
                 result.ResultObject = existingPayment;
                 result.Messages.Add(new ResultMessage
                 {
@@ -213,6 +219,16 @@ public class PaymentService(
             {
                 InvoiceId = parameters.InvoiceId,
                 Amount = parameters.Amount,
+                CurrencyCode = invoice.CurrencyCode ?? _settings.StoreCurrencyCode,
+                AmountInStoreCurrency = string.Equals(invoice.CurrencyCode, invoice.StoreCurrencyCode, StringComparison.OrdinalIgnoreCase)
+                    ? parameters.Amount
+                    : (invoice.PricingExchangeRate.HasValue
+                        ? _currencyService.Round(parameters.Amount * invoice.PricingExchangeRate.Value, invoice.StoreCurrencyCode)
+                        : null),
+                SettlementCurrencyCode = parameters.SettlementCurrencyCode,
+                SettlementExchangeRate = parameters.SettlementExchangeRate,
+                SettlementAmount = parameters.SettlementAmount,
+                SettlementExchangeRateSource = parameters.SettlementExchangeRateSource ?? parameters.ProviderAlias,
                 PaymentProviderAlias = parameters.ProviderAlias,
                 PaymentType = PaymentType.Payment,
                 TransactionId = parameters.TransactionId,
@@ -391,10 +407,24 @@ public class PaymentService(
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var isPartialRefund = refundAmount < originalPayment.Amount;
+            var invoice = await db.Invoices
+                .AsNoTracking()
+                .FirstOrDefaultAsync(i => i.Id == originalPayment.InvoiceId, cancellationToken);
+
+            var invoiceCurrency = invoice?.CurrencyCode ?? originalPayment.CurrencyCode;
+            var storeCurrency = invoice?.StoreCurrencyCode ?? _settings.StoreCurrencyCode;
+            decimal? refundAmountInStoreCurrency = string.Equals(invoiceCurrency, storeCurrency, StringComparison.OrdinalIgnoreCase)
+                ? -refundAmount
+                : (invoice?.PricingExchangeRate.HasValue == true
+                    ? _currencyService.Round(-refundAmount * invoice.PricingExchangeRate.Value, storeCurrency)
+                    : null);
+
             var refundPayment = new Payment
             {
                 InvoiceId = originalPayment.InvoiceId,
                 Amount = -refundAmount, // Negative amount for refund
+                CurrencyCode = invoiceCurrency,
+                AmountInStoreCurrency = refundAmountInStoreCurrency,
                 PaymentProviderAlias = originalPayment.PaymentProviderAlias,
                 PaymentType = isPartialRefund ? PaymentType.PartialRefund : PaymentType.Refund,
                 TransactionId = refundResult.RefundTransactionId,
@@ -484,7 +514,7 @@ public class PaymentService(
 
             if (invoice == null)
             {
-                return (InvoiceTotal: 0m, Payments: (List<Payment>)[]);
+                return (InvoiceTotal: 0m, CurrencyCode: _settings.StoreCurrencyCode, Payments: (List<Payment>)[]);
             }
 
             var payments = await db.Payments
@@ -492,16 +522,16 @@ public class PaymentService(
                 .Where(p => p.InvoiceId == invoiceId && p.PaymentSuccess)
                 .ToListAsync(cancellationToken);
 
-            return (InvoiceTotal: invoice.Total, Payments: payments);
+            return (InvoiceTotal: invoice.Total, CurrencyCode: invoice.CurrencyCode, Payments: payments);
         });
         scope.Complete();
 
-        var details = CalculatePaymentStatus(statusInfo.Payments, statusInfo.InvoiceTotal);
+        var details = CalculatePaymentStatus(statusInfo.Payments, statusInfo.InvoiceTotal, statusInfo.CurrencyCode);
         return details.Status;
     }
 
     /// <inheritdoc />
-    public PaymentStatusDetails CalculatePaymentStatus(IEnumerable<Payment> payments, decimal invoiceTotal)
+    public PaymentStatusDetails CalculatePaymentStatus(IEnumerable<Payment> payments, decimal invoiceTotal, string currencyCode)
     {
         var paymentList = payments.ToList();
 
@@ -515,10 +545,10 @@ public class PaymentService(
                   (p.PaymentType == PaymentType.Refund || p.PaymentType == PaymentType.PartialRefund))
             .Sum(p => Math.Abs(p.Amount));
 
-        // Round to avoid floating-point precision issues using configured rounding strategy
-        totalPaid = Math.Round(totalPaid, 2, _settings.DefaultRounding);
-        totalRefunded = Math.Round(totalRefunded, 2, _settings.DefaultRounding);
-        invoiceTotal = Math.Round(invoiceTotal, 2, _settings.DefaultRounding);
+        // Round to avoid floating-point precision issues using currency-aware rounding
+        totalPaid = _currencyService.Round(totalPaid, currencyCode);
+        totalRefunded = _currencyService.Round(totalRefunded, currencyCode);
+        invoiceTotal = _currencyService.Round(invoiceTotal, currencyCode);
 
         var netPayment = totalPaid - totalRefunded;
         var balanceDue = Math.Max(0, invoiceTotal - netPayment);
@@ -577,9 +607,10 @@ public class PaymentService(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
-            // Verify invoice exists
-            var invoiceExists = await db.Invoices.AnyAsync(i => i.Id == parameters.InvoiceId, cancellationToken);
-            if (!invoiceExists)
+            var invoice = await db.Invoices
+                .AsNoTracking()
+                .FirstOrDefaultAsync(i => i.Id == parameters.InvoiceId, cancellationToken);
+            if (invoice == null)
             {
                 result.Messages.Add(new ResultMessage
                 {
@@ -593,6 +624,12 @@ public class PaymentService(
             {
                 InvoiceId = parameters.InvoiceId,
                 Amount = parameters.Amount,
+                CurrencyCode = invoice.CurrencyCode,
+                AmountInStoreCurrency = string.Equals(invoice.CurrencyCode, invoice.StoreCurrencyCode, StringComparison.OrdinalIgnoreCase)
+                    ? parameters.Amount
+                    : (invoice.PricingExchangeRate.HasValue
+                        ? _currencyService.Round(parameters.Amount * invoice.PricingExchangeRate.Value, invoice.StoreCurrencyCode)
+                        : null),
                 PaymentMethod = parameters.PaymentMethod,
                 PaymentProviderAlias = "manual",
                 PaymentType = PaymentType.Payment,
@@ -677,10 +714,24 @@ public class PaymentService(
             }
 
             var isPartialRefund = amount < originalPayment.Amount;
+            var invoice = await db.Invoices
+                .AsNoTracking()
+                .FirstOrDefaultAsync(i => i.Id == originalPayment.InvoiceId, cancellationToken);
+
+            var invoiceCurrency = invoice?.CurrencyCode ?? originalPayment.CurrencyCode;
+            var storeCurrency = invoice?.StoreCurrencyCode ?? _settings.StoreCurrencyCode;
+            decimal? refundAmountInStoreCurrency = string.Equals(invoiceCurrency, storeCurrency, StringComparison.OrdinalIgnoreCase)
+                ? -amount
+                : (invoice?.PricingExchangeRate.HasValue == true
+                    ? _currencyService.Round(-amount * invoice.PricingExchangeRate.Value, storeCurrency)
+                    : null);
+
             var refundPayment = new Payment
             {
                 InvoiceId = originalPayment.InvoiceId,
                 Amount = -amount, // Negative for refund
+                CurrencyCode = invoiceCurrency,
+                AmountInStoreCurrency = refundAmountInStoreCurrency,
                 PaymentMethod = originalPayment.PaymentMethod,
                 PaymentProviderAlias = originalPayment.PaymentProviderAlias,
                 PaymentType = isPartialRefund ? PaymentType.PartialRefund : PaymentType.Refund,
@@ -705,4 +756,3 @@ public class PaymentService(
         return result;
     }
 }
-

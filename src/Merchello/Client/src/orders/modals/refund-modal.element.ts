@@ -43,7 +43,7 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
     }
 
     if (this._amount > payment.refundableAmount) {
-      this._errorMessage = `Amount cannot exceed ${formatCurrency(payment.refundableAmount)}`;
+      this._errorMessage = `Amount cannot exceed ${formatCurrency(payment.refundableAmount, payment.currencyCode, payment.currencySymbol)}`;
       return;
     }
 
@@ -94,7 +94,7 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
             <h3>Original Payment</h3>
             <div class="info-row">
               <span>Amount:</span>
-              <strong>${formatCurrency(payment.amount)}</strong>
+              <strong>${formatCurrency(payment.amount, payment.currencyCode, payment.currencySymbol)}</strong>
             </div>
             <div class="info-row">
               <span>Date:</span>
@@ -122,7 +122,7 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
               : nothing}
             <div class="info-row highlight">
               <span>Refundable Amount:</span>
-              <strong>${formatCurrency(payment.refundableAmount)}</strong>
+              <strong>${formatCurrency(payment.refundableAmount, payment.currencyCode, payment.currencySymbol)}</strong>
             </div>
           </div>
 

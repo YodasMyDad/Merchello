@@ -1,4 +1,6 @@
-﻿namespace Merchello.Core.Shared.Extensions;
+﻿using Merchello.Core.Shared.Services;
+
+namespace Merchello.Core.Shared.Extensions;
 
 public static class TaxExtensions
 {
@@ -10,6 +12,7 @@ public static class TaxExtensions
     /// <param name="rounding">Type of rounding (defaults to AwayFromZero for commerce)</param>
     /// <param name="round">Round the result</param>
     /// <returns></returns>
+    /// <remarks>Uses hardcoded 2 decimal places. For multi-currency support, use the overload with ICurrencyService.</remarks>
     public static decimal PercentageAmount(this decimal amount, decimal taxRate, MidpointRounding rounding = MidpointRounding.AwayFromZero, bool round = true)
     {
         if (taxRate <= 0)
@@ -25,6 +28,25 @@ public static class TaxExtensions
         }
 
         return Math.Round(calculatedAmount, 2, rounding);
+    }
+
+    /// <summary>
+    /// Returns the amount to add/remove from a figure from a % with currency-aware rounding.
+    /// </summary>
+    /// <param name="amount">Amount to tax</param>
+    /// <param name="taxRate">The tax rate</param>
+    /// <param name="currencyCode">ISO 4217 currency code for proper decimal place rounding (e.g., JPY has 0 decimals)</param>
+    /// <param name="currencyService">The currency service for rounding</param>
+    /// <returns>The calculated tax amount rounded to the currency's decimal places</returns>
+    public static decimal PercentageAmount(this decimal amount, decimal taxRate, string currencyCode, ICurrencyService currencyService)
+    {
+        if (taxRate <= 0)
+        {
+            return amount;
+        }
+
+        var calculatedAmount = (amount / 100) * taxRate;
+        return currencyService.Round(calculatedAmount, currencyCode);
     }
 
     /// <summary>

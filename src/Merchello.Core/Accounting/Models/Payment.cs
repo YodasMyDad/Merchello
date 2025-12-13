@@ -26,6 +26,36 @@ public class Payment
     public decimal Amount { get; set; }
 
     /// <summary>
+    /// Payment currency (should match the invoice currency) - ISO 4217.
+    /// </summary>
+    public string CurrencyCode { get; set; } = "USD";
+
+    /// <summary>
+    /// Store currency equivalent of this payment amount ("shop money").
+    /// </summary>
+    public decimal? AmountInStoreCurrency { get; set; }
+
+    /// <summary>
+    /// Optional settlement currency reported by the payment provider - ISO 4217.
+    /// </summary>
+    public string? SettlementCurrencyCode { get; set; }
+
+    /// <summary>
+    /// Optional settlement exchange rate reported by the payment provider.
+    /// </summary>
+    public decimal? SettlementExchangeRate { get; set; }
+
+    /// <summary>
+    /// Optional settlement amount reported by the payment provider (may be net of fees).
+    /// </summary>
+    public decimal? SettlementAmount { get; set; }
+
+    /// <summary>
+    /// Optional settlement exchange rate source (e.g. "stripe", "paypal", "manual").
+    /// </summary>
+    public string? SettlementExchangeRateSource { get; set; }
+
+    /// <summary>
     /// Payment method (legacy field, use PaymentProviderAlias for new payments)
     /// </summary>
     public string? PaymentMethod { get; set; }

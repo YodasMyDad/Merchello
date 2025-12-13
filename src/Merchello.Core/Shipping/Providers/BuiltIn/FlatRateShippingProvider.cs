@@ -1,11 +1,22 @@
+using Merchello.Core.ExchangeRates.Services;
+using Merchello.Core.Shared.Services;
+using Merchello.Core.Shared.Models;
+using Microsoft.Extensions.Options;
+
 namespace Merchello.Core.Shipping.Providers.BuiltIn;
 
 /// <summary>
 /// Built-in provider that calculates shipping rates using ShippingOption/ShippingCost tables.
 /// Returns each ShippingOption as a separate service level with weight-based surcharges.
 /// </summary>
-public class FlatRateShippingProvider : ShippingProviderBase
+public class FlatRateShippingProvider(
+    IOptions<MerchelloSettings> settings,
+    IExchangeRateCache exchangeRateCache,
+    ICurrencyService currencyService) : ShippingProviderBase
 {
+    private readonly MerchelloSettings _settings = settings.Value;
+    private readonly IExchangeRateCache _exchangeRateCache = exchangeRateCache;
+    private readonly ICurrencyService _currencyService = currencyService;
     /// <inheritdoc />
     public override ShippingProviderMetadata Metadata { get; } = new()
     {
@@ -81,17 +92,40 @@ public class FlatRateShippingProvider : ShippingProviderBase
     }
 
     /// <inheritdoc />
-    public override Task<ShippingRateQuote?> GetRatesAsync(
+    public override async Task<ShippingRateQuote?> GetRatesAsync(
         ShippingQuoteRequest request,
         CancellationToken cancellationToken = default)
     {
         if (!IsAvailableFor(request))
         {
-            return Task.FromResult<ShippingRateQuote?>(null);
+            return null;
         }
 
         var shippableItems = request.Items.Where(i => i.IsShippable).ToList();
         var errors = new List<string>();
+        var storeCurrency = _settings.StoreCurrencyCode;
+        var requestCurrency = request.CurrencyCode ?? storeCurrency;
+        decimal? storeToRequestRate = null;
+        if (!string.Equals(storeCurrency, requestCurrency, StringComparison.OrdinalIgnoreCase))
+        {
+            storeToRequestRate = await _exchangeRateCache.GetRateAsync(storeCurrency, requestCurrency, cancellationToken);
+            if (!storeToRequestRate.HasValue || storeToRequestRate.Value <= 0m)
+            {
+                errors.Add($"No exchange rate available to convert shipping costs from {storeCurrency} to {requestCurrency}.");
+                storeToRequestRate = null;
+            }
+        }
+
+        if (!string.Equals(storeCurrency, requestCurrency, StringComparison.OrdinalIgnoreCase) && storeToRequestRate == null)
+        {
+            return new ShippingRateQuote
+            {
+                ProviderKey = Metadata.Key,
+                ProviderName = Metadata.DisplayName,
+                ServiceLevels = [],
+                Errors = errors
+            };
+        }
 
         // Find shipping options that can service ALL items in this request
         var commonOptions = FindCommonShippingOptions(shippableItems);
@@ -99,13 +133,13 @@ public class FlatRateShippingProvider : ShippingProviderBase
         if (commonOptions.Count == 0)
         {
             errors.Add($"No shipping options available for all items to {request.CountryCode}.");
-            return Task.FromResult<ShippingRateQuote?>(new ShippingRateQuote
+            return new ShippingRateQuote
             {
                 ProviderKey = Metadata.Key,
                 ProviderName = Metadata.DisplayName,
                 ServiceLevels = [],
                 Errors = errors
-            });
+            };
         }
 
         // Calculate total weight for weight tier lookup
@@ -126,12 +160,18 @@ public class FlatRateShippingProvider : ShippingProviderBase
 
             if (cost.HasValue)
             {
+                var totalCost = Math.Max(0, cost.Value);
+                if (storeToRequestRate.HasValue)
+                {
+                    totalCost = _currencyService.Round(totalCost * storeToRequestRate.Value, requestCurrency);
+                }
+
                 serviceLevels.Add(new ShippingServiceLevel
                 {
                     ServiceCode = $"flat-{option.Id}",
                     ServiceName = option.Name ?? "Standard Shipping",
-                    TotalCost = Math.Max(0, cost.Value),
-                    CurrencyCode = request.CurrencyCode ?? "GBP",
+                    TotalCost = Math.Max(0, totalCost),
+                    CurrencyCode = requestCurrency,
                     TransitTime = option.DaysFrom == option.DaysTo
                         ? TimeSpan.FromDays(option.DaysFrom)
                         : null,
@@ -157,7 +197,7 @@ public class FlatRateShippingProvider : ShippingProviderBase
             Errors = errors
         };
 
-        return Task.FromResult<ShippingRateQuote?>(quote);
+        return quote;
     }
 
     /// <summary>

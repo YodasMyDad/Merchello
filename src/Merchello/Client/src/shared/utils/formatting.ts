@@ -6,8 +6,16 @@ import { InvoicePaymentStatus } from "@orders/types/order.types.js";
  * @param amount - The numeric amount to format
  * @returns Formatted currency string with symbol
  */
-export function formatCurrency(amount: number): string {
-  const symbol = getCurrencySymbol();
+export function formatCurrency(amount: number, currencyCode?: string, currencySymbol?: string): string {
+  if (currencyCode) {
+    try {
+      return new Intl.NumberFormat(undefined, { style: "currency", currency: currencyCode }).format(amount);
+    } catch {
+      // Fallback below
+    }
+  }
+
+  const symbol = currencySymbol ?? getCurrencySymbol();
   return `${symbol}${amount.toFixed(2)}`;
 }
 
@@ -123,4 +131,3 @@ export function getFulfillmentStatusBadgeClass(status: string): string {
 export function formatItemCount(count: number): string {
   return `${count} item${count !== 1 ? "s" : ""}`;
 }
-

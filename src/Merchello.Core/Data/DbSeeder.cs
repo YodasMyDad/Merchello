@@ -742,7 +742,7 @@ public class DbSeeder(
         CancellationToken cancellationToken)
     {
         var shippingAddress = customer.shipping ?? customer.billing;
-        var countryCode = shippingAddress.CountryCode ?? "GB";
+        var countryCode = shippingAddress.CountryCode ?? "US";
 
         // 1. Find products by name using the already-loaded product list
         var selectedProducts = products
@@ -870,7 +870,7 @@ public class DbSeeder(
             var shippingAddress = customer.shipping ?? customer.billing;
 
             // Get products that can ship to this customer's country
-            var countryCode = shippingAddress.CountryCode ?? "GB";
+            var countryCode = shippingAddress.CountryCode ?? "US";
             if (!productsByCountry.TryGetValue(countryCode, out var availableProductIds))
             {
                 logger.LogWarning("No products available for country {Country}, skipping", countryCode);
@@ -884,8 +884,10 @@ public class DbSeeder(
                 continue;
             }
 
-            // 1. Create basket with random products (1-5 items) from available products
-            var basket = checkoutService.CreateBasket();
+            // 1. Create basket with customer's currency based on country
+            var customerCurrency = GetCurrencyForCountry(countryCode);
+            var currencySymbol = GetCurrencySymbol(customerCurrency);
+            var basket = checkoutService.CreateBasket(customerCurrency, currencySymbol);
 
             var numItems = Math.Min(random.Next(1, 6), availableProducts.Count);
             var selectedProducts = availableProducts.OrderBy(_ => random.Next()).Take(numItems).ToList();
@@ -943,6 +945,13 @@ public class DbSeeder(
                     multiWarehouseCount++;
                     logger.LogDebug("Created multi-warehouse invoice {Number} with {Count} orders",
                         invoice.InvoiceNumber, invoice.Orders.Count);
+                }
+
+                // Log multi-currency orders for visibility
+                if (!string.Equals(invoice.CurrencyCode, "USD", StringComparison.OrdinalIgnoreCase))
+                {
+                    logger.LogDebug("Created {Currency} invoice {Number} (rate: {Rate:F4})",
+                        invoice.CurrencyCode, invoice.InvoiceNumber, invoice.PricingExchangeRate);
                 }
 
                 // 5. Determine payment scenario based on position
@@ -1655,4 +1664,30 @@ public class DbSeeder(
             }, null)
         ];
     }
+
+    /// <summary>
+    /// Maps country code to ISO 4217 currency code for multi-currency testing.
+    /// </summary>
+    private static string GetCurrencyForCountry(string countryCode) => countryCode switch
+    {
+        "GB" => "GBP",
+        "US" => "USD",
+        "CA" => "CAD",
+        "DE" or "FR" or "NL" or "ES" or "IT" or "BE" or "AT" => "EUR",
+        "JP" => "JPY",
+        "AU" => "AUD",
+        _ => "USD"
+    };
+
+    /// <summary>
+    /// Gets currency symbol for display purposes.
+    /// </summary>
+    private static string GetCurrencySymbol(string currencyCode) => currencyCode switch
+    {
+        "GBP" => "£",
+        "EUR" => "€",
+        "CAD" or "USD" or "AUD" => "$",
+        "JPY" => "¥",
+        _ => "$"
+    };
 }

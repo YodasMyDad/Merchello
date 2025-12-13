@@ -15,6 +15,15 @@ public class OrderDetailDto
     public string Channel { get; set; } = string.Empty;
     public string? PurchaseOrder { get; set; }
 
+    public string CurrencyCode { get; set; } = string.Empty;
+    public string CurrencySymbol { get; set; } = string.Empty;
+    public string StoreCurrencyCode { get; set; } = string.Empty;
+    public string StoreCurrencySymbol { get; set; } = string.Empty;
+
+    public decimal? PricingExchangeRate { get; set; }
+    public string? PricingExchangeRateSource { get; set; }
+    public DateTime? PricingExchangeRateTimestampUtc { get; set; }
+
     // Financial
     public decimal SubTotal { get; set; }
     /// <summary>
@@ -24,8 +33,17 @@ public class OrderDetailDto
     public decimal ShippingCost { get; set; }
     public decimal Tax { get; set; }
     public decimal Total { get; set; }
+
+    public decimal? SubTotalInStoreCurrency { get; set; }
+    public decimal? DiscountTotalInStoreCurrency { get; set; }
+    public decimal? ShippingCostInStoreCurrency { get; set; }
+    public decimal? TaxInStoreCurrency { get; set; }
+    public decimal? TotalInStoreCurrency { get; set; }
+
     public decimal AmountPaid { get; set; }
     public decimal BalanceDue { get; set; }
+    public decimal? AmountPaidInStoreCurrency { get; set; }
+    public decimal? BalanceDueInStoreCurrency { get; set; }
     public InvoicePaymentStatus PaymentStatus { get; set; }
     public string PaymentStatusDisplay { get; set; } = string.Empty;
     public string FulfillmentStatus { get; set; } = string.Empty;

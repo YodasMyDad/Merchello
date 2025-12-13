@@ -18,6 +18,14 @@ public class InvoiceDbMapping : IEntityTypeConfiguration<Invoice>
         builder.Property(x => x.Channel).HasMaxLength(100);
         builder.Property(x => x.PurchaseOrder).HasMaxLength(100);
 
+        builder.Property(x => x.CurrencyCode).IsRequired().HasMaxLength(3);
+        builder.Property(x => x.CurrencySymbol).IsRequired().HasMaxLength(10);
+        builder.Property(x => x.StoreCurrencyCode).IsRequired().HasMaxLength(3);
+
+        builder.Property(x => x.PricingExchangeRate).HasPrecision(18, 8);
+        builder.Property(x => x.PricingExchangeRateSource).HasMaxLength(50);
+        builder.Property(x => x.PricingExchangeRateTimestampUtc);
+
         // Billing address (owned entity with column prefix)
         builder.OwnsOne(x => x.BillingAddress, addr =>
         {
@@ -63,11 +71,16 @@ public class InvoiceDbMapping : IEntityTypeConfiguration<Invoice>
         builder.Property(x => x.Notes).ToJsonConversion(3000);
 
         // Decimal precision
-        builder.Property(x => x.AdjustedSubTotal).HasPrecision(18, 2);
-        builder.Property(x => x.Discount).HasPrecision(18, 2);
-        builder.Property(x => x.SubTotal).HasPrecision(18, 2);
-        builder.Property(x => x.Tax).HasPrecision(18, 2);
-        builder.Property(x => x.Total).HasPrecision(18, 2);
+        builder.Property(x => x.AdjustedSubTotal).HasPrecision(18, 4);
+        builder.Property(x => x.Discount).HasPrecision(18, 4);
+        builder.Property(x => x.SubTotal).HasPrecision(18, 4);
+        builder.Property(x => x.Tax).HasPrecision(18, 4);
+        builder.Property(x => x.Total).HasPrecision(18, 4);
+
+        builder.Property(x => x.SubTotalInStoreCurrency).HasPrecision(18, 4);
+        builder.Property(x => x.DiscountInStoreCurrency).HasPrecision(18, 4);
+        builder.Property(x => x.TaxInStoreCurrency).HasPrecision(18, 4);
+        builder.Property(x => x.TotalInStoreCurrency).HasPrecision(18, 4);
 
         // Soft delete
         builder.Property(x => x.IsDeleted).HasDefaultValue(false);
@@ -75,5 +88,6 @@ public class InvoiceDbMapping : IEntityTypeConfiguration<Invoice>
 
         // Index for efficient filtering of non-deleted invoices
         builder.HasIndex(x => x.IsDeleted);
+        builder.HasIndex(x => x.CurrencyCode);
     }
 }

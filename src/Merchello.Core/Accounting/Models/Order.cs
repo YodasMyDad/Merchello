@@ -37,6 +37,11 @@ public class Order
     public decimal ShippingCost { get; set; }
 
     /// <summary>
+    /// Store currency equivalent of ShippingCost (for reporting).
+    /// </summary>
+    public decimal? ShippingCostInStoreCurrency { get; set; }
+
+    /// <summary>
     /// Customer's requested delivery date (if applicable)
     /// </summary>
     public DateTime? RequestedDeliveryDate { get; set; }
@@ -52,6 +57,11 @@ public class Order
     /// Included in ShippingCost but stored separately for transparency
     /// </summary>
     public decimal? DeliveryDateSurcharge { get; set; }
+
+    /// <summary>
+    /// Store currency equivalent of DeliveryDateSurcharge (for reporting).
+    /// </summary>
+    public decimal? DeliveryDateSurchargeInStoreCurrency { get; set; }
 
     /// <summary>
     /// Line items on the order

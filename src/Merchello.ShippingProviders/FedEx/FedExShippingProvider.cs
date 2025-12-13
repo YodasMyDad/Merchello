@@ -1,24 +1,28 @@
 using System.Text.Json;
+using Merchello.Core.ExchangeRates.Services;
+using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.ShippingProviders.FedEx.Models;
+using Microsoft.Extensions.Options;
 
 namespace Merchello.ShippingProviders.FedEx;
 
 /// <summary>
 /// FedEx shipping provider with real-time rate quotes via FedEx REST API.
 /// </summary>
-public class FedExShippingProvider : ShippingProviderBase, IDisposable
+public class FedExShippingProvider(
+    IOptions<MerchelloSettings> settings,
+    IExchangeRateCache exchangeRateCache,
+    ICurrencyService currencyService) : ShippingProviderBase, IDisposable
 {
+    private readonly MerchelloSettings _settings = settings.Value;
+    private readonly IExchangeRateCache _exchangeRateCache = exchangeRateCache;
+    private readonly ICurrencyService _currencyService = currencyService;
+
     private FedExApiClient? _apiClient;
     private bool _disposed;
-
-    /// <summary>
-    /// Creates a new FedEx shipping provider instance.
-    /// </summary>
-    public FedExShippingProvider()
-    {
-    }
 
     /// <inheritdoc />
     public override ShippingProviderMetadata Metadata => new()
@@ -290,6 +294,10 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
 
         try
         {
+            // Determine request currency for conversion
+            var requestCurrency = request.CurrencyCode ?? _settings.StoreCurrencyCode;
+            var errors = new List<string>();
+
             // Build origin address from warehouse
             var origin = new FedExAddress
             {
@@ -338,6 +346,25 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
 
             if (response.Output?.RateReplyDetails != null)
             {
+                // Determine FedEx response currency (same for all rates in response)
+                var firstRatedDetail = response.Output.RateReplyDetails
+                    .SelectMany(d => d.RatedShipmentDetails ?? [])
+                    .FirstOrDefault();
+                var fedexCurrency = firstRatedDetail?.Currency
+                    ?? firstRatedDetail?.ShipmentRateDetail?.Currency
+                    ?? "USD";
+
+                // Get exchange rate if FedEx currency differs from request currency
+                decimal? fedexToRequestRate = null;
+                if (!string.Equals(fedexCurrency, requestCurrency, StringComparison.OrdinalIgnoreCase))
+                {
+                    fedexToRequestRate = await _exchangeRateCache.GetRateAsync(fedexCurrency, requestCurrency, cancellationToken);
+                    if (!fedexToRequestRate.HasValue || fedexToRequestRate.Value <= 0m)
+                    {
+                        errors.Add($"No exchange rate available to convert FedEx rates from {fedexCurrency} to {requestCurrency}.");
+                    }
+                }
+
                 foreach (var detail in response.Output.RateReplyDetails)
                 {
                     var ratedDetail = detail.RatedShipmentDetails?
@@ -345,16 +372,25 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
                         ?? detail.RatedShipmentDetails?.FirstOrDefault();
 
                     if (ratedDetail == null)
+                    {
                         continue;
+                    }
 
                     var totalCost = ratedDetail.TotalNetCharge
                         ?? ratedDetail.ShipmentRateDetail?.TotalNetCharge
                         ?? 0;
 
-                    var currency = ratedDetail.Currency
-                        ?? ratedDetail.ShipmentRateDetail?.Currency
-                        ?? request.CurrencyCode
-                        ?? "USD";
+                    // Convert to request currency if needed
+                    var displayCurrency = requestCurrency;
+                    if (fedexToRequestRate.HasValue)
+                    {
+                        totalCost = _currencyService.Round(totalCost * fedexToRequestRate.Value, requestCurrency);
+                    }
+                    else if (!string.Equals(fedexCurrency, requestCurrency, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // No exchange rate available - use FedEx currency as-is
+                        displayCurrency = fedexCurrency;
+                    }
 
                     // Parse transit days
                     TimeSpan? transitTime = null;
@@ -371,7 +407,7 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
                         ServiceCode = $"fedex-{detail.ServiceType.ToLowerInvariant()}",
                         ServiceName = serviceType?.DisplayName ?? detail.ServiceName ?? detail.ServiceType,
                         TotalCost = totalCost,
-                        CurrencyCode = currency,
+                        CurrencyCode = displayCurrency,
                         TransitTime = transitTime,
                         Description = BuildTransitDescription(detail),
                         ServiceType = serviceType ?? new ShippingServiceType
@@ -395,7 +431,8 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
             {
                 ProviderKey = Metadata.Key,
                 ProviderName = Metadata.DisplayName,
-                ServiceLevels = serviceLevels
+                ServiceLevels = serviceLevels,
+                Errors = errors
             };
         }
         catch (HttpRequestException ex)
@@ -465,7 +502,7 @@ public class FedExShippingProvider : ShippingProviderBase, IDisposable
                 if (markup > 0)
                 {
                     totalCost = sl.TotalCost * (1 + markup / 100m);
-                    totalCost = Math.Round(totalCost, 2);
+                    totalCost = _currencyService.Round(totalCost, sl.CurrencyCode);
                 }
 
                 // Use custom name from ShippingOption if provided

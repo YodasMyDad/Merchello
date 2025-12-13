@@ -35,6 +35,6 @@ public interface ILineItemService
     (decimal subTotal, decimal discount, decimal adjustedSubTotal, decimal tax, decimal total, decimal shipping)
         CalculateLineItems(
             List<LineItem> lineItems, List<Adjustment> adjustments, decimal shippingAmount, decimal defaultTaxRate,
-            bool isShippingTaxable = true,
-            MidpointRounding rounding = MidpointRounding.AwayFromZero);
+            string currencyCode,
+            bool isShippingTaxable = true);
 }

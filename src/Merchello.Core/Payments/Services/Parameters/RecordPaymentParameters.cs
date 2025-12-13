@@ -34,4 +34,24 @@ public class RecordPaymentParameters
     /// Optional fraud check response
     /// </summary>
     public string? FraudResponse { get; init; }
+
+    /// <summary>
+    /// Optional settlement/payout currency reported by provider (ISO 4217).
+    /// </summary>
+    public string? SettlementCurrencyCode { get; init; }
+
+    /// <summary>
+    /// Optional settlement exchange rate reported by provider.
+    /// </summary>
+    public decimal? SettlementExchangeRate { get; init; }
+
+    /// <summary>
+    /// Optional settlement amount reported by provider (may be net of fees).
+    /// </summary>
+    public decimal? SettlementAmount { get; init; }
+
+    /// <summary>
+    /// Optional settlement exchange rate source identifier.
+    /// </summary>
+    public string? SettlementExchangeRateSource { get; init; }
 }

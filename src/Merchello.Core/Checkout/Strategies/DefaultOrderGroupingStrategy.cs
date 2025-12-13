@@ -1,8 +1,12 @@
 using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Products.Models;
+using Merchello.Core.ExchangeRates.Services;
+using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Merchello.Core.Checkout.Strategies;
 
@@ -13,8 +17,15 @@ namespace Merchello.Core.Checkout.Strategies;
 /// </summary>
 public class DefaultOrderGroupingStrategy(
     IWarehouseService warehouseService,
+    IExchangeRateCache exchangeRateCache,
+    ICurrencyService currencyService,
+    IOptions<MerchelloSettings> settings,
     ILogger<DefaultOrderGroupingStrategy> logger) : IOrderGroupingStrategy
 {
+    private readonly MerchelloSettings _settings = settings.Value;
+    private readonly ICurrencyService _currencyService = currencyService;
+    private readonly IExchangeRateCache _exchangeRateCache = exchangeRateCache;
+
     /// <inheritdoc />
     public OrderGroupingStrategyMetadata Metadata => new(
         Key: "default-warehouse",
@@ -34,6 +45,22 @@ public class DefaultOrderGroupingStrategy(
 
         List<OrderGroup> orderGroups = [];
         List<string> errors = [];
+
+        var storeCurrency = _settings.StoreCurrencyCode;
+        var basketCurrency = context.Basket.Currency ?? storeCurrency;
+        decimal? storeToBasketRate = null;
+        if (!string.Equals(storeCurrency, basketCurrency, StringComparison.OrdinalIgnoreCase))
+        {
+            storeToBasketRate = await _exchangeRateCache.GetRateAsync(storeCurrency, basketCurrency, cancellationToken);
+            if (!storeToBasketRate.HasValue || storeToBasketRate.Value <= 0m)
+            {
+                logger.LogWarning(
+                    "No exchange rate available to convert shipping option costs from {StoreCurrency} to {BasketCurrency}",
+                    storeCurrency,
+                    basketCurrency);
+                storeToBasketRate = null;
+            }
+        }
 
         foreach (var lineItem in context.Basket.LineItems.Where(li => li.ProductId.HasValue))
         {
@@ -76,7 +103,9 @@ public class DefaultOrderGroupingStrategy(
                     lineItem.Name ?? string.Empty,
                     lineItem.Sku,
                     lineItem.Quantity,
-                    lineItem.Amount);
+                    lineItem.Amount,
+                    basketCurrency,
+                    storeToBasketRate);
             }
             // Handle multi-warehouse fulfillment (split across multiple warehouses)
             else if (selectionResult.WarehouseAllocations.Any())
@@ -106,7 +135,9 @@ public class DefaultOrderGroupingStrategy(
                         lineItem.Name ?? string.Empty,
                         lineItem.Sku,
                         allocatedQuantity,
-                        proportionalAmount);
+                        proportionalAmount,
+                        basketCurrency,
+                        storeToBasketRate);
                 }
             }
         }
@@ -140,7 +171,9 @@ public class DefaultOrderGroupingStrategy(
         string lineItemName,
         string? lineItemSku,
         int quantity,
-        decimal amount)
+        decimal amount,
+        string basketCurrency,
+        decimal? storeToBasketRate)
     {
         // Get allowed shipping options for this product based on restrictions
         var baseShippingOptions = product.ShippingOptions.Any()
@@ -169,7 +202,10 @@ public class DefaultOrderGroupingStrategy(
                     DaysFrom = so.DaysFrom,
                     DaysTo = so.DaysTo,
                     IsNextDay = so.IsNextDay,
-                    Cost = so.FixedCost ?? 0,
+                    Cost = ConvertShippingCostToBasketCurrency(
+                        ResolveShippingCostForDestination(so, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode),
+                        basketCurrency,
+                        storeToBasketRate),
                     ProviderKey = so.ProviderKey
                 }).ToList()
             };
@@ -205,6 +241,47 @@ public class DefaultOrderGroupingStrategy(
         }
     }
 
+    private decimal ConvertShippingCostToBasketCurrency(decimal storeCost, string basketCurrency, decimal? storeToBasketRate)
+    {
+        if (storeToBasketRate.HasValue)
+        {
+            return Math.Max(0, _currencyService.Round(storeCost * storeToBasketRate.Value, basketCurrency));
+        }
+
+        return Math.Max(0, storeCost);
+    }
+
+    private static decimal ResolveShippingCostForDestination(ShippingOption shippingOption, string countryCode, string? stateOrProvinceCode)
+    {
+        if (shippingOption.FixedCost.HasValue)
+        {
+            return shippingOption.FixedCost.Value;
+        }
+
+        if (shippingOption.ShippingCosts?.Any() != true)
+        {
+            return 0;
+        }
+
+        var stateCost = shippingOption.ShippingCosts
+            .FirstOrDefault(sc =>
+                string.Equals(sc.CountryCode, countryCode, StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrEmpty(sc.StateOrProvinceCode) &&
+                string.Equals(sc.StateOrProvinceCode, stateOrProvinceCode, StringComparison.OrdinalIgnoreCase));
+
+        if (stateCost != null)
+        {
+            return stateCost.Cost;
+        }
+
+        var countryCost = shippingOption.ShippingCosts
+            .FirstOrDefault(sc =>
+                string.Equals(sc.CountryCode, countryCode, StringComparison.OrdinalIgnoreCase) &&
+                string.IsNullOrEmpty(sc.StateOrProvinceCode));
+
+        return countryCost?.Cost ?? 0;
+    }
+
     /// <summary>
     /// Generates a deterministic GroupId based on warehouse and available shipping options.
     /// This ensures the same combination always produces the same GroupId across requests.
@@ -235,4 +312,3 @@ public class DefaultOrderGroupingStrategy(
         };
     }
 }
-

@@ -67,9 +67,49 @@ public class Invoice
     public decimal SubTotal { get; set; }
 
     /// <summary>
+    /// Customer's currency (what they see/pay) - ISO 4217.
+    /// </summary>
+    public string CurrencyCode { get; set; } = "USD";
+
+    /// <summary>
+    /// Snapshot currency symbol for display convenience.
+    /// </summary>
+    public string CurrencySymbol { get; set; } = "$";
+
+    /// <summary>
+    /// Store currency snapshot (protects reporting if store settings ever change) - ISO 4217.
+    /// </summary>
+    public string StoreCurrencyCode { get; set; } = "USD";
+
+    /// <summary>
+    /// Pricing FX rate locked for the order (presentment -> store).
+    /// </summary>
+    public decimal? PricingExchangeRate { get; set; }
+
+    /// <summary>
+    /// Pricing FX rate source identifier (e.g. "frankfurter", "manual").
+    /// </summary>
+    public string? PricingExchangeRateSource { get; set; }
+
+    /// <summary>
+    /// UTC timestamp when PricingExchangeRate was locked.
+    /// </summary>
+    public DateTime? PricingExchangeRateTimestampUtc { get; set; }
+
+    /// <summary>
     /// Holds any discount amount one the invoice as a whole
     /// </summary>
     public decimal Discount { get; set; }
+
+    /// <summary>
+    /// Store currency equivalent of SubTotal (for reporting).
+    /// </summary>
+    public decimal? SubTotalInStoreCurrency { get; set; }
+
+    /// <summary>
+    /// Store currency equivalent of Discount (for reporting).
+    /// </summary>
+    public decimal? DiscountInStoreCurrency { get; set; }
 
     /// <summary>
     /// Subtotal after discounts are applied
@@ -82,9 +122,19 @@ public class Invoice
     public decimal Tax { get; set; }
 
     /// <summary>
+    /// Store currency equivalent of Tax (for reporting).
+    /// </summary>
+    public decimal? TaxInStoreCurrency { get; set; }
+
+    /// <summary>
     /// Holds the Total of the invoice
     /// </summary>
     public decimal Total { get; set; }
+
+    /// <summary>
+    /// Store currency equivalent of Total (for reporting).
+    /// </summary>
+    public decimal? TotalInStoreCurrency { get; set; }
 
     /// <summary>
     /// Date invoice was created

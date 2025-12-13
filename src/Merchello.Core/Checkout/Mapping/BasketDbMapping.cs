@@ -19,12 +19,12 @@ public class BasketDbMapping : IEntityTypeConfiguration<Basket>
         builder.Property(x => x.ShippingAddress).ToJsonConversion(500);
         builder.Property(x => x.Currency).HasMaxLength(10);
         builder.Property(x => x.CurrencySymbol).HasMaxLength(3);
-        builder.Property(x => x.AdjustedSubTotal).HasPrecision(18, 2);
-        builder.Property(x => x.Discount).HasPrecision(18, 2);
-        builder.Property(x => x.SubTotal).HasPrecision(18, 2);
-        builder.Property(x => x.Tax).HasPrecision(18, 2);
-        builder.Property(x => x.Total).HasPrecision(18, 2);
-        builder.Property(x => x.Shipping).HasPrecision(18, 2);
+        builder.Property(x => x.AdjustedSubTotal).HasPrecision(18, 4);
+        builder.Property(x => x.Discount).HasPrecision(18, 4);
+        builder.Property(x => x.SubTotal).HasPrecision(18, 4);
+        builder.Property(x => x.Tax).HasPrecision(18, 4);
+        builder.Property(x => x.Total).HasPrecision(18, 4);
+        builder.Property(x => x.Shipping).HasPrecision(18, 4);
         builder.Property(x => x.DateCreated).IsRequired();
         builder.Property(x => x.DateUpdated).IsRequired();
 

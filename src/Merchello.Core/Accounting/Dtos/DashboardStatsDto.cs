@@ -5,6 +5,9 @@ namespace Merchello.Core.Accounting.Dtos;
 /// </summary>
 public class DashboardStatsDto
 {
+    public string StoreCurrencyCode { get; set; } = string.Empty;
+    public string StoreCurrencySymbol { get; set; } = string.Empty;
+
     public int OrdersThisMonth { get; set; }
     public decimal OrdersChangePercent { get; set; }
 

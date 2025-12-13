@@ -1,5 +1,6 @@
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
+using Merchello.Core.Shared.Services;
 using Stripe;
 using Stripe.Checkout;
 
@@ -19,19 +20,11 @@ namespace Merchello.PaymentProviders.Stripe;
 /// Required webhook events: checkout.session.completed, payment_intent.succeeded,
 /// payment_intent.payment_failed, charge.refunded, charge.dispute.created
 /// </remarks>
-public class StripePaymentProvider : PaymentProviderBase
+public class StripePaymentProvider(ICurrencyService currencyService) : PaymentProviderBase
 {
-    /// <summary>
-    /// Zero-decimal currencies that don't need multiplication by 100.
-    /// </summary>
-    private static readonly HashSet<string> ZeroDecimalCurrencies = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "MGA", "PYG", "RWF",
-        "UGX", "VND", "VUV", "XAF", "XOF", "XPF"
-    };
-
     private StripeClient? _client;
     private string? _webhookSecret;
+    private readonly ICurrencyService _currencyService = currencyService;
 
     /// <inheritdoc />
     public override PaymentProviderMetadata Metadata => new()
@@ -421,14 +414,14 @@ public class StripePaymentProvider : PaymentProviderBase
     }
 
     /// <inheritdoc />
-    public override Task<WebhookProcessingResult> ProcessWebhookAsync(
+    public override async Task<WebhookProcessingResult> ProcessWebhookAsync(
         string payload,
         IDictionary<string, string> headers,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(_webhookSecret))
         {
-            return Task.FromResult(WebhookProcessingResult.Failure("Webhook secret not configured."));
+            return WebhookProcessingResult.Failure("Webhook secret not configured.");
         }
 
         try
@@ -437,32 +430,32 @@ public class StripePaymentProvider : PaymentProviderBase
             if (!headers.TryGetValue("Stripe-Signature", out var signature) &&
                 !headers.TryGetValue("stripe-signature", out signature))
             {
-                return Task.FromResult(WebhookProcessingResult.Failure("Missing Stripe-Signature header."));
+                return WebhookProcessingResult.Failure("Missing Stripe-Signature header.");
             }
 
             // Parse and validate the event
             var stripeEvent = EventUtility.ConstructEvent(payload, signature, _webhookSecret);
 
-            return Task.FromResult(ProcessStripeEvent(stripeEvent));
+            return await ProcessStripeEventAsync(stripeEvent, cancellationToken);
         }
         catch (StripeException ex)
         {
-            return Task.FromResult(WebhookProcessingResult.Failure($"Stripe error: {ex.Message}"));
+            return WebhookProcessingResult.Failure($"Stripe error: {ex.Message}");
         }
     }
 
     /// <summary>
     /// Process a validated Stripe event.
     /// </summary>
-    private WebhookProcessingResult ProcessStripeEvent(Event stripeEvent)
+    private async Task<WebhookProcessingResult> ProcessStripeEventAsync(Event stripeEvent, CancellationToken cancellationToken)
     {
         switch (stripeEvent.Type)
         {
             case "checkout.session.completed":
-                return HandleCheckoutSessionCompleted(stripeEvent);
+                return await HandleCheckoutSessionCompletedAsync(stripeEvent, cancellationToken);
 
             case "payment_intent.succeeded":
-                return HandlePaymentIntentSucceeded(stripeEvent);
+                return await HandlePaymentIntentSucceededAsync(stripeEvent, cancellationToken);
 
             case "payment_intent.payment_failed":
                 return HandlePaymentIntentFailed(stripeEvent);
@@ -484,7 +477,7 @@ public class StripePaymentProvider : PaymentProviderBase
         }
     }
 
-    private WebhookProcessingResult HandleCheckoutSessionCompleted(Event stripeEvent)
+    private async Task<WebhookProcessingResult> HandleCheckoutSessionCompletedAsync(Event stripeEvent, CancellationToken cancellationToken)
     {
         var session = stripeEvent.Data.Object as Session;
         if (session is null)
@@ -503,16 +496,21 @@ public class StripePaymentProvider : PaymentProviderBase
         // Use PaymentIntent ID as the transaction ID for refunds/captures
         var transactionId = session.PaymentIntentId ?? session.Id;
 
+        var settlement = await TryGetSettlementInfoAsync(transactionId, cancellationToken);
+
         return WebhookProcessingResult.Successful(
             eventType: WebhookEventType.PaymentCompleted,
             transactionId: transactionId,
             invoiceId: invoiceId,
             amount: session.AmountTotal.HasValue
                 ? ConvertFromStripeAmount(session.AmountTotal.Value, session.Currency)
-                : null);
+                : null,
+            settlementCurrency: settlement.SettlementCurrency,
+            settlementExchangeRate: settlement.SettlementExchangeRate,
+            settlementAmount: settlement.SettlementAmount);
     }
 
-    private WebhookProcessingResult HandlePaymentIntentSucceeded(Event stripeEvent)
+    private async Task<WebhookProcessingResult> HandlePaymentIntentSucceededAsync(Event stripeEvent, CancellationToken cancellationToken)
     {
         var paymentIntent = stripeEvent.Data.Object as PaymentIntent;
         if (paymentIntent is null)
@@ -528,11 +526,16 @@ public class StripePaymentProvider : PaymentProviderBase
             invoiceId = parsedInvoiceId;
         }
 
+        var settlement = await TryGetSettlementInfoAsync(paymentIntent.Id, cancellationToken);
+
         return WebhookProcessingResult.Successful(
             eventType: WebhookEventType.PaymentCompleted,
             transactionId: paymentIntent.Id,
             invoiceId: invoiceId,
-            amount: ConvertFromStripeAmount(paymentIntent.Amount, paymentIntent.Currency));
+            amount: ConvertFromStripeAmount(paymentIntent.Amount, paymentIntent.Currency),
+            settlementCurrency: settlement.SettlementCurrency,
+            settlementExchangeRate: settlement.SettlementExchangeRate,
+            settlementAmount: settlement.SettlementAmount);
     }
 
     private WebhookProcessingResult HandlePaymentIntentFailed(Event stripeEvent)
@@ -610,33 +613,61 @@ public class StripePaymentProvider : PaymentProviderBase
     /// <summary>
     /// Converts a decimal amount to Stripe's smallest currency unit (e.g., cents).
     /// </summary>
-    private static long ConvertToStripeAmount(decimal amount, string currency)
-    {
-        if (ZeroDecimalCurrencies.Contains(currency))
-        {
-            return (long)Math.Round(amount);
-        }
-
-        // Standard currencies: multiply by 100
-        return (long)Math.Round(amount * 100);
-    }
+    private long ConvertToStripeAmount(decimal amount, string currency)
+        => _currencyService.ToMinorUnits(amount, currency);
 
     /// <summary>
     /// Converts Stripe's smallest currency unit back to decimal.
+    /// Uses USD as safe default if currency is null (handles 0/2/3 decimal currencies correctly).
     /// </summary>
-    private static decimal ConvertFromStripeAmount(long amount, string? currency)
+    private decimal ConvertFromStripeAmount(long amount, string? currency)
+        => _currencyService.FromMinorUnits(amount, currency ?? "USD");
+
+    private async Task<(string? SettlementCurrency, decimal? SettlementExchangeRate, decimal? SettlementAmount)> TryGetSettlementInfoAsync(
+        string paymentIntentId,
+        CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(currency))
+        if (_client is null || string.IsNullOrWhiteSpace(paymentIntentId))
         {
-            return amount / 100m;
+            return default;
         }
 
-        if (ZeroDecimalCurrencies.Contains(currency))
+        try
         {
-            return amount;
-        }
+            var paymentIntentService = new PaymentIntentService(_client);
+            var paymentIntent = await paymentIntentService.GetAsync(paymentIntentId, cancellationToken: cancellationToken);
 
-        return amount / 100m;
+            var chargeId = paymentIntent.LatestChargeId;
+
+            if (string.IsNullOrWhiteSpace(chargeId))
+            {
+                return default;
+            }
+
+            var chargeService = new ChargeService(_client);
+            var charge = await chargeService.GetAsync(chargeId, new ChargeGetOptions
+            {
+                Expand = ["balance_transaction"]
+            }, cancellationToken: cancellationToken);
+
+            var balance = charge.BalanceTransaction;
+            if (balance == null)
+            {
+                return default;
+            }
+
+            var settlementCurrency = balance.Currency;
+            var settlementExchangeRate = balance.ExchangeRate;
+            var settlementAmount = !string.IsNullOrWhiteSpace(balance.Currency)
+                ? _currencyService.FromMinorUnits(balance.Net, balance.Currency)
+                : (decimal?)null;
+
+            return (settlementCurrency, settlementExchangeRate, settlementAmount);
+        }
+        catch
+        {
+            return default;
+        }
     }
 
     /// <summary>

@@ -59,6 +59,13 @@ Pluggable shipping provider system allowing third-party carriers (FedEx, UPS, DH
 - Providers with `RequiresFullAddress = true` can skip or return estimates
 - Enables cart-page shipping estimates before full checkout
 
+### Currency Conversion (External Providers)
+- External carrier APIs (FedEx, UPS, DHL) return rates in the carrier account's currency
+- **All external providers MUST convert rates** to `request.CurrencyCode` (basket currency)
+- Uses `IExchangeRateCache` for exchange rates and `ICurrencyService` for currency-aware rounding
+- If no exchange rate available, return error message (don't fail silently)
+- See [ShippingProviders-DevGuide.md](./ShippingProviders-DevGuide.md#currency-conversion-for-external-providers) for implementation pattern
+
 ## Provider Capabilities
 
 | Capability | Description |

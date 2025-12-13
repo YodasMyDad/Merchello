@@ -32,13 +32,13 @@ public class ReportingService(
             // Current period invoices
             var currentInvoices = await db.Invoices
                 .Where(i => !i.IsDeleted && i.DateCreated >= start && i.DateCreated <= end)
-                .Select(i => new InvoiceSummary(i.Id, i.SubTotal, i.DateCreated, i.BillingAddress.Email))
+                .Select(i => new InvoiceSummary(i.Id, i.SubTotalInStoreCurrency ?? i.SubTotal, i.DateCreated, i.BillingAddress.Email))
                 .ToListAsync(cancellationToken);
 
             // Comparison period invoices
             var comparisonInvoices = await db.Invoices
                 .Where(i => !i.IsDeleted && i.DateCreated >= comparisonStart && i.DateCreated <= comparisonEnd)
-                .Select(i => new InvoiceSummary(i.Id, i.SubTotal, i.DateCreated, i.BillingAddress.Email))
+                .Select(i => new InvoiceSummary(i.Id, i.SubTotalInStoreCurrency ?? i.SubTotal, i.DateCreated, i.BillingAddress.Email))
                 .ToListAsync(cancellationToken);
 
             // Current period orders fulfilled (Completed status)
@@ -135,12 +135,12 @@ public class ReportingService(
             // Fetch raw data first (SQLite doesn't support GroupBy + Sum in SQL)
             var currentInvoices = await db.Invoices
                 .Where(i => !i.IsDeleted && i.DateCreated >= start && i.DateCreated <= end)
-                .Select(i => new { i.DateCreated, i.Total })
+                .Select(i => new { i.DateCreated, Total = i.TotalInStoreCurrency ?? i.Total })
                 .ToListAsync(cancellationToken);
 
             var comparisonInvoices = await db.Invoices
                 .Where(i => !i.IsDeleted && i.DateCreated >= comparisonStart && i.DateCreated <= comparisonEnd)
-                .Select(i => new { i.DateCreated, i.Total })
+                .Select(i => new { i.DateCreated, Total = i.TotalInStoreCurrency ?? i.Total })
                 .ToListAsync(cancellationToken);
 
             // Group and aggregate in memory
@@ -187,12 +187,12 @@ public class ReportingService(
             // Fetch raw data first (SQLite doesn't support GroupBy + Average in SQL)
             var currentInvoices = await db.Invoices
                 .Where(i => !i.IsDeleted && i.DateCreated >= start && i.DateCreated <= end)
-                .Select(i => new { i.DateCreated, i.Total })
+                .Select(i => new { i.DateCreated, Total = i.TotalInStoreCurrency ?? i.Total })
                 .ToListAsync(cancellationToken);
 
             var comparisonInvoices = await db.Invoices
                 .Where(i => !i.IsDeleted && i.DateCreated >= comparisonStart && i.DateCreated <= comparisonEnd)
-                .Select(i => new { i.DateCreated, i.Total })
+                .Select(i => new { i.DateCreated, Total = i.TotalInStoreCurrency ?? i.Total })
                 .ToListAsync(cancellationToken);
 
             // Group and calculate average in memory
@@ -286,20 +286,20 @@ public class ReportingService(
 
     private static BreakdownData CalculateBreakdown(List<Invoice> invoices)
     {
-        var grossSales = invoices.Sum(i => i.SubTotal);
-        var discounts = invoices.Sum(i => i.Discount);
-        var taxes = invoices.Sum(i => i.Tax);
+        var grossSales = invoices.Sum(i => i.SubTotalInStoreCurrency ?? i.SubTotal);
+        var discounts = invoices.Sum(i => i.DiscountInStoreCurrency ?? i.Discount);
+        var taxes = invoices.Sum(i => i.TaxInStoreCurrency ?? i.Tax);
 
         // Calculate shipping from Order.ShippingCost
         var shippingCharges = invoices
             .SelectMany(i => i.Orders ?? [])
-            .Sum(o => o.ShippingCost);
+            .Sum(o => o.ShippingCostInStoreCurrency ?? o.ShippingCost);
 
         // Calculate returns (refunds are negative amounts)
         var returns = invoices
             .SelectMany(i => i.Payments ?? [])
             .Where(p => p.PaymentType is PaymentType.Refund or PaymentType.PartialRefund)
-            .Sum(p => Math.Abs(p.Amount));
+            .Sum(p => Math.Abs(p.AmountInStoreCurrency ?? p.Amount));
 
         // Return fees are typically 0 unless you have a specific return fee model
         var returnFees = 0m;

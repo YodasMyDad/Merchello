@@ -220,6 +220,118 @@ The default `ShippingProviderBase` implementation calls `GetRatesAsync` and filt
 
 ---
 
+## Currency Conversion for External Providers
+
+External carrier APIs (FedEx, UPS, DHL, etc.) return rates in the carrier account's currency, which may differ from the customer's basket currency. **All live providers MUST convert rates to the request currency** for multi-currency stores to work correctly.
+
+### Required Dependencies
+
+Live shipping providers need these dependencies for currency conversion:
+
+```csharp
+public class MyCarrierProvider(
+    IOptions<MerchelloSettings> settings,
+    IExchangeRateCache exchangeRateCache,
+    ICurrencyService currencyService) : ShippingProviderBase
+{
+    private readonly MerchelloSettings _settings = settings.Value;
+    private readonly IExchangeRateCache _exchangeRateCache = exchangeRateCache;
+    private readonly ICurrencyService _currencyService = currencyService;
+    // ...
+}
+```
+
+### Currency Conversion Pattern
+
+In `GetRatesAsync`, after fetching rates from the carrier API:
+
+```csharp
+public override async Task<ShippingRateQuote?> GetRatesAsync(
+    ShippingQuoteRequest request,
+    CancellationToken cancellationToken = default)
+{
+    // Determine request currency (basket currency or store default)
+    var requestCurrency = request.CurrencyCode ?? _settings.StoreCurrencyCode;
+    var errors = new List<string>();
+
+    // ... fetch rates from carrier API ...
+    var response = await _carrierClient.GetRatesAsync(/* ... */);
+
+    // Determine carrier response currency
+    var carrierCurrency = response.Currency ?? "USD";
+
+    // Get exchange rate if carrier currency differs from request currency
+    decimal? carrierToRequestRate = null;
+    if (!string.Equals(carrierCurrency, requestCurrency, StringComparison.OrdinalIgnoreCase))
+    {
+        carrierToRequestRate = await _exchangeRateCache.GetRateAsync(
+            carrierCurrency, requestCurrency, cancellationToken);
+
+        if (!carrierToRequestRate.HasValue || carrierToRequestRate.Value <= 0m)
+        {
+            errors.Add($"No exchange rate available to convert from {carrierCurrency} to {requestCurrency}.");
+        }
+    }
+
+    // Build service levels with converted costs
+    foreach (var rate in response.Rates)
+    {
+        var totalCost = rate.TotalCost;
+        var displayCurrency = requestCurrency;
+
+        // Convert to request currency if rate available
+        if (carrierToRequestRate.HasValue)
+        {
+            totalCost = _currencyService.Round(totalCost * carrierToRequestRate.Value, requestCurrency);
+        }
+        else if (!string.Equals(carrierCurrency, requestCurrency, StringComparison.OrdinalIgnoreCase))
+        {
+            // No exchange rate - use carrier currency as-is
+            displayCurrency = carrierCurrency;
+        }
+
+        serviceLevels.Add(new ShippingServiceLevel
+        {
+            TotalCost = totalCost,
+            CurrencyCode = displayCurrency,
+            // ... other properties
+        });
+    }
+
+    return new ShippingRateQuote
+    {
+        ServiceLevels = serviceLevels,
+        Errors = errors
+    };
+}
+```
+
+### Key Points
+
+| Aspect | Guidance |
+|--------|----------|
+| **Exchange rate source** | Use `IExchangeRateCache.GetRateAsync()` - it handles caching and cross-rate calculations |
+| **Rounding** | Always use `ICurrencyService.Round()` - handles 0, 2, and 3-decimal currencies correctly |
+| **Missing rate** | Add error to list but don't crash - return rates in original currency as fallback |
+| **Same currency** | Skip conversion entirely when carrier currency matches request currency |
+
+### Markup with Currency Conversion
+
+When applying markup after currency conversion, use `ICurrencyService.Round()`:
+
+```csharp
+// In GetRatesForServicesAsync
+if (markup > 0)
+{
+    totalCost = sl.TotalCost * (1 + markup / 100m);
+    totalCost = _currencyService.Round(totalCost, sl.CurrencyCode);
+}
+```
+
+> **Important:** This is critical for multi-currency stores. Without currency conversion, customers in different currencies will see incorrect shipping costs.
+
+---
+
 ## Example 1: FedEx (Real-Time Rates)
 
 ```csharp
@@ -1016,6 +1128,7 @@ return new ShippingServiceLevel
 - Weight should be in kilograms, dimensions in centimeters
 - Always check `IsAvailableFor` before making expensive API calls
 - Override `GetRatesForServicesAsync` for efficient per-service filtering with markup support
+- **External providers must convert rates to request currency** using `IExchangeRateCache` and `ICurrencyService` (see "Currency Conversion for External Providers" section)
 
 
 

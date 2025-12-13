@@ -6,6 +6,12 @@ namespace Merchello.Core.Accounting.Dtos;
 /// </summary>
 public class PreviewEditResultDto
 {
+    public string CurrencyCode { get; set; } = string.Empty;
+    public string CurrencySymbol { get; set; } = string.Empty;
+    public string StoreCurrencyCode { get; set; } = string.Empty;
+    public string StoreCurrencySymbol { get; set; } = string.Empty;
+    public decimal? PricingExchangeRate { get; set; }
+
     /// <summary>
     /// Subtotal before discounts (products + custom items)
     /// </summary>
@@ -35,6 +41,7 @@ public class PreviewEditResultDto
     /// Grand total (AdjustedSubTotal + Tax + ShippingTotal)
     /// </summary>
     public decimal Total { get; set; }
+    public decimal? TotalInStoreCurrency { get; set; }
 
     /// <summary>
     /// Per-line-item calculated totals for display

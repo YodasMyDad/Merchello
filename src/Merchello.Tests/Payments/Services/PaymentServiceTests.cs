@@ -6,6 +6,7 @@ using Merchello.Core.Payments.Services;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -33,7 +34,7 @@ public class PaymentServiceTests
     }
 
     private PaymentService CreateService() =>
-        new(_providerManagerMock.Object, _scopeProviderMock.Object, _settingsMock.Object, _loggerMock.Object);
+        new(_providerManagerMock.Object, _scopeProviderMock.Object, new CurrencyService(_settingsMock.Object), _settingsMock.Object, _loggerMock.Object);
 
     #region ProcessRefundAsync Tests
 
@@ -292,16 +293,16 @@ public class PaymentServiceTests
             .Returns(scopeMock.Object);
     }
 
-    private void SetupScopeForStatusCalculation(Guid invoiceId, decimal invoiceTotal, List<Payment> payments)
+    private void SetupScopeForStatusCalculation(Guid invoiceId, decimal invoiceTotal, List<Payment> payments, string currencyCode = "USD")
     {
         var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
 
-        // GetInvoicePaymentStatusAsync returns a tuple of (InvoiceTotal, Payments)
-        var statusInfo = (InvoiceTotal: invoiceTotal, Payments: payments);
+        // GetInvoicePaymentStatusAsync returns a tuple of (InvoiceTotal, CurrencyCode, Payments)
+        var statusInfo = (InvoiceTotal: invoiceTotal, CurrencyCode: currencyCode, Payments: payments);
 
         scopeMock
             .Setup(s => s.ExecuteWithContextAsync(
-                It.IsAny<Func<MerchelloDbContext, Task<(decimal InvoiceTotal, List<Payment> Payments)>>>()))
+                It.IsAny<Func<MerchelloDbContext, Task<(decimal InvoiceTotal, string CurrencyCode, List<Payment> Payments)>>>()))
             .ReturnsAsync(statusInfo);
 
         scopeMock.Setup(s => s.Complete());

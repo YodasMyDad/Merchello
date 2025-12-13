@@ -21,9 +21,9 @@ public class ProductDbMapping : IEntityTypeConfiguration<Product>
 
         builder.Property(x => x.Name).HasMaxLength(500).IsRequired();
 
-        builder.Property(x => x.CostOfGoods).IsRequired().HasPrecision(18, 2);
-        builder.Property(x => x.Price).IsRequired().HasPrecision(18, 2);
-        builder.Property(x => x.PreviousPrice).HasPrecision(18, 2);
+        builder.Property(x => x.CostOfGoods).IsRequired().HasPrecision(18, 4);
+        builder.Property(x => x.Price).IsRequired().HasPrecision(18, 4);
+        builder.Property(x => x.PreviousPrice).HasPrecision(18, 4);
 
         builder.Property(x => x.AvailableForPurchase).IsRequired();
         builder.Property(x => x.CanPurchase).IsRequired();
