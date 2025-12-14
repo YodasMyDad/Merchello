@@ -1,4 +1,4 @@
-﻿using Merchello.Core.Shared.Services;
+﻿using Merchello.Core.Shared.Services.Interfaces;
 
 namespace Merchello.Core.Shared.Extensions;
 

@@ -1,8 +1,8 @@
 using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Products.Models;
-using Merchello.Core.ExchangeRates.Services;
+using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Shared.Models;
-using Merchello.Core.Shared.Services;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.Extensions.Logging;

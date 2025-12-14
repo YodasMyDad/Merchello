@@ -1,5 +1,6 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
+using Merchello.Core.Payments.Factories;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Services.Interfaces;
@@ -7,6 +8,7 @@ using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shared.Services;
+using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -20,6 +22,7 @@ namespace Merchello.Core.Payments.Services;
 public class PaymentService(
     IPaymentProviderManager providerManager,
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    PaymentFactory paymentFactory,
     ICurrencyService currencyService,
     IOptions<MerchelloSettings> settings,
     ILogger<PaymentService> logger) : IPaymentService
@@ -215,28 +218,20 @@ public class PaymentService(
                 return;
             }
 
-            var payment = new Payment
-            {
-                InvoiceId = parameters.InvoiceId,
-                Amount = parameters.Amount,
-                CurrencyCode = invoice.CurrencyCode ?? _settings.StoreCurrencyCode,
-                AmountInStoreCurrency = string.Equals(invoice.CurrencyCode, invoice.StoreCurrencyCode, StringComparison.OrdinalIgnoreCase)
-                    ? parameters.Amount
-                    : (invoice.PricingExchangeRate.HasValue
-                        ? _currencyService.Round(parameters.Amount * invoice.PricingExchangeRate.Value, invoice.StoreCurrencyCode)
-                        : null),
-                SettlementCurrencyCode = parameters.SettlementCurrencyCode,
-                SettlementExchangeRate = parameters.SettlementExchangeRate,
-                SettlementAmount = parameters.SettlementAmount,
-                SettlementExchangeRateSource = parameters.SettlementExchangeRateSource ?? parameters.ProviderAlias,
-                PaymentProviderAlias = parameters.ProviderAlias,
-                PaymentType = PaymentType.Payment,
-                TransactionId = parameters.TransactionId,
-                Description = parameters.Description,
-                FraudResponse = parameters.FraudResponse,
-                PaymentSuccess = true,
-                DateCreated = DateTime.UtcNow
-            };
+            var payment = paymentFactory.CreatePayment(
+                invoiceId: parameters.InvoiceId,
+                amount: parameters.Amount,
+                currencyCode: invoice.CurrencyCode,
+                storeCurrencyCode: invoice.StoreCurrencyCode,
+                pricingExchangeRate: invoice.PricingExchangeRate,
+                providerAlias: parameters.ProviderAlias,
+                transactionId: parameters.TransactionId,
+                description: parameters.Description,
+                fraudResponse: parameters.FraudResponse,
+                settlementCurrencyCode: parameters.SettlementCurrencyCode,
+                settlementExchangeRate: parameters.SettlementExchangeRate,
+                settlementAmount: parameters.SettlementAmount,
+                settlementExchangeRateSource: parameters.SettlementExchangeRateSource);
 
             db.Payments.Add(payment);
             await db.SaveChangesAsync(cancellationToken);
@@ -413,27 +408,16 @@ public class PaymentService(
 
             var invoiceCurrency = invoice?.CurrencyCode ?? originalPayment.CurrencyCode;
             var storeCurrency = invoice?.StoreCurrencyCode ?? _settings.StoreCurrencyCode;
-            decimal? refundAmountInStoreCurrency = string.Equals(invoiceCurrency, storeCurrency, StringComparison.OrdinalIgnoreCase)
-                ? -refundAmount
-                : (invoice?.PricingExchangeRate.HasValue == true
-                    ? _currencyService.Round(-refundAmount * invoice.PricingExchangeRate.Value, storeCurrency)
-                    : null);
 
-            var refundPayment = new Payment
-            {
-                InvoiceId = originalPayment.InvoiceId,
-                Amount = -refundAmount, // Negative amount for refund
-                CurrencyCode = invoiceCurrency,
-                AmountInStoreCurrency = refundAmountInStoreCurrency,
-                PaymentProviderAlias = originalPayment.PaymentProviderAlias,
-                PaymentType = isPartialRefund ? PaymentType.PartialRefund : PaymentType.Refund,
-                TransactionId = refundResult.RefundTransactionId,
-                RefundReason = reason,
-                ParentPaymentId = paymentId,
-                PaymentSuccess = true,
-                Description = $"Refund for payment {originalPayment.TransactionId}",
-                DateCreated = DateTime.UtcNow
-            };
+            var refundPayment = paymentFactory.CreateRefund(
+                originalPayment: originalPayment,
+                refundAmount: refundAmount,
+                reason: reason,
+                transactionId: refundResult.RefundTransactionId!,
+                currencyCode: invoiceCurrency,
+                storeCurrencyCode: storeCurrency,
+                pricingExchangeRate: invoice?.PricingExchangeRate,
+                isPartialRefund: isPartialRefund);
 
             db.Payments.Add(refundPayment);
             await db.SaveChangesAsync(cancellationToken);
@@ -588,6 +572,90 @@ public class PaymentService(
     }
 
     /// <inheritdoc />
+    public PaymentStatusDetails CalculatePaymentStatus(
+        IEnumerable<Payment> payments,
+        decimal invoiceTotal,
+        string currencyCode,
+        decimal? invoiceTotalInStoreCurrency,
+        string storeCurrencyCode)
+    {
+        var paymentList = payments.ToList();
+
+        // Calculate totals in invoice currency - only count successful payments
+        var totalPaid = paymentList
+            .Where(p => p.PaymentSuccess && p.PaymentType == PaymentType.Payment)
+            .Sum(p => p.Amount);
+
+        var totalRefunded = paymentList
+            .Where(p => p.PaymentSuccess &&
+                  (p.PaymentType == PaymentType.Refund || p.PaymentType == PaymentType.PartialRefund))
+            .Sum(p => Math.Abs(p.Amount));
+
+        // Round to avoid floating-point precision issues using currency-aware rounding
+        totalPaid = _currencyService.Round(totalPaid, currencyCode);
+        totalRefunded = _currencyService.Round(totalRefunded, currencyCode);
+        invoiceTotal = _currencyService.Round(invoiceTotal, currencyCode);
+
+        var netPayment = totalPaid - totalRefunded;
+        var balanceDue = Math.Max(0, invoiceTotal - netPayment);
+
+        // Calculate store currency totals
+        var storeTotalPaid = paymentList
+            .Where(p => p.PaymentSuccess && p.PaymentType == PaymentType.Payment)
+            .Sum(p => p.AmountInStoreCurrency ?? p.Amount);
+
+        var storeTotalRefunded = paymentList
+            .Where(p => p.PaymentSuccess &&
+                  (p.PaymentType == PaymentType.Refund || p.PaymentType == PaymentType.PartialRefund))
+            .Sum(p => Math.Abs(p.AmountInStoreCurrency ?? p.Amount));
+
+        storeTotalPaid = _currencyService.Round(storeTotalPaid, storeCurrencyCode);
+        storeTotalRefunded = _currencyService.Round(storeTotalRefunded, storeCurrencyCode);
+
+        var storeNetPayment = storeTotalPaid - storeTotalRefunded;
+        var storeInvoiceTotal = invoiceTotalInStoreCurrency ?? invoiceTotal;
+        storeInvoiceTotal = _currencyService.Round(storeInvoiceTotal, storeCurrencyCode);
+        var storeBalanceDue = Math.Max(0, storeInvoiceTotal - storeNetPayment);
+
+        // Determine status (based on invoice currency, not store currency)
+        InvoicePaymentStatus status;
+        if (totalRefunded > 0 && netPayment <= 0)
+        {
+            status = InvoicePaymentStatus.Refunded;
+        }
+        else if (totalRefunded > 0 && netPayment < totalPaid)
+        {
+            status = InvoicePaymentStatus.PartiallyRefunded;
+        }
+        else if (netPayment >= invoiceTotal)
+        {
+            status = InvoicePaymentStatus.Paid;
+        }
+        else if (netPayment > 0)
+        {
+            status = InvoicePaymentStatus.PartiallyPaid;
+        }
+        else
+        {
+            status = InvoicePaymentStatus.Unpaid;
+        }
+
+        return new PaymentStatusDetails
+        {
+            Status = status,
+            StatusDisplay = PaymentStatusDetails.GetStatusDisplay(status),
+            TotalPaid = totalPaid,
+            TotalRefunded = totalRefunded,
+            NetPayment = netPayment,
+            BalanceDue = balanceDue,
+            TotalPaidInStoreCurrency = storeTotalPaid,
+            TotalRefundedInStoreCurrency = storeTotalRefunded,
+            NetPaymentInStoreCurrency = storeNetPayment,
+            BalanceDueInStoreCurrency = storeBalanceDue
+        };
+    }
+
+    /// <inheritdoc />
     public async Task<CrudResult<Payment>> RecordManualPaymentAsync(
         RecordManualPaymentParameters parameters,
         CancellationToken cancellationToken = default)
@@ -620,24 +688,14 @@ public class PaymentService(
                 return;
             }
 
-            var payment = new Payment
-            {
-                InvoiceId = parameters.InvoiceId,
-                Amount = parameters.Amount,
-                CurrencyCode = invoice.CurrencyCode,
-                AmountInStoreCurrency = string.Equals(invoice.CurrencyCode, invoice.StoreCurrencyCode, StringComparison.OrdinalIgnoreCase)
-                    ? parameters.Amount
-                    : (invoice.PricingExchangeRate.HasValue
-                        ? _currencyService.Round(parameters.Amount * invoice.PricingExchangeRate.Value, invoice.StoreCurrencyCode)
-                        : null),
-                PaymentMethod = parameters.PaymentMethod,
-                PaymentProviderAlias = "manual",
-                PaymentType = PaymentType.Payment,
-                TransactionId = $"MANUAL-{Guid.NewGuid():N}".ToUpperInvariant(),
-                Description = parameters.Description ?? "Manual payment: " + parameters.PaymentMethod,
-                PaymentSuccess = true,
-                DateCreated = DateTime.UtcNow
-            };
+            var payment = paymentFactory.CreateManualPayment(
+                invoiceId: parameters.InvoiceId,
+                amount: parameters.Amount,
+                currencyCode: invoice.CurrencyCode,
+                storeCurrencyCode: invoice.StoreCurrencyCode,
+                pricingExchangeRate: invoice.PricingExchangeRate,
+                paymentMethod: parameters.PaymentMethod,
+                description: parameters.Description);
 
             db.Payments.Add(payment);
             await db.SaveChangesAsync(cancellationToken);
@@ -720,28 +778,15 @@ public class PaymentService(
 
             var invoiceCurrency = invoice?.CurrencyCode ?? originalPayment.CurrencyCode;
             var storeCurrency = invoice?.StoreCurrencyCode ?? _settings.StoreCurrencyCode;
-            decimal? refundAmountInStoreCurrency = string.Equals(invoiceCurrency, storeCurrency, StringComparison.OrdinalIgnoreCase)
-                ? -amount
-                : (invoice?.PricingExchangeRate.HasValue == true
-                    ? _currencyService.Round(-amount * invoice.PricingExchangeRate.Value, storeCurrency)
-                    : null);
 
-            var refundPayment = new Payment
-            {
-                InvoiceId = originalPayment.InvoiceId,
-                Amount = -amount, // Negative for refund
-                CurrencyCode = invoiceCurrency,
-                AmountInStoreCurrency = refundAmountInStoreCurrency,
-                PaymentMethod = originalPayment.PaymentMethod,
-                PaymentProviderAlias = originalPayment.PaymentProviderAlias,
-                PaymentType = isPartialRefund ? PaymentType.PartialRefund : PaymentType.Refund,
-                TransactionId = $"REFUND-{Guid.NewGuid():N}".ToUpperInvariant(),
-                RefundReason = reason,
-                ParentPaymentId = paymentId,
-                PaymentSuccess = true,
-                Description = $"Manual refund for payment {originalPayment.TransactionId}",
-                DateCreated = DateTime.UtcNow
-            };
+            var refundPayment = paymentFactory.CreateManualRefund(
+                originalPayment: originalPayment,
+                refundAmount: amount,
+                reason: reason,
+                currencyCode: invoiceCurrency,
+                storeCurrencyCode: storeCurrency,
+                pricingExchangeRate: invoice?.PricingExchangeRate,
+                isPartialRefund: isPartialRefund);
 
             db.Payments.Add(refundPayment);
             await db.SaveChangesAsync(cancellationToken);

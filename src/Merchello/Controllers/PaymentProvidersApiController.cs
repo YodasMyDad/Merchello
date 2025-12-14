@@ -5,7 +5,7 @@ using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
-using Merchello.Core.Shared.Types;
+using Merchello.Core.Shared.Dtos;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;

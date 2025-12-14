@@ -16,8 +16,8 @@ import type {
   ProductOptionValueDto,
   ProductTypeDto,
   ProductPackageDto,
-  UpdateProductRootRequest,
-  CreateProductRootRequest,
+  UpdateProductRootDto,
+  CreateProductRootDto,
 } from "@products/types/product.types.js";
 import type { TaxGroupDto } from "@orders/types/order.types.js";
 import type { WarehouseDto } from "@shipping/types.js";
@@ -401,7 +401,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   }
 
   private async _createProduct(): Promise<void> {
-    const request: CreateProductRootRequest = {
+    const request: CreateProductRootDto = {
       rootName: this._formData.rootName || "",
       taxGroupId: this._formData.taxGroupId || "",
       productTypeId: this._formData.productTypeId || "",
@@ -435,7 +435,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   private async _updateProduct(): Promise<void> {
     if (!this._product?.id) return;
 
-    const request: UpdateProductRootRequest = {
+    const request: UpdateProductRootDto = {
       rootName: this._formData.rootName,
       rootImages: this._formData.rootImages,
       rootUrl: this._formData.rootUrl ?? undefined,

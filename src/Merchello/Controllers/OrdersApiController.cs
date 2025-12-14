@@ -4,9 +4,8 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Locality.Dtos;
-using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
-using Merchello.Core.Shared.Services;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
@@ -442,8 +441,14 @@ public class OrdersApiController(
         var orders = invoice.Orders?.ToList() ?? [];
         var payments = invoice.Payments?.ToList() ?? [];
 
-        // Use centralized payment status calculation from PaymentService
-        var paymentDetails = paymentService.CalculatePaymentStatus(payments, invoice.Total, invoice.CurrencyCode);
+        // Use centralized payment status calculation from PaymentService (includes store currency)
+        var paymentDetails = paymentService.CalculatePaymentStatus(
+            payments,
+            invoice.Total,
+            invoice.CurrencyCode,
+            invoice.TotalInStoreCurrency,
+            invoice.StoreCurrencyCode);
+
         var shippingCost = orders.Sum(o => o.ShippingCost);
         var shippingCostInStoreCurrency = orders.Sum(o => o.ShippingCostInStoreCurrency ?? o.ShippingCost);
 
@@ -452,18 +457,6 @@ public class OrdersApiController(
             .SelectMany(o => o.LineItems ?? [])
             .Where(li => li.LineItemType == LineItemType.Discount)
             .Sum(li => Math.Abs(li.Amount));
-
-        var storePaid = payments
-            .Where(p => p.PaymentSuccess && p.PaymentType == PaymentType.Payment)
-            .Sum(p => p.AmountInStoreCurrency ?? p.Amount);
-
-        var storeRefunded = payments
-            .Where(p => p.PaymentSuccess && p.PaymentType is PaymentType.Refund or PaymentType.PartialRefund)
-            .Sum(p => Math.Abs(p.AmountInStoreCurrency ?? p.Amount));
-
-        var storeNet = storePaid - storeRefunded;
-        var storeInvoiceTotal = invoice.TotalInStoreCurrency ?? invoice.Total;
-        var storeBalanceDue = Math.Max(0, storeInvoiceTotal - storeNet);
 
         return new OrderDetailDto
         {
@@ -491,8 +484,8 @@ public class OrdersApiController(
             TotalInStoreCurrency = invoice.TotalInStoreCurrency,
             AmountPaid = paymentDetails.NetPayment,
             BalanceDue = paymentDetails.BalanceDue,
-            AmountPaidInStoreCurrency = storeNet,
-            BalanceDueInStoreCurrency = storeBalanceDue,
+            AmountPaidInStoreCurrency = paymentDetails.NetPaymentInStoreCurrency,
+            BalanceDueInStoreCurrency = paymentDetails.BalanceDueInStoreCurrency,
             PaymentStatus = paymentDetails.Status,
             PaymentStatusDisplay = paymentDetails.StatusDisplay,
             FulfillmentStatus = GetFulfillmentStatus(orders),

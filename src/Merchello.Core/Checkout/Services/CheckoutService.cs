@@ -1,6 +1,8 @@
 using System.Text.Json;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Checkout.Services.Interfaces;
@@ -21,6 +23,8 @@ public class CheckoutService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IHttpContextAccessor httpContextAccessor,
     IShippingQuoteService shippingQuoteService,
+    BasketFactory basketFactory,
+    LineItemFactory lineItemFactory,
     IOptions<MerchelloSettings> settings,
     ILocationsService? locationsService = null) : ICheckoutService
 {
@@ -255,14 +259,10 @@ public class CheckoutService(
                 if (basket == null)
                 {
                     isNewBasket = true;
-                    basket = new Basket
-                    {
-                        CustomerId = parameters.CustomerId,
-                        Currency = _settings.StoreCurrencyCode,
-                        CurrencySymbol = _settings.CurrencySymbol,
-                        DateCreated = DateTime.UtcNow,
-                        DateUpdated = DateTime.UtcNow
-                    };
+                    basket = basketFactory.Create(
+                        parameters.CustomerId,
+                        _settings.StoreCurrencyCode,
+                        _settings.CurrencySymbol);
                     db.Baskets.Add(basket);
                 }
 
@@ -424,7 +424,7 @@ public class CheckoutService(
                         return false;
                     }
 
-                    var hasValid = Merchello.Core.Products.ExtensionMethods.ProductExtensionMethods
+                    var hasValid = Merchello.Core.Products.Extensions.ProductExtensionMethods
                         .GetShippingAmountForCountry(product, countryCode, r.RegionCode)
                         .HasValue;
 
@@ -445,15 +445,10 @@ public class CheckoutService(
     /// </summary>
     public Basket CreateBasket(string? currency = null, string? currencySymbol = null, Guid? customerId = null)
     {
-        return new Basket
-        {
-            Id = Shared.Extensions.GuidExtensions.NewSequentialGuid,
-            Currency = currency ?? _settings.StoreCurrencyCode,
-            CurrencySymbol = currencySymbol ?? _settings.CurrencySymbol,
-            CustomerId = customerId,
-            DateCreated = DateTime.UtcNow,
-            DateUpdated = DateTime.UtcNow
-        };
+        return basketFactory.Create(
+            customerId,
+            currency ?? _settings.StoreCurrencyCode,
+            currencySymbol ?? _settings.CurrencySymbol);
     }
 
     /// <summary>
@@ -461,21 +456,7 @@ public class CheckoutService(
     /// </summary>
     public LineItem CreateLineItem(Products.Models.Product product, int quantity = 1)
     {
-        // Get tax rate from the product's TaxGroup if available
-        var taxRate = product.ProductRoot?.TaxGroup?.TaxPercentage ?? 0m;
-
-        return new LineItem
-        {
-            Id = Shared.Extensions.GuidExtensions.NewSequentialGuid,
-            ProductId = product.Id,
-            Sku = product.Sku,
-            Name = product.Name,
-            Quantity = quantity,
-            Amount = product.Price,
-            IsTaxable = taxRate > 0,
-            TaxRate = taxRate,
-            LineItemType = LineItemType.Product
-        };
+        return lineItemFactory.CreateFromProduct(product, quantity);
     }
 
     private sealed class NoopLocationsService : ILocationsService

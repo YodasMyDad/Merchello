@@ -149,7 +149,7 @@ export interface DescriptionEditorSettingsDto {
 }
 
 // Request types
-export interface CreateProductRootRequest {
+export interface CreateProductRootDto {
   rootName: string;
   taxGroupId: string;
   productTypeId: string;
@@ -157,17 +157,17 @@ export interface CreateProductRootRequest {
   warehouseIds?: string[];
   rootImages?: string[];
   isDigitalProduct: boolean;
-  defaultVariant: CreateVariantRequest;
+  defaultVariant: CreateVariantDto;
 }
 
-export interface CreateVariantRequest {
+export interface CreateVariantDto {
   name?: string;
   sku?: string;
   price: number;
   costOfGoods: number;
 }
 
-export interface UpdateProductRootRequest {
+export interface UpdateProductRootDto {
   rootName?: string;
   rootImages?: string[];
   rootUrl?: string;
@@ -188,7 +188,7 @@ export interface UpdateProductRootRequest {
   defaultPackageConfigurations?: ProductPackageDto[];
 }
 
-export interface UpdateVariantRequest {
+export interface UpdateVariantDto {
   default?: boolean;
   name?: string;
   sku?: string;
@@ -211,17 +211,17 @@ export interface UpdateVariantRequest {
   shoppingFeedMaterial?: string;
   shoppingFeedSize?: string;
   removeFromFeed?: boolean;
-  warehouseStock?: UpdateWarehouseStockRequest[];
+  warehouseStock?: UpdateWarehouseStockDto[];
 }
 
-export interface UpdateWarehouseStockRequest {
+export interface UpdateWarehouseStockDto {
   warehouseId: string;
   stock?: number;
   reorderPoint?: number | null;
   trackStock?: boolean;
 }
 
-export interface SaveProductOptionRequest {
+export interface SaveProductOptionDto {
   id?: string;
   name: string;
   alias?: string;
@@ -229,10 +229,10 @@ export interface SaveProductOptionRequest {
   optionTypeAlias?: string;
   optionUiAlias?: string;
   isVariant: boolean;
-  values: SaveOptionValueRequest[];
+  values: SaveOptionValueDto[];
 }
 
-export interface SaveOptionValueRequest {
+export interface SaveOptionValueDto {
   id?: string;
   name: string;
   sortOrder: number;

@@ -2,7 +2,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Products.Models;
-using Merchello.Core.Products.ExtensionMethods;
+using Merchello.Core.Products.Extensions;
 using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;

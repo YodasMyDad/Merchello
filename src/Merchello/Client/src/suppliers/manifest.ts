@@ -20,7 +20,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Suppliers.ListView",
     name: "Merchello Suppliers List View",
-    js: () => import("./suppliers-list.element.js"),
+    js: () => import("./components/suppliers-list.element.js"),
     weight: 100,
     meta: {
       label: "Suppliers",

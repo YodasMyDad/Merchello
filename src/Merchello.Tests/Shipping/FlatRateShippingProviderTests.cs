@@ -1,6 +1,6 @@
 using Merchello.Core.ExchangeRates.Models;
-using Merchello.Core.ExchangeRates.Services;
-using Merchello.Core.Shared.Services;
+using Merchello.Core.ExchangeRates.Services.Interfaces;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Providers.BuiltIn;
 using Merchello.Core.Shared.Models;

@@ -6,7 +6,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
 import type { MerchelloProductDetailWorkspaceContext } from "@products/contexts/product-detail-workspace.context.js";
-import type { ProductRootDetailDto, ProductVariantDto, ProductPackageDto, UpdateVariantRequest } from "@products/types/product.types.js";
+import type { ProductRootDetailDto, ProductVariantDto, ProductPackageDto, UpdateVariantDto } from "@products/types/product.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { getProductDetailHref } from "@shared/utils/navigation.js";
@@ -120,7 +120,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     this._errorMessage = null;
 
     try {
-      const request: UpdateVariantRequest = {
+      const request: UpdateVariantDto = {
         name: this._formData.name ?? undefined,
         sku: this._formData.sku ?? undefined,
         gtin: this._formData.gtin ?? undefined,

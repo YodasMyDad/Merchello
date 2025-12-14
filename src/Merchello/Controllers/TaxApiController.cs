@@ -88,21 +88,14 @@ public class TaxApiController(ITaxService taxService) : MerchelloApiControllerBa
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateTaxGroup(Guid id, [FromBody] UpdateTaxGroupDto dto, CancellationToken ct)
     {
-        // First check if the tax group exists
-        var existing = await taxService.GetTaxGroup(id, ct);
-        if (existing == null)
-        {
-            return NotFound("Tax group not found.");
-        }
+        var result = await taxService.UpdateTaxGroup(id, dto.Name, dto.TaxPercentage, ct);
 
-        // Update the properties
-        existing.Name = dto.Name;
-        existing.TaxPercentage = dto.TaxPercentage;
-
-        var result = await taxService.UpdateTaxGroup(existing, ct);
         if (!result.Successful)
         {
-            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to update tax group.");
+            var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to update tax group.";
+            return message.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                ? NotFound(message)
+                : BadRequest(message);
         }
 
         var taxGroup = result.ResultObject!;

@@ -2,6 +2,7 @@ using System.Reflection;
 using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies;
@@ -14,6 +15,7 @@ using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Caching.Models;
 using Merchello.Core.Shared.Reflection;
 using Merchello.Core.Caching.Services;
@@ -21,6 +23,7 @@ using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Providers;
 using Merchello.Core.ExchangeRates.Services;
+using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Services;
@@ -30,6 +33,7 @@ using Merchello.Core.Notifications.Handlers;
 using Merchello.Core.Notifications.Order;
 using Merchello.Core.Notifications.Payment;
 using Merchello.Core.Notifications.Shipment;
+using Merchello.Core.Payments.Factories;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Services;
 using Merchello.Core.Payments.Services.Interfaces;
@@ -54,10 +58,14 @@ namespace Merchello.Core;
 public static class Startup
 {
     /// <summary>
-    /// Adds Merchello services to the Umbraco builder
+    /// Adds Merchello services to the Umbraco builder.
     /// </summary>
     public static IUmbracoBuilder AddMerch(this IUmbracoBuilder builder, IEnumerable<Assembly>? pluginAssemblies = null)
     {
+        // =====================================================
+        // Database & Configuration
+        // =====================================================
+
         // Register MerchelloDbContext with Umbraco's database provider (automatically uses same DB as Umbraco)
         // TODO: Update to new overload when upgrading to Umbraco 18
 #pragma warning disable CS0618 // Type or member is obsolete
@@ -67,31 +75,39 @@ public static class Startup
         });
 #pragma warning restore CS0618
 
-        // Configure Merchello settings
         builder.Services.Configure<MerchelloSettings>(builder.Config.GetSection("Merchello"));
         builder.Services.Configure<CacheOptions>(builder.Config.GetSection("Merchello:Cache"));
         builder.Services.Configure<ExchangeRateOptions>(builder.Config.GetSection("Merchello:ExchangeRates"));
 
-        // Caching
+        // =====================================================
+        // Infrastructure (Singletons)
+        // =====================================================
+
         builder.Services.AddMemoryCache();
         builder.Services.AddHybridCache();
-
-        builder.Services.AddSingleton<ICacheService, CacheService>();
-        builder.Services.AddScoped<ExtensionManager>();
-        builder.Services.AddSingleton<SlugHelper>();
-        builder.Services.AddScoped<ICurrencyService, CurrencyService>();
-
-        // Exchange rates
-        builder.Services.AddScoped<IExchangeRateProviderManager, ExchangeRateProviderManager>();
-        builder.Services.AddScoped<IExchangeRateCache, ExchangeRateCache>();
-        builder.Services.AddHostedService<ExchangeRateRefreshJob>();
-
-        // Register IHttpClientFactory for use by shipping/payment provider plugins
-        // Plugins can use CreateClient() or CreateClient("name") without pre-registration
         builder.Services.AddHttpClient();
 
-        // Factories
-        builder.Services.AddSingleton<TaxGroupFactory>();
+        builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+        builder.Services.AddSingleton<ICacheService, CacheService>();
+        builder.Services.AddSingleton<ICurrencyService, CurrencyService>();
+        builder.Services.AddSingleton<ILocalityCatalog, DefaultLocalityCatalog>();
+        builder.Services.AddSingleton<ILocalityCacheInvalidator, LocalityCacheInvalidator>();
+        builder.Services.AddSingleton<SlugHelper>();
+
+        // =====================================================
+        // Factories (Singletons - stateless object creators)
+        // =====================================================
+
+        // Checkout & Orders
+        builder.Services.AddSingleton<AddressFactory>();
+        builder.Services.AddSingleton<BasketFactory>();
+        builder.Services.AddSingleton<InvoiceFactory>();
+        builder.Services.AddSingleton<LineItemFactory>();
+        builder.Services.AddSingleton<OrderFactory>();
+        builder.Services.AddSingleton<PaymentFactory>();
+        builder.Services.AddSingleton<ShipmentFactory>();
+
+        // Products
         builder.Services.AddSingleton<ProductRootFactory>();
         builder.Services.AddSingleton<ProductFactory>();
         builder.Services.AddSingleton<ProductTypeFactory>();
@@ -99,66 +115,89 @@ public static class Startup
         builder.Services.AddSingleton<ProductFilterGroupFactory>();
         builder.Services.AddSingleton<ProductFilterFactory>();
         builder.Services.AddSingleton<ProductOptionFactory>();
+
+        // Other
         builder.Services.AddSingleton<ShippingOptionFactory>();
         builder.Services.AddSingleton<SupplierFactory>();
+        builder.Services.AddSingleton<TaxGroupFactory>();
         builder.Services.AddSingleton<WarehouseFactory>();
-        builder.Services.AddSingleton<LineItemFactory>();
-        builder.Services.AddSingleton<AddressFactory>();
 
-        // Database seeding
-        builder.Services.AddScoped<DbSeeder>();
+        // =====================================================
+        // Services (Scoped - use DbContext)
+        // =====================================================
 
-        // Services
-        builder.Services.AddScoped<ILineItemService, LineItemService>();
+        // Checkout & Orders
         builder.Services.AddScoped<ICheckoutService, CheckoutService>();
         builder.Services.AddScoped<IInvoiceService, InvoiceService>();
-        builder.Services.AddScoped<IInventoryService, InventoryService>();
+        builder.Services.AddScoped<ILineItemService, LineItemService>();
         builder.Services.AddScoped<IOrderStatusHandler, DefaultOrderStatusHandler>();
-        builder.Services.AddScoped<IShippingQuoteService, ShippingQuoteService>();
-        builder.Services.AddScoped<IShippingProviderManager, ShippingProviderManager>();
-        builder.Services.AddScoped<IShippingService, ShippingService>();
-        builder.Services.AddScoped<IShippingOptionService, ShippingOptionService>();
-        builder.Services.AddScoped<IWarehouseService, WarehouseService>();
-        builder.Services.AddScoped<ISupplierService, SupplierService>();
-        builder.Services.AddScoped<ILocationsService, LocationsService>();
-        builder.Services.AddSingleton<ILocalityCatalog, DefaultLocalityCatalog>();
-        builder.Services.AddSingleton<ILocalityCacheInvalidator, LocalityCacheInvalidator>();
-        builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
-        builder.Services.AddScoped<IProductService, ProductService>();
-        builder.Services.AddScoped<ITaxService, TaxService>();
-        builder.Services.AddScoped<IReportingService, ReportingService>();
-
-        // Payment services
-        builder.Services.AddScoped<IPaymentProviderManager, PaymentProviderManager>();
-        builder.Services.AddScoped<IPaymentService, PaymentService>();
-
-        // Order grouping strategy
         builder.Services.AddScoped<IOrderGroupingStrategyResolver, OrderGroupingStrategyResolver>();
         builder.Services.AddScoped<DefaultOrderGroupingStrategy>();
 
-        // Notification publisher
+        // Products & Inventory
+        builder.Services.AddScoped<IProductService, ProductService>();
+        builder.Services.AddScoped<IInventoryService, InventoryService>();
+
+        // Payments
+        builder.Services.AddScoped<IPaymentProviderManager, PaymentProviderManager>();
+        builder.Services.AddScoped<IPaymentService, PaymentService>();
+
+        // Shipping
+        builder.Services.AddScoped<IShippingProviderManager, ShippingProviderManager>();
+        builder.Services.AddScoped<IShippingQuoteService, ShippingQuoteService>();
+        builder.Services.AddScoped<IShippingService, ShippingService>();
+        builder.Services.AddScoped<IShippingOptionService, ShippingOptionService>();
+
+        // Tax
+        builder.Services.AddScoped<ITaxService, TaxService>();
+
+        // Warehouses & Suppliers
+        builder.Services.AddScoped<IWarehouseService, WarehouseService>();
+        builder.Services.AddScoped<ISupplierService, SupplierService>();
+
+        // Locality & Locations
+        builder.Services.AddScoped<ILocationsService, LocationsService>();
+
+        // Exchange Rates
+        builder.Services.AddScoped<IExchangeRateProviderManager, ExchangeRateProviderManager>();
+        builder.Services.AddScoped<IExchangeRateCache, ExchangeRateCache>();
+
+        // Reporting
+        builder.Services.AddScoped<IReportingService, ReportingService>();
+
+        // Other Scoped
+        builder.Services.AddScoped<DbSeeder>();
+        builder.Services.AddScoped<ExtensionManager>();
         builder.Services.AddScoped<IMerchelloNotificationPublisher, MerchelloNotificationPublisher>();
 
-        // Internal notification handlers for invoice timeline (dogfooding)
+        // =====================================================
+        // Background Services
+        // =====================================================
+
+        builder.Services.AddHostedService<ExchangeRateRefreshJob>();
+
+        // =====================================================
+        // Notification Handlers
+        // =====================================================
+
         builder.AddNotificationAsyncHandler<OrderStatusChangedNotification, InvoiceTimelineHandler>();
         builder.AddNotificationAsyncHandler<ShipmentCreatedNotification, InvoiceTimelineHandler>();
         builder.AddNotificationAsyncHandler<PaymentCreatedNotification, InvoiceTimelineHandler>();
         builder.AddNotificationAsyncHandler<PaymentRefundedNotification, InvoiceTimelineHandler>();
 
-        // Plugin assemblies for extension scanning
-        // Start with explicitly passed assemblies
+        // =====================================================
+        // Plugin Assembly Discovery
+        // =====================================================
+
         List<Assembly> assembliesToScan = (pluginAssemblies ?? [])
             .Distinct()
             .ToList();
 
-        // Always include Merchello.Core assembly
         assembliesToScan.Add(typeof(Startup).Assembly);
 
-        // Auto-discover assemblies containing IPaymentProvider or IShippingProvider implementations
         var providerAssemblies = DiscoverProviderAssemblies();
         assembliesToScan.AddRange(providerAssemblies);
 
-        // Remove duplicates and set assemblies for scanning
         AssemblyManager.SetAssemblies(assembliesToScan.Distinct().ToArray());
 
         return builder;

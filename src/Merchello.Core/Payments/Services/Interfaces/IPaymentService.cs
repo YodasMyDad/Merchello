@@ -107,6 +107,24 @@ public interface IPaymentService
     PaymentStatusDetails CalculatePaymentStatus(IEnumerable<Payment> payments, decimal invoiceTotal, string currencyCode);
 
     /// <summary>
+    /// Calculate payment status details from a list of payments, including store currency calculations.
+    /// This is the single source of truth for payment status calculations in multi-currency scenarios.
+    /// Use this when you need both invoice currency and store currency totals.
+    /// </summary>
+    /// <param name="payments">The payments for the invoice.</param>
+    /// <param name="invoiceTotal">The invoice total amount in invoice currency.</param>
+    /// <param name="currencyCode">The invoice currency code for proper rounding.</param>
+    /// <param name="invoiceTotalInStoreCurrency">The invoice total in store currency (null if same as invoice currency).</param>
+    /// <param name="storeCurrencyCode">The store currency code.</param>
+    /// <returns>Full payment status details including totals and balance in both currencies.</returns>
+    PaymentStatusDetails CalculatePaymentStatus(
+        IEnumerable<Payment> payments,
+        decimal invoiceTotal,
+        string currencyCode,
+        decimal? invoiceTotalInStoreCurrency,
+        string storeCurrencyCode);
+
+    /// <summary>
     /// Record a manual/offline payment (for backoffice use).
     /// </summary>
     /// <param name="parameters">The manual payment parameters.</param>

@@ -37,6 +37,26 @@ public record PaymentStatusDetails
     public decimal BalanceDue { get; init; }
 
     /// <summary>
+    /// Total amount paid in store currency (for multi-currency orders).
+    /// </summary>
+    public decimal? TotalPaidInStoreCurrency { get; init; }
+
+    /// <summary>
+    /// Total amount refunded in store currency.
+    /// </summary>
+    public decimal? TotalRefundedInStoreCurrency { get; init; }
+
+    /// <summary>
+    /// Net payment amount in store currency.
+    /// </summary>
+    public decimal? NetPaymentInStoreCurrency { get; init; }
+
+    /// <summary>
+    /// Remaining balance due in store currency.
+    /// </summary>
+    public decimal? BalanceDueInStoreCurrency { get; init; }
+
+    /// <summary>
     /// Gets the display text for a payment status.
     /// </summary>
     public static string GetStatusDisplay(InvoicePaymentStatus status) => status switch

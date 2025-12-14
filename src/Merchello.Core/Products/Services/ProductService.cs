@@ -7,7 +7,7 @@ using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
-using Merchello.Core.Products.ExtensionMethods;
+using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Mapping;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Warehouses.Models;
@@ -1255,7 +1255,7 @@ public class ProductService(
     /// <summary>
     /// Creates a new product root with a default variant
     /// </summary>
-    public async Task<CrudResult<ProductRoot>> CreateProductRoot(CreateProductRootRequest request, CancellationToken cancellationToken = default)
+    public async Task<CrudResult<ProductRoot>> CreateProductRoot(CreateProductRootDto request, CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<ProductRoot>();
         ProductRoot? productRoot = null;
@@ -1353,7 +1353,7 @@ public class ProductService(
     /// <summary>
     /// Updates an existing product root
     /// </summary>
-    public async Task<CrudResult<ProductRoot>> UpdateProductRoot(Guid productRootId, UpdateProductRootRequest request, CancellationToken cancellationToken = default)
+    public async Task<CrudResult<ProductRoot>> UpdateProductRoot(Guid productRootId, UpdateProductRootDto request, CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<ProductRoot>();
         ProductRoot? productRoot = null;
@@ -1540,7 +1540,7 @@ public class ProductService(
     /// <summary>
     /// Updates a specific variant
     /// </summary>
-    public async Task<CrudResult<Product>> UpdateVariant(Guid productRootId, Guid variantId, UpdateVariantRequest request, CancellationToken cancellationToken = default)
+    public async Task<CrudResult<Product>> UpdateVariant(Guid productRootId, Guid variantId, UpdateVariantDto request, CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<Product>();
         Product? variant = null;
@@ -1652,7 +1652,7 @@ public class ProductService(
     /// <summary>
     /// Saves product options (creates new, updates existing, deletes removed)
     /// </summary>
-    public async Task<CrudResult<List<ProductOption>>> SaveProductOptions(Guid productRootId, List<SaveProductOptionRequest> options, CancellationToken cancellationToken = default)
+    public async Task<CrudResult<List<ProductOption>>> SaveProductOptions(Guid productRootId, List<SaveProductOptionDto> options, CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<List<ProductOption>>();
         List<ProductOption> savedOptions = [];
@@ -1691,14 +1691,14 @@ public class ProductService(
                     if (option == null)
                     {
                         result.AddWarningMessage($"Option with ID {optionRequest.Id} not found, creating new");
-                        option = new ProductOption { Id = Guid.NewGuid() };
+                        option = productOptionFactory.CreateEmpty();
                         productRoot.ProductOptions.Add(option);
                     }
                 }
                 else
                 {
                     // Create new option
-                    option = new ProductOption { Id = Guid.NewGuid() };
+                    option = productOptionFactory.CreateEmpty();
                     productRoot.ProductOptions.Add(option);
                 }
 
@@ -1726,13 +1726,13 @@ public class ProductService(
                         value = option.ProductOptionValues.FirstOrDefault(v => v.Id == valueRequest.Id.Value)!;
                         if (value == null)
                         {
-                            value = new ProductOptionValue { Id = Guid.NewGuid() };
+                            value = productOptionFactory.CreateEmptyValue();
                             option.ProductOptionValues.Add(value);
                         }
                     }
                     else
                     {
-                        value = new ProductOptionValue { Id = Guid.NewGuid() };
+                        value = productOptionFactory.CreateEmptyValue();
                         option.ProductOptionValues.Add(value);
                     }
 

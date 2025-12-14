@@ -42,7 +42,7 @@ public class ProductsApiController(
     [HttpPost("products")]
     [ProducesResponseType<ProductRootDetailDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreateProduct([FromBody] CreateProductRootRequest request)
+    public async Task<IActionResult> CreateProduct([FromBody] CreateProductRootDto request)
     {
         var result = await productService.CreateProductRoot(request);
         if (!result.Successful)
@@ -61,7 +61,7 @@ public class ProductsApiController(
     [ProducesResponseType<ProductRootDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UpdateProduct(Guid id, [FromBody] UpdateProductRootRequest request)
+    public async Task<IActionResult> UpdateProduct(Guid id, [FromBody] UpdateProductRootDto request)
     {
         var result = await productService.UpdateProductRoot(id, request);
         if (!result.Successful)
@@ -122,7 +122,7 @@ public class ProductsApiController(
     [ProducesResponseType<ProductVariantDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UpdateVariant(Guid productRootId, Guid variantId, [FromBody] UpdateVariantRequest request)
+    public async Task<IActionResult> UpdateVariant(Guid productRootId, Guid variantId, [FromBody] UpdateVariantDto request)
     {
         var result = await productService.UpdateVariant(productRootId, variantId, request);
         if (!result.Successful)
@@ -165,7 +165,7 @@ public class ProductsApiController(
     [ProducesResponseType<List<ProductOptionDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> SaveOptions(Guid productRootId, [FromBody] List<SaveProductOptionRequest> options)
+    public async Task<IActionResult> SaveOptions(Guid productRootId, [FromBody] List<SaveProductOptionDto> options)
     {
         var result = await productService.SaveProductOptions(productRootId, options);
         if (!result.Successful)

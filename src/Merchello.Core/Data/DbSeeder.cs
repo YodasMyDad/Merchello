@@ -6,7 +6,7 @@ using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
-using Merchello.Core.Products.ExtensionMethods;
+using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;

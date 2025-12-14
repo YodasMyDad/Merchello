@@ -1,4 +1,4 @@
-using Merchello.Core.Shared.Types;
+using Merchello.Core.Shared.Dtos;
 
 namespace Merchello.Core.Payments.Dtos;
 

@@ -3,7 +3,7 @@ using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
-using Merchello.Core.Shared.Types;
+using Merchello.Core.Shared.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
