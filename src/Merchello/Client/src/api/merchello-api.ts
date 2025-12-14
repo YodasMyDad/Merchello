@@ -219,12 +219,12 @@ import type {
   ProductRootDetailDto,
   ProductOptionSettingsDto,
   DescriptionEditorSettingsDto,
-  CreateProductRootRequest,
-  UpdateProductRootRequest,
+  CreateProductRootDto,
+  UpdateProductRootDto,
   ProductVariantDto,
-  UpdateVariantRequest,
+  UpdateVariantDto,
   ProductOptionDto,
-  SaveProductOptionRequest,
+  SaveProductOptionDto,
 } from '@products/types/product.types.js';
 
 // Import warehouse types
@@ -545,11 +545,11 @@ export const MerchelloApi = {
   getProductDetail: (id: string) => apiGet<ProductRootDetailDto>(`products/${id}`),
 
   /** Create new product root with default variant */
-  createProduct: (request: CreateProductRootRequest) => 
+  createProduct: (request: CreateProductRootDto) =>
     apiPost<ProductRootDetailDto>('products', request),
 
   /** Update product root */
-  updateProduct: (id: string, request: UpdateProductRootRequest) => 
+  updateProduct: (id: string, request: UpdateProductRootDto) =>
     apiPut<ProductRootDetailDto>(`products/${id}`, request),
 
   /** Delete product root and all variants */
@@ -561,7 +561,7 @@ export const MerchelloApi = {
     apiGet<ProductVariantDto>(`products/${productRootId}/variants/${variantId}`),
 
   /** Update a variant */
-  updateVariant: (productRootId: string, variantId: string, request: UpdateVariantRequest) => 
+  updateVariant: (productRootId: string, variantId: string, request: UpdateVariantDto) =>
     apiPut<ProductVariantDto>(`products/${productRootId}/variants/${variantId}`, request),
 
   /** Set a variant as the default */
@@ -570,7 +570,7 @@ export const MerchelloApi = {
 
   // Options operations
   /** Save all product options (replaces existing). Variants are automatically regenerated. */
-  saveProductOptions: (productRootId: string, options: SaveProductOptionRequest[]) =>
+  saveProductOptions: (productRootId: string, options: SaveProductOptionDto[]) =>
     apiPut<ProductOptionDto[]>(`products/${productRootId}/options`, options),
 
   // ============================================

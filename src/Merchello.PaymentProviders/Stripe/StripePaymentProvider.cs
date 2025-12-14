@@ -1,6 +1,6 @@
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
-using Merchello.Core.Shared.Services;
+using Merchello.Core.Shared.Services.Interfaces;
 using Stripe;
 using Stripe.Checkout;
 

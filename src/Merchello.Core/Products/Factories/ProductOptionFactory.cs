@@ -36,5 +36,28 @@ public class ProductOptionFactory(SlugHelper slugHelper)
             }).ToList()
         };
     }
+
+    /// <summary>
+    /// Creates an empty ProductOption for update scenarios where properties will be set later.
+    /// </summary>
+    public ProductOption CreateEmpty()
+    {
+        return new ProductOption
+        {
+            Id = Guid.NewGuid(),
+            ProductOptionValues = []
+        };
+    }
+
+    /// <summary>
+    /// Creates an empty ProductOptionValue for update scenarios where properties will be set later.
+    /// </summary>
+    public ProductOptionValue CreateEmptyValue()
+    {
+        return new ProductOptionValue
+        {
+            Id = Guid.NewGuid()
+        };
+    }
 }
 

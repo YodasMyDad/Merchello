@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Dtos;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
@@ -7,6 +8,7 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Data;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Services;
+using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications;
@@ -22,7 +24,9 @@ using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shared.Services;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Dtos;
+using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -42,6 +46,10 @@ public class InvoiceService(
     IMerchelloNotificationPublisher notificationPublisher,
     IExchangeRateCache exchangeRateCache,
     ICurrencyService currencyService,
+    InvoiceFactory invoiceFactory,
+    OrderFactory orderFactory,
+    ShipmentFactory shipmentFactory,
+    LineItemFactory lineItemFactory,
     IOptions<MerchelloSettings> settings,
     ILogger<InvoiceService> logger) : IInvoiceService
 {
@@ -97,22 +105,13 @@ public class InvoiceService(
             var presentmentCurrency = basket.Currency ?? _settings.StoreCurrencyCode;
             var storeCurrency = _settings.StoreCurrencyCode;
 
-            var newInvoice = new Invoice
-            {
-                InvoiceNumber = invoiceNumber,
-                CustomerId = basket.CustomerId,
-                BillingAddress = checkoutSession.BillingAddress,
-                ShippingAddress = checkoutSession.ShippingAddress,
-                CurrencyCode = presentmentCurrency,
-                CurrencySymbol = basket.CurrencySymbol ?? _currencyService.GetCurrency(presentmentCurrency).Symbol,
-                StoreCurrencyCode = storeCurrency,
-                SubTotal = basket.SubTotal,
-                Discount = basket.Discount,
-                AdjustedSubTotal = basket.AdjustedSubTotal,
-                Tax = basket.Tax,
-                Total = basket.Total,
-                Adjustments = basket.Adjustments
-            };
+            var newInvoice = invoiceFactory.CreateFromBasket(
+                basket,
+                invoiceNumber,
+                checkoutSession.BillingAddress,
+                checkoutSession.ShippingAddress,
+                presentmentCurrency,
+                storeCurrency);
 
             ExchangeRateQuote? pricingQuote = null;
             if (!string.Equals(presentmentCurrency, storeCurrency, StringComparison.OrdinalIgnoreCase))
@@ -188,20 +187,10 @@ public class InvoiceService(
                         continue;
                     }
 
-                    var orderLineItem = new LineItem
-                    {
-                        ProductId = basketLineItem.ProductId,
-                        Name = basketLineItem.Name,
-                        Sku = basketLineItem.Sku,
-                        Quantity = shippingLineItem.Quantity, // Use allocated quantity (not basket quantity)
-                        Amount = shippingLineItem.Amount,      // Use allocated amount (not basket amount)
-                        OriginalAmount = basketLineItem.OriginalAmount,
-                        LineItemType = basketLineItem.LineItemType,
-                        IsTaxable = basketLineItem.IsTaxable,
-                        TaxRate = basketLineItem.TaxRate,
-                        DependantLineItemSku = basketLineItem.DependantLineItemSku,
-                        ExtendedData = basketLineItem.ExtendedData
-                    };
+                    var orderLineItem = lineItemFactory.CreateForOrder(
+                        basketLineItem,
+                        shippingLineItem.Quantity,  // Use allocated quantity (not basket quantity)
+                        shippingLineItem.Amount);   // Use allocated amount (not basket amount)
 
                     orderLineItems.Add(orderLineItem);
 
@@ -213,37 +202,20 @@ public class InvoiceService(
                     foreach (var addon in dependentAddons)
                     {
                         // Allocate add-on quantities proportional to this shipment's allocation
-                        var addonOrderLine = new LineItem
-                        {
-                            ProductId = null,
-                            Name = addon.Name,
-                            Sku = addon.Sku,
-                            Quantity = shippingLineItem.Quantity, // Match parent's allocated quantity
-                            Amount = addon.Amount,                // Unit amount
-                            OriginalAmount = addon.OriginalAmount,
-                            LineItemType = addon.LineItemType,
-                            IsTaxable = addon.IsTaxable,
-                            TaxRate = addon.TaxRate,
-                            DependantLineItemSku = addon.DependantLineItemSku,
-                            ExtendedData = addon.ExtendedData
-                        };
-
+                        var addonOrderLine = lineItemFactory.CreateAddonForOrder(addon, shippingLineItem.Quantity);
                         orderLineItems.Add(addonOrderLine);
                     }
                 }
 
-                var order = new Order
-                {
-                    InvoiceId = newInvoice.Id,
-                    WarehouseId = group.WarehouseId,
-                    ShippingOptionId = selectedShippingOptionId,
-                    ShippingCost = totalShippingCost,
-                    RequestedDeliveryDate = requestedDeliveryDate,
-                    IsDeliveryDateGuaranteed = isDeliveryDateGuaranteed,
-                    DeliveryDateSurcharge = deliveryDateSurcharge,
-                    LineItems = orderLineItems,
-                    Status = OrderStatus.Pending // Will be updated after reservation
-                };
+                var order = orderFactory.Create(
+                    newInvoice.Id,
+                    group.WarehouseId,
+                    selectedShippingOptionId,
+                    totalShippingCost);
+                order.RequestedDeliveryDate = requestedDeliveryDate;
+                order.IsDeliveryDateGuaranteed = isDeliveryDateGuaranteed;
+                order.DeliveryDateSurcharge = deliveryDateSurcharge;
+                order.LineItems = orderLineItems;
 
                 orders.Add(order);
             }
@@ -507,18 +479,14 @@ public class InvoiceService(
 
             foreach (var (warehouseId, lineItems) in warehouseGroups)
             {
-                var shipment = new Shipment
-                {
-                    OrderId = order.Id,
-                    WarehouseId = warehouseId,
-                    LineItems = lineItems,
-                    Address = parameters.ShippingAddress,
-                    TrackingNumber = parameters.TrackingNumber,
-                    TrackingUrl = parameters.TrackingUrl,
-                    Carrier = parameters.Carrier,
-                    RequestedDeliveryDate = order.RequestedDeliveryDate,
-                    IsDeliveryDateGuaranteed = order.IsDeliveryDateGuaranteed
-                };
+                var shipment = shipmentFactory.Create(
+                    order,
+                    warehouseId,
+                    parameters.ShippingAddress,
+                    lineItems,
+                    parameters.TrackingNumber,
+                    parameters.TrackingUrl,
+                    parameters.Carrier);
 
                 db.Shipments.Add(shipment);
                 newShipments.Add(shipment);
@@ -1480,19 +1448,14 @@ public class InvoiceService(
             }
 
             // Create shipment
-            var shipment = new Shipment
-            {
-                OrderId = parameters.OrderId,
-                WarehouseId = order.WarehouseId,
-                Address = order.Invoice?.ShippingAddress ?? new Address(),
-                LineItems = shipmentLineItems,
-                Carrier = parameters.Carrier,
-                TrackingNumber = parameters.TrackingNumber,
-                TrackingUrl = parameters.TrackingUrl,
-                RequestedDeliveryDate = order.RequestedDeliveryDate,
-                IsDeliveryDateGuaranteed = order.IsDeliveryDateGuaranteed,
-                DateCreated = DateTime.UtcNow
-            };
+            var shipment = shipmentFactory.Create(
+                order,
+                order.WarehouseId,
+                order.Invoice?.ShippingAddress ?? new Address(),
+                shipmentLineItems,
+                parameters.TrackingNumber,
+                parameters.TrackingUrl,
+                parameters.Carrier);
 
             // Publish "Before" notification - handlers can modify shipment or cancel
             var creatingNotification = new ShipmentCreatingNotification(shipment);
@@ -2501,16 +2464,13 @@ public class InvoiceService(
                 if (request.CustomItems.Any())
                 {
                     // Create a new order for custom items
-                    var customOrder = new Order
-                    {
-                        Id = GuidExtensions.NewSequentialGuid,
-                        InvoiceId = invoice.Id,
-                        WarehouseId = orders.FirstOrDefault()?.WarehouseId ?? Guid.Empty,
-                        ShippingOptionId = orders.FirstOrDefault()?.ShippingOptionId ?? Guid.Empty,
-                        ShippingCost = 0,
-                        Status = OrderStatus.ReadyToFulfill,
-                        LineItems = []
-                    };
+                    var customOrder = orderFactory.Create(
+                        invoice.Id,
+                        orders.FirstOrDefault()?.WarehouseId ?? Guid.Empty,
+                        orders.FirstOrDefault()?.ShippingOptionId ?? Guid.Empty,
+                        shippingCost: 0);
+                    customOrder.Status = OrderStatus.ReadyToFulfill;
+                    customOrder.LineItems = new List<LineItem>();
 
                     foreach (var customItem in request.CustomItems)
                     {
@@ -3134,50 +3094,25 @@ public class InvoiceService(
             var currencyCode = _settings.StoreCurrencyCode;
 
             // Create the invoice
-            var invoice = new Invoice
-            {
-                Id = Shared.Extensions.GuidExtensions.NewSequentialGuid,
-                InvoiceNumber = invoiceNumber,
-                BillingAddress = billingAddress,
-                ShippingAddress = shippingAddress,
-                Channel = "Draft order",
-                CurrencyCode = currencyCode,
-                CurrencySymbol = _currencyService.GetCurrency(currencyCode).Symbol,
-                StoreCurrencyCode = currencyCode,
-                SubTotal = _currencyService.Round(subTotal, currencyCode),
-                Discount = 0,
-                AdjustedSubTotal = _currencyService.Round(subTotal, currencyCode),
-                Tax = _currencyService.Round(tax, currencyCode),
-                Total = _currencyService.Round(total, currencyCode),
-                DateCreated = now,
-                DateUpdated = now,
-                Notes =
-                [
-                    new InvoiceNote
-                    {
-                        DateCreated = now,
-                        Description = "Draft order created",
-                        AuthorId = authorId,
-                        Author = authorName ?? "System",
-                        VisibleToCustomer = false
-                    }
-                ]
-            };
+            var invoice = invoiceFactory.CreateDraft(
+                invoiceNumber,
+                billingAddress,
+                shippingAddress,
+                currencyCode,
+                subTotal,
+                tax,
+                total,
+                authorName,
+                authorId);
 
             // Create the order
-            var order = new Order
-            {
-                Id = Shared.Extensions.GuidExtensions.NewSequentialGuid,
-                InvoiceId = invoice.Id,
-                Invoice = invoice,
-                WarehouseId = warehouse.Id,
-                ShippingOptionId = shippingOption.Id,
-                ShippingCost = 0, // Will be set when fulfilling
-                Status = OrderStatus.Pending,
-                DateCreated = now,
-                DateUpdated = now,
-                LineItems = []
-            };
+            var order = orderFactory.Create(
+                invoice.Id,
+                warehouse.Id,
+                shippingOption.Id,
+                shippingCost: 0); // Will be set when fulfilling
+            order.Invoice = invoice;
+            order.LineItems = new List<LineItem>();
 
             // Add custom items as line items
             foreach (var customItem in request.CustomItems)

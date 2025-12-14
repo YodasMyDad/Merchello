@@ -119,6 +119,48 @@ public class TaxService(
     }
 
     /// <summary>
+    /// Updates an existing tax group by ID
+    /// </summary>
+    public async Task<CrudResult<TaxGroup>> UpdateTaxGroup(
+        Guid taxGroupId,
+        string name,
+        decimal taxPercentage,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<TaxGroup>();
+
+        // Validate rate
+        if (taxPercentage < 0 || taxPercentage > 100)
+        {
+            result.AddErrorMessage("Tax rate must be between 0 and 100");
+            return result;
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var existing = await db.TaxGroups
+                .FirstOrDefaultAsync(tg => tg.Id == taxGroupId, cancellationToken);
+
+            if (existing == null)
+            {
+                result.AddErrorMessage("Tax group not found");
+                return;
+            }
+
+            existing.Name = name;
+            existing.TaxPercentage = taxPercentage;
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+
+            result.ResultObject = existing;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    /// <summary>
     /// Deletes a tax group
     /// </summary>
     public async Task<CrudResult<bool>> DeleteTaxGroup(

@@ -1,15 +1,17 @@
 using Merchello.Core.Accounting.Dtos;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.ExchangeRates.Models;
-using Merchello.Core.ExchangeRates.Services;
+using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Notifications;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services;
+using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.Logging;
@@ -56,6 +58,12 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var currencyService = new CurrencyService(settings);
         var logger = new Mock<ILogger<InvoiceService>>().Object;
 
+        // Factories
+        var invoiceFactory = new InvoiceFactory(currencyService);
+        var orderFactory = new OrderFactory();
+        var shipmentFactory = new ShipmentFactory();
+        var lineItemFactory = new LineItemFactory();
+
         return new InvoiceService(
             scopeProvider,
             shippingService,
@@ -66,6 +74,10 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             notificationPublisher,
             exchangeRateCacheMock.Object,
             currencyService,
+            invoiceFactory,
+            orderFactory,
+            shipmentFactory,
+            lineItemFactory,
             settings,
             logger);
     }

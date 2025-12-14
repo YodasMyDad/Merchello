@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Asp.Versioning;
 using Merchello.Core.Shared.Models;
-using Merchello.Core.Shared.Types;
+using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;

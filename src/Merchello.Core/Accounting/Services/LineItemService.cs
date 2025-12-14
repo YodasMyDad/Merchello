@@ -1,7 +1,7 @@
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
-using Merchello.Core.Shared.Services;
+using Merchello.Core.Shared.Services.Interfaces;
 
 namespace Merchello.Core.Accounting.Services;
 

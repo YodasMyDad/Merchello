@@ -1,0 +1,48 @@
+namespace Merchello.Core.Products.Dtos;
+
+/// <summary>
+/// Product variant for the product detail view
+/// </summary>
+public class ProductVariantDto
+{
+    public Guid Id { get; set; }
+    public Guid ProductRootId { get; set; }
+    public bool Default { get; set; }
+    public string? Name { get; set; }
+    public string? Sku { get; set; }
+    public string? Gtin { get; set; }
+    public string? SupplierSku { get; set; }
+    public decimal Price { get; set; }
+    public decimal CostOfGoods { get; set; }
+    public bool OnSale { get; set; }
+    public decimal? PreviousPrice { get; set; }
+    public bool AvailableForPurchase { get; set; }
+    public bool CanPurchase { get; set; }
+    public List<Guid> Images { get; set; } = [];
+    public bool ExcludeRootProductImages { get; set; }
+    public string? Url { get; set; }
+    public string? VariantOptionsKey { get; set; }
+
+    /// <summary>
+    /// HS Code for customs/tariff classification (variant-level)
+    /// </summary>
+    public string? HsCode { get; set; }
+
+    /// <summary>
+    /// Package configurations for shipping.
+    /// If empty, inherits from ProductRoot.DefaultPackageConfigurations.
+    /// </summary>
+    public List<ProductPackageDto> PackageConfigurations { get; set; } = [];
+
+    // Shopping Feed
+    public string? ShoppingFeedTitle { get; set; }
+    public string? ShoppingFeedDescription { get; set; }
+    public string? ShoppingFeedColour { get; set; }
+    public string? ShoppingFeedMaterial { get; set; }
+    public string? ShoppingFeedSize { get; set; }
+    public bool RemoveFromFeed { get; set; }
+
+    // Stock (aggregated from ProductWarehouses)
+    public int TotalStock { get; set; }
+    public List<VariantWarehouseStockDto> WarehouseStock { get; set; } = [];
+}

@@ -3,7 +3,7 @@ using Asp.Versioning;
 using Merchello.Core.ExchangeRates.Dtos;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Providers;
-using Merchello.Core.ExchangeRates.Services;
+using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

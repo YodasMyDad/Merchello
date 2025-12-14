@@ -37,16 +37,16 @@ public interface IProductService
 
     // Product detail view methods
     Task<ProductRootDetailDto?> GetProductRootWithDetails(Guid productRootId, CancellationToken cancellationToken = default);
-    Task<CrudResult<ProductRoot>> CreateProductRoot(CreateProductRootRequest request, CancellationToken cancellationToken = default);
-    Task<CrudResult<ProductRoot>> UpdateProductRoot(Guid productRootId, UpdateProductRootRequest request, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductRoot>> CreateProductRoot(CreateProductRootDto request, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductRoot>> UpdateProductRoot(Guid productRootId, UpdateProductRootDto request, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> DeleteProductRoot(Guid productRootId, CancellationToken cancellationToken = default);
 
     // Variant operations
     Task<Product?> GetVariant(Guid productRootId, Guid variantId, CancellationToken cancellationToken = default);
-    Task<CrudResult<Product>> UpdateVariant(Guid productRootId, Guid variantId, UpdateVariantRequest request, CancellationToken cancellationToken = default);
+    Task<CrudResult<Product>> UpdateVariant(Guid productRootId, Guid variantId, UpdateVariantDto request, CancellationToken cancellationToken = default);
 
     // Options operations (variants are automatically regenerated when options are saved)
-    Task<CrudResult<List<ProductOption>>> SaveProductOptions(Guid productRootId, List<SaveProductOptionRequest> options, CancellationToken cancellationToken = default);
+    Task<CrudResult<List<ProductOption>>> SaveProductOptions(Guid productRootId, List<SaveProductOptionDto> options, CancellationToken cancellationToken = default);
 
     // Filter operations
     Task<CrudResult<ProductFilterGroup>> CreateFilterGroup(string name, CancellationToken cancellationToken = default);

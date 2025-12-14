@@ -10,14 +10,20 @@ Enterprise ecommerce NuGet package. **Ethos: making enterprise ecommerce simple.
 ## Feature Folder Structure
 ```
 Products/
+├── Dtos/
+├── Extensions/
 ├── Factories/
 ├── Mapping/
-├── ExtensionMethods/
 ├── Models/
 └── Services/
     ├── Parameters/
     └── Interfaces/
 ```
+
+**Notes:**
+- Not all features require every subfolder - only create folders when needed
+- Minimal features (e.g., Caching, Stores) may only have Models/ and Services/
+- The `Extensions/` folder contains C# extension methods for the feature
 
 ## Product Options - Add-ons (Non-Variant)
 - `ProductOption.IsVariant` (default true) → participates in variant generation
@@ -76,7 +82,12 @@ Products/
 |Toggle|`Toggle{Entity}Dto`|`TogglePaymentProviderDto`|
 |Add item|`Add{Item}Dto`|`AddCustomItemDto`|
 |Remove item|`Remove{Item}Dto`|`RemoveLineItemDto`|
+|Delete|`Delete{Entity}Dto`|`DeleteOrdersDto`|
 |Export|`Export{Entity}Dto`|`ExportOrderDto`|
+
+**Add/Remove vs Create/Delete Distinction:**
+- **Add/Remove** - Collection operations: adding/removing items to/from an existing entity (e.g., `AddCustomItemDto` adds an item to an order)
+- **Create/Delete** - Entity lifecycle: creating new entities or permanently deleting them (e.g., `CreateShipmentDto` creates a new shipment, `DeleteOrdersDto` permanently removes orders)
 
 **Internal Models (Models/ folder)** - NO `Dto` suffix:
 

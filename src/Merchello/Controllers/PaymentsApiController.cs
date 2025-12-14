@@ -5,7 +5,7 @@ using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
-using Merchello.Core.Shared.Services;
+using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -84,18 +84,13 @@ public class PaymentsApiController(
 
         var payments = await paymentService.GetPaymentsForInvoiceAsync(invoiceId, cancellationToken);
 
-        // Use centralized payment status calculation from PaymentService
-        var details = paymentService.CalculatePaymentStatus(payments, invoice.Total, invoice.CurrencyCode);
-
-        var storeInvoiceTotal = invoice.TotalInStoreCurrency ?? invoice.Total;
-        var storePaid = payments
-            .Where(p => p.PaymentSuccess && p.PaymentType == PaymentType.Payment)
-            .Sum(p => p.AmountInStoreCurrency ?? p.Amount);
-        var storeRefunded = payments
-            .Where(p => p.PaymentSuccess && p.PaymentType is PaymentType.Refund or PaymentType.PartialRefund)
-            .Sum(p => Math.Abs(p.AmountInStoreCurrency ?? p.Amount));
-        var storeNet = storePaid - storeRefunded;
-        var storeBalanceDue = Math.Max(0, storeInvoiceTotal - storeNet);
+        // Use centralized payment status calculation from PaymentService (includes store currency)
+        var details = paymentService.CalculatePaymentStatus(
+            payments,
+            invoice.Total,
+            invoice.CurrencyCode,
+            invoice.TotalInStoreCurrency,
+            invoice.StoreCurrencyCode);
 
         return Ok(new PaymentStatusDto
         {
@@ -109,13 +104,13 @@ public class PaymentsApiController(
             InvoiceTotal = invoice.Total,
             InvoiceTotalInStoreCurrency = invoice.TotalInStoreCurrency,
             TotalPaid = details.TotalPaid,
-            TotalPaidInStoreCurrency = storePaid,
+            TotalPaidInStoreCurrency = details.TotalPaidInStoreCurrency,
             TotalRefunded = details.TotalRefunded,
-            TotalRefundedInStoreCurrency = storeRefunded,
+            TotalRefundedInStoreCurrency = details.TotalRefundedInStoreCurrency,
             NetPayment = details.NetPayment,
-            NetPaymentInStoreCurrency = storeNet,
+            NetPaymentInStoreCurrency = details.NetPaymentInStoreCurrency,
             BalanceDue = details.BalanceDue,
-            BalanceDueInStoreCurrency = storeBalanceDue
+            BalanceDueInStoreCurrency = details.BalanceDueInStoreCurrency
         });
     }
 
