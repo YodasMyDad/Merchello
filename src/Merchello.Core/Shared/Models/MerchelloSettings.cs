@@ -4,11 +4,6 @@ namespace Merchello.Core.Shared.Models;
 
 public class MerchelloSettings
 {
-    public Guid? WebsiteId { get; set; }
-    public Guid? RepositoryId { get; set; }
-    public string? DatabaseProvider { get; set; }
-    public string? ConnectionString { get; set; }
-
     /// <summary>
     /// Prefix for invoice numbers (e.g., "INV-")
     /// </summary>
@@ -63,7 +58,7 @@ public class MerchelloSettings
     /// - Warehouse service regions
     /// - Shipping costs and weight tiers
     /// - Checkout country selection
-    /// 
+    ///
     /// Leave null or empty to allow all countries (no restriction).
     /// Example: ["GB", "US", "DE", "FR", "ES", "IT"]
     /// </summary>
