@@ -7,13 +7,13 @@ import type {
   ElementTypeContainer,
 } from "../types/element-type.types.js";
 import "@umbraco-cms/backoffice/property";
+import type { UmbPropertyDatasetElement, UmbPropertyValueData } from "@umbraco-cms/backoffice/property";
 
 /**
- * Property change event detail
+ * Event detail containing all element property values
  */
-export interface ElementPropertyChangeDetail {
-  alias: string;
-  value: unknown;
+export interface ElementPropertiesChangeDetail {
+  values: Record<string, unknown>;
 }
 
 /**
@@ -74,15 +74,21 @@ export class MerchelloProductElementPropertiesElement extends UmbElementMixin(Li
     return [...directProperties, ...groupProperties];
   }
 
-  private _onPropertyChange(e: CustomEvent): void {
-    const target = e.target as HTMLElement & { alias?: string; value?: unknown };
-    if (target.alias) {
-      this.dispatchEvent(new CustomEvent<ElementPropertyChangeDetail>("property-change", {
-        detail: { alias: target.alias, value: target.value },
-        bubbles: true,
-        composed: true,
-      }));
+  private _onPropertyChange(e: Event): void {
+    const dataset = e.target as UmbPropertyDatasetElement;
+    const datasetValues: UmbPropertyValueData[] = dataset.value ?? [];
+
+    // Convert array to record format
+    const values: Record<string, unknown> = {};
+    for (const item of datasetValues) {
+      values[item.alias] = item.value;
     }
+
+    this.dispatchEvent(new CustomEvent<ElementPropertiesChangeDetail>("values-change", {
+      detail: { values },
+      bubbles: true,
+      composed: true,
+    }));
   }
 
   render() {

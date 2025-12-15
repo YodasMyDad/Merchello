@@ -15,78 +15,141 @@ import type {
   ProductOptionSettingsDto,
   ProductOptionValueDto,
   ProductTypeDto,
-  ProductPackageDto,
   UpdateProductRootDto,
   CreateProductRootDto,
   ProductViewDto,
 } from "@products/types/product.types.js";
 import type { TaxGroupDto } from "@orders/types/order.types.js";
 import type { WarehouseDto } from "@shipping/types.js";
-import type { ProductFilterGroupDto, ProductFilterDto } from "@filters/types.js";
+import type { ProductFilterGroupDto } from "@filters/types.js";
 import type { ElementTypeResponseModel, ElementTypeContainer } from "@products/types/element-type.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import "./product-element-properties.element.js";
-import type { ElementPropertyChangeDetail } from "./product-element-properties.element.js";
+import type { ElementPropertiesChangeDetail } from "./product-element-properties.element.js";
 import { MERCHELLO_OPTION_EDITOR_MODAL } from "@products/modals/option-editor-modal.token.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { getProductsListHref, getVariantDetailHref } from "@shared/utils/navigation.js";
 import type { SelectOption } from "@shared/types/index.js";
 import "@shared/components/editable-text-list.element.js";
+
+// Shared components
 import "@products/components/shared/variant-basic-info.element.js";
 import "@products/components/shared/variant-feed-settings.element.js";
 import "@products/components/shared/variant-stock-display.element.js";
+import "@products/components/shared/product-packages.element.js";
+import "@products/components/shared/product-filters.element.js";
 import type { StockSettingsChangeDetail } from "@products/components/shared/variant-stock-display.element.js";
+import type { PackagesChangeDetail } from "@products/components/shared/product-packages.element.js";
+import type { FiltersChangeDetail } from "@products/components/shared/product-filters.element.js";
+
+// Utility functions
+import {
+  validateProductRoot,
+  validateVariant,
+  formatValidationErrorMessage,
+} from "@products/utils/validation.js";
+import {
+  getVariantOptionDescription,
+  calculateEstimatedVariantCount,
+  getStockBadgeClass,
+  hasVariantWarnings,
+  hasOptionWarnings,
+  formatUrlAsBreadcrumb,
+} from "@products/utils/variant-helpers.js";
+
 import { UmbDataTypeDetailRepository } from "@umbraco-cms/backoffice/data-type";
 import { UmbPropertyEditorConfigCollection } from "@umbraco-cms/backoffice/property-editor";
 import type { UmbPropertyEditorConfigCollection as UmbPropertyEditorConfigCollectionType } from "@umbraco-cms/backoffice/property-editor";
 // Import TipTap component to register the custom element
 import "@umbraco-cms/backoffice/tiptap";
 
+// ============================================
+// Component
+// ============================================
+
+/**
+ * Product detail editing component.
+ *
+ * The main component for creating and editing products. Handles:
+ * - Product root data (name, description, images, SEO, etc.)
+ * - Single-variant products (merged tabs for basic info, stock, feed, filters)
+ * - Multi-variant products (variants tab with table of all variants)
+ * - Product options (variant-generating and add-on options)
+ * - Element Type custom content properties
+ *
+ * For multi-variant products, individual variants are edited via variant-detail.element.ts
+ */
 @customElement("merchello-product-detail")
 export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
+  // ============================================
+  // State: Loading & Errors
+  // ============================================
+
   @state() private _product: ProductRootDetailDto | null = null;
   @state() private _isLoading = true;
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
-  @state() private _optionSettings: ProductOptionSettingsDto | null = null;
   @state() private _validationAttempted = false;
   @state() private _fieldErrors: Record<string, string> = {};
 
-  // Tab routing state
+  // ============================================
+  // State: Tab Routing
+  // ============================================
+
   @state() private _routes: UmbRoute[] = [];
   @state() private _routerPath?: string;
   @state() private _activePath = "";
 
-  // Form state
+  // ============================================
+  // State: Form Data
+  // ============================================
+
+  /** Product root form data */
   @state() private _formData: Partial<ProductRootDetailDto> = {};
 
-  // Reference data
+  /** Variant form data (for single-variant products) */
+  @state() private _variantFormData: Partial<ProductVariantDto> = {};
+  @state() private _variantFieldErrors: Record<string, string> = {};
+
+  // ============================================
+  // State: Reference Data (dropdowns)
+  // ============================================
+
   @state() private _taxGroups: TaxGroupDto[] = [];
   @state() private _productTypes: ProductTypeDto[] = [];
   @state() private _warehouses: WarehouseDto[] = [];
-  // Note: Categories loaded but not yet used in UI
-  // @state() private _categories: ProductCategoryDto[] = [];
+  @state() private _productViews: ProductViewDto[] = [];
+  @state() private _optionSettings: ProductOptionSettingsDto | null = null;
+
+  // ============================================
+  // State: Filters
+  // ============================================
+
   @state() private _filterGroups: ProductFilterGroupDto[] = [];
   @state() private _assignedFilterIds: string[] = [];
   @state() private _originalAssignedFilterIds: string[] = [];
 
-  // Element Type state for custom content properties
+  // ============================================
+  // State: Element Type (custom content)
+  // ============================================
+
   @state() private _elementType: ElementTypeResponseModel | null = null;
   @state() private _elementPropertyValues: Record<string, unknown> = {};
 
-  // Product views for view selection dropdown
-  @state() private _productViews: ProductViewDto[] = [];
+  // ============================================
+  // State: Description Editor
+  // ============================================
 
-  // Description editor configuration from Umbraco DataType
+  /** Configuration from Umbraco DataType for TipTap editor */
   @state() private _descriptionEditorConfig: UmbPropertyEditorConfigCollectionType | undefined = undefined;
 
-  // Variant form state (for single-variant products)
-  @state() private _variantFormData: Partial<ProductVariantDto> = {};
-  @state() private _variantFieldErrors: Record<string, string> = {};
+  // ============================================
+  // Private Members
+  // ============================================
 
-  // Umbraco DataType repository for loading editor configuration
+  /** Umbraco DataType repository for loading editor configuration */
   #dataTypeRepository = new UmbDataTypeDetailRepository(this);
-  
+
   #workspaceContext?: MerchelloProductDetailWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
@@ -653,69 +716,55 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   }
 
   /**
-   * Validates the form and sets field-level errors
+   * Validates the form and sets field-level errors.
+   * Uses validation utility functions for product root and variant validation.
    */
   private _validateForm(): boolean {
     this._validationAttempted = true;
-    this._fieldErrors = {};
-    this._variantFieldErrors = {};
     this._errorMessage = null;
 
-    // Product root validation
-    if (!this._formData.rootName?.trim()) {
-      this._fieldErrors.rootName = "Product name is required";
-    }
-    if (!this._formData.taxGroupId) {
-      this._fieldErrors.taxGroupId = "Tax group is required";
-    }
-    if (!this._formData.productTypeId) {
-      this._fieldErrors.productTypeId = "Product type is required";
-    }
-    if (!this._formData.isDigitalProduct && (!this._formData.warehouseIds || this._formData.warehouseIds.length === 0)) {
-      this._fieldErrors.warehouseIds = "At least one warehouse is required for physical products";
-    }
+    // Validate product root using utility function
+    const productResult = validateProductRoot(this._formData, {
+      isDigitalProduct: this._formData.isDigitalProduct,
+    });
+    this._fieldErrors = productResult.errors;
 
-    // Variant validation for single-variant products
+    // Validate variant for single-variant products
+    let variantResult = { isValid: true, errors: {} as Record<string, string> };
     if (this._isSingleVariant()) {
-      if (!this._variantFormData.sku?.trim()) {
-        this._variantFieldErrors.sku = "SKU is required";
-      }
-      if ((this._variantFormData.price ?? 0) < 0) {
-        this._variantFieldErrors.price = "Price must be 0 or greater";
-      }
+      variantResult = validateVariant(this._variantFormData);
+    }
+    this._variantFieldErrors = variantResult.errors;
+
+    // Generate error message if validation failed
+    const errorMessage = formatValidationErrorMessage(
+      !productResult.isValid,
+      !variantResult.isValid
+    );
+    if (errorMessage) {
+      this._errorMessage = errorMessage;
     }
 
-    const hasProductErrors = Object.keys(this._fieldErrors).length > 0;
-    const hasVariantErrors = Object.keys(this._variantFieldErrors).length > 0;
-
-    if (hasProductErrors || hasVariantErrors) {
-      const errorTabs: string[] = [];
-      if (hasProductErrors) {
-        errorTabs.push("Details");
-      }
-      if (hasVariantErrors) {
-        errorTabs.push("Basic Info");
-      }
-      this._errorMessage = `Please fix the errors on the ${errorTabs.join(" and ")} tab${errorTabs.length > 1 ? "s" : ""} before saving`;
-    }
-    return !hasProductErrors && !hasVariantErrors;
+    return productResult.isValid && variantResult.isValid;
   }
 
   /**
-   * Checks if there are warnings for variants tab
+   * Checks if there are warnings for variants tab.
+   * Uses utility function from variant-helpers.
    */
   private _hasVariantWarnings(): boolean {
     if (!this._product?.variants) return false;
-    return this._product.variants.some((v) => !v.sku || v.price === 0);
+    return hasVariantWarnings(this._product.variants);
   }
 
   /**
-   * Checks if there are warnings for options tab
+   * Checks if there are warnings for options tab.
+   * Uses utility function from variant-helpers.
    */
   private _hasOptionWarnings(): boolean {
     const variantCount = this._product?.variants.length ?? 0;
     const optionCount = this._product?.productOptions.length ?? 0;
-    return variantCount > 1 && optionCount === 0;
+    return hasOptionWarnings(variantCount, optionCount);
   }
 
   private _renderTabs(): unknown {
@@ -810,6 +859,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
         <uui-tab
           label="Options"
+          class=${isSingleVariant ? "" : "merchello-tab--last"}
           href="${this._routerPath}/tab/options"
           ?active=${activeTab === "options"}>
           Options (${optionCount})
@@ -820,6 +870,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           ? html`
               <uui-tab
                 label="Filters"
+                class="merchello-tab--last"
                 href="${this._routerPath}/tab/filters"
                 ?active=${activeTab === "filters"}>
                 Filters
@@ -841,15 +892,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     const elementTypeTabs = this._getElementTypeTabs();
 
     return html`
-      <!-- Visual Divider between Merchello tabs and Element Type tabs -->
-      <div class="tab-section-divider" title="Content Properties">
-        <span class="divider-line"></span>
-        <span class="divider-label">Content</span>
-      </div>
-
       ${elementTypeTabs.length > 0
-        ? elementTypeTabs.map(tab => html`
+        ? elementTypeTabs.map((tab, index) => html`
             <uui-tab
+              class=${index === 0 ? "element-type-tab element-type-tab--first" : "element-type-tab"}
               label=${tab.name ?? "Content"}
               href="${this._routerPath}/tab/content-${tab.id}"
               ?active=${activeTab === `content-${tab.id}`}>
@@ -859,6 +905,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         : html`
             <!-- Single "Content" tab if element type has no tabs defined -->
             <uui-tab
+              class="element-type-tab element-type-tab--first"
               label="Content"
               href="${this._routerPath}/tab/content"
               ?active=${activeTab === "content"}>
@@ -883,7 +930,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           .elementType=${this._elementType}
           .values=${this._elementPropertyValues}
           .activeTabId=${tabId}
-          @property-change=${this._onElementPropertyChange}>
+          @values-change=${this._onElementPropertiesChange}>
         </merchello-product-element-properties>
       </div>
     `;
@@ -892,10 +939,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   /**
    * Handles property value changes from the element properties component
    */
-  private _onElementPropertyChange(e: CustomEvent<ElementPropertyChangeDetail>): void {
-    const { alias, value } = e.detail;
-    this._elementPropertyValues = { ...this._elementPropertyValues, [alias]: value };
-    this.#workspaceContext?.setElementPropertyValue(alias, value);
+  private _onElementPropertiesChange(e: CustomEvent<ElementPropertiesChangeDetail>): void {
+    const { values } = e.detail;
+    this._elementPropertyValues = { ...values };
+    this.#workspaceContext?.setElementPropertyValues(values);
   }
 
   private _renderDetailsTab(): unknown {
@@ -1037,36 +1084,13 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   }
 
   // ============================================
-  // Shipping Tab - Package Management
+  // Shipping Tab
   // ============================================
 
   /**
-   * Add a new package configuration
+   * Renders the shipping tab with package configurations.
+   * Uses the shared product-packages component.
    */
-  private _addPackage(): void {
-    const packages = [...(this._formData.defaultPackageConfigurations ?? [])];
-    packages.push({ weight: 0, lengthCm: null, widthCm: null, heightCm: null });
-    this._formData = { ...this._formData, defaultPackageConfigurations: packages };
-  }
-
-  /**
-   * Remove a package by index
-   */
-  private _removePackage(index: number): void {
-    const packages = [...(this._formData.defaultPackageConfigurations ?? [])];
-    packages.splice(index, 1);
-    this._formData = { ...this._formData, defaultPackageConfigurations: packages };
-  }
-
-  /**
-   * Update a package field
-   */
-  private _updatePackage(index: number, field: keyof ProductPackageDto, value: number | null): void {
-    const packages = [...(this._formData.defaultPackageConfigurations ?? [])];
-    packages[index] = { ...packages[index], [field]: value };
-    this._formData = { ...this._formData, defaultPackageConfigurations: packages };
-  }
-
   private _renderShippingTab(): unknown {
     const packages = this._formData.defaultPackageConfigurations ?? [];
     const isNew = this.#workspaceContext?.isNew ?? true;
@@ -1084,95 +1108,20 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         </uui-box>
 
         <uui-box headline="Package Configurations">
-          ${packages.length > 0
-            ? html`
-                <div class="packages-list">
-                  ${packages.map((pkg, index) => this._renderPackageCard(pkg, index))}
-                </div>
-              `
-            : html`
-                <div class="empty-state">
-                  <uui-icon name="icon-box"></uui-icon>
-                  <p>No packages configured</p>
-                  <p class="hint">Add a package to enable shipping rate calculations with carriers like FedEx, UPS, and DHL</p>
-                </div>
-              `}
-
-          <uui-button
-            look="placeholder"
-            class="add-package-button"
-            ?disabled=${isNew}
-            @click=${() => this._addPackage()}>
-            <uui-icon name="icon-add"></uui-icon>
-            Add Package
-          </uui-button>
+          <merchello-product-packages
+            .packages=${packages}
+            .editable=${true}
+            .disableAdd=${isNew}
+            @packages-change=${this._handlePackagesChange}>
+          </merchello-product-packages>
         </uui-box>
       </div>
     `;
   }
 
-  private _renderPackageCard(pkg: ProductPackageDto, index: number): unknown {
-    return html`
-      <div class="package-card">
-        <div class="package-header">
-          <span class="package-number">Package ${index + 1}</span>
-          <uui-button
-            compact
-            look="secondary"
-            color="danger"
-            label="Remove package"
-            @click=${() => this._removePackage(index)}>
-            <uui-icon name="icon-trash"></uui-icon>
-          </uui-button>
-        </div>
-        <div class="package-fields">
-          <div class="field-group">
-            <label>Weight (kg) *</label>
-            <uui-input
-              type="number"
-              step="0.01"
-              min="0"
-              .value=${String(pkg.weight ?? "")}
-              @input=${(e: Event) => this._updatePackage(index, "weight", parseFloat((e.target as HTMLInputElement).value) || 0)}
-              placeholder="0.50">
-            </uui-input>
-          </div>
-          <div class="field-group">
-            <label>Length (cm)</label>
-            <uui-input
-              type="number"
-              step="0.1"
-              min="0"
-              .value=${String(pkg.lengthCm ?? "")}
-              @input=${(e: Event) => this._updatePackage(index, "lengthCm", parseFloat((e.target as HTMLInputElement).value) || null)}
-              placeholder="20">
-            </uui-input>
-          </div>
-          <div class="field-group">
-            <label>Width (cm)</label>
-            <uui-input
-              type="number"
-              step="0.1"
-              min="0"
-              .value=${String(pkg.widthCm ?? "")}
-              @input=${(e: Event) => this._updatePackage(index, "widthCm", parseFloat((e.target as HTMLInputElement).value) || null)}
-              placeholder="15">
-            </uui-input>
-          </div>
-          <div class="field-group">
-            <label>Height (cm)</label>
-            <uui-input
-              type="number"
-              step="0.1"
-              min="0"
-              .value=${String(pkg.heightCm ?? "")}
-              @input=${(e: Event) => this._updatePackage(index, "heightCm", parseFloat((e.target as HTMLInputElement).value) || null)}
-              placeholder="10">
-            </uui-input>
-          </div>
-        </div>
-      </div>
-    `;
+  /** Handles packages change from the shared component */
+  private _handlePackagesChange(e: CustomEvent<PackagesChangeDetail>): void {
+    this._formData = { ...this._formData, defaultPackageConfigurations: e.detail.packages };
   }
 
   /**
@@ -1394,17 +1343,12 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     `;
   }
 
+  /**
+   * Formats a URL as a breadcrumb string for Google Search preview.
+   * Uses utility function from variant-helpers.
+   */
   private _formatUrlAsBreadcrumb(url: string): string {
-    try {
-      const parsed = new URL(url);
-      const pathParts = parsed.pathname.split("/").filter((p) => p);
-      if (pathParts.length === 0) {
-        return parsed.hostname;
-      }
-      return `${parsed.hostname} › ${pathParts.join(" › ")}`;
-    } catch {
-      return url;
-    }
+    return formatUrlAsBreadcrumb(url);
   }
 
   private _handleOpenGraphImageChange(e: CustomEvent): void {
@@ -1507,36 +1451,22 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     `;
   }
 
+  /**
+   * Gets the appropriate CSS badge class for a stock level.
+   * Uses utility function from variant-helpers.
+   */
   private _getStockBadgeClass(stock: number): string {
-    if (stock === 0) return "badge-danger";
-    if (stock < 10) return "badge-warning";
-    return "badge-positive";
+    return getStockBadgeClass(stock);
   }
 
   /**
    * Parses the variant's option key and returns a human-readable description
-   * of the option value combination (e.g., "Red / Large / Cotton")
+   * of the option value combination (e.g., "Red / Large / Cotton").
+   * Uses utility function from variant-helpers.
    */
   private _getVariantOptionDescription(variant: ProductVariantDto): string | null {
-    if (!variant.variantOptionsKey || !this._product) return null;
-
-    // GUIDs contain hyphens, so we can't simply split by '-'
-    // Use regex to extract complete GUID patterns
-    const guidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-    const guids = variant.variantOptionsKey.match(guidRegex) || [];
-    const descriptions: string[] = [];
-
-    for (const guid of guids) {
-      for (const option of this._product.productOptions) {
-        const value = option.values.find(v => v.id === guid);
-        if (value) {
-          descriptions.push(value.name);
-          break;
-        }
-      }
-    }
-
-    return descriptions.length > 0 ? descriptions.join(' / ') : null;
+    if (!this._product) return null;
+    return getVariantOptionDescription(variant, this._product.productOptions);
   }
 
   private async _handleSetDefaultVariant(variantId: string): Promise<void> {
@@ -1639,8 +1569,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   private _renderOptionsTab(): unknown {
     const options = this._formData.productOptions ?? [];
     const isNew = this.#workspaceContext?.isNew ?? true;
-    const variantOptions = options.filter((o) => o.isVariant);
-    const estimatedVariants = variantOptions.reduce((acc, opt) => acc * (opt.values.length || 1), variantOptions.length > 0 ? 1 : 0);
+    const estimatedVariants = calculateEstimatedVariantCount(options);
     const maxOptions = this._optionSettings?.maxProductOptions ?? 5;
     const isAtMaxOptions = options.length >= maxOptions;
 
@@ -1911,103 +1840,28 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   }
 
   /**
-   * Renders the Filters tab for assigning filters to the product
+   * Renders the Filters tab for assigning filters to the product.
+   * Uses the shared product-filters component.
+   * Note: Only shown for single-variant products.
    */
   private _renderFiltersTab(): unknown {
     const isNew = this.#workspaceContext?.isNew ?? true;
 
-    if (isNew) {
-      return html`
-        <div class="tab-content">
-          <uui-box class="info-banner warning">
-            <div class="info-content">
-              <uui-icon name="icon-alert"></uui-icon>
-              <div>
-                <strong>Save Required</strong>
-                <p>You must save the product before assigning filters.</p>
-              </div>
-            </div>
-          </uui-box>
-        </div>
-      `;
-    }
-
-    if (this._filterGroups.length === 0) {
-      return html`
-        <div class="tab-content">
-          <uui-box class="info-banner">
-            <div class="info-content">
-              <uui-icon name="icon-info"></uui-icon>
-              <div>
-                <strong>No Filter Groups</strong>
-                <p>No filter groups have been created yet. Go to <a href="/section/merchello/workspace/merchello-filters">Filters</a> to create filter groups and filter values.</p>
-              </div>
-            </div>
-          </uui-box>
-        </div>
-      `;
-    }
-
-    const assignedCount = this._assignedFilterIds.length;
-
     return html`
       <div class="tab-content">
-        <uui-box class="info-banner">
-          <div class="info-content">
-            <uui-icon name="icon-info"></uui-icon>
-            <div>
-              <strong>Assign Filters</strong>
-              <p>Select the filters that apply to this product. Filters help customers find products on your storefront. ${assignedCount > 0 ? `${assignedCount} filter${assignedCount > 1 ? "s" : ""} assigned.` : ""}</p>
-            </div>
-          </div>
-        </uui-box>
-
-        ${this._filterGroups.map((group) => this._renderFilterGroupSection(group))}
+        <merchello-product-filters
+          .filterGroups=${this._filterGroups}
+          .assignedFilterIds=${this._assignedFilterIds}
+          .isNewProduct=${isNew}
+          @filters-change=${this._handleFiltersChange}>
+        </merchello-product-filters>
       </div>
     `;
   }
 
-  /**
-   * Renders a filter group section with checkboxes for each filter
-   */
-  private _renderFilterGroupSection(group: ProductFilterGroupDto): unknown {
-    if (!group.filters || group.filters.length === 0) {
-      return nothing;
-    }
-
-    return html`
-      <uui-box headline=${group.name}>
-        <div class="filter-checkbox-list">
-          ${group.filters.map((filter: ProductFilterDto) => {
-            const isChecked = this._assignedFilterIds.includes(filter.id);
-            return html`
-              <div class="filter-checkbox-item">
-                <uui-checkbox
-                  label=${filter.name}
-                  ?checked=${isChecked}
-                  @change=${(e: Event) => this._handleFilterToggle(filter.id, (e.target as HTMLInputElement).checked)}>
-                  ${filter.hexColour
-                    ? html`<span class="filter-color-swatch" style="background: ${filter.hexColour}"></span>`
-                    : nothing}
-                  ${filter.name}
-                </uui-checkbox>
-              </div>
-            `;
-          })}
-        </div>
-      </uui-box>
-    `;
-  }
-
-  /**
-   * Handles filter checkbox toggle
-   */
-  private _handleFilterToggle(filterId: string, checked: boolean): void {
-    if (checked) {
-      this._assignedFilterIds = [...this._assignedFilterIds, filterId];
-    } else {
-      this._assignedFilterIds = this._assignedFilterIds.filter((id) => id !== filterId);
-    }
+  /** Handles filter selection changes from the shared component */
+  private _handleFiltersChange(e: CustomEvent<FiltersChangeDetail>): void {
+    this._assignedFilterIds = e.detail.filterIds;
   }
 
   /**
@@ -2207,28 +2061,46 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         overflow: visible;
       }
 
-      /* Tab Section Divider - separates Merchello tabs from Element Type tabs */
-      .tab-section-divider {
-        display: flex;
-        align-items: center;
-        padding: 0 var(--uui-size-space-4);
-        height: 100%;
-        gap: var(--uui-size-space-2);
+      /* Element Type tabs (rendered after Merchello tabs) */
+      uui-tab.merchello-tab--last {
+        border-right: none !important;
       }
 
-      .tab-section-divider .divider-line {
-        width: 1px;
-        height: 24px;
-        background-color: var(--uui-color-border-standalone);
+      uui-tab.element-type-tab--first {
+        position: relative;
+        margin-left: 0;
+        z-index: 1;
       }
 
-      .tab-section-divider .divider-label {
+      /* Section divider between Merchello tabs and Element Type tabs */
+      uui-tab.element-type-tab--first::before {
+        content: "";
+        position: absolute;
+        left: -1px;
+        top: 6px;
+        bottom: 6px;
+        width: 2px;
+        background: repeating-linear-gradient(
+          to bottom,
+          var(--uui-color-border-emphasis, var(--uui-color-divider-standalone, var(--uui-color-border-standalone))) 0 2px,
+          transparent 2px 5px
+        );
+        pointer-events: none;
+        z-index: 2;
+      }
+
+      uui-tab.element-type-tab--first::part(button) {
+        padding-left: var(--uui-size-space-2);
+      }
+
+      uui-tab.element-type-tab--first::part(button)::before {
+        content: "CONTENT";
         font-size: var(--uui-type-small-size);
         color: var(--uui-color-text-alt);
         text-transform: uppercase;
         letter-spacing: 0.5px;
         font-weight: 600;
-        white-space: nowrap;
+        margin-right: var(--uui-size-space-2);
       }
 
       /* Hide router slot as we render content inline */
@@ -2608,86 +2480,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         --umb-property-layout-description-display: none;
       }
 
-      /* Package cards */
-      .packages-list {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-4);
-        margin-bottom: var(--uui-size-space-4);
-      }
-
-      .package-card {
-        background: var(--uui-color-surface-alt);
-        border: 1px solid var(--uui-color-border);
-        border-radius: var(--uui-border-radius);
-        padding: var(--uui-size-space-4);
-      }
-
-      .package-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: var(--uui-size-space-3);
-      }
-
-      .package-number {
-        font-weight: 600;
-        color: var(--uui-color-text);
-      }
-
-      .package-fields {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-        gap: var(--uui-size-space-3);
-      }
-
-      .field-group {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-1);
-      }
-
-      .field-group label {
-        font-size: 0.75rem;
-        font-weight: 500;
-        color: var(--uui-color-text-alt);
-      }
-
-      .field-group uui-input {
-        width: 100%;
-      }
-
-      .add-package-button {
-        width: 100%;
-      }
-
-      /* Filter checkbox list */
-      .filter-checkbox-list {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-3);
-      }
-
-      .filter-checkbox-item {
-        display: flex;
-        align-items: center;
-      }
-
-      .filter-checkbox-item uui-checkbox {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
-      }
-
-      .filter-color-swatch {
-        display: inline-block;
-        width: 16px;
-        height: 16px;
-        border-radius: var(--uui-border-radius);
-        border: 1px solid var(--uui-color-border);
-        margin-right: var(--uui-size-space-1);
-        vertical-align: middle;
-      }
     `,
   ];
 }

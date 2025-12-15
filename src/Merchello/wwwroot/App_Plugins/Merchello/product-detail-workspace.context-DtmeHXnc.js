@@ -7,14 +7,14 @@ class y extends n {
     super(t, o.toString()), this.workspaceAlias = "Merchello.Product.Detail.Workspace", this.#t = !1, this.#a = new r(void 0), this.product = this.#a.asObservable(), this.#r = new p(void 0), this.variantId = this.#r.asObservable(), this.#o = new r(null), this.elementType = this.#o.asObservable(), this.#e = new r({}), this.elementPropertyValues = this.#e.asObservable(), this.routes = new u(t), this.provideContext(o, this), this.routes.setRoutes([
       {
         path: "create",
-        component: () => import("./product-detail.element-mIF3nh1A.js"),
+        component: () => import("./product-detail.element-BNQgODuQ.js"),
         setup: () => {
           this.#t = !0, this.#s = void 0, this.#r.setValue(void 0), this.#a.setValue(this._createEmptyProduct());
         }
       },
       {
         path: "edit/:id/variant/:variantId",
-        component: () => import("./variant-detail.element-DAdHbgc_.js"),
+        component: () => import("./variant-detail.element-aOn97eFu.js"),
         setup: (s, e) => {
           this.#t = !1;
           const a = e.match.params.id, l = e.match.params.variantId;
@@ -23,7 +23,7 @@ class y extends n {
       },
       {
         path: "edit/:id",
-        component: () => import("./product-detail.element-mIF3nh1A.js"),
+        component: () => import("./product-detail.element-BNQgODuQ.js"),
         setup: (s, e) => {
           this.#t = !1, this.#r.setValue(void 0);
           const a = e.match.params.id;
@@ -113,4 +113,4 @@ export {
   y as MerchelloProductDetailWorkspaceContext,
   y as api
 };
-//# sourceMappingURL=product-detail-workspace.context-BT5mLzIS.js.map
+//# sourceMappingURL=product-detail-workspace.context-DtmeHXnc.js.map

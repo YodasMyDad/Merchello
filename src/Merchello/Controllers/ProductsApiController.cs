@@ -355,21 +355,40 @@ public class ProductsApiController(
 
     private async Task<ElementTypeResponseModel> MapToElementTypeResponse(IContentType contentType)
     {
+        // Match Umbraco's content type mapping logic:
+        // - Containers can be nested by encoding hierarchy in aliases using "/" (e.g. "tabAlias/groupAlias")
+        // - Property -> container mapping should be derived from the property groups' property type lists (not PropertyGroupId)
+        var containerKeysByGroupAlias = contentType.PropertyGroups.ToDictionary(g => g.Alias, g => g.Key);
+
+        Guid? GetParentKey(PropertyGroup group)
+        {
+            var path = group.Alias.Split('/');
+            return path.Length == 1 || !containerKeysByGroupAlias.TryGetValue(path[0], out var parentKey)
+                ? null
+                : parentKey;
+        }
+
         var containers = contentType.PropertyGroups
             .Select(g => new ElementTypeContainer
             {
                 Id = g.Key,
-                ParentId = null,
+                ParentId = GetParentKey(g),
                 Name = g.Name,
                 Type = g.Type.ToString(),
                 SortOrder = g.SortOrder
             })
             .ToList();
 
+        var containerKeyByPropertyKey = contentType.PropertyGroups
+            .SelectMany(group => (group.PropertyTypes?.ToArray() ?? Array.Empty<PropertyType>())
+                .Select(propertyType => new { propertyType.Key, GroupKey = group.Key }))
+            .ToDictionary(map => map.Key, map => map.GroupKey);
+
         var properties = new List<ElementTypeProperty>();
         foreach (var prop in contentType.PropertyTypes)
         {
-            var elementProp = await MapPropertyType(prop, contentType);
+            var containerId = containerKeyByPropertyKey.TryGetValue(prop.Key, out var groupKey) ? groupKey : (Guid?)null;
+            var elementProp = await MapPropertyType(prop, containerId);
             properties.Add(elementProp);
         }
 
@@ -383,16 +402,12 @@ public class ProductsApiController(
         };
     }
 
-    private async Task<ElementTypeProperty> MapPropertyType(IPropertyType prop, IContentType contentType)
+    private async Task<ElementTypeProperty> MapPropertyType(IPropertyType prop, Guid? containerId)
     {
         var dataType = await dataTypeService.GetAsync(prop.DataTypeKey);
-
-        // PropertyGroupId is a Lazy<int> - check if it has a non-null value
-        Guid? containerId = null;
-        if (prop.PropertyGroupId?.Value is int groupId and > 0)
-        {
-            containerId = contentType.PropertyGroups.FirstOrDefault(g => g.Id == groupId)?.Key;
-        }
+        var configuration = dataType?.ConfigurationData
+            .Select(kvp => new { alias = kvp.Key, value = kvp.Value })
+            .ToArray() ?? Array.Empty<object>();
 
         return new ElementTypeProperty
         {
@@ -404,7 +419,7 @@ public class ProductsApiController(
             SortOrder = prop.SortOrder,
             DataTypeId = prop.DataTypeKey,
             PropertyEditorUiAlias = dataType?.EditorUiAlias ?? string.Empty,
-            DataTypeConfiguration = dataType?.ConfigurationObject,
+            DataTypeConfiguration = configuration,
             Mandatory = prop.Mandatory,
             MandatoryMessage = prop.MandatoryMessage,
             ValidationRegex = prop.ValidationRegExp,

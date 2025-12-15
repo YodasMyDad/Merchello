@@ -7,40 +7,85 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
 import type { MerchelloProductDetailWorkspaceContext } from "@products/contexts/product-detail-workspace.context.js";
 import type { ProductRootDetailDto, ProductVariantDto, ProductPackageDto, UpdateVariantDto } from "@products/types/product.types.js";
-import type { ProductFilterGroupDto, ProductFilterDto } from "@filters/types.js";
+import type { ProductFilterGroupDto } from "@filters/types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { getProductDetailHref } from "@shared/utils/navigation.js";
+
+// Shared components
 import "@products/components/shared/variant-basic-info.element.js";
 import "@products/components/shared/variant-feed-settings.element.js";
 import "@products/components/shared/variant-stock-display.element.js";
+import "@products/components/shared/product-packages.element.js";
+import "@products/components/shared/product-filters.element.js";
 import type { StockSettingsChangeDetail } from "@products/components/shared/variant-stock-display.element.js";
+import type { PackagesChangeDetail } from "@products/components/shared/product-packages.element.js";
+import type { FiltersChangeDetail } from "@products/components/shared/product-filters.element.js";
 
+// ============================================
+// Component
+// ============================================
+
+/**
+ * Variant detail editing component.
+ *
+ * Displays and allows editing of a single product variant including:
+ * - Basic info (SKU, pricing, availability)
+ * - Shipping packages (with override from product root)
+ * - SEO settings (URL slug)
+ * - Shopping feed settings
+ * - Stock levels per warehouse
+ * - Filter assignments
+ *
+ * Accessed by clicking a variant row in the product detail's Variants tab.
+ */
 @customElement("merchello-variant-detail")
 export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
+  // ============================================
+  // State: Loading & Errors
+  // ============================================
+
   @state() private _product: ProductRootDetailDto | null = null;
   @state() private _variant: ProductVariantDto | null = null;
   @state() private _isLoading = true;
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
 
-  // Tab routing state
+  // ============================================
+  // State: Tab Routing
+  // ============================================
+
   @state() private _routes: UmbRoute[] = [];
   @state() private _routerPath?: string;
   @state() private _activePath = "";
 
-  // Form state - copy of variant data for editing
+  // ============================================
+  // State: Form Data
+  // ============================================
+
+  /** Copy of variant data for editing */
   @state() private _formData: Partial<ProductVariantDto> = {};
 
-  // Filter state
+  // ============================================
+  // State: Filters
+  // ============================================
+
   @state() private _filterGroups: ProductFilterGroupDto[] = [];
   @state() private _assignedFilterIds: string[] = [];
   private _originalAssignedFilterIds: string[] = [];
+
+  // ============================================
+  // Private Members
+  // ============================================
 
   #workspaceContext?: MerchelloProductDetailWorkspaceContext;
   #notificationContext?: UmbNotificationContext;
   #variantId: string | undefined;
   #isConnected = false;
+
+  // ============================================
+  // Constructor & Lifecycle
+  // ============================================
 
   constructor() {
     super();
@@ -289,32 +334,9 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     }
   }
 
-  /**
-   * Add a new package
-   */
-  private _addPackage(): void {
-    const packages = [...(this._formData.packageConfigurations ?? [])];
-    packages.push({ weight: 0, lengthCm: null, widthCm: null, heightCm: null });
-    this._formData = { ...this._formData, packageConfigurations: packages };
-  }
-
-  /**
-   * Remove a package by index
-   */
-  private _removePackage(index: number): void {
-    const packages = [...(this._formData.packageConfigurations ?? [])];
-    packages.splice(index, 1);
-    this._formData = { ...this._formData, packageConfigurations: packages };
-  }
-
-  /**
-   * Update a package field
-   */
-  private _updatePackage(index: number, field: keyof ProductPackageDto, value: number | null): void {
-    const packages = [...(this._formData.packageConfigurations ?? [])];
-    packages[index] = { ...packages[index], [field]: value };
-    this._formData = { ...this._formData, packageConfigurations: packages };
-  }
+  // ============================================
+  // Tab Render Methods
+  // ============================================
 
   private _renderPackagesTab(): unknown {
     const isOverriding = this._isOverridingPackages();
@@ -350,132 +372,20 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
           : nothing}
 
         <uui-box headline=${isOverriding ? "Variant Packages" : hasRootPackages ? "Inherited from Product" : "Packages"}>
-          ${!isOverriding && hasRootPackages
-            ? html`
-                <div class="inherited-notice">
-                  <uui-icon name="icon-link"></uui-icon>
-                  <span>These packages are inherited from the product. Enable override above to customize.</span>
-                </div>
-              `
-            : nothing}
-
-          ${effectivePackages.length > 0
-            ? html`
-                <div class="packages-list">
-                  ${effectivePackages.map((pkg, index) => this._renderPackageCard(pkg, index, isOverriding))}
-                </div>
-              `
-            : html`
-                <div class="empty-state">
-                  <uui-icon name="icon-box"></uui-icon>
-                  <p>No packages configured</p>
-                  <p class="hint">Add a package to enable shipping rate calculations</p>
-                </div>
-              `}
-
-          ${isOverriding || !hasRootPackages
-            ? html`
-                <uui-button
-                  look="placeholder"
-                  class="add-package-button"
-                  @click=${() => this._addPackage()}>
-                  <uui-icon name="icon-add"></uui-icon>
-                  Add Package
-                </uui-button>
-              `
-            : nothing}
+          <merchello-product-packages
+            .packages=${effectivePackages}
+            .editable=${isOverriding || !hasRootPackages}
+            .showInheritedBanner=${!isOverriding && hasRootPackages}
+            @packages-change=${this._handlePackagesChange}>
+          </merchello-product-packages>
         </uui-box>
       </div>
     `;
   }
 
-  private _renderPackageCard(pkg: ProductPackageDto, index: number, editable: boolean): unknown {
-    const dimensionText = pkg.lengthCm && pkg.widthCm && pkg.heightCm
-      ? `${pkg.lengthCm} × ${pkg.widthCm} × ${pkg.heightCm} cm`
-      : "No dimensions";
-
-    if (!editable) {
-      return html`
-        <div class="package-card readonly">
-          <div class="package-header">
-            <span class="package-number">Package ${index + 1}</span>
-            <span class="badge badge-muted">Inherited</span>
-          </div>
-          <div class="package-details">
-            <div class="package-stat">
-              <span class="label">Weight</span>
-              <span class="value">${pkg.weight} kg</span>
-            </div>
-            <div class="package-stat">
-              <span class="label">Dimensions</span>
-              <span class="value">${dimensionText}</span>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    return html`
-      <div class="package-card">
-        <div class="package-header">
-          <span class="package-number">Package ${index + 1}</span>
-          <uui-button
-            compact
-            look="secondary"
-            color="danger"
-            label="Remove package"
-            @click=${() => this._removePackage(index)}>
-            <uui-icon name="icon-trash"></uui-icon>
-          </uui-button>
-        </div>
-        <div class="package-fields">
-          <div class="field-group">
-            <label>Weight (kg) *</label>
-            <uui-input
-              type="number"
-              step="0.01"
-              min="0"
-              .value=${String(pkg.weight ?? "")}
-              @input=${(e: Event) => this._updatePackage(index, "weight", parseFloat((e.target as HTMLInputElement).value) || 0)}
-              placeholder="0.50">
-            </uui-input>
-          </div>
-          <div class="field-group">
-            <label>Length (cm)</label>
-            <uui-input
-              type="number"
-              step="0.1"
-              min="0"
-              .value=${String(pkg.lengthCm ?? "")}
-              @input=${(e: Event) => this._updatePackage(index, "lengthCm", parseFloat((e.target as HTMLInputElement).value) || null)}
-              placeholder="20">
-            </uui-input>
-          </div>
-          <div class="field-group">
-            <label>Width (cm)</label>
-            <uui-input
-              type="number"
-              step="0.1"
-              min="0"
-              .value=${String(pkg.widthCm ?? "")}
-              @input=${(e: Event) => this._updatePackage(index, "widthCm", parseFloat((e.target as HTMLInputElement).value) || null)}
-              placeholder="15">
-            </uui-input>
-          </div>
-          <div class="field-group">
-            <label>Height (cm)</label>
-            <uui-input
-              type="number"
-              step="0.1"
-              min="0"
-              .value=${String(pkg.heightCm ?? "")}
-              @input=${(e: Event) => this._updatePackage(index, "heightCm", parseFloat((e.target as HTMLInputElement).value) || null)}
-              placeholder="10">
-            </uui-input>
-          </div>
-        </div>
-      </div>
-    `;
+  /** Handles packages change from the shared component */
+  private _handlePackagesChange(e: CustomEvent<PackagesChangeDetail>): void {
+    this._formData = { ...this._formData, packageConfigurations: e.detail.packages };
   }
 
   private _renderFeedTab(): unknown {
@@ -534,85 +444,24 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
   }
 
   /**
-   * Renders the Filters tab for assigning filters to the variant
+   * Renders the Filters tab for assigning filters to the variant.
+   * Uses the shared product-filters component.
    */
   private _renderFiltersTab(): unknown {
-    if (this._filterGroups.length === 0) {
-      return html`
-        <div class="tab-content">
-          <uui-box class="info-banner">
-            <div class="info-content">
-              <uui-icon name="icon-info"></uui-icon>
-              <div>
-                <strong>No Filter Groups</strong>
-                <p>No filter groups have been created yet. Go to <a href="/section/merchello/workspace/merchello-filters">Filters</a> to create filter groups and filter values.</p>
-              </div>
-            </div>
-          </uui-box>
-        </div>
-      `;
-    }
-
-    const assignedCount = this._assignedFilterIds.length;
-
     return html`
       <div class="tab-content">
-        <uui-box class="info-banner">
-          <div class="info-content">
-            <uui-icon name="icon-info"></uui-icon>
-            <div>
-              <strong>Assign Filters</strong>
-              <p>Select the filters that apply to this variant. Filters help customers find products on your storefront. ${assignedCount > 0 ? `${assignedCount} filter${assignedCount > 1 ? "s" : ""} assigned.` : ""}</p>
-            </div>
-          </div>
-        </uui-box>
-
-        ${this._filterGroups.map((group) => this._renderFilterGroupSection(group))}
+        <merchello-product-filters
+          .filterGroups=${this._filterGroups}
+          .assignedFilterIds=${this._assignedFilterIds}
+          @filters-change=${this._handleFiltersChange}>
+        </merchello-product-filters>
       </div>
     `;
   }
 
-  /**
-   * Renders a filter group section with checkboxes for each filter
-   */
-  private _renderFilterGroupSection(group: ProductFilterGroupDto): unknown {
-    if (!group.filters || group.filters.length === 0) {
-      return nothing;
-    }
-
-    return html`
-      <uui-box headline=${group.name}>
-        <div class="filter-checkbox-list">
-          ${group.filters.map((filter: ProductFilterDto) => {
-            const isChecked = this._assignedFilterIds.includes(filter.id);
-            return html`
-              <div class="filter-checkbox-item">
-                <uui-checkbox
-                  label=${filter.name}
-                  ?checked=${isChecked}
-                  @change=${(e: Event) => this._handleFilterToggle(filter.id, (e.target as HTMLInputElement).checked)}>
-                  ${filter.hexColour
-                    ? html`<span class="filter-color-swatch" style="background: ${filter.hexColour}"></span>`
-                    : nothing}
-                  ${filter.name}
-                </uui-checkbox>
-              </div>
-            `;
-          })}
-        </div>
-      </uui-box>
-    `;
-  }
-
-  /**
-   * Handles filter checkbox toggle
-   */
-  private _handleFilterToggle(filterId: string, checked: boolean): void {
-    if (checked) {
-      this._assignedFilterIds = [...this._assignedFilterIds, filterId];
-    } else {
-      this._assignedFilterIds = this._assignedFilterIds.filter((id) => id !== filterId);
-    }
+  /** Handles filter selection changes from the shared component */
+  private _handleFiltersChange(e: CustomEvent<FiltersChangeDetail>): void {
+    this._assignedFilterIds = e.detail.filterIds;
   }
 
   /**
@@ -923,132 +772,6 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       /* Breadcrumbs */
       uui-breadcrumbs {
         font-size: 0.875rem;
-      }
-
-      /* Package cards */
-      .packages-list {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-4);
-        margin-bottom: var(--uui-size-space-4);
-      }
-
-      .package-card {
-        background: var(--uui-color-surface-alt);
-        border: 1px solid var(--uui-color-border);
-        border-radius: var(--uui-border-radius);
-        padding: var(--uui-size-space-4);
-      }
-
-      .package-card.readonly {
-        opacity: 0.8;
-      }
-
-      .package-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: var(--uui-size-space-3);
-      }
-
-      .package-number {
-        font-weight: 600;
-        color: var(--uui-color-text);
-      }
-
-      .package-details {
-        display: flex;
-        gap: var(--uui-size-space-6);
-      }
-
-      .package-stat {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-1);
-      }
-
-      .package-stat .label {
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        color: var(--uui-color-text-alt);
-      }
-
-      .package-stat .value {
-        font-weight: 500;
-      }
-
-      .package-fields {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-        gap: var(--uui-size-space-3);
-      }
-
-      .field-group {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-1);
-      }
-
-      .field-group label {
-        font-size: 0.75rem;
-        font-weight: 500;
-        color: var(--uui-color-text-alt);
-      }
-
-      .field-group uui-input {
-        width: 100%;
-      }
-
-      .inherited-notice {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
-        padding: var(--uui-size-space-3);
-        background: var(--uui-color-surface-alt);
-        border-radius: var(--uui-border-radius);
-        margin-bottom: var(--uui-size-space-4);
-        color: var(--uui-color-text-alt);
-        font-size: 0.875rem;
-      }
-
-      .inherited-notice uui-icon {
-        color: var(--uui-color-selected);
-      }
-
-      .add-package-button {
-        width: 100%;
-      }
-
-      .badge-muted {
-        background: var(--uui-color-surface-emphasis);
-        color: var(--uui-color-text-alt);
-      }
-
-      /* Filter checkbox styles */
-      .filter-checkbox-list {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-2);
-      }
-
-      .filter-checkbox-item {
-        display: flex;
-        align-items: center;
-      }
-
-      .filter-checkbox-item uui-checkbox {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
-      }
-
-      .filter-color-swatch {
-        display: inline-block;
-        width: 16px;
-        height: 16px;
-        border-radius: var(--uui-border-radius);
-        border: 1px solid var(--uui-color-border);
-        margin-right: var(--uui-size-space-2);
       }
     `,
   ];

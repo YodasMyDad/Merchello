@@ -296,7 +296,7 @@ const e = [
     kind: "routable",
     alias: "Merchello.Product.Detail.Workspace",
     name: "Product Detail Workspace",
-    api: () => import("./product-detail-workspace.context-BT5mLzIS.js"),
+    api: () => import("./product-detail-workspace.context-DtmeHXnc.js"),
     meta: {
       entityType: "merchello-product"
     }
@@ -306,7 +306,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Product.Detail.View",
     name: "Product Detail View",
-    js: () => import("./product-detail.element-mIF3nh1A.js"),
+    js: () => import("./product-detail.element-BNQgODuQ.js"),
     weight: 100,
     meta: {
       label: "Product",
