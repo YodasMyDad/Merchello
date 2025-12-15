@@ -1,5 +1,5 @@
-import { LitElement as P, nothing as n, html as o, css as C, property as $, state as c, customElement as I } from "@umbraco-cms/backoffice/external/lit";
-import { UmbElementMixin as S } from "@umbraco-cms/backoffice/element-api";
+import { LitElement as I, nothing as n, html as o, css as C, property as $, state as c, customElement as S } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as F } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT as M } from "@umbraco-cms/backoffice/workspace";
 import { UmbModalToken as G, UMB_MODAL_MANAGER_CONTEXT as U } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT as N } from "@umbraco-cms/backoffice/notification";
@@ -8,16 +8,16 @@ import "@umbraco-cms/backoffice/property";
 import { b as R } from "./badge.styles-C_lNgH9O.js";
 import { c as L, d as B } from "./navigation-D1KCp5wk.js";
 import { UmbChangeEvent as W } from "@umbraco-cms/backoffice/event";
-import "./variant-stock-display.element-D7hBvtXE.js";
+import "./product-filters.element-DOeStqNi.js";
 import { UmbDataTypeDetailRepository as j } from "@umbraco-cms/backoffice/data-type";
-import { UmbPropertyEditorConfigCollection as F } from "@umbraco-cms/backoffice/property-editor";
+import { UmbPropertyEditorConfigCollection as E } from "@umbraco-cms/backoffice/property-editor";
 import "@umbraco-cms/backoffice/tiptap";
-var K = Object.defineProperty, H = Object.getOwnPropertyDescriptor, k = (e, t, i, a) => {
+var K = Object.defineProperty, H = Object.getOwnPropertyDescriptor, T = (e, t, i, a) => {
   for (var r = a > 1 ? void 0 : a ? H(t, i) : t, s = e.length - 1, u; s >= 0; s--)
     (u = e[s]) && (r = (a ? u(t, i, r) : u(r)) || r);
   return a && r && K(t, i, r), r;
 };
-let y = class extends S(P) {
+let _ = class extends F(I) {
   constructor() {
     super(...arguments), this.values = {}, this._datasetValue = [];
   }
@@ -43,9 +43,11 @@ let y = class extends S(P) {
     return [...t, ...a];
   }
   _onPropertyChange(e) {
-    const t = e.target;
-    t.alias && this.dispatchEvent(new CustomEvent("property-change", {
-      detail: { alias: t.alias, value: t.value },
+    const i = e.target.value ?? [], a = {};
+    for (const r of i)
+      a[r.alias] = r.value;
+    this.dispatchEvent(new CustomEvent("values-change", {
+      detail: { values: a },
       bubbles: !0,
       composed: !0
     }));
@@ -100,7 +102,7 @@ let y = class extends S(P) {
       return e.dataTypeConfiguration;
   }
 };
-y.styles = C`
+_.styles = C`
     :host {
       display: block;
     }
@@ -125,22 +127,22 @@ y.styles = C`
       margin: 0;
     }
   `;
-k([
+T([
   $({ attribute: !1 })
-], y.prototype, "elementType", 2);
-k([
+], _.prototype, "elementType", 2);
+T([
   $({ attribute: !1 })
-], y.prototype, "values", 2);
-k([
+], _.prototype, "values", 2);
+T([
   $({ type: String })
-], y.prototype, "activeTabId", 2);
-k([
+], _.prototype, "activeTabId", 2);
+T([
   c()
-], y.prototype, "_datasetValue", 2);
-y = k([
-  I("merchello-product-element-properties")
-], y);
-const E = new G(
+], _.prototype, "_datasetValue", 2);
+_ = T([
+  S("merchello-product-element-properties")
+], _);
+const O = new G(
   "Merchello.OptionEditor.Modal",
   {
     modal: {
@@ -149,12 +151,12 @@ const E = new G(
     }
   }
 );
-var q = Object.defineProperty, Y = Object.getOwnPropertyDescriptor, w = (e, t, i, a) => {
+var q = Object.defineProperty, Y = Object.getOwnPropertyDescriptor, y = (e, t, i, a) => {
   for (var r = a > 1 ? void 0 : a ? Y(t, i) : t, s = e.length - 1, u; s >= 0; s--)
     (u = e[s]) && (r = (a ? u(t, i, r) : u(r)) || r);
   return a && r && q(t, i, r), r;
 };
-let f = class extends S(P) {
+let f = class extends F(I) {
   constructor() {
     super(...arguments), this.items = [], this.placeholder = "Add item...", this.readonly = !1, this._newItemValue = "", this._editingIndex = null, this._editingValue = "";
   }
@@ -422,37 +424,92 @@ f.styles = C`
       font-style: italic;
     }
   `;
-w([
+y([
   $({ type: Array })
 ], f.prototype, "items", 2);
-w([
+y([
   $({ type: String })
 ], f.prototype, "placeholder", 2);
-w([
+y([
   $({ type: Boolean })
 ], f.prototype, "readonly", 2);
-w([
+y([
   c()
 ], f.prototype, "_newItemValue", 2);
-w([
+y([
   c()
 ], f.prototype, "_editingIndex", 2);
-w([
+y([
   c()
 ], f.prototype, "_editingValue", 2);
-f = w([
-  I("merchello-editable-text-list")
+f = y([
+  S("merchello-editable-text-list")
 ], f);
-var X = Object.defineProperty, J = Object.getOwnPropertyDescriptor, O = (e) => {
+function X(e, t = {}) {
+  const i = {};
+  return e.rootName?.trim() || (i.rootName = "Product name is required"), e.taxGroupId || (i.taxGroupId = "Tax group is required"), e.productTypeId || (i.productTypeId = "Product type is required"), !(t.isDigitalProduct ?? e.isDigitalProduct ?? !1) && (!e.warehouseIds || e.warehouseIds.length === 0) && (i.warehouseIds = "At least one warehouse is required for physical products"), {
+    isValid: Object.keys(i).length === 0,
+    errors: i
+  };
+}
+function J(e) {
+  const t = {};
+  return e.sku?.trim() || (t.sku = "SKU is required"), (e.price ?? 0) < 0 && (t.price = "Price must be 0 or greater"), e.costOfGoods !== void 0 && e.costOfGoods < 0 && (t.costOfGoods = "Cost of goods must be 0 or greater"), e.onSale && e.previousPrice !== void 0 && e.previousPrice !== null && e.previousPrice < 0 && (t.previousPrice = "Previous price must be 0 or greater"), {
+    isValid: Object.keys(t).length === 0,
+    errors: t
+  };
+}
+function Q(e, t) {
+  if (!e && !t)
+    return null;
+  const i = [];
+  return e && i.push("Details"), t && i.push("Basic Info"), `Please fix the errors on the ${i.join(" and ")} tab${i.length > 1 ? "s" : ""} before saving`;
+}
+function Z(e, t) {
+  if (!e.variantOptionsKey)
+    return null;
+  const i = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, a = e.variantOptionsKey.match(i) || [], r = [];
+  for (const s of a)
+    for (const u of t) {
+      const w = u.values.find((k) => k.id === s);
+      if (w) {
+        r.push(w.name);
+        break;
+      }
+    }
+  return r.length > 0 ? r.join(" / ") : null;
+}
+function ee(e) {
+  const t = e.filter((i) => i.isVariant);
+  return t.length === 0 ? 0 : t.reduce((i, a) => i * (a.values.length || 1), 1);
+}
+function te(e) {
+  return e === 0 ? "badge-danger" : e < 10 ? "badge-warning" : "badge-positive";
+}
+function ie(e) {
+  return e.some((t) => !t.sku || t.price === 0);
+}
+function ae(e, t) {
+  return e > 1 && t === 0;
+}
+function re(e) {
+  try {
+    const t = new URL(e), i = t.pathname.split("/").filter((a) => a);
+    return i.length === 0 ? t.hostname : `${t.hostname} › ${i.join(" › ")}`;
+  } catch {
+    return e;
+  }
+}
+var oe = Object.defineProperty, se = Object.getOwnPropertyDescriptor, V = (e) => {
   throw TypeError(e);
 }, p = (e, t, i, a) => {
-  for (var r = a > 1 ? void 0 : a ? J(t, i) : t, s = e.length - 1, u; s >= 0; s--)
+  for (var r = a > 1 ? void 0 : a ? se(t, i) : t, s = e.length - 1, u; s >= 0; s--)
     (u = e[s]) && (r = (a ? u(t, i, r) : u(r)) || r);
-  return a && r && X(t, i, r), r;
-}, V = (e, t, i) => t.has(e) || O("Cannot " + i), l = (e, t, i) => (V(e, t, "read from private field"), t.get(e)), x = (e, t, i) => t.has(e) ? O("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), D = (e, t, i, a) => (V(e, t, "write to private field"), t.set(e, i), i), T, h, _, g, v;
-let d = class extends S(P) {
+  return a && r && oe(t, i, r), r;
+}, A = (e, t, i) => t.has(e) || V("Cannot " + i), l = (e, t, i) => (A(e, t, "read from private field"), t.get(e)), x = (e, t, i) => t.has(e) ? V("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), D = (e, t, i, a) => (A(e, t, "write to private field"), t.set(e, i), i), P, h, b, g, v;
+let d = class extends F(I) {
   constructor() {
-    super(), this._product = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._optionSettings = null, this._validationAttempted = !1, this._fieldErrors = {}, this._routes = [], this._activePath = "", this._formData = {}, this._taxGroups = [], this._productTypes = [], this._warehouses = [], this._filterGroups = [], this._assignedFilterIds = [], this._originalAssignedFilterIds = [], this._elementType = null, this._elementPropertyValues = {}, this._productViews = [], this._descriptionEditorConfig = void 0, this._variantFormData = {}, this._variantFieldErrors = {}, x(this, T, new j(this)), x(this, h), x(this, _), x(this, g), x(this, v, !1), this.consumeContext(M, (e) => {
+    super(), this._product = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._validationAttempted = !1, this._fieldErrors = {}, this._routes = [], this._activePath = "", this._formData = {}, this._variantFormData = {}, this._variantFieldErrors = {}, this._taxGroups = [], this._productTypes = [], this._warehouses = [], this._productViews = [], this._optionSettings = null, this._filterGroups = [], this._assignedFilterIds = [], this._originalAssignedFilterIds = [], this._elementType = null, this._elementPropertyValues = {}, this._descriptionEditorConfig = void 0, x(this, P, new j(this)), x(this, h), x(this, b), x(this, g), x(this, v, !1), this.consumeContext(M, (e) => {
       D(this, h, e), l(this, h) && (this.observe(l(this, h).product, (t) => {
         this._product = t ?? null, t && (this._formData = { ...t }, t.variants.length === 1 && (this._variantFormData = { ...t.variants[0] }, this._loadAssignedFilters()), t.elementProperties && (this._elementPropertyValues = { ...t.elementProperties })), this._isLoading = !t;
       }), this.observe(l(this, h).elementType, (t) => {
@@ -461,7 +518,7 @@ let d = class extends S(P) {
         this._elementPropertyValues = t;
       }));
     }), this.consumeContext(U, (e) => {
-      D(this, _, e);
+      D(this, b, e);
     }), this.consumeContext(N, (e) => {
       D(this, g, e);
     });
@@ -512,13 +569,13 @@ let d = class extends S(P) {
   async _loadDataTypeConfig(e) {
     try {
       console.log("[Merchello] Loading DataType config for:", e);
-      const { data: t, error: i } = await l(this, T).requestByUnique(e);
+      const { data: t, error: i } = await l(this, P).requestByUnique(e);
       if (i) {
         console.error("[Merchello] Error requesting DataType:", i), this._setFallbackEditorConfig();
         return;
       }
       console.log("[Merchello] DataType request result:", t), this.observe(
-        await l(this, T).byUnique(e),
+        await l(this, P).byUnique(e),
         (a) => {
           if (console.log("[Merchello] DataType observed:", a), !l(this, v)) return;
           if (!a) {
@@ -527,7 +584,7 @@ let d = class extends S(P) {
           }
           console.log("[Merchello] DataType values:", a.values), console.log("[Merchello] DataType values detail:", JSON.stringify(a.values, null, 2));
           const r = a.values?.some((u) => u.alias === "extensions"), s = a.values?.some((u) => u.alias === "toolbar");
-          console.log("[Merchello] Has extensions:", r, "Has toolbar:", s), r || console.warn("[Merchello] DataType is missing 'extensions' config. Delete it in Settings > Data Types and restart to recreate."), this._descriptionEditorConfig = new F(a.values);
+          console.log("[Merchello] Has extensions:", r, "Has toolbar:", s), r || console.warn("[Merchello] DataType is missing 'extensions' config. Delete it in Settings > Data Types and restart to recreate."), this._descriptionEditorConfig = new E(a.values);
         },
         "_observeDescriptionDataType"
       );
@@ -539,7 +596,7 @@ let d = class extends S(P) {
    * Sets a fallback editor configuration if the DataType cannot be loaded.
    */
   _setFallbackEditorConfig() {
-    console.log("[Merchello] Using fallback TipTap configuration"), this._descriptionEditorConfig = new F([
+    console.log("[Merchello] Using fallback TipTap configuration"), this._descriptionEditorConfig = new E([
       {
         alias: "toolbar",
         value: [
@@ -841,29 +898,37 @@ let d = class extends S(P) {
     return a ?? null;
   }
   /**
-   * Validates the form and sets field-level errors
+   * Validates the form and sets field-level errors.
+   * Uses validation utility functions for product root and variant validation.
    */
   _validateForm() {
-    this._validationAttempted = !0, this._fieldErrors = {}, this._variantFieldErrors = {}, this._errorMessage = null, this._formData.rootName?.trim() || (this._fieldErrors.rootName = "Product name is required"), this._formData.taxGroupId || (this._fieldErrors.taxGroupId = "Tax group is required"), this._formData.productTypeId || (this._fieldErrors.productTypeId = "Product type is required"), !this._formData.isDigitalProduct && (!this._formData.warehouseIds || this._formData.warehouseIds.length === 0) && (this._fieldErrors.warehouseIds = "At least one warehouse is required for physical products"), this._isSingleVariant() && (this._variantFormData.sku?.trim() || (this._variantFieldErrors.sku = "SKU is required"), (this._variantFormData.price ?? 0) < 0 && (this._variantFieldErrors.price = "Price must be 0 or greater"));
-    const e = Object.keys(this._fieldErrors).length > 0, t = Object.keys(this._variantFieldErrors).length > 0;
-    if (e || t) {
-      const i = [];
-      e && i.push("Details"), t && i.push("Basic Info"), this._errorMessage = `Please fix the errors on the ${i.join(" and ")} tab${i.length > 1 ? "s" : ""} before saving`;
-    }
-    return !e && !t;
+    this._validationAttempted = !0, this._errorMessage = null;
+    const e = X(this._formData, {
+      isDigitalProduct: this._formData.isDigitalProduct
+    });
+    this._fieldErrors = e.errors;
+    let t = { isValid: !0, errors: {} };
+    this._isSingleVariant() && (t = J(this._variantFormData)), this._variantFieldErrors = t.errors;
+    const i = Q(
+      !e.isValid,
+      !t.isValid
+    );
+    return i && (this._errorMessage = i), e.isValid && t.isValid;
   }
   /**
-   * Checks if there are warnings for variants tab
+   * Checks if there are warnings for variants tab.
+   * Uses utility function from variant-helpers.
    */
   _hasVariantWarnings() {
-    return this._product?.variants ? this._product.variants.some((e) => !e.sku || e.price === 0) : !1;
+    return this._product?.variants ? ie(this._product.variants) : !1;
   }
   /**
-   * Checks if there are warnings for options tab
+   * Checks if there are warnings for options tab.
+   * Uses utility function from variant-helpers.
    */
   _hasOptionWarnings() {
     const e = this._product?.variants.length ?? 0, t = this._product?.productOptions.length ?? 0;
-    return e > 1 && t === 0;
+    return ae(e, t);
   }
   _renderTabs() {
     const e = this._product?.variants.length ?? 0, t = this._product?.productOptions.length ?? 0, i = this._isSingleVariant(), a = this._getActiveTab(), r = this._getTabHint("details"), s = this._getTabHint("variants"), u = this._getTabHint("options");
@@ -940,6 +1005,7 @@ let d = class extends S(P) {
 
         <uui-tab
           label="Options"
+          class=${i ? "" : "merchello-tab--last"}
           href="${this._routerPath}/tab/options"
           ?active=${a === "options"}>
           Options (${t})
@@ -949,6 +1015,7 @@ let d = class extends S(P) {
         ${i ? o`
               <uui-tab
                 label="Filters"
+                class="merchello-tab--last"
                 href="${this._routerPath}/tab/filters"
                 ?active=${a === "filters"}>
                 Filters
@@ -966,14 +1033,9 @@ let d = class extends S(P) {
     if (!this._elementType) return n;
     const t = this._getElementTypeTabs();
     return o`
-      <!-- Visual Divider between Merchello tabs and Element Type tabs -->
-      <div class="tab-section-divider" title="Content Properties">
-        <span class="divider-line"></span>
-        <span class="divider-label">Content</span>
-      </div>
-
-      ${t.length > 0 ? t.map((i) => o`
+      ${t.length > 0 ? t.map((i, a) => o`
             <uui-tab
+              class=${a === 0 ? "element-type-tab element-type-tab--first" : "element-type-tab"}
               label=${i.name ?? "Content"}
               href="${this._routerPath}/tab/content-${i.id}"
               ?active=${e === `content-${i.id}`}>
@@ -982,6 +1044,7 @@ let d = class extends S(P) {
           `) : o`
             <!-- Single "Content" tab if element type has no tabs defined -->
             <uui-tab
+              class="element-type-tab element-type-tab--first"
               label="Content"
               href="${this._routerPath}/tab/content"
               ?active=${e === "content"}>
@@ -1002,7 +1065,7 @@ let d = class extends S(P) {
           .elementType=${this._elementType}
           .values=${this._elementPropertyValues}
           .activeTabId=${t}
-          @property-change=${this._onElementPropertyChange}>
+          @values-change=${this._onElementPropertiesChange}>
         </merchello-product-element-properties>
       </div>
     `;
@@ -1010,9 +1073,9 @@ let d = class extends S(P) {
   /**
    * Handles property value changes from the element properties component
    */
-  _onElementPropertyChange(e) {
-    const { alias: t, value: i } = e.detail;
-    this._elementPropertyValues = { ...this._elementPropertyValues, [t]: i }, l(this, h)?.setElementPropertyValue(t, i);
+  _onElementPropertiesChange(e) {
+    const { values: t } = e.detail;
+    this._elementPropertyValues = { ...t }, l(this, h)?.setElementPropertyValues(t);
   }
   _renderDetailsTab() {
     const e = l(this, h)?.isNew ?? !0;
@@ -1142,29 +1205,12 @@ let d = class extends S(P) {
     `;
   }
   // ============================================
-  // Shipping Tab - Package Management
+  // Shipping Tab
   // ============================================
   /**
-   * Add a new package configuration
+   * Renders the shipping tab with package configurations.
+   * Uses the shared product-packages component.
    */
-  _addPackage() {
-    const e = [...this._formData.defaultPackageConfigurations ?? []];
-    e.push({ weight: 0, lengthCm: null, widthCm: null, heightCm: null }), this._formData = { ...this._formData, defaultPackageConfigurations: e };
-  }
-  /**
-   * Remove a package by index
-   */
-  _removePackage(e) {
-    const t = [...this._formData.defaultPackageConfigurations ?? []];
-    t.splice(e, 1), this._formData = { ...this._formData, defaultPackageConfigurations: t };
-  }
-  /**
-   * Update a package field
-   */
-  _updatePackage(e, t, i) {
-    const a = [...this._formData.defaultPackageConfigurations ?? []];
-    a[e] = { ...a[e], [t]: i }, this._formData = { ...this._formData, defaultPackageConfigurations: a };
-  }
   _renderShippingTab() {
     const e = this._formData.defaultPackageConfigurations ?? [], t = l(this, h)?.isNew ?? !0;
     return o`
@@ -1180,92 +1226,19 @@ let d = class extends S(P) {
         </uui-box>
 
         <uui-box headline="Package Configurations">
-          ${e.length > 0 ? o`
-                <div class="packages-list">
-                  ${e.map((i, a) => this._renderPackageCard(i, a))}
-                </div>
-              ` : o`
-                <div class="empty-state">
-                  <uui-icon name="icon-box"></uui-icon>
-                  <p>No packages configured</p>
-                  <p class="hint">Add a package to enable shipping rate calculations with carriers like FedEx, UPS, and DHL</p>
-                </div>
-              `}
-
-          <uui-button
-            look="placeholder"
-            class="add-package-button"
-            ?disabled=${t}
-            @click=${() => this._addPackage()}>
-            <uui-icon name="icon-add"></uui-icon>
-            Add Package
-          </uui-button>
+          <merchello-product-packages
+            .packages=${e}
+            .editable=${!0}
+            .disableAdd=${t}
+            @packages-change=${this._handlePackagesChange}>
+          </merchello-product-packages>
         </uui-box>
       </div>
     `;
   }
-  _renderPackageCard(e, t) {
-    return o`
-      <div class="package-card">
-        <div class="package-header">
-          <span class="package-number">Package ${t + 1}</span>
-          <uui-button
-            compact
-            look="secondary"
-            color="danger"
-            label="Remove package"
-            @click=${() => this._removePackage(t)}>
-            <uui-icon name="icon-trash"></uui-icon>
-          </uui-button>
-        </div>
-        <div class="package-fields">
-          <div class="field-group">
-            <label>Weight (kg) *</label>
-            <uui-input
-              type="number"
-              step="0.01"
-              min="0"
-              .value=${String(e.weight ?? "")}
-              @input=${(i) => this._updatePackage(t, "weight", parseFloat(i.target.value) || 0)}
-              placeholder="0.50">
-            </uui-input>
-          </div>
-          <div class="field-group">
-            <label>Length (cm)</label>
-            <uui-input
-              type="number"
-              step="0.1"
-              min="0"
-              .value=${String(e.lengthCm ?? "")}
-              @input=${(i) => this._updatePackage(t, "lengthCm", parseFloat(i.target.value) || null)}
-              placeholder="20">
-            </uui-input>
-          </div>
-          <div class="field-group">
-            <label>Width (cm)</label>
-            <uui-input
-              type="number"
-              step="0.1"
-              min="0"
-              .value=${String(e.widthCm ?? "")}
-              @input=${(i) => this._updatePackage(t, "widthCm", parseFloat(i.target.value) || null)}
-              placeholder="15">
-            </uui-input>
-          </div>
-          <div class="field-group">
-            <label>Height (cm)</label>
-            <uui-input
-              type="number"
-              step="0.1"
-              min="0"
-              .value=${String(e.heightCm ?? "")}
-              @input=${(i) => this._updatePackage(t, "heightCm", parseFloat(i.target.value) || null)}
-              placeholder="10">
-            </uui-input>
-          </div>
-        </div>
-      </div>
-    `;
+  /** Handles packages change from the shared component */
+  _handlePackagesChange(e) {
+    this._formData = { ...this._formData, defaultPackageConfigurations: e.detail.packages };
   }
   /**
    * Renders the Description rich text editor using Umbraco's TipTap input component.
@@ -1419,7 +1392,7 @@ let d = class extends S(P) {
     `;
   }
   _renderGoogleSearchPreview() {
-    const e = this._formData.pageTitle || this._formData.rootName || "Product Title", t = this._formData.metaDescription || "No meta description set. Add a description to improve search visibility.", i = this._formData.canonicalUrl || "https://yourstore.com/products/product-name", a = this._formatUrlAsBreadcrumb(i), r = 60, s = 160, u = e.length > r, b = t.length > s, z = u ? e.substring(0, r - 3) + "..." : e, A = b ? t.substring(0, s - 3) + "..." : t;
+    const e = this._formData.pageTitle || this._formData.rootName || "Product Title", t = this._formData.metaDescription || "No meta description set. Add a description to improve search visibility.", i = this._formData.canonicalUrl || "https://yourstore.com/products/product-name", a = this._formatUrlAsBreadcrumb(i), r = 60, s = 160, u = e.length > r, w = t.length > s, k = u ? e.substring(0, r - 3) + "..." : e, z = w ? t.substring(0, s - 3) + "..." : t;
     return o`
       <div class="google-preview">
         <div class="google-preview-header">
@@ -1431,26 +1404,25 @@ let d = class extends S(P) {
             <div class="google-preview-url">${a}</div>
           </div>
         </div>
-        <div class="google-preview-title">${z}</div>
-        <div class="google-preview-description">${A}</div>
+        <div class="google-preview-title">${k}</div>
+        <div class="google-preview-description">${z}</div>
       </div>
       <div class="google-preview-stats">
         <span class="${u ? "stat-warning" : "stat-ok"}">
           Title: ${e.length}/${r} chars ${u ? "(will be truncated)" : ""}
         </span>
-        <span class="${b ? "stat-warning" : "stat-ok"}">
-          Description: ${t.length}/${s} chars ${b ? "(will be truncated)" : ""}
+        <span class="${w ? "stat-warning" : "stat-ok"}">
+          Description: ${t.length}/${s} chars ${w ? "(will be truncated)" : ""}
         </span>
       </div>
     `;
   }
+  /**
+   * Formats a URL as a breadcrumb string for Google Search preview.
+   * Uses utility function from variant-helpers.
+   */
   _formatUrlAsBreadcrumb(e) {
-    try {
-      const t = new URL(e), i = t.pathname.split("/").filter((a) => a);
-      return i.length === 0 ? t.hostname : `${t.hostname} › ${i.join(" › ")}`;
-    } catch {
-      return e;
-    }
+    return re(e);
   }
   _handleOpenGraphImageChange(e) {
     const i = e.target?.value || [], a = i.length > 0 ? i[0].mediaKey : null;
@@ -1538,25 +1510,20 @@ let d = class extends S(P) {
       </uui-table-row>
     `;
   }
+  /**
+   * Gets the appropriate CSS badge class for a stock level.
+   * Uses utility function from variant-helpers.
+   */
   _getStockBadgeClass(e) {
-    return e === 0 ? "badge-danger" : e < 10 ? "badge-warning" : "badge-positive";
+    return te(e);
   }
   /**
    * Parses the variant's option key and returns a human-readable description
-   * of the option value combination (e.g., "Red / Large / Cotton")
+   * of the option value combination (e.g., "Red / Large / Cotton").
+   * Uses utility function from variant-helpers.
    */
   _getVariantOptionDescription(e) {
-    if (!e.variantOptionsKey || !this._product) return null;
-    const t = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, i = e.variantOptionsKey.match(t) || [], a = [];
-    for (const r of i)
-      for (const s of this._product.productOptions) {
-        const u = s.values.find((b) => b.id === r);
-        if (u) {
-          a.push(u.name);
-          break;
-        }
-      }
-    return a.length > 0 ? a.join(" / ") : null;
+    return this._product ? Z(e, this._product.productOptions) : null;
   }
   async _handleSetDefaultVariant(e) {
     if (!this._product || this._product.variants.find((r) => r.id === e)?.default) return;
@@ -1624,7 +1591,7 @@ let d = class extends S(P) {
     this._variantFormData = { ...this._variantFormData, warehouseStock: s };
   }
   _renderOptionsTab() {
-    const e = this._formData.productOptions ?? [], t = l(this, h)?.isNew ?? !0, i = e.filter((u) => u.isVariant), a = i.reduce((u, b) => u * (b.values.length || 1), i.length > 0 ? 1 : 0), r = this._optionSettings?.maxProductOptions ?? 5, s = e.length >= r;
+    const e = this._formData.productOptions ?? [], t = l(this, h)?.isNew ?? !0, i = ee(e), a = this._optionSettings?.maxProductOptions ?? 5, r = e.length >= a;
     return o`
       <div class="tab-content">
         ${t ? o`
@@ -1651,21 +1618,21 @@ let d = class extends S(P) {
 
         <div class="section-header">
           <div>
-            <h3>Product Options <span class="option-count">${e.length}/${r}</span></h3>
-            ${a > 0 ? o`<small class="hint">Will generate ${a} variant${a !== 1 ? "s" : ""}</small>` : n}
+            <h3>Product Options <span class="option-count">${e.length}/${a}</span></h3>
+            ${i > 0 ? o`<small class="hint">Will generate ${i} variant${i !== 1 ? "s" : ""}</small>` : n}
           </div>
           <uui-button
             look="primary"
             color="positive"
             label="Add Option"
-            ?disabled=${t || s}
+            ?disabled=${t || r}
             @click=${this._addNewOption}>
             <uui-icon name="icon-add"></uui-icon>
             Add Option
           </uui-button>
         </div>
 
-        ${e.length > 0 ? o` <div class="options-list">${e.map((u) => this._renderOptionCard(u))}</div> ` : t ? n : o`
+        ${e.length > 0 ? o` <div class="options-list">${e.map((s) => this._renderOptionCard(s))}</div> ` : t ? n : o`
               <div class="empty-state">
                 <uui-icon name="icon-layers"></uui-icon>
                 <p>No options configured</p>
@@ -1718,8 +1685,8 @@ let d = class extends S(P) {
     `;
   }
   async _addNewOption() {
-    if (!l(this, _) || !this._optionSettings) return;
-    const t = await l(this, _).open(this, E, {
+    if (!l(this, b) || !this._optionSettings) return;
+    const t = await l(this, b).open(this, O, {
       data: {
         option: void 0,
         settings: this._optionSettings
@@ -1735,8 +1702,8 @@ let d = class extends S(P) {
     }
   }
   async _editOption(e) {
-    if (!l(this, _) || !this._optionSettings) return;
-    const i = await l(this, _).open(this, E, {
+    if (!l(this, b) || !this._optionSettings) return;
+    const i = await l(this, b).open(this, O, {
       data: {
         option: e,
         settings: this._optionSettings
@@ -1827,84 +1794,26 @@ Are you sure you want to continue?`;
     }
   }
   /**
-   * Renders the Filters tab for assigning filters to the product
+   * Renders the Filters tab for assigning filters to the product.
+   * Uses the shared product-filters component.
+   * Note: Only shown for single-variant products.
    */
   _renderFiltersTab() {
-    if (l(this, h)?.isNew ?? !0)
-      return o`
-        <div class="tab-content">
-          <uui-box class="info-banner warning">
-            <div class="info-content">
-              <uui-icon name="icon-alert"></uui-icon>
-              <div>
-                <strong>Save Required</strong>
-                <p>You must save the product before assigning filters.</p>
-              </div>
-            </div>
-          </uui-box>
-        </div>
-      `;
-    if (this._filterGroups.length === 0)
-      return o`
-        <div class="tab-content">
-          <uui-box class="info-banner">
-            <div class="info-content">
-              <uui-icon name="icon-info"></uui-icon>
-              <div>
-                <strong>No Filter Groups</strong>
-                <p>No filter groups have been created yet. Go to <a href="/section/merchello/workspace/merchello-filters">Filters</a> to create filter groups and filter values.</p>
-              </div>
-            </div>
-          </uui-box>
-        </div>
-      `;
-    const t = this._assignedFilterIds.length;
+    const e = l(this, h)?.isNew ?? !0;
     return o`
       <div class="tab-content">
-        <uui-box class="info-banner">
-          <div class="info-content">
-            <uui-icon name="icon-info"></uui-icon>
-            <div>
-              <strong>Assign Filters</strong>
-              <p>Select the filters that apply to this product. Filters help customers find products on your storefront. ${t > 0 ? `${t} filter${t > 1 ? "s" : ""} assigned.` : ""}</p>
-            </div>
-          </div>
-        </uui-box>
-
-        ${this._filterGroups.map((i) => this._renderFilterGroupSection(i))}
+        <merchello-product-filters
+          .filterGroups=${this._filterGroups}
+          .assignedFilterIds=${this._assignedFilterIds}
+          .isNewProduct=${e}
+          @filters-change=${this._handleFiltersChange}>
+        </merchello-product-filters>
       </div>
     `;
   }
-  /**
-   * Renders a filter group section with checkboxes for each filter
-   */
-  _renderFilterGroupSection(e) {
-    return !e.filters || e.filters.length === 0 ? n : o`
-      <uui-box headline=${e.name}>
-        <div class="filter-checkbox-list">
-          ${e.filters.map((t) => {
-      const i = this._assignedFilterIds.includes(t.id);
-      return o`
-              <div class="filter-checkbox-item">
-                <uui-checkbox
-                  label=${t.name}
-                  ?checked=${i}
-                  @change=${(a) => this._handleFilterToggle(t.id, a.target.checked)}>
-                  ${t.hexColour ? o`<span class="filter-color-swatch" style="background: ${t.hexColour}"></span>` : n}
-                  ${t.name}
-                </uui-checkbox>
-              </div>
-            `;
-    })}
-        </div>
-      </uui-box>
-    `;
-  }
-  /**
-   * Handles filter checkbox toggle
-   */
-  _handleFilterToggle(e, t) {
-    t ? this._assignedFilterIds = [...this._assignedFilterIds, e] : this._assignedFilterIds = this._assignedFilterIds.filter((i) => i !== e);
+  /** Handles filter selection changes from the shared component */
+  _handleFiltersChange(e) {
+    this._assignedFilterIds = e.detail.filterIds;
   }
   /**
    * Checks if filter assignments have changed
@@ -2020,9 +1929,9 @@ Are you sure you want to continue?`;
     `;
   }
 };
-T = /* @__PURE__ */ new WeakMap();
+P = /* @__PURE__ */ new WeakMap();
 h = /* @__PURE__ */ new WeakMap();
-_ = /* @__PURE__ */ new WeakMap();
+b = /* @__PURE__ */ new WeakMap();
 g = /* @__PURE__ */ new WeakMap();
 v = /* @__PURE__ */ new WeakMap();
 d.styles = [
@@ -2090,28 +1999,46 @@ d.styles = [
         overflow: visible;
       }
 
-      /* Tab Section Divider - separates Merchello tabs from Element Type tabs */
-      .tab-section-divider {
-        display: flex;
-        align-items: center;
-        padding: 0 var(--uui-size-space-4);
-        height: 100%;
-        gap: var(--uui-size-space-2);
+      /* Element Type tabs (rendered after Merchello tabs) */
+      uui-tab.merchello-tab--last {
+        border-right: none !important;
       }
 
-      .tab-section-divider .divider-line {
-        width: 1px;
-        height: 24px;
-        background-color: var(--uui-color-border-standalone);
+      uui-tab.element-type-tab--first {
+        position: relative;
+        margin-left: 0;
+        z-index: 1;
       }
 
-      .tab-section-divider .divider-label {
+      /* Section divider between Merchello tabs and Element Type tabs */
+      uui-tab.element-type-tab--first::before {
+        content: "";
+        position: absolute;
+        left: -1px;
+        top: 6px;
+        bottom: 6px;
+        width: 2px;
+        background: repeating-linear-gradient(
+          to bottom,
+          var(--uui-color-border-emphasis, var(--uui-color-divider-standalone, var(--uui-color-border-standalone))) 0 2px,
+          transparent 2px 5px
+        );
+        pointer-events: none;
+        z-index: 2;
+      }
+
+      uui-tab.element-type-tab--first::part(button) {
+        padding-left: var(--uui-size-space-2);
+      }
+
+      uui-tab.element-type-tab--first::part(button)::before {
+        content: "CONTENT";
         font-size: var(--uui-type-small-size);
         color: var(--uui-color-text-alt);
         text-transform: uppercase;
         letter-spacing: 0.5px;
         font-weight: 600;
-        white-space: nowrap;
+        margin-right: var(--uui-size-space-2);
       }
 
       /* Hide router slot as we render content inline */
@@ -2491,86 +2418,6 @@ d.styles = [
         --umb-property-layout-description-display: none;
       }
 
-      /* Package cards */
-      .packages-list {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-4);
-        margin-bottom: var(--uui-size-space-4);
-      }
-
-      .package-card {
-        background: var(--uui-color-surface-alt);
-        border: 1px solid var(--uui-color-border);
-        border-radius: var(--uui-border-radius);
-        padding: var(--uui-size-space-4);
-      }
-
-      .package-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: var(--uui-size-space-3);
-      }
-
-      .package-number {
-        font-weight: 600;
-        color: var(--uui-color-text);
-      }
-
-      .package-fields {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-        gap: var(--uui-size-space-3);
-      }
-
-      .field-group {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-1);
-      }
-
-      .field-group label {
-        font-size: 0.75rem;
-        font-weight: 500;
-        color: var(--uui-color-text-alt);
-      }
-
-      .field-group uui-input {
-        width: 100%;
-      }
-
-      .add-package-button {
-        width: 100%;
-      }
-
-      /* Filter checkbox list */
-      .filter-checkbox-list {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-3);
-      }
-
-      .filter-checkbox-item {
-        display: flex;
-        align-items: center;
-      }
-
-      .filter-checkbox-item uui-checkbox {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
-      }
-
-      .filter-color-swatch {
-        display: inline-block;
-        width: 16px;
-        height: 16px;
-        border-radius: var(--uui-border-radius);
-        border: 1px solid var(--uui-color-border);
-        margin-right: var(--uui-size-space-1);
-        vertical-align: middle;
-      }
     `
 ];
 p([
@@ -2585,9 +2432,6 @@ p([
 p([
   c()
 ], d.prototype, "_errorMessage", 2);
-p([
-  c()
-], d.prototype, "_optionSettings", 2);
 p([
   c()
 ], d.prototype, "_validationAttempted", 2);
@@ -2608,6 +2452,12 @@ p([
 ], d.prototype, "_formData", 2);
 p([
   c()
+], d.prototype, "_variantFormData", 2);
+p([
+  c()
+], d.prototype, "_variantFieldErrors", 2);
+p([
+  c()
 ], d.prototype, "_taxGroups", 2);
 p([
   c()
@@ -2615,6 +2465,12 @@ p([
 p([
   c()
 ], d.prototype, "_warehouses", 2);
+p([
+  c()
+], d.prototype, "_productViews", 2);
+p([
+  c()
+], d.prototype, "_optionSettings", 2);
 p([
   c()
 ], d.prototype, "_filterGroups", 2);
@@ -2632,22 +2488,13 @@ p([
 ], d.prototype, "_elementPropertyValues", 2);
 p([
   c()
-], d.prototype, "_productViews", 2);
-p([
-  c()
 ], d.prototype, "_descriptionEditorConfig", 2);
-p([
-  c()
-], d.prototype, "_variantFormData", 2);
-p([
-  c()
-], d.prototype, "_variantFieldErrors", 2);
 d = p([
-  I("merchello-product-detail")
+  S("merchello-product-detail")
 ], d);
-const pe = d;
+const we = d;
 export {
   d as MerchelloProductDetailElement,
-  pe as default
+  we as default
 };
-//# sourceMappingURL=product-detail.element-mIF3nh1A.js.map
+//# sourceMappingURL=product-detail.element-BNQgODuQ.js.map
