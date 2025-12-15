@@ -2051,6 +2051,7 @@ public class ProductService(
         Guid filterGroupId,
         string name,
         string? hexColour = null,
+        Guid? image = null,
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<ProductFilter>();
@@ -2077,17 +2078,298 @@ public class ProductService(
                 Id = GuidExtensions.NewSequentialGuid,
                 Name = name,
                 HexColour = hexColour,
+                Image = image,
                 SortOrder = filterCount,
-                ProductFilterGroupId = filterGroupId  // Explicitly set FK
+                ProductFilterGroupId = filterGroupId
             };
 
-            db.ProductFilters.Add(filter);  // Add directly to DbSet
+            db.ProductFilters.Add(filter);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = filter;
         });
         scope.Complete();
 
+        return result;
+    }
+
+    /// <summary>
+    /// Gets a single filter group by ID
+    /// </summary>
+    public async Task<ProductFilterGroup?> GetFilterGroup(Guid filterGroupId, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.ProductFilterGroups
+                .Include(fg => fg.Filters)
+                .FirstOrDefaultAsync(fg => fg.Id == filterGroupId, cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Updates a filter group
+    /// </summary>
+    public async Task<CrudResult<ProductFilterGroup>> UpdateFilterGroup(
+        Guid filterGroupId,
+        string? name,
+        int? sortOrder,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<ProductFilterGroup>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var filterGroup = await db.ProductFilterGroups
+                .Include(fg => fg.Filters)
+                .FirstOrDefaultAsync(fg => fg.Id == filterGroupId, cancellationToken);
+
+            if (filterGroup == null)
+            {
+                result.AddErrorMessage($"Filter group with ID {filterGroupId} not found");
+                return;
+            }
+
+            if (name != null) filterGroup.Name = name;
+            if (sortOrder.HasValue) filterGroup.SortOrder = sortOrder.Value;
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            result.ResultObject = filterGroup;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    /// <summary>
+    /// Deletes a filter group and all its filters
+    /// </summary>
+    public async Task<CrudResult<bool>> DeleteFilterGroup(Guid filterGroupId, CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<bool>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var filterGroup = await db.ProductFilterGroups
+                .Include(fg => fg.Filters)
+                .FirstOrDefaultAsync(fg => fg.Id == filterGroupId, cancellationToken);
+
+            if (filterGroup == null)
+            {
+                result.AddErrorMessage($"Filter group with ID {filterGroupId} not found");
+                return;
+            }
+
+            // Remove all filters in the group first
+            db.ProductFilters.RemoveRange(filterGroup.Filters);
+            db.ProductFilterGroups.Remove(filterGroup);
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            result.ResultObject = true;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    /// <summary>
+    /// Reorders filter groups by setting their sort order based on the provided ordered list of IDs
+    /// </summary>
+    public async Task<CrudResult<bool>> ReorderFilterGroups(List<Guid> orderedIds, CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<bool>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var filterGroups = await db.ProductFilterGroups
+                .Where(fg => orderedIds.Contains(fg.Id))
+                .ToListAsync(cancellationToken);
+
+            for (var i = 0; i < orderedIds.Count; i++)
+            {
+                var filterGroup = filterGroups.FirstOrDefault(fg => fg.Id == orderedIds[i]);
+                if (filterGroup != null)
+                {
+                    filterGroup.SortOrder = i;
+                }
+            }
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            result.ResultObject = true;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    /// <summary>
+    /// Gets a single filter by ID
+    /// </summary>
+    public async Task<ProductFilter?> GetFilter(Guid filterId, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.ProductFilters
+                .FirstOrDefaultAsync(f => f.Id == filterId, cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Updates a filter
+    /// </summary>
+    public async Task<CrudResult<ProductFilter>> UpdateFilter(
+        Guid filterId,
+        string? name,
+        string? hexColour,
+        Guid? image,
+        int? sortOrder,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<ProductFilter>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var filter = await db.ProductFilters
+                .FirstOrDefaultAsync(f => f.Id == filterId, cancellationToken);
+
+            if (filter == null)
+            {
+                result.AddErrorMessage($"Filter with ID {filterId} not found");
+                return;
+            }
+
+            if (name != null) filter.Name = name;
+            if (hexColour != null) filter.HexColour = hexColour == "" ? null : hexColour;
+            if (image.HasValue) filter.Image = image.Value == Guid.Empty ? null : image.Value;
+            if (sortOrder.HasValue) filter.SortOrder = sortOrder.Value;
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            result.ResultObject = filter;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    /// <summary>
+    /// Deletes a filter
+    /// </summary>
+    public async Task<CrudResult<bool>> DeleteFilter(Guid filterId, CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<bool>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var filter = await db.ProductFilters
+                .FirstOrDefaultAsync(f => f.Id == filterId, cancellationToken);
+
+            if (filter == null)
+            {
+                result.AddErrorMessage($"Filter with ID {filterId} not found");
+                return;
+            }
+
+            db.ProductFilters.Remove(filter);
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            result.ResultObject = true;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    /// <summary>
+    /// Reorders filters within a group by setting their sort order based on the provided ordered list of IDs
+    /// </summary>
+    public async Task<CrudResult<bool>> ReorderFilters(Guid filterGroupId, List<Guid> orderedIds, CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<bool>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var filters = await db.ProductFilters
+                .Where(f => f.ProductFilterGroupId == filterGroupId && orderedIds.Contains(f.Id))
+                .ToListAsync(cancellationToken);
+
+            for (var i = 0; i < orderedIds.Count; i++)
+            {
+                var filter = filters.FirstOrDefault(f => f.Id == orderedIds[i]);
+                if (filter != null)
+                {
+                    filter.SortOrder = i;
+                }
+            }
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            result.ResultObject = true;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    /// <summary>
+    /// Assigns filters to a product, replacing any existing filter assignments
+    /// </summary>
+    public async Task<CrudResult<bool>> AssignFiltersToProduct(Guid productId, List<Guid> filterIds, CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<bool>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var product = await db.Products
+                .Include(p => p.Filters)
+                .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken);
+
+            if (product == null)
+            {
+                result.AddErrorMessage($"Product with ID {productId} not found");
+                return;
+            }
+
+            // Get the filters to assign
+            var filtersToAssign = await db.ProductFilters
+                .Where(f => filterIds.Contains(f.Id))
+                .ToListAsync(cancellationToken);
+
+            // Clear existing and add new assignments
+            product.Filters.Clear();
+            foreach (var filter in filtersToAssign)
+            {
+                product.Filters.Add(filter);
+            }
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            result.ResultObject = true;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    /// <summary>
+    /// Gets all filters assigned to a product
+    /// </summary>
+    public async Task<List<ProductFilter>> GetFiltersForProduct(Guid productId, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var product = await db.Products
+                .Include(p => p.Filters)
+                .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken);
+
+            return product?.Filters.ToList() ?? [];
+        });
+        scope.Complete();
         return result;
     }
 

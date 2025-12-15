@@ -10,6 +10,7 @@ export default defineConfig({
       "@dashboards": resolve(__dirname, "src/dashboards"),
       "@discounts": resolve(__dirname, "src/discounts"),
       "@entrypoints": resolve(__dirname, "src/entrypoints"),
+      "@filters": resolve(__dirname, "src/filters"),
       "@orders": resolve(__dirname, "src/orders"),
       "@payment-providers": resolve(__dirname, "src/payment-providers"),
       "@products": resolve(__dirname, "src/products"),

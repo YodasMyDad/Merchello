@@ -268,6 +268,17 @@ import type {
   SaveExchangeRateProviderSettingsDto,
 } from '../exchange-rate-providers/types.js';
 
+// Import filter types
+import type {
+  ProductFilterGroupDto,
+  ProductFilterDto,
+  CreateFilterGroupDto,
+  UpdateFilterGroupDto,
+  CreateFilterDto,
+  UpdateFilterDto,
+  AssignFiltersDto,
+} from '../filters/types.js';
+
 // Helper to build query string from params
 function buildQueryString(params?: Record<string, unknown>): string {
   if (!params) return '';
@@ -757,4 +768,60 @@ export const MerchelloApi = {
   /** Get the current exchange rate snapshot from cache */
   getExchangeRateSnapshot: () =>
     apiGet<ExchangeRateSnapshotDto>('exchange-rate-providers/snapshot'),
+
+  // ============================================
+  // Filters API
+  // ============================================
+
+  /** Get all filter groups with their filters */
+  getFilterGroups: () =>
+    apiGet<ProductFilterGroupDto[]>('filter-groups'),
+
+  /** Get a single filter group by ID */
+  getFilterGroup: (id: string) =>
+    apiGet<ProductFilterGroupDto>(`filter-groups/${id}`),
+
+  /** Create a new filter group */
+  createFilterGroup: (data: CreateFilterGroupDto) =>
+    apiPost<ProductFilterGroupDto>('filter-groups', data),
+
+  /** Update a filter group */
+  updateFilterGroup: (id: string, data: UpdateFilterGroupDto) =>
+    apiPut<ProductFilterGroupDto>(`filter-groups/${id}`, data),
+
+  /** Delete a filter group */
+  deleteFilterGroup: (id: string) =>
+    apiDelete(`filter-groups/${id}`),
+
+  /** Reorder filter groups */
+  reorderFilterGroups: (orderedIds: string[]) =>
+    apiPut<void>('filter-groups/reorder', orderedIds),
+
+  /** Create a new filter within a group */
+  createFilter: (groupId: string, data: CreateFilterDto) =>
+    apiPost<ProductFilterDto>(`filter-groups/${groupId}/filters`, data),
+
+  /** Get a single filter by ID */
+  getFilter: (id: string) =>
+    apiGet<ProductFilterDto>(`filters/${id}`),
+
+  /** Update a filter */
+  updateFilter: (id: string, data: UpdateFilterDto) =>
+    apiPut<ProductFilterDto>(`filters/${id}`, data),
+
+  /** Delete a filter */
+  deleteFilter: (id: string) =>
+    apiDelete(`filters/${id}`),
+
+  /** Reorder filters within a group */
+  reorderFilters: (groupId: string, orderedIds: string[]) =>
+    apiPut<void>(`filter-groups/${groupId}/filters/reorder`, orderedIds),
+
+  /** Assign filters to a product (replaces existing assignments) */
+  assignFiltersToProduct: (productId: string, filterIds: string[]) =>
+    apiPut<void>(`products/${productId}/filters`, { filterIds } as AssignFiltersDto),
+
+  /** Get filters assigned to a product */
+  getFiltersForProduct: (productId: string) =>
+    apiGet<ProductFilterDto[]>(`products/${productId}/filters`),
 };

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Shared.Models;
@@ -551,7 +552,7 @@ public class FedExShippingProvider(
         {
             var settings = JsonSerializer.Deserialize<Dictionary<string, string>>(providerSettingsJson);
             if (settings?.TryGetValue("markup", out var markupStr) == true &&
-                decimal.TryParse(markupStr, out var markup))
+                decimal.TryParse(markupStr, NumberStyles.Number, CultureInfo.InvariantCulture, out var markup))
             {
                 return markup;
             }

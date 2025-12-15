@@ -29,6 +29,7 @@
       "@dashboards/*": [ "src/dashboards/*" ],
       "@discounts/*": [ "src/discounts/*" ],
       "@entrypoints/*": [ "src/entrypoints/*" ],
+      "@filters/*": [ "src/filters/*" ],
       "@orders/*": [ "src/orders/*" ],
       "@payment-providers/*": [ "src/payment-providers/*" ],
       "@products/*": [ "src/products/*" ],

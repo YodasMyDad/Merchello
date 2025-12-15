@@ -3,14 +3,14 @@ const e = [
     name: "Merchello Entrypoint",
     alias: "Merchello.Entrypoint",
     type: "backofficeEntryPoint",
-    js: () => import("./entrypoint-OtN6CYgw.js")
+    js: () => import("./entrypoint-DtCPaq52.js")
   }
 ], a = [
   {
     name: "Merchello Dashboard",
     alias: "Merchello.Dashboard",
     type: "dashboard",
-    js: () => import("./dashboard.element-DboiTWQq.js"),
+    js: () => import("./dashboard.element-CT99C0zD.js"),
     meta: {
       label: "Merchello Dashboard",
       pathname: "merchello-dashboard"
@@ -68,7 +68,7 @@ const e = [
     type: "dashboard",
     alias: "Merchello.Dashboard.Stats",
     name: "Merchello Stats Dashboard",
-    element: () => import("./stats-dashboard.element-BeWai5di.js"),
+    element: () => import("./stats-dashboard.element-CzTmHK4O.js"),
     meta: {
       label: "Stats",
       pathname: "stats"
@@ -139,42 +139,42 @@ const e = [
     type: "modal",
     alias: "Merchello.Fulfillment.Modal",
     name: "Merchello Fulfillment Modal",
-    js: () => import("./fulfillment-modal.element-DkiKlprx.js")
+    js: () => import("./fulfillment-modal.element-CfEuAHud.js")
   },
   // Shipment edit modal for updating tracking info
   {
     type: "modal",
     alias: "Merchello.ShipmentEdit.Modal",
     name: "Merchello Shipment Edit Modal",
-    js: () => import("./shipment-edit-modal.element-BrUzlWQE.js")
+    js: () => import("./shipment-edit-modal.element-EX_VEokm.js")
   },
   // Manual payment modal for recording offline payments
   {
     type: "modal",
     alias: "Merchello.ManualPayment.Modal",
     name: "Merchello Manual Payment Modal",
-    js: () => import("./manual-payment-modal.element-Bc62zWSr.js")
+    js: () => import("./manual-payment-modal.element-Cn9s1pMi.js")
   },
   // Refund modal for processing refunds
   {
     type: "modal",
     alias: "Merchello.Refund.Modal",
     name: "Merchello Refund Modal",
-    js: () => import("./refund-modal.element-CkYCqIwL.js")
+    js: () => import("./refund-modal.element-D0rvUh2t.js")
   },
   // Export modal for exporting orders to CSV
   {
     type: "modal",
     alias: "Merchello.Export.Modal",
     name: "Merchello Export Modal",
-    js: () => import("./export-modal.element-Bmud0uXh.js")
+    js: () => import("./export-modal.element-CVWGFHqC.js")
   },
   // Edit order modal for editing order details
   {
     type: "modal",
     alias: "Merchello.EditOrder.Modal",
     name: "Merchello Edit Order Modal",
-    js: () => import("./edit-order-modal.element-CSg3cSFb.js")
+    js: () => import("./edit-order-modal.element-DN7kinIA.js")
   },
   // Add custom item modal for edit order
   {
@@ -195,14 +195,14 @@ const e = [
     type: "modal",
     alias: "Merchello.CreateOrder.Modal",
     name: "Merchello Create Order Modal",
-    js: () => import("./create-order-modal.element-C2PTGYy-.js")
+    js: () => import("./create-order-modal.element-BzfVPIxI.js")
   },
   // Customer orders modal for viewing all orders by a customer
   {
     type: "modal",
     alias: "Merchello.CustomerOrders.Modal",
     name: "Merchello Customer Orders Modal",
-    js: () => import("./customer-orders-modal.element-CXuLtCEj.js")
+    js: () => import("./customer-orders-modal.element-DoTM6GTd.js")
   },
   // Workspace for orders list (when clicking "Orders" in tree)
   {
@@ -220,7 +220,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Orders.ListView",
     name: "Orders List View",
-    js: () => import("./orders-list.element-DM7cthnF.js"),
+    js: () => import("./orders-list.element-Kvd3L3QO.js"),
     weight: 100,
     meta: {
       label: "Orders",
@@ -240,7 +240,7 @@ const e = [
     kind: "routable",
     alias: "Merchello.Order.Detail.Workspace",
     name: "Order Detail Workspace",
-    api: () => import("./order-detail-workspace.context-CvM8qKYM.js"),
+    api: () => import("./order-detail-workspace.context-Dnw8VQHP.js"),
     meta: {
       entityType: "merchello-order"
     }
@@ -276,7 +276,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Products.Workspace.View",
     name: "Merchello Products View",
-    js: () => import("./products-list.element-BgT6jK0r.js"),
+    js: () => import("./products-list.element-CO1XabFD.js"),
     weight: 100,
     meta: {
       label: "Products",
@@ -296,7 +296,7 @@ const e = [
     kind: "routable",
     alias: "Merchello.Product.Detail.Workspace",
     name: "Product Detail Workspace",
-    api: () => import("./product-detail-workspace.context-Do4Rk0Ug.js"),
+    api: () => import("./product-detail-workspace.context-C9pbrHa-.js"),
     meta: {
       entityType: "merchello-product"
     }
@@ -306,7 +306,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Product.Detail.View",
     name: "Product Detail View",
-    js: () => import("./product-detail.element-DFQj7md9.js"),
+    js: () => import("./product-detail.element-KgZ0Cr2V.js"),
     weight: 100,
     meta: {
       label: "Product",
@@ -394,12 +394,12 @@ const e = [
       headline: "Filters"
     }
   },
-  // Workspace view for filters
+  // Workspace view for filters list
   {
     type: "workspaceView",
     alias: "Merchello.Filters.Workspace.View",
     name: "Merchello Filters View",
-    js: () => import("./filters-workspace.element-rREFvqNn.js"),
+    js: () => import("./filters-list.element-BfVPPOAU.js"),
     weight: 100,
     meta: {
       label: "Filters",
@@ -412,6 +412,20 @@ const e = [
         match: "Merchello.Filters.Workspace"
       }
     ]
+  },
+  // Modal for creating/editing filter groups
+  {
+    type: "modal",
+    alias: "Merchello.FilterGroup.Modal",
+    name: "Merchello Filter Group Modal",
+    js: () => import("./filter-group-modal.element-ro04R1xT.js")
+  },
+  // Modal for creating/editing filters
+  {
+    type: "modal",
+    alias: "Merchello.Filter.Modal",
+    name: "Merchello Filter Modal",
+    js: () => import("./filter-modal.element-BVR-RFTF.js")
   }
 ], n = [
   // Workspace for providers (when clicking "Providers" in tree)
@@ -442,7 +456,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Analytics.Workspace.View",
     name: "Merchello Analytics View",
-    js: () => import("./analytics-workspace.element-Bgf0Vqyo.js"),
+    js: () => import("./analytics-workspace.element-Z0ZTBxsA.js"),
     weight: 100,
     meta: {
       label: "Analytics",
@@ -507,7 +521,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Tax.Workspace.View",
     name: "Merchello Tax Groups View",
-    js: () => import("./tax-workspace.element-Clu-4D5-.js"),
+    js: () => import("./tax-workspace.element-BFkw38ua.js"),
     weight: 100,
     meta: {
       label: "Tax Groups",
@@ -529,7 +543,7 @@ const e = [
     type: "modal",
     alias: "Merchello.TaxGroup.Modal",
     name: "Merchello Tax Group Modal",
-    js: () => import("./tax-group-modal.element-BV357QRH.js")
+    js: () => import("./tax-group-modal.element-BpCZDh-E.js")
   }
 ], d = [
   // ============================================
@@ -551,7 +565,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Suppliers.ListView",
     name: "Merchello Suppliers List View",
-    js: () => import("./suppliers-list.element-CoRjfoth.js"),
+    js: () => import("./suppliers-list.element-Q1CD3wes.js"),
     weight: 100,
     meta: {
       label: "Suppliers",
@@ -573,7 +587,7 @@ const e = [
     type: "modal",
     alias: "Merchello.Supplier.Modal",
     name: "Merchello Supplier Modal",
-    js: () => import("./supplier-modal.element-Cm7FUXsO.js")
+    js: () => import("./supplier-modal.element-DmI1KwCM.js")
   }
 ], M = [
   // ============================================
@@ -595,7 +609,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Warehouses.ListView",
     name: "Merchello Warehouses List View",
-    js: () => import("./warehouses-list.element-Jm6UZCNI.js"),
+    js: () => import("./warehouses-list.element-iZM-mvlV.js"),
     weight: 100,
     meta: {
       label: "Warehouses",
@@ -618,7 +632,7 @@ const e = [
     kind: "routable",
     alias: "Merchello.Warehouse.Detail.Workspace",
     name: "Merchello Warehouse Detail Workspace",
-    api: () => import("./warehouse-detail-workspace.context-NqTHrgN0.js"),
+    api: () => import("./warehouse-detail-workspace.context-DEtoe5Tj.js"),
     meta: {
       entityType: "merchello-warehouse"
     }
@@ -628,7 +642,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Warehouse.Detail.View",
     name: "Merchello Warehouse Detail View",
-    js: () => import("./warehouse-detail.element-CDwa4SYC.js"),
+    js: () => import("./warehouse-detail.element-dNB-AI_h.js"),
     weight: 100,
     meta: {
       label: "Warehouse",
@@ -650,7 +664,7 @@ const e = [
     type: "modal",
     alias: "Merchello.ServiceRegion.Modal",
     name: "Merchello Service Region Modal",
-    js: () => import("./service-region-modal.element-wyUmQEFA.js")
+    js: () => import("./service-region-modal.element-DuyFDCpN.js")
   }
 ], u = [
   // Workspace view for shipping providers (under Providers workspace)
@@ -658,7 +672,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Providers.ShippingProviders.View",
     name: "Shipping Providers View",
-    js: () => import("./shipping-providers-list.element-BW10Q9U9.js"),
+    js: () => import("./shipping-providers-list.element-Dk4t34jd.js"),
     weight: 90,
     meta: {
       label: "Shipping",
@@ -679,35 +693,35 @@ const e = [
     type: "modal",
     alias: "Merchello.ShippingProvider.Config.Modal",
     name: "Shipping Provider Config Modal",
-    js: () => import("./shipping-provider-config-modal.element-D9TC8Z2m.js")
+    js: () => import("./shipping-provider-config-modal.element-CgjsnbZd.js")
   },
   // Test shipping provider modal
   {
     type: "modal",
     alias: "Merchello.TestProvider.Modal",
     name: "Test Shipping Provider Modal",
-    js: () => import("./test-provider-modal.element-D3-U0fUM.js")
+    js: () => import("./test-provider-modal.element-B1Yxs60D.js")
   },
   // Shipping option detail modal
   {
     type: "modal",
     alias: "Merchello.ShippingOption.Detail.Modal",
     name: "Shipping Option Detail Modal",
-    js: () => import("./shipping-option-detail-modal.element-BtVF7piF.js")
+    js: () => import("./shipping-option-detail-modal.element-DQZ59QYj.js")
   },
   // Shipping cost modal
   {
     type: "modal",
     alias: "Merchello.ShippingCost.Modal",
     name: "Shipping Cost Modal",
-    js: () => import("./shipping-cost-modal.element-BvXtxJfY.js")
+    js: () => import("./shipping-cost-modal.element-CuB0UTAu.js")
   },
   // Shipping weight tier modal
   {
     type: "modal",
     alias: "Merchello.ShippingWeightTier.Modal",
     name: "Shipping Weight Tier Modal",
-    js: () => import("./shipping-weight-tier-modal.element-WIqx9F9O.js")
+    js: () => import("./shipping-weight-tier-modal.element-CgeSnTfH.js")
   }
 ], y = [
   // Workspace view for payment providers (under Providers workspace)
@@ -715,7 +729,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Providers.PaymentProviders.View",
     name: "Payment Providers View",
-    js: () => import("./payment-providers-list.element-HJj9AxcG.js"),
+    js: () => import("./payment-providers-list.element-D0vpkNTA.js"),
     weight: 100,
     meta: {
       label: "Payments",
@@ -734,7 +748,7 @@ const e = [
     type: "modal",
     alias: "Merchello.PaymentProvider.Config.Modal",
     name: "Payment Provider Configuration Modal",
-    js: () => import("./payment-provider-config-modal.element-DVdnuBZ4.js")
+    js: () => import("./payment-provider-config-modal.element-RILHLK9R.js")
   },
   // Modal for displaying setup instructions
   {
@@ -748,7 +762,7 @@ const e = [
     type: "modal",
     alias: "Merchello.TestPaymentProvider.Modal",
     name: "Test Payment Provider Modal",
-    js: () => import("./test-provider-modal.element-BINmPEv2.js")
+    js: () => import("./test-provider-modal.element-B1EEqopj.js")
   }
 ], k = [
   // Workspace view for exchange rate providers (under Providers workspace)
@@ -756,7 +770,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Providers.ExchangeRateProviders.View",
     name: "Exchange Rate Providers View",
-    js: () => import("./exchange-rate-providers-list.element-CYFSqKiO.js"),
+    js: () => import("./exchange-rate-providers-list.element-D3moWB2a.js"),
     weight: 80,
     // After Payments (100) and Shipping (90)
     meta: {
@@ -776,14 +790,14 @@ const e = [
     type: "modal",
     alias: "Merchello.ExchangeRateProvider.Config.Modal",
     name: "Exchange Rate Provider Configuration Modal",
-    js: () => import("./exchange-rate-provider-config-modal.element-CrFY_1jP.js")
+    js: () => import("./exchange-rate-provider-config-modal.element-rP3E1Zq5.js")
   },
   // Modal for testing an exchange rate provider
   {
     type: "modal",
     alias: "Merchello.ExchangeRateProvider.Test.Modal",
     name: "Exchange Rate Provider Test Modal",
-    js: () => import("./test-provider-modal.element-Divi-J_A.js")
+    js: () => import("./test-provider-modal.element-dbeQ3vHh.js")
   }
 ], w = [
   // Workspace for root (when clicking "Merchello" in tree)
@@ -803,7 +817,7 @@ const e = [
     type: "modal",
     alias: "Merchello.ProductPicker.Modal",
     name: "Merchello Product Picker Modal",
-    js: () => import("./product-picker-modal.element-BI3AFL4-.js")
+    js: () => import("./product-picker-modal.element-DI1qt7wb.js")
   }
 ], g = [
   ...e,

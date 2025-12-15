@@ -387,7 +387,7 @@ public class DbSeeder(
         {
             foreach (var (name, hexColour) in colors)
             {
-                await productService.CreateFilter(colorGroupResult.ResultObject.Id, name, hexColour, cancellationToken);
+                await productService.CreateFilter(colorGroupResult.ResultObject.Id, name, hexColour, null, cancellationToken);
             }
         }
 
@@ -398,7 +398,7 @@ public class DbSeeder(
         {
             foreach (var size in sizes)
             {
-                await productService.CreateFilter(sizeGroupResult.ResultObject.Id, size, null, cancellationToken);
+                await productService.CreateFilter(sizeGroupResult.ResultObject.Id, size, null, null, cancellationToken);
             }
         }
     }

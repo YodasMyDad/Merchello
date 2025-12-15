@@ -50,7 +50,17 @@ public interface IProductService
 
     // Filter operations
     Task<CrudResult<ProductFilterGroup>> CreateFilterGroup(string name, CancellationToken cancellationToken = default);
-    Task<CrudResult<ProductFilter>> CreateFilter(Guid filterGroupId, string name, string? hexColour = null, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductFilter>> CreateFilter(Guid filterGroupId, string name, string? hexColour = null, Guid? image = null, CancellationToken cancellationToken = default);
+    Task<ProductFilterGroup?> GetFilterGroup(Guid filterGroupId, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductFilterGroup>> UpdateFilterGroup(Guid filterGroupId, string? name, int? sortOrder, CancellationToken cancellationToken = default);
+    Task<CrudResult<bool>> DeleteFilterGroup(Guid filterGroupId, CancellationToken cancellationToken = default);
+    Task<CrudResult<bool>> ReorderFilterGroups(List<Guid> orderedIds, CancellationToken cancellationToken = default);
+    Task<ProductFilter?> GetFilter(Guid filterId, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductFilter>> UpdateFilter(Guid filterId, string? name, string? hexColour, Guid? image, int? sortOrder, CancellationToken cancellationToken = default);
+    Task<CrudResult<bool>> DeleteFilter(Guid filterId, CancellationToken cancellationToken = default);
+    Task<CrudResult<bool>> ReorderFilters(Guid filterGroupId, List<Guid> orderedIds, CancellationToken cancellationToken = default);
+    Task<CrudResult<bool>> AssignFiltersToProduct(Guid productId, List<Guid> filterIds, CancellationToken cancellationToken = default);
+    Task<List<ProductFilter>> GetFiltersForProduct(Guid productId, CancellationToken cancellationToken = default);
 
     // Query/count operations for seeding
     Task<bool> AnyProductsExistAsync(CancellationToken cancellationToken = default);

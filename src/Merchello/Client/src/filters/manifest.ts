@@ -11,12 +11,12 @@ export const manifests: Array<UmbExtensionManifest> = [
     },
   },
 
-  // Workspace view for filters
+  // Workspace view for filters list
   {
     type: "workspaceView",
     alias: "Merchello.Filters.Workspace.View",
     name: "Merchello Filters View",
-    js: () => import("./filters-workspace.element.js"),
+    js: () => import("./components/filters-list.element.js"),
     weight: 100,
     meta: {
       label: "Filters",
@@ -30,5 +30,20 @@ export const manifests: Array<UmbExtensionManifest> = [
       },
     ],
   },
-];
 
+  // Modal for creating/editing filter groups
+  {
+    type: "modal",
+    alias: "Merchello.FilterGroup.Modal",
+    name: "Merchello Filter Group Modal",
+    js: () => import("./modals/filter-group-modal.element.js"),
+  },
+
+  // Modal for creating/editing filters
+  {
+    type: "modal",
+    alias: "Merchello.Filter.Modal",
+    name: "Merchello Filter Modal",
+    js: () => import("./modals/filter-modal.element.js"),
+  },
+];

@@ -7,6 +7,7 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
 import type { MerchelloProductDetailWorkspaceContext } from "@products/contexts/product-detail-workspace.context.js";
 import type { ProductRootDetailDto, ProductVariantDto, ProductPackageDto, UpdateVariantDto } from "@products/types/product.types.js";
+import type { ProductFilterGroupDto, ProductFilterDto } from "@filters/types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { getProductDetailHref } from "@shared/utils/navigation.js";
@@ -30,6 +31,11 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
 
   // Form state - copy of variant data for editing
   @state() private _formData: Partial<ProductVariantDto> = {};
+
+  // Filter state
+  @state() private _filterGroups: ProductFilterGroupDto[] = [];
+  @state() private _assignedFilterIds: string[] = [];
+  private _originalAssignedFilterIds: string[] = [];
 
   #workspaceContext?: MerchelloProductDetailWorkspaceContext;
   #notificationContext?: UmbNotificationContext;
@@ -60,6 +66,16 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     super.connectedCallback();
     this.#isConnected = true;
     this._createRoutes();
+    this._loadFilterGroups();
+  }
+
+  /**
+   * Loads all filter groups for the filter assignment UI
+   */
+  private async _loadFilterGroups(): Promise<void> {
+    const { data } = await MerchelloApi.getFilterGroups();
+    if (!this.#isConnected) return;
+    if (data) this._filterGroups = data;
   }
 
   disconnectedCallback(): void {
@@ -82,6 +98,25 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       this._variant = variant;
       this._formData = { ...variant };
       this._isLoading = false;
+      // Load filters for this variant
+      this._loadAssignedFilters();
+    }
+  }
+
+  /**
+   * Loads filters assigned to the current variant
+   */
+  private async _loadAssignedFilters(): Promise<void> {
+    const variantId = this._variant?.id;
+    if (!variantId) return;
+
+    const { data } = await MerchelloApi.getFiltersForProduct(variantId);
+    if (!this.#isConnected) return;
+
+    if (data) {
+      const filterIds = data.map((f) => f.id);
+      this._assignedFilterIds = filterIds;
+      this._originalAssignedFilterIds = [...filterIds];
     }
   }
 
@@ -98,6 +133,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       { path: "tab/seo", component: stubComponent },
       { path: "tab/feed", component: stubComponent },
       { path: "tab/stock", component: stubComponent },
+      { path: "tab/filters", component: stubComponent },
       { path: "", redirectTo: "tab/basic" },
     ];
   }
@@ -105,11 +141,12 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
   /**
    * Gets the currently active tab based on the route path
    */
-  private _getActiveTab(): "basic" | "packages" | "seo" | "feed" | "stock" {
+  private _getActiveTab(): "basic" | "packages" | "seo" | "feed" | "stock" | "filters" {
     if (this._activePath.includes("tab/packages")) return "packages";
     if (this._activePath.includes("tab/seo")) return "seo";
     if (this._activePath.includes("tab/feed")) return "feed";
     if (this._activePath.includes("tab/stock")) return "stock";
+    if (this._activePath.includes("tab/filters")) return "filters";
     return "basic";
   }
 
@@ -160,6 +197,9 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
         return;
       }
 
+      // Save filter assignments
+      await this._saveFilterAssignments();
+
       this.#notificationContext?.peek("positive", { data: { headline: "Variant saved", message: "Changes have been saved successfully" } });
 
       // Reload the product to get updated variant data
@@ -193,6 +233,9 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
         </uui-tab>
         <uui-tab label="Stock" href="${this._routerPath}/tab/stock" ?active=${activeTab === "stock"}>
           Stock
+        </uui-tab>
+        <uui-tab label="Filters" href="${this._routerPath}/tab/filters" ?active=${activeTab === "filters"}>
+          Filters
         </uui-tab>
       </uui-tab-group>
     `;
@@ -490,6 +533,118 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     this._formData = { ...this._formData, warehouseStock: updatedStock };
   }
 
+  /**
+   * Renders the Filters tab for assigning filters to the variant
+   */
+  private _renderFiltersTab(): unknown {
+    if (this._filterGroups.length === 0) {
+      return html`
+        <div class="tab-content">
+          <uui-box class="info-banner">
+            <div class="info-content">
+              <uui-icon name="icon-info"></uui-icon>
+              <div>
+                <strong>No Filter Groups</strong>
+                <p>No filter groups have been created yet. Go to <a href="/section/merchello/workspace/merchello-filters">Filters</a> to create filter groups and filter values.</p>
+              </div>
+            </div>
+          </uui-box>
+        </div>
+      `;
+    }
+
+    const assignedCount = this._assignedFilterIds.length;
+
+    return html`
+      <div class="tab-content">
+        <uui-box class="info-banner">
+          <div class="info-content">
+            <uui-icon name="icon-info"></uui-icon>
+            <div>
+              <strong>Assign Filters</strong>
+              <p>Select the filters that apply to this variant. Filters help customers find products on your storefront. ${assignedCount > 0 ? `${assignedCount} filter${assignedCount > 1 ? "s" : ""} assigned.` : ""}</p>
+            </div>
+          </div>
+        </uui-box>
+
+        ${this._filterGroups.map((group) => this._renderFilterGroupSection(group))}
+      </div>
+    `;
+  }
+
+  /**
+   * Renders a filter group section with checkboxes for each filter
+   */
+  private _renderFilterGroupSection(group: ProductFilterGroupDto): unknown {
+    if (!group.filters || group.filters.length === 0) {
+      return nothing;
+    }
+
+    return html`
+      <uui-box headline=${group.name}>
+        <div class="filter-checkbox-list">
+          ${group.filters.map((filter: ProductFilterDto) => {
+            const isChecked = this._assignedFilterIds.includes(filter.id);
+            return html`
+              <div class="filter-checkbox-item">
+                <uui-checkbox
+                  label=${filter.name}
+                  ?checked=${isChecked}
+                  @change=${(e: Event) => this._handleFilterToggle(filter.id, (e.target as HTMLInputElement).checked)}>
+                  ${filter.hexColour
+                    ? html`<span class="filter-color-swatch" style="background: ${filter.hexColour}"></span>`
+                    : nothing}
+                  ${filter.name}
+                </uui-checkbox>
+              </div>
+            `;
+          })}
+        </div>
+      </uui-box>
+    `;
+  }
+
+  /**
+   * Handles filter checkbox toggle
+   */
+  private _handleFilterToggle(filterId: string, checked: boolean): void {
+    if (checked) {
+      this._assignedFilterIds = [...this._assignedFilterIds, filterId];
+    } else {
+      this._assignedFilterIds = this._assignedFilterIds.filter((id) => id !== filterId);
+    }
+  }
+
+  /**
+   * Checks if filter assignments have changed
+   */
+  private _hasFilterChanges(): boolean {
+    if (this._assignedFilterIds.length !== this._originalAssignedFilterIds.length) return true;
+    const sortedCurrent = [...this._assignedFilterIds].sort();
+    const sortedOriginal = [...this._originalAssignedFilterIds].sort();
+    return sortedCurrent.some((id, index) => id !== sortedOriginal[index]);
+  }
+
+  /**
+   * Saves filter assignments for the variant
+   */
+  private async _saveFilterAssignments(): Promise<void> {
+    const variantId = this._variant?.id;
+    if (!variantId || !this._hasFilterChanges()) return;
+
+    const { error } = await MerchelloApi.assignFiltersToProduct(variantId, this._assignedFilterIds);
+
+    if (error) {
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to save filters", message: error.message },
+      });
+      return;
+    }
+
+    // Update original to match current after successful save
+    this._originalAssignedFilterIds = [...this._assignedFilterIds];
+  }
+
   private _renderFooter(): unknown {
     return html`
       <umb-footer-layout slot="footer">
@@ -589,6 +744,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
           ${activeTab === "seo" ? this._renderSeoTab() : nothing}
           ${activeTab === "feed" ? this._renderFeedTab() : nothing}
           ${activeTab === "stock" ? this._renderStockTab() : nothing}
+          ${activeTab === "filters" ? this._renderFiltersTab() : nothing}
         </umb-body-layout>
 
         <!-- Footer with breadcrumb + save button -->
@@ -866,6 +1022,33 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       .badge-muted {
         background: var(--uui-color-surface-emphasis);
         color: var(--uui-color-text-alt);
+      }
+
+      /* Filter checkbox styles */
+      .filter-checkbox-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-2);
+      }
+
+      .filter-checkbox-item {
+        display: flex;
+        align-items: center;
+      }
+
+      .filter-checkbox-item uui-checkbox {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+      }
+
+      .filter-color-swatch {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border-radius: var(--uui-border-radius);
+        border: 1px solid var(--uui-color-border);
+        margin-right: var(--uui-size-space-2);
       }
     `,
   ];
