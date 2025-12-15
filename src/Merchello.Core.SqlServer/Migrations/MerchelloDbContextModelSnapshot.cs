@@ -667,6 +667,8 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.HasIndex("ProductRootId");
 
+                    b.HasIndex("Url");
+
                     b.ToTable("merchelloProducts", (string)null);
                 });
 
@@ -755,6 +757,9 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasMaxLength(5000)
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ElementPropertyData")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("GoogleShoppingFeedCategory")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
@@ -810,9 +815,15 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("ViewAlias")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProductTypeId");
+
+                    b.HasIndex("RootUrl");
 
                     b.HasIndex("TaxGroupId");
 

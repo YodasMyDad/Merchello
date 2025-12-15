@@ -31,4 +31,15 @@ public class UpdateProductRootDto
     public bool? NoIndex { get; set; }
     public string? OpenGraphImage { get; set; }
     public string? CanonicalUrl { get; set; }
+
+    /// <summary>
+    /// Element Type property values as { "propertyAlias": rawValue, ... }
+    /// </summary>
+    public Dictionary<string, object?>? ElementProperties { get; set; }
+
+    /// <summary>
+    /// The view alias used to render this product on the front-end.
+    /// Example: "Gallery" -> ~/Views/Products/Gallery.cshtml
+    /// </summary>
+    public string? ViewAlias { get; set; }
 }

@@ -1,5 +1,11 @@
 // Product types matching the API DTOs
 
+/** Product view information returned by the views endpoint */
+export interface ProductViewDto {
+  alias: string;
+  virtualPath: string;
+}
+
 export interface ProductDetailDto {
   id: string;
   productRootId: string;
@@ -61,9 +67,15 @@ export interface ProductRootDetailDto {
   productTypeName: string | null;
   categoryIds: string[];
   warehouseIds: string[];
-  
+
   productOptions: ProductOptionDto[];
   variants: ProductVariantDto[];
+
+  /** Element Type property values as { propertyAlias: value } */
+  elementProperties?: Record<string, unknown>;
+
+  /** The view alias used to render this product (e.g., "Gallery" -> ~/Views/Products/Gallery.cshtml) */
+  viewAlias?: string | null;
 }
 
 export interface ProductOptionDto {
@@ -186,6 +198,10 @@ export interface UpdateProductRootDto {
   openGraphImage?: string;
   canonicalUrl?: string;
   defaultPackageConfigurations?: ProductPackageDto[];
+  /** Element Type property values as { propertyAlias: value } */
+  elementProperties?: Record<string, unknown>;
+  /** The view alias used to render this product (e.g., "Gallery" -> ~/Views/Products/Gallery.cshtml) */
+  viewAlias?: string | null;
 }
 
 export interface UpdateVariantDto {

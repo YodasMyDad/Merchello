@@ -117,6 +117,20 @@ public class MerchelloSettings
     public Guid? ProductDescriptionDataTypeKey { get; set; }
 
     /// <summary>
+    /// Alias of an Element Type to use for custom product properties.
+    /// When set, the Element Type's tabs and properties are rendered in the product workspace.
+    /// The Element Type must have IsElement = true.
+    /// </summary>
+    public string? ProductElementTypeAlias { get; set; }
+
+    /// <summary>
+    /// Virtual path prefixes to search for product views.
+    /// Views are discovered from files and compiled RCLs.
+    /// Default: ["~/Views/Products/"]
+    /// </summary>
+    public string[] ProductViewLocations { get; set; } = ["~/Views/Products/"];
+
+    /// <summary>
     /// Check if a country code is allowed by store settings.
     /// Returns true if no restrictions are configured or if the country is in the allowed list.
     /// </summary>

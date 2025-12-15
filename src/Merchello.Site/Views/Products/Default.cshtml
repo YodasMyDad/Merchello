@@ -1,0 +1,260 @@
+@model MerchelloProductViewModel
+@using Umbraco.Cms.Core.Models
+@using Umbraco.Cms.Core.Strings
+@inherits UmbracoViewPage<MerchelloProductViewModel>
+@{
+    Layout = null;
+
+    // Element Type properties (if configured)
+    var heroImage = Model.Content.Value<MediaWithCrops>("heroImage");
+    var description = Model.Content.Value<IHtmlEncodedString>("productDescription");
+    var features = Model.Content.Value<BlockListModel>("productFeatures");
+    var subtitle = Model.Content.Value<string>("subtitle");
+    var tagline = Model.Content.Value<string>("tagline");
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@Model.MetaTitle</title>
+    @if (!string.IsNullOrEmpty(Model.MetaDescription))
+    {
+        <meta name="description" content="@Model.MetaDescription" />
+    }
+    @if (!string.IsNullOrEmpty(Model.CanonicalUrl))
+    {
+        <link rel="canonical" href="@Model.CanonicalUrl" />
+    }
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .product-page { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+        @@media (max-width: 768px) { .product-page { grid-template-columns: 1fr; } }
+
+        /* Hero & Images */
+        .product-hero img { width: 100%; height: auto; border-radius: 8px; }
+        .product-gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+        .product-gallery img { width: 100%; height: 100px; object-fit: cover; border-radius: 4px; cursor: pointer; }
+
+        /* Product Info */
+        .product-info h1 { font-size: 2rem; margin-bottom: 10px; }
+        .subtitle { color: #666; font-size: 1.1rem; margin-bottom: 10px; }
+        .tagline { font-style: italic; color: #888; margin-bottom: 20px; }
+
+        /* Pricing */
+        .pricing { margin: 20px 0; }
+        .price { font-size: 2rem; font-weight: bold; color: #2d3748; }
+        .was-price { text-decoration: line-through; color: #999; margin-left: 10px; }
+        .sale-badge { background: #e53e3e; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-left: 10px; }
+
+        /* Stock */
+        .stock-info { margin: 15px 0; }
+        .in-stock { color: #38a169; }
+        .out-of-stock { color: #e53e3e; }
+
+        /* Variant Picker */
+        .variant-picker { margin: 20px 0; }
+        .option-group { margin-bottom: 15px; }
+        .option-group label { display: block; font-weight: 600; margin-bottom: 5px; }
+        .option-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; }
+
+        /* Add-ons */
+        .add-ons { background: #f7fafc; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .add-ons h3 { margin-bottom: 15px; }
+        .add-on-choice { display: block; padding: 8px 0; }
+        .add-on-choice input { margin-right: 10px; }
+        .price-adjustment { color: #38a169; font-size: 0.9rem; }
+
+        /* Buttons */
+        .add-to-cart { background: #3182ce; color: white; padding: 15px 30px; border: none; border-radius: 4px; font-size: 1.1rem; cursor: pointer; width: 100%; margin-top: 20px; }
+        .add-to-cart:hover { background: #2c5282; }
+        .add-to-cart:disabled { background: #cbd5e0; cursor: not-allowed; }
+
+        /* Description & Features */
+        .description { margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; grid-column: 1 / -1; }
+        .description h2 { margin-bottom: 15px; }
+        .features { margin-top: 30px; grid-column: 1 / -1; }
+        .features h2 { margin-bottom: 15px; }
+
+        /* Variant Links */
+        .variant-links { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+        .variant-links a { padding: 8px 16px; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; }
+        .variant-links a:hover { border-color: #3182ce; }
+        .variant-links a.selected { background: #3182ce; color: white; border-color: #3182ce; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <article class="product-page">
+            <!-- Product Images -->
+            <div class="product-media">
+                @if (heroImage != null)
+                {
+                    <div class="product-hero">
+                        <img src="@heroImage.GetCropUrl(width: 800)" alt="@Model.ProductRoot.RootName" />
+                    </div>
+                }
+                else if (Model.Images.Any())
+                {
+                    <div class="product-hero">
+                        <img src="@Model.Images.First()" alt="@Model.ProductRoot.RootName" />
+                    </div>
+                }
+
+                @if (Model.Images.Count > 1)
+                {
+                    <div class="product-gallery">
+                        @foreach (var image in Model.Images.Skip(heroImage != null ? 0 : 1))
+                        {
+                            <img src="@image" alt="@Model.ProductRoot.RootName" loading="lazy" />
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- Product Info -->
+            <div class="product-info">
+                <h1>@Model.ProductRoot.RootName</h1>
+
+                @if (!string.IsNullOrEmpty(subtitle))
+                {
+                    <p class="subtitle">@subtitle</p>
+                }
+
+                @if (!string.IsNullOrEmpty(tagline))
+                {
+                    <p class="tagline">@tagline</p>
+                }
+
+                <!-- Pricing -->
+                <div class="pricing">
+                    <span class="price">@Model.Price.ToString("C")</span>
+                    @if (Model.OnSale && Model.PreviousPrice.HasValue)
+                    {
+                        <span class="was-price">@Model.PreviousPrice.Value.ToString("C")</span>
+                        <span class="sale-badge">Sale</span>
+                    }
+                </div>
+
+                <!-- Stock Info -->
+                <div class="stock-info">
+                    @if (Model.AvailableForPurchase)
+                    {
+                        <span class="in-stock">
+                            @if (Model.TrackStock)
+                            {
+                                @:In Stock (@Model.TotalStock available)
+                            }
+                            else
+                            {
+                                @:In Stock
+                            }
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="out-of-stock">Out of Stock</span>
+                    }
+                </div>
+
+                <!-- Variant Picker (dropdown style) -->
+                @if (Model.AllVariants.Count > 1 && Model.VariantOptions.Any())
+                {
+                    <div class="variant-picker">
+                        @foreach (var option in Model.VariantOptions)
+                        {
+                            <div class="option-group">
+                                <label>@option.Name</label>
+                                <select name="option-@option.Alias">
+                                    @foreach (var value in option.ProductOptionValues)
+                                    {
+                                        <option value="@value.Id">
+                                            @value.Name
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- Variant Links (alternative style) -->
+                @if (Model.AllVariants.Count > 1)
+                {
+                    <div class="variant-links">
+                        @foreach (var variant in Model.AllVariants)
+                        {
+                            var isSelected = Model.IsVariantSelected(variant);
+                            <a href="@Model.GetVariantUrl(variant)" class="@(isSelected ? "selected" : "")">
+                                @(variant.Name ?? "Default") - @variant.Price.ToString("C")
+                            </a>
+                        }
+                    </div>
+                }
+
+                <!-- Add-on Options -->
+                @if (Model.AddOnOptions.Any())
+                {
+                    <div class="add-ons">
+                        <h3>Customization Options</h3>
+                        @foreach (var option in Model.AddOnOptions)
+                        {
+                            <div class="add-on-group">
+                                <label>@option.Name</label>
+                                @foreach (var value in option.ProductOptionValues)
+                                {
+                                    <label class="add-on-choice">
+                                        <input type="checkbox"
+                                               name="addon-@option.Alias"
+                                               value="@value.Id"
+                                               data-price-adjustment="@value.PriceAdjustment" />
+                                        @value.Name
+                                        @if (value.PriceAdjustment > 0)
+                                        {
+                                            <span class="price-adjustment">+@value.PriceAdjustment.ToString("C")</span>
+                                        }
+                                    </label>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- Add to Cart -->
+                @if (Model.AvailableForPurchase)
+                {
+                    <button class="add-to-cart" data-product-id="@Model.SelectedVariant.Id">
+                        Add to Basket
+                    </button>
+                }
+                else
+                {
+                    <button class="add-to-cart" disabled>
+                        Out of Stock
+                    </button>
+                }
+            </div>
+
+            <!-- Description from Element Type -->
+            @if (description != null)
+            {
+                <section class="description">
+                    <h2>Description</h2>
+                    @description
+                </section>
+            }
+
+            <!-- Features from Element Type (Block List) -->
+            @if (features?.Any() == true)
+            {
+                <section class="features">
+                    <h2>Features</h2>
+                    @await Html.GetBlockListHtmlAsync(features)
+                </section>
+            }
+        </article>
+    </div>
+</body>
+</html>

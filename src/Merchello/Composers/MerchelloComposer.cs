@@ -3,6 +3,7 @@ using Merchello.Core;
 using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Data;
 using Merchello.Core.Data.Handlers;
+using Merchello.Factories;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.Extensions.Options;
@@ -35,6 +36,10 @@ namespace Merchello.Composers
             // Register DataType initializer (ensures Product Description TipTap DataType exists)
             builder.Services.AddSingleton<MerchelloDataTypeInitializer>();
             builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, InitializeMerchelloDataTypesHandler>();
+
+            // Register factories for front-end product rendering (Phase 4)
+            builder.Services.AddScoped<MerchelloPublishedElementFactory>();
+            builder.Services.AddScoped<IMerchelloViewModelFactory, MerchelloViewModelFactory>();
 
             builder.Services.AddSingleton<IOperationIdHandler, CustomOperationHandler>();
 

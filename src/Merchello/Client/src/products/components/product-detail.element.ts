@@ -18,11 +18,15 @@ import type {
   ProductPackageDto,
   UpdateProductRootDto,
   CreateProductRootDto,
+  ProductViewDto,
 } from "@products/types/product.types.js";
 import type { TaxGroupDto } from "@orders/types/order.types.js";
 import type { WarehouseDto } from "@shipping/types.js";
 import type { ProductFilterGroupDto, ProductFilterDto } from "@filters/types.js";
+import type { ElementTypeResponseModel, ElementTypeContainer } from "@products/types/element-type.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import "./product-element-properties.element.js";
+import type { ElementPropertyChangeDetail } from "./product-element-properties.element.js";
 import { MERCHELLO_OPTION_EDITOR_MODAL } from "@products/modals/option-editor-modal.token.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { getProductsListHref, getVariantDetailHref } from "@shared/utils/navigation.js";
@@ -66,6 +70,13 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   @state() private _assignedFilterIds: string[] = [];
   @state() private _originalAssignedFilterIds: string[] = [];
 
+  // Element Type state for custom content properties
+  @state() private _elementType: ElementTypeResponseModel | null = null;
+  @state() private _elementPropertyValues: Record<string, unknown> = {};
+
+  // Product views for view selection dropdown
+  @state() private _productViews: ProductViewDto[] = [];
+
   // Description editor configuration from Umbraco DataType
   @state() private _descriptionEditorConfig: UmbPropertyEditorConfigCollectionType | undefined = undefined;
 
@@ -96,8 +107,22 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
               // Load filters when product data arrives (for single-variant products)
               this._loadAssignedFilters();
             }
+            // Load element property values from product
+            if (product.elementProperties) {
+              this._elementPropertyValues = { ...product.elementProperties };
+            }
           }
           this._isLoading = !product;
+        });
+
+        // Observe element type
+        this.observe(this.#workspaceContext.elementType, (elementType) => {
+          this._elementType = elementType;
+        });
+
+        // Observe element property values
+        this.observe(this.#workspaceContext.elementPropertyValues, (values) => {
+          this._elementPropertyValues = values;
         });
       }
     });
@@ -123,13 +148,14 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
   private async _loadReferenceData(): Promise<void> {
     try {
-      const [taxGroups, productTypes, warehouses, optionSettings, descriptionEditorSettings, filterGroups] = await Promise.all([
+      const [taxGroups, productTypes, warehouses, optionSettings, descriptionEditorSettings, filterGroups, productViews] = await Promise.all([
         MerchelloApi.getTaxGroups(),
         MerchelloApi.getProductTypes(),
         MerchelloApi.getWarehouses(),
         MerchelloApi.getProductOptionSettings(),
         MerchelloApi.getDescriptionEditorSettings(),
         MerchelloApi.getFilterGroups(),
+        MerchelloApi.getProductViews(),
       ]);
 
       // Prevent state updates if component was disconnected during async operation
@@ -140,6 +166,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       if (warehouses.data) this._warehouses = warehouses.data;
       if (optionSettings.data) this._optionSettings = optionSettings.data;
       if (filterGroups.data) this._filterGroups = filterGroups.data;
+      if (productViews.data) this._productViews = productViews.data;
       // Load DataType configuration using Umbraco's repository (handles auth automatically)
       if (descriptionEditorSettings.data?.dataTypeKey) {
         await this._loadDataTypeConfig(descriptionEditorSettings.data.dataTypeKey);
@@ -149,6 +176,9 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
       // Load assigned filters for existing product
       await this._loadAssignedFilters();
+
+      // Load element type configuration (non-blocking)
+      await this.#workspaceContext?.loadElementType();
     } catch (error) {
       console.error("Failed to load reference data:", error);
       // Component will still function but with limited options
@@ -314,6 +344,15 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         path: "tab/filters",
         component: stubComponent,
       },
+      // Element Type content tabs (dynamic based on configuration)
+      {
+        path: "tab/content",
+        component: stubComponent,
+      },
+      {
+        path: "tab/content-:tabId",
+        component: stubComponent,
+      },
       {
         path: "",
         redirectTo: "tab/details",
@@ -324,7 +363,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   /**
    * Gets the currently active tab based on the route path
    */
-  private _getActiveTab(): "details" | "basic-info" | "media" | "shipping" | "seo" | "feed" | "stock" | "variants" | "options" | "filters" {
+  private _getActiveTab(): string {
     if (this._activePath.includes("tab/basic-info")) return "basic-info";
     if (this._activePath.includes("tab/media")) return "media";
     if (this._activePath.includes("tab/shipping")) return "shipping";
@@ -334,7 +373,40 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     if (this._activePath.includes("tab/variants")) return "variants";
     if (this._activePath.includes("tab/options")) return "options";
     if (this._activePath.includes("tab/filters")) return "filters";
+    // Handle Element Type content tabs
+    if (this._activePath.includes("tab/content-")) {
+      // Extract the tab ID from path like "tab/content-{guid}"
+      const match = this._activePath.match(/tab\/content-([a-f0-9-]+)/i);
+      if (match) return `content-${match[1]}`;
+    }
+    if (this._activePath.includes("tab/content")) return "content";
     return "details";
+  }
+
+  /**
+   * Gets Element Type tabs (containers of type "Tab" at the root level)
+   */
+  private _getElementTypeTabs(): ElementTypeContainer[] {
+    if (!this._elementType) return [];
+    return this._elementType.containers
+      .filter(c => c.type === "Tab" && !c.parentId)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+
+  /**
+   * Checks if the current active tab is a content tab
+   */
+  private _isContentTab(tab: string): boolean {
+    return tab === "content" || tab.startsWith("content-");
+  }
+
+  /**
+   * Gets the Element Type tab ID from the active tab string
+   */
+  private _getContentTabId(tab: string): string | undefined {
+    if (tab === "content") return undefined;
+    if (tab.startsWith("content-")) return tab.replace("content-", "");
+    return undefined;
   }
 
   /**
@@ -415,6 +487,19 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     this._formData = { ...this._formData, productTypeId: select.value };
   }
 
+  private _getViewOptions(): SelectOption[] {
+    return this._productViews.map((v) => ({
+      name: v.alias,
+      value: v.alias,
+      selected: v.alias === this._formData.viewAlias,
+    }));
+  }
+
+  private _handleViewChange(e: Event): void {
+    const select = e.target as HTMLSelectElement;
+    this._formData = { ...this._formData, viewAlias: select.value };
+  }
+
   private async _handleSave(): Promise<void> {
     if (!this._validateForm()) {
       return;
@@ -493,6 +578,12 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       openGraphImage: this._formData.openGraphImage ?? undefined,
       canonicalUrl: this._formData.canonicalUrl ?? undefined,
       defaultPackageConfigurations: this._formData.defaultPackageConfigurations,
+      // View alias for front-end rendering
+      viewAlias: this._formData.viewAlias,
+      // Element Type property values
+      elementProperties: Object.keys(this._elementPropertyValues).length > 0
+        ? this._elementPropertyValues
+        : undefined,
     };
 
     const { data, error } = await MerchelloApi.updateProduct(this._product.id, request);
@@ -735,8 +826,76 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
               </uui-tab>
             `
           : nothing}
+
+        ${this._renderElementTypeTabs(activeTab)}
       </uui-tab-group>
     `;
+  }
+
+  /**
+   * Renders the Element Type tabs with visual divider
+   */
+  private _renderElementTypeTabs(activeTab: string): unknown {
+    if (!this._elementType) return nothing;
+
+    const elementTypeTabs = this._getElementTypeTabs();
+
+    return html`
+      <!-- Visual Divider between Merchello tabs and Element Type tabs -->
+      <div class="tab-section-divider" title="Content Properties">
+        <span class="divider-line"></span>
+        <span class="divider-label">Content</span>
+      </div>
+
+      ${elementTypeTabs.length > 0
+        ? elementTypeTabs.map(tab => html`
+            <uui-tab
+              label=${tab.name ?? "Content"}
+              href="${this._routerPath}/tab/content-${tab.id}"
+              ?active=${activeTab === `content-${tab.id}`}>
+              ${tab.name ?? "Content"}
+            </uui-tab>
+          `)
+        : html`
+            <!-- Single "Content" tab if element type has no tabs defined -->
+            <uui-tab
+              label="Content"
+              href="${this._routerPath}/tab/content"
+              ?active=${activeTab === "content"}>
+              Content
+            </uui-tab>
+          `
+      }
+    `;
+  }
+
+  /**
+   * Renders the content tab with Element Type properties
+   */
+  private _renderContentTab(activeTab: string): unknown {
+    if (!this._elementType) return nothing;
+
+    const tabId = this._getContentTabId(activeTab);
+
+    return html`
+      <div class="tab-content">
+        <merchello-product-element-properties
+          .elementType=${this._elementType}
+          .values=${this._elementPropertyValues}
+          .activeTabId=${tabId}
+          @property-change=${this._onElementPropertyChange}>
+        </merchello-product-element-properties>
+      </div>
+    `;
+  }
+
+  /**
+   * Handles property value changes from the element properties component
+   */
+  private _onElementPropertyChange(e: CustomEvent<ElementPropertyChangeDetail>): void {
+    const { alias, value } = e.detail;
+    this._elementPropertyValues = { ...this._elementPropertyValues, [alias]: value };
+    this.#workspaceContext?.setElementPropertyValue(alias, value);
   }
 
   private _renderDetailsTab(): unknown {
@@ -792,6 +951,24 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
               .options=${this._getTaxGroupOptions()}
               @change=${this._handleTaxGroupChange}>
             </uui-select>
+          </umb-property-layout>
+
+          <umb-property-layout
+            label="Product View"
+            description="Select the view template used to render this product on the front-end">
+            ${this._productViews.length > 0
+              ? html`
+                  <uui-select
+                    slot="editor"
+                    .options=${this._getViewOptions()}
+                    @change=${this._handleViewChange}>
+                  </uui-select>
+                `
+              : html`
+                  <div slot="editor" style="color: var(--uui-color-text-alt); font-style: italic;">
+                    No views found. Add .cshtml files to ~/Views/Products/
+                  </div>
+                `}
           </umb-property-layout>
 
           <umb-property-layout
@@ -1946,6 +2123,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           ${activeTab === "variants" ? this._renderVariantsTab() : nothing}
           ${activeTab === "options" ? this._renderOptionsTab() : nothing}
           ${activeTab === "filters" && this._isSingleVariant() ? this._renderFiltersTab() : nothing}
+          ${this._isContentTab(activeTab) ? this._renderContentTab(activeTab) : nothing}
         </umb-body-layout>
 
         <!-- Footer with save button -->
@@ -2027,6 +2205,30 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
       uui-tab::part(button) {
         overflow: visible;
+      }
+
+      /* Tab Section Divider - separates Merchello tabs from Element Type tabs */
+      .tab-section-divider {
+        display: flex;
+        align-items: center;
+        padding: 0 var(--uui-size-space-4);
+        height: 100%;
+        gap: var(--uui-size-space-2);
+      }
+
+      .tab-section-divider .divider-line {
+        width: 1px;
+        height: 24px;
+        background-color: var(--uui-color-border-standalone);
+      }
+
+      .tab-section-divider .divider-label {
+        font-size: var(--uui-type-small-size);
+        color: var(--uui-color-text-alt);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+        white-space: nowrap;
       }
 
       /* Hide router slot as we render content inline */

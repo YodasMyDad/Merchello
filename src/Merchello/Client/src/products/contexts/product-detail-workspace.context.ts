@@ -4,6 +4,7 @@ import type { UmbRoutableWorkspaceContext } from "@umbraco-cms/backoffice/worksp
 import { UMB_WORKSPACE_CONTEXT, UmbWorkspaceRouteManager } from "@umbraco-cms/backoffice/workspace";
 import { UmbObjectState, UmbStringState } from "@umbraco-cms/backoffice/observable-api";
 import type { ProductRootDetailDto } from "@products/types/product.types.js";
+import type { ElementTypeResponseModel } from "@products/types/element-type.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
 export class MerchelloProductDetailWorkspaceContext extends UmbControllerBase implements UmbRoutableWorkspaceContext {
@@ -18,6 +19,13 @@ export class MerchelloProductDetailWorkspaceContext extends UmbControllerBase im
   // Variant editing state - when set, we're editing a specific variant
   #variantId = new UmbStringState<string | undefined>(undefined);
   readonly variantId = this.#variantId.asObservable();
+
+  // Element Type state for custom content properties
+  #elementType = new UmbObjectState<ElementTypeResponseModel | null>(null);
+  readonly elementType = this.#elementType.asObservable();
+
+  #elementPropertyValues = new UmbObjectState<Record<string, unknown>>({});
+  readonly elementPropertyValues = this.#elementPropertyValues.asObservable();
 
   constructor(host: UmbControllerHost) {
     super(host, UMB_WORKSPACE_CONTEXT.toString());
@@ -94,6 +102,34 @@ export class MerchelloProductDetailWorkspaceContext extends UmbControllerBase im
       this.#productRootId = product.id;
       this.#isNew = false;
     }
+    // Update element property values from product data
+    if (product.elementProperties) {
+      this.#elementPropertyValues.setValue(product.elementProperties);
+    }
+  }
+
+  // Element Type Methods
+
+  async loadElementType(): Promise<void> {
+    const { data, error } = await MerchelloApi.getProductElementType();
+    if (error) {
+      console.error("Failed to load element type:", error);
+      return;
+    }
+    this.#elementType.setValue(data ?? null);
+  }
+
+  setElementPropertyValue(alias: string, value: unknown): void {
+    const current = this.#elementPropertyValues.getValue();
+    this.#elementPropertyValues.setValue({ ...current, [alias]: value });
+  }
+
+  setElementPropertyValues(values: Record<string, unknown>): void {
+    this.#elementPropertyValues.setValue(values);
+  }
+
+  getElementPropertyValues(): Record<string, unknown> {
+    return this.#elementPropertyValues.getValue();
   }
 
   private _createEmptyProduct(): ProductRootDetailDto {

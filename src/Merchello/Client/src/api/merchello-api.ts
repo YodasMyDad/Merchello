@@ -225,7 +225,11 @@ import type {
   UpdateVariantDto,
   ProductOptionDto,
   SaveProductOptionDto,
+  ProductViewDto,
 } from '@products/types/product.types.js';
+
+// Import element type types
+import type { ElementTypeResponseModel } from '@products/types/element-type.types.js';
 
 // Import warehouse types
 import type {
@@ -551,6 +555,12 @@ export const MerchelloApi = {
 
   /** Get description editor settings (DataType key for TipTap rich text editor) */
   getDescriptionEditorSettings: () => apiGet<DescriptionEditorSettingsDto>('settings/description-editor'),
+
+  /** Get the configured Element Type structure for product content properties */
+  getProductElementType: () => apiGet<ElementTypeResponseModel | null>('products/element-type'),
+
+  /** Get available product views for the view selection dropdown */
+  getProductViews: () => apiGet<ProductViewDto[]>('products/views'),
 
   /** Get full product root with all variants and options */
   getProductDetail: (id: string) => apiGet<ProductRootDetailDto>(`products/${id}`),

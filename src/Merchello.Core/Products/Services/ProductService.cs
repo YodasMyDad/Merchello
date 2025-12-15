@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Products.Dtos;
@@ -11,8 +12,14 @@ using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Mapping;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Warehouses.Models;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.ApplicationParts;
+using Microsoft.AspNetCore.Mvc.Razor.Compilation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Models;
+using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Products.Services;
@@ -23,8 +30,17 @@ public class ProductService(
     ProductFactory productFactory,
     ProductOptionFactory productOptionFactory,
     SlugHelper slugHelper,
+    IContentTypeService contentTypeService,
+    ApplicationPartManager partManager,
+    IWebHostEnvironment webHostEnvironment,
+    IOptions<MerchelloSettings> settings,
     ILogger<ProductService> logger) : IProductService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
     /// <summary>
     /// Updates a product root
     /// </summary>
@@ -1408,6 +1424,8 @@ public class ProductService(
             if (request.NoIndex.HasValue) productRoot.NoIndex = request.NoIndex.Value;
             if (request.OpenGraphImage != null) productRoot.OpenGraphImage = request.OpenGraphImage;
             if (request.CanonicalUrl != null) productRoot.CanonicalUrl = request.CanonicalUrl;
+            if (request.ElementProperties != null) productRoot.ElementPropertyData = SerializeElementProperties(request.ElementProperties);
+            if (request.ViewAlias != null) productRoot.ViewAlias = request.ViewAlias;
 
             // Update tax group
             if (request.TaxGroupId.HasValue && request.TaxGroupId.Value != productRoot.TaxGroupId)
@@ -1883,7 +1901,7 @@ public class ProductService(
     /// <summary>
     /// Maps a ProductRoot entity to a ProductRootDetailDto
     /// </summary>
-    private static ProductRootDetailDto MapToProductRootDetailDto(ProductRoot productRoot)
+    private ProductRootDetailDto MapToProductRootDetailDto(ProductRoot productRoot)
     {
         return new ProductRootDetailDto
         {
@@ -1916,7 +1934,9 @@ public class ProductService(
             WarehouseIds = productRoot.ProductRootWarehouses.Select(prw => prw.WarehouseId).ToList(),
             ProductOptions = productRoot.ProductOptions.OrderBy(o => o.SortOrder).Select(MapToProductOptionDto).ToList(),
             Variants = productRoot.Products.OrderByDescending(p => p.Default).ThenBy(p => p.Name)
-                .Select(p => MapToProductVariantDto(p, productRoot.ProductRootWarehouses)).ToList()
+                .Select(p => MapToProductVariantDto(p, productRoot.ProductRootWarehouses)).ToList(),
+            ElementProperties = DeserializeElementProperties(productRoot.ElementPropertyData),
+            ViewAlias = productRoot.ViewAlias
         };
     }
 
@@ -2468,6 +2488,114 @@ public class ProductService(
         });
         scope.Complete();
         return result;
+    }
+
+    #endregion
+
+    #region Element Type Support
+
+    /// <summary>
+    /// Gets the configured Element Type for products, if any.
+    /// </summary>
+    public Task<IContentType?> GetProductElementTypeAsync(CancellationToken cancellationToken = default)
+    {
+        var alias = settings.Value.ProductElementTypeAlias;
+        if (string.IsNullOrEmpty(alias)) return Task.FromResult<IContentType?>(null);
+
+        var contentType = contentTypeService.Get(alias);
+
+        // Must be an Element Type
+        if (contentType is null || !contentType.IsElement)
+        {
+            logger.LogWarning(
+                "ProductElementTypeAlias '{Alias}' is not a valid Element Type", alias);
+            return Task.FromResult<IContentType?>(null);
+        }
+
+        return Task.FromResult<IContentType?>(contentType);
+    }
+
+    /// <summary>
+    /// Serializes element property values to JSON for storage.
+    /// </summary>
+    public string SerializeElementProperties(Dictionary<string, object?> properties)
+        => JsonSerializer.Serialize(properties, JsonOptions);
+
+    /// <summary>
+    /// Deserializes element property values from JSON storage.
+    /// </summary>
+    public Dictionary<string, object?> DeserializeElementProperties(string? json)
+        => string.IsNullOrEmpty(json)
+            ? new Dictionary<string, object?>()
+            : JsonSerializer.Deserialize<Dictionary<string, object?>>(json, JsonOptions)
+              ?? new Dictionary<string, object?>();
+
+    /// <summary>
+    /// Gets a ProductRoot by its RootUrl for front-end routing.
+    /// </summary>
+    public async Task<ProductRoot?> GetByRootUrlAsync(string rootUrl, CancellationToken ct = default)
+    {
+        var normalizedUrl = rootUrl.ToLowerInvariant();
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.RootProducts
+                .Include(pr => pr.Products)
+                .Include(pr => pr.ProductOptions)
+                    .ThenInclude(po => po.ProductOptionValues)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(pr => pr.RootUrl == normalizedUrl, ct));
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Gets available product views from configured view locations.
+    /// Discovers both physical .cshtml files and precompiled views from RCLs.
+    /// </summary>
+    public IReadOnlyList<ProductViewInfo> GetAvailableViews()
+    {
+        var views = new List<ProductViewInfo>();
+        var locations = settings.Value.ProductViewLocations;
+
+        // Scan file system for physical .cshtml files
+        foreach (var location in locations)
+        {
+            var relativePath = location.TrimStart('~').TrimStart('/');
+            var physicalPath = Path.Combine(webHostEnvironment.ContentRootPath, relativePath);
+
+            if (Directory.Exists(physicalPath))
+            {
+                var files = Directory.GetFiles(physicalPath, "*.cshtml", SearchOption.TopDirectoryOnly);
+                foreach (var file in files)
+                {
+                    var fileName = Path.GetFileNameWithoutExtension(file);
+                    var virtualPath = $"~/{relativePath}/{fileName}.cshtml";
+                    views.Add(new ProductViewInfo(fileName, virtualPath));
+                }
+            }
+        }
+
+        // Also check precompiled views from RCLs
+        var feature = new ViewsFeature();
+        partManager.PopulateFeature(feature);
+
+        foreach (var descriptor in feature.ViewDescriptors)
+        {
+            if (locations.Any(loc =>
+                descriptor.RelativePath.StartsWith(loc.TrimStart('~'), StringComparison.OrdinalIgnoreCase)))
+            {
+                var alias = Path.GetFileNameWithoutExtension(descriptor.RelativePath);
+                if (!views.Any(v => v.Alias.Equals(alias, StringComparison.OrdinalIgnoreCase)))
+                {
+                    views.Add(new ProductViewInfo(alias, descriptor.RelativePath));
+                }
+            }
+        }
+
+        return views
+            .DistinctBy(v => v.Alias, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(v => v.Alias)
+            .ToList();
     }
 
     #endregion

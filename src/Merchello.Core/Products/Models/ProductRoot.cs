@@ -123,5 +123,17 @@ public class ProductRoot
     /// Optional canonical URL for SEO duplicate content handling
     /// </summary>
     public string? CanonicalUrl { get; set; }
+
+    /// <summary>
+    /// JSON-serialized property data from the configured Element Type.
+    /// Stores values as { "propertyAlias": rawValue, ... }
+    /// </summary>
+    public string? ElementPropertyData { get; set; }
+
+    /// <summary>
+    /// The view alias used to render this product on the front-end.
+    /// Example: "Gallery" -> ~/Views/Products/Gallery.cshtml
+    /// </summary>
+    public string? ViewAlias { get; set; }
 }
 

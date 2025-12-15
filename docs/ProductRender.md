@@ -191,14 +191,15 @@ Merchello intercepts product URLs using Umbraco's `IContentFinder` system, allow
 
 ### How It Works
 
-1. `ProductContentFinder` is registered before Umbraco's default `ContentFinderByUrlNew`
-2. For each request, it parses URL segments
-3. Looks up `ProductRoot` by `RootUrl` matching first segment
-4. If no match → returns `false`, letting Umbraco's default finder try
-5. If second segment exists → finds `Product` where `Url` matches within that ProductRoot
-6. If no second segment → uses variant where `Product.Default == true`
-7. Creates `MerchelloPublishedProduct` (virtual `IPublishedContent`)
-8. Sets content on request and returns `true`
+1. `ProductContentFinder` is registered after Umbraco's default `ContentFinderByUrlNew`
+2. Umbraco's default finder tries first; if content found, product finder is skipped
+3. If no Umbraco content matches, `ProductContentFinder` parses URL segments
+4. Looks up `ProductRoot` by `RootUrl` matching first segment
+5. If no match → returns `false` (404 if no other finders match)
+6. If second segment exists → finds `Product` where `Url` matches within that ProductRoot
+7. If no second segment → uses variant where `Product.Default == true`
+8. Creates `MerchelloPublishedProduct` (virtual `IPublishedContent`)
+9. Sets content on request and returns `true`
 
 ### ProductContentFinder Implementation
 
@@ -268,9 +269,9 @@ public class ProductContentFinderComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
-        // Register before default URL finder so products are checked first
+        // Register after default URL finder so Umbraco content is checked first
         builder.ContentFinders()
-            .InsertBefore<ContentFinderByUrlNew, ProductContentFinder>();
+            .InsertAfter<ContentFinderByUrlNew, ProductContentFinder>();
     }
 }
 ```
@@ -373,13 +374,64 @@ public class MerchelloProductController(
             return NotFound();
         }
 
-        var viewAlias = product.ViewAlias ?? "Default";
-        var viewPath = $"~/Views/Products/{viewAlias}.cshtml";
+        var viewModel = CreateViewModel(product);
+        var viewPath = ResolveViewPath(product);
 
-        return View(viewPath, product.ViewModel);
+        return View(viewPath, viewModel);
+    }
+
+    /// <summary>
+    /// Creates the view model for the product. Override to customize or extend the model.
+    /// </summary>
+    protected virtual MerchelloProductViewModel CreateViewModel(MerchelloPublishedProduct product)
+    {
+        return product.ViewModel;
+    }
+
+    /// <summary>
+    /// Resolves the view path for the product. Override to customize view resolution logic.
+    /// </summary>
+    protected virtual string ResolveViewPath(MerchelloPublishedProduct product)
+    {
+        var viewAlias = product.ViewAlias ?? "Default";
+        return $"~/Views/Products/{viewAlias}.cshtml";
     }
 }
 ```
+
+### Extending the Controller
+
+To customize product rendering, inherit from `MerchelloProductController` and override the virtual methods:
+
+```csharp
+// Your project: Controllers/CustomProductController.cs
+
+public class CustomProductController(
+    ILogger<CustomProductController> logger,
+    ICompositeViewEngine compositeViewEngine,
+    IUmbracoContextAccessor umbracoContextAccessor,
+    IMyCustomService myService)
+    : MerchelloProductController(logger, compositeViewEngine, umbracoContextAccessor)
+{
+    protected override MerchelloProductViewModel CreateViewModel(MerchelloPublishedProduct product)
+    {
+        var viewModel = base.CreateViewModel(product);
+
+        // Add custom data, e.g., related products, reviews, etc.
+        // viewModel.RelatedProducts = myService.GetRelatedProducts(product.Key);
+
+        return viewModel;
+    }
+
+    protected override string ResolveViewPath(MerchelloPublishedProduct product)
+    {
+        // Custom view resolution logic, e.g., A/B testing, user preferences
+        return base.ResolveViewPath(product);
+    }
+}
+```
+
+**Note:** Since both controllers match the `MerchelloProduct` alias, ensure your custom controller is registered. You may need to remove Merchello's default controller registration or use Umbraco's controller factory customization.
 
 ### MerchelloPublishedProduct
 
@@ -681,6 +733,7 @@ Implementation in `ProductService`:
 ```csharp
 public async Task<ProductRoot?> GetByRootUrlAsync(string rootUrl, CancellationToken ct = default)
 {
+    var normalizedUrl = rootUrl.ToLowerInvariant();
     using var scope = efCoreScopeProvider.CreateScope();
     var result = await scope.ExecuteWithContextAsync(async db =>
         await db.RootProducts
@@ -688,28 +741,9 @@ public async Task<ProductRoot?> GetByRootUrlAsync(string rootUrl, CancellationTo
             .Include(pr => pr.ProductOptions)
                 .ThenInclude(po => po.ProductOptionValues)
             .AsNoTracking()
-            .FirstOrDefaultAsync(pr => pr.RootUrl == rootUrl, ct));
+            .FirstOrDefaultAsync(pr => pr.RootUrl == normalizedUrl, ct));
     scope.Complete();
     return result;
-}
-```
-
-### Optional: Caching
-
-For high-traffic sites, consider `IMemoryCache` with sliding expiration:
-
-```csharp
-public async Task<ProductRoot?> GetByRootUrlAsync(string rootUrl, CancellationToken ct = default)
-{
-    var cacheKey = $"product:url:{rootUrl}";
-    if (_cache.TryGetValue(cacheKey, out ProductRoot? cached))
-        return cached;
-
-    var product = await GetFromDbAsync(rootUrl, ct);
-    if (product != null)
-        _cache.Set(cacheKey, product, TimeSpan.FromHours(1));
-
-    return product;
 }
 ```
 

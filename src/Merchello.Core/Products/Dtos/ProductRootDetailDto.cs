@@ -40,4 +40,15 @@ public class ProductRootDetailDto
     // Options and variants
     public List<ProductOptionDto> ProductOptions { get; set; } = [];
     public List<ProductVariantDto> Variants { get; set; } = [];
+
+    /// <summary>
+    /// Element Type property values as { "propertyAlias": rawValue, ... }
+    /// </summary>
+    public Dictionary<string, object?>? ElementProperties { get; set; }
+
+    /// <summary>
+    /// The view alias used to render this product on the front-end.
+    /// Example: "Gallery" -> ~/Views/Products/Gallery.cshtml
+    /// </summary>
+    public string? ViewAlias { get; set; }
 }

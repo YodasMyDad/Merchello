@@ -662,6 +662,8 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasIndex("ProductRootId");
 
+                    b.HasIndex("Url");
+
                     b.ToTable("merchelloProducts", (string)null);
                 });
 
@@ -750,6 +752,9 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(5000)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ElementPropertyData")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("GoogleShoppingFeedCategory")
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
@@ -805,9 +810,15 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ViewAlias")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProductTypeId");
+
+                    b.HasIndex("RootUrl");
 
                     b.HasIndex("TaxGroupId");
 

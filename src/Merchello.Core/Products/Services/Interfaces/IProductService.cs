@@ -5,6 +5,7 @@ using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Warehouses.Models;
+using Umbraco.Cms.Core.Models;
 
 namespace Merchello.Core.Products.Services.Interfaces;
 
@@ -76,5 +77,41 @@ public interface IProductService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Dictionary mapping ProductId to first available image GUID (or null if no images)</returns>
     Task<Dictionary<Guid, string?>> GetProductImagesAsync(IEnumerable<Guid> productIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the configured Element Type for products, if any.
+    /// </summary>
+    Task<IContentType?> GetProductElementTypeAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Serializes element property values to JSON for storage.
+    /// </summary>
+    string SerializeElementProperties(Dictionary<string, object?> properties);
+
+    /// <summary>
+    /// Deserializes element property values from JSON storage.
+    /// </summary>
+    Dictionary<string, object?> DeserializeElementProperties(string? json);
+
+    /// <summary>
+    /// Gets a ProductRoot by its RootUrl for front-end routing.
+    /// </summary>
+    /// <param name="rootUrl">The root URL segment (e.g., "leather-jacket")</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>The ProductRoot with Products and ProductOptions loaded, or null if not found</returns>
+    Task<ProductRoot?> GetByRootUrlAsync(string rootUrl, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets available product views from configured view locations.
+    /// Views are discovered using ApplicationPartManager from files and compiled RCLs.
+    /// </summary>
+    IReadOnlyList<ProductViewInfo> GetAvailableViews();
 }
+
+/// <summary>
+/// Information about a product view discovered from configured locations.
+/// </summary>
+/// <param name="Alias">The view alias (filename without extension, e.g., "Gallery")</param>
+/// <param name="VirtualPath">The virtual path to the view (e.g., "~/Views/Products/Gallery.cshtml")</param>
+public record ProductViewInfo(string Alias, string VirtualPath);
 

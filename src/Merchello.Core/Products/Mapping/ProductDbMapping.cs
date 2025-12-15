@@ -55,6 +55,9 @@ public class ProductDbMapping : IEntityTypeConfiguration<Product>
 
         builder.HasIndex(e => e.Price);
 
+        // Index for front-end URL routing performance
+        builder.HasIndex(x => x.Url);
+
         // Configure shipping restriction mode
         builder.Property(x => x.ShippingRestrictionMode)
             .IsRequired()

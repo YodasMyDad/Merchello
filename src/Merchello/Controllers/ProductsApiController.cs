@@ -8,6 +8,8 @@ using Merchello.Core.Shared.Models.Enums;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Models;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Controllers;
 
@@ -15,6 +17,7 @@ namespace Merchello.Controllers;
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class ProductsApiController(
     IProductService productService,
+    IDataTypeService dataTypeService,
     IOptions<MerchelloSettings> merchelloSettings) : MerchelloApiControllerBase
 {
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
@@ -310,6 +313,103 @@ public class ProductsApiController(
             HasWarehouse = hasWarehouse,
             HasShippingOptions = hasShippingOptions,
             IsDigitalProduct = isDigitalProduct
+        };
+    }
+
+    #endregion
+
+    #region Element Type Endpoints
+
+    /// <summary>
+    /// Gets the configured Element Type structure for the product workspace.
+    /// Returns null if no Element Type is configured.
+    /// </summary>
+    [HttpGet("products/element-type")]
+    [ProducesResponseType<ElementTypeResponseModel>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetProductElementType()
+    {
+        var contentType = await productService.GetProductElementTypeAsync();
+        if (contentType is null)
+            return Ok(null);
+
+        var model = await MapToElementTypeResponse(contentType);
+        return Ok(model);
+    }
+
+    /// <summary>
+    /// Gets available product views from configured view locations.
+    /// Views are discovered from files and compiled Razor Class Libraries.
+    /// </summary>
+    [HttpGet("products/views")]
+    [ProducesResponseType<IReadOnlyList<ProductViewResponseDto>>(StatusCodes.Status200OK)]
+    public IActionResult GetAvailableViews()
+    {
+        var views = productService.GetAvailableViews();
+        var response = views.Select(v => new ProductViewResponseDto
+        {
+            Alias = v.Alias,
+            VirtualPath = v.VirtualPath
+        }).ToList();
+        return Ok(response);
+    }
+
+    private async Task<ElementTypeResponseModel> MapToElementTypeResponse(IContentType contentType)
+    {
+        var containers = contentType.PropertyGroups
+            .Select(g => new ElementTypeContainer
+            {
+                Id = g.Key,
+                ParentId = null,
+                Name = g.Name,
+                Type = g.Type.ToString(),
+                SortOrder = g.SortOrder
+            })
+            .ToList();
+
+        var properties = new List<ElementTypeProperty>();
+        foreach (var prop in contentType.PropertyTypes)
+        {
+            var elementProp = await MapPropertyType(prop, contentType);
+            properties.Add(elementProp);
+        }
+
+        return new ElementTypeResponseModel
+        {
+            Id = contentType.Key,
+            Alias = contentType.Alias,
+            Name = contentType.Name ?? contentType.Alias,
+            Containers = containers,
+            Properties = properties
+        };
+    }
+
+    private async Task<ElementTypeProperty> MapPropertyType(IPropertyType prop, IContentType contentType)
+    {
+        var dataType = await dataTypeService.GetAsync(prop.DataTypeKey);
+
+        // PropertyGroupId is a Lazy<int> - check if it has a non-null value
+        Guid? containerId = null;
+        if (prop.PropertyGroupId?.Value is int groupId and > 0)
+        {
+            containerId = contentType.PropertyGroups.FirstOrDefault(g => g.Id == groupId)?.Key;
+        }
+
+        return new ElementTypeProperty
+        {
+            Id = prop.Key,
+            ContainerId = containerId,
+            Alias = prop.Alias,
+            Name = prop.Name ?? prop.Alias,
+            Description = prop.Description,
+            SortOrder = prop.SortOrder,
+            DataTypeId = prop.DataTypeKey,
+            PropertyEditorUiAlias = dataType?.EditorUiAlias ?? string.Empty,
+            DataTypeConfiguration = dataType?.ConfigurationObject,
+            Mandatory = prop.Mandatory,
+            MandatoryMessage = prop.MandatoryMessage,
+            ValidationRegex = prop.ValidationRegExp,
+            ValidationRegexMessage = prop.ValidationRegExpMessage,
+            LabelOnTop = prop.LabelOnTop
         };
     }
 
