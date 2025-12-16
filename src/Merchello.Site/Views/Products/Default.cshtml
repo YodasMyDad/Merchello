@@ -1,16 +1,22 @@
 @model MerchelloProductViewModel
 @using Umbraco.Cms.Core.Models
 @using Umbraco.Cms.Core.Strings
+@using Merchello.Extensions
+@inject Umbraco.Cms.Core.PublishedCache.IPublishedMediaCache MediaCache
 @inherits UmbracoViewPage<MerchelloProductViewModel>
 @{
     Layout = null;
 
     // Element Type properties (if configured)
     var heroImage = Model.Content.Value<MediaWithCrops>("heroImage");
-    var description = Model.Content.Value<IHtmlEncodedString>("productDescription");
-    var features = Model.Content.Value<BlockListModel>("productFeatures");
+    var productGallery = Model.Content.Value<IEnumerable<MediaWithCrops>>("productGallery");
     var subtitle = Model.Content.Value<string>("subtitle");
     var tagline = Model.Content.Value<string>("tagline");
+    var description = Model.Content.Value<IHtmlEncodedString>("productDescription");
+    var features = Model.Content.Value<Umbraco.Cms.Core.Models.Blocks.BlockListModel>("features");
+
+    // Resolve Merchello images from GUIDs
+    var resolvedImages = Model.Images.ToMedia(MediaCache).ToList();
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -96,19 +102,19 @@
                         <img src="@heroImage.GetCropUrl(width: 800)" alt="@Model.ProductRoot.RootName" />
                     </div>
                 }
-                else if (Model.Images.Any())
+                else if (resolvedImages.Any())
                 {
                     <div class="product-hero">
-                        <img src="@Model.Images.First()" alt="@Model.ProductRoot.RootName" />
+                        <img src="@resolvedImages.First().GetCropUrl(width: 800)" alt="@Model.ProductRoot.RootName" />
                     </div>
                 }
 
-                @if (Model.Images.Count > 1)
+                @if (resolvedImages.Count > 1)
                 {
                     <div class="product-gallery">
-                        @foreach (var image in Model.Images.Skip(heroImage != null ? 0 : 1))
+                        @foreach (var image in resolvedImages.Skip(heroImage != null ? 0 : 1))
                         {
-                            <img src="@image" alt="@Model.ProductRoot.RootName" loading="lazy" />
+                            <img src="@image.GetCropUrl(width: 200)" alt="@Model.ProductRoot.RootName" loading="lazy" />
                         }
                     </div>
                 }

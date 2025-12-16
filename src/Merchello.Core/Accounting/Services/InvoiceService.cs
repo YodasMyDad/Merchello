@@ -46,6 +46,7 @@ public class InvoiceService(
     IMerchelloNotificationPublisher notificationPublisher,
     IExchangeRateCache exchangeRateCache,
     ICurrencyService currencyService,
+    ILineItemService lineItemService,
     InvoiceFactory invoiceFactory,
     OrderFactory orderFactory,
     ShipmentFactory shipmentFactory,
@@ -56,6 +57,7 @@ public class InvoiceService(
     private readonly MerchelloSettings _settings = settings.Value;
     private readonly ICurrencyService _currencyService = currencyService;
     private readonly IExchangeRateCache _exchangeRateCache = exchangeRateCache;
+    private readonly ILineItemService _lineItemService = lineItemService;
 
     public async Task<Invoice> CreateOrderFromBasketAsync(
         Basket basket,
@@ -2864,71 +2866,20 @@ public class InvoiceService(
     {
         var currencyCode = string.IsNullOrWhiteSpace(invoice.CurrencyCode) ? _settings.StoreCurrencyCode : invoice.CurrencyCode;
         var allLineItems = orders.SelectMany(o => o.LineItems ?? []).ToList();
-
-        // Calculate subtotal (products + custom items) with rounding
-        var productItems = allLineItems.Where(li =>
-            li.LineItemType == LineItemType.Product ||
-            li.LineItemType == LineItemType.Custom);
-        var subTotal = productItems.Sum(li =>
-            _currencyService.Round(li.Amount * li.Quantity, currencyCode));
-
-        // Apply discounts
-        var discountItems = allLineItems.Where(li => li.LineItemType == LineItemType.Discount).ToList();
-        var discountTotal = discountItems.Sum(li => li.Amount); // Already negative
-
-        // Adjusted subtotal with rounding
-        var adjustedSubTotal = _currencyService.Round(subTotal + discountTotal, currencyCode);
-
-        // Calculate tax using stored line item tax rates (excluding discount line items)
-        // IMPORTANT: We use the stored TaxRate on each line item, NOT the current TaxGroup rate.
-        // This ensures historical invoices are not affected by future TaxGroup rate changes.
-        // Tax is calculated on the discounted amount (itemTotal - discount) not the full amount.
-
-        // Separate linked discounts (specific to a line item) from unlinked (order-level) discounts
-        var linkedDiscounts = discountItems.Where(d => !string.IsNullOrEmpty(d.DependantLineItemSku)).ToList();
-        var unlinkedDiscountTotal = discountItems
-            .Where(d => string.IsNullOrEmpty(d.DependantLineItemSku))
-            .Sum(d => d.Amount); // Already negative
-
-        // Get taxable items and calculate total taxable amount for pro-rating unlinked discounts
-        var taxableItems = allLineItems.Where(li =>
-            li.IsTaxable && li.LineItemType != LineItemType.Discount).ToList();
-        var totalTaxableAmount = taxableItems.Sum(li =>
-            _currencyService.Round(li.Amount * li.Quantity, currencyCode));
-
-        decimal tax = 0;
-        foreach (var lineItem in taxableItems)
-        {
-            var itemTotal = _currencyService.Round(lineItem.Amount * lineItem.Quantity, currencyCode);
-
-            // Find any linked discount applied specifically to this line item (amount is negative)
-            var lineItemDiscount = linkedDiscounts
-                .Where(d => d.DependantLineItemSku == lineItem.Sku)
-                .Sum(d => d.Amount); // Already negative
-
-            // Pro-rate unlinked (order-level) discounts across taxable items by value proportion
-            var proRatedUnlinkedDiscount = 0m;
-            if (unlinkedDiscountTotal < 0 && totalTaxableAmount > 0)
-            {
-                var proportion = itemTotal / totalTaxableAmount;
-                proRatedUnlinkedDiscount = _currencyService.Round(unlinkedDiscountTotal * proportion, currencyCode);
-            }
-
-            // Calculate tax on discounted amount (both linked and pro-rated unlinked discounts)
-            var taxableAmount = _currencyService.Round(itemTotal + lineItemDiscount + proRatedUnlinkedDiscount, currencyCode);
-            taxableAmount = Math.Max(0, taxableAmount); // Ensure non-negative
-            tax += _currencyService.Round(taxableAmount * (lineItem.TaxRate / 100m), currencyCode);
-        }
-
-        // Get shipping total
         var shippingTotal = orders.Sum(o => o.ShippingCost);
 
-        // Update invoice with all values rounded
-        invoice.SubTotal = _currencyService.Round(subTotal, currencyCode);
-        invoice.Discount = _currencyService.Round(Math.Abs(discountTotal), currencyCode);
+        // Use centralized calculation method - shipping tax is not applied here as each line item has its own tax rate
+        // IMPORTANT: We use the stored TaxRate on each line item, NOT the current TaxGroup rate.
+        // This ensures historical invoices are not affected by future TaxGroup rate changes.
+        var (subTotal, discount, adjustedSubTotal, tax, total, _) =
+            _lineItemService.CalculateFromLineItems(allLineItems, shippingTotal, 0, currencyCode, isShippingTaxable: false);
+
+        // Update invoice with calculated values
+        invoice.SubTotal = subTotal;
+        invoice.Discount = discount;
         invoice.AdjustedSubTotal = adjustedSubTotal;
-        invoice.Tax = _currencyService.Round(tax, currencyCode);
-        invoice.Total = _currencyService.Round(adjustedSubTotal + invoice.Tax + shippingTotal, currencyCode);
+        invoice.Tax = tax;
+        invoice.Total = total;
     }
 
     private void ApplyPricingRateToStoreAmounts(Invoice invoice, IReadOnlyCollection<Order> orders)

@@ -7,40 +7,6 @@ namespace Merchello.Core.Accounting.Services;
 
 public class LineItemService(ICurrencyService currencyService) : ILineItemService
 {
-    public List<string> AddAdjustment(List<Adjustment> currentAdjustments, Adjustment adjustment,
-        int amountOfAdjustmentsAllowed = 1)
-    {
-        var errors = adjustment.ValidateAdjustment();
-        if (errors.Any())
-        {
-            return errors;
-        }
-
-        switch (adjustment.AdjustmentType)
-        {
-            case AdjustmentType.Figure when
-                currentAdjustments.Any(x => x.AdjustmentType == AdjustmentType.Percentage):
-                errors.Add(
-                    "You are trying to add a figure adjustment when a percentage adjustment has already been added");
-                return errors;
-            case AdjustmentType.Percentage when
-                currentAdjustments.Any(x => x.AdjustmentType == AdjustmentType.Figure):
-                errors.Add(
-                    "You are trying to add a percentage adjustment when a figure adjustment has already been added");
-                return errors;
-        }
-
-        if (currentAdjustments.Count >= amountOfAdjustmentsAllowed)
-        {
-            errors.Add("There are already adjustments and adding this one takes it over the amount allowed");
-            return errors;
-        }
-
-        currentAdjustments.Add(adjustment);
-
-        return errors;
-    }
-
     public List<string> AddLineItem(List<LineItem> currentLineItems, LineItem newLineItem)
     {
         var errors = newLineItem.ValidateLineItem();
@@ -75,70 +41,302 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
     }
 
     public (decimal subTotal, decimal discount, decimal adjustedSubTotal, decimal tax, decimal total, decimal shipping)
-        CalculateLineItems(
+        CalculateFromLineItems(
             List<LineItem> lineItems,
-            List<Adjustment> adjustments,
             decimal shippingAmount,
             decimal defaultTaxRate,
             string currencyCode,
             bool isShippingTaxable = true)
     {
-        var subTotal = lineItems
-            .Where(x => x.LineItemType == LineItemType.Product || x.LineItemType == LineItemType.Custom)
-            .Sum(item => currencyService.Round(item.Amount * item.Quantity, currencyCode));
+        // Separate product/custom items from discount items
+        var productItems = lineItems.Where(li =>
+            li.LineItemType == LineItemType.Product ||
+            li.LineItemType == LineItemType.Custom).ToList();
 
-        var totalAdjustmentFigures = adjustments
-            .Where(x => x.AdjustmentType == AdjustmentType.Figure)
-            .Sum(item => item.Amount);
+        var discountItems = lineItems.Where(li => li.LineItemType == LineItemType.Discount).ToList();
 
-        var totalAdjustmentPercentages = adjustments
-            .Where(x => x.AdjustmentType == AdjustmentType.Percentage)
-            .Sum(item => item.Amount);
+        // Calculate subtotal from products/custom items
+        var subTotal = productItems.Sum(li =>
+            currencyService.Round(li.Amount * li.Quantity, currencyCode));
 
-        decimal totalTax = 0;
-        decimal adjustedSubTotal = 0;
-
-        foreach (var item in lineItems.Where(x => x.LineItemType == LineItemType.Product || x.LineItemType == LineItemType.Custom))
+        // Process discount items - handle percentage discounts by calculating actual amount
+        decimal totalDiscountAmount = 0;
+        foreach (var discount in discountItems)
         {
-            var originalItemTotal = currencyService.Round(item.Amount * item.Quantity, currencyCode);
-            decimal itemDiscount = 0;
+            var discountAmount = discount.Amount; // Already negative for fixed amounts
 
-            if (totalAdjustmentFigures > 0 && subTotal > 0)
+            // Check if this is a percentage discount (stored in ExtendedData)
+            if (discount.ExtendedData.TryGetValue("DiscountType", out var typeObj))
             {
-                var itemProportion = originalItemTotal / subTotal;
-                itemDiscount = currencyService.Round(totalAdjustmentFigures * itemProportion, currencyCode);
+                var typeStr = typeObj switch
+                {
+                    string s => s,
+                    System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString(),
+                    _ => null
+                };
+
+                if (typeStr == nameof(DiscountType.Percentage) &&
+                    discount.ExtendedData.TryGetValue("DiscountValue", out var valueObj))
+                {
+                    var percentageValue = valueObj switch
+                    {
+                        decimal dec => dec,
+                        double dbl => (decimal)dbl,
+                        int i => i,
+                        long l => l,
+                        string s when decimal.TryParse(s, out var parsed) => parsed,
+                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number =>
+                            je.TryGetDecimal(out var d) ? d : 0,
+                        _ => 0m
+                    };
+
+                    // Calculate percentage of relevant base
+                    if (!string.IsNullOrEmpty(discount.DependantLineItemSku))
+                    {
+                        // Linked to specific product - calculate percentage of that product's total
+                        var linkedItem = productItems.FirstOrDefault(p => p.Sku == discount.DependantLineItemSku);
+                        if (linkedItem != null)
+                        {
+                            var linkedTotal = currencyService.Round(linkedItem.Amount * linkedItem.Quantity, currencyCode);
+                            discountAmount = -currencyService.Round(linkedTotal * (percentageValue / 100m), currencyCode);
+                        }
+                    }
+                    else
+                    {
+                        // Order-level percentage - calculate percentage of subtotal
+                        discountAmount = -currencyService.Round(subTotal * (percentageValue / 100m), currencyCode);
+                    }
+                }
             }
 
-            var adjustedItemTotal = originalItemTotal - itemDiscount;
-
-            if (totalAdjustmentPercentages > 0)
-            {
-                adjustedItemTotal = currencyService.Round(
-                    adjustedItemTotal * (1 - (totalAdjustmentPercentages / 100M)),
-                    currencyCode);
-            }
-
-            if (item.IsTaxable)
-            {
-                totalTax += currencyService.Round(adjustedItemTotal * (item.TaxRate / 100M), currencyCode);
-            }
-
-            adjustedSubTotal += adjustedItemTotal;
+            totalDiscountAmount += discountAmount; // discountAmount is negative
         }
 
-        if (isShippingTaxable)
+        // Adjusted subtotal (discount is negative so we add it)
+        var adjustedSubTotal = currencyService.Round(subTotal + totalDiscountAmount, currencyCode);
+        adjustedSubTotal = Math.Max(0, adjustedSubTotal); // Ensure non-negative
+
+        // Separate linked vs unlinked discounts for tax calculation
+        var linkedDiscounts = discountItems.Where(d => !string.IsNullOrEmpty(d.DependantLineItemSku)).ToList();
+        var unlinkedDiscountTotal = CalculateUnlinkedDiscountTotal(discountItems, subTotal, currencyCode);
+
+        // Get taxable items
+        var taxableItems = productItems.Where(li => li.IsTaxable).ToList();
+        var totalTaxableAmount = taxableItems.Sum(li =>
+            currencyService.Round(li.Amount * li.Quantity, currencyCode));
+
+        // Calculate tax on discounted amounts
+        decimal tax = 0;
+        foreach (var lineItem in taxableItems)
         {
-            totalTax += currencyService.Round(shippingAmount * (defaultTaxRate / 100M), currencyCode);
+            var itemTotal = currencyService.Round(lineItem.Amount * lineItem.Quantity, currencyCode);
+
+            // Find any linked discount for this item
+            var lineItemDiscount = CalculateLinkedDiscountForItem(linkedDiscounts, lineItem, currencyCode);
+
+            // Pro-rate unlinked discounts across taxable items
+            var proRatedUnlinkedDiscount = 0m;
+            if (unlinkedDiscountTotal < 0 && totalTaxableAmount > 0)
+            {
+                var proportion = itemTotal / totalTaxableAmount;
+                proRatedUnlinkedDiscount = currencyService.Round(unlinkedDiscountTotal * proportion, currencyCode);
+            }
+
+            // Tax on discounted amount
+            var taxableAmount = currencyService.Round(itemTotal + lineItemDiscount + proRatedUnlinkedDiscount, currencyCode);
+            taxableAmount = Math.Max(0, taxableAmount);
+            tax += currencyService.Round(taxableAmount * (lineItem.TaxRate / 100m), currencyCode);
         }
 
-        adjustedSubTotal = Math.Max(adjustedSubTotal, 0);
-        totalTax = Math.Max(totalTax, 0);
+        // Add shipping tax if applicable
+        if (isShippingTaxable && shippingAmount > 0)
+        {
+            tax += currencyService.Round(shippingAmount * (defaultTaxRate / 100m), currencyCode);
+        }
 
-        var totalIncludingShipping = adjustedSubTotal + totalTax + shippingAmount;
-        var total = currencyService.Round(totalIncludingShipping, currencyCode);
-        var discount = currencyService.Round(subTotal - adjustedSubTotal, currencyCode);
+        var total = currencyService.Round(adjustedSubTotal + tax + shippingAmount, currencyCode);
+        var discountAbsolute = currencyService.Round(Math.Abs(totalDiscountAmount), currencyCode);
 
-        return (subTotal, discount, adjustedSubTotal, totalTax, total, shippingAmount);
+        return (subTotal, discountAbsolute, adjustedSubTotal, tax, total, shippingAmount);
+    }
+
+    private decimal CalculateUnlinkedDiscountTotal(
+        List<LineItem> discountItems,
+        decimal subTotal,
+        string currencyCode)
+    {
+        decimal total = 0;
+        foreach (var discount in discountItems.Where(d => string.IsNullOrEmpty(d.DependantLineItemSku)))
+        {
+            var discountAmount = discount.Amount;
+
+            if (discount.ExtendedData.TryGetValue("DiscountType", out var typeObj))
+            {
+                var typeStr = typeObj switch
+                {
+                    string s => s,
+                    System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString(),
+                    _ => null
+                };
+
+                if (typeStr == nameof(DiscountType.Percentage) &&
+                    discount.ExtendedData.TryGetValue("DiscountValue", out var valueObj))
+                {
+                    var percentageValue = valueObj switch
+                    {
+                        decimal dec => dec,
+                        double dbl => (decimal)dbl,
+                        int i => i,
+                        long l => l,
+                        string s when decimal.TryParse(s, out var parsed) => parsed,
+                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number =>
+                            je.TryGetDecimal(out var d) ? d : 0,
+                        _ => 0m
+                    };
+                    discountAmount = -currencyService.Round(subTotal * (percentageValue / 100m), currencyCode);
+                }
+            }
+
+            total += discountAmount;
+        }
+        return total;
+    }
+
+    private decimal CalculateLinkedDiscountForItem(
+        List<LineItem> linkedDiscounts,
+        LineItem lineItem,
+        string currencyCode)
+    {
+        decimal total = 0;
+        foreach (var discount in linkedDiscounts.Where(d => d.DependantLineItemSku == lineItem.Sku))
+        {
+            var discountAmount = discount.Amount;
+
+            if (discount.ExtendedData.TryGetValue("DiscountType", out var typeObj))
+            {
+                var typeStr = typeObj switch
+                {
+                    string s => s,
+                    System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString(),
+                    _ => null
+                };
+
+                if (typeStr == nameof(DiscountType.Percentage) &&
+                    discount.ExtendedData.TryGetValue("DiscountValue", out var valueObj))
+                {
+                    var percentageValue = valueObj switch
+                    {
+                        decimal dec => dec,
+                        double dbl => (decimal)dbl,
+                        int i => i,
+                        long l => l,
+                        string s when decimal.TryParse(s, out var parsed) => parsed,
+                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number =>
+                            je.TryGetDecimal(out var d) ? d : 0,
+                        _ => 0m
+                    };
+                    var itemTotal = currencyService.Round(lineItem.Amount * lineItem.Quantity, currencyCode);
+                    discountAmount = -currencyService.Round(itemTotal * (percentageValue / 100m), currencyCode);
+                }
+            }
+
+            total += discountAmount;
+        }
+        return total;
+    }
+
+    public List<string> AddDiscountLineItem(
+        List<LineItem> lineItems,
+        decimal amount,
+        DiscountType discountType,
+        string currencyCode,
+        string? linkedSku = null,
+        string? name = null,
+        string? reason = null)
+    {
+        var errors = new List<string>();
+
+        if (amount <= 0)
+        {
+            errors.Add("Discount amount must be greater than zero");
+            return errors;
+        }
+
+        if (discountType == DiscountType.Percentage && amount > 100)
+        {
+            errors.Add("Percentage discount cannot exceed 100%");
+            return errors;
+        }
+
+        // If linking to a SKU, verify it exists
+        if (!string.IsNullOrEmpty(linkedSku))
+        {
+            var linkedItem = lineItems.FirstOrDefault(li =>
+                li.Sku == linkedSku &&
+                (li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom));
+
+            if (linkedItem == null)
+            {
+                errors.Add($"Cannot link discount to SKU '{linkedSku}' - item not found in line items");
+                return errors;
+            }
+        }
+
+        // Calculate the actual discount amount for storage
+        decimal storedAmount;
+        if (discountType == DiscountType.Amount)
+        {
+            storedAmount = -amount; // Store as negative
+        }
+        else
+        {
+            // For percentage, we store a placeholder negative amount
+            // The actual calculation happens in CalculateFromLineItems
+            // We store the percentage in ExtendedData
+            storedAmount = -amount; // Placeholder - will be recalculated
+        }
+
+        var discountLineItem = new LineItem
+        {
+            Id = Guid.NewGuid(),
+            LineItemType = LineItemType.Discount,
+            Name = name ?? (discountType == DiscountType.Percentage ? $"{amount}% discount" : "Discount"),
+            Sku = $"DISCOUNT-{Guid.NewGuid():N}",
+            Amount = storedAmount,
+            Quantity = 1,
+            IsTaxable = false,
+            TaxRate = 0,
+            DependantLineItemSku = linkedSku,
+            DateCreated = DateTime.UtcNow,
+            DateUpdated = DateTime.UtcNow,
+            ExtendedData = new Dictionary<string, object>
+            {
+                ["DiscountType"] = discountType.ToString(),
+                ["DiscountValue"] = amount
+            }
+        };
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            discountLineItem.ExtendedData["Reason"] = reason;
+        }
+
+        lineItems.Add(discountLineItem);
+        return errors;
+    }
+
+    public bool RemoveDiscountLineItem(List<LineItem> lineItems, Guid discountLineItemId)
+    {
+        var discount = lineItems.FirstOrDefault(li =>
+            li.Id == discountLineItemId && li.LineItemType == LineItemType.Discount);
+
+        if (discount == null)
+        {
+            return false;
+        }
+
+        lineItems.Remove(discount);
+        return true;
     }
 }
 

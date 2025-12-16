@@ -44,21 +44,4 @@ public static class AccountingExtensions
 
         return list;
     }
-
-    /// <summary>
-    /// Validates an adjustment
-    /// </summary>
-    /// <param name="newAdjustment"></param>
-    /// <returns></returns>
-    public static List<string> ValidateAdjustment(this Adjustment newAdjustment)
-    {
-        List<string> list = [];
-
-        if (newAdjustment.Amount == 0)
-        {
-            list.Add("Adjustment amount must be non-zero");
-        }
-
-        return list;
-    }
 }

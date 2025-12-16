@@ -56,6 +56,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             .ReturnsAsync(new ExchangeRateQuote(1m, DateTime.UtcNow, "mock"));
         var settings = Options.Create(new MerchelloSettings { DefaultRounding = MidpointRounding.AwayFromZero, StoreCurrencyCode = "USD" });
         var currencyService = new CurrencyService(settings);
+        var lineItemService = new LineItemService(currencyService);
         var logger = new Mock<ILogger<InvoiceService>>().Object;
 
         // Factories
@@ -74,6 +75,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             notificationPublisher,
             exchangeRateCacheMock.Object,
             currencyService,
+            lineItemService,
             invoiceFactory,
             orderFactory,
             shipmentFactory,

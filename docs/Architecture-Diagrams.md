@@ -22,8 +22,9 @@ FACTORIES → All object creation, stateless singletons
 
 | Operation | Service.Method |
 |-----------|----------------|
-| Tax calc | `ILineItemService.CalculateLineItems()` |
-| Invoice totals | `IInvoiceService.RecalculateInvoiceTotals()` |
+| Basket/Invoice totals | `ILineItemService.CalculateFromLineItems()` |
+| Discount line items | `ILineItemService.AddDiscountLineItem()` |
+| Invoice recalc | `IInvoiceService.RecalculateInvoiceTotals()` |
 | Payment status | `IPaymentService.CalculatePaymentStatus()` |
 | Variants | `IProductService.RegenerateVariants()` |
 | Stock reserve/allocate/release | `IInventoryService.*Async()` |
@@ -246,7 +247,7 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 
 | Service | Responsibility |
 |---------|----------------|
-| `ICheckoutService` | Basket ops, shipping quotes, order grouping |
+| `ICheckoutService` | Basket ops, discounts, shipping quotes, order grouping |
 | `IInvoiceService` | Invoice/order CRUD, status, totals |
 | `IInventoryService` | Stock reserve/allocate/release |
 | `IProductService` | Product CRUD, variants, options |
@@ -255,7 +256,7 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 | `IPaymentService` | Transactions, refunds, status |
 | `ISupplierService` | Supplier mgmt |
 | `IWarehouseService` | Selection, regions |
-| `ILineItemService` | Calculations, tax |
+| `ILineItemService` | Unified calculations (basket/invoice), discounts, tax |
 | `ITaxService` | Tax groups |
 | `ICurrencyService` | Formatting, rounding, rates |
 
@@ -277,4 +278,4 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 
 **Current**: Orders require sufficient stock (no backorder), refunds don't restock
 
-**Planned**: Backorder processing, partial fulfillment, return/restock flow, basket reservation expiry, promotions/coupons, checkout group consolidation
+**Planned**: Backorder processing, partial fulfillment, return/restock flow, basket reservation expiry, checkout group consolidation

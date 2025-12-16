@@ -1,6 +1,9 @@
 @model MerchelloProductViewModel
 @using Umbraco.Cms.Core.Models
 @using Umbraco.Cms.Core.Strings
+@using Umbraco.Cms.Core.Models.PublishedContent
+@using Merchello.Extensions
+@inject Umbraco.Cms.Core.PublishedCache.IPublishedMediaCache MediaCache
 @inherits UmbracoViewPage<MerchelloProductViewModel>
 @{
     Layout = null;
@@ -12,13 +15,16 @@
     var showOnHomepage = Model.Content.Value<bool>("showOnHomepage");
     var averageRating = Model.Content.Value<decimal>("averageRating");
 
+    // Resolve Merchello images from GUIDs
+    var resolvedImages = Model.Images.ToMedia(MediaCache).ToList();
+
     // Combine gallery sources: Element Type gallery + Merchello images
-    var allGalleryImages = new List<string>();
+    var allGalleryImages = new List<IPublishedContent>();
     if (productGallery?.Any() == true)
     {
-        allGalleryImages.AddRange(productGallery.Select(m => m.GetCropUrl(width: 1200) ?? m.Url() ?? ""));
+        allGalleryImages.AddRange(productGallery);
     }
-    allGalleryImages.AddRange(Model.Images);
+    allGalleryImages.AddRange(resolvedImages);
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -125,7 +131,7 @@
             @if (allGalleryImages.Any())
             {
                 <img id="mainImage" class="main-image"
-                     src="@allGalleryImages.First()"
+                     src="@allGalleryImages.First().GetCropUrl(width: 1200)"
                      alt="@Model.ProductRoot.RootName" />
 
                 @if (allGalleryImages.Count > 1)
@@ -133,10 +139,11 @@
                     <div class="thumbnail-strip">
                         @foreach (var (image, index) in allGalleryImages.Select((img, i) => (img, i)))
                         {
+                            var imageUrl = image.GetCropUrl(width: 200);
                             <img class="thumbnail @(index == 0 ? "active" : "")"
-                                 src="@image"
+                                 src="@imageUrl"
                                  alt="@Model.ProductRoot.RootName - Image @(index + 1)"
-                                 onclick="setMainImage(this, '@image')" />
+                                 onclick="setMainImage(this, '@image.GetCropUrl(width: 1200)')" />
                         }
                     </div>
                 }
@@ -189,6 +196,8 @@
             {
                 <p class="sku">SKU: @Model.SelectedVariant.Sku</p>
             }
+
+            <p>@(Model.Content.Value<string>("hi"))</p>
 
             <!-- Pricing -->
             <div class="pricing">

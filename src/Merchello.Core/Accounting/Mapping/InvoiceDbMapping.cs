@@ -67,7 +67,6 @@ public class InvoiceDbMapping : IEntityTypeConfiguration<Invoice>
         });
 
         // JSON conversions
-        builder.Property(x => x.Adjustments).ToJsonConversion(3000);
         builder.Property(x => x.Notes).ToJsonConversion(3000);
 
         // Decimal precision

@@ -52,18 +52,67 @@ public class CheckoutService(
     }
 
     /// <summary>
-    /// Add adjustment to the basket
+    /// Add a discount to the basket as a discount line item.
     /// </summary>
-    /// <param name="basket"></param>
-    /// <param name="newAdjustment"></param>
-    /// <param name="countryCode"></param>
-    /// <param name="cancellationToken"></param>
-    public async Task AddToBasketAsync(Basket basket, Adjustment newAdjustment, string countryCode, CancellationToken cancellationToken = default)
+    /// <param name="basket">The basket to add the discount to</param>
+    /// <param name="amount">The discount amount (positive value)</param>
+    /// <param name="discountType">Whether this is a fixed amount or percentage discount</param>
+    /// <param name="linkedSku">Optional SKU to link the discount to a specific product</param>
+    /// <param name="name">Optional name for the discount</param>
+    /// <param name="reason">Optional reason/description for the discount</param>
+    /// <param name="countryCode">Country code for shipping calculation</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    public async Task AddDiscountToBasketAsync(
+        Basket basket,
+        decimal amount,
+        DiscountType discountType,
+        string? linkedSku = null,
+        string? name = null,
+        string? reason = null,
+        string? countryCode = null,
+        CancellationToken cancellationToken = default)
     {
-        basket.Errors = lineItemService.AddAdjustment(basket.Adjustments, newAdjustment)
-            .Select(x => new BasketError { Message = x}).ToList();
-        if (basket.Errors.Any())
+        var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
+        var errors = lineItemService.AddDiscountLineItem(
+            basket.LineItems,
+            amount,
+            discountType,
+            currencyCode,
+            linkedSku,
+            name,
+            reason);
+
+        basket.Errors = errors.Select(x => new BasketError { Message = x }).ToList();
+        if (basket.Errors.Count > 0)
         {
+            return;
+        }
+
+        await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
+        basket.DateUpdated = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Remove a discount line item from the basket
+    /// </summary>
+    /// <param name="basket">The basket</param>
+    /// <param name="discountLineItemId">The ID of the discount line item to remove</param>
+    /// <param name="countryCode">Country code for recalculation</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    public async Task RemoveDiscountFromBasketAsync(
+        Basket basket,
+        Guid discountLineItemId,
+        string? countryCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        var removed = lineItemService.RemoveDiscountLineItem(basket.LineItems, discountLineItemId);
+        if (!removed)
+        {
+            basket.Errors.Add(new BasketError
+            {
+                Message = "Discount line item not found",
+                RelatedLineItemId = discountLineItemId
+            });
             return;
         }
 
@@ -134,8 +183,10 @@ public class CheckoutService(
             .FirstOrDefault();
 
         var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
+
+        // Use the unified calculation method that handles discount line items
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            lineItemService.CalculateLineItems(basket.LineItems, basket.Adjustments, shippingCost, defaultTaxRate, currencyCode, isShippingTaxable);
+            lineItemService.CalculateFromLineItems(basket.LineItems, shippingCost, defaultTaxRate, currencyCode, isShippingTaxable);
 
         basket.SubTotal = subTotal;
         basket.Discount = discount;
