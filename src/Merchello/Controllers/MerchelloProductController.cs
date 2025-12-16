@@ -11,14 +11,17 @@ namespace Merchello.Controllers;
 /// Renders product pages using the ViewAlias stored on ProductRoot.
 /// Automatically invoked via Umbraco's route hijacking when ContentType.Alias = "MerchelloProduct".
 /// </summary>
+#pragma warning disable CS9107 // Parameter captured and passed to base - intentional, we need local access for view checking
 public class MerchelloProductController(
     ILogger<MerchelloProductController> logger,
     ICompositeViewEngine compositeViewEngine,
     IUmbracoContextAccessor umbracoContextAccessor)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
+#pragma warning restore CS9107
 {
     /// <summary>
     /// Renders the product view using the ViewAlias from ProductRoot.
+    /// Falls back to Umbraco's 404 page if the view is not found.
     /// </summary>
     public override IActionResult Index()
     {
@@ -28,8 +31,22 @@ public class MerchelloProductController(
             return NotFound();
         }
 
-        var viewModel = CreateViewModel(product);
         var viewPath = ResolveViewPath(product);
+
+        // Check if the view exists - if not, fall back to Umbraco's 404 handling
+        // Use GetView for absolute paths (~/), FindView is for view name lookups
+        var viewResult = compositeViewEngine.GetView(executingFilePath: null, viewPath, isMainPage: true);
+        if (!viewResult.Success)
+        {
+            logger.LogWarning(
+                "View not found for product {ProductName}. Attempted path: {ViewPath}. Searched locations: {SearchedLocations}",
+                product.Name,
+                viewPath,
+                string.Join(", ", viewResult.SearchedLocations));
+            return NotFound();
+        }
+
+        var viewModel = CreateViewModel(product);
 
         logger.LogDebug("Rendering product {ProductName} with view {ViewPath}",
             product.Name, viewPath);

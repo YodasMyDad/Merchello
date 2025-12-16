@@ -2540,8 +2540,6 @@ public class ProductService(
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.RootProducts
                 .Include(pr => pr.Products)
-                .Include(pr => pr.ProductOptions)
-                    .ThenInclude(po => po.ProductOptionValues)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(pr => pr.RootUrl == normalizedUrl, ct));
         scope.Complete();

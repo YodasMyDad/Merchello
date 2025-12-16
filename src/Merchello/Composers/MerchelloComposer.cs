@@ -4,8 +4,10 @@ using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Data;
 using Merchello.Core.Data.Handlers;
 using Merchello.Factories;
+using Merchello.Routing;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -17,6 +19,7 @@ using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Api.Management.OpenApi;
 using Umbraco.Cms.Api.Common.OpenApi;
+using Umbraco.Cms.Core.Routing;
 
 namespace Merchello.Composers
 {
@@ -40,6 +43,16 @@ namespace Merchello.Composers
             // Register factories for front-end product rendering (Phase 4)
             builder.Services.AddScoped<MerchelloPublishedElementFactory>();
             builder.Services.AddScoped<IMerchelloViewModelFactory, MerchelloViewModelFactory>();
+
+            // Register ProductContentFinder for front-end product URL routing
+            builder.ContentFinders().InsertAfter<ContentFinderByUrlNew, ProductContentFinder>();
+
+            // Configure Razor to find views in standard MVC locations
+            builder.Services.Configure<RazorViewEngineOptions>(options =>
+            {
+                options.ViewLocationFormats.Add("/Views/{1}/{0}.cshtml");
+                options.ViewLocationFormats.Add("/Views/Shared/{0}.cshtml");
+            });
 
             builder.Services.AddSingleton<IOperationIdHandler, CustomOperationHandler>();
 
@@ -78,7 +91,7 @@ namespace Merchello.Composers
         }
 
         // This is used to generate nice operation IDs in our swagger json file
-        // So that the gnerated TypeScript client has nice method names and not too verbose
+        // So that the generated TypeScript client has nice method names and not too verbose
         // https://docs.umbraco.com/umbraco-cms/tutorials/creating-a-backoffice-api/umbraco-schema-and-operation-ids#operation-ids
         public class CustomOperationHandler : OperationIdHandler
         {
@@ -99,29 +112,21 @@ namespace Merchello.Composers
     /// Notification handler that initializes Merchello DataTypes on application startup.
     /// This ensures required DataTypes (like the Product Description TipTap editor) exist.
     /// </summary>
-    public class InitializeMerchelloDataTypesHandler : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
+    public class InitializeMerchelloDataTypesHandler(
+        MerchelloDataTypeInitializer initializer,
+        ILogger<InitializeMerchelloDataTypesHandler> logger)
+        : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
     {
-        private readonly MerchelloDataTypeInitializer _initializer;
-        private readonly ILogger<InitializeMerchelloDataTypesHandler> _logger;
-
-        public InitializeMerchelloDataTypesHandler(
-            MerchelloDataTypeInitializer initializer,
-            ILogger<InitializeMerchelloDataTypesHandler> logger)
-        {
-            _initializer = initializer;
-            _logger = logger;
-        }
-
         public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
         {
             try
             {
-                var dataTypeKey = await _initializer.EnsureProductDescriptionDataTypeExistsAsync(cancellationToken);
-                _logger.LogInformation("Merchello DataTypes initialized. Product Description DataType: {Key}", dataTypeKey);
+                var dataTypeKey = await initializer.EnsureProductDescriptionDataTypeExistsAsync(cancellationToken);
+                logger.LogInformation("Merchello DataTypes initialized. Product Description DataType: {Key}", dataTypeKey);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to initialize Merchello DataTypes");
+                logger.LogError(ex, "Failed to initialize Merchello DataTypes");
                 // Don't throw - allow app to continue even if DataType creation fails
                 // The frontend will handle the missing DataType gracefully
             }

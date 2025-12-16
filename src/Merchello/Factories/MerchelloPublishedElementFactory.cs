@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.PublishedCache;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Factories;
 
@@ -10,6 +11,7 @@ namespace Merchello.Factories;
 /// </summary>
 public class MerchelloPublishedElementFactory(
     IPublishedContentTypeCache contentTypeCache,
+    IContentTypeService contentTypeService,
     IVariationContextAccessor variationContextAccessor,
     ILogger<MerchelloPublishedElementFactory> logger)
 {
@@ -25,9 +27,21 @@ public class MerchelloPublishedElementFactory(
         Guid elementKey,
         Dictionary<string, object?> propertyValues)
     {
+        // Workaround for Umbraco bug: PublishedContentTypeCache.Get(itemType, alias) doesn't
+        // handle PublishedItemType.Element, but Get(itemType, key) does.
+        // Look up the element type by alias to get its Key, then use Key-based lookup.
+        var contentType = contentTypeService.Get(elementTypeAlias);
+        if (contentType is null || !contentType.IsElement)
+        {
+            logger.LogWarning(
+                "Element Type '{ElementTypeAlias}' not found or is not an element type",
+                elementTypeAlias);
+            return null;
+        }
+
         var publishedContentType = contentTypeCache.Get(
             PublishedItemType.Element,
-            elementTypeAlias);
+            contentType.Key);
 
         if (publishedContentType is null)
         {

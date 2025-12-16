@@ -70,28 +70,38 @@ public class ProductContentFinder(
             return false;
         }
 
-        // Create element from stored data if configured
+        // Create element from stored data if configured (optional feature)
         IPublishedElement? element = null;
         var elementTypeAlias = settings.Value.ProductElementTypeAlias;
 
         if (!string.IsNullOrEmpty(elementTypeAlias))
         {
-            var propertyValues = productService.DeserializeElementProperties(
-                productRoot.ElementPropertyData);
-
-            if (propertyValues.Count > 0)
+            try
             {
-                element = elementFactory.CreateElement(
-                    elementTypeAlias,
-                    productRoot.Id,
-                    propertyValues);
+                var propertyValues = productService.DeserializeElementProperties(
+                    productRoot.ElementPropertyData);
 
-                if (element is null)
+                if (propertyValues.Count > 0)
                 {
-                    logger.LogWarning(
-                        "Failed to create element for product {ProductId} with type {ElementType}",
-                        productRoot.Id, elementTypeAlias);
+                    element = elementFactory.CreateElement(
+                        elementTypeAlias,
+                        productRoot.Id,
+                        propertyValues);
+
+                    if (element is null)
+                    {
+                        logger.LogWarning(
+                            "Failed to create element for product {ProductId} with type {ElementType}",
+                            productRoot.Id, elementTypeAlias);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                // Element properties are optional - log and continue without them
+                logger.LogWarning(ex,
+                    "Error creating element for product {ProductId} with type {ElementType}. Continuing without element properties.",
+                    productRoot.Id, elementTypeAlias);
             }
         }
 
