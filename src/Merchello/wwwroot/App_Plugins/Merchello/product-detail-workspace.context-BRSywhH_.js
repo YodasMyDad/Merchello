@@ -7,7 +7,7 @@ class y extends n {
     super(t, o.toString()), this.workspaceAlias = "Merchello.Product.Detail.Workspace", this.#t = !1, this.#a = new r(void 0), this.product = this.#a.asObservable(), this.#r = new p(void 0), this.variantId = this.#r.asObservable(), this.#o = new r(null), this.elementType = this.#o.asObservable(), this.#e = new r({}), this.elementPropertyValues = this.#e.asObservable(), this.routes = new u(t), this.provideContext(o, this), this.routes.setRoutes([
       {
         path: "create",
-        component: () => import("./product-detail.element-Cz4nXGIA.js"),
+        component: () => import("./product-detail.element-CHJBj_-X.js"),
         setup: () => {
           this.#t = !0, this.#s = void 0, this.#r.setValue(void 0), this.#a.setValue(this._createEmptyProduct());
         }
@@ -23,7 +23,7 @@ class y extends n {
       },
       {
         path: "edit/:id",
-        component: () => import("./product-detail.element-Cz4nXGIA.js"),
+        component: () => import("./product-detail.element-CHJBj_-X.js"),
         setup: (s, e) => {
           this.#t = !1, this.#r.setValue(void 0);
           const a = e.match.params.id;
@@ -87,8 +87,6 @@ class y extends n {
       rootName: "",
       rootImages: [],
       rootUrl: null,
-      sellingPoints: [],
-      videos: [],
       googleShoppingFeedCategory: null,
       isDigitalProduct: !1,
       defaultPackageConfigurations: [],
@@ -113,4 +111,4 @@ export {
   y as MerchelloProductDetailWorkspaceContext,
   y as api
 };
-//# sourceMappingURL=product-detail-workspace.context-B8G-1vY8.js.map
+//# sourceMappingURL=product-detail-workspace.context-BRSywhH_.js.map

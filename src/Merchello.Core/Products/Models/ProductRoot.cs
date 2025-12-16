@@ -56,16 +56,6 @@ public class ProductRoot
     public string? RootUrl { get; set; }
 
     /// <summary>
-    /// The list of selling points
-    /// </summary>
-    public List<string> SellingPoints { get; set; } = [];
-
-    /// <summary>
-    /// YouTube video urls for the product
-    /// </summary>
-    public List<string> Videos { get; set; } = [];
-
-    /// <summary>
     /// A collection of associated product warehouses that relate to the product's storage or availability locations.
     /// </summary>
     public ICollection<ProductRootWarehouse> ProductRootWarehouses { get; set; } = new HashSet<ProductRootWarehouse>();

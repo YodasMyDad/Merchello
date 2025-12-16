@@ -8,8 +8,6 @@ public class UpdateProductRootDto
     public string? RootName { get; set; }
     public List<Guid>? RootImages { get; set; }
     public string? RootUrl { get; set; }
-    public List<string>? SellingPoints { get; set; }
-    public List<string>? Videos { get; set; }
     public string? GoogleShoppingFeedCategory { get; set; }
     public bool? IsDigitalProduct { get; set; }
     public Guid? TaxGroupId { get; set; }

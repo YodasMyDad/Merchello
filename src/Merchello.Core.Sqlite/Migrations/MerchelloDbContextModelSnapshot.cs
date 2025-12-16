@@ -27,11 +27,6 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Adjustments")
-                        .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Channel")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -399,11 +394,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<decimal>("AdjustedSubTotal")
                         .HasPrecision(18, 4)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Adjustments")
-                        .IsRequired()
-                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("BillingAddress")
@@ -797,17 +787,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("SellingPoints")
-                        .IsRequired()
-                        .HasMaxLength(1500)
-                        .HasColumnType("TEXT");
-
                     b.Property<Guid>("TaxGroupId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Videos")
-                        .IsRequired()
-                        .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ViewAlias")

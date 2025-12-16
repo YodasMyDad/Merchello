@@ -5,6 +5,7 @@ using Merchello.Core.Data;
 using Merchello.Core.Data.Handlers;
 using Merchello.Factories;
 using Merchello.Routing;
+using Merchello.Services;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Razor;
@@ -43,6 +44,9 @@ namespace Merchello.Composers
             // Register factories for front-end product rendering (Phase 4)
             builder.Services.AddScoped<MerchelloPublishedElementFactory>();
             builder.Services.AddScoped<IMerchelloViewModelFactory, MerchelloViewModelFactory>();
+
+            // Register rich text renderer for TipTap content rendering
+            builder.Services.AddSingleton<IRichTextRenderer, RichTextRenderer>();
 
             // Register ProductContentFinder for front-end product URL routing
             builder.ContentFinders().InsertAfter<ContentFinderByUrlNew, ProductContentFinder>();

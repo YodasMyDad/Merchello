@@ -3,7 +3,9 @@
 @using Umbraco.Cms.Core.Strings
 @using Umbraco.Cms.Core.Models.PublishedContent
 @using Merchello.Extensions
+@using Merchello.Services
 @inject Umbraco.Cms.Core.PublishedCache.IPublishedMediaCache MediaCache
+@inject IRichTextRenderer RichTextRenderer
 @inherits UmbracoViewPage<MerchelloProductViewModel>
 @{
     Layout = null;
@@ -110,12 +112,6 @@
         .description { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; }
         .description h3 { font-size: 1rem; margin-bottom: 10px; }
         .description-content { font-size: 0.95rem; color: #555; }
-
-        /* Videos */
-        .videos { margin-top: 20px; }
-        .videos h3 { font-size: 1rem; margin-bottom: 10px; }
-        .video-list { display: flex; flex-direction: column; gap: 10px; }
-        .video-item { display: block; padding: 10px; background: #f7fafc; border-radius: 4px; text-decoration: none; color: #3182ce; }
 
         @@media (max-width: 1024px) {
             .gallery-page { flex-direction: column; }
@@ -297,29 +293,23 @@
                 </button>
             }
 
-            <!-- Description -->
-            @if (description != null)
+            <!-- Description (from ProductRoot.Description - TipTap rich text) -->
+            @if (!string.IsNullOrEmpty(Model.ProductRoot.Description))
             {
                 <div class="description">
                     <h3>Description</h3>
                     <div class="description-content">
-                        @description
+                        @Model.ProductRoot.Description.ToTipTapHtml(RichTextRenderer)
                     </div>
                 </div>
             }
-
-            <!-- Videos -->
-            @if (Model.Videos.Any())
+            else if (description != null)
             {
-                <div class="videos">
-                    <h3>Videos</h3>
-                    <div class="video-list">
-                        @foreach (var video in Model.Videos)
-                        {
-                            <a href="@video" class="video-item" target="_blank">
-                                Watch Video
-                            </a>
-                        }
+                <!-- Fallback: Description from Element Type properties -->
+                <div class="description">
+                    <h3>Description</h3>
+                    <div class="description-content">
+                        @description
                     </div>
                 </div>
             }

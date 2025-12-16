@@ -32,11 +32,6 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
-                    b.Property<string>("Adjustments")
-                        .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
-
                     b.Property<string>("Channel")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -405,11 +400,6 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<decimal>("AdjustedSubTotal")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
-
-                    b.Property<string>("Adjustments")
-                        .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
 
                     b.Property<string>("BillingAddress")
                         .IsRequired()
@@ -802,18 +792,8 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
-                    b.Property<string>("SellingPoints")
-                        .IsRequired()
-                        .HasMaxLength(1500)
-                        .HasColumnType("nvarchar(1500)");
-
                     b.Property<Guid>("TaxGroupId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Videos")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("ViewAlias")
                         .HasMaxLength(200)

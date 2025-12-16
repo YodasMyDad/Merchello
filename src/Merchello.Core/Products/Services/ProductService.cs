@@ -1483,8 +1483,6 @@ public class ProductService(
                 }
             }
             if (request.RootUrl != null) productRoot.RootUrl = request.RootUrl;
-            if (request.SellingPoints != null) productRoot.SellingPoints = request.SellingPoints;
-            if (request.Videos != null) productRoot.Videos = request.Videos;
             if (request.GoogleShoppingFeedCategory != null) productRoot.GoogleShoppingFeedCategory = request.GoogleShoppingFeedCategory;
             if (request.DefaultPackageConfigurations != null)
             {
@@ -1990,8 +1988,6 @@ public class ProductService(
             RootName = productRoot.RootName ?? string.Empty,
             RootImages = productRoot.RootImages.Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToList(),
             RootUrl = productRoot.RootUrl,
-            SellingPoints = productRoot.SellingPoints,
-            Videos = productRoot.Videos,
             GoogleShoppingFeedCategory = productRoot.GoogleShoppingFeedCategory,
             IsDigitalProduct = productRoot.IsDigitalProduct,
             DefaultPackageConfigurations = productRoot.DefaultPackageConfigurations.Select(p => new ProductPackageDto

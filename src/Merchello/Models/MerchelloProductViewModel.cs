@@ -83,8 +83,6 @@ public class MerchelloProductViewModel : IContentModel
         }
     }
 
-    public IReadOnlyList<string> Videos => ProductRoot.Videos.AsReadOnly();
-
     // SEO (from ProductRoot)
     public string? MetaTitle => ProductRoot.PageTitle ?? ProductRoot.RootName;
     public string? MetaDescription => ProductRoot.MetaDescription;

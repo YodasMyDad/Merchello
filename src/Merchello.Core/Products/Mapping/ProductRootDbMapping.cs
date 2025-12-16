@@ -24,9 +24,7 @@ public class ProductRootDbMapping : IEntityTypeConfiguration<ProductRoot>
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(x => x.ProductOptions).ToJsonConversion(3000);
-        builder.Property(x => x.Videos).ToJsonConversion(500);
         builder.Property(x => x.RootImages).ToJsonConversion(3000);
-        builder.Property(x => x.SellingPoints).ToJsonConversion(1500);
         builder.Property(x => x.GoogleShoppingFeedCategory).HasMaxLength(1000);
         builder.Property(x => x.RootUrl).HasMaxLength(1000);
         builder.Property(x => x.DefaultPackageConfigurations).ToJsonConversion(4000);

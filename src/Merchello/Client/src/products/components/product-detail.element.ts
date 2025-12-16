@@ -18,6 +18,8 @@ import type {
   UpdateProductRootDto,
   CreateProductRootDto,
   ProductViewDto,
+  RichTextEditorValue,
+  RichTextBlockValue,
 } from "@products/types/product.types.js";
 import type { TaxGroupDto } from "@orders/types/order.types.js";
 import type { WarehouseDto } from "@shipping/types.js";
@@ -143,6 +145,9 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   /** Configuration from Umbraco DataType for TipTap editor */
   @state() private _descriptionEditorConfig: UmbPropertyEditorConfigCollectionType | undefined = undefined;
 
+  /** Block data for the description rich text editor (maintained separately from markup) */
+  @state() private _descriptionBlocks: RichTextBlockValue | null = null;
+
   // ============================================
   // Private Members
   // ============================================
@@ -164,6 +169,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           this._product = product ?? null;
           if (product) {
             this._formData = { ...product };
+            // Reset description blocks when loading a new product
+            this._descriptionBlocks = null;
             // For single-variant products, populate variant form data and load filters
             if (product.variants.length === 1) {
               this._variantFormData = { ...product.variants[0] };
@@ -626,8 +633,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       rootName: this._formData.rootName,
       rootImages: this._formData.rootImages,
       rootUrl: this._formData.rootUrl ?? undefined,
-      sellingPoints: this._formData.sellingPoints,
-      videos: this._formData.videos,
       googleShoppingFeedCategory: this._formData.googleShoppingFeedCategory ?? undefined,
       isDigitalProduct: this._formData.isDigitalProduct,
       taxGroupId: this._formData.taxGroupId,
@@ -1029,17 +1034,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           </umb-property-layout>
 
           <umb-property-layout
-            label="Selling Points"
-            description="Key features or benefits to display on your storefront">
-            <merchello-editable-text-list
-              slot="editor"
-              .items=${this._formData.sellingPoints || []}
-              @change=${this._handleSellingPointsChange}
-              placeholder="e.g., Free shipping, 30-day returns">
-            </merchello-editable-text-list>
-          </umb-property-layout>
-
-          <umb-property-layout
             label="Description"
             description="Product description for your storefront. Edit the DataType in Settings > Data Types to customize the editor toolbar.">
             <div slot="editor">
@@ -1134,26 +1128,56 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       return html`<uui-loader-bar></uui-loader-bar>`;
     }
 
+    // Parse existing value to extract markup for the editor
+    const markup = this._getDescriptionMarkup();
+
     return html`
       <umb-input-tiptap
         .configuration=${this._descriptionEditorConfig}
-        .value=${this._formData.description || ""}
+        .value=${markup}
         @change=${this._handleDescriptionChange}>
       </umb-input-tiptap>
     `;
   }
 
   /**
+   * Extracts the markup string from the description field.
+   * Handles both new JSON format (RichTextEditorValue) and legacy plain markup.
+   */
+  private _getDescriptionMarkup(): string {
+    const description = this._formData.description;
+    if (!description) return "";
+
+    try {
+      const parsed = JSON.parse(description) as RichTextEditorValue;
+      // Store blocks for later save
+      if (parsed.blocks && !this._descriptionBlocks) {
+        this._descriptionBlocks = parsed.blocks;
+      }
+      return parsed.markup || "";
+    } catch {
+      // Backwards compatibility: treat as plain markup
+      return description;
+    }
+  }
+
+  /**
    * Handles changes from the Description rich text editor.
-   * Extracts the markup value and updates the form data.
+   * Builds the full RichTextEditorValue JSON structure for storage.
    */
   private _handleDescriptionChange(e: Event): void {
     const target = e.target as HTMLElement & { value?: string };
     const markup = target?.value || "";
-    
+
+    // Build full RichTextEditorValue and serialize to JSON
+    const richTextValue: RichTextEditorValue = {
+      markup: markup,
+      blocks: this._descriptionBlocks,
+    };
+
     this._formData = {
       ...this._formData,
-      description: markup,
+      description: JSON.stringify(richTextValue),
     };
   }
 
@@ -1202,21 +1226,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
               placeholder="/products/my-product">
             </uui-input>
           </umb-property-layout>
-
-          ${this._isSingleVariant()
-            ? html`
-                <umb-property-layout
-                  label="Variant URL Slug"
-                  description="Custom URL path for this variant">
-                  <uui-input
-                    slot="editor"
-                    .value=${this._variantFormData.url || ""}
-                    @input=${(e: Event) => (this._variantFormData = { ...this._variantFormData, url: (e.target as HTMLInputElement).value })}
-                    placeholder="/products/my-product/default">
-                  </uui-input>
-                </umb-property-layout>
-              `
-            : nothing}
 
           <umb-property-layout
             label="Page Title"
@@ -1898,15 +1907,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
     // Update original to match current after successful save
     this._originalAssignedFilterIds = [...this._assignedFilterIds];
-  }
-
-  /**
-   * Handles selling points change from the editable text list.
-   */
-  private _handleSellingPointsChange(e: CustomEvent): void {
-    const target = e.target as HTMLElement & { items?: string[] };
-    const items = target?.items || [];
-    this._formData = { ...this._formData, sellingPoints: items };
   }
 
   /**

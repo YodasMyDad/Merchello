@@ -695,6 +695,144 @@ else
 
 ---
 
+## Rich Text Description Rendering (TipTap)
+
+ProductRoot stores its `Description` property using Umbraco's TipTap rich text editor format. This requires special handling to render properly, including resolving internal links, media references, and embedded blocks.
+
+### Storage Format
+
+The Description is stored as JSON in `RichTextEditorValue` format:
+
+```json
+{
+  "markup": "<p>Product description with <a href=\"{localLink:umb://document/...}\">links</a>...</p>",
+  "blocks": {
+    "layout": { ... },
+    "contentData": [ ... ],
+    "settingsData": [ ... ]
+  }
+}
+```
+
+For simple text without blocks, `blocks` may be `null`:
+
+```json
+{
+  "markup": "<p>Simple product description</p>",
+  "blocks": null
+}
+```
+
+### Rendering in Razor Views
+
+Use the `ToTipTapHtml()` extension method to render rich text content:
+
+```csharp
+@using Merchello.Extensions
+@using Merchello.Services
+@inject IRichTextRenderer RichTextRenderer
+
+@model MerchelloProductViewModel
+
+@if (!string.IsNullOrEmpty(Model.ProductRoot.Description))
+{
+    <div class="product-description">
+        @Model.ProductRoot.Description.ToTipTapHtml(RichTextRenderer)
+    </div>
+}
+```
+
+### What ToTipTapHtml() Does
+
+The `IRichTextRenderer` service handles:
+
+1. **Link Resolution** - Converts `{localLink:umb://...}` placeholders to actual URLs
+2. **Media Resolution** - Converts `data-udi` attributes to actual image URLs
+3. **URL Resolution** - Converts `~` relative paths to absolute application paths
+4. **Block Rendering** - Replaces `<umb-rte-block>` tags with rendered partial view content
+5. **HTML Cleanup** - Removes editor-specific attributes (`data-udi`, numeric `rel`)
+
+### Block Partial Views
+
+Blocks embedded in rich text content are rendered via partial views at the standard Umbraco path:
+
+```
+~/Views/Partials/richtext/Components/{ContentTypeAlias}.cshtml
+```
+
+For example, a block with content type alias `productFeatureBlock` requires:
+
+```
+Views/
+  Partials/
+    richtext/
+      Components/
+        productFeatureBlock.cshtml
+```
+
+The partial view receives a `RichTextBlockItem` model:
+
+```csharp
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Core.Models.Blocks.RichTextBlockItem>
+
+<div class="feature-block">
+    <h3>@Model.Content.Value<string>("title")</h3>
+    <p>@Model.Content.Value<string>("description")</p>
+
+    @if (Model.Settings != null)
+    {
+        var bgColor = Model.Settings.Value<string>("backgroundColor");
+        @* Use settings for styling *@
+    }
+</div>
+```
+
+### Backwards Compatibility
+
+The renderer handles legacy content gracefully:
+
+- **Plain HTML string** - If the Description is not valid JSON, it's treated as plain HTML markup
+- **Missing blocks property** - If JSON has `markup` but no `blocks`, only the markup is rendered
+- **Block tags without data** - If markup contains `<umb-rte-block>` tags but no block data, a warning is logged and tags are stripped
+
+### Service Registration
+
+The `IRichTextRenderer` service is automatically registered by Merchello. No additional configuration required.
+
+### Example: Complete Product View
+
+```csharp
+@using Merchello.Extensions
+@using Merchello.Services
+@inject IRichTextRenderer RichTextRenderer
+
+@model MerchelloProductViewModel
+
+<article class="product">
+    <h1>@Model.ProductRoot.RootName</h1>
+
+    <div class="price">@Model.Price.ToString("C")</div>
+
+    @* Rich text description with full block support *@
+    @if (!string.IsNullOrEmpty(Model.ProductRoot.Description))
+    {
+        <div class="description">
+            @Model.ProductRoot.Description.ToTipTapHtml(RichTextRenderer)
+        </div>
+    }
+
+    @* Product images *@
+    <div class="gallery">
+        @foreach (var image in Model.Images)
+        {
+            <img src="@image" alt="@Model.ProductRoot.RootName" />
+        }
+    </div>
+</article>
+```
+
+---
+
 ## Performance Requirements
 
 The `ProductContentFinder` queries the database on every HTTP request. Indexes are **critical** for performance.

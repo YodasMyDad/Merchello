@@ -1,5 +1,47 @@
 // Product types matching the API DTOs
 
+// ============================================
+// Rich Text Editor Value Types
+// ============================================
+
+/** Block layout item for RTE blocks */
+export interface RteBlockLayoutItem {
+  contentKey: string;
+  settingsKey?: string;
+}
+
+/** Block data model */
+export interface BlockDataModel {
+  key: string;
+  contentTypeKey: string;
+  values: Array<{ alias: string; value: unknown }>;
+}
+
+/** Block expose model */
+export interface BlockExposeModel {
+  contentKey: string;
+  culture: string | null;
+  segment: string | null;
+}
+
+/** Rich text block value structure */
+export interface RichTextBlockValue {
+  layout: Record<string, RteBlockLayoutItem[]>;
+  contentData: BlockDataModel[];
+  settingsData: BlockDataModel[];
+  expose: BlockExposeModel[];
+}
+
+/** Full rich text editor value as stored/sent to API */
+export interface RichTextEditorValue {
+  markup: string;
+  blocks: RichTextBlockValue | null;
+}
+
+// ============================================
+// Product DTOs
+// ============================================
+
 /** Product view information returned by the views endpoint */
 export interface ProductViewDto {
   alias: string;
@@ -46,8 +88,6 @@ export interface ProductRootDetailDto {
   rootName: string;
   rootImages: string[];
   rootUrl: string | null;
-  sellingPoints: string[];
-  videos: string[];
   googleShoppingFeedCategory: string | null;
   isDigitalProduct: boolean;
   defaultPackageConfigurations: ProductPackageDto[];
@@ -183,8 +223,6 @@ export interface UpdateProductRootDto {
   rootName?: string;
   rootImages?: string[];
   rootUrl?: string;
-  sellingPoints?: string[];
-  videos?: string[];
   googleShoppingFeedCategory?: string;
   isDigitalProduct?: boolean;
   taxGroupId?: string;

@@ -10,8 +10,6 @@ public static class ProductMappingExtensions
         destination.RootUrl = source.RootUrl;
         destination.GoogleShoppingFeedCategory = source.GoogleShoppingFeedCategory;
         destination.RootImages = source.RootImages?.ToList() ?? new List<string>();
-        destination.SellingPoints = source.SellingPoints?.ToList() ?? new List<string>();
-        destination.Videos = source.Videos?.ToList() ?? new List<string>();
         destination.DefaultPackageConfigurations = source.DefaultPackageConfigurations.ToList();
         destination.ProductOptions = source.ProductOptions?.ToList() ?? new List<ProductOption>();
         destination.Description = source.Description;

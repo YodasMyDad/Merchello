@@ -1,3 +1,5 @@
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Models;
@@ -27,7 +29,6 @@ public static class ProductServiceDbSeedExtensions
         ProductType productType,
         List<ProductCategory>? categories = null,
         decimal? weight = null,
-        List<string>? sellingPoints = null,
         string? googleShoppingCategory = null,
         string[]? colors = null,
         string[]? sizes = null,
@@ -72,9 +73,8 @@ public static class ProductServiceDbSeedExtensions
         // Step 2: Update product root with additional fields (RootUrl already set by CreateProductRoot)
         var updateRequest = new UpdateProductRootDto
         {
-            SellingPoints = sellingPoints,
             GoogleShoppingFeedCategory = googleShoppingCategory,
-            Description = description,
+            Description = ToRichTextEditorValue(description),
             DefaultPackageConfigurations = weight.HasValue
                 ? [new ProductPackageDto { Weight = weight.Value }]
                 : null
@@ -222,5 +222,24 @@ public static class ProductServiceDbSeedExtensions
         {
             dest.AddErrorMessage(errorMessage.Message ?? "Unknown error");
         }
+    }
+
+    /// <summary>
+    /// Converts plain text description to RichTextEditorValue JSON format.
+    /// The TipTap editor stores content as: { "markup": "&lt;p&gt;...&lt;/p&gt;", "blocks": null }
+    /// </summary>
+    private static string? ToRichTextEditorValue(string? plainText)
+    {
+        if (string.IsNullOrWhiteSpace(plainText))
+            return null;
+
+        // Wrap in paragraph tag and escape HTML entities in the text content
+        var escapedText = HtmlEncoder.Default.Encode(plainText);
+        var markup = $"<p>{escapedText}</p>";
+
+        // Create the RichTextEditorValue structure
+        var richTextValue = new { markup, blocks = (object?)null };
+
+        return JsonSerializer.Serialize(richTextValue);
     }
 }

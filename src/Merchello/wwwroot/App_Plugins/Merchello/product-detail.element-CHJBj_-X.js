@@ -1,12 +1,12 @@
-import { LitElement as I, nothing as n, html as o, css as C, property as $, state as c, customElement as S } from "@umbraco-cms/backoffice/external/lit";
+import { LitElement as I, nothing as l, html as o, css as C, property as $, state as c, customElement as S } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin as F } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT as M } from "@umbraco-cms/backoffice/workspace";
-import { UmbModalToken as G, UMB_MODAL_MANAGER_CONTEXT as U } from "@umbraco-cms/backoffice/modal";
-import { UMB_NOTIFICATION_CONTEXT as N } from "@umbraco-cms/backoffice/notification";
+import { UmbModalToken as G, UMB_MODAL_MANAGER_CONTEXT as N } from "@umbraco-cms/backoffice/modal";
+import { UMB_NOTIFICATION_CONTEXT as U } from "@umbraco-cms/backoffice/notification";
 import { M as m } from "./merchello-api-CkNG-K-m.js";
 import "@umbraco-cms/backoffice/property";
 import { b as R } from "./badge.styles-C_lNgH9O.js";
-import { c as L, d as B } from "./navigation-D1KCp5wk.js";
+import { c as B, d as L } from "./navigation-D1KCp5wk.js";
 import { UmbChangeEvent as W } from "@umbraco-cms/backoffice/event";
 import "./product-filters.element-DOeStqNi.js";
 import { UmbDataTypeDetailRepository as j } from "@umbraco-cms/backoffice/data-type";
@@ -53,7 +53,7 @@ let _ = class extends F(I) {
     }));
   }
   render() {
-    if (!this.elementType) return n;
+    if (!this.elementType) return l;
     const e = this.activeTabId ?? null, t = e ? this._getGroupsInContainer(e) : [], i = this._getPropertiesForContainer(e), a = i.length > 0 || t.length > 0;
     return o`
       <div class="element-properties">
@@ -65,7 +65,7 @@ let _ = class extends F(I) {
               <uui-box>
                 ${this._renderProperties(i)}
               </uui-box>
-            ` : n}
+            ` : l}
 
             ${t.map((r) => o`
               <uui-box headline=${r.name ?? ""}>
@@ -82,7 +82,7 @@ let _ = class extends F(I) {
     `;
   }
   _renderProperties(e) {
-    return e.length === 0 ? n : e.map((t) => o`
+    return e.length === 0 ? l : e.map((t) => o`
       <umb-property
         alias=${t.alias}
         label=${t.name}
@@ -156,7 +156,7 @@ var q = Object.defineProperty, Y = Object.getOwnPropertyDescriptor, y = (e, t, i
     (u = e[s]) && (r = (a ? u(t, i, r) : u(r)) || r);
   return a && r && q(t, i, r), r;
 };
-let f = class extends F(I) {
+let v = class extends F(I) {
   constructor() {
     super(...arguments), this.items = [], this.placeholder = "Add item...", this.readonly = !1, this._newItemValue = "", this._editingIndex = null, this._editingValue = "";
   }
@@ -240,9 +240,9 @@ let f = class extends F(I) {
               <ul class="item-list">
                 ${this.items.map((e, t) => this._renderItem(e, t))}
               </ul>
-            ` : n}
+            ` : l}
 
-        ${this.readonly ? n : o`
+        ${this.readonly ? l : o`
               <div class="add-item-row">
                 <uui-input
                   type="text"
@@ -265,7 +265,7 @@ let f = class extends F(I) {
               </div>
             `}
 
-        ${this.items.length === 0 && this.readonly ? o`<p class="empty-hint">No items added.</p>` : n}
+        ${this.items.length === 0 && this.readonly ? o`<p class="empty-hint">No items added.</p>` : l}
       </div>
     `;
   }
@@ -307,11 +307,11 @@ let f = class extends F(I) {
           @click=${() => !this.readonly && this._handleStartEdit(t)}
           @keydown=${(a) => a.key === "Enter" && !this.readonly && this._handleStartEdit(t)}
           tabindex=${this.readonly ? -1 : 0}
-          role=${this.readonly ? n : "button"}
-          aria-label=${this.readonly ? n : `Edit "${e}"`}>
+          role=${this.readonly ? l : "button"}
+          aria-label=${this.readonly ? l : `Edit "${e}"`}>
           ${e}
         </span>
-        ${this.readonly ? n : o`
+        ${this.readonly ? l : o`
               <div class="item-actions">
                 <uui-button
                   compact
@@ -336,7 +336,7 @@ let f = class extends F(I) {
     `;
   }
 };
-f.styles = C`
+v.styles = C`
     :host {
       display: block;
     }
@@ -426,33 +426,33 @@ f.styles = C`
   `;
 y([
   $({ type: Array })
-], f.prototype, "items", 2);
+], v.prototype, "items", 2);
 y([
   $({ type: String })
-], f.prototype, "placeholder", 2);
+], v.prototype, "placeholder", 2);
 y([
   $({ type: Boolean })
-], f.prototype, "readonly", 2);
+], v.prototype, "readonly", 2);
 y([
   c()
-], f.prototype, "_newItemValue", 2);
+], v.prototype, "_newItemValue", 2);
 y([
   c()
-], f.prototype, "_editingIndex", 2);
+], v.prototype, "_editingIndex", 2);
 y([
   c()
-], f.prototype, "_editingValue", 2);
-f = y([
+], v.prototype, "_editingValue", 2);
+v = y([
   S("merchello-editable-text-list")
-], f);
-function X(e, t = {}) {
+], v);
+function J(e, t = {}) {
   const i = {};
   return e.rootName?.trim() || (i.rootName = "Product name is required"), e.taxGroupId || (i.taxGroupId = "Tax group is required"), e.productTypeId || (i.productTypeId = "Product type is required"), !(t.isDigitalProduct ?? e.isDigitalProduct ?? !1) && (!e.warehouseIds || e.warehouseIds.length === 0) && (i.warehouseIds = "At least one warehouse is required for physical products"), {
     isValid: Object.keys(i).length === 0,
     errors: i
   };
 }
-function J(e) {
+function X(e) {
   const t = {};
   return e.sku?.trim() || (t.sku = "SKU is required"), (e.price ?? 0) < 0 && (t.price = "Price must be 0 or greater"), e.costOfGoods !== void 0 && e.costOfGoods < 0 && (t.costOfGoods = "Cost of goods must be 0 or greater"), e.onSale && e.previousPrice !== void 0 && e.previousPrice !== null && e.previousPrice < 0 && (t.previousPrice = "Previous price must be 0 or greater"), {
     isValid: Object.keys(t).length === 0,
@@ -471,7 +471,7 @@ function Z(e, t) {
   const i = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, a = e.variantOptionsKey.match(i) || [], r = [];
   for (const s of a)
     for (const u of t) {
-      const w = u.values.find((k) => k.id === s);
+      const w = u.values.find((P) => P.id === s);
       if (w) {
         r.push(w.name);
         break;
@@ -506,28 +506,28 @@ var oe = Object.defineProperty, se = Object.getOwnPropertyDescriptor, V = (e) =>
   for (var r = a > 1 ? void 0 : a ? se(t, i) : t, s = e.length - 1, u; s >= 0; s--)
     (u = e[s]) && (r = (a ? u(t, i, r) : u(r)) || r);
   return a && r && oe(t, i, r), r;
-}, A = (e, t, i) => t.has(e) || V("Cannot " + i), l = (e, t, i) => (A(e, t, "read from private field"), t.get(e)), x = (e, t, i) => t.has(e) ? V("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), D = (e, t, i, a) => (A(e, t, "write to private field"), t.set(e, i), i), P, h, b, g, v;
+}, A = (e, t, i) => t.has(e) || V("Cannot " + i), n = (e, t, i) => (A(e, t, "read from private field"), t.get(e)), x = (e, t, i) => t.has(e) ? V("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), D = (e, t, i, a) => (A(e, t, "write to private field"), t.set(e, i), i), k, h, b, g, f;
 let d = class extends F(I) {
   constructor() {
-    super(), this._product = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._validationAttempted = !1, this._fieldErrors = {}, this._routes = [], this._activePath = "", this._formData = {}, this._variantFormData = {}, this._variantFieldErrors = {}, this._taxGroups = [], this._productTypes = [], this._warehouses = [], this._productViews = [], this._optionSettings = null, this._filterGroups = [], this._assignedFilterIds = [], this._originalAssignedFilterIds = [], this._elementType = null, this._elementPropertyValues = {}, this._descriptionEditorConfig = void 0, x(this, P, new j(this)), x(this, h), x(this, b), x(this, g), x(this, v, !1), this.consumeContext(M, (e) => {
-      D(this, h, e), l(this, h) && (this.observe(l(this, h).product, (t) => {
-        this._product = t ?? null, t && (this._formData = { ...t }, t.variants.length === 1 && (this._variantFormData = { ...t.variants[0] }, this._loadAssignedFilters()), t.elementProperties && (this._elementPropertyValues = { ...t.elementProperties })), this._isLoading = !t;
-      }), this.observe(l(this, h).elementType, (t) => {
+    super(), this._product = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._validationAttempted = !1, this._fieldErrors = {}, this._routes = [], this._activePath = "", this._formData = {}, this._variantFormData = {}, this._variantFieldErrors = {}, this._taxGroups = [], this._productTypes = [], this._warehouses = [], this._productViews = [], this._optionSettings = null, this._filterGroups = [], this._assignedFilterIds = [], this._originalAssignedFilterIds = [], this._elementType = null, this._elementPropertyValues = {}, this._descriptionEditorConfig = void 0, this._descriptionBlocks = null, x(this, k, new j(this)), x(this, h), x(this, b), x(this, g), x(this, f, !1), this.consumeContext(M, (e) => {
+      D(this, h, e), n(this, h) && (this.observe(n(this, h).product, (t) => {
+        this._product = t ?? null, t && (this._formData = { ...t }, this._descriptionBlocks = null, t.variants.length === 1 && (this._variantFormData = { ...t.variants[0] }, this._loadAssignedFilters()), t.elementProperties && (this._elementPropertyValues = { ...t.elementProperties })), this._isLoading = !t;
+      }), this.observe(n(this, h).elementType, (t) => {
         this._elementType = t;
-      }), this.observe(l(this, h).elementPropertyValues, (t) => {
+      }), this.observe(n(this, h).elementPropertyValues, (t) => {
         this._elementPropertyValues = t;
       }));
-    }), this.consumeContext(U, (e) => {
-      D(this, b, e);
     }), this.consumeContext(N, (e) => {
+      D(this, b, e);
+    }), this.consumeContext(U, (e) => {
       D(this, g, e);
     });
   }
   connectedCallback() {
-    super.connectedCallback(), D(this, v, !0), this._loadReferenceData(), this._createRoutes();
+    super.connectedCallback(), D(this, f, !0), this._loadReferenceData(), this._createRoutes();
   }
   disconnectedCallback() {
-    super.disconnectedCallback(), D(this, v, !1);
+    super.disconnectedCallback(), D(this, f, !1);
   }
   async _loadReferenceData() {
     try {
@@ -540,9 +540,9 @@ let d = class extends F(I) {
         m.getFilterGroups(),
         m.getProductViews()
       ]);
-      if (!l(this, v) || (e.data && (this._taxGroups = e.data), t.data && (this._productTypes = t.data), i.data && (this._warehouses = i.data), a.data && (this._optionSettings = a.data), s.data && (this._filterGroups = s.data), u.data && (this._productViews = u.data), r.data?.dataTypeKey && (await this._loadDataTypeConfig(r.data.dataTypeKey), !l(this, v))))
+      if (!n(this, f) || (e.data && (this._taxGroups = e.data), t.data && (this._productTypes = t.data), i.data && (this._warehouses = i.data), a.data && (this._optionSettings = a.data), s.data && (this._filterGroups = s.data), u.data && (this._productViews = u.data), r.data?.dataTypeKey && (await this._loadDataTypeConfig(r.data.dataTypeKey), !n(this, f))))
         return;
-      await this._loadAssignedFilters(), await l(this, h)?.loadElementType();
+      await this._loadAssignedFilters(), await n(this, h)?.loadElementType();
     } catch (e) {
       console.error("Failed to load reference data:", e);
     }
@@ -555,9 +555,9 @@ let d = class extends F(I) {
   async _loadAssignedFilters() {
     if (!this._isSingleVariant()) return;
     const e = this._product?.variants[0]?.id;
-    if (!e || l(this, h)?.isNew) return;
+    if (!e || n(this, h)?.isNew) return;
     const { data: t } = await m.getFiltersForProduct(e);
-    if (l(this, v) && t) {
+    if (n(this, f) && t) {
       const i = t.map((a) => a.id);
       this._assignedFilterIds = i, this._originalAssignedFilterIds = [...i];
     }
@@ -569,15 +569,15 @@ let d = class extends F(I) {
   async _loadDataTypeConfig(e) {
     try {
       console.log("[Merchello] Loading DataType config for:", e);
-      const { data: t, error: i } = await l(this, P).requestByUnique(e);
+      const { data: t, error: i } = await n(this, k).requestByUnique(e);
       if (i) {
         console.error("[Merchello] Error requesting DataType:", i), this._setFallbackEditorConfig();
         return;
       }
       console.log("[Merchello] DataType request result:", t), this.observe(
-        await l(this, P).byUnique(e),
+        await n(this, k).byUnique(e),
         (a) => {
-          if (console.log("[Merchello] DataType observed:", a), !l(this, v)) return;
+          if (console.log("[Merchello] DataType observed:", a), !n(this, f)) return;
           if (!a) {
             console.warn("[Merchello] DataType not found, using fallback config"), this._setFallbackEditorConfig();
             return;
@@ -796,7 +796,7 @@ let d = class extends F(I) {
     if (this._validateForm()) {
       this._isSaving = !0, this._errorMessage = null;
       try {
-        l(this, h)?.isNew ?? !0 ? await this._createProduct() : await this._updateProduct();
+        n(this, h)?.isNew ?? !0 ? await this._createProduct() : await this._updateProduct();
       } catch (e) {
         this._errorMessage = e instanceof Error ? e.message : "An unexpected error occurred", console.error("Save failed:", e);
       } finally {
@@ -820,10 +820,10 @@ let d = class extends F(I) {
       }
     }, { data: t, error: i } = await m.createProduct(e);
     if (i) {
-      this._errorMessage = i.message, l(this, g)?.peek("danger", { data: { headline: "Failed to create product", message: i.message } });
+      this._errorMessage = i.message, n(this, g)?.peek("danger", { data: { headline: "Failed to create product", message: i.message } });
       return;
     }
-    t && (l(this, h)?.updateProduct(t), l(this, g)?.peek("positive", { data: { headline: "Product created", message: `"${t.rootName}" has been created successfully` } }), this._validationAttempted = !1, this._fieldErrors = {});
+    t && (n(this, h)?.updateProduct(t), n(this, g)?.peek("positive", { data: { headline: "Product created", message: `"${t.rootName}" has been created successfully` } }), this._validationAttempted = !1, this._fieldErrors = {});
   }
   async _updateProduct() {
     if (!this._product?.id) return;
@@ -831,8 +831,6 @@ let d = class extends F(I) {
       rootName: this._formData.rootName,
       rootImages: this._formData.rootImages,
       rootUrl: this._formData.rootUrl ?? void 0,
-      sellingPoints: this._formData.sellingPoints,
-      videos: this._formData.videos,
       googleShoppingFeedCategory: this._formData.googleShoppingFeedCategory ?? void 0,
       isDigitalProduct: this._formData.isDigitalProduct,
       taxGroupId: this._formData.taxGroupId,
@@ -852,17 +850,17 @@ let d = class extends F(I) {
       elementProperties: Object.keys(this._elementPropertyValues).length > 0 ? this._elementPropertyValues : void 0
     }, { data: t, error: i } = await m.updateProduct(this._product.id, e);
     if (i) {
-      this._errorMessage = i.message, l(this, g)?.peek("danger", { data: { headline: "Failed to save product", message: i.message } });
+      this._errorMessage = i.message, n(this, g)?.peek("danger", { data: { headline: "Failed to save product", message: i.message } });
       return;
     }
     if (this._isSingleVariant() && this._product.variants[0]) {
       const a = await this._saveVariantData(this._product.id, this._product.variants[0].id);
       if (a) {
-        this._errorMessage = a.message, l(this, g)?.peek("danger", { data: { headline: "Failed to save variant data", message: a.message } });
+        this._errorMessage = a.message, n(this, g)?.peek("danger", { data: { headline: "Failed to save variant data", message: a.message } });
         return;
       }
     }
-    this._isSingleVariant() && await this._saveFilterAssignments(), t && (await l(this, h)?.reload(), l(this, g)?.peek("positive", { data: { headline: "Product saved", message: "Changes have been saved successfully" } }));
+    this._isSingleVariant() && await this._saveFilterAssignments(), t && (await n(this, h)?.reload(), n(this, g)?.peek("positive", { data: { headline: "Product saved", message: "Changes have been saved successfully" } }));
   }
   /**
    * Saves variant data for single-variant products
@@ -903,12 +901,12 @@ let d = class extends F(I) {
    */
   _validateForm() {
     this._validationAttempted = !0, this._errorMessage = null;
-    const e = X(this._formData, {
+    const e = J(this._formData, {
       isDigitalProduct: this._formData.isDigitalProduct
     });
     this._fieldErrors = e.errors;
     let t = { isValid: !0, errors: {} };
-    this._isSingleVariant() && (t = J(this._variantFormData)), this._variantFieldErrors = t.errors;
+    this._isSingleVariant() && (t = X(this._variantFormData)), this._variantFieldErrors = t.errors;
     const i = Q(
       !e.isValid,
       !t.isValid
@@ -939,7 +937,7 @@ let d = class extends F(I) {
           href="${this._routerPath}/tab/details"
           ?active=${a === "details"}>
           Details
-          ${r ? o`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : n}
+          ${r ? o`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : l}
         </uui-tab>
 
         ${i ? o`
@@ -948,9 +946,9 @@ let d = class extends F(I) {
                 href="${this._routerPath}/tab/basic-info"
                 ?active=${a === "basic-info"}>
                 Basic Info
-                ${this._validationAttempted && this._hasBasicInfoErrors() ? o`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : n}
+                ${this._validationAttempted && this._hasBasicInfoErrors() ? o`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : l}
               </uui-tab>
-            ` : n}
+            ` : l}
 
         <uui-tab
           label="Media"
@@ -959,7 +957,7 @@ let d = class extends F(I) {
           Media
         </uui-tab>
 
-        ${this._formData.isDigitalProduct ? n : o`
+        ${this._formData.isDigitalProduct ? l : o`
               <uui-tab
                 label="Shipping"
                 href="${this._routerPath}/tab/shipping"
@@ -982,7 +980,7 @@ let d = class extends F(I) {
                 ?active=${a === "feed"}>
                 Shopping Feed
               </uui-tab>
-            ` : n}
+            ` : l}
 
         ${i ? o`
               <uui-tab
@@ -991,7 +989,7 @@ let d = class extends F(I) {
                 ?active=${a === "stock"}>
                 Stock
               </uui-tab>
-            ` : n}
+            ` : l}
 
         ${e > 1 ? o`
               <uui-tab
@@ -999,9 +997,9 @@ let d = class extends F(I) {
                 href="${this._routerPath}/tab/variants"
                 ?active=${a === "variants"}>
                 Variants (${e})
-                ${s ? o`<uui-badge slot="extra" color="warning">!</uui-badge>` : n}
+                ${s ? o`<uui-badge slot="extra" color="warning">!</uui-badge>` : l}
               </uui-tab>
-            ` : n}
+            ` : l}
 
         <uui-tab
           label="Options"
@@ -1009,7 +1007,7 @@ let d = class extends F(I) {
           href="${this._routerPath}/tab/options"
           ?active=${a === "options"}>
           Options (${t})
-          ${u ? o`<uui-badge slot="extra" color="warning">!</uui-badge>` : n}
+          ${u ? o`<uui-badge slot="extra" color="warning">!</uui-badge>` : l}
         </uui-tab>
 
         ${i ? o`
@@ -1020,7 +1018,7 @@ let d = class extends F(I) {
                 ?active=${a === "filters"}>
                 Filters
               </uui-tab>
-            ` : n}
+            ` : l}
 
         ${this._renderElementTypeTabs(a)}
       </uui-tab-group>
@@ -1030,7 +1028,7 @@ let d = class extends F(I) {
    * Renders the Element Type tabs with visual divider
    */
   _renderElementTypeTabs(e) {
-    if (!this._elementType) return n;
+    if (!this._elementType) return l;
     const t = this._getElementTypeTabs();
     return o`
       ${t.length > 0 ? t.map((i, a) => o`
@@ -1057,7 +1055,7 @@ let d = class extends F(I) {
    * Renders the content tab with Element Type properties
    */
   _renderContentTab(e) {
-    if (!this._elementType) return n;
+    if (!this._elementType) return l;
     const t = this._getContentTabId(e);
     return o`
       <div class="tab-content">
@@ -1075,10 +1073,10 @@ let d = class extends F(I) {
    */
   _onElementPropertiesChange(e) {
     const { values: t } = e.detail;
-    this._elementPropertyValues = { ...t }, l(this, h)?.setElementPropertyValues(t);
+    this._elementPropertyValues = { ...t }, n(this, h)?.setElementPropertyValues(t);
   }
   _renderDetailsTab() {
-    const e = l(this, h)?.isNew ?? !0;
+    const e = n(this, h)?.isNew ?? !0;
     return o`
       <div class="tab-content">
         ${e ? o`
@@ -1091,7 +1089,7 @@ let d = class extends F(I) {
                   </div>
                 </div>
               </uui-box>
-            ` : n}
+            ` : l}
 
         ${this._errorMessage ? o`
               <uui-box class="error-box">
@@ -1100,7 +1098,7 @@ let d = class extends F(I) {
                   <span>${this._errorMessage}</span>
                 </div>
               </uui-box>
-            ` : n}
+            ` : l}
 
         <uui-box headline="Basic Information">
           <umb-property-layout
@@ -1154,17 +1152,6 @@ let d = class extends F(I) {
           </umb-property-layout>
 
           <umb-property-layout
-            label="Selling Points"
-            description="Key features or benefits to display on your storefront">
-            <merchello-editable-text-list
-              slot="editor"
-              .items=${this._formData.sellingPoints || []}
-              @change=${this._handleSellingPointsChange}
-              placeholder="e.g., Free shipping, 30-day returns">
-            </merchello-editable-text-list>
-          </umb-property-layout>
-
-          <umb-property-layout
             label="Description"
             description="Product description for your storefront. Edit the DataType in Settings > Data Types to customize the editor toolbar.">
             <div slot="editor">
@@ -1173,7 +1160,7 @@ let d = class extends F(I) {
           </umb-property-layout>
         </uui-box>
 
-        ${this._formData.isDigitalProduct ? n : o`
+        ${this._formData.isDigitalProduct ? l : o`
               <uui-box headline="Warehouses">
                 <umb-property-layout
                   label="Stock Locations"
@@ -1212,7 +1199,7 @@ let d = class extends F(I) {
    * Uses the shared product-packages component.
    */
   _renderShippingTab() {
-    const e = this._formData.defaultPackageConfigurations ?? [], t = l(this, h)?.isNew ?? !0;
+    const e = this._formData.defaultPackageConfigurations ?? [], t = n(this, h)?.isNew ?? !0;
     return o`
       <div class="tab-content">
         <uui-box class="info-banner">
@@ -1245,23 +1232,43 @@ let d = class extends F(I) {
    * The editor configuration comes from a DataType that can be customized in Settings > Data Types.
    */
   _renderDescriptionEditor() {
-    return this._descriptionEditorConfig ? o`
+    if (!this._descriptionEditorConfig)
+      return o`<uui-loader-bar></uui-loader-bar>`;
+    const e = this._getDescriptionMarkup();
+    return o`
       <umb-input-tiptap
         .configuration=${this._descriptionEditorConfig}
-        .value=${this._formData.description || ""}
+        .value=${e}
         @change=${this._handleDescriptionChange}>
       </umb-input-tiptap>
-    ` : o`<uui-loader-bar></uui-loader-bar>`;
+    `;
+  }
+  /**
+   * Extracts the markup string from the description field.
+   * Handles both new JSON format (RichTextEditorValue) and legacy plain markup.
+   */
+  _getDescriptionMarkup() {
+    const e = this._formData.description;
+    if (!e) return "";
+    try {
+      const t = JSON.parse(e);
+      return t.blocks && !this._descriptionBlocks && (this._descriptionBlocks = t.blocks), t.markup || "";
+    } catch {
+      return e;
+    }
   }
   /**
    * Handles changes from the Description rich text editor.
-   * Extracts the markup value and updates the form data.
+   * Builds the full RichTextEditorValue JSON structure for storage.
    */
   _handleDescriptionChange(e) {
-    const i = e.target?.value || "";
+    const a = {
+      markup: e.target?.value || "",
+      blocks: this._descriptionBlocks
+    };
     this._formData = {
       ...this._formData,
-      description: i
+      description: JSON.stringify(a)
     };
   }
   _renderMediaPicker() {
@@ -1278,7 +1285,7 @@ let d = class extends F(I) {
           <p>No images added yet</p>
           <small>Click the button above to add product images</small>
         </div>
-      ` : n}
+      ` : l}
     `;
   }
   _handleMediaChange(e) {
@@ -1300,19 +1307,6 @@ let d = class extends F(I) {
               placeholder="/products/my-product">
             </uui-input>
           </umb-property-layout>
-
-          ${this._isSingleVariant() ? o`
-                <umb-property-layout
-                  label="Variant URL Slug"
-                  description="Custom URL path for this variant">
-                  <uui-input
-                    slot="editor"
-                    .value=${this._variantFormData.url || ""}
-                    @input=${(t) => this._variantFormData = { ...this._variantFormData, url: t.target.value }}
-                    placeholder="/products/my-product/default">
-                  </uui-input>
-                </umb-property-layout>
-              ` : n}
 
           <umb-property-layout
             label="Page Title"
@@ -1368,7 +1362,7 @@ let d = class extends F(I) {
                 ?multiple=${!1}
                 @change=${this._handleOpenGraphImageChange}>
               </umb-input-rich-media>
-              ${this._formData.openGraphImage ? n : o`
+              ${this._formData.openGraphImage ? l : o`
                     <div class="empty-media-state small">
                       <uui-icon name="icon-share-alt"></uui-icon>
                       <p>No image selected</p>
@@ -1392,7 +1386,7 @@ let d = class extends F(I) {
     `;
   }
   _renderGoogleSearchPreview() {
-    const e = this._formData.pageTitle || this._formData.rootName || "Product Title", t = this._formData.metaDescription || "No meta description set. Add a description to improve search visibility.", i = this._formData.canonicalUrl || "https://yourstore.com/products/product-name", a = this._formatUrlAsBreadcrumb(i), r = 60, s = 160, u = e.length > r, w = t.length > s, k = u ? e.substring(0, r - 3) + "..." : e, z = w ? t.substring(0, s - 3) + "..." : t;
+    const e = this._formData.pageTitle || this._formData.rootName || "Product Title", t = this._formData.metaDescription || "No meta description set. Add a description to improve search visibility.", i = this._formData.canonicalUrl || "https://yourstore.com/products/product-name", a = this._formatUrlAsBreadcrumb(i), r = 60, s = 160, u = e.length > r, w = t.length > s, P = u ? e.substring(0, r - 3) + "..." : e, z = w ? t.substring(0, s - 3) + "..." : t;
     return o`
       <div class="google-preview">
         <div class="google-preview-header">
@@ -1404,7 +1398,7 @@ let d = class extends F(I) {
             <div class="google-preview-url">${a}</div>
           </div>
         </div>
-        <div class="google-preview-title">${k}</div>
+        <div class="google-preview-title">${P}</div>
         <div class="google-preview-description">${z}</div>
       </div>
       <div class="google-preview-stats">
@@ -1443,7 +1437,7 @@ let d = class extends F(I) {
             </div>
           `
     )}
-        ${this._warehouses.length === 0 ? o`<p class="hint">No warehouses available. Create a warehouse first.</p>` : n}
+        ${this._warehouses.length === 0 ? o`<p class="hint">No warehouses available. Create a warehouse first.</p>` : l}
       </div>
     `;
   }
@@ -1479,7 +1473,7 @@ let d = class extends F(I) {
     `;
   }
   _renderVariantRow(e) {
-    const t = this._product ? L(this._product.id, e.id) : "", i = this._getVariantOptionDescription(e);
+    const t = this._product ? B(this._product.id, e.id) : "", i = this._getVariantOptionDescription(e);
     return o`
       <uui-table-row>
         <uui-table-cell>
@@ -1494,7 +1488,7 @@ let d = class extends F(I) {
         <uui-table-cell>
           <div class="variant-name-cell">
             <a href=${t} class="variant-link">${e.name || "Unnamed"}</a>
-            ${i ? o`<span class="variant-options-text">${i}</span>` : n}
+            ${i ? o`<span class="variant-options-text">${i}</span>` : l}
           </div>
         </uui-table-cell>
         <uui-table-cell>${e.sku || "—"}</uui-table-cell>
@@ -1536,9 +1530,9 @@ let d = class extends F(I) {
     this._product = { ...this._product, variants: a };
     try {
       const { error: r } = await m.setDefaultVariant(i, e);
-      console.log("API response:", { error: r }), r ? (console.error("Failed to set default variant:", r), l(this, g)?.peek("danger", { data: { headline: "Failed to set default variant", message: r.message } }), await l(this, h)?.reload()) : (l(this, g)?.peek("positive", { data: { headline: "Default variant updated", message: "" } }), await l(this, h)?.reload(), console.log("After reload, variants:", this._product?.variants.map((s) => ({ id: s.id, name: s.name, default: s.default }))));
+      console.log("API response:", { error: r }), r ? (console.error("Failed to set default variant:", r), n(this, g)?.peek("danger", { data: { headline: "Failed to set default variant", message: r.message } }), await n(this, h)?.reload()) : (n(this, g)?.peek("positive", { data: { headline: "Default variant updated", message: "" } }), await n(this, h)?.reload(), console.log("After reload, variants:", this._product?.variants.map((s) => ({ id: s.id, name: s.name, default: s.default }))));
     } catch (r) {
-      console.error("Failed to set default variant:", r), l(this, g)?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } }), await l(this, h)?.reload();
+      console.error("Failed to set default variant:", r), n(this, g)?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } }), await n(this, h)?.reload();
     }
   }
   /**
@@ -1591,7 +1585,7 @@ let d = class extends F(I) {
     this._variantFormData = { ...this._variantFormData, warehouseStock: s };
   }
   _renderOptionsTab() {
-    const e = this._formData.productOptions ?? [], t = l(this, h)?.isNew ?? !0, i = ee(e), a = this._optionSettings?.maxProductOptions ?? 5, r = e.length >= a;
+    const e = this._formData.productOptions ?? [], t = n(this, h)?.isNew ?? !0, i = ee(e), a = this._optionSettings?.maxProductOptions ?? 5, r = e.length >= a;
     return o`
       <div class="tab-content">
         ${t ? o`
@@ -1619,7 +1613,7 @@ let d = class extends F(I) {
         <div class="section-header">
           <div>
             <h3>Product Options <span class="option-count">${e.length}/${a}</span></h3>
-            ${i > 0 ? o`<small class="hint">Will generate ${i} variant${i !== 1 ? "s" : ""}</small>` : n}
+            ${i > 0 ? o`<small class="hint">Will generate ${i} variant${i !== 1 ? "s" : ""}</small>` : l}
           </div>
           <uui-button
             look="primary"
@@ -1632,7 +1626,7 @@ let d = class extends F(I) {
           </uui-button>
         </div>
 
-        ${e.length > 0 ? o` <div class="options-list">${e.map((s) => this._renderOptionCard(s))}</div> ` : t ? n : o`
+        ${e.length > 0 ? o` <div class="options-list">${e.map((s) => this._renderOptionCard(s))}</div> ` : t ? l : o`
               <div class="empty-state">
                 <uui-icon name="icon-layers"></uui-icon>
                 <p>No options configured</p>
@@ -1652,7 +1646,7 @@ let d = class extends F(I) {
             <span class="badge ${e.isVariant ? "badge-positive" : "badge-default"}">
               ${e.isVariant ? "Generates Variants" : "Add-on"}
             </span>
-            ${e.optionUiAlias ? o` <span class="badge badge-default">${e.optionUiAlias}</span> ` : n}
+            ${e.optionUiAlias ? o` <span class="badge badge-default">${e.optionUiAlias}</span> ` : l}
           </div>
           <div class="option-actions">
             <uui-button compact look="secondary" @click=${() => this._editOption(e)} label="Edit option" aria-label="Edit ${e.name}">
@@ -1666,7 +1660,7 @@ let d = class extends F(I) {
 
         <div class="option-values">
           ${e.values.map((t) => this._renderOptionValue(t, e.optionUiAlias))}
-          ${e.values.length === 0 ? o`<p class="hint">No values added yet</p>` : n}
+          ${e.values.length === 0 ? o`<p class="hint">No values added yet</p>` : l}
         </div>
       </uui-box>
     `;
@@ -1674,19 +1668,19 @@ let d = class extends F(I) {
   _renderOptionValue(e, t) {
     return o`
       <div class="option-value-chip">
-        ${t === "colour" && e.hexValue ? o` <span class="color-swatch" style="background-color: ${e.hexValue}"></span> ` : n}
+        ${t === "colour" && e.hexValue ? o` <span class="color-swatch" style="background-color: ${e.hexValue}"></span> ` : l}
         <span>${e.name}</span>
         ${e.priceAdjustment !== 0 ? o`
               <span class="price-adjustment">
                 ${e.priceAdjustment > 0 ? "+" : ""}$${e.priceAdjustment.toFixed(2)}
               </span>
-            ` : n}
+            ` : l}
       </div>
     `;
   }
   async _addNewOption() {
-    if (!l(this, b) || !this._optionSettings) return;
-    const t = await l(this, b).open(this, O, {
+    if (!n(this, b) || !this._optionSettings) return;
+    const t = await n(this, b).open(this, O, {
       data: {
         option: void 0,
         settings: this._optionSettings
@@ -1702,8 +1696,8 @@ let d = class extends F(I) {
     }
   }
   async _editOption(e) {
-    if (!l(this, b) || !this._optionSettings) return;
-    const i = await l(this, b).open(this, O, {
+    if (!n(this, b) || !this._optionSettings) return;
+    const i = await n(this, b).open(this, O, {
       data: {
         option: e,
         settings: this._optionSettings
@@ -1760,7 +1754,7 @@ Are you sure you want to continue?`;
   async _saveOptions() {
     if (this._product?.id) {
       if (!this._confirmVariantRegeneration()) {
-        l(this, h)?.reload();
+        n(this, h)?.reload();
         return;
       }
       try {
@@ -1783,13 +1777,13 @@ Are you sure you want to continue?`;
             skuSuffix: s.skuSuffix ?? void 0
           }))
         }));
-        l(this, g)?.peek("default", { data: { headline: "Saving options...", message: "Variants will be regenerated" } });
+        n(this, g)?.peek("default", { data: { headline: "Saving options...", message: "Variants will be regenerated" } });
         const { data: t, error: i } = await m.saveProductOptions(this._product.id, e);
-        if (!l(this, v)) return;
-        !i && t ? (this._formData = { ...this._formData, productOptions: t }, l(this, g)?.peek("positive", { data: { headline: "Options saved", message: "Variants have been regenerated" } }), l(this, h)?.reload()) : i && (console.error("Failed to save options:", i), this._errorMessage = "Failed to save options: " + i.message, l(this, g)?.peek("danger", { data: { headline: "Failed to save options", message: i.message } }));
+        if (!n(this, f)) return;
+        !i && t ? (this._formData = { ...this._formData, productOptions: t }, n(this, g)?.peek("positive", { data: { headline: "Options saved", message: "Variants have been regenerated" } }), n(this, h)?.reload()) : i && (console.error("Failed to save options:", i), this._errorMessage = "Failed to save options: " + i.message, n(this, g)?.peek("danger", { data: { headline: "Failed to save options", message: i.message } }));
       } catch (e) {
-        if (!l(this, v)) return;
-        console.error("Failed to save options:", e), this._errorMessage = e instanceof Error ? e.message : "Failed to save options", l(this, g)?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } });
+        if (!n(this, f)) return;
+        console.error("Failed to save options:", e), this._errorMessage = e instanceof Error ? e.message : "Failed to save options", n(this, g)?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } });
       }
     }
   }
@@ -1799,7 +1793,7 @@ Are you sure you want to continue?`;
    * Note: Only shown for single-variant products.
    */
   _renderFiltersTab() {
-    const e = l(this, h)?.isNew ?? !0;
+    const e = n(this, h)?.isNew ?? !0;
     return o`
       <div class="tab-content">
         <merchello-product-filters
@@ -1834,19 +1828,12 @@ Are you sure you want to continue?`;
     if (!e || !this._hasFilterChanges()) return;
     const { error: t } = await m.assignFiltersToProduct(e, this._assignedFilterIds);
     if (t) {
-      l(this, g)?.peek("danger", {
+      n(this, g)?.peek("danger", {
         data: { headline: "Failed to save filters", message: t.message }
       });
       return;
     }
     this._originalAssignedFilterIds = [...this._assignedFilterIds];
-  }
-  /**
-   * Handles selling points change from the editable text list.
-   */
-  _handleSellingPointsChange(e) {
-    const i = e.target?.items || [];
-    this._formData = { ...this._formData, sellingPoints: i };
   }
   /**
    * Handles router slot initialization
@@ -1869,11 +1856,11 @@ Are you sure you want to continue?`;
           </div>
         </umb-body-layout>
       `;
-    const e = l(this, h)?.isNew ?? !0, t = this._getActiveTab();
+    const e = n(this, h)?.isNew ?? !0, t = this._getActiveTab();
     return o`
       <umb-body-layout header-fit-height main-no-padding>
         <!-- Header: back button + icon + name input -->
-        <uui-button slot="header" compact href=${B()} label="Back" class="back-button">
+        <uui-button slot="header" compact href=${L()} label="Back" class="back-button">
           <uui-icon name="icon-arrow-left"></uui-icon>
         </uui-button>
 
@@ -1900,17 +1887,17 @@ Are you sure you want to continue?`;
             @change=${this._onRouterChange}>
           </umb-router-slot>
 
-          ${t === "details" ? this._renderDetailsTab() : n}
-          ${t === "basic-info" && this._isSingleVariant() ? this._renderBasicInfoTab() : n}
-          ${t === "media" ? this._renderMediaTab() : n}
-          ${t === "shipping" ? this._renderShippingTab() : n}
-          ${t === "seo" ? this._renderSeoTab() : n}
-          ${t === "feed" && this._isSingleVariant() ? this._renderShoppingFeedTab() : n}
-          ${t === "stock" && this._isSingleVariant() ? this._renderStockTab() : n}
-          ${t === "variants" ? this._renderVariantsTab() : n}
-          ${t === "options" ? this._renderOptionsTab() : n}
-          ${t === "filters" && this._isSingleVariant() ? this._renderFiltersTab() : n}
-          ${this._isContentTab(t) ? this._renderContentTab(t) : n}
+          ${t === "details" ? this._renderDetailsTab() : l}
+          ${t === "basic-info" && this._isSingleVariant() ? this._renderBasicInfoTab() : l}
+          ${t === "media" ? this._renderMediaTab() : l}
+          ${t === "shipping" ? this._renderShippingTab() : l}
+          ${t === "seo" ? this._renderSeoTab() : l}
+          ${t === "feed" && this._isSingleVariant() ? this._renderShoppingFeedTab() : l}
+          ${t === "stock" && this._isSingleVariant() ? this._renderStockTab() : l}
+          ${t === "variants" ? this._renderVariantsTab() : l}
+          ${t === "options" ? this._renderOptionsTab() : l}
+          ${t === "filters" && this._isSingleVariant() ? this._renderFiltersTab() : l}
+          ${this._isContentTab(t) ? this._renderContentTab(t) : l}
         </umb-body-layout>
 
         <!-- Footer with save button -->
@@ -1929,11 +1916,11 @@ Are you sure you want to continue?`;
     `;
   }
 };
-P = /* @__PURE__ */ new WeakMap();
+k = /* @__PURE__ */ new WeakMap();
 h = /* @__PURE__ */ new WeakMap();
 b = /* @__PURE__ */ new WeakMap();
 g = /* @__PURE__ */ new WeakMap();
-v = /* @__PURE__ */ new WeakMap();
+f = /* @__PURE__ */ new WeakMap();
 d.styles = [
   R,
   C`
@@ -2489,6 +2476,9 @@ p([
 p([
   c()
 ], d.prototype, "_descriptionEditorConfig", 2);
+p([
+  c()
+], d.prototype, "_descriptionBlocks", 2);
 d = p([
   S("merchello-product-detail")
 ], d);
@@ -2497,4 +2487,4 @@ export {
   d as MerchelloProductDetailElement,
   we as default
 };
-//# sourceMappingURL=product-detail.element-Cz4nXGIA.js.map
+//# sourceMappingURL=product-detail.element-CHJBj_-X.js.map

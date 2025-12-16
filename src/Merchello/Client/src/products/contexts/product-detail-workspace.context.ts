@@ -138,8 +138,6 @@ export class MerchelloProductDetailWorkspaceContext extends UmbControllerBase im
       rootName: "",
       rootImages: [],
       rootUrl: null,
-      sellingPoints: [],
-      videos: [],
       googleShoppingFeedCategory: null,
       isDigitalProduct: false,
       defaultPackageConfigurations: [],
