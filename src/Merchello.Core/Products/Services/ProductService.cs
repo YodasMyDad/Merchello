@@ -629,6 +629,87 @@ public class ProductService(
     }
 
     /// <summary>
+    /// Updates an existing ProductType
+    /// </summary>
+    public async Task<CrudResult<ProductType>> UpdateProductType(
+        Guid id,
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<ProductType>();
+        ProductType? productType = null;
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            productType = await db.ProductTypes.FirstOrDefaultAsync(pt => pt.Id == id, cancellationToken);
+
+            if (productType == null)
+            {
+                result.AddErrorMessage("Product type not found");
+                return;
+            }
+
+            var newAlias = slugHelper.GenerateSlug(name);
+
+            var existingType = await db.ProductTypes
+                .FirstOrDefaultAsync(pt => pt.Alias == newAlias && pt.Id != id, cancellationToken);
+
+            if (existingType != null)
+            {
+                result.AddErrorMessage($"A product type with alias '{newAlias}' already exists");
+                return;
+            }
+
+            productType.Name = name;
+            productType.Alias = newAlias;
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+        });
+
+        scope.Complete();
+        result.ResultObject = productType;
+        return result;
+    }
+
+    /// <summary>
+    /// Deletes a ProductType if it's not in use by any products
+    /// </summary>
+    public async Task<CrudResult<bool>> DeleteProductType(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<bool>();
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var productType = await db.ProductTypes
+                .Include(pt => pt.Products)
+                .FirstOrDefaultAsync(pt => pt.Id == id, cancellationToken);
+
+            if (productType == null)
+            {
+                result.AddErrorMessage("Product type not found");
+                return;
+            }
+
+            if (productType.Products.Any())
+            {
+                result.AddErrorMessage($"Cannot delete product type '{productType.Name}' because it is assigned to {productType.Products.Count} product(s)");
+                return;
+            }
+
+            db.ProductTypes.Remove(productType);
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            result.ResultObject = true;
+        });
+
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
     /// Creates a new ProductCategory
     /// </summary>
     public async Task<CrudResult<ProductCategory>> CreateProductCategory(

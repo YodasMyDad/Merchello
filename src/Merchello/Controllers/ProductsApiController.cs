@@ -265,6 +265,63 @@ public class ProductsApiController(
         return types.Select(t => new ProductTypeDto { Id = t.Id, Name = t.Name ?? string.Empty, Alias = t.Alias }).ToList();
     }
 
+    [HttpPost("products/types")]
+    [ProducesResponseType<ProductTypeDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateProductType([FromBody] CreateProductTypeRequest request)
+    {
+        var result = await productService.CreateProductType(request.Name);
+        if (!result.Successful)
+        {
+            var errorMessage = result.Messages.FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message;
+            return BadRequest(new ProblemDetails { Title = "Failed to create product type", Detail = errorMessage });
+        }
+
+        var productType = result.ResultObject!;
+        return Ok(new ProductTypeDto { Id = productType.Id, Name = productType.Name ?? string.Empty, Alias = productType.Alias });
+    }
+
+    [HttpPut("products/types/{id:guid}")]
+    [ProducesResponseType<ProductTypeDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateProductType(Guid id, [FromBody] UpdateProductTypeRequest request)
+    {
+        var result = await productService.UpdateProductType(id, request.Name);
+        if (!result.Successful)
+        {
+            var errorMessage = result.Messages.FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message;
+            if (errorMessage?.Contains("not found") == true)
+            {
+                return NotFound();
+            }
+            return BadRequest(new ProblemDetails { Title = "Failed to update product type", Detail = errorMessage });
+        }
+
+        var productType = result.ResultObject!;
+        return Ok(new ProductTypeDto { Id = productType.Id, Name = productType.Name ?? string.Empty, Alias = productType.Alias });
+    }
+
+    [HttpDelete("products/types/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteProductType(Guid id)
+    {
+        var result = await productService.DeleteProductType(id);
+        if (!result.Successful)
+        {
+            var errorMessage = result.Messages.FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message;
+            if (errorMessage?.Contains("not found") == true)
+            {
+                return NotFound();
+            }
+            return BadRequest(new ProblemDetails { Title = "Failed to delete product type", Detail = errorMessage });
+        }
+
+        return NoContent();
+    }
+
     [HttpGet("products/categories")]
     [ProducesResponseType<List<ProductCategoryDto>>(StatusCodes.Status200OK)]
     public async Task<List<ProductCategoryDto>> GetProductCategories()

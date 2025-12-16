@@ -31,6 +31,8 @@ public interface IProductService
     Task<CrudResult<bool>> UpdateVariantExcludedShippingOptions(Guid variantId, List<Guid> excludedShippingOptionIds, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> SetDefaultVariant(Guid variantId, CancellationToken cancellationToken = default);
     Task<CrudResult<ProductType>> CreateProductType(string name, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductType>> UpdateProductType(Guid id, string name, CancellationToken cancellationToken = default);
+    Task<CrudResult<bool>> DeleteProductType(Guid id, CancellationToken cancellationToken = default);
     Task<CrudResult<ProductCategory>> CreateProductCategory(string name, CancellationToken cancellationToken = default);
     Task<List<ProductType>> GetProductTypes(CancellationToken cancellationToken = default);
     Task<List<ProductCategory>> GetProductCategories(CancellationToken cancellationToken = default);

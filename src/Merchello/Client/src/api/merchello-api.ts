@@ -547,6 +547,18 @@ export const MerchelloApi = {
   /** Get all product types for filtering */
   getProductTypes: () => apiGet<ProductTypeDto[]>('products/types'),
 
+  /** Create a new product type */
+  createProductType: (data: { name: string }) =>
+    apiPost<ProductTypeDto>('products/types', data),
+
+  /** Update an existing product type */
+  updateProductType: (id: string, data: { name: string }) =>
+    apiPut<ProductTypeDto>(`products/types/${id}`, data),
+
+  /** Delete a product type */
+  deleteProductType: (id: string) =>
+    apiDelete(`products/types/${id}`),
+
   /** Get all product categories for filtering */
   getProductCategories: () => apiGet<ProductCategoryDto[]>('products/categories'),
 
