@@ -1,7 +1,9 @@
-﻿using Merchello.Core.Accounting.Models;
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Warehouses.Models;
+
+// ReSharper disable UnusedMember.Global
 
 namespace Merchello.Core.Checkout.Services.Interfaces;
 
@@ -17,13 +19,38 @@ public interface ICheckoutService
     Task AddToBasketAsync(Basket basket, LineItem newLineItem, string countryCode, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Add adjustment to the basket
+    /// Add a discount to the basket as a discount line item.
     /// </summary>
-    /// <param name="basket"></param>
-    /// <param name="newAdjustment"></param>
-    /// <param name="countryCode"></param>
-    /// <param name="cancellationToken"></param>
-    Task AddToBasketAsync(Basket basket, Adjustment newAdjustment, string countryCode, CancellationToken cancellationToken = default);
+    /// <param name="basket">The basket to add the discount to</param>
+    /// <param name="amount">The discount amount (positive value)</param>
+    /// <param name="discountType">Whether this is a fixed amount or percentage discount</param>
+    /// <param name="linkedSku">Optional SKU to link the discount to a specific product</param>
+    /// <param name="name">Optional name for the discount</param>
+    /// <param name="reason">Optional reason/description for the discount</param>
+    /// <param name="countryCode">Country code for shipping calculation</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task AddDiscountToBasketAsync(
+        Basket basket,
+        decimal amount,
+        DiscountType discountType,
+        string? linkedSku = null,
+        string? name = null,
+        string? reason = null,
+        string? countryCode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Remove a discount line item from the basket
+    /// </summary>
+    /// <param name="basket">The basket</param>
+    /// <param name="discountLineItemId">The ID of the discount line item to remove</param>
+    /// <param name="countryCode">Country code for recalculation</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task RemoveDiscountFromBasketAsync(
+        Basket basket,
+        Guid discountLineItemId,
+        string? countryCode = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Remove item from basket

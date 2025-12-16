@@ -1,4 +1,4 @@
-﻿using Merchello.Core.Accounting.Models;
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shared.Extensions;
@@ -21,11 +21,6 @@ public class Basket
     /// Line items in the basket
     /// </summary>
     public List<LineItem> LineItems { get; set; } = [];
-
-    /// <summary>
-    /// Adjustments for this basket (I.e. Discounts)
-    /// </summary>
-    public List<Adjustment> Adjustments { get; set; } = [];
 
     /// <summary>
     /// Date basket was created

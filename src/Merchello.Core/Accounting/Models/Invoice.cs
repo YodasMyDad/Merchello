@@ -52,11 +52,6 @@ public class Invoice
     public virtual ICollection<Payment>? Payments { get; set; }
 
     /// <summary>
-    /// Adjustments for this basket (I.e. Discounts)
-    /// </summary>
-    public List<Adjustment> Adjustments { get; set; } = [];
-
-    /// <summary>
     /// Notes about the invoice including any actions/changes on it
     /// </summary>
     public List<InvoiceNote> Notes { get; set; } = [];

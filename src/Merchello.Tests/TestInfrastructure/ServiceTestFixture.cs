@@ -31,11 +31,15 @@ using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.ApplicationParts;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Scoping;
+using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Tests.TestInfrastructure;
@@ -167,6 +171,24 @@ public class ServiceTestFixture : IDisposable
             .Setup(p => p.PublishAsync(It.IsAny<INotification>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         services.AddSingleton(mockNotificationPublisher.Object);
+
+        // Mock IContentTypeService (Umbraco service used by ProductService for product type rendering)
+        var mockContentTypeService = new Mock<IContentTypeService>();
+        services.AddSingleton(mockContentTypeService.Object);
+
+        // Mock ApplicationPartManager (used by ProductService for view compilation checks)
+        var applicationPartManager = new ApplicationPartManager();
+        services.AddSingleton(applicationPartManager);
+
+        // Mock IWebHostEnvironment (used by ProductService for environment info)
+        var mockWebHostEnvironment = new Mock<IWebHostEnvironment>();
+        mockWebHostEnvironment.Setup(e => e.EnvironmentName).Returns("Test");
+        mockWebHostEnvironment.Setup(e => e.ApplicationName).Returns("Merchello.Tests");
+        mockWebHostEnvironment.Setup(e => e.ContentRootPath).Returns(Directory.GetCurrentDirectory());
+        mockWebHostEnvironment.Setup(e => e.WebRootPath).Returns(Directory.GetCurrentDirectory());
+        mockWebHostEnvironment.Setup(e => e.ContentRootFileProvider).Returns(new NullFileProvider());
+        mockWebHostEnvironment.Setup(e => e.WebRootFileProvider).Returns(new NullFileProvider());
+        services.AddSingleton(mockWebHostEnvironment.Object);
 
         services.AddScoped<IShippingService, ShippingService>();
 

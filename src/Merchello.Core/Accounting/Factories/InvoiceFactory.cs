@@ -38,7 +38,9 @@ public class InvoiceFactory(ICurrencyService currencyService)
             AdjustedSubTotal = basket.AdjustedSubTotal,
             Tax = basket.Tax,
             Total = basket.Total,
-            Adjustments = basket.Adjustments,
+            // Note: Discounts are now stored as LineItem with LineItemType.Discount on the Order,
+            // not as Adjustments on the Invoice. The basket's discount line items will flow
+            // through to the Order.LineItems during order creation.
             DateCreated = now,
             DateUpdated = now
         };
