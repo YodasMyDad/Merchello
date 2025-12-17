@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
@@ -50,6 +51,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var statusHandler = _fixture.GetService<Core.Accounting.Handlers.IOrderStatusHandler>();
         var paymentService = new Mock<IPaymentService>().Object;
         var productService = new Mock<IProductService>().Object;
+        var customerService = new Mock<ICustomerService>().Object;
         var notificationPublisher = new Mock<IMerchelloNotificationPublisher>().Object;
         var exchangeRateCacheMock = new Mock<IExchangeRateCache>();
         exchangeRateCacheMock.Setup(x => x.GetRateQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -72,6 +74,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             statusHandler,
             paymentService,
             productService,
+            customerService,
             notificationPublisher,
             exchangeRateCacheMock.Object,
             currencyService,

@@ -11,16 +11,16 @@ export const manifests: Array<UmbExtensionManifest> = [
     },
   },
 
-  // Workspace view for customers
+  // Workspace view - the customers list
   {
     type: "workspaceView",
-    alias: "Merchello.Customers.Workspace.View",
-    name: "Merchello Customers View",
-    js: () => import("./customers-workspace.element.js"),
+    alias: "Merchello.Customers.ListView",
+    name: "Customers List View",
+    js: () => import("./components/customers-list.element.js"),
     weight: 100,
     meta: {
       label: "Customers",
-      pathname: "customers",
+      pathname: "list",
       icon: "icon-users",
     },
     conditions: [
@@ -30,5 +30,12 @@ export const manifests: Array<UmbExtensionManifest> = [
       },
     ],
   },
-];
 
+  // Customer edit modal
+  {
+    type: "modal",
+    alias: "Merchello.Customer.Edit.Modal",
+    name: "Customer Edit Modal",
+    js: () => import("./modals/customer-edit-modal.element.js"),
+  },
+];

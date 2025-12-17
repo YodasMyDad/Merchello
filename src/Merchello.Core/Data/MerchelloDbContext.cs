@@ -1,6 +1,7 @@
 using System.Reflection;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Customers.Models;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Products.Models;
@@ -30,6 +31,9 @@ public class MerchelloDbContext : DbContext
     public DbSet<ProductType> ProductTypes => Set<ProductType>();
     public DbSet<ProductWarehouse> ProductWarehouses => Set<ProductWarehouse>();
     public DbSet<ProductRootWarehouse> ProductRootWarehouses => Set<ProductRootWarehouse>();
+
+    // Customer DbSets
+    public DbSet<Customer> Customers => Set<Customer>();
 
     // Checkout DbSets
     public DbSet<Basket> Baskets => Set<Basket>();

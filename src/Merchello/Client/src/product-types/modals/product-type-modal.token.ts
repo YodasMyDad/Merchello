@@ -21,6 +21,6 @@ export const MERCHELLO_PRODUCT_TYPE_MODAL = new UmbModalToken<
 >("Merchello.ProductType.Modal", {
   modal: {
     type: "sidebar",
-    size: "small",
+    size: "medium",
   },
 });

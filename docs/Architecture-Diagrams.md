@@ -30,6 +30,7 @@ FACTORIES → All object creation, stateless singletons
 | Stock reserve/allocate/release | `IInventoryService.*Async()` |
 | Order creation | `IInvoiceService.CreateOrderFromBasketAsync()` |
 | Shipping quotes | `IShippingQuoteService.GetQuotesAsync()` |
+| Customer get/create | `ICustomerService.GetOrCreateByEmailAsync()` |
 
 ### Factories
 
@@ -45,6 +46,7 @@ FACTORIES → All object creation, stateless singletons
 | `ProductOptionFactory` | Options and values |
 | `LineItemFactory` | Line items |
 | `TaxGroupFactory` | Tax config |
+| `CustomerFactory` | Customer from email/params |
 
 ### Rules
 ```csharp
@@ -82,7 +84,7 @@ Feature/
 └── ExtensionMethods/
 ```
 
-**Modules**: Accounting, Checkout, Products, Shipping, Payments, Suppliers, Warehouses, Locality, Notifications, Stores
+**Modules**: Accounting, Checkout, Customers, Products, Shipping, Payments, Suppliers, Warehouses, Locality, Notifications, Stores
 
 ## 3. Entity Relationships
 
@@ -96,6 +98,8 @@ ProductRoot →1:N→ Product (variant)
            →1:N→ DefaultPackageConfigurations
 
 Product →1:N→ PackageConfigurations, HsCode
+
+Customer →1:N→ Invoice (required, auto-created from billing email)
 
 Invoice →1:N→ Order →1:N→ Shipment (N:1 Warehouse)
        →1:N→ Payment
@@ -248,6 +252,7 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 | Service | Responsibility |
 |---------|----------------|
 | `ICheckoutService` | Basket ops, discounts, shipping quotes, order grouping |
+| `ICustomerService` | Customer CRUD, get-or-create by email |
 | `IInvoiceService` | Invoice/order CRUD, status, totals |
 | `IInventoryService` | Stock reserve/allocate/release |
 | `IProductService` | Product CRUD, variants, options |

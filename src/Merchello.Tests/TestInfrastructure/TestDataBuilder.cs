@@ -1,6 +1,7 @@
 using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Customers.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Factories;
@@ -275,15 +276,41 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
     }
 
     /// <summary>
-    /// Creates an Invoice
+    /// Creates a Customer
+    /// </summary>
+    public Customer CreateCustomer(
+        string email = "test@example.com",
+        string? firstName = "Test",
+        string? lastName = "Customer")
+    {
+        var customer = new Customer
+        {
+            Id = Guid.NewGuid(), // Pre-generate ID for FK relationships
+            Email = email.Trim().ToLowerInvariant(),
+            FirstName = firstName,
+            LastName = lastName,
+            DateCreated = DateTime.UtcNow,
+            DateUpdated = DateTime.UtcNow
+        };
+
+        dbContext.Customers.Add(customer);
+        return customer;
+    }
+
+    /// <summary>
+    /// Creates an Invoice (auto-creates a Customer if not provided)
     /// </summary>
     public Invoice CreateInvoice(
         string? customerEmail = "test@example.com",
-        decimal total = 100m)
+        decimal total = 100m,
+        Customer? customer = null)
     {
+        customer ??= CreateCustomer(customerEmail ?? "test@example.com");
+
         var invoice = new Invoice
         {
             Id = Guid.NewGuid(), // Pre-generate ID for FK relationships
+            CustomerId = customer.Id,
             BillingAddress = new Address { Email = customerEmail },
             Total = total,
             SubTotal = total * 0.8m,

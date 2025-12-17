@@ -12,9 +12,10 @@ public class Invoice
     public Guid Id { get; set; } = GuidExtensions.NewSequentialGuid;
 
     /// <summary>
-    /// If a customer is logged in then this will be the customers id
+    /// The customer who placed this order (required).
+    /// Customers are auto-created during checkout based on billing email.
     /// </summary>
-    public Guid? CustomerId { get; set; }
+    public Guid CustomerId { get; set; }
 
     /// <summary>
     /// Human-readable invoice number (e.g., "INV-0001")

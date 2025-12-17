@@ -1,0 +1,86 @@
+using Merchello.Core.Customers.Dtos;
+using Merchello.Core.Customers.Models;
+using Merchello.Core.Customers.Services.Parameters;
+using Merchello.Core.Locality.Models;
+using Merchello.Core.Shared.Models;
+
+namespace Merchello.Core.Customers.Services.Interfaces;
+
+/// <summary>
+/// Service for managing customers.
+/// </summary>
+public interface ICustomerService
+{
+    // =====================================================
+    // Core CRUD
+    // =====================================================
+
+    /// <summary>
+    /// Gets a customer by ID
+    /// </summary>
+    Task<Customer?> GetByIdAsync(Guid customerId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets a customer DTO by ID with order count included
+    /// </summary>
+    Task<CustomerListItemDto?> GetDtoByIdAsync(Guid customerId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets a customer by email address
+    /// </summary>
+    Task<Customer?> GetByEmailAsync(string email, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets a customer by Umbraco Member key
+    /// </summary>
+    Task<Customer?> GetByMemberKeyAsync(Guid memberKey, CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates a new customer
+    /// </summary>
+    Task<CrudResult<Customer>> CreateAsync(CreateCustomerParameters parameters, CancellationToken ct = default);
+
+    /// <summary>
+    /// Updates an existing customer
+    /// </summary>
+    Task<CrudResult<Customer>> UpdateAsync(UpdateCustomerParameters parameters, CancellationToken ct = default);
+
+    // =====================================================
+    // Checkout Integration (Primary Use Case)
+    // =====================================================
+
+    /// <summary>
+    /// Gets an existing customer by email, or creates a new one if not found.
+    /// This is the primary method used during checkout to ensure every invoice
+    /// has a linked customer.
+    /// </summary>
+    /// <param name="email">Customer's email address</param>
+    /// <param name="billingAddress">Optional billing address to extract name for new customers</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Existing or newly created Customer</returns>
+    Task<Customer> GetOrCreateByEmailAsync(string email, Address? billingAddress = null, CancellationToken ct = default);
+
+    // =====================================================
+    // Search & Query
+    // =====================================================
+
+    /// <summary>
+    /// Searches customers by email or name
+    /// </summary>
+    Task<List<Customer>> SearchAsync(string? searchTerm, int limit = 20, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets paginated list of customers with optional search
+    /// </summary>
+    Task<CustomerPageDto> GetPagedAsync(string? search, int page = 1, int pageSize = 50, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets total customer count
+    /// </summary>
+    Task<int> GetCountAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Checks if any customers exist (for seeding)
+    /// </summary>
+    Task<bool> AnyExistAsync(CancellationToken ct = default);
+}

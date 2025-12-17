@@ -20,14 +20,15 @@ public class InvoiceFactory(ICurrencyService currencyService)
         Address billingAddress,
         Address shippingAddress,
         string presentmentCurrency,
-        string storeCurrency)
+        string storeCurrency,
+        Guid customerId)
     {
         var now = DateTime.UtcNow;
         return new Invoice
         {
             Id = GuidExtensions.NewSequentialGuid,
             InvoiceNumber = invoiceNumber,
-            CustomerId = basket.CustomerId,
+            CustomerId = customerId,
             BillingAddress = billingAddress,
             ShippingAddress = shippingAddress,
             CurrencyCode = presentmentCurrency,
@@ -51,6 +52,7 @@ public class InvoiceFactory(ICurrencyService currencyService)
     /// </summary>
     public Invoice CreateDraft(
         string invoiceNumber,
+        Guid customerId,
         Address billingAddress,
         Address shippingAddress,
         string currencyCode,
@@ -65,6 +67,7 @@ public class InvoiceFactory(ICurrencyService currencyService)
         {
             Id = GuidExtensions.NewSequentialGuid,
             InvoiceNumber = invoiceNumber,
+            CustomerId = customerId,
             BillingAddress = billingAddress,
             ShippingAddress = shippingAddress,
             Channel = "Draft order",

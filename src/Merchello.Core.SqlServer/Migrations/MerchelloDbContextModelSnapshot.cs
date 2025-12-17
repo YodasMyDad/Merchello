@@ -47,7 +47,7 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<Guid?>("CustomerId")
+                    b.Property<Guid>("CustomerId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("DateCreated")
@@ -129,6 +129,8 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CurrencyCode");
+
+                    b.HasIndex("CustomerId");
 
                     b.HasIndex("IsDeleted");
 
@@ -456,6 +458,45 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("merchelloBaskets", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Customers.Models.Customer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DateUpdated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<string>("FirstName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("LastName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("MemberKey")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("MemberKey")
+                        .HasFilter("[MemberKey] IS NOT NULL");
+
+                    b.ToTable("merchelloCustomers", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.ExchangeRates.Models.ExchangeRateProviderSetting", b =>
@@ -1364,6 +1405,12 @@ namespace Merchello.Core.SqlServer.Migrations
 
             modelBuilder.Entity("Merchello.Core.Accounting.Models.Invoice", b =>
                 {
+                    b.HasOne("Merchello.Core.Customers.Models.Customer", null)
+                        .WithMany("Invoices")
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.OwnsOne("Merchello.Core.Locality.Models.Address", "BillingAddress", b1 =>
                         {
                             b1.Property<Guid>("InvoiceId")
@@ -1928,6 +1975,11 @@ namespace Merchello.Core.SqlServer.Migrations
             modelBuilder.Entity("Merchello.Core.Accounting.Models.TaxGroup", b =>
                 {
                     b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Customers.Models.Customer", b =>
+                {
+                    b.Navigation("Invoices");
                 });
 
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>

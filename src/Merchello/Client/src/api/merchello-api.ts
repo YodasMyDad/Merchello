@@ -252,6 +252,14 @@ import type {
   UpdateSupplierDto,
 } from '@suppliers/types.js';
 
+// Import customer types
+import type {
+  CustomerListItemDto,
+  CustomerPageDto,
+  CustomerListParams,
+  UpdateCustomerDto,
+} from '@customers/types/customer.types.js';
+
 // Import analytics types
 import type {
   AnalyticsSummaryDto,
@@ -742,6 +750,23 @@ export const MerchelloApi = {
   /** Delete a supplier */
   deleteSupplier: (id: string, force = false) =>
     apiDelete(`suppliers/${id}${force ? '?force=true' : ''}`),
+
+  // ============================================
+  // Customers API
+  // ============================================
+
+  /** Get paginated list of customers with optional search */
+  getCustomers: (params?: CustomerListParams) => {
+    const queryString = buildQueryString(params as Record<string, unknown>);
+    return apiGet<CustomerPageDto>(`customers${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Get a single customer by ID */
+  getCustomer: (id: string) => apiGet<CustomerListItemDto>(`customers/${id}`),
+
+  /** Update an existing customer */
+  updateCustomer: (id: string, data: UpdateCustomerDto) =>
+    apiPut<CustomerListItemDto>(`customers/${id}`, data),
 
   // ============================================
   // Locality API (Countries & Regions)
