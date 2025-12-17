@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
@@ -31,6 +32,7 @@ public class DbSeeder(
     IInvoiceService invoiceService,
     IPaymentService paymentService,
     ICheckoutService checkoutService,
+    ICustomerService customerService,
     ITaxService taxService,
     IWarehouseService warehouseService,
     ISupplierService supplierService,
@@ -88,8 +90,9 @@ public class DbSeeder(
         // 11. Get counts via services for final log
         var invoiceCount = await invoiceService.GetInvoiceCountAsync(cancellationToken);
         var productCount = await productService.GetProductCountAsync(cancellationToken);
-        logger.LogInformation("Merchello seed data: Completed - {ProductCount} products, {InvoiceCount} invoices",
-            productCount, invoiceCount);
+        var customerCount = await customerService.GetCountAsync(cancellationToken);
+        logger.LogInformation("Merchello seed data: Completed - {ProductCount} products, {CustomerCount} customers, {InvoiceCount} invoices",
+            productCount, customerCount, invoiceCount);
     }
 
     private async Task<Dictionary<string, ProductType>> CreateProductTypesAsync(CancellationToken cancellationToken)
@@ -302,7 +305,9 @@ public class DbSeeder(
                 // All US states (using country-level)
                 ("US", null, false),
                 // Canada
-                ("CA", null, false)
+                ("CA", null, false),
+                // International - UK (fallback for US-only products)
+                ("GB", null, false)
             ],
             ShippingOptions =
             [
@@ -347,7 +352,9 @@ public class DbSeeder(
                 ("US", null, false),
                 // Canada and Mexico
                 ("CA", null, false),
-                ("MX", null, false)
+                ("MX", null, false),
+                // International - UK (fallback for US-only products)
+                ("GB", null, false)
             ],
             ShippingOptions =
             [

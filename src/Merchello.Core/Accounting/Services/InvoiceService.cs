@@ -5,6 +5,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Services;
@@ -43,6 +44,7 @@ public class InvoiceService(
     IOrderStatusHandler statusHandler,
     IPaymentService paymentService,
     IProductService productService,
+    ICustomerService customerService,
     IMerchelloNotificationPublisher notificationPublisher,
     IExchangeRateCache exchangeRateCache,
     ICurrencyService currencyService,
@@ -64,6 +66,19 @@ public class InvoiceService(
         CheckoutSession checkoutSession,
         CancellationToken cancellationToken = default)
     {
+        // Validate billing email exists
+        var billingEmail = checkoutSession.BillingAddress.Email;
+        if (string.IsNullOrWhiteSpace(billingEmail))
+        {
+            throw new InvalidOperationException("Billing email is required to create an invoice.");
+        }
+
+        // Get or create customer from billing email
+        var customer = await customerService.GetOrCreateByEmailAsync(
+            billingEmail,
+            checkoutSession.BillingAddress,
+            cancellationToken);
+
         // Get the warehouse shipping groups using the same logic used during checkout
         var shippingResult = await shippingService.GetShippingOptionsForBasket(
             basket,
@@ -113,7 +128,8 @@ public class InvoiceService(
                 checkoutSession.BillingAddress,
                 checkoutSession.ShippingAddress,
                 presentmentCurrency,
-                storeCurrency);
+                storeCurrency,
+                customer.Id);
 
             ExchangeRateQuote? pricingQuote = null;
             if (!string.Equals(presentmentCurrency, storeCurrency, StringComparison.OrdinalIgnoreCase))
@@ -2966,6 +2982,17 @@ public class InvoiceService(
         string? authorName,
         CancellationToken cancellationToken = default)
     {
+        // Validate billing email exists
+        var billingEmail = request.BillingAddress.Email;
+        if (string.IsNullOrWhiteSpace(billingEmail))
+        {
+            return OperationResult<CreateDraftOrderResultDto>.Fail("Billing email is required to create a draft order.");
+        }
+
+        // Get or create customer from billing email (outside scope to avoid nesting)
+        var billingAddress = MapDtoToAddress(request.BillingAddress);
+        var customer = await customerService.GetOrCreateByEmailAsync(billingEmail, billingAddress, cancellationToken);
+
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync<OperationResult<CreateDraftOrderResultDto>>(async db =>
         {
@@ -3018,9 +3045,6 @@ public class InvoiceService(
 
             var now = DateTime.UtcNow;
 
-            // Map billing address from DTO
-            var billingAddress = MapDtoToAddress(request.BillingAddress);
-
             // Use shipping address if provided, otherwise use billing address
             var shippingAddress = request.ShippingAddress != null
                 ? MapDtoToAddress(request.ShippingAddress)
@@ -3047,6 +3071,7 @@ public class InvoiceService(
             // Create the invoice
             var invoice = invoiceFactory.CreateDraft(
                 invoiceNumber,
+                customer.Id,
                 billingAddress,
                 shippingAddress,
                 currencyCode,

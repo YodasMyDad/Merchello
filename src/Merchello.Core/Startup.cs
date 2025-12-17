@@ -6,6 +6,9 @@ using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies;
+using Merchello.Core.Customers.Factories;
+using Merchello.Core.Customers.Services;
+using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Services;
 using Merchello.Core.Locality.Services.Interfaces;
@@ -116,6 +119,9 @@ public static class Startup
         builder.Services.AddSingleton<ProductFilterFactory>();
         builder.Services.AddSingleton<ProductOptionFactory>();
 
+        // Customers
+        builder.Services.AddSingleton<CustomerFactory>();
+
         // Other
         builder.Services.AddSingleton<ShippingOptionFactory>();
         builder.Services.AddSingleton<SupplierFactory>();
@@ -133,6 +139,9 @@ public static class Startup
         builder.Services.AddScoped<IOrderStatusHandler, DefaultOrderStatusHandler>();
         builder.Services.AddScoped<IOrderGroupingStrategyResolver, OrderGroupingStrategyResolver>();
         builder.Services.AddScoped<DefaultOrderGroupingStrategy>();
+
+        // Customers
+        builder.Services.AddScoped<ICustomerService, CustomerService>();
 
         // Products & Inventory
         builder.Services.AddScoped<IProductService, ProductService>();

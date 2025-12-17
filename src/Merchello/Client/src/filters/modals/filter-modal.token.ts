@@ -25,6 +25,6 @@ export const MERCHELLO_FILTER_MODAL = new UmbModalToken<
 >("Merchello.Filter.Modal", {
   modal: {
     type: "sidebar",
-    size: "small",
+    size: "medium",
   },
 });

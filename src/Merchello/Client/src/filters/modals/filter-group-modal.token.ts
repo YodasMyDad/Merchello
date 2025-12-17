@@ -21,6 +21,6 @@ export const MERCHELLO_FILTER_GROUP_MODAL = new UmbModalToken<
 >("Merchello.FilterGroup.Modal", {
   modal: {
     type: "sidebar",
-    size: "small",
+    size: "medium",
   },
 });
