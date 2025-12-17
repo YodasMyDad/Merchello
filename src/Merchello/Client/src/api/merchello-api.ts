@@ -392,6 +392,13 @@ export const MerchelloApi = {
   deleteOrders: (ids: string[]) =>
     apiPost<{ deletedCount: number }>('orders/delete', { ids }),
 
+  /** Cancel an invoice and all its unfulfilled orders */
+  cancelInvoice: (invoiceId: string, reason: string) =>
+    apiPost<{ success: boolean; cancelledOrderCount: number; errorMessage?: string }>(
+      `orders/${invoiceId}/cancel`,
+      { reason }
+    ),
+
   // Invoice Editing API
   /** Get invoice data prepared for editing */
   getInvoiceForEdit: (invoiceId: string) =>

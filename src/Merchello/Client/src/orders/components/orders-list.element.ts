@@ -82,6 +82,8 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       params.fulfillmentStatus = "unfulfilled";
     } else if (this._activeTab === "unpaid") {
       params.paymentStatus = "unpaid";
+    } else if (this._activeTab === "cancelled") {
+      params.cancellationStatus = "cancelled";
     }
 
     const { data, error } = await MerchelloApi.getOrders(params);
@@ -403,6 +405,13 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
               @click=${() => this._handleTabClick("unpaid")}
             >
               Unpaid
+            </uui-tab>
+            <uui-tab
+              label="Cancelled"
+              ?active=${this._activeTab === "cancelled"}
+              @click=${() => this._handleTabClick("cancelled")}
+            >
+              Cancelled
             </uui-tab>
           </uui-tab-group>
         </div>

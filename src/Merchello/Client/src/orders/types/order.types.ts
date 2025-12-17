@@ -119,6 +119,7 @@ export interface OrderListItemDto {
   paymentStatus: InvoicePaymentStatus;
   paymentStatusDisplay: string;
   fulfillmentStatus: string;
+  isCancelled: boolean;
   itemCount: number;
   deliveryStatus: string;
   deliveryMethod: string;
@@ -156,6 +157,7 @@ export interface OrderDetailDto {
   paymentStatus: InvoicePaymentStatus;
   paymentStatusDisplay: string;
   fulfillmentStatus: string;
+  isCancelled: boolean;
   billingAddress: AddressDto | null;
   shippingAddress: AddressDto | null;
   orders: FulfillmentOrderDto[];
@@ -252,6 +254,7 @@ export interface OrderListParams {
   status?: string;
   paymentStatus?: string;
   fulfillmentStatus?: string;
+  cancellationStatus?: string;
   search?: string;
   sortBy?: string;
   sortDir?: string;

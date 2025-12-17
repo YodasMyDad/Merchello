@@ -27,6 +27,14 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CancelledBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Channel")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -43,6 +51,9 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("CustomerId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DateCancelled")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("DateCreated")
@@ -66,6 +77,11 @@ namespace Merchello.Core.Sqlite.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsCancelled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
 
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -126,6 +142,8 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.HasIndex("CurrencyCode");
 
                     b.HasIndex("CustomerId");
+
+                    b.HasIndex("IsCancelled");
 
                     b.HasIndex("IsDeleted");
 

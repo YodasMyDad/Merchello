@@ -56,6 +56,12 @@ export const badgeStyles = css`
     color: var(--uui-color-warning-contrast);
   }
 
+  /* Cancellation status badge */
+  .badge.cancelled {
+    background: var(--uui-color-danger-standalone);
+    color: var(--uui-color-danger-contrast);
+  }
+
   /* Generic color badges (for products, etc.) */
   .badge-positive {
     background: var(--uui-color-positive-standalone);

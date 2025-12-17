@@ -157,10 +157,11 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
 
       case "invoiceNumber":
         return html`
-          <uui-table-cell class="order-number">
+          <uui-table-cell class="order-number ${order.isCancelled ? 'cancelled' : ''}">
             <a href=${getOrderDetailHref(order.id)}>
               ${order.invoiceNumber || order.id.substring(0, 8)}
             </a>
+            ${order.isCancelled ? html`<span class="badge cancelled">Cancelled</span>` : nothing}
           </uui-table-cell>
         `;
 
@@ -282,6 +283,17 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
 
       .order-number a:hover {
         text-decoration: underline;
+      }
+
+      .order-number.cancelled a {
+        text-decoration: line-through;
+        color: var(--uui-color-text-alt);
+      }
+
+      .order-number.cancelled {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
       }
 
       .currency-indicator {

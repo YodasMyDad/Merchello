@@ -32,6 +32,14 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("CancelledBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("Channel")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -49,6 +57,9 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("DateCancelled")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("datetime2");
@@ -71,6 +82,11 @@ namespace Merchello.Core.SqlServer.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsCancelled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -131,6 +147,8 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.HasIndex("CurrencyCode");
 
                     b.HasIndex("CustomerId");
+
+                    b.HasIndex("IsCancelled");
 
                     b.HasIndex("IsDeleted");
 

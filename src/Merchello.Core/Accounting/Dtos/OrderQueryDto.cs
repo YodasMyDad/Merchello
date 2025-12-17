@@ -22,6 +22,9 @@ public class OrderQueryDto
     [FromQuery(Name = "fulfillmentStatus")]
     public string? FulfillmentStatus { get; set; }
 
+    [FromQuery(Name = "cancellationStatus")]
+    public string? CancellationStatus { get; set; }
+
     [FromQuery(Name = "search")]
     public string? Search { get; set; }
 

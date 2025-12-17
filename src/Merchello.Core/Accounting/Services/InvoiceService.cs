@@ -8,7 +8,6 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.ExchangeRates.Models;
-using Merchello.Core.ExchangeRates.Services;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Models;
@@ -24,7 +23,6 @@ using Merchello.Core.Shared;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
-using Merchello.Core.Shared.Services;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Factories;
@@ -57,9 +55,6 @@ public class InvoiceService(
     ILogger<InvoiceService> logger) : IInvoiceService
 {
     private readonly MerchelloSettings _settings = settings.Value;
-    private readonly ICurrencyService _currencyService = currencyService;
-    private readonly IExchangeRateCache _exchangeRateCache = exchangeRateCache;
-    private readonly ILineItemService _lineItemService = lineItemService;
 
     public async Task<Invoice> CreateOrderFromBasketAsync(
         Basket basket,
@@ -134,7 +129,7 @@ public class InvoiceService(
             ExchangeRateQuote? pricingQuote = null;
             if (!string.Equals(presentmentCurrency, storeCurrency, StringComparison.OrdinalIgnoreCase))
             {
-                pricingQuote = await _exchangeRateCache.GetRateQuoteAsync(presentmentCurrency, storeCurrency, cancellationToken);
+                pricingQuote = await exchangeRateCache.GetRateQuoteAsync(presentmentCurrency, storeCurrency, cancellationToken);
                 if (pricingQuote == null || pricingQuote.Rate <= 0m)
                 {
                     throw new InvalidOperationException(
@@ -172,7 +167,7 @@ public class InvoiceService(
                 if (pricingQuote != null)
                 {
                     // Configured shipping costs are stored in store currency - convert to presentment.
-                    baseShippingCost = _currencyService.Round(baseShippingCost / pricingQuote.Rate, presentmentCurrency);
+                    baseShippingCost = currencyService.Round(baseShippingCost / pricingQuote.Rate, presentmentCurrency);
                 }
 
                 // Check for delivery date selection
@@ -746,6 +741,146 @@ public class InvoiceService(
         return result;
     }
 
+    /// <inheritdoc />
+    public async Task<CrudResult<int>> CancelInvoiceAsync(
+        CancelInvoiceParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<int>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            // Load invoice with orders and line items
+            var invoice = await db.Invoices
+                .Include(i => i.Orders!)
+                    .ThenInclude(o => o.LineItems)
+                .FirstOrDefaultAsync(i => i.Id == parameters.InvoiceId, cancellationToken);
+
+            if (invoice == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = $"Invoice {parameters.InvoiceId} not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            // Check if already cancelled
+            if (invoice.IsCancelled)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Invoice is already cancelled",
+                    ResultMessageType = ResultMessageType.Warning
+                });
+                result.ResultObject = 0;
+                return;
+            }
+
+            // Check if already deleted
+            if (invoice.IsDeleted)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Cannot cancel a deleted invoice",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            // Get orders that can be cancelled (not shipped or completed)
+            var cancellableOrders = (invoice.Orders ?? [])
+                .Where(o => o.Status != OrderStatus.Shipped &&
+                            o.Status != OrderStatus.Completed &&
+                            o.Status != OrderStatus.Cancelled)
+                .ToList();
+
+            // Publish cancelling notification (allows handlers to cancel the operation)
+            var cancellingNotification = new InvoiceCancellingNotification(invoice, parameters.Reason);
+            await notificationPublisher.PublishAsync(cancellingNotification, cancellationToken);
+
+            if (cancellingNotification.Cancel)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = cancellingNotification.CancelReason ?? "Invoice cancellation was prevented by a handler",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            // Cancel each cancellable order (releases stock)
+            var cancelledCount = 0;
+            foreach (var order in cancellableOrders)
+            {
+                // Release stock reservations
+                foreach (var lineItem in (order.LineItems ?? []).Where(li => li.ProductId.HasValue))
+                {
+                    var releaseResult = await inventoryService.ReleaseReservationAsync(
+                        lineItem.ProductId!.Value,
+                        order.WarehouseId,
+                        lineItem.Quantity,
+                        cancellationToken);
+
+                    if (!releaseResult.ResultObject)
+                    {
+                        logger.LogWarning(
+                            "Failed to release stock for line item {LineItemId} in order {OrderId} during invoice cancellation",
+                            lineItem.Id, order.Id);
+                    }
+                }
+
+                // Update order status
+                var canTransition = await statusHandler.CanTransitionAsync(order, OrderStatus.Cancelled, cancellationToken);
+                if (canTransition)
+                {
+                    var oldStatus = order.Status;
+                    await statusHandler.OnStatusChangingAsync(order, oldStatus, OrderStatus.Cancelled, cancellationToken);
+                    order.Status = OrderStatus.Cancelled;
+                    order.CancellationReason = $"Invoice cancelled: {parameters.Reason}";
+                    order.DateUpdated = DateTime.UtcNow;
+                    await statusHandler.OnStatusChangedAsync(order, oldStatus, OrderStatus.Cancelled, cancellationToken);
+                    cancelledCount++;
+                }
+            }
+
+            // Update invoice cancellation fields
+            invoice.IsCancelled = true;
+            invoice.DateCancelled = DateTime.UtcNow;
+            invoice.CancellationReason = parameters.Reason;
+            invoice.CancelledBy = parameters.AuthorName ?? "System";
+            invoice.DateUpdated = DateTime.UtcNow;
+
+            // Add cancellation note to invoice timeline
+            invoice.Notes.Add(new InvoiceNote
+            {
+                DateCreated = DateTime.UtcNow,
+                AuthorId = parameters.AuthorId,
+                Author = parameters.AuthorName ?? "System",
+                VisibleToCustomer = false,
+                Description = $"Invoice cancelled: {parameters.Reason}. {cancelledCount} order(s) cancelled."
+            });
+
+            await db.SaveChangesAsync(cancellationToken);
+
+            logger.LogInformation(
+                "Invoice {InvoiceId} cancelled. Reason: {Reason}. Orders cancelled: {Count}",
+                parameters.InvoiceId, parameters.Reason, cancelledCount);
+
+            // Publish cancelled notification
+            await notificationPublisher.PublishAsync(
+                new InvoiceCancelledNotification(invoice, parameters.Reason, cancelledCount),
+                cancellationToken);
+
+            result.ResultObject = cancelledCount;
+        });
+
+        scope.Complete();
+        return result;
+    }
+
     public async Task<Order?> GetOrderWithDetailsAsync(
         Guid orderId,
         CancellationToken cancellationToken = default)
@@ -787,6 +922,17 @@ public class InvoiceService(
             {
                 query = query.Where(i => !i.IsDeleted);
             }
+
+            // Apply cancellation status filter
+            if (parameters.CancellationStatusFilter == InvoiceCancellationStatusFilter.Active)
+            {
+                query = query.Where(i => !i.IsCancelled);
+            }
+            else if (parameters.CancellationStatusFilter == InvoiceCancellationStatusFilter.Cancelled)
+            {
+                query = query.Where(i => i.IsCancelled);
+            }
+            // InvoiceCancellationStatusFilter.All - no filter applied
 
             // Apply fulfillment status filter (DB-level, works across all databases)
             if (parameters.FulfillmentStatusFilter.HasValue && parameters.FulfillmentStatusFilter != InvoiceFulfillmentStatusFilter.All)
@@ -1118,7 +1264,7 @@ public class InvoiceService(
             return new DashboardStatsDto
             {
                 StoreCurrencyCode = _settings.StoreCurrencyCode,
-                StoreCurrencySymbol = _currencyService.GetCurrency(_settings.StoreCurrencyCode).Symbol,
+                StoreCurrencySymbol = currencyService.GetCurrency(_settings.StoreCurrencyCode).Symbol,
                 OrdersThisMonth = ordersThisMonth,
                 OrdersChangePercent = ordersChangePercent,
                 RevenueThisMonth = revenueThisMonth,
@@ -1842,15 +1988,15 @@ public class InvoiceService(
             var allLineItems = orders.SelectMany(o => o.LineItems ?? []).ToList();
             var productItems = allLineItems.Where(li =>
                 li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom).ToList();
-            var subTotal = productItems.Sum(li => _currencyService.Round(li.Amount * li.Quantity, currencyCode));
+            var subTotal = productItems.Sum(li => currencyService.Round(li.Amount * li.Quantity, currencyCode));
 
             var discountItems = allLineItems.Where(li => li.LineItemType == LineItemType.Discount).ToList();
             // Cap discount total to subtotal to prevent negative adjusted subtotal
-            var rawDiscountTotal = _currencyService.Round(Math.Abs(discountItems.Sum(li => li.Amount)), currencyCode);
+            var rawDiscountTotal = currencyService.Round(Math.Abs(discountItems.Sum(li => li.Amount)), currencyCode);
             var discountTotal = Math.Min(rawDiscountTotal, subTotal);
 
-            var adjustedSubTotal = _currencyService.Round(Math.Max(0, subTotal - discountTotal), currencyCode);
-            var shippingTotal = _currencyService.Round(orders.Sum(o => o.ShippingCost), currencyCode);
+            var adjustedSubTotal = currencyService.Round(Math.Max(0, subTotal - discountTotal), currencyCode);
+            var shippingTotal = currencyService.Round(orders.Sum(o => o.ShippingCost), currencyCode);
 
             // Extract order-level discounts (not linked to any specific line item)
             // These are discounts where DependantLineItemSku is null/empty or doesn't match any product SKU
@@ -1870,12 +2016,12 @@ public class InvoiceService(
             var taxableItems = allLineItems.Where(li =>
                 li.IsTaxable && li.LineItemType != LineItemType.Discount).ToList();
             var totalTaxableAmount = taxableItems.Sum(li =>
-                _currencyService.Round(li.Amount * li.Quantity, currencyCode));
+                currencyService.Round(li.Amount * li.Quantity, currencyCode));
 
             decimal tax = 0;
             foreach (var lineItem in taxableItems)
             {
-                var itemTotal = _currencyService.Round(lineItem.Amount * lineItem.Quantity, currencyCode);
+                var itemTotal = currencyService.Round(lineItem.Amount * lineItem.Quantity, currencyCode);
 
                 // Find any linked discount applied specifically to this line item
                 var lineItemDiscount = linkedDiscounts
@@ -1887,17 +2033,17 @@ public class InvoiceService(
                 if (unlinkedDiscountTotal < 0 && totalTaxableAmount > 0)
                 {
                     var proportion = itemTotal / totalTaxableAmount;
-                    proRatedUnlinkedDiscount = _currencyService.Round(unlinkedDiscountTotal * proportion, currencyCode);
+                    proRatedUnlinkedDiscount = currencyService.Round(unlinkedDiscountTotal * proportion, currencyCode);
                 }
 
                 // Calculate tax on discounted amount
-                var taxableAmount = _currencyService.Round(itemTotal + lineItemDiscount + proRatedUnlinkedDiscount, currencyCode);
+                var taxableAmount = currencyService.Round(itemTotal + lineItemDiscount + proRatedUnlinkedDiscount, currencyCode);
                 taxableAmount = Math.Max(0, taxableAmount); // Ensure non-negative
-                tax += _currencyService.Round(taxableAmount * (lineItem.TaxRate / 100m), currencyCode);
+                tax += currencyService.Round(taxableAmount * (lineItem.TaxRate / 100m), currencyCode);
             }
 
-            tax = _currencyService.Round(tax, currencyCode);
-            var total = _currencyService.Round(adjustedSubTotal + tax + shippingTotal, currencyCode);
+            tax = currencyService.Round(tax, currencyCode);
+            var total = currencyService.Round(adjustedSubTotal + tax + shippingTotal, currencyCode);
 
             return new InvoiceForEditDto
             {
@@ -2054,7 +2200,7 @@ public class InvoiceService(
                         !request.RemovedOrderDiscounts.Contains(li.Id))
                     .ToList();
 
-                orderDiscountTotal += _currencyService.Round(Math.Abs(orderDiscounts.Sum(d => d.Amount)), currencyCode);
+                orderDiscountTotal += currencyService.Round(Math.Abs(orderDiscounts.Sum(d => d.Amount)), currencyCode);
             }
 
             // Store new order discounts - percentage ones will be calculated after subtotal is known
@@ -2070,7 +2216,7 @@ public class InvoiceService(
                 var shippingUpdate = request.OrderShippingUpdates.FirstOrDefault(u => u.OrderId == order.Id);
                 shippingTotal += shippingUpdate?.ShippingCost ?? order.ShippingCost;
             }
-            shippingTotal = _currencyService.Round(shippingTotal, currencyCode);
+            shippingTotal = currencyService.Round(shippingTotal, currencyCode);
 
             // Calculate subtotal and line item discounts
             var subTotal = 0m;
@@ -2079,7 +2225,7 @@ public class InvoiceService(
 
             foreach (var item in virtualLineItems)
             {
-                var itemTotal = _currencyService.Round(item.Amount * item.Quantity, currencyCode);
+                var itemTotal = currencyService.Round(item.Amount * item.Quantity, currencyCode);
                 subTotal += itemTotal;
 
                 // Calculate discount for this item
@@ -2088,11 +2234,11 @@ public class InvoiceService(
                 {
                     if (item.Discount.Type == DiscountType.Percentage)
                     {
-                        discountAmount = _currencyService.Round(itemTotal * (item.Discount.Value / 100m), currencyCode);
+                        discountAmount = currencyService.Round(itemTotal * (item.Discount.Value / 100m), currencyCode);
                     }
                     else
                     {
-                        discountAmount = _currencyService.Round(item.Discount.Value * item.Quantity, currencyCode);
+                        discountAmount = currencyService.Round(item.Discount.Value * item.Quantity, currencyCode);
                     }
 
                     // Cap discount at item total
@@ -2112,20 +2258,20 @@ public class InvoiceService(
                 if (orderDiscountTotal > 0 && subTotal > 0 && item.IsTaxable)
                 {
                     var proportion = itemTotal / subTotal;
-                    var proRatedOrderDiscount = _currencyService.Round(orderDiscountTotal * proportion, currencyCode);
+                    var proRatedOrderDiscount = currencyService.Round(orderDiscountTotal * proportion, currencyCode);
                     taxableAmount = Math.Max(0, taxableAmount - proRatedOrderDiscount);
                 }
 
                 var taxAmount = 0m;
                 if (item.IsTaxable && !request.ShouldRemoveTax)
                 {
-                    taxAmount = _currencyService.Round(taxableAmount * (item.TaxRate / 100m), currencyCode);
+                    taxAmount = currencyService.Round(taxableAmount * (item.TaxRate / 100m), currencyCode);
                 }
 
                 lineItemPreviews.Add(new LineItemPreviewDto
                 {
                     Id = item.Id,
-                    CalculatedTotal = _currencyService.Round(itemTotal - discountAmount, currencyCode),
+                    CalculatedTotal = currencyService.Round(itemTotal - discountAmount, currencyCode),
                     DiscountAmount = discountAmount,
                     TaxAmount = taxAmount
                 });
@@ -2135,7 +2281,7 @@ public class InvoiceService(
             var newOrderPercentageDiscounts = 0m;
             foreach (var newDiscount in request.OrderDiscounts.Where(d => d.Type == DiscountType.Percentage))
             {
-                var percentageAmount = _currencyService.Round(subTotal * (newDiscount.Value / 100m), currencyCode);
+                var percentageAmount = currencyService.Round(subTotal * (newDiscount.Value / 100m), currencyCode);
                 newOrderPercentageDiscounts += percentageAmount;
             }
             orderDiscountTotal += newOrderPercentageDiscounts;
@@ -2148,7 +2294,7 @@ public class InvoiceService(
                 warnings.Add("Total discount capped at subtotal to prevent negative total");
             }
 
-            var adjustedSubTotal = _currencyService.Round(Math.Max(0, subTotal - discountTotal), currencyCode);
+            var adjustedSubTotal = currencyService.Round(Math.Max(0, subTotal - discountTotal), currencyCode);
 
             // Calculate tax - needs to be recalculated properly with pro-rating
             var tax = 0m;
@@ -2156,11 +2302,11 @@ public class InvoiceService(
             {
                 var totalTaxableAmount = virtualLineItems
                     .Where(li => li.IsTaxable)
-                    .Sum(li => _currencyService.Round(li.Amount * li.Quantity, currencyCode));
+                    .Sum(li => currencyService.Round(li.Amount * li.Quantity, currencyCode));
 
                 foreach (var item in virtualLineItems.Where(li => li.IsTaxable))
                 {
-                    var itemTotal = _currencyService.Round(item.Amount * item.Quantity, currencyCode);
+                    var itemTotal = currencyService.Round(item.Amount * item.Quantity, currencyCode);
 
                     // Calculate line item discount
                     var itemDiscountAmount = 0m;
@@ -2168,11 +2314,11 @@ public class InvoiceService(
                     {
                         if (item.Discount.Type == DiscountType.Percentage)
                         {
-                            itemDiscountAmount = _currencyService.Round(itemTotal * (item.Discount.Value / 100m), currencyCode);
+                            itemDiscountAmount = currencyService.Round(itemTotal * (item.Discount.Value / 100m), currencyCode);
                         }
                         else
                         {
-                            itemDiscountAmount = _currencyService.Round(item.Discount.Value * item.Quantity, currencyCode);
+                            itemDiscountAmount = currencyService.Round(item.Discount.Value * item.Quantity, currencyCode);
                         }
                         itemDiscountAmount = Math.Min(itemDiscountAmount, itemTotal);
                     }
@@ -2182,33 +2328,33 @@ public class InvoiceService(
                     if (orderDiscountTotal > 0 && totalTaxableAmount > 0)
                     {
                         var proportion = itemTotal / totalTaxableAmount;
-                        proRatedOrderDiscount = _currencyService.Round(orderDiscountTotal * proportion, currencyCode);
+                        proRatedOrderDiscount = currencyService.Round(orderDiscountTotal * proportion, currencyCode);
                     }
 
                     var taxableAmount = Math.Max(0, itemTotal - itemDiscountAmount - proRatedOrderDiscount);
-                    tax += _currencyService.Round(taxableAmount * (item.TaxRate / 100m), currencyCode);
+                    tax += currencyService.Round(taxableAmount * (item.TaxRate / 100m), currencyCode);
                 }
             }
 
-            tax = _currencyService.Round(tax, currencyCode);
-            var total = _currencyService.Round(adjustedSubTotal + tax + shippingTotal, currencyCode);
+            tax = currencyService.Round(tax, currencyCode);
+            var total = currencyService.Round(adjustedSubTotal + tax + shippingTotal, currencyCode);
 
             return new PreviewEditResultDto
             {
                 CurrencyCode = currencyCode,
                 CurrencySymbol = invoice.CurrencySymbol,
                 StoreCurrencyCode = invoice.StoreCurrencyCode,
-                StoreCurrencySymbol = _currencyService.GetCurrency(invoice.StoreCurrencyCode).Symbol,
+                StoreCurrencySymbol = currencyService.GetCurrency(invoice.StoreCurrencyCode).Symbol,
                 PricingExchangeRate = invoice.PricingExchangeRate,
-                SubTotal = _currencyService.Round(subTotal, currencyCode),
-                DiscountTotal = _currencyService.Round(discountTotal, currencyCode),
+                SubTotal = currencyService.Round(subTotal, currencyCode),
+                DiscountTotal = currencyService.Round(discountTotal, currencyCode),
                 AdjustedSubTotal = adjustedSubTotal,
                 ShippingTotal = shippingTotal,
                 Tax = tax,
                 Total = total,
                 TotalInStoreCurrency = !string.Equals(invoice.CurrencyCode, invoice.StoreCurrencyCode, StringComparison.OrdinalIgnoreCase) &&
                                        invoice.PricingExchangeRate.HasValue
-                    ? _currencyService.Round(total * invoice.PricingExchangeRate.Value, invoice.StoreCurrencyCode)
+                    ? currencyService.Round(total * invoice.PricingExchangeRate.Value, invoice.StoreCurrencyCode)
                     : null,
                 LineItems = lineItemPreviews,
                 Warnings = warnings
@@ -2564,7 +2710,7 @@ public class InvoiceService(
                     {
                         // Calculate the discount amount
                         var discountAmount = orderDiscount.Type == DiscountType.Percentage
-                            ? _currencyService.Round(currentSubTotal * (orderDiscount.Value / 100m), invoice.CurrencyCode)
+                            ? currencyService.Round(currentSubTotal * (orderDiscount.Value / 100m), invoice.CurrencyCode)
                             : orderDiscount.Value;
 
                         var discountLineItem = new LineItem
@@ -2888,7 +3034,7 @@ public class InvoiceService(
         // IMPORTANT: We use the stored TaxRate on each line item, NOT the current TaxGroup rate.
         // This ensures historical invoices are not affected by future TaxGroup rate changes.
         var (subTotal, discount, adjustedSubTotal, tax, total, _) =
-            _lineItemService.CalculateFromLineItems(allLineItems, shippingTotal, 0, currencyCode, isShippingTaxable: false);
+            lineItemService.CalculateFromLineItems(allLineItems, shippingTotal, 0, currencyCode, isShippingTaxable: false);
 
         // Update invoice with calculated values
         invoice.SubTotal = subTotal;
@@ -2936,22 +3082,22 @@ public class InvoiceService(
 
         foreach (var order in orders)
         {
-            order.ShippingCostInStoreCurrency = _currencyService.Round(order.ShippingCost * rate, storeCurrency);
+            order.ShippingCostInStoreCurrency = currencyService.Round(order.ShippingCost * rate, storeCurrency);
             if (order.DeliveryDateSurcharge.HasValue)
             {
-                order.DeliveryDateSurchargeInStoreCurrency = _currencyService.Round(order.DeliveryDateSurcharge.Value * rate, storeCurrency);
+                order.DeliveryDateSurchargeInStoreCurrency = currencyService.Round(order.DeliveryDateSurcharge.Value * rate, storeCurrency);
             }
 
             foreach (var lineItem in order.LineItems ?? [])
             {
-                lineItem.AmountInStoreCurrency = _currencyService.Round(lineItem.Amount * rate, storeCurrency);
+                lineItem.AmountInStoreCurrency = currencyService.Round(lineItem.Amount * rate, storeCurrency);
             }
         }
 
-        invoice.SubTotalInStoreCurrency = _currencyService.Round(invoice.SubTotal * rate, storeCurrency);
-        invoice.DiscountInStoreCurrency = _currencyService.Round(invoice.Discount * rate, storeCurrency);
-        invoice.TaxInStoreCurrency = _currencyService.Round(invoice.Tax * rate, storeCurrency);
-        invoice.TotalInStoreCurrency = _currencyService.Round(invoice.Total * rate, storeCurrency);
+        invoice.SubTotalInStoreCurrency = currencyService.Round(invoice.SubTotal * rate, storeCurrency);
+        invoice.DiscountInStoreCurrency = currencyService.Round(invoice.Discount * rate, storeCurrency);
+        invoice.TaxInStoreCurrency = currencyService.Round(invoice.Tax * rate, storeCurrency);
+        invoice.TotalInStoreCurrency = currencyService.Round(invoice.Total * rate, storeCurrency);
     }
 
     private static string BuildEditNote(List<string> changes, string? editReason)

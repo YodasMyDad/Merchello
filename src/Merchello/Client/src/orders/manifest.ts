@@ -31,6 +31,14 @@ export const manifests: Array<UmbExtensionManifest> = [
     js: () => import("./modals/refund-modal.element.js"),
   },
 
+  // Cancel invoice modal for cancelling invoices
+  {
+    type: "modal",
+    alias: "Merchello.CancelInvoice.Modal",
+    name: "Merchello Cancel Invoice Modal",
+    js: () => import("./modals/cancel-invoice-modal.element.js"),
+  },
+
   // Export modal for exporting orders to CSV
   {
     type: "modal",

@@ -64,6 +64,17 @@ public class OrdersApiController(
             };
         }
 
+        // Map cancellation status filter
+        if (!string.IsNullOrEmpty(query.CancellationStatus))
+        {
+            parameters.CancellationStatusFilter = query.CancellationStatus.ToLower() switch
+            {
+                "cancelled" => InvoiceCancellationStatusFilter.Cancelled,
+                "active" => InvoiceCancellationStatusFilter.Active,
+                _ => InvoiceCancellationStatusFilter.All
+            };
+        }
+
         // Execute query using service with real DB paging
         var result = await invoiceService.QueryInvoices(parameters);
 
@@ -200,6 +211,47 @@ public class OrdersApiController(
         return Ok(new DeleteOrdersResultDto
         {
             DeletedCount = deletedCount
+        });
+    }
+
+    /// <summary>
+    /// Cancel an invoice and all its unfulfilled orders
+    /// </summary>
+    [HttpPost("orders/{invoiceId:guid}/cancel")]
+    [ProducesResponseType<CancelInvoiceResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CancelInvoice(Guid invoiceId, [FromBody] CancelInvoiceDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Reason))
+        {
+            return BadRequest("Cancellation reason is required");
+        }
+
+        var currentUser = backOfficeSecurityAccessor.BackOfficeSecurity?.CurrentUser;
+
+        var result = await invoiceService.CancelInvoiceAsync(new CancelInvoiceParameters
+        {
+            InvoiceId = invoiceId,
+            Reason = request.Reason,
+            AuthorId = currentUser?.Key,
+            AuthorName = currentUser?.Name ?? currentUser?.Username
+        });
+
+        if (result.Messages.Any(m => m.ResultMessageType == ResultMessageType.Error))
+        {
+            var errorMessage = result.Messages.First(m => m.ResultMessageType == ResultMessageType.Error).Message;
+            return BadRequest(new CancelInvoiceResultDto
+            {
+                Success = false,
+                ErrorMessage = errorMessage
+            });
+        }
+
+        return Ok(new CancelInvoiceResultDto
+        {
+            Success = true,
+            CancelledOrderCount = result.ResultObject
         });
     }
 
@@ -429,6 +481,7 @@ public class OrdersApiController(
             PaymentStatus = paymentDetails.Status,
             PaymentStatusDisplay = paymentDetails.StatusDisplay,
             FulfillmentStatus = fulfillmentStatus,
+            IsCancelled = invoice.IsCancelled,
             ItemCount = itemCount,
             DeliveryStatus = deliveryStatus,
             DeliveryMethod = deliveryMethod,
@@ -489,6 +542,7 @@ public class OrdersApiController(
             PaymentStatus = paymentDetails.Status,
             PaymentStatusDisplay = paymentDetails.StatusDisplay,
             FulfillmentStatus = GetFulfillmentStatus(orders),
+            IsCancelled = invoice.IsCancelled,
             BillingAddress = MapAddress(invoice.BillingAddress),
             ShippingAddress = MapAddress(invoice.ShippingAddress),
             Orders = orders.Select(o => MapFulfillmentOrder(o, shippingOptionNames, productImages)).ToList(),

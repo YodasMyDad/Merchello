@@ -68,5 +68,11 @@ public class InvoiceQueryParameters
     /// Defaults to false (deleted invoices are excluded).
     /// </summary>
     public bool IncludeDeleted { get; set; }
+
+    /// <summary>
+    /// Filter by cancellation status.
+    /// Defaults to All (both cancelled and non-cancelled invoices).
+    /// </summary>
+    public InvoiceCancellationStatusFilter CancellationStatusFilter { get; set; } = InvoiceCancellationStatusFilter.All;
 }
 

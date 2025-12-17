@@ -25,6 +25,16 @@ public interface IInvoiceService
     Task<List<Shipment>> CreateShipmentsFromOrderAsync(CreateShipmentsParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> UpdateOrderStatusAsync(Guid orderId, OrderStatus newStatus, string? reason = null, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> CancelOrderAsync(Guid orderId, string reason, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cancel an invoice and all its unfulfilled orders.
+    /// Orders that are already shipped/completed will remain unchanged.
+    /// </summary>
+    /// <param name="parameters">Cancellation parameters including invoice ID, reason, and author</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Result with number of orders cancelled, or error if invoice cannot be cancelled</returns>
+    Task<CrudResult<int>> CancelInvoiceAsync(CancelInvoiceParameters parameters, CancellationToken cancellationToken = default);
+
     Task<Order?> GetOrderWithDetailsAsync(Guid orderId, CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -31,6 +31,7 @@ public class OrderListItemDto
     public InvoicePaymentStatus PaymentStatus { get; set; }
     public string PaymentStatusDisplay { get; set; } = string.Empty;
     public string FulfillmentStatus { get; set; } = string.Empty;
+    public bool IsCancelled { get; set; }
     public int ItemCount { get; set; }
     public string DeliveryStatus { get; set; } = string.Empty;
     public string DeliveryMethod { get; set; } = string.Empty;

@@ -125,6 +125,27 @@ public class CustomerSegment
 }
 ```
 
+### 3.1.1 Customer Model Prerequisites
+
+Before implementing segments, the Customer model requires a Tags property for tag-based criteria:
+
+**File**: `src/Merchello.Core/Customers/Models/Customer.cs` - Add:
+```csharp
+public List<string> Tags { get; set; } = [];
+```
+
+**File**: `src/Merchello.Core/Customers/Mapping/CustomerDbMapping.cs` - Add:
+```csharp
+builder.Property(x => x.Tags).ToJsonConversion(4000);
+```
+
+**File**: `src/Merchello.Core/Customers/Factories/CustomerFactory.cs` - Initialize:
+```csharp
+Tags = []
+```
+
+Run migration after adding this property: `.\scripts\add-migration.ps1`
+
 #### CustomerSegmentMember Entity (Manual Segments Only)
 
 **File**: `src/Merchello.Core/Customers/Models/CustomerSegmentMember.cs`
@@ -214,8 +235,7 @@ public enum SegmentCriteriaField
     Country,
 
     // Custom
-    Tag,
-    ExtendedData
+    Tag
 }
 ```
 
@@ -358,6 +378,30 @@ public interface ICustomerSegmentService
 }
 ```
 
+#### Service Implementation Pattern
+
+Services must use `IEFCoreScopeProvider<MerchelloDbContext>` for all database access:
+
+```csharp
+public class CustomerSegmentService(
+    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    CustomerSegmentFactory segmentFactory,
+    ISegmentCriteriaEvaluator criteriaEvaluator,
+    ILogger<CustomerSegmentService> logger) : ICustomerSegmentService
+{
+    public async Task<CustomerSegment?> GetByIdAsync(Guid segmentId, CancellationToken ct = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.CustomerSegments
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == segmentId, ct));
+        scope.Complete();
+        return result;
+    }
+}
+```
+
 #### Statistics Implementation
 
 ```csharp
@@ -370,10 +414,13 @@ public async Task<SegmentStatisticsDto> GetStatisticsAsync(Guid segmentId, Cance
     List<Guid> memberIds;
     if (segment.SegmentType == CustomerSegmentType.Manual)
     {
-        memberIds = await db.CustomerSegmentMembers
-            .Where(m => m.SegmentId == segmentId)
-            .Select(m => m.CustomerId)
-            .ToListAsync(ct);
+        using var scope = efCoreScopeProvider.CreateScope();
+        memberIds = await scope.ExecuteWithContextAsync(async db =>
+            await db.CustomerSegmentMembers
+                .Where(m => m.SegmentId == segmentId)
+                .Select(m => m.CustomerId)
+                .ToListAsync(ct));
+        scope.Complete();
     }
     else
     {
@@ -386,17 +433,20 @@ public async Task<SegmentStatisticsDto> GetStatisticsAsync(Guid segmentId, Cance
         return new SegmentStatisticsDto { TotalMembers = 0 };
 
     // Calculate statistics from invoices
-    var stats = await db.Invoices
-        .Where(i => memberIds.Contains(i.CustomerId))
-        .Where(i => i.Status != InvoiceStatus.Cancelled)
-        .GroupBy(_ => 1)
-        .Select(g => new
-        {
-            TotalRevenue = g.Sum(i => i.Total),
-            OrderCount = g.Count(),
-            ActiveCustomers = g.Select(i => i.CustomerId).Distinct().Count()
-        })
-        .FirstOrDefaultAsync(ct);
+    using var statsScope = efCoreScopeProvider.CreateScope();
+    var stats = await statsScope.ExecuteWithContextAsync(async db =>
+        await db.Invoices
+            .Where(i => memberIds.Contains(i.CustomerId))
+            .Where(i => !i.IsDeleted && !i.IsCancelled)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                TotalRevenue = g.Sum(i => i.Total),
+                OrderCount = g.Count(),
+                ActiveCustomers = g.Select(i => i.CustomerId).Distinct().Count()
+            })
+            .FirstOrDefaultAsync(ct));
+    statsScope.Complete();
 
     return new SegmentStatisticsDto
     {
@@ -538,6 +588,8 @@ public class SystemSegmentInitializer
 ### 4.6 Integration Points
 
 Segment membership is checked at these **centralized locations**. All calls go through `ICustomerSegmentService.IsCustomerInSegmentAsync()` - this is the single source of truth for segment membership.
+
+> **Note:** The code examples below are **conceptual integration patterns** showing how existing services would call `ICustomerSegmentService`. Actual service implementations must use `IEFCoreScopeProvider<MerchelloDbContext>` for database access (see section 4.2).
 
 #### Integration Summary
 
@@ -840,81 +892,99 @@ public class CustomerService(
 
 ### 5.1 Controller
 
-**File**: `src/Merchello/Api/CustomerSegmentController.cs`
+**File**: `src/Merchello/Controllers/CustomerSegmentsApiController.cs`
 
 ```csharp
-[ApiController]
-[Route("umbraco/merchello/api/v1/customer-segments")]
-[Authorize(Policy = "MerchelloBackoffice")]
-public class CustomerSegmentController(
+[ApiVersion("1.0")]
+[ApiExplorerSettings(GroupName = "Merchello")]
+public class CustomerSegmentsApiController(
     ICustomerSegmentService segmentService,
-    ISegmentCriteriaEvaluator criteriaEvaluator) : ControllerBase
+    ISegmentCriteriaEvaluator criteriaEvaluator) : MerchelloApiControllerBase
 {
     // List all segments
-    [HttpGet]
+    [HttpGet("customer-segments")]
+    [ProducesResponseType<List<CustomerSegmentListItemDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<List<CustomerSegmentListItemDto>>> GetSegments(CancellationToken ct)
 
     // Get segment detail
-    [HttpGet("{id:guid}")]
+    [HttpGet("customer-segments/{id:guid}")]
+    [ProducesResponseType<CustomerSegmentDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CustomerSegmentDetailDto>> GetSegment(Guid id, CancellationToken ct)
 
     // Create segment
-    [HttpPost]
+    [HttpPost("customer-segments")]
+    [ProducesResponseType<CustomerSegmentDetailDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<CustomerSegmentDetailDto>> CreateSegment(
         [FromBody] CreateCustomerSegmentDto request,
         CancellationToken ct)
 
     // Update segment
-    [HttpPut("{id:guid}")]
+    [HttpPut("customer-segments/{id:guid}")]
+    [ProducesResponseType<CustomerSegmentDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CustomerSegmentDetailDto>> UpdateSegment(
         Guid id,
         [FromBody] UpdateCustomerSegmentDto request,
         CancellationToken ct)
 
     // Delete segment
-    [HttpDelete("{id:guid}")]
+    [HttpDelete("customer-segments/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> DeleteSegment(Guid id, CancellationToken ct)
 
     // Get segment members (paginated)
-    [HttpGet("{id:guid}/members")]
+    [HttpGet("customer-segments/{id:guid}/members")]
+    [ProducesResponseType<PaginatedResponse<SegmentMemberDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<PaginatedResponse<SegmentMemberDto>>> GetMembers(
         Guid id,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
-        CancellationToken ct)
+        CancellationToken ct = default)
 
     // Add members to manual segment
-    [HttpPost("{id:guid}/members")]
+    [HttpPost("customer-segments/{id:guid}/members")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult> AddMembers(
         Guid id,
         [FromBody] AddSegmentMembersDto request,
         CancellationToken ct)
 
     // Remove members from manual segment
-    [HttpDelete("{id:guid}/members")]
+    [HttpDelete("customer-segments/{id:guid}/members")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult> RemoveMembers(
         Guid id,
         [FromBody] RemoveSegmentMembersDto request,
         CancellationToken ct)
 
     // Preview matching customers for automated segment
-    [HttpGet("{id:guid}/preview")]
+    [HttpGet("customer-segments/{id:guid}/preview")]
+    [ProducesResponseType<PaginatedResponse<CustomerPreviewDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<PaginatedResponse<CustomerPreviewDto>>> PreviewMatches(
         Guid id,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
-        CancellationToken ct)
+        CancellationToken ct = default)
 
     // Get segment statistics
-    [HttpGet("{id:guid}/statistics")]
+    [HttpGet("customer-segments/{id:guid}/statistics")]
+    [ProducesResponseType<SegmentStatisticsDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<SegmentStatisticsDto>> GetStatistics(Guid id, CancellationToken ct)
 
     // Get available criteria fields
-    [HttpGet("criteria/fields")]
+    [HttpGet("customer-segments/criteria/fields")]
+    [ProducesResponseType<List<CriteriaFieldMetadataDto>>(StatusCodes.Status200OK)]
     public ActionResult<List<CriteriaFieldMetadataDto>> GetCriteriaFields()
 
     // Validate criteria
-    [HttpPost("criteria/validate")]
+    [HttpPost("customer-segments/criteria/validate")]
+    [ProducesResponseType<CriteriaValidationResultDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<CriteriaValidationResultDto>> ValidateCriteria(
         [FromBody] List<SegmentCriteriaDto> criteria,
         CancellationToken ct)
@@ -975,27 +1045,33 @@ public class SegmentStatisticsDto
 
 ### 6.1 File Structure
 
+Segment files are added under the existing `customers/` folder:
+
 ```
-src/Merchello/Client/src/customer-segments/
-├── manifest.ts
+src/Merchello/Client/src/customers/
+├── manifest.ts                              [MODIFY - add segment manifests]
 ├── types/
-│   └── customer-segment.types.ts
+│   ├── customer.types.ts                    [EXISTS]
+│   └── segment.types.ts                     [NEW]
 ├── components/
-│   ├── segments-list.element.ts          # Main list view
-│   ├── segment-detail.element.ts         # Edit/create view
-│   ├── segment-criteria-builder.element.ts  # Criteria rule builder
-│   ├── segment-members-table.element.ts  # Member list for manual segments
-│   └── segment-preview.element.ts        # Preview matches for automated
+│   ├── customers-list.element.ts            [EXISTS]
+│   ├── segments-list.element.ts             [NEW] Main list view
+│   ├── segment-detail.element.ts            [NEW] Edit/create view
+│   ├── segment-criteria-builder.element.ts  [NEW] Criteria rule builder
+│   ├── segment-members-table.element.ts     [NEW] Member list for manual segments
+│   └── segment-preview.element.ts           [NEW] Preview matches for automated
 ├── contexts/
-│   └── segment-detail-workspace.context.ts
+│   └── segment-detail-workspace.context.ts  [NEW]
 └── modals/
-    ├── customer-picker-modal.element.ts
-    └── customer-picker-modal.token.ts
+    ├── customer-edit-modal.element.ts       [EXISTS]
+    ├── customer-edit-modal.token.ts         [EXISTS]
+    ├── customer-picker-modal.element.ts     [NEW]
+    └── customer-picker-modal.token.ts       [NEW]
 ```
 
 ### 6.2 Manifests
 
-**File**: `src/Merchello/Client/src/customer-segments/manifest.ts`
+**File**: `src/Merchello/Client/src/customers/manifest.ts` (add to existing)
 
 ```typescript
 import type { UmbExtensionManifest } from "@umbraco-cms/backoffice/extension-api";
@@ -1045,7 +1121,7 @@ export const manifests: Array<UmbExtensionManifest> = [
 
 ### 6.3 Workspace Context (Routable)
 
-**File**: `src/Merchello/Client/src/customer-segments/contexts/segment-detail-workspace.context.ts`
+**File**: `src/Merchello/Client/src/customers/contexts/segment-detail-workspace.context.ts`
 
 The workspace context **must** set up routes using `this.routes.setRoutes()`:
 
@@ -1134,7 +1210,7 @@ export { SegmentDetailWorkspaceContext as api };
 
 ### 6.4 Type Definitions
 
-**File**: `src/Merchello/Client/src/customer-segments/types/customer-segment.types.ts`
+**File**: `src/Merchello/Client/src/customers/types/segment.types.ts`
 
 ```typescript
 export type CustomerSegmentType = "Manual" | "Automated";
@@ -1287,7 +1363,7 @@ html`<uui-button href=${getSegmentCreateHref()} label="Create Segment">Create Se
 
 ### 6.6 Segments List Component
 
-**File**: `src/Merchello/Client/src/customer-segments/components/segments-list.element.ts`
+**File**: `src/Merchello/Client/src/customers/components/segments-list.element.ts`
 
 **Features**:
 - Table showing all segments with type badge (Manual/Automated)
@@ -1394,7 +1470,7 @@ export class SegmentsListElement extends UmbLitElement {
 
 ### 6.7 Segment Detail Component
 
-**File**: `src/Merchello/Client/src/customer-segments/components/segment-detail.element.ts`
+**File**: `src/Merchello/Client/src/customers/components/segment-detail.element.ts`
 
 Following the **Workspace Editor Layout Pattern**:
 
@@ -1710,7 +1786,7 @@ export default SegmentDetailElement;
 
 ### 6.8 Criteria Builder Component
 
-**File**: `src/Merchello/Client/src/customer-segments/components/segment-criteria-builder.element.ts`
+**File**: `src/Merchello/Client/src/customers/components/segment-criteria-builder.element.ts`
 
 Visual builder for criteria rules:
 
@@ -1729,7 +1805,7 @@ Visual builder for criteria rules:
 
 ### 6.9 Customer Picker Modal
 
-**File**: `src/Merchello/Client/src/customer-segments/modals/customer-picker-modal.token.ts`
+**File**: `src/Merchello/Client/src/customers/modals/customer-picker-modal.token.ts`
 
 ```typescript
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
@@ -1754,7 +1830,7 @@ export const CUSTOMER_PICKER_MODAL = new UmbModalToken<CustomerPickerModalData, 
 );
 ```
 
-**File**: `src/Merchello/Client/src/customer-segments/modals/customer-picker-modal.element.ts`
+**File**: `src/Merchello/Client/src/customers/modals/customer-picker-modal.element.ts`
 
 > **Note**: Uses search-based loading instead of loading all customers to support large customer bases.
 
@@ -1929,7 +2005,7 @@ private async _handleAddCustomers() {
 
 ```csharp
 public class SegmentCriteriaEvaluator(
-    MerchelloDbContext db,
+    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     ILogger<SegmentCriteriaEvaluator> logger) : ISegmentCriteriaEvaluator
 {
     public async Task<bool> EvaluateAsync(Guid customerId, SegmentCriteriaSet criteriaSet, CancellationToken ct)
@@ -1960,48 +2036,49 @@ public class SegmentCriteriaEvaluator(
     /// </summary>
     private async Task<CustomerMetrics> GetCustomerMetricsAsync(Guid customerId, CancellationToken ct)
     {
-        // Get customer record for Tags and ExtendedData
-        var customer = await db.Customers
-            .FirstOrDefaultAsync(c => c.Id == customerId, ct);
-
-        // Query customer order history for metrics
-        var orderStats = await db.Invoices
-            .Where(i => i.CustomerId == customerId && i.Status != InvoiceStatus.Cancelled)
-            .GroupBy(i => i.CustomerId)
-            .Select(g => new
-            {
-                OrderCount = g.Count(),
-                TotalSpend = g.Sum(i => i.Total),
-                FirstOrderDate = g.Min(i => i.DateCreated),
-                LastOrderDate = g.Max(i => i.DateCreated)
-            })
-            .FirstOrDefaultAsync(ct);
-
-        return new CustomerMetrics
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
         {
-            OrderCount = orderStats?.OrderCount ?? 0,
-            TotalSpend = orderStats?.TotalSpend ?? 0,
-            FirstOrderDate = orderStats?.FirstOrderDate,
-            LastOrderDate = orderStats?.LastOrderDate,
-            DaysSinceLastOrder = orderStats?.LastOrderDate != null
-                ? (DateTime.UtcNow - orderStats.LastOrderDate.Value).Days
-                : (int?)null,
+            // Get customer record for Tags
+            var customer = await db.Customers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == customerId, ct);
 
-            // Customer properties
-            DateCreated = customer?.DateCreated,
-            Email = customer?.Email,
-            Country = customer?.DefaultBillingAddress?.Country,
+            // Query customer order history for metrics
+            // Note: Excludes deleted and cancelled invoices from metrics
+            var orderStats = await db.Invoices
+                .Where(i => i.CustomerId == customerId && !i.IsDeleted && !i.IsCancelled)
+                .GroupBy(i => i.CustomerId)
+                .Select(g => new
+                {
+                    OrderCount = g.Count(),
+                    TotalSpend = g.Sum(i => i.TotalInStoreCurrency ?? i.Total),
+                    FirstOrderDate = g.Min(i => i.DateCreated),
+                    LastOrderDate = g.Max(i => i.DateCreated)
+                })
+                .FirstOrDefaultAsync(ct);
 
-            // Tags - stored as JSON array on customer
-            Tags = customer?.Tags != null
-                ? JsonSerializer.Deserialize<List<string>>(customer.Tags) ?? []
-                : [],
+            return new CustomerMetrics
+            {
+                OrderCount = orderStats?.OrderCount ?? 0,
+                TotalSpend = orderStats?.TotalSpend ?? 0,
+                FirstOrderDate = orderStats?.FirstOrderDate,
+                LastOrderDate = orderStats?.LastOrderDate,
+                DaysSinceLastOrder = orderStats?.LastOrderDate != null
+                    ? (DateTime.UtcNow - orderStats.LastOrderDate.Value).Days
+                    : (int?)null,
 
-            // ExtendedData - stored as JSON object on customer
-            ExtendedData = customer?.ExtendedData != null
-                ? JsonSerializer.Deserialize<Dictionary<string, object>>(customer.ExtendedData) ?? []
-                : []
-        };
+                // Customer properties
+                DateCreated = customer?.DateCreated,
+                Email = customer?.Email,
+                Country = customer?.DefaultBillingAddress?.Country,
+
+                // Tags - stored as List<string> on customer
+                Tags = customer?.Tags ?? []
+            };
+        });
+        scope.Complete();
+        return result;
     }
 
     private bool EvaluateCriterion(SegmentCriteria criterion, CustomerMetrics metrics)
@@ -2016,24 +2093,6 @@ public class SegmentCriteriaEvaluator(
                 SegmentCriteriaOperator.NotContains => !metrics.Tags.Contains(tagValue, StringComparer.OrdinalIgnoreCase),
                 SegmentCriteriaOperator.IsEmpty => metrics.Tags.Count == 0,
                 SegmentCriteriaOperator.IsNotEmpty => metrics.Tags.Count > 0,
-                _ => false
-            };
-        }
-
-        // Special handling for ExtendedData criteria (e.g., "ExtendedData.loyaltyTier")
-        if (criterion.Field.StartsWith("ExtendedData."))
-        {
-            var key = criterion.Field.Substring("ExtendedData.".Length);
-            var hasValue = metrics.ExtendedData.TryGetValue(key, out var value);
-
-            return criterion.Operator switch
-            {
-                SegmentCriteriaOperator.Equals => hasValue && Equals(value, criterion.Value),
-                SegmentCriteriaOperator.NotEquals => !hasValue || !Equals(value, criterion.Value),
-                SegmentCriteriaOperator.IsEmpty => !hasValue || value == null,
-                SegmentCriteriaOperator.IsNotEmpty => hasValue && value != null,
-                SegmentCriteriaOperator.GreaterThan => hasValue && Compare(value, criterion.Value) > 0,
-                SegmentCriteriaOperator.LessThan => hasValue && Compare(value, criterion.Value) < 0,
                 _ => false
             };
         }
@@ -2073,11 +2132,8 @@ public class SegmentCriteriaEvaluator(
 | `Email` | Email | String | Customer email address |
 | `Country` | Country | String | Billing/shipping country |
 | `Tag` | Customer Tag | String | Check if customer has specific tag (case-insensitive) |
-| `ExtendedData.*` | Custom Field | Varies | Query custom data fields (e.g., `ExtendedData.loyaltyTier`) |
 
 **Tag Operators**: `Contains`, `NotContains`, `IsEmpty`, `IsNotEmpty`
-
-**ExtendedData Operators**: `Equals`, `NotEquals`, `IsEmpty`, `IsNotEmpty`, `GreaterThan`, `LessThan` (for numeric values)
 
 ---
 
@@ -2249,17 +2305,17 @@ public class CustomerSegmentApiTests : IntegrationTestBase
 | Segment Service | `src/Merchello.Core/Customers/Services/CustomerSegmentService.cs` |
 | Criteria Evaluator | `src/Merchello.Core/Customers/Services/SegmentCriteriaEvaluator.cs` |
 | Segment Factory | `src/Merchello.Core/Customers/Factories/CustomerSegmentFactory.cs` |
-| Segment API | `src/Merchello/Api/CustomerSegmentController.cs` |
+| Segment API | `src/Merchello/Controllers/CustomerSegmentsApiController.cs` |
 
 ### Frontend
 
 | Purpose | Path |
 |---------|------|
-| Manifests | `src/Merchello/Client/src/customer-segments/manifest.ts` |
-| Types | `src/Merchello/Client/src/customer-segments/types/customer-segment.types.ts` |
-| List View | `src/Merchello/Client/src/customer-segments/components/segments-list.element.ts` |
-| Detail View | `src/Merchello/Client/src/customer-segments/components/segment-detail.element.ts` |
-| Criteria Builder | `src/Merchello/Client/src/customer-segments/components/segment-criteria-builder.element.ts` |
+| Manifests | `src/Merchello/Client/src/customers/manifest.ts` |
+| Types | `src/Merchello/Client/src/customers/types/segment.types.ts` |
+| List View | `src/Merchello/Client/src/customers/components/segments-list.element.ts` |
+| Detail View | `src/Merchello/Client/src/customers/components/segment-detail.element.ts` |
+| Criteria Builder | `src/Merchello/Client/src/customers/components/segment-criteria-builder.element.ts` |
 
 ## Appendix B: Related Documentation
 

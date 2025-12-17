@@ -48,6 +48,11 @@ public class OrderDetailDto
     public string PaymentStatusDisplay { get; set; } = string.Empty;
     public string FulfillmentStatus { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Whether the invoice has been cancelled
+    /// </summary>
+    public bool IsCancelled { get; set; }
+
     // Addresses
     public AddressDto? BillingAddress { get; set; }
     public AddressDto? ShippingAddress { get; set; }

@@ -17,6 +17,7 @@ import type { MerchelloOrderDetailWorkspaceContext } from "@orders/contexts/orde
 import { MERCHELLO_FULFILLMENT_MODAL } from "@orders/modals/fulfillment-modal.token.js";
 import { MERCHELLO_EDIT_ORDER_MODAL } from "@orders/modals/edit-order-modal.token.js";
 import { MERCHELLO_CUSTOMER_ORDERS_MODAL } from "@orders/modals/customer-orders-modal.token.js";
+import { MERCHELLO_CANCEL_INVOICE_MODAL } from "@orders/modals/cancel-invoice-modal.token.js";
 import { formatCurrency, formatDateTime } from "@shared/utils/formatting.js";
 import { MerchelloApi, type CountryDto } from "@api/merchello-api.js";
 import { getOrdersListHref } from "@shared/utils/navigation.js";
@@ -188,6 +189,37 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     // Refresh the order data when modal closes
     this.#workspaceContext?.load(orderId);
+  }
+
+  private async _openCancelInvoiceModal(): Promise<void> {
+    if (!this._order || !this.#modalManager) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_CANCEL_INVOICE_MODAL, {
+      data: {
+        invoiceId: this._order.id,
+        invoiceNumber: this._order.invoiceNumber,
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+
+    // Prevent state updates if component was disconnected during async operation
+    if (!this.#isConnected) return;
+
+    if (result?.cancelled) {
+      // Show success notification
+      this.#notificationContext?.peek("positive", {
+        data: {
+          headline: "Invoice Cancelled",
+          message: result.cancelledOrderCount
+            ? `${result.cancelledOrderCount} order(s) cancelled and stock released.`
+            : "Invoice has been cancelled.",
+        },
+      });
+
+      // Refresh the order data
+      this.#workspaceContext?.load(this._order.id);
+    }
   }
 
   private async _openCustomerOrdersModal(): Promise<void> {
@@ -476,7 +508,9 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
   private _renderFulfillmentCard(fulfillmentOrder: FulfillmentOrderDto): unknown {
     const statusLabel = this._getStatusLabel(fulfillmentOrder.status);
     const isFulfilled = this._order?.fulfillmentStatus === "Fulfilled";
-    const statusClass = fulfillmentOrder.status >= 50 ? "shipped" : "unfulfilled";
+    // Cancelled = 70, Shipped = 50, Completed = 60
+    const statusClass = fulfillmentOrder.status === 70 ? "cancelled" :
+                        fulfillmentOrder.status >= 50 ? "shipped" : "unfulfilled";
     const currencyCode = this._order?.currencyCode;
     const currencySymbol = this._order?.currencySymbol;
 
@@ -670,6 +704,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
           </div>
           <span class="badge ${this._getPaymentStatusBadgeClass(order.paymentStatus)}">${order.paymentStatusDisplay}</span>
           <span class="badge ${order.fulfillmentStatus.toLowerCase().replace(" ", "-")}">${order.fulfillmentStatus}</span>
+          ${order.isCancelled ? html`<span class="badge cancelled">Cancelled</span>` : nothing}
         </div>
 
         <!-- Inner layout with tabs -->
@@ -1033,6 +1068,11 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
         <!-- Footer -->
         <umb-footer-layout slot="footer">
+          ${!this._order?.isCancelled ? html`
+            <uui-button slot="actions" look="secondary" color="danger" label="Cancel Invoice" @click=${this._openCancelInvoiceModal}>
+              Cancel Invoice
+            </uui-button>
+          ` : ''}
           <uui-button slot="actions" look="primary" label="Edit Order" @click=${this._openEditOrderModal}>
             Edit Order
           </uui-button>
@@ -1142,6 +1182,11 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       color: var(--uui-color-warning-contrast);
     }
 
+    .badge.cancelled {
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
+    }
+
     .order-content {
       display: grid;
       grid-template-columns: 1fr 350px;
@@ -1222,6 +1267,11 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     .fulfillment-status-badge.shipped {
       background: var(--uui-color-positive-standalone);
       color: var(--uui-color-positive-contrast);
+    }
+
+    .fulfillment-status-badge.cancelled {
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
     }
 
     .fulfillment-shipping-method {

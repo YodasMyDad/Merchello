@@ -85,8 +85,15 @@ public class InvoiceDbMapping : IEntityTypeConfiguration<Invoice>
         builder.Property(x => x.IsDeleted).HasDefaultValue(false);
         builder.Property(x => x.DateDeleted).IsRequired(false);
 
-        // Index for efficient filtering of non-deleted invoices
+        // Cancellation
+        builder.Property(x => x.IsCancelled).HasDefaultValue(false);
+        builder.Property(x => x.DateCancelled).IsRequired(false);
+        builder.Property(x => x.CancellationReason).HasMaxLength(1000);
+        builder.Property(x => x.CancelledBy).HasMaxLength(200);
+
+        // Indexes for efficient filtering
         builder.HasIndex(x => x.IsDeleted);
+        builder.HasIndex(x => x.IsCancelled);
         builder.HasIndex(x => x.CurrencyCode);
     }
 }

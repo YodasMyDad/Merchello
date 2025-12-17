@@ -151,4 +151,24 @@ public class Invoice
     /// Date the invoice was soft-deleted (null if not deleted)
     /// </summary>
     public DateTime? DateDeleted { get; set; }
+
+    /// <summary>
+    /// Whether the invoice has been cancelled
+    /// </summary>
+    public bool IsCancelled { get; set; }
+
+    /// <summary>
+    /// Date the invoice was cancelled (null if not cancelled)
+    /// </summary>
+    public DateTime? DateCancelled { get; set; }
+
+    /// <summary>
+    /// Reason for cancellation
+    /// </summary>
+    public string? CancellationReason { get; set; }
+
+    /// <summary>
+    /// Name of the user who cancelled the invoice
+    /// </summary>
+    public string? CancelledBy { get; set; }
 }
