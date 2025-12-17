@@ -147,7 +147,7 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
 
     const result = await modal?.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.created) {
+    if (result?.isCreated) {
       this.#notificationContext?.peek("positive", {
         data: {
           headline: "Filter group created",
@@ -165,7 +165,7 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
 
     const result = await modal?.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.updated) {
+    if (result?.isUpdated) {
       this.#notificationContext?.peek("positive", {
         data: {
           headline: "Filter group updated",
@@ -220,7 +220,7 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
 
     const result = await modal?.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.created) {
+    if (result?.isCreated) {
       this.#notificationContext?.peek("positive", {
         data: {
           headline: "Filter created",
@@ -238,7 +238,7 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
 
     const result = await modal?.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.updated) {
+    if (result?.isUpdated) {
       this.#notificationContext?.peek("positive", {
         data: {
           headline: "Filter updated",
@@ -246,7 +246,7 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
         },
       });
       this._loadFilterGroups();
-    } else if (result?.deleted) {
+    } else if (result?.isDeleted) {
       this.#notificationContext?.peek("positive", {
         data: { headline: "Filter deleted", message: "The filter has been deleted successfully" },
       });

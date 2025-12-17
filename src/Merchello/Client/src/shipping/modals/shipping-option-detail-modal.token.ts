@@ -14,7 +14,7 @@ export interface ShippingOptionDetailModalData {
 
 export interface ShippingOptionDetailModalValue {
   /** Whether the option was saved/updated */
-  saved: boolean;
+  isSaved: boolean;
 }
 
 export const MERCHELLO_SHIPPING_OPTION_DETAIL_MODAL = new UmbModalToken<

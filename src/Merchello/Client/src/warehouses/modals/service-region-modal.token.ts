@@ -8,7 +8,7 @@ export interface ServiceRegionModalData {
 }
 
 export interface ServiceRegionModalValue {
-  saved: boolean;
+  isSaved: boolean;
   region?: ServiceRegionDto;
 }
 

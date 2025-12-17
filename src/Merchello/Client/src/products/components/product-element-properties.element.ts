@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external
 import { customElement, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import type {
-  ElementTypeResponseModel,
+  ElementTypeDto,
   ElementTypeProperty,
   ElementTypeContainer,
 } from "../types/element-type.types.js";
@@ -23,7 +23,7 @@ export interface ElementPropertiesChangeDetail {
 @customElement("merchello-product-element-properties")
 export class MerchelloProductElementPropertiesElement extends UmbElementMixin(LitElement) {
   @property({ attribute: false })
-  elementType?: ElementTypeResponseModel | null;
+  elementType?: ElementTypeDto | null;
 
   @property({ attribute: false })
   values: Record<string, unknown> = {};

@@ -19,7 +19,7 @@ public class EditLineItemDto
     /// When quantity is decreased, whether to return the reduced quantity to stock.
     /// Default: true. Set to false for damaged/faulty items.
     /// </summary>
-    public bool ReturnToStock { get; set; } = true;
+    public bool ShouldReturnToStock { get; set; } = true;
 
     /// <summary>
     /// Discount to apply (creates child discount line item)

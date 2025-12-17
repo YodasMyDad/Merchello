@@ -22,6 +22,6 @@ public class DiscountLineItemDto
     /// </summary>
     public decimal Value { get; set; }
     public string? Reason { get; set; }
-    public bool VisibleToCustomer { get; set; }
+    public bool IsVisibleToCustomer { get; set; }
 }
 

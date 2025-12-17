@@ -12,7 +12,7 @@ export interface ShippingWeightTierModalData {
 
 export interface ShippingWeightTierModalValue {
   /** Whether the tier was saved/updated */
-  saved: boolean;
+  isSaved: boolean;
 }
 
 export const MERCHELLO_SHIPPING_WEIGHT_TIER_MODAL = new UmbModalToken<

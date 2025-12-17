@@ -82,7 +82,7 @@ public class WarehousesApiController(
             Name = dto.Name,
             Code = dto.Code,
             SupplierId = dto.SupplierId,
-            ClearSupplierId = dto.ClearSupplierId,
+            ShouldClearSupplierId = dto.ShouldClearSupplierId,
             Address = dto.Address != null ? MapAddressFromDto(dto.Address) : null
         };
 

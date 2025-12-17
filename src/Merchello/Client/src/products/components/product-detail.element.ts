@@ -20,11 +20,12 @@ import type {
   ProductViewDto,
   RichTextEditorValue,
   RichTextBlockValue,
+  ShippingOptionExclusionDto,
 } from "@products/types/product.types.js";
 import type { TaxGroupDto } from "@orders/types/order.types.js";
 import type { WarehouseDto } from "@shipping/types.js";
 import type { ProductFilterGroupDto } from "@filters/types.js";
-import type { ElementTypeResponseModel, ElementTypeContainer } from "@products/types/element-type.types.js";
+import type { ElementTypeDto, ElementTypeContainer } from "@products/types/element-type.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import "./product-element-properties.element.js";
 import type { ElementPropertiesChangeDetail } from "./product-element-properties.element.js";
@@ -40,9 +41,11 @@ import "@products/components/shared/variant-feed-settings.element.js";
 import "@products/components/shared/variant-stock-display.element.js";
 import "@products/components/shared/product-packages.element.js";
 import "@products/components/shared/product-filters.element.js";
+import "@products/components/shared/product-shipping-exclusions.element.js";
 import type { StockSettingsChangeDetail } from "@products/components/shared/variant-stock-display.element.js";
 import type { PackagesChangeDetail } from "@products/components/shared/product-packages.element.js";
 import type { FiltersChangeDetail } from "@products/components/shared/product-filters.element.js";
+import type { ShippingExclusionsChangeDetail } from "@products/components/shared/product-shipping-exclusions.element.js";
 
 // Utility functions
 import {
@@ -131,11 +134,14 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   @state() private _assignedFilterIds: string[] = [];
   @state() private _originalAssignedFilterIds: string[] = [];
 
+  // Shipping exclusions state
+  @state() private _shippingOptions: ShippingOptionExclusionDto[] = [];
+
   // ============================================
   // State: Element Type (custom content)
   // ============================================
 
-  @state() private _elementType: ElementTypeResponseModel | null = null;
+  @state() private _elementType: ElementTypeDto | null = null;
   @state() private _elementPropertyValues: Record<string, unknown> = {};
 
   // ============================================
@@ -171,6 +177,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             this._formData = { ...product };
             // Reset description blocks when loading a new product
             this._descriptionBlocks = null;
+            // Initialize shipping options from product data
+            this._shippingOptions = product.availableShippingOptions ?? [];
             // For single-variant products, populate variant form data and load filters
             if (product.variants.length === 1) {
               this._variantFormData = { ...product.variants[0] };
@@ -193,6 +201,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         // Observe element property values
         this.observe(this.#workspaceContext.elementPropertyValues, (values) => {
           this._elementPropertyValues = values;
+        });
+
+        // Observe filter groups from centralized context
+        this.observe(this.#workspaceContext.filterGroups, (groups) => {
+          this._filterGroups = groups;
         });
       }
     });
@@ -218,13 +231,15 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
   private async _loadReferenceData(): Promise<void> {
     try {
-      const [taxGroups, productTypes, warehouses, optionSettings, descriptionEditorSettings, filterGroups, productViews] = await Promise.all([
+      // Load filter groups from centralized context (shared with variant-detail)
+      this.#workspaceContext?.loadFilterGroups();
+
+      const [taxGroups, productTypes, warehouses, optionSettings, descriptionEditorSettings, productViews] = await Promise.all([
         MerchelloApi.getTaxGroups(),
         MerchelloApi.getProductTypes(),
         MerchelloApi.getWarehouses(),
         MerchelloApi.getProductOptionSettings(),
         MerchelloApi.getDescriptionEditorSettings(),
-        MerchelloApi.getFilterGroups(),
         MerchelloApi.getProductViews(),
       ]);
 
@@ -235,7 +250,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       if (productTypes.data) this._productTypes = productTypes.data;
       if (warehouses.data) this._warehouses = warehouses.data;
       if (optionSettings.data) this._optionSettings = optionSettings.data;
-      if (filterGroups.data) this._filterGroups = filterGroups.data;
       if (productViews.data) this._productViews = productViews.data;
       // Load DataType configuration using Umbraco's repository (handles auth automatically)
       if (descriptionEditorSettings.data?.dataTypeKey) {
@@ -677,10 +691,36 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       await this._saveFilterAssignments();
     }
 
+    // Save shipping exclusions (bulk mode - applies to all variants)
+    await this._saveShippingExclusions();
+
     if (data) {
       // Reload to get updated variant data
       await this.#workspaceContext?.reload();
       this.#notificationContext?.peek("positive", { data: { headline: "Product saved", message: "Changes have been saved successfully" } });
+    }
+  }
+
+  /** Saves shipping exclusions for all variants (bulk mode) */
+  private async _saveShippingExclusions(): Promise<void> {
+    if (!this._product?.id) return;
+
+    // Get the IDs of options that are excluded
+    const excludedIds = this._shippingOptions
+      .filter((o) => o.isExcluded)
+      .map((o) => o.id);
+
+    // Only call API if there are exclusions or we're clearing existing ones
+    const hasExclusions = excludedIds.length > 0;
+    const hadExclusions = this._shippingOptions.some((o) => o.isPartiallyExcluded || o.excludedVariantCount > 0);
+
+    if (hasExclusions || hadExclusions) {
+      const { error } = await MerchelloApi.updateProductShippingExclusions(this._product.id, excludedIds);
+      if (error) {
+        this.#notificationContext?.peek("warning", {
+          data: { headline: "Shipping exclusions not saved", message: error.message },
+        });
+      }
     }
   }
 
@@ -1109,6 +1149,13 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             @packages-change=${this._handlePackagesChange}>
           </merchello-product-packages>
         </uui-box>
+
+        <merchello-product-shipping-exclusions
+          .shippingOptions=${this._shippingOptions}
+          .variantMode=${false}
+          .isNewProduct=${isNew}
+          @shipping-exclusions-change=${this._handleShippingExclusionsChange}>
+        </merchello-product-shipping-exclusions>
       </div>
     `;
   }
@@ -1116,6 +1163,16 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   /** Handles packages change from the shared component */
   private _handlePackagesChange(e: CustomEvent<PackagesChangeDetail>): void {
     this._formData = { ...this._formData, defaultPackageConfigurations: e.detail.packages };
+  }
+
+  /** Handles shipping exclusions change from the shared component */
+  private _handleShippingExclusionsChange(e: CustomEvent<ShippingExclusionsChangeDetail>): void {
+    // Update the local state - when checked=true, the option IS excluded
+    this._shippingOptions = this._shippingOptions.map((o) => ({
+      ...o,
+      isExcluded: e.detail.excludedShippingOptionIds.includes(o.id),
+      isPartiallyExcluded: false, // When bulk editing, clear partial state
+    }));
   }
 
   /**
@@ -1281,15 +1338,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
                 ?multiple=${false}
                 @change=${this._handleOpenGraphImageChange}>
               </umb-input-rich-media>
-              ${!this._formData.openGraphImage
-                ? html`
-                    <div class="empty-media-state small">
-                      <uui-icon name="icon-share-alt"></uui-icon>
-                      <p>No image selected</p>
-                      <small>Recommended size: 1200×630 pixels</small>
-                    </div>
-                  `
-                : nothing}
+              <small style="color: var(--uui-color-text-alt); display: block; margin-top: var(--uui-size-space-2);">Recommended size: 1200×630 pixels</small>
             </div>
           </umb-property-layout>
         </uui-box>
@@ -1700,7 +1749,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
-    if (result?.saved && result.option) {
+    if (result?.isSaved && result.option) {
       // Add option to form data
       const options = this._formData.productOptions || [];
       this._formData = {
@@ -1722,8 +1771,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
-    if (result?.saved) {
-      if (result.deleted) {
+    if (result?.isSaved) {
+      if (result.isDeleted) {
         await this._deleteOption(option.id);
       } else if (result.option) {
         // Update option in form data

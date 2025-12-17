@@ -64,7 +64,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
         return;
       }
 
-      this.value = { supplier: data, updated: true };
+      this.value = { supplier: data, isUpdated: true };
       this.modalContext?.submit();
     } else {
       // Create new supplier
@@ -80,7 +80,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
         return;
       }
 
-      this.value = { supplier: data, created: true };
+      this.value = { supplier: data, isCreated: true };
       this.modalContext?.submit();
     }
   }

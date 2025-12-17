@@ -100,7 +100,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
-    if (result?.saved) {
+    if (result?.isSaved) {
       await this._loadProviders();
     }
   }

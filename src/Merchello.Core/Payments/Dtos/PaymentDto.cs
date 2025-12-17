@@ -22,7 +22,7 @@ public class PaymentDto
     public PaymentType PaymentType { get; set; }
     public string? TransactionId { get; set; }
     public string? Description { get; set; }
-    public bool PaymentSuccess { get; set; }
+    public bool IsPaymentSuccessful { get; set; }
     public string? RefundReason { get; set; }
     public Guid? ParentPaymentId { get; set; }
     public DateTime DateCreated { get; set; }

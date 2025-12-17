@@ -3,7 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { TestProviderModalData, TestProviderModalValue } from "./test-provider-modal.token.js";
 import type { WarehouseListDto, CountryInfo, SubdivisionInfo } from "@warehouses/types.js";
-import type { TestShippingProviderRequestDto, TestShippingProviderResponseDto } from "@shipping/types.js";
+import type { TestShippingProviderDto, TestShippingProviderResultDto } from "@shipping/types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
 import type { SelectOption } from "@shared/types/index.js";
@@ -49,7 +49,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
   @state() private _isLoadingData = true;
   @state() private _isLoadingRegions = false;
   @state() private _isTesting = false;
-  @state() private _testResult?: TestShippingProviderResponseDto;
+  @state() private _testResult?: TestShippingProviderResultDto;
   @state() private _errorMessage: string | null = null;
 
   #isConnected = false;
@@ -191,7 +191,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
       return;
     }
 
-    const request: TestShippingProviderRequestDto = {
+    const request: TestShippingProviderDto = {
       warehouseId: this._warehouseId,
       countryCode: this._countryCode,
       stateOrProvinceCode: this._stateOrProvinceCode || undefined,
@@ -390,7 +390,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
   private _renderResults(): unknown {
     if (!this._testResult) return nothing;
 
-    const { success, serviceLevels, errors } = this._testResult;
+    const { isSuccessful: success, serviceLevels, errors } = this._testResult;
     const currencySymbol = getCurrencySymbol();
 
     // Separate configured vs other available service types

@@ -107,7 +107,7 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
       }
 
       this._isSaving = false;
-      this.value = { saved: true };
+      this.value = { isSaved: true };
       this.modalContext?.submit();
     } catch (err) {
       if (!this.#isConnected) return;

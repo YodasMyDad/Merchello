@@ -102,7 +102,7 @@ public class FlatRateShippingProvider(
         }
 
         var shippableItems = request.Items.Where(i => i.IsShippable).ToList();
-        var errors = new List<string>();
+        List<string> errors = [];
         var storeCurrency = _settings.StoreCurrencyCode;
         var requestCurrency = request.CurrencyCode ?? storeCurrency;
         decimal? storeToRequestRate = null;
@@ -146,7 +146,7 @@ public class FlatRateShippingProvider(
         var totalWeightKg = shippableItems.Sum(item => item.TotalWeightKg ?? 0);
 
         // Build service levels from common options
-        var serviceLevels = new List<ShippingServiceLevel>();
+        List<ShippingServiceLevel> serviceLevels = [];
 
         foreach (var option in commonOptions)
         {
@@ -242,7 +242,7 @@ public class FlatRateShippingProvider(
         string countryCode,
         string? stateOrProvinceCode)
     {
-        var errors = new List<string>();
+        List<string> errors = [];
 
         // 1. Get base cost from ShippingCost table
         var baseCost = ResolveBaseCost(option.Costs, countryCode, stateOrProvinceCode);

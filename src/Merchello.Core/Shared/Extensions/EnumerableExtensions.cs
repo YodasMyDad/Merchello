@@ -33,16 +33,13 @@ public static class EnumerableExtensions
     /// <seealso cref="http://stackoverflow.com/questions/3093622/generating-all-possible-combinations"/>
     public static IEnumerable<IEnumerable<T>> CartesianObjects<T>(this IEnumerable<IEnumerable<T>> sequences)
     {
-        IEnumerable<IEnumerable<T>> emptyProduct = new[] { Enumerable.Empty<T>() };
+        IEnumerable<IEnumerable<T>> emptyProduct = [Enumerable.Empty<T>()];
         return sequences.Aggregate(
             emptyProduct,
             (accumulator, sequence) =>
                 from accseq in accumulator
                 from item in sequence
-                select accseq.Concat<T>(new[]
-                {
-                    item
-                }));
+                select accseq.Concat<T>([item]));
     }
 
     /// <summary>
@@ -102,7 +99,7 @@ public static class EnumerableExtensions
     /// </returns>
     internal static IEnumerable<Tuple<int, IEnumerable<T>>> AllCombinationsOf<T>(this IEnumerable<T> collection)
     {
-        var combos = new List<Tuple<int, IEnumerable<T>>>();
+        List<Tuple<int, IEnumerable<T>>> combos = [];
 
         var collectionArray = collection as T[] ?? collection.ToArray();
         var count = Math.Pow(2, collectionArray.Count());
@@ -111,7 +108,7 @@ public static class EnumerableExtensions
             var str = Convert.ToString(i, 2).PadLeft(collectionArray.Count(), '0');
             var level = str.ToArray().Where(x => x != '0').Sum(x => Int32.Parse(x.ToString()));
 
-            var group = new List<T>();
+            List<T> group = [];
 
             for (var j = 0; j < str.Length; j++)
             {

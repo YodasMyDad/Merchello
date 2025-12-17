@@ -29,6 +29,16 @@ public interface IProductService
     Task<CrudResult<bool>> UpdateVariantStock(Guid variantId, Guid warehouseId, int stock, int? reorderPoint, bool trackStock, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> ApplyStockTemplateToAllVariants(Guid productRootId, Guid warehouseId, int defaultStock, int? defaultReorderPoint, bool trackStock, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> UpdateVariantExcludedShippingOptions(Guid variantId, List<Guid> excludedShippingOptionIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets available shipping options for a product with their exclusion status.
+    /// </summary>
+    Task<List<ShippingOptionExclusionDto>?> GetAvailableShippingOptionsAsync(Guid productRootId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates shipping exclusions for all variants of a product (bulk mode).
+    /// </summary>
+    Task<CrudResult<bool>> UpdateProductRootExcludedShippingOptionsAsync(Guid productRootId, List<Guid> excludedShippingOptionIds, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> SetDefaultVariant(Guid variantId, CancellationToken cancellationToken = default);
     Task<CrudResult<ProductType>> CreateProductType(string name, CancellationToken cancellationToken = default);
     Task<CrudResult<ProductType>> UpdateProductType(Guid id, string name, CancellationToken cancellationToken = default);

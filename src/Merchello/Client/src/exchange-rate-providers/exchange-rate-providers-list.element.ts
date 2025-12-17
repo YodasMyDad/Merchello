@@ -133,7 +133,7 @@ export class MerchelloExchangeRateProvidersListElement extends UmbElementMixin(L
     });
 
     modal.onSubmit().then((result) => {
-      if (result?.saved) {
+      if (result?.isSaved) {
         this._loadData();
       }
     }).catch(() => {

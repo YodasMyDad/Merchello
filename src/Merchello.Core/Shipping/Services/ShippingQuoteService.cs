@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Data;
@@ -66,7 +68,12 @@ public class ShippingQuoteService(
             : $"{countryCode}-{stateOrProvinceCode}";
 
         var currency = basket.Currency ?? string.Empty;
-        return $"shipping-quote:{basket.Id}:{destination}:{currency}:{productIds}";
+
+        // Hash the product IDs to keep key under HybridCache's 1024 char limit
+        var productHash = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(productIds)))[..16];
+
+        return $"shipping-quote:{basket.Id}:{destination}:{currency}:{productHash}";
     }
 
     private async Task<List<ShippingRateQuote>> FetchQuotesFromProvidersAsync(
@@ -288,7 +295,7 @@ public class ShippingQuoteService(
     private static ShippingProductSnapshot BuildProductSnapshot(Product product, string countryCode, string? stateOrProvinceCode)
     {
         // Get allowed shipping options based on product restrictions
-        var allowedOptions = GetAllowedShippingOptionsForProduct(product);
+        var allowedOptions = product.GetAllowedShippingOptions();
 
         var options = allowedOptions
             .Select(option =>
@@ -367,31 +374,6 @@ public class ShippingQuoteService(
         }
 
         return product.ProductRoot?.DefaultPackageConfigurations ?? [];
-    }
-
-    /// <summary>
-    /// Gets the allowed shipping options for a product based on its restriction mode.
-    /// Falls back to warehouse shipping options if product has no specific options configured.
-    /// </summary>
-    private static IEnumerable<ShippingOption> GetAllowedShippingOptionsForProduct(Product product)
-    {
-        // Get base shipping options - use product options or fall back to warehouse options
-        var baseOptions = product.ShippingOptions.Any()
-            ? product.ShippingOptions
-            : product.ProductRoot?.ProductRootWarehouses
-                .SelectMany(prw => prw.Warehouse?.ShippingOptions ?? [])
-                .Distinct()
-                .ToList() ?? [];
-
-        // Apply restriction mode
-        return product.ShippingRestrictionMode switch
-        {
-            ShippingRestrictionMode.AllowList => product.AllowedShippingOptions,
-            ShippingRestrictionMode.ExcludeList => baseOptions
-                .Where(so => !product.ExcludedShippingOptions.Any(eso => eso.Id == so.Id))
-                .ToList(),
-            _ => baseOptions
-        };
     }
 
     private static decimal? ResolveShippingCost(IEnumerable<ShippingCost> costs, string countryCode, string? stateOrProvinceCode)

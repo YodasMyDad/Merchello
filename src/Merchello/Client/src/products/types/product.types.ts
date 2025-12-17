@@ -111,6 +111,9 @@ export interface ProductRootDetailDto {
   productOptions: ProductOptionDto[];
   variants: ProductVariantDto[];
 
+  /** Available shipping options from assigned warehouses with exclusion status */
+  availableShippingOptions: ShippingOptionExclusionDto[];
+
   /** Element Type property values as { propertyAlias: value } */
   elementProperties?: Record<string, unknown>;
 
@@ -177,6 +180,34 @@ export interface ProductVariantDto {
   // Stock
   totalStock: number;
   warehouseStock: VariantWarehouseStockDto[];
+
+  // Shipping exclusions
+  shippingRestrictionMode: ShippingRestrictionMode;
+  excludedShippingOptionIds: string[];
+}
+
+/** Shipping restriction mode enum */
+export type ShippingRestrictionMode = 'None' | 'AllowList' | 'ExcludeList';
+
+/** Shipping option with exclusion status for product editing UI */
+export interface ShippingOptionExclusionDto {
+  id: string;
+  name?: string;
+  warehouseName?: string;
+  providerKey?: string;
+  /** True when ALL variants have this option excluded */
+  isExcluded: boolean;
+  /** True when SOME (but not all) variants have this excluded - show indeterminate checkbox */
+  isPartiallyExcluded: boolean;
+  /** Number of variants that have this option excluded */
+  excludedVariantCount: number;
+  /** Total number of variants for this product */
+  totalVariantCount: number;
+}
+
+/** Request to update shipping exclusions */
+export interface UpdateShippingExclusionsDto {
+  excludedShippingOptionIds: string[];
 }
 
 export interface VariantWarehouseStockDto {

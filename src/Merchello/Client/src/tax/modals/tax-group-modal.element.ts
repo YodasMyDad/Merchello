@@ -73,7 +73,7 @@ export class MerchelloTaxGroupModalElement extends UmbModalBaseElement<
         return;
       }
 
-      this.value = { taxGroup: data, updated: true };
+      this.value = { taxGroup: data, isUpdated: true };
       this.modalContext?.submit();
     } else {
       // Create new tax group
@@ -89,7 +89,7 @@ export class MerchelloTaxGroupModalElement extends UmbModalBaseElement<
         return;
       }
 
-      this.value = { taxGroup: data, created: true };
+      this.value = { taxGroup: data, isCreated: true };
       this.modalContext?.submit();
     }
   }

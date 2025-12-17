@@ -1,4 +1,5 @@
 using Merchello.Core.Checkout.Strategies.Models;
+using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Models;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Shared.Models;
@@ -180,7 +181,7 @@ public class DefaultOrderGroupingStrategy(
             ? product.ShippingOptions
             : warehouseShippingOptions;
 
-        var allowedShippingOptions = GetAllowedShippingOptionsForProduct(product, baseShippingOptions).ToList();
+        var allowedShippingOptions = product.GetAllowedShippingOptions(baseShippingOptions).ToList();
         var allowedShippingOptionIds = allowedShippingOptions.Select(so => so.Id).OrderBy(id => id).ToList();
 
         // Find or create a group for this warehouse + shipping options combination
@@ -295,20 +296,4 @@ public class DefaultOrderGroupingStrategy(
         return new Guid(hash);
     }
 
-    /// <summary>
-    /// Gets the allowed shipping options for a product based on its restriction mode.
-    /// </summary>
-    private static IEnumerable<ShippingOption> GetAllowedShippingOptionsForProduct(
-        Product product,
-        ICollection<ShippingOption> warehouseShippingOptions)
-    {
-        return product.ShippingRestrictionMode switch
-        {
-            ShippingRestrictionMode.AllowList => warehouseShippingOptions
-                .Where(wso => product.AllowedShippingOptions.Any(aso => aso.Id == wso.Id)),
-            ShippingRestrictionMode.ExcludeList => warehouseShippingOptions
-                .Where(wso => !product.ExcludedShippingOptions.Any(eso => eso.Id == wso.Id)),
-            _ => warehouseShippingOptions
-        };
-    }
 }

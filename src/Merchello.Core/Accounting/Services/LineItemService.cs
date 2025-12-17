@@ -254,7 +254,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         string? name = null,
         string? reason = null)
     {
-        var errors = new List<string>();
+        List<string> errors = [];
 
         if (amount <= 0)
         {

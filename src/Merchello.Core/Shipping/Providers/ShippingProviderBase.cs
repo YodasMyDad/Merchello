@@ -106,7 +106,7 @@ public abstract class ShippingProviderBase : IShippingProvider
         ShippingServiceLevel serviceLevel,
         CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(new List<DateTime>());
+        return Task.FromResult<List<DateTime>>([]);
     }
 
     /// <inheritdoc />

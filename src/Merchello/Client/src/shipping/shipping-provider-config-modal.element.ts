@@ -139,7 +139,7 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
       }
 
       this._isSaving = false;
-      this.value = { saved: true };
+      this.value = { isSaved: true };
       this.modalContext?.submit();
     } catch (err) {
       // Prevent state updates if component was disconnected during async operation

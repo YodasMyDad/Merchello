@@ -307,12 +307,12 @@ public class ShippingProvidersApiController(
     /// Allows users to verify their API credentials and configuration are working correctly.
     /// </summary>
     [HttpPost("shipping-providers/{id:guid}/test")]
-    [ProducesResponseType<TestShippingProviderResponseDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<TestShippingProviderResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> TestProvider(
         Guid id,
-        [FromBody] TestShippingProviderRequestDto request,
+        [FromBody] TestShippingProviderDto request,
         CancellationToken cancellationToken = default)
     {
         // 1. Get the provider configuration
@@ -372,7 +372,7 @@ public class ShippingProvidersApiController(
         var configuredSet = new HashSet<string>(configuredServiceTypes, StringComparer.OrdinalIgnoreCase);
 
         // 5. Get rates from the provider
-        var response = new TestShippingProviderResponseDto
+        var response = new TestShippingProviderResultDto
         {
             ProviderKey = provider.Metadata.Key,
             ProviderName = provider.DisplayName
@@ -382,7 +382,7 @@ public class ShippingProvidersApiController(
         {
             if (!provider.Provider.IsAvailableFor(quoteRequest))
             {
-                response.Success = false;
+                response.IsSuccessful = false;
                 response.Errors.Add("Provider is not available for this destination or configuration.");
                 return Ok(response);
             }
@@ -391,7 +391,7 @@ public class ShippingProvidersApiController(
 
             if (quote == null)
             {
-                response.Success = false;
+                response.IsSuccessful = false;
                 response.Errors.Add("Provider returned no rates for this request.");
                 return Ok(response);
             }
@@ -399,7 +399,7 @@ public class ShippingProvidersApiController(
             // Track which configured service types were returned
             var returnedServiceTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            response.Success = quote.Errors.Count == 0;
+            response.IsSuccessful = quote.Errors.Count == 0;
             response.ServiceLevels = quote.ServiceLevels.Select(sl =>
             {
                 // Extract service type from extended properties (provider-specific key)
@@ -448,7 +448,7 @@ public class ShippingProvidersApiController(
         }
         catch (Exception ex)
         {
-            response.Success = false;
+            response.IsSuccessful = false;
             response.Errors.Add($"Error testing provider: {ex.Message}");
         }
 

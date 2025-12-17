@@ -12,7 +12,7 @@ export interface ShippingCostModalData {
 
 export interface ShippingCostModalValue {
   /** Whether the cost was saved/updated */
-  saved: boolean;
+  isSaved: boolean;
 }
 
 export const MERCHELLO_SHIPPING_COST_MODAL = new UmbModalToken<

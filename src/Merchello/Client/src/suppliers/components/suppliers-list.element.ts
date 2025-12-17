@@ -70,7 +70,7 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
 
     const result = await modal?.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.created) {
+    if (result?.isCreated) {
       this._loadSuppliers();
     }
   }
@@ -82,7 +82,7 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
 
     const result = await modal?.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.updated) {
+    if (result?.isUpdated) {
       this._loadSuppliers();
     }
   }

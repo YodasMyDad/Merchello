@@ -6,7 +6,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
 import type { MerchelloProductDetailWorkspaceContext } from "@products/contexts/product-detail-workspace.context.js";
-import type { ProductRootDetailDto, ProductVariantDto, ProductPackageDto, UpdateVariantDto } from "@products/types/product.types.js";
+import type { ProductRootDetailDto, ProductVariantDto, ProductPackageDto, UpdateVariantDto, ShippingOptionExclusionDto } from "@products/types/product.types.js";
 import type { ProductFilterGroupDto } from "@filters/types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
@@ -18,9 +18,11 @@ import "@products/components/shared/variant-feed-settings.element.js";
 import "@products/components/shared/variant-stock-display.element.js";
 import "@products/components/shared/product-packages.element.js";
 import "@products/components/shared/product-filters.element.js";
+import "@products/components/shared/product-shipping-exclusions.element.js";
 import type { StockSettingsChangeDetail } from "@products/components/shared/variant-stock-display.element.js";
 import type { PackagesChangeDetail } from "@products/components/shared/product-packages.element.js";
 import type { FiltersChangeDetail } from "@products/components/shared/product-filters.element.js";
+import type { ShippingExclusionsChangeDetail } from "@products/components/shared/product-shipping-exclusions.element.js";
 
 // ============================================
 // Component
@@ -74,6 +76,10 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
   @state() private _assignedFilterIds: string[] = [];
   private _originalAssignedFilterIds: string[] = [];
 
+  // Shipping exclusions state - for this specific variant
+  @state() private _variantShippingOptions: ShippingOptionExclusionDto[] = [];
+  @state() private _variantExcludedOptionIds: string[] = [];
+
   // ============================================
   // Private Members
   // ============================================
@@ -100,6 +106,10 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
           this.#variantId = variantId;
           this._updateVariantFromProduct();
         });
+        // Observe filter groups from centralized context
+        this.observe(this.#workspaceContext.filterGroups, (groups) => {
+          this._filterGroups = groups;
+        });
       }
     });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
@@ -111,16 +121,8 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     super.connectedCallback();
     this.#isConnected = true;
     this._createRoutes();
-    this._loadFilterGroups();
-  }
-
-  /**
-   * Loads all filter groups for the filter assignment UI
-   */
-  private async _loadFilterGroups(): Promise<void> {
-    const { data } = await MerchelloApi.getFilterGroups();
-    if (!this.#isConnected) return;
-    if (data) this._filterGroups = data;
+    // Load filter groups from centralized context (avoids duplicate API calls)
+    this.#workspaceContext?.loadFilterGroups();
   }
 
   disconnectedCallback(): void {
@@ -145,7 +147,27 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       this._isLoading = false;
       // Load filters for this variant
       this._loadAssignedFilters();
+      // Initialize shipping exclusions for this variant
+      this._initializeShippingExclusions(variant);
     }
+  }
+
+  /** Initializes shipping exclusions state for this variant */
+  private _initializeShippingExclusions(variant: ProductVariantDto): void {
+    // Get available options from product root
+    const availableOptions = this._product?.availableShippingOptions ?? [];
+    // Store the variant's currently excluded IDs
+    this._variantExcludedOptionIds = variant.excludedShippingOptionIds ?? [];
+
+    // Create a variant-specific view of the options
+    this._variantShippingOptions = availableOptions.map((option) => ({
+      ...option,
+      // Override with this variant's specific exclusion state
+      isExcluded: this._variantExcludedOptionIds.includes(option.id),
+      isPartiallyExcluded: false, // Not relevant in variant mode
+      excludedVariantCount: 0,
+      totalVariantCount: 1,
+    }));
   }
 
   /**
@@ -244,6 +266,9 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
 
       // Save filter assignments
       await this._saveFilterAssignments();
+
+      // Save shipping exclusions
+      await this._saveShippingExclusions();
 
       this.#notificationContext?.peek("positive", { data: { headline: "Variant saved", message: "Changes have been saved successfully" } });
 
@@ -379,6 +404,13 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
             @packages-change=${this._handlePackagesChange}>
           </merchello-product-packages>
         </uui-box>
+
+        <merchello-product-shipping-exclusions
+          .shippingOptions=${this._variantShippingOptions}
+          .variantMode=${true}
+          .isNewProduct=${false}
+          @shipping-exclusions-change=${this._handleShippingExclusionsChange}>
+        </merchello-product-shipping-exclusions>
       </div>
     `;
   }
@@ -386,6 +418,16 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
   /** Handles packages change from the shared component */
   private _handlePackagesChange(e: CustomEvent<PackagesChangeDetail>): void {
     this._formData = { ...this._formData, packageConfigurations: e.detail.packages };
+  }
+
+  /** Handles shipping exclusions change from the shared component */
+  private _handleShippingExclusionsChange(e: CustomEvent<ShippingExclusionsChangeDetail>): void {
+    this._variantExcludedOptionIds = e.detail.excludedShippingOptionIds;
+    // Update the local state
+    this._variantShippingOptions = this._variantShippingOptions.map((o) => ({
+      ...o,
+      isExcluded: this._variantExcludedOptionIds.includes(o.id),
+    }));
   }
 
   private _renderFeedTab(): unknown {
@@ -492,6 +534,23 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
 
     // Update original to match current after successful save
     this._originalAssignedFilterIds = [...this._assignedFilterIds];
+  }
+
+  /** Saves shipping exclusions for this variant */
+  private async _saveShippingExclusions(): Promise<void> {
+    if (!this._product?.id || !this._variant?.id) return;
+
+    const { error } = await MerchelloApi.updateVariantShippingExclusions(
+      this._product.id,
+      this._variant.id,
+      this._variantExcludedOptionIds
+    );
+
+    if (error) {
+      this.#notificationContext?.peek("warning", {
+        data: { headline: "Shipping exclusions not saved", message: error.message },
+      });
+    }
   }
 
   private _renderFooter(): unknown {

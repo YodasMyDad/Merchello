@@ -38,7 +38,7 @@ export interface PaymentDto {
   paymentType: PaymentType;
   transactionId?: string;
   description?: string;
-  paymentSuccess: boolean;
+  isPaymentSuccessful: boolean;
   refundReason?: string;
   parentPaymentId?: string;
   dateCreated: string;
@@ -209,13 +209,13 @@ export interface InvoiceNoteDto {
   text: string;
   authorId: string | null;
   author: string | null;
-  visibleToCustomer: boolean;
+  isVisibleToCustomer: boolean;
 }
 
 /** Request to add a note to an invoice */
 export interface AddInvoiceNoteDto {
   text: string;
-  visibleToCustomer: boolean;
+  isVisibleToCustomer: boolean;
 }
 
 export interface OrderPageDto {
@@ -469,7 +469,7 @@ export interface DiscountLineItemDto {
   /** The original discount value (e.g., 10 for £10 off or 10%) */
   value: number;
   reason: string | null;
-  visibleToCustomer: boolean;
+  isVisibleToCustomer: boolean;
 }
 
 /** Request to edit an invoice */
@@ -484,14 +484,14 @@ export interface EditInvoiceDto {
   orderShippingUpdates: OrderShippingUpdateDto[];
   editReason: string | null;
   /** If true, removes tax from all line items (VAT exemption) */
-  removeTax: boolean;
+  shouldRemoveTax: boolean;
 }
 
 /** Line item removal with return-to-stock option */
 export interface RemoveLineItemDto {
   id: string;
   /** Whether to return the item to available stock (default: true). False for damaged/faulty items. */
-  returnToStock: boolean;
+  shouldReturnToStock: boolean;
 }
 
 /** Per-order shipping cost update */
@@ -505,7 +505,7 @@ export interface EditLineItemDto {
   id: string;
   quantity: number | null;
   /** When quantity decreased, whether to return reduced qty to stock. Default: true. */
-  returnToStock: boolean;
+  shouldReturnToStock: boolean;
   discount: LineItemDiscountDto | null;
 }
 
@@ -514,7 +514,7 @@ export interface LineItemDiscountDto {
   type: DiscountType;
   value: number;
   reason: string | null;
-  visibleToCustomer: boolean;
+  isVisibleToCustomer: boolean;
 }
 
 
@@ -539,7 +539,7 @@ export interface TaxGroupDto {
 
 /** Response after editing an invoice */
 export interface EditInvoiceResultDto {
-  success: boolean;
+  isSuccessful: boolean;
   errorMessage: string | null;
   /** Warning messages (stock issues, etc.) - edit succeeded but user should be notified */
   warnings: string[];
@@ -607,7 +607,7 @@ export interface CreateDraftOrderDto {
 /** Result DTO returned after creating a draft order */
 export interface CreateDraftOrderResultDto {
   /** Whether the draft order was created successfully */
-  success: boolean;
+  isSuccessful: boolean;
   /** The ID of the created invoice (if successful) */
   invoiceId?: string;
   /** The invoice number of the created order (if successful) */

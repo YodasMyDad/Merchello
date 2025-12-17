@@ -256,11 +256,11 @@ public class PaymentProvidersApiController(
     /// Test a payment provider configuration by creating a test payment session
     /// </summary>
     [HttpPost("payment-providers/{id:guid}/test")]
-    [ProducesResponseType<TestPaymentProviderResponseDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<TestPaymentProviderResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> TestProvider(
         Guid id,
-        [FromBody] TestPaymentProviderRequestDto request,
+        [FromBody] TestPaymentProviderDto request,
         CancellationToken cancellationToken = default)
     {
         // 1. Get provider setting
@@ -289,7 +289,7 @@ public class PaymentProvidersApiController(
         };
 
         // 4. Create response
-        var response = new TestPaymentProviderResponseDto
+        var response = new TestPaymentProviderResultDto
         {
             ProviderAlias = setting.ProviderAlias,
             ProviderName = setting.DisplayName,
@@ -300,7 +300,7 @@ public class PaymentProvidersApiController(
         {
             var sessionResult = await provider.Provider.CreatePaymentSessionAsync(paymentRequest, cancellationToken);
 
-            response.Success = sessionResult.Success;
+            response.IsSuccessful = sessionResult.Success;
             response.SessionId = sessionResult.SessionId;
             response.RedirectUrl = sessionResult.RedirectUrl;
             response.ClientToken = sessionResult.ClientToken;
@@ -323,7 +323,7 @@ public class PaymentProvidersApiController(
         }
         catch (Exception ex)
         {
-            response.Success = false;
+            response.IsSuccessful = false;
             response.ErrorMessage = ex.Message;
         }
 

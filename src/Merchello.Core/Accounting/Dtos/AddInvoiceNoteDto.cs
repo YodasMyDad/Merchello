@@ -6,5 +6,5 @@ namespace Merchello.Core.Accounting.Dtos;
 public class AddInvoiceNoteDto
 {
     public string Text { get; set; } = string.Empty;
-    public bool VisibleToCustomer { get; set; }
+    public bool IsVisibleToCustomer { get; set; }
 }

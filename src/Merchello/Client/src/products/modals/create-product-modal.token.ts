@@ -3,7 +3,7 @@ import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
 export interface CreateProductModalData {}
 
 export interface CreateProductModalValue {
-  created: boolean;
+  isCreated: boolean;
   productId?: string;
 }
 

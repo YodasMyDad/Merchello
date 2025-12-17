@@ -206,7 +206,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
         },
       });
 
-      this.modalContext?.setValue({ saved: true });
+      this.modalContext?.setValue({ isSaved: true });
       this.modalContext?.submit();
     } catch (err) {
       this.#notificationContext?.peek("danger", {

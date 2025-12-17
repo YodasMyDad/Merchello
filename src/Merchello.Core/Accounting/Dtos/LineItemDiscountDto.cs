@@ -25,6 +25,6 @@ public class LineItemDiscountDto
     /// <summary>
     /// Whether the discount reason is visible to customer
     /// </summary>
-    public bool VisibleToCustomer { get; set; }
+    public bool IsVisibleToCustomer { get; set; }
 }
 

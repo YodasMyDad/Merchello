@@ -61,7 +61,7 @@ export class MerchelloProductTypeModalElement extends UmbModalBaseElement<
         return;
       }
 
-      this.value = { productType: data, updated: true };
+      this.value = { productType: data, isUpdated: true };
       this.modalContext?.submit();
     } else {
       // Create new product type
@@ -76,7 +76,7 @@ export class MerchelloProductTypeModalElement extends UmbModalBaseElement<
         return;
       }
 
-      this.value = { productType: data, created: true };
+      this.value = { productType: data, isCreated: true };
       this.modalContext?.submit();
     }
   }

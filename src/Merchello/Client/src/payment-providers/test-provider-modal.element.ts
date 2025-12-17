@@ -2,7 +2,7 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { TestPaymentProviderModalData, TestPaymentProviderModalValue } from "./test-provider-modal.token.js";
-import type { TestPaymentProviderRequestDto, TestPaymentProviderResponseDto } from "./types.js";
+import type { TestPaymentProviderDto, TestPaymentProviderResultDto } from "./types.js";
 import { PaymentIntegrationType } from "./types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
@@ -23,7 +23,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
 
   // UI state
   @state() private _isTesting = false;
-  @state() private _testResult?: TestPaymentProviderResponseDto;
+  @state() private _testResult?: TestPaymentProviderResultDto;
   @state() private _errorMessage: string | null = null;
 
   #isConnected = false;
@@ -77,7 +77,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
       return;
     }
 
-    const request: TestPaymentProviderRequestDto = {
+    const request: TestPaymentProviderDto = {
       amount: this._amount,
     };
 
@@ -134,7 +134,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
   private _renderResults(): unknown {
     if (!this._testResult) return nothing;
 
-    const { success, integrationType, errorMessage, errorCode, sessionId, redirectUrl, clientToken, clientSecret, javaScriptSdkUrl, formFields } = this._testResult;
+    const { isSuccessful: success, integrationType, errorMessage, errorCode, sessionId, redirectUrl, clientToken, clientSecret, javaScriptSdkUrl, formFields } = this._testResult;
 
     return html`
       <div class="results-section">

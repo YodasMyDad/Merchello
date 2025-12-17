@@ -12,7 +12,7 @@ public class UpdateWarehouseDto
     /// <summary>
     /// If true, clears the SupplierId (sets it to null).
     /// </summary>
-    public bool ClearSupplierId { get; set; }
+    public bool ShouldClearSupplierId { get; set; }
 
     public WarehouseAddressDto? Address { get; set; }
 }

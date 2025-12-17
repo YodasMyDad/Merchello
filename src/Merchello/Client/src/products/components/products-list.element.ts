@@ -170,7 +170,7 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
     });
 
     const result = await modal?.onSubmit().catch(() => undefined);
-    if (result?.created && result.productId) {
+    if (result?.isCreated && result.productId) {
       navigateToProductDetail(result.productId);
     }
   }

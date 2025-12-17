@@ -35,7 +35,7 @@ public static class WarehouseServiceDbSeedExtensions
         var warehouse = warehouseFactory.Create(name, address);
         warehouse.Code = code;
         warehouse.AutomationMethod = automationMethod;
-        warehouse.ExtendedData = extendedData ?? new Dictionary<string, object>();
+        warehouse.ExtendedData = extendedData ?? [];
 
         // Link to supplier if provided
         if (supplier != null)

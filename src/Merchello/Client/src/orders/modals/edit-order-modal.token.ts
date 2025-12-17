@@ -7,7 +7,7 @@ export interface EditOrderModalData {
 
 export interface EditOrderModalValue {
   /** Whether the order was saved */
-  saved: boolean;
+  isSaved: boolean;
 }
 
 export const MERCHELLO_EDIT_ORDER_MODAL = new UmbModalToken<

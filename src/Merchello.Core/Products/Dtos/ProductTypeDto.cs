@@ -13,9 +13,9 @@ public class ProductTypeDto
 }
 
 /// <summary>
-/// Request to create a new product type
+/// DTO for creating a new product type
 /// </summary>
-public class CreateProductTypeRequest
+public class CreateProductTypeDto
 {
     [Required]
     [MinLength(1)]
@@ -23,9 +23,9 @@ public class CreateProductTypeRequest
 }
 
 /// <summary>
-/// Request to update an existing product type
+/// DTO for updating an existing product type
 /// </summary>
-public class UpdateProductTypeRequest
+public class UpdateProductTypeDto
 {
     [Required]
     [MinLength(1)]

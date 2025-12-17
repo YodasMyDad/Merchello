@@ -10,7 +10,7 @@ export interface PaymentProviderConfigModalData {
 
 export interface PaymentProviderConfigModalValue {
   /** Whether the provider was saved/updated */
-  saved: boolean;
+  isSaved: boolean;
 }
 
 export const MERCHELLO_PAYMENT_PROVIDER_CONFIG_MODAL = new UmbModalToken<

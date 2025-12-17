@@ -159,6 +159,66 @@ public class ProductsApiController(
 
     #endregion
 
+    #region Shipping Exclusions Endpoints
+
+    /// <summary>
+    /// Gets available shipping options for a product with exclusion status.
+    /// </summary>
+    [HttpGet("products/{productRootId:guid}/shipping-options")]
+    [ProducesResponseType<List<ShippingOptionExclusionDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProductShippingOptions(
+        Guid productRootId,
+        CancellationToken cancellationToken)
+    {
+        var options = await productService.GetAvailableShippingOptionsAsync(productRootId, cancellationToken);
+        if (options == null) return NotFound();
+        return Ok(options);
+    }
+
+    /// <summary>
+    /// Updates shipping exclusions for all variants (bulk mode).
+    /// </summary>
+    [HttpPut("products/{productRootId:guid}/shipping-exclusions")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateProductShippingExclusions(
+        Guid productRootId,
+        [FromBody] UpdateShippingExclusionsDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await productService.UpdateProductRootExcludedShippingOptionsAsync(
+            productRootId,
+            request.ExcludedShippingOptionIds,
+            cancellationToken);
+
+        if (!result.Successful) return NotFound();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Updates shipping exclusions for a specific variant.
+    /// </summary>
+    [HttpPut("products/{productRootId:guid}/variants/{variantId:guid}/shipping-exclusions")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateVariantShippingExclusions(
+        Guid productRootId,
+        Guid variantId,
+        [FromBody] UpdateShippingExclusionsDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await productService.UpdateVariantExcludedShippingOptions(
+            variantId,
+            request.ExcludedShippingOptionIds,
+            cancellationToken);
+
+        if (!result.Successful) return NotFound();
+        return NoContent();
+    }
+
+    #endregion
+
     #region Options Endpoints
 
     /// <summary>
@@ -268,7 +328,7 @@ public class ProductsApiController(
     [HttpPost("products/types")]
     [ProducesResponseType<ProductTypeDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreateProductType([FromBody] CreateProductTypeRequest request)
+    public async Task<IActionResult> CreateProductType([FromBody] CreateProductTypeDto request)
     {
         var result = await productService.CreateProductType(request.Name);
         if (!result.Successful)
@@ -285,7 +345,7 @@ public class ProductsApiController(
     [ProducesResponseType<ProductTypeDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateProductType(Guid id, [FromBody] UpdateProductTypeRequest request)
+    public async Task<IActionResult> UpdateProductType(Guid id, [FromBody] UpdateProductTypeDto request)
     {
         var result = await productService.UpdateProductType(id, request.Name);
         if (!result.Successful)
@@ -382,7 +442,7 @@ public class ProductsApiController(
     /// Returns null if no Element Type is configured.
     /// </summary>
     [HttpGet("products/element-type")]
-    [ProducesResponseType<ElementTypeResponseModel>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ElementTypeDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetProductElementType()
     {
         var contentType = await productService.GetProductElementTypeAsync();
@@ -398,11 +458,11 @@ public class ProductsApiController(
     /// Views are discovered from files and compiled Razor Class Libraries.
     /// </summary>
     [HttpGet("products/views")]
-    [ProducesResponseType<IReadOnlyList<ProductViewResponseDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<IReadOnlyList<ProductViewDto>>(StatusCodes.Status200OK)]
     public IActionResult GetAvailableViews()
     {
         var views = productService.GetAvailableViews();
-        var response = views.Select(v => new ProductViewResponseDto
+        var response = views.Select(v => new ProductViewDto
         {
             Alias = v.Alias,
             VirtualPath = v.VirtualPath
@@ -410,7 +470,7 @@ public class ProductsApiController(
         return Ok(response);
     }
 
-    private async Task<ElementTypeResponseModel> MapToElementTypeResponse(IContentType contentType)
+    private async Task<ElementTypeDto> MapToElementTypeResponse(IContentType contentType)
     {
         // Match Umbraco's content type mapping logic:
         // - Containers can be nested by encoding hierarchy in aliases using "/" (e.g. "tabAlias/groupAlias")
@@ -449,7 +509,7 @@ public class ProductsApiController(
             properties.Add(elementProp);
         }
 
-        return new ElementTypeResponseModel
+        return new ElementTypeDto
         {
             Id = contentType.Key,
             Alias = contentType.Alias,

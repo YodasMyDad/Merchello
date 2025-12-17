@@ -9,5 +9,5 @@ public class InvoiceNoteDto
     public string Text { get; set; } = string.Empty;
     public Guid? AuthorId { get; set; }
     public string? Author { get; set; }
-    public bool VisibleToCustomer { get; set; }
+    public bool IsVisibleToCustomer { get; set; }
 }
