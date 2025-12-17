@@ -9,7 +9,9 @@ namespace Merchello.Controllers;
 
 [ApiVersion("1.0")]
 [ApiExplorerSettings(GroupName = "Merchello")]
-public class CustomersApiController(ICustomerService customerService) : MerchelloApiControllerBase
+public class CustomersApiController(
+    ICustomerService customerService,
+    ICustomerSegmentService segmentService) : MerchelloApiControllerBase
 {
     /// <summary>
     /// Get paginated list of customers with optional search
@@ -75,5 +77,45 @@ public class CustomersApiController(ICustomerService customerService) : Merchell
         // Fetch the DTO to get the correct order count
         var customer = await customerService.GetDtoByIdAsync(id, ct);
         return Ok(customer);
+    }
+
+    /// <summary>
+    /// Get segments that a customer belongs to (by email)
+    /// </summary>
+    [HttpGet("customers/segments")]
+    [ProducesResponseType<List<CustomerSegmentBadgeDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetCustomerSegments([FromQuery] string email, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return BadRequest("Email is required");
+        }
+
+        var customer = await customerService.GetByEmailAsync(email, ct);
+        if (customer == null)
+        {
+            return NotFound("Customer not found");
+        }
+
+        var segmentIds = await segmentService.GetCustomerSegmentIdsAsync(customer.Id, ct);
+
+        var badges = new List<CustomerSegmentBadgeDto>();
+        foreach (var segmentId in segmentIds)
+        {
+            var segment = await segmentService.GetByIdAsync(segmentId, ct);
+            if (segment != null && segment.IsActive)
+            {
+                badges.Add(new CustomerSegmentBadgeDto
+                {
+                    Id = segment.Id,
+                    Name = segment.Name,
+                    SegmentType = segment.SegmentType
+                });
+            }
+        }
+
+        return Ok(badges);
     }
 }

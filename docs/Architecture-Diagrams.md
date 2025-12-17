@@ -31,6 +31,7 @@ FACTORIES → All object creation, stateless singletons
 | Order creation | `IInvoiceService.CreateOrderFromBasketAsync()` |
 | Shipping quotes | `IShippingQuoteService.GetQuotesAsync()` |
 | Customer get/create | `ICustomerService.GetOrCreateByEmailAsync()` |
+| Segment membership | `ICustomerSegmentService.IsCustomerInSegmentAsync()` |
 
 ### Factories
 

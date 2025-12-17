@@ -8,6 +8,7 @@ import "@orders/components/order-table.element.js";
 import type { OrderClickEventDetail } from "@orders/components/order-table.element.js";
 import "@shared/components/merchello-empty-state.element.js";
 import { navigateToOrderDetail } from "@shared/utils/navigation.js";
+import type { CustomerSegmentBadgeDto } from "@customers/types/segment.types.js";
 import type {
   CustomerOrdersModalData,
   CustomerOrdersModalValue,
@@ -19,15 +20,16 @@ export class MerchelloCustomerOrdersModalElement extends UmbModalBaseElement<
   CustomerOrdersModalValue
 > {
   @state() private _orders: OrderListItemDto[] = [];
+  @state() private _segments: CustomerSegmentBadgeDto[] = [];
   @state() private _isLoading = true;
   @state() private _errorMessage: string | null = null;
 
   connectedCallback(): void {
     super.connectedCallback();
-    this._loadOrders();
+    this._loadData();
   }
 
-  private async _loadOrders(): Promise<void> {
+  private async _loadData(): Promise<void> {
     const email = this.data?.email;
     if (!email) {
       this._errorMessage = "No customer email provided";
@@ -38,15 +40,20 @@ export class MerchelloCustomerOrdersModalElement extends UmbModalBaseElement<
     this._isLoading = true;
     this._errorMessage = null;
 
-    const { data, error } = await MerchelloApi.getCustomerOrders(email);
+    // Load orders and segments in parallel
+    const [ordersResult, segmentsResult] = await Promise.all([
+      MerchelloApi.getCustomerOrders(email),
+      MerchelloApi.getCustomerSegmentBadges(email),
+    ]);
 
-    if (error) {
-      this._errorMessage = error.message;
+    if (ordersResult.error) {
+      this._errorMessage = ordersResult.error.message;
       this._isLoading = false;
       return;
     }
 
-    this._orders = data ?? [];
+    this._orders = ordersResult.data ?? [];
+    this._segments = segmentsResult.data ?? [];
     this._isLoading = false;
   }
 
@@ -95,6 +102,27 @@ export class MerchelloCustomerOrdersModalElement extends UmbModalBaseElement<
     `;
   }
 
+  private _renderSegmentBadges(): unknown {
+    if (this._segments.length === 0) {
+      return nothing;
+    }
+
+    return html`
+      <div class="segment-badges">
+        ${this._segments.map(
+          (segment) => html`
+            <uui-tag
+              look="secondary"
+              class="segment-badge segment-badge--${segment.segmentType.toLowerCase()}"
+            >
+              ${segment.name}
+            </uui-tag>
+          `
+        )}
+      </div>
+    `;
+  }
+
   private _renderContent(): unknown {
     if (this._isLoading) {
       return this._renderLoadingState();
@@ -115,6 +143,7 @@ export class MerchelloCustomerOrdersModalElement extends UmbModalBaseElement<
     return html`
       <umb-body-layout headline="Orders for ${customerName}">
         <div id="main">
+          ${!this._isLoading ? this._renderSegmentBadges() : nothing}
           ${!this._isLoading && !this._errorMessage && orderCount > 0
             ? html`
                 <div class="summary">
@@ -165,6 +194,25 @@ export class MerchelloCustomerOrdersModalElement extends UmbModalBaseElement<
       display: flex;
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
+    }
+
+    .segment-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--uui-size-space-2);
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .segment-badge {
+      font-size: 0.75rem;
+    }
+
+    .segment-badge--manual {
+      --uui-tag-slot-color: var(--uui-color-default-emphasis);
+    }
+
+    .segment-badge--automated {
+      --uui-tag-slot-color: var(--uui-color-positive-emphasis);
     }
   `;
 }

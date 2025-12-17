@@ -23,7 +23,8 @@ public class CustomerFactory
             FirstName = ExtractFirstName(billingAddress?.Name),
             LastName = ExtractLastName(billingAddress?.Name),
             DateCreated = now,
-            DateUpdated = now
+            DateUpdated = now,
+            Tags = []
         };
     }
 
@@ -41,7 +42,8 @@ public class CustomerFactory
             FirstName = parameters.FirstName,
             LastName = parameters.LastName,
             DateCreated = now,
-            DateUpdated = now
+            DateUpdated = now,
+            Tags = []
         };
     }
 

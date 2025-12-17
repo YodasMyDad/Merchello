@@ -83,4 +83,24 @@ public interface ICustomerService
     /// Checks if any customers exist (for seeding)
     /// </summary>
     Task<bool> AnyExistAsync(CancellationToken ct = default);
+
+    // =====================================================
+    // Batch Operations (Performance)
+    // =====================================================
+
+    /// <summary>
+    /// Gets multiple customers by their IDs in a single query.
+    /// </summary>
+    /// <param name="customerIds">The customer IDs to retrieve.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>List of customers (order not guaranteed to match input).</returns>
+    Task<List<Customer>> GetByIdsAsync(List<Guid> customerIds, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets multiple customer DTOs by their IDs in a single query (includes order counts).
+    /// </summary>
+    /// <param name="customerIds">The customer IDs to retrieve.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>List of customer DTOs with order counts.</returns>
+    Task<List<CustomerListItemDto>> GetDtosByIdsAsync(List<Guid> customerIds, CancellationToken ct = default);
 }

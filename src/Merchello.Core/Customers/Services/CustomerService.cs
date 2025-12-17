@@ -344,4 +344,46 @@ public class CustomerService(
         scope.Complete();
         return exists;
     }
+
+    /// <inheritdoc />
+    public async Task<List<Customer>> GetByIdsAsync(List<Guid> customerIds, CancellationToken ct = default)
+    {
+        if (customerIds.Count == 0)
+            return [];
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.Customers
+                .AsNoTracking()
+                .Where(c => customerIds.Contains(c.Id))
+                .ToListAsync(ct));
+        scope.Complete();
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<List<CustomerListItemDto>> GetDtosByIdsAsync(List<Guid> customerIds, CancellationToken ct = default)
+    {
+        if (customerIds.Count == 0)
+            return [];
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.Customers
+                .AsNoTracking()
+                .Where(c => customerIds.Contains(c.Id))
+                .Select(c => new CustomerListItemDto
+                {
+                    Id = c.Id,
+                    Email = c.Email,
+                    FirstName = c.FirstName,
+                    LastName = c.LastName,
+                    MemberKey = c.MemberKey,
+                    DateCreated = c.DateCreated,
+                    OrderCount = c.Invoices != null ? c.Invoices.Count : 0
+                })
+                .ToListAsync(ct));
+        scope.Complete();
+        return result;
+    }
 }

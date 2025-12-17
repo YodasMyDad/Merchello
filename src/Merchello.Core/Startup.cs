@@ -121,6 +121,7 @@ public static class Startup
 
         // Customers
         builder.Services.AddSingleton<CustomerFactory>();
+        builder.Services.AddSingleton<CustomerSegmentFactory>();
 
         // Other
         builder.Services.AddSingleton<ShippingOptionFactory>();
@@ -142,6 +143,8 @@ public static class Startup
 
         // Customers
         builder.Services.AddScoped<ICustomerService, CustomerService>();
+        builder.Services.AddScoped<ICustomerSegmentService, CustomerSegmentService>();
+        builder.Services.AddScoped<ISegmentCriteriaEvaluator, SegmentCriteriaEvaluator>();
 
         // Products & Inventory
         builder.Services.AddScoped<IProductService, ProductService>();
