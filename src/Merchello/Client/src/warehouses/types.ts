@@ -62,7 +62,7 @@ export interface UpdateWarehouseDto {
   name?: string;
   code?: string;
   supplierId?: string;
-  clearSupplierId?: boolean;
+  shouldClearSupplierId?: boolean;
   address?: WarehouseAddressDto;
 }
 

@@ -79,7 +79,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     }
 
     this.value = {
-      saved: true,
+      isSaved: true,
       option: {
         id: this._formData.id || crypto.randomUUID(),
         name: this._formData.name || "",
@@ -97,8 +97,8 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
 
   private _handleDelete(): void {
     this.value = {
-      saved: true,
-      deleted: true,
+      isSaved: true,
+      isDeleted: true,
     };
     this.modalContext?.submit();
   }

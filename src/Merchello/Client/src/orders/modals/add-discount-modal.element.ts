@@ -12,7 +12,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
   @state() private _discountType: DiscountType = DiscountType.Amount;
   @state() private _discountValue: number = 0;
   @state() private _discountReason: string = "";
-  @state() private _visibleToCustomer: boolean = false;
+  @state() private _isVisibleToCustomer: boolean = false;
   @state() private _errors: Record<string, string> = {};
 
   connectedCallback(): void {
@@ -22,7 +22,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
       this._discountType = this.data.existingDiscount.type;
       this._discountValue = this.data.existingDiscount.value;
       this._discountReason = this.data.existingDiscount.reason ?? "";
-      this._visibleToCustomer = this.data.existingDiscount.visibleToCustomer;
+      this._isVisibleToCustomer = this.data.existingDiscount.isVisibleToCustomer;
     }
   }
 
@@ -49,7 +49,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
         type: this._discountType,
         value: this._discountValue,
         reason: this._discountReason.trim() || null,
-        visibleToCustomer: this._visibleToCustomer,
+        isVisibleToCustomer: this._isVisibleToCustomer,
       },
     };
     this.modalContext?.submit();
@@ -147,8 +147,8 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
 
           <div class="form-row checkbox-row">
             <uui-checkbox
-              .checked=${this._visibleToCustomer}
-              @change=${(e: Event) => (this._visibleToCustomer = (e.target as HTMLInputElement).checked)}
+              .checked=${this._isVisibleToCustomer}
+              @change=${(e: Event) => (this._isVisibleToCustomer = (e.target as HTMLInputElement).checked)}
             >
               Visible to customer
             </uui-checkbox>

@@ -12,11 +12,11 @@ export interface FilterModalValue {
   /** The created or updated filter */
   filter?: ProductFilterDto;
   /** True if a new filter was created */
-  created?: boolean;
+  isCreated?: boolean;
   /** True if an existing filter was updated */
-  updated?: boolean;
+  isUpdated?: boolean;
   /** True if the filter was deleted */
-  deleted?: boolean;
+  isDeleted?: boolean;
 }
 
 export const MERCHELLO_FILTER_MODAL = new UmbModalToken<

@@ -135,7 +135,7 @@ public class ExchangeRateProvidersApiController(
     /// Test an exchange rate provider by fetching rates
     /// </summary>
     [HttpPost("exchange-rate-providers/{alias}/test")]
-    [ProducesResponseType<TestExchangeRateProviderResponseDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<TestExchangeRateProviderResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> TestProvider(string alias, CancellationToken cancellationToken = default)
     {
@@ -149,7 +149,7 @@ public class ExchangeRateProvidersApiController(
         }
 
         var baseCurrency = _settings.StoreCurrencyCode;
-        var response = new TestExchangeRateProviderResponseDto
+        var response = new TestExchangeRateProviderResultDto
         {
             BaseCurrency = baseCurrency
         };
@@ -158,7 +158,7 @@ public class ExchangeRateProvidersApiController(
         {
             var result = await provider.Provider.GetRatesAsync(baseCurrency, cancellationToken);
 
-            response.Success = result.Success;
+            response.IsSuccessful = result.Success;
             response.ErrorMessage = result.ErrorMessage;
             response.RateTimestamp = result.TimestampUtc;
             response.TotalRatesCount = result.Rates.Count;
@@ -184,7 +184,7 @@ public class ExchangeRateProvidersApiController(
         }
         catch (Exception ex)
         {
-            response.Success = false;
+            response.IsSuccessful = false;
             response.ErrorMessage = ex.Message;
         }
 

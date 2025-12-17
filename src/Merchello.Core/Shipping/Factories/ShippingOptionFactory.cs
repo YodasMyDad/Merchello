@@ -43,6 +43,6 @@ public class ShippingOptionFactory
         Warehouse warehouse, int daysFrom, int daysTo, bool isNextDay,
         TimeSpan? nextDayCutOffTime)
     {
-        return Create(name, cost, warehouse, daysFrom, daysTo, isNextDay, nextDayCutOffTime, new Dictionary<string, decimal>());
+        return Create(name, cost, warehouse, daysFrom, daysTo, isNextDay, nextDayCutOffTime, []);
     }
 }

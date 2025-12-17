@@ -420,7 +420,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
       return;
     }
 
-    if (data?.success && data.invoiceId) {
+    if (data?.isSuccessful && data.invoiceId) {
       this.#notificationContext?.peek("positive", {
         data: {
           headline: "Order Created",
@@ -428,7 +428,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
         },
       });
 
-      this.value = { created: true, invoiceId: data.invoiceId };
+      this.value = { isCreated: true, invoiceId: data.invoiceId };
       this.modalContext?.submit();
     } else {
       this._errorMessage = data?.errorMessage ?? "Failed to create order";

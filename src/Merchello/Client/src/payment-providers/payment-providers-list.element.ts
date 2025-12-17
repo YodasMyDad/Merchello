@@ -92,7 +92,7 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
-    if (result?.saved) {
+    if (result?.isSaved) {
       await this._loadProviders();
     }
   }

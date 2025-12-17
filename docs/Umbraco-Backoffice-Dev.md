@@ -51,6 +51,95 @@
 | `icons` | — (uses `js`) | — | — |
 | `localization` | `culture` (uses `js`) | — | — |
 | `backofficeEntryPoint` | — | — | — |
+| `ufmFilter` | `alias` (meta) | — | — |
+| `ufmComponent` | `alias` (meta) | — | — |
+
+## UFM (Umbraco Form Markup) Development
+
+UFM allows custom filters and components to transform/render values in Umbraco's markup syntax.
+
+### UFM Filter
+Transforms a value with optional parameters:
+
+```typescript
+// manifest.ts
+{
+  type: 'ufmFilter',
+  alias: 'My.DateFormat.Filter',
+  name: 'Date Format Filter',
+  api: () => import('./date-format-filter.js'),
+  meta: { alias: 'dateFormat' }  // Used as: {= value | dateFormat: 'yyyy-MM-dd' =}
+}
+
+// date-format-filter.ts
+import { UmbUfmFilterBase } from '@umbraco-cms/backoffice/ufm';
+
+export class DateFormatFilter extends UmbUfmFilterBase {
+  filter(value: unknown, ...args: Array<unknown>): unknown {
+    if (!value) return '';
+    const format = args[0] as string ?? 'yyyy-MM-dd';
+    // Transform and return the value
+    return formatDate(value as string, format);
+  }
+}
+
+export { DateFormatFilter as api };
+```
+
+### UFM Component
+Renders custom markup from a token:
+
+```typescript
+// manifest.ts
+{
+  type: 'ufmComponent',
+  alias: 'My.Tag.Component',
+  name: 'Tag Component',
+  api: () => import('./tag-component.js'),
+  meta: { alias: 'tag' }  // Used as: {tag color="blue"}Label{/tag}
+}
+
+// tag-component.ts
+import { UmbUfmComponentBase } from '@umbraco-cms/backoffice/ufm';
+
+export class TagComponent extends UmbUfmComponentBase {
+  render(token: unknown): string {
+    // For simple cases, return HTML string directly
+    const attrs = this.getAttributes(token);
+    const color = attrs?.color ?? 'default';
+    return `<span class="tag tag-${color}">${token.text}</span>`;
+
+    // For async operations, delegate to a web element:
+    // return `<ufm-my-tag data-id="${token.text}"></ufm-my-tag>`;
+  }
+}
+
+export { TagComponent as api };
+```
+
+### UFM Web Element (for async operations)
+When a UFM component needs async data, delegate to a web element:
+
+```typescript
+import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
+import { UMB_UFM_RENDER_CONTEXT } from '@umbraco-cms/backoffice/ufm';
+
+@customElement('ufm-my-tag')
+export class UfmMyTagElement extends UmbLitElement {
+  constructor() {
+    super();
+    this.consumeContext(UMB_UFM_RENDER_CONTEXT, (context) => {
+      // Access block property values reactively
+      this.observe(context.value, (value) => { /* render based on value */ });
+    });
+  }
+}
+```
+
+### UFM Naming Conventions
+- **Extension aliases**: Dot notation (`My.DateFormat.Filter`)
+- **UFM aliases** (in meta): camelCase (`dateFormat`, `tag`)
+- **Web component tags**: kebab-case with prefix (`<ufm-my-tag>`)
 
 ## Full Extension Examples
 
@@ -1722,3 +1811,134 @@ public IActionResult GetDescriptionEditorSettings()
 ### Complete Example
 
 See [product-detail.element.ts](../src/Merchello/Client/src/products/components/product-detail.element.ts) for a complete implementation using TipTap with DataType configuration.
+
+---
+
+## Programmatic Block List Creation (C#)
+
+When importing content or programmatically creating Block List/Block Grid data from C#, you need to understand the JSON structure.
+
+### Block List Data Structure
+
+Block Lists consist of three components:
+
+```json
+{
+  "layout": {
+    "Umbraco.BlockList": [
+      { "contentUdi": "umb://element/guid-here" }
+    ]
+  },
+  "contentData": [
+    {
+      "udi": "umb://element/guid-here",
+      "contentTypeKey": "element-type-guid",
+      "propertyAlias": "value"
+    }
+  ],
+  "settingsData": []
+}
+```
+
+| Component | Purpose |
+|-----------|---------|
+| `layout` | Defines block order, ties each item to a UDI |
+| `contentData` | Holds actual block content with properties matching element type |
+| `settingsData` | Optional settings element (must exist in JSON even if empty array) |
+
+### Creating Blocks Programmatically
+
+```csharp
+using Umbraco.Cms.Core;
+using Umbraco.Cms.Core.Services;
+using System.Text.Json;
+
+public class BlockListImporter
+{
+    private readonly IContentService _contentService;
+    private readonly IContentTypeService _contentTypeService;
+
+    public BlockListImporter(IContentService contentService, IContentTypeService contentTypeService)
+    {
+        _contentService = contentService;
+        _contentTypeService = contentTypeService;
+    }
+
+    public void ImportBlocks(IContent page, string propertyAlias, List<BlockItemDto> items)
+    {
+        // Get the element type GUID
+        var elementType = _contentTypeService.Get("myBlockElementType");
+        if (elementType == null) return;
+
+        var layout = new List<object>();
+        var contentData = new List<object>();
+
+        foreach (var item in items)
+        {
+            // Generate unique UDI for each block
+            var blockGuid = Guid.NewGuid();
+            var udi = Udi.Create("element", blockGuid);
+
+            // Add to layout (defines order)
+            layout.Add(new { contentUdi = udi.ToString() });
+
+            // Add to contentData (actual content)
+            contentData.Add(new
+            {
+                udi = udi.ToString(),
+                contentTypeKey = elementType.Key,
+                // Property aliases must match your element type definition
+                title = item.Title,
+                description = item.Description,
+                // Add more properties as needed
+            });
+        }
+
+        // Build the complete Block List structure
+        var blockListValue = new
+        {
+            layout = new { Umbraco.BlockList = layout },
+            contentData = contentData,
+            settingsData = Array.Empty<object>()  // Required even if empty
+        };
+
+        // Serialize and assign to content
+        var json = JsonSerializer.Serialize(blockListValue);
+        page.SetValue(propertyAlias, json);
+
+        // Save and optionally publish
+        _contentService.Save(page);
+        // _contentService.Publish(page, ["*"]);  // Publish all cultures
+    }
+}
+```
+
+### Key Points
+
+1. **UDI Generation**: Use `Udi.Create("element", Guid.NewGuid())` for each block
+2. **Element Type Key**: Get via `_contentTypeService.Get("alias").Key`
+3. **Property Aliases**: Must exactly match the element type's property aliases
+4. **Settings Data**: Always include `settingsData` array (even if empty)
+5. **Layout Key**: Use `"Umbraco.BlockList"` for Block List, `"Umbraco.BlockGrid"` for Block Grid
+
+### Block Grid Differences
+
+Block Grid uses the same structure but with additional positioning data:
+
+```csharp
+layout.Add(new
+{
+    contentUdi = udi.ToString(),
+    columnSpan = 12,  // Grid column span
+    rowSpan = 1,      // Grid row span
+    areas = Array.Empty<object>()  // Nested areas if applicable
+});
+```
+
+### Required Services
+
+| Service | Purpose |
+|---------|---------|
+| `IContentService` | Create, save, publish content |
+| `IContentTypeService` | Get element type definitions and GUIDs |
+| `IMediaService` | If blocks reference media items |

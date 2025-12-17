@@ -777,7 +777,7 @@ public class ProductService(
             .ToList();
 
         // Pre-generate all SKUs to check for duplicates
-        var variantData = new List<(IEnumerable<ProductOptionValue> Options, string Name, string Sku)>();
+        List<(IEnumerable<ProductOptionValue> Options, string Name, string Sku)> variantData = [];
         for (var index = 0; index < variantOptions.Count; index++)
         {
             var variantOption = variantOptions[index];
@@ -922,6 +922,110 @@ public class ProductService(
         return result;
     }
 
+    /// <inheritdoc />
+    public async Task<List<ShippingOptionExclusionDto>?> GetAvailableShippingOptionsAsync(
+        Guid productRootId,
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var productRoot = await db.RootProducts
+                .Include(pr => pr.ProductRootWarehouses)
+                    .ThenInclude(prw => prw.Warehouse)
+                        .ThenInclude(w => w!.ShippingOptions)
+                .Include(pr => pr.Products)
+                    .ThenInclude(p => p.ExcludedShippingOptions)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
+
+            if (productRoot == null) return null;
+
+            // Get all shipping options from assigned warehouses
+            var warehouseOptions = productRoot.ProductRootWarehouses
+                .SelectMany(prw => prw.Warehouse?.ShippingOptions ?? [])
+                .DistinctBy(so => so.Id)
+                .ToList();
+
+            // Calculate exclusion counts across ALL variants
+            var totalVariants = productRoot.Products.Count;
+            var exclusionCounts = productRoot.Products
+                .SelectMany(p => p.ExcludedShippingOptions.Select(eso => eso.Id))
+                .GroupBy(id => id)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            return warehouseOptions.Select(so =>
+            {
+                var excludedCount = exclusionCounts.GetValueOrDefault(so.Id, 0);
+                return new ShippingOptionExclusionDto
+                {
+                    Id = so.Id,
+                    Name = so.Name,
+                    WarehouseName = so.Warehouse?.Name,
+                    ProviderKey = so.ProviderKey,
+                    IsExcluded = excludedCount == totalVariants,
+                    IsPartiallyExcluded = excludedCount > 0 && excludedCount < totalVariants,
+                    ExcludedVariantCount = excludedCount,
+                    TotalVariantCount = totalVariants
+                };
+            }).ToList();
+        });
+
+        scope.Complete();
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<CrudResult<bool>> UpdateProductRootExcludedShippingOptionsAsync(
+        Guid productRootId,
+        List<Guid> excludedShippingOptionIds,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<bool>();
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            // Get all variants for this product root
+            var variants = await db.Products
+                .Include(p => p.ExcludedShippingOptions)
+                .Where(p => p.ProductRootId == productRootId)
+                .ToListAsync(cancellationToken);
+
+            if (variants.Count == 0)
+            {
+                result.AddErrorMessage("Product not found");
+                return;
+            }
+
+            // Load shipping options to exclude
+            var optionsToExclude = await db.ShippingOptions
+                .Where(so => excludedShippingOptionIds.Contains(so.Id))
+                .ToListAsync(cancellationToken);
+
+            // Apply exclusions to ALL variants (bulk mode)
+            foreach (var variant in variants)
+            {
+                variant.ShippingRestrictionMode = optionsToExclude.Count > 0
+                    ? ShippingRestrictionMode.ExcludeList
+                    : ShippingRestrictionMode.None;
+
+                variant.ExcludedShippingOptions.Clear();
+                foreach (var option in optionsToExclude)
+                {
+                    variant.ExcludedShippingOptions.Add(option);
+                }
+            }
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            result.ResultObject = result.Successful;
+        });
+
+        scope.Complete();
+        return result;
+    }
+
     /// <summary>
     /// Sets the default variant for a product root, ensuring only one default is set.
     /// </summary>
@@ -993,8 +1097,9 @@ public class ProductService(
             if (productRootDb.Categories.Any())
             {
                 // We have categories, so we need to check which ones to add and remove
-                var itemsToRemove = new List<ProductCategory>(
-                    productRootDb.Categories.ExceptBy(updatedProductRoot.Categories.Select(x => x.Id), x => x.Id));
+                var itemsToRemove = productRootDb.Categories
+                    .ExceptBy(updatedProductRoot.Categories.Select(x => x.Id), x => x.Id)
+                    .ToList();
                 foreach (var productCategory in itemsToRemove)
                 {
                     productRootDb.Categories.Remove(productCategory);
@@ -1332,9 +1437,12 @@ public class ProductService(
                 .Include(pr => pr.Categories)
                 .Include(pr => pr.ProductRootWarehouses)
                     .ThenInclude(prw => prw.Warehouse)
+                        .ThenInclude(w => w!.ShippingOptions)
                 .Include(pr => pr.Products)
                     .ThenInclude(p => p.ProductWarehouses)
                         .ThenInclude(pw => pw.Warehouse)
+                .Include(pr => pr.Products)
+                    .ThenInclude(p => p.ExcludedShippingOptions)
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
 
@@ -2012,9 +2120,45 @@ public class ProductService(
             ProductOptions = productRoot.ProductOptions.OrderBy(o => o.SortOrder).Select(MapToProductOptionDto).ToList(),
             Variants = productRoot.Products.OrderByDescending(p => p.Default).ThenBy(p => p.Name)
                 .Select(p => MapToProductVariantDto(p, productRoot.ProductRootWarehouses)).ToList(),
+            AvailableShippingOptions = MapToShippingOptionExclusionDtos(productRoot),
             ElementProperties = DeserializeElementProperties(productRoot.ElementPropertyData),
             ViewAlias = productRoot.ViewAlias
         };
+    }
+
+    /// <summary>
+    /// Maps warehouse shipping options with exclusion status for a product root
+    /// </summary>
+    private static List<ShippingOptionExclusionDto> MapToShippingOptionExclusionDtos(ProductRoot productRoot)
+    {
+        // Get all shipping options from assigned warehouses
+        var warehouseOptions = productRoot.ProductRootWarehouses
+            .SelectMany(prw => prw.Warehouse?.ShippingOptions ?? [])
+            .DistinctBy(so => so.Id)
+            .ToList();
+
+        // Calculate exclusion counts across ALL variants
+        var totalVariants = productRoot.Products.Count;
+        var exclusionCounts = productRoot.Products
+            .SelectMany(p => p.ExcludedShippingOptions.Select(eso => eso.Id))
+            .GroupBy(id => id)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        return warehouseOptions.Select(so =>
+        {
+            var excludedCount = exclusionCounts.GetValueOrDefault(so.Id, 0);
+            return new ShippingOptionExclusionDto
+            {
+                Id = so.Id,
+                Name = so.Name,
+                WarehouseName = so.Warehouse?.Name,
+                ProviderKey = so.ProviderKey,
+                IsExcluded = excludedCount == totalVariants,
+                IsPartiallyExcluded = excludedCount > 0 && excludedCount < totalVariants,
+                ExcludedVariantCount = excludedCount,
+                TotalVariantCount = totalVariants
+            };
+        }).ToList();
     }
 
     /// <summary>
@@ -2108,7 +2252,9 @@ public class ProductService(
             ShoppingFeedSize = product.ShoppingFeedSize,
             RemoveFromFeed = product.RemoveFromFeed,
             TotalStock = warehouseStock.Sum(ws => ws.Stock),
-            WarehouseStock = warehouseStock
+            WarehouseStock = warehouseStock,
+            ShippingRestrictionMode = product.ShippingRestrictionMode,
+            ExcludedShippingOptionIds = product.ExcludedShippingOptions.Select(eso => eso.Id).ToList()
         };
     }
 
@@ -2548,7 +2694,7 @@ public class ProductService(
     {
         var ids = productIds.ToList();
         if (ids.Count == 0)
-            return new Dictionary<Guid, string?>();
+            return [];
 
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
@@ -2603,9 +2749,9 @@ public class ProductService(
     /// </summary>
     public Dictionary<string, object?> DeserializeElementProperties(string? json)
         => string.IsNullOrEmpty(json)
-            ? new Dictionary<string, object?>()
+            ? []
             : JsonSerializer.Deserialize<Dictionary<string, object?>>(json, JsonOptions)
-              ?? new Dictionary<string, object?>();
+              ?? [];
 
     /// <summary>
     /// Gets a ProductRoot by its RootUrl for front-end routing.
@@ -2629,7 +2775,7 @@ public class ProductService(
     /// </summary>
     public IReadOnlyList<ProductViewInfo> GetAvailableViews()
     {
-        var views = new List<ProductViewInfo>();
+        List<ProductViewInfo> views = [];
         var locations = settings.Value.ProductViewLocations;
 
         // Scan file system for physical .cshtml files

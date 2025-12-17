@@ -62,7 +62,7 @@ public class SupplierService(
         supplier.ContactName = parameters.ContactName;
         supplier.ContactEmail = parameters.ContactEmail;
         supplier.ContactPhone = parameters.ContactPhone;
-        supplier.ExtendedData = parameters.ExtendedData ?? new Dictionary<string, object>();
+        supplier.ExtendedData = parameters.ExtendedData ?? [];
 
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>

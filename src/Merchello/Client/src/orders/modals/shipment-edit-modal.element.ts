@@ -53,7 +53,7 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
         this._errorMessage = error.message;
         return;
       }
-      this.modalContext?.setValue({ updated: true });
+      this.modalContext?.setValue({ isUpdated: true });
       this.modalContext?.submit();
     } catch (e) {
       this._errorMessage = e instanceof Error ? e.message : "Failed to update shipment";

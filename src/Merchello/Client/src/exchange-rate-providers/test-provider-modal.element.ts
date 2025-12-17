@@ -5,7 +5,7 @@ import type {
   ExchangeRateProviderTestModalData,
   ExchangeRateProviderTestModalValue,
 } from "./test-provider-modal.token.js";
-import type { TestExchangeRateProviderResponseDto } from "./types.js";
+import type { TestExchangeRateProviderResultDto } from "./types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
 @customElement("merchello-exchange-rate-provider-test-modal")
@@ -14,7 +14,7 @@ export class MerchelloExchangeRateProviderTestModalElement extends UmbModalBaseE
   ExchangeRateProviderTestModalValue
 > {
   @state() private _isTesting = false;
-  @state() private _testResult?: TestExchangeRateProviderResponseDto;
+  @state() private _testResult?: TestExchangeRateProviderResultDto;
   @state() private _errorMessage: string | null = null;
 
   #isConnected = false;
@@ -108,7 +108,7 @@ export class MerchelloExchangeRateProviderTestModalElement extends UmbModalBaseE
   private _renderResults(): unknown {
     if (!this._testResult) return nothing;
 
-    const { success, errorMessage, baseCurrency, sampleRates, rateTimestamp, totalRatesCount } =
+    const { isSuccessful: success, errorMessage, baseCurrency, sampleRates, rateTimestamp, totalRatesCount } =
       this._testResult;
 
     return html`

@@ -92,7 +92,7 @@ public static class ProductServiceDbSeedExtensions
 
         if (hasOptions)
         {
-            var options = new List<SaveProductOptionDto>();
+            List<SaveProductOptionDto> options = [];
 
             if (colors != null && colors.Length > 0)
             {

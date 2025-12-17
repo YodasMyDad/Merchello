@@ -212,7 +212,7 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
 
     const result = await modal.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.created && result.invoiceId) {
+    if (result?.isCreated && result.invoiceId) {
       // Navigate to the new order using SPA routing
       navigateToOrderDetail(result.invoiceId);
     }

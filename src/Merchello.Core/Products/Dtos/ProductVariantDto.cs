@@ -1,3 +1,5 @@
+using Merchello.Core.Products.Models;
+
 namespace Merchello.Core.Products.Dtos;
 
 /// <summary>
@@ -45,4 +47,14 @@ public class ProductVariantDto
     // Stock (aggregated from ProductWarehouses)
     public int TotalStock { get; set; }
     public List<VariantWarehouseStockDto> WarehouseStock { get; set; } = [];
+
+    /// <summary>
+    /// Current shipping restriction mode for this variant.
+    /// </summary>
+    public ShippingRestrictionMode ShippingRestrictionMode { get; set; }
+
+    /// <summary>
+    /// IDs of shipping options excluded for this specific variant.
+    /// </summary>
+    public List<Guid> ExcludedShippingOptionIds { get; set; } = [];
 }

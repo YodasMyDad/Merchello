@@ -14,6 +14,6 @@ public class RemoveLineItemDto
     /// Whether to return the item to available stock (default: true)
     /// Set to false for damaged/faulty items
     /// </summary>
-    public bool ReturnToStock { get; set; } = true;
+    public bool ShouldReturnToStock { get; set; } = true;
 }
 

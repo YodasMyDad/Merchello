@@ -78,7 +78,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
-    if (result?.updated) {
+    if (result?.isUpdated) {
       this._loadShipments();
     }
   }

@@ -4,7 +4,7 @@ export interface CreateOrderModalData {}
 
 export interface CreateOrderModalValue {
   /** Whether the order was created */
-  created: boolean;
+  isCreated: boolean;
   /** The ID of the created invoice (if successful) */
   invoiceId?: string;
 }

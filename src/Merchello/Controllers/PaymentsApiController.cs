@@ -252,7 +252,7 @@ public class PaymentsApiController(
             PaymentType = payment.PaymentType,
             TransactionId = payment.TransactionId,
             Description = payment.Description,
-            PaymentSuccess = payment.PaymentSuccess,
+            IsPaymentSuccessful = payment.PaymentSuccess,
             RefundReason = payment.RefundReason,
             ParentPaymentId = payment.ParentPaymentId,
             DateCreated = payment.DateCreated,

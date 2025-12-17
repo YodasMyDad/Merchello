@@ -1806,7 +1806,7 @@ public class InvoiceService(
                 .ToDictionaryAsync(so => so.Id, so => so.Name ?? "Unknown", cancellationToken);
 
             // Build stock availability map for all product line items
-            var stockInfoMap = new Dictionary<Guid, (bool IsTracked, int Available)>();
+            Dictionary<Guid, (bool IsTracked, int Available)> stockInfoMap = [];
             foreach (var order in orders)
             {
                 foreach (var li in order.LineItems?.Where(l => l.ProductId.HasValue) ?? [])
@@ -1927,7 +1927,7 @@ public class InvoiceService(
 
             var currencyCode = string.IsNullOrWhiteSpace(invoice.CurrencyCode) ? _settings.StoreCurrencyCode : invoice.CurrencyCode;
             var orders = invoice.Orders?.ToList() ?? [];
-            var warnings = new List<string>();
+            List<string> warnings = [];
 
             // Get tax groups for custom items
             var taxGroupIds = request.CustomItems
@@ -1941,7 +1941,7 @@ public class InvoiceService(
                 .ToDictionaryAsync(tg => tg.Id, tg => tg.TaxPercentage, cancellationToken);
 
             // Build virtual line items representing the proposed state
-            var virtualLineItems = new List<VirtualLineItem>();
+            List<VirtualLineItem> virtualLineItems = [];
 
             // Process existing line items
             foreach (var order in orders)
@@ -2059,7 +2059,7 @@ public class InvoiceService(
             // Calculate subtotal and line item discounts
             var subTotal = 0m;
             var lineItemDiscountTotal = 0m;
-            var lineItemPreviews = new List<LineItemPreviewDto>();
+            List<LineItemPreviewDto> lineItemPreviews = [];
 
             foreach (var item in virtualLineItems)
             {
@@ -2101,7 +2101,7 @@ public class InvoiceService(
                 }
 
                 var taxAmount = 0m;
-                if (item.IsTaxable && !request.RemoveTax)
+                if (item.IsTaxable && !request.ShouldRemoveTax)
                 {
                     taxAmount = _currencyService.Round(taxableAmount * (item.TaxRate / 100m), currencyCode);
                 }
@@ -2136,7 +2136,7 @@ public class InvoiceService(
 
             // Calculate tax - needs to be recalculated properly with pro-rating
             var tax = 0m;
-            if (!request.RemoveTax)
+            if (!request.ShouldRemoveTax)
             {
                 var totalTaxableAmount = virtualLineItems
                     .Where(li => li.IsTaxable)
@@ -2222,8 +2222,8 @@ public class InvoiceService(
         string? authorName,
         CancellationToken cancellationToken = default)
     {
-        var changes = new List<string>();
-        var warnings = new List<string>();
+        List<string> changes = [];
+        List<string> warnings = [];
 
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
@@ -2309,7 +2309,7 @@ public class InvoiceService(
                                 changes.Add($"Reserved {qtyDiff} additional units of {lineItem.Name}");
                             }
                         }
-                        else if (qtyDiff < 0 && lineItem.ProductId.HasValue && editItem.ReturnToStock)
+                        else if (qtyDiff < 0 && lineItem.ProductId.HasValue && editItem.ShouldReturnToStock)
                         {
                             // QUANTITY DECREASE - release reservation if user wants to return to stock
                             var order = orders.First(o => o.LineItems?.Contains(lineItem) == true);
@@ -2375,7 +2375,7 @@ public class InvoiceService(
                                 {
                                     ["DiscountType"] = editItem.Discount.Type.ToString(),
                                     ["DiscountValue"] = editItem.Discount.Value,
-                                    ["VisibleToCustomer"] = editItem.Discount.VisibleToCustomer
+                                    ["VisibleToCustomer"] = editItem.Discount.IsVisibleToCustomer
                                 }
                             };
 
@@ -2401,7 +2401,7 @@ public class InvoiceService(
                     if (lineItem == null) continue;
 
                     // Release stock reservation if requested and product is stock-tracked
-                    if (removal.ReturnToStock && lineItem.ProductId.HasValue)
+                    if (removal.ShouldReturnToStock && lineItem.ProductId.HasValue)
                     {
                         var order = orders.First(o => o.LineItems?.Contains(lineItem) == true);
                         var isTracked = await inventoryService.IsStockTrackedAsync(
@@ -2422,7 +2422,7 @@ public class InvoiceService(
                             }
                         }
                     }
-                    else if (!removal.ReturnToStock && lineItem.ProductId.HasValue)
+                    else if (!removal.ShouldReturnToStock && lineItem.ProductId.HasValue)
                     {
                         changes.Add($"Removed {lineItem.Name} (stock not returned - marked as damaged/faulty)");
                     }
@@ -2472,7 +2472,7 @@ public class InvoiceService(
                         orders.FirstOrDefault()?.ShippingOptionId ?? Guid.Empty,
                         shippingCost: 0);
                     customOrder.Status = OrderStatus.ReadyToFulfill;
-                    customOrder.LineItems = new List<LineItem>();
+                    customOrder.LineItems = [];
 
                     foreach (var customItem in request.CustomItems)
                     {
@@ -2567,7 +2567,7 @@ public class InvoiceService(
                             {
                                 ["DiscountType"] = orderDiscount.Type.ToString(),
                                 ["DiscountValue"] = orderDiscount.Value,
-                                ["VisibleToCustomer"] = orderDiscount.VisibleToCustomer
+                                ["VisibleToCustomer"] = orderDiscount.IsVisibleToCustomer
                             }
                         };
 
@@ -2595,7 +2595,7 @@ public class InvoiceService(
                 }
 
                 // Handle tax removal (VAT exemption)
-                if (request.RemoveTax)
+                if (request.ShouldRemoveTax)
                 {
                     foreach (var order in orders)
                     {
@@ -2635,7 +2635,7 @@ public class InvoiceService(
 
                 return OperationResult<EditInvoiceResultDto>.Success(new EditInvoiceResultDto
                 {
-                    Success = true,
+                    IsSuccessful = true,
                     Warnings = warnings
                 });
             }
@@ -2762,7 +2762,7 @@ public class InvoiceService(
                     Type = discountType,
                     Value = discountValue,
                     Reason = d.Name,
-                    VisibleToCustomer = visibleToCustomer
+                    IsVisibleToCustomer = visibleToCustomer
                 };
             })
             .ToList();
@@ -2848,7 +2848,7 @@ public class InvoiceService(
             Type = discountType,
             Value = discountValue,
             Reason = d.Name,
-            VisibleToCustomer = visibleToCustomer
+            IsVisibleToCustomer = visibleToCustomer
         };
     }
 
@@ -3014,7 +3014,7 @@ public class InvoiceService(
                 ? await db.TaxGroups
                     .Where(tg => taxGroupIds.Contains(tg.Id))
                     .ToDictionaryAsync(tg => tg.Id, tg => tg.TaxPercentage, cancellationToken)
-                : new Dictionary<Guid, decimal>();
+                : [];
 
             var now = DateTime.UtcNow;
 
@@ -3063,7 +3063,7 @@ public class InvoiceService(
                 shippingOption.Id,
                 shippingCost: 0); // Will be set when fulfilling
             order.Invoice = invoice;
-            order.LineItems = new List<LineItem>();
+            order.LineItems = [];
 
             // Add custom items as line items
             foreach (var customItem in request.CustomItems)
@@ -3105,7 +3105,7 @@ public class InvoiceService(
 
             return OperationResult<CreateDraftOrderResultDto>.Success(new CreateDraftOrderResultDto
             {
-                Success = true,
+                IsSuccessful = true,
                 InvoiceId = invoice.Id,
                 InvoiceNumber = invoice.InvoiceNumber
             });
@@ -3164,7 +3164,7 @@ public class InvoiceService(
                 .GroupBy(i => i.BillingAddress.Email!.ToLower())
                 .Take(limit);
 
-            var customers = new List<CustomerLookupResultDto>();
+            List<CustomerLookupResultDto> customers = [];
 
             foreach (var group in customerGroups)
             {

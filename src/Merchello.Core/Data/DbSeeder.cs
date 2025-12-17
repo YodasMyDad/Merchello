@@ -107,7 +107,7 @@ public class DbSeeder(
             ("digital", "Digital Product")
         };
 
-        var types = new Dictionary<string, ProductType>();
+        Dictionary<string, ProductType> types = [];
         foreach (var (alias, name) in typeNames)
         {
             var result = await productService.CreateProductType(name, cancellationToken);
@@ -136,7 +136,7 @@ public class DbSeeder(
             ("digital", "Digital Products")
         };
 
-        var categories = new Dictionary<string, ProductCategory>();
+        Dictionary<string, ProductCategory> categories = [];
         foreach (var (alias, name) in categoryNames)
         {
             var result = await productService.CreateProductCategory(name, cancellationToken);
@@ -792,7 +792,7 @@ public class DbSeeder(
         }
 
         // 5. Select first available shipping option for each group
-        var selectedShippingOptions = new Dictionary<Guid, Guid>();
+        Dictionary<Guid, Guid> selectedShippingOptions = [];
         foreach (var group in shippingResult.WarehouseGroups)
         {
             var firstOption = group.AvailableShippingOptions.First();
@@ -912,7 +912,7 @@ public class DbSeeder(
             }
 
             // 3. Build checkout session - select shipping option per group (mix of flat-rate and FedEx)
-            var selectedShippingOptions = new Dictionary<Guid, Guid>();
+            Dictionary<Guid, Guid> selectedShippingOptions = [];
             foreach (var group in shippingResult.WarehouseGroups)
             {
                 // Prefer FedEx options ~40% of the time for US orders

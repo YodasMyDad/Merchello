@@ -8,7 +8,7 @@ export interface ExchangeRateProviderConfigModalData {
 
 export interface ExchangeRateProviderConfigModalValue {
   /** Whether the provider settings were saved */
-  saved: boolean;
+  isSaved: boolean;
 }
 
 export const MERCHELLO_EXCHANGE_RATE_PROVIDER_CONFIG_MODAL = new UmbModalToken<

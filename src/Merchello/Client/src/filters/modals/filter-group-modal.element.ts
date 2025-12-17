@@ -61,7 +61,7 @@ export class MerchelloFilterGroupModalElement extends UmbModalBaseElement<
         return;
       }
 
-      this.value = { filterGroup: data, updated: true };
+      this.value = { filterGroup: data, isUpdated: true };
       this.modalContext?.submit();
     } else {
       // Create new filter group
@@ -76,7 +76,7 @@ export class MerchelloFilterGroupModalElement extends UmbModalBaseElement<
         return;
       }
 
-      this.value = { filterGroup: data, created: true };
+      this.value = { filterGroup: data, isCreated: true };
       this.modalContext?.submit();
     }
   }

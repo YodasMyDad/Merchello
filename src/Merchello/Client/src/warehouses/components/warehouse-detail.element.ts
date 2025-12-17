@@ -203,7 +203,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
     const result = await modal.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.created && result.supplier) {
+    if (result?.isCreated && result.supplier) {
       this._suppliers = [...this._suppliers, result.supplier];
       this._formData = { ...this._formData, supplierId: result.supplier.id };
     }
@@ -249,7 +249,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
           name: this._formData.name,
           code: this._formData.code,
           supplierId: this._formData.supplierId,
-          clearSupplierId: !this._formData.supplierId && !!this._warehouse?.supplierId,
+          shouldClearSupplierId: !this._formData.supplierId && !!this._warehouse?.supplierId,
           address: this._formData.address,
         });
 
@@ -318,7 +318,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
     const result = await modal.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.saved) {
+    if (result?.isSaved) {
       this.#workspaceContext?.reload();
     }
   }
@@ -365,7 +365,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
     const result = await modal.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.saved) {
+    if (result?.isSaved) {
       this._loadShippingOptions();
       this.#workspaceContext?.reload();
     }

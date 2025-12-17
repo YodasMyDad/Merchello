@@ -46,7 +46,11 @@ interface PendingCustomItem extends AddCustomItemDto {
   tempId: string;
 }
 
-interface PendingOrderDiscount extends LineItemDiscountDto {
+interface PendingOrderDiscount {
+  type: DiscountType;
+  value: number;
+  reason: string | null;
+  isVisibleToCustomer: boolean;
   tempId: string;
 }
 
@@ -159,7 +163,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
                 type: li.discounts[0].type,
                 value: li.discounts[0].value,
                 reason: li.discounts[0].reason,
-                visibleToCustomer: li.discounts[0].visibleToCustomer,
+                isVisibleToCustomer: li.discounts[0].isVisibleToCustomer,
               }
             : null;
 
@@ -327,7 +331,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
           type: result.discount.type,
           value: result.discount.value,
           reason: result.discount.reason,
-          visibleToCustomer: result.discount.visibleToCustomer,
+          isVisibleToCustomer: result.discount.isVisibleToCustomer,
           tempId: `discount-${Date.now()}`,
         },
       ];
@@ -493,7 +497,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       const original = li.discounts[0];
       return li.discount.type !== original.type ||
              li.discount.value !== original.value ||
-             li.discount.visibleToCustomer !== original.visibleToCustomer;
+             li.discount.isVisibleToCustomer !== original.isVisibleToCustomer;
     })) return true;
 
     // Check for custom items
@@ -531,7 +535,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       .map((li): EditLineItemDto => ({
         id: li.id,
         quantity: li.newQuantity !== li.quantity ? li.newQuantity : null,
-        returnToStock: li.returnToStock,
+        shouldReturnToStock: li.returnToStock,
         discount: li.discount,
       }));
 
@@ -540,7 +544,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       .filter((li) => li.isRemoved)
       .map((li): RemoveLineItemDto => ({
         id: li.id,
-        returnToStock: li.returnToStock,
+        shouldReturnToStock: li.returnToStock,
       }));
 
     // Build per-order shipping updates
@@ -567,11 +571,11 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         type: d.type,
         value: d.value,
         reason: d.reason,
-        visibleToCustomer: d.visibleToCustomer,
+        isVisibleToCustomer: d.isVisibleToCustomer,
       })),
       orderShippingUpdates: orderShippingUpdates,
       editReason: this._editReason || null,
-      removeTax: this._taxRemoved,
+      shouldRemoveTax: this._taxRemoved,
     };
   }
 
@@ -665,7 +669,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       return;
     }
 
-    if (data?.success) {
+    if (data?.isSuccessful) {
       // Show any warnings about stock issues etc.
       if (data.warnings && data.warnings.length > 0) {
         for (const warning of data.warnings) {
@@ -686,7 +690,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         },
       });
 
-      this.value = { saved: true };
+      this.value = { isSaved: true };
       this.modalContext?.submit();
     } else {
       this._errorMessage = data?.errorMessage ?? "Failed to save changes";

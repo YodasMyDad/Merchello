@@ -10,9 +10,9 @@ export interface FilterGroupModalValue {
   /** The created or updated filter group */
   filterGroup?: ProductFilterGroupDto;
   /** True if a new filter group was created */
-  created?: boolean;
+  isCreated?: boolean;
   /** True if an existing filter group was updated */
-  updated?: boolean;
+  isUpdated?: boolean;
 }
 
 export const MERCHELLO_FILTER_GROUP_MODAL = new UmbModalToken<

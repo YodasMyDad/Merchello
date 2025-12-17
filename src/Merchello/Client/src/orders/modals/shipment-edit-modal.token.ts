@@ -6,7 +6,7 @@ export interface ShipmentEditModalData {
 }
 
 export interface ShipmentEditModalValue {
-  updated: boolean;
+  isUpdated: boolean;
 }
 
 export const MERCHELLO_SHIPMENT_EDIT_MODAL = new UmbModalToken<

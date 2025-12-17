@@ -225,7 +225,7 @@ public class OrdersApiController(
         var result = await invoiceService.AddNoteAsync(
             invoiceId,
             request.Text,
-            request.VisibleToCustomer,
+            request.IsVisibleToCustomer,
             authorId,
             authorName);
 
@@ -241,7 +241,7 @@ public class OrdersApiController(
             Text = result.ResultObject.Description ?? string.Empty,
             AuthorId = result.ResultObject.AuthorId,
             Author = result.ResultObject.Author,
-            VisibleToCustomer = result.ResultObject.VisibleToCustomer
+            IsVisibleToCustomer = result.ResultObject.VisibleToCustomer
         });
     }
 
@@ -287,9 +287,9 @@ public class OrdersApiController(
     /// Update purchase order number for an invoice
     /// </summary>
     [HttpPut("orders/{invoiceId:guid}/purchase-order")]
-    [ProducesResponseType<UpdatePurchaseOrderResponseDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<UpdatePurchaseOrderResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdatePurchaseOrder(Guid invoiceId, [FromBody] UpdatePurchaseOrderRequestDto request)
+    public async Task<IActionResult> UpdatePurchaseOrder(Guid invoiceId, [FromBody] UpdatePurchaseOrderDto request)
     {
         var result = await invoiceService.UpdatePurchaseOrderAsync(invoiceId, request.PurchaseOrder);
 
@@ -298,7 +298,7 @@ public class OrdersApiController(
             return NotFound("Invoice not found");
         }
 
-        return Ok(new UpdatePurchaseOrderResponseDto { PurchaseOrder = result.ResultObject });
+        return Ok(new UpdatePurchaseOrderResultDto { PurchaseOrder = result.ResultObject });
     }
 
     // ============================================
@@ -498,7 +498,7 @@ public class OrdersApiController(
                 Text = n.Description ?? string.Empty,
                 AuthorId = n.AuthorId,
                 Author = n.Author,
-                VisibleToCustomer = n.VisibleToCustomer
+                IsVisibleToCustomer = n.VisibleToCustomer
             }).ToList() ?? []
         };
     }

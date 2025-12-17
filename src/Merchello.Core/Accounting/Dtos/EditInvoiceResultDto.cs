@@ -8,7 +8,7 @@ public class EditInvoiceResultDto
     /// <summary>
     /// Whether the edit was successful
     /// </summary>
-    public bool Success { get; set; }
+    public bool IsSuccessful { get; set; }
 
     /// <summary>
     /// Error message if not successful

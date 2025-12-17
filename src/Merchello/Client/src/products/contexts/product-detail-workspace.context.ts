@@ -2,9 +2,10 @@ import type { UmbControllerHost } from "@umbraco-cms/backoffice/controller-api";
 import { UmbControllerBase } from "@umbraco-cms/backoffice/class-api";
 import type { UmbRoutableWorkspaceContext } from "@umbraco-cms/backoffice/workspace";
 import { UMB_WORKSPACE_CONTEXT, UmbWorkspaceRouteManager } from "@umbraco-cms/backoffice/workspace";
-import { UmbObjectState, UmbStringState } from "@umbraco-cms/backoffice/observable-api";
+import { UmbArrayState, UmbObjectState, UmbStringState } from "@umbraco-cms/backoffice/observable-api";
 import type { ProductRootDetailDto } from "@products/types/product.types.js";
-import type { ElementTypeResponseModel } from "@products/types/element-type.types.js";
+import type { ProductFilterGroupDto } from "@filters/types.js";
+import type { ElementTypeDto } from "@products/types/element-type.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
 export class MerchelloProductDetailWorkspaceContext extends UmbControllerBase implements UmbRoutableWorkspaceContext {
@@ -21,11 +22,16 @@ export class MerchelloProductDetailWorkspaceContext extends UmbControllerBase im
   readonly variantId = this.#variantId.asObservable();
 
   // Element Type state for custom content properties
-  #elementType = new UmbObjectState<ElementTypeResponseModel | null>(null);
+  #elementType = new UmbObjectState<ElementTypeDto | null>(null);
   readonly elementType = this.#elementType.asObservable();
 
   #elementPropertyValues = new UmbObjectState<Record<string, unknown>>({});
   readonly elementPropertyValues = this.#elementPropertyValues.asObservable();
+
+  // Shared reference data - centralized to avoid duplicate API calls
+  #filterGroups = new UmbArrayState<ProductFilterGroupDto>([], (g) => g.id);
+  readonly filterGroups = this.#filterGroups.asObservable();
+  #filterGroupsLoaded = false;
 
   constructor(host: UmbControllerHost) {
     super(host, UMB_WORKSPACE_CONTEXT.toString());
@@ -119,6 +125,33 @@ export class MerchelloProductDetailWorkspaceContext extends UmbControllerBase im
     this.#elementType.setValue(data ?? null);
   }
 
+  // Shared Reference Data Methods
+
+  /**
+   * Loads filter groups if not already loaded.
+   * Centralized here to avoid duplicate API calls from multiple components.
+   */
+  async loadFilterGroups(): Promise<void> {
+    if (this.#filterGroupsLoaded) return;
+    // Set flag immediately to prevent race conditions from concurrent calls
+    this.#filterGroupsLoaded = true;
+
+    const { data, error } = await MerchelloApi.getFilterGroups();
+    if (error) {
+      // Reset flag on error so retry is possible
+      this.#filterGroupsLoaded = false;
+      console.error("Failed to load filter groups:", error);
+      return;
+    }
+
+    this.#filterGroups.setValue(data ?? []);
+  }
+
+  /** Gets the current filter groups synchronously */
+  getFilterGroups(): ProductFilterGroupDto[] {
+    return this.#filterGroups.getValue();
+  }
+
   setElementPropertyValue(alias: string, value: unknown): void {
     const current = this.#elementPropertyValues.getValue();
     this.#elementPropertyValues.setValue({ ...current, [alias]: value });
@@ -155,6 +188,7 @@ export class MerchelloProductDetailWorkspaceContext extends UmbControllerBase im
       warehouseIds: [],
       productOptions: [],
       variants: [],
+      availableShippingOptions: [],
     };
   }
 }

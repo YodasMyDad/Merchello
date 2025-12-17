@@ -10,9 +10,9 @@ export interface TaxGroupModalValue {
   /** The created or updated tax group */
   taxGroup?: TaxGroupDto;
   /** True if a new tax group was created */
-  created?: boolean;
+  isCreated?: boolean;
   /** True if an existing tax group was updated */
-  updated?: boolean;
+  isUpdated?: boolean;
 }
 
 export const MERCHELLO_TAX_GROUP_MODAL = new UmbModalToken<

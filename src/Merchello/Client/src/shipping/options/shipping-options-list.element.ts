@@ -83,7 +83,7 @@ export class MerchelloShippingOptionsListElement extends UmbElementMixin(LitElem
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
-    if (result?.saved) {
+    if (result?.isSaved) {
       await this._loadData();
     }
   }

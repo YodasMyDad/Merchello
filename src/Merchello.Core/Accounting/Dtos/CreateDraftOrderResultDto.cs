@@ -8,7 +8,7 @@ public class CreateDraftOrderResultDto
     /// <summary>
     /// Whether the draft order was created successfully
     /// </summary>
-    public bool Success { get; set; }
+    public bool IsSuccessful { get; set; }
 
     /// <summary>
     /// The ID of the created invoice (if successful)

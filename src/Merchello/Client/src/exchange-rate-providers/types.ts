@@ -21,8 +21,8 @@ export interface ExchangeRateProviderFieldDto {
   placeholder?: string;
 }
 
-export interface TestExchangeRateProviderResponseDto {
-  success: boolean;
+export interface TestExchangeRateProviderResultDto {
+  isSuccessful: boolean;
   errorMessage?: string;
   baseCurrency: string;
   sampleRates?: Record<string, number>;

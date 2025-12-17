@@ -625,7 +625,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderShippingUpdates = [],
                 EditReason = "Test removal",
-                RemoveTax = false
+                ShouldRemoveTax = false
             },
             authorId: Guid.NewGuid(),
             authorName: "Test User");
@@ -633,7 +633,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Assert
         editResult.IsSuccess.ShouldBeTrue();
         editResult.Data.ShouldNotBeNull();
-        editResult.Data.Success.ShouldBeTrue();
+        editResult.Data.IsSuccessful.ShouldBeTrue();
 
         // Verify updated state
         var updatedResult = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
@@ -702,7 +702,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -736,7 +736,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -776,7 +776,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -811,7 +811,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -850,7 +850,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 }],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -883,7 +883,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -918,7 +918,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderShippingUpdates = [new OrderShippingUpdateDto { OrderId = order.Id, ShippingCost = 25m }],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -951,7 +951,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = true
+                ShouldRemoveTax = true
             });
 
         // Assert
@@ -984,7 +984,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -1026,7 +1026,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -1050,7 +1050,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -1093,7 +1093,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 }],
                 OrderShippingUpdates = [new OrderShippingUpdateDto { OrderId = order.Id, ShippingCost = 15m }],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -1135,11 +1135,11 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                     Type = DiscountType.Amount,
                     Value = 15m,
                     Reason = "Goodwill gesture",
-                    VisibleToCustomer = false
+                    IsVisibleToCustomer = false
                 }],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -1176,11 +1176,11 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                     Type = DiscountType.Percentage,
                     Value = 10m,
                     Reason = "Customer loyalty",
-                    VisibleToCustomer = true
+                    IsVisibleToCustomer = true
                 }],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -1228,7 +1228,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 ],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -1270,7 +1270,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 }],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -1311,7 +1311,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 }],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -1353,7 +1353,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 }],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -1392,7 +1392,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 }],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -1434,11 +1434,11 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                     Type = DiscountType.Amount,
                     Value = 20m,
                     Reason = "Customer compensation",
-                    VisibleToCustomer = true
+                    IsVisibleToCustomer = true
                 }],
                 OrderShippingUpdates = [],
                 EditReason = "Adding goodwill discount",
-                RemoveTax = false
+                ShouldRemoveTax = false
             },
             authorId: Guid.NewGuid(),
             authorName: "Test User");
@@ -1446,7 +1446,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Assert
         editResult.IsSuccess.ShouldBeTrue();
         editResult.Data.ShouldNotBeNull();
-        editResult.Data.Success.ShouldBeTrue();
+        editResult.Data.IsSuccessful.ShouldBeTrue();
 
         // Verify persisted state
         var updatedResult = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
@@ -1488,7 +1488,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 }],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             },
             authorId: Guid.NewGuid(),
             authorName: "Test User");
@@ -1534,7 +1534,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 }],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert
@@ -1576,7 +1576,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 }],
                 OrderShippingUpdates = [],
                 EditReason = null,
-                RemoveTax = false
+                ShouldRemoveTax = false
             });
 
         // Assert

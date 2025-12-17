@@ -312,7 +312,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
         },
       });
 
-      this.modalContext?.setValue({ saved: true });
+      this.modalContext?.setValue({ isSaved: true });
 
       // Close the modal after successful save
       this.modalContext?.submit();
@@ -333,7 +333,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
-    if (result?.saved) {
+    if (result?.isSaved) {
       await this._loadDetail();
     }
   }
@@ -365,7 +365,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
-    if (result?.saved) {
+    if (result?.isSaved) {
       await this._loadDetail();
     }
   }
@@ -390,7 +390,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
   }
 
   private _close(): void {
-    this.modalContext?.setValue({ saved: this._detail !== null });
+    this.modalContext?.setValue({ isSaved: this._detail !== null });
     this.modalContext?.submit();
   }
 

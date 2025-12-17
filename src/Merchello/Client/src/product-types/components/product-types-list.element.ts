@@ -70,7 +70,7 @@ export class MerchelloProductTypesListElement extends UmbElementMixin(LitElement
 
     const result = await modal?.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.created) {
+    if (result?.isCreated) {
       this.#notificationContext?.peek("positive", {
         data: {
           headline: "Product type created",
@@ -88,7 +88,7 @@ export class MerchelloProductTypesListElement extends UmbElementMixin(LitElement
 
     const result = await modal?.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.updated) {
+    if (result?.isUpdated) {
       this.#notificationContext?.peek("positive", {
         data: {
           headline: "Product type updated",

@@ -94,21 +94,21 @@ export interface UpdatePaymentProviderDto {
 // ============================================
 
 /** Request to test a payment provider configuration */
-export interface TestPaymentProviderRequestDto {
+export interface TestPaymentProviderDto {
   /** Test amount (defaults to 100.00) */
   amount?: number;
   /** Currency code (uses store default if not specified) */
   currencyCode?: string;
 }
 
-/** Response from testing a payment provider */
-export interface TestPaymentProviderResponseDto {
+/** Result from testing a payment provider */
+export interface TestPaymentProviderResultDto {
   /** Provider alias */
   providerAlias: string;
   /** Provider display name */
   providerName: string;
   /** Whether the test was successful */
-  success: boolean;
+  isSuccessful: boolean;
   /** Integration type of the provider */
   integrationType: PaymentIntegrationType;
   /** Redirect URL for Redirect integration type */

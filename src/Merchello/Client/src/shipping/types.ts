@@ -212,7 +212,7 @@ export interface CreateShippingWeightTierDto {
 // ============================================
 
 /** Request to test a shipping provider configuration */
-export interface TestShippingProviderRequestDto {
+export interface TestShippingProviderDto {
   /** The warehouse ID to use as origin address */
   warehouseId: string;
   /** Destination country code (ISO 3166-1 alpha-2) */
@@ -235,14 +235,14 @@ export interface TestShippingProviderRequestDto {
   itemsSubtotal: number;
 }
 
-/** Response from testing a shipping provider */
-export interface TestShippingProviderResponseDto {
+/** Result from testing a shipping provider */
+export interface TestShippingProviderResultDto {
   /** Provider key that was tested */
   providerKey: string;
   /** Provider display name */
   providerName: string;
   /** Whether the test was successful */
-  success: boolean;
+  isSuccessful: boolean;
   /** Service levels returned by the provider */
   serviceLevels: TestShippingServiceLevelDto[];
   /** Any errors encountered during the test */

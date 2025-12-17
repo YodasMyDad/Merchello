@@ -70,7 +70,7 @@ export class MerchelloTaxWorkspaceElement extends UmbElementMixin(LitElement) {
 
     const result = await modal?.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.created) {
+    if (result?.isCreated) {
       this.#notificationContext?.peek("positive", {
         data: { headline: "Tax group created", message: `"${result.taxGroup?.name}" has been created successfully` }
       });
@@ -85,7 +85,7 @@ export class MerchelloTaxWorkspaceElement extends UmbElementMixin(LitElement) {
 
     const result = await modal?.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
-    if (result?.updated) {
+    if (result?.isUpdated) {
       this.#notificationContext?.peek("positive", {
         data: { headline: "Tax group updated", message: `"${result.taxGroup?.name}" has been updated successfully` }
       });

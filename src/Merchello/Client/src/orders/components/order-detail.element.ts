@@ -40,7 +40,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
   @state() private _routerPath?: string;
   @state() private _activePath = "";
   @state() private _newNoteText: string = "";
-  @state() private _visibleToCustomer: boolean = false;
+  @state() private _isVisibleToCustomer: boolean = false;
   @state() private _isPostingNote: boolean = false;
   @state() private _noteError: string | null = null;
   @state() private _currentUser: UmbCurrentUserModel | undefined;
@@ -53,7 +53,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
   @state() private _countries: CountryDto[] = [];
 
   // Purchase order editing state
-  @state() private _editingPurchaseOrder: boolean = false;
+  @state() private _isEditingPurchaseOrder: boolean = false;
   @state() private _purchaseOrderValue: string = "";
   @state() private _isSavingPurchaseOrder: boolean = false;
 
@@ -368,11 +368,11 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
   private _startEditingPurchaseOrder(): void {
     if (!this._order) return;
     this._purchaseOrderValue = this._order.purchaseOrder || "";
-    this._editingPurchaseOrder = true;
+    this._isEditingPurchaseOrder = true;
   }
 
   private _cancelEditingPurchaseOrder(): void {
-    this._editingPurchaseOrder = false;
+    this._isEditingPurchaseOrder = false;
     this._purchaseOrderValue = "";
   }
 
@@ -405,7 +405,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     });
 
     // Reload order data and close edit mode
-    this._editingPurchaseOrder = false;
+    this._isEditingPurchaseOrder = false;
     this._purchaseOrderValue = "";
     this.#workspaceContext?.load(this._order.id);
   }
@@ -606,7 +606,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     const { error } = await MerchelloApi.addInvoiceNote(this._order.id, {
       text: this._newNoteText.trim(),
-      visibleToCustomer: this._visibleToCustomer,
+      isVisibleToCustomer: this._isVisibleToCustomer,
     });
 
     // Prevent state updates if component was disconnected during async operation
@@ -630,7 +630,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     // Clear form and reload order
     this._newNoteText = "";
-    this._visibleToCustomer = false;
+    this._isVisibleToCustomer = false;
     this.#workspaceContext?.load(this._order.id);
   }
 
@@ -831,8 +831,8 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
               </div>
               <div class="timeline-visibility-note">
                 <uui-checkbox
-                  ?checked=${this._visibleToCustomer}
-                  @change=${(e: CustomEvent) => this._visibleToCustomer = (e.target as HTMLInputElement).checked}
+                  ?checked=${this._isVisibleToCustomer}
+                  @change=${(e: CustomEvent) => this._isVisibleToCustomer = (e.target as HTMLInputElement).checked}
                 >
                   Visible to customer
                 </uui-checkbox>
@@ -848,10 +848,10 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                           <div class="timeline-events">
                             ${notes.map(
                               (note) => html`
-                                <div class="timeline-event ${note.visibleToCustomer ? 'customer-visible' : ''}">
+                                <div class="timeline-event ${note.isVisibleToCustomer ? 'customer-visible' : ''}">
                                   <div class="timeline-event-dot"></div>
                                   <div class="timeline-event-content">
-                                    ${note.visibleToCustomer ? html`<span class="customer-badge">Customer visible</span>` : nothing}
+                                    ${note.isVisibleToCustomer ? html`<span class="customer-badge">Customer visible</span>` : nothing}
                                     <div class="event-text markdown-content">${this._renderMarkdown(note.text)}</div>
                                     ${note.author ? html`<span class="event-author">by ${note.author}</span>` : nothing}
                                   </div>
@@ -873,13 +873,13 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <div class="card">
               <div class="card-header-with-action">
                 <h3>Purchase Order</h3>
-                ${!this._editingPurchaseOrder ? html`
+                ${!this._isEditingPurchaseOrder ? html`
                   <uui-button look="secondary" compact label="Edit purchase order" @click=${this._startEditingPurchaseOrder}>
                     <uui-icon name="icon-edit"></uui-icon>
                   </uui-button>
                 ` : nothing}
               </div>
-              ${this._editingPurchaseOrder ? html`
+              ${this._isEditingPurchaseOrder ? html`
                 <div class="edit-form">
                   <uui-input
                     type="text"

@@ -30,6 +30,24 @@ public static class ProductShippingExtensions
     }
 
     /// <summary>
+    /// Gets the allowed shipping options for a product based on its restriction mode,
+    /// using the provided warehouse options as the base instead of loading from product.
+    /// </summary>
+    public static IEnumerable<ShippingOption> GetAllowedShippingOptions(
+        this Product product,
+        IEnumerable<ShippingOption> warehouseShippingOptions)
+    {
+        return product.ShippingRestrictionMode switch
+        {
+            ShippingRestrictionMode.AllowList => warehouseShippingOptions
+                .Where(wso => product.AllowedShippingOptions.Any(aso => aso.Id == wso.Id)),
+            ShippingRestrictionMode.ExcludeList => warehouseShippingOptions
+                .Where(wso => !product.ExcludedShippingOptions.Any(eso => eso.Id == wso.Id)),
+            _ => warehouseShippingOptions
+        };
+    }
+
+    /// <summary>
     /// Gets the common shipping options available for all products in a collection
     /// Returns empty if no common options exist
     /// </summary>

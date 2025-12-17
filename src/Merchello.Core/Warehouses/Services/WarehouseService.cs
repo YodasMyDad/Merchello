@@ -239,7 +239,7 @@ public class WarehouseService(
         warehouse.ExtendedData = parameters.ExtendedData ?? [];
 
         // Build service regions list
-        var serviceRegions = new List<WarehouseServiceRegion>();
+        List<WarehouseServiceRegion> serviceRegions = [];
         if (parameters.ServiceRegions != null)
         {
             foreach (var (countryCode, stateOrProvinceCode, isExcluded) in parameters.ServiceRegions)
@@ -255,8 +255,8 @@ public class WarehouseService(
         }
 
         // Build shipping options and costs lists
-        var shippingOptions = new List<ShippingOption>();
-        var shippingCosts = new List<ShippingCost>();
+        List<ShippingOption> shippingOptions = [];
+        List<ShippingCost> shippingCosts = [];
         if (parameters.ShippingOptions != null)
         {
             foreach (var shippingConfig in parameters.ShippingOptions)
@@ -356,7 +356,7 @@ public class WarehouseService(
             if (parameters.Code != null)
                 warehouse.Code = parameters.Code;
 
-            if (parameters.ClearSupplierId)
+            if (parameters.ShouldClearSupplierId)
                 warehouse.SupplierId = null;
             else if (parameters.SupplierId.HasValue)
                 warehouse.SupplierId = parameters.SupplierId;
@@ -1145,7 +1145,7 @@ public class WarehouseService(
         if (address == null)
             return null;
 
-        var parts = new List<string>();
+        List<string> parts = [];
         if (!string.IsNullOrWhiteSpace(address.TownCity))
             parts.Add(address.TownCity);
         if (!string.IsNullOrWhiteSpace(address.Country))

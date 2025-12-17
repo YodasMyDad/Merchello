@@ -40,6 +40,11 @@ public class ProductRootDetailDto
     public List<ProductVariantDto> Variants { get; set; } = [];
 
     /// <summary>
+    /// Available shipping options from assigned warehouses with exclusion status.
+    /// </summary>
+    public List<ShippingOptionExclusionDto> AvailableShippingOptions { get; set; } = [];
+
+    /// <summary>
     /// Element Type property values as { "propertyAlias": rawValue, ... }
     /// </summary>
     public Dictionary<string, object?>? ElementProperties { get; set; }

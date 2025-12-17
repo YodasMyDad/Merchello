@@ -9,9 +9,9 @@ public static class ProductMappingExtensions
         destination.RootName = source.RootName;
         destination.RootUrl = source.RootUrl;
         destination.GoogleShoppingFeedCategory = source.GoogleShoppingFeedCategory;
-        destination.RootImages = source.RootImages?.ToList() ?? new List<string>();
+        destination.RootImages = source.RootImages?.ToList() ?? [];
         destination.DefaultPackageConfigurations = source.DefaultPackageConfigurations.ToList();
-        destination.ProductOptions = source.ProductOptions?.ToList() ?? new List<ProductOption>();
+        destination.ProductOptions = source.ProductOptions?.ToList() ?? [];
         destination.Description = source.Description;
         destination.MetaDescription = source.MetaDescription;
         destination.PageTitle = source.PageTitle;
@@ -29,7 +29,7 @@ public static class ProductMappingExtensions
         destination.OnSale = source.OnSale;
         destination.PreviousPrice = source.PreviousPrice;
         destination.AvailableForPurchase = source.AvailableForPurchase;
-        destination.Images = source.Images?.ToList() ?? new List<string>();
+        destination.Images = source.Images?.ToList() ?? [];
         destination.ExcludeRootProductImages = source.ExcludeRootProductImages;
         destination.Gtin = source.Gtin;
         destination.Sku = source.Sku;

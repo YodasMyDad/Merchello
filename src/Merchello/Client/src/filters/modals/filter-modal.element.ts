@@ -71,7 +71,7 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
         return;
       }
 
-      this.value = { filter: data, updated: true };
+      this.value = { filter: data, isUpdated: true };
       this.modalContext?.submit();
     } else {
       // Create new filter
@@ -95,7 +95,7 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
         return;
       }
 
-      this.value = { filter: data, created: true };
+      this.value = { filter: data, isCreated: true };
       this.modalContext?.submit();
     }
   }
@@ -118,7 +118,7 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
       return;
     }
 
-    this.value = { deleted: true };
+    this.value = { isDeleted: true };
     this.modalContext?.submit();
   }
 

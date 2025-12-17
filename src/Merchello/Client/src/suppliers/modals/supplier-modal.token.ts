@@ -10,9 +10,9 @@ export interface SupplierModalValue {
   /** The created or updated supplier */
   supplier?: SupplierListItemDto;
   /** True if a new supplier was created */
-  created?: boolean;
+  isCreated?: boolean;
   /** True if an existing supplier was updated */
-  updated?: boolean;
+  isUpdated?: boolean;
 }
 
 export const MERCHELLO_SUPPLIER_MODAL = new UmbModalToken<

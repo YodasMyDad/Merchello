@@ -10,9 +10,9 @@ export interface ProductTypeModalValue {
   /** The created or updated product type */
   productType?: ProductTypeDto;
   /** True if a new product type was created */
-  created?: boolean;
+  isCreated?: boolean;
   /** True if an existing product type was updated */
-  updated?: boolean;
+  isUpdated?: boolean;
 }
 
 export const MERCHELLO_PRODUCT_TYPE_MODAL = new UmbModalToken<

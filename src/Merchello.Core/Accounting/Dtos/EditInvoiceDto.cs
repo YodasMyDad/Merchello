@@ -43,5 +43,5 @@ public class EditInvoiceDto
     /// <summary>
     /// If true, removes tax from all line items (VAT exemption)
     /// </summary>
-    public bool RemoveTax { get; set; }
+    public bool ShouldRemoveTax { get; set; }
 }

@@ -185,8 +185,8 @@ import type {
   PaymentProviderFieldDto,
   CreatePaymentProviderDto,
   UpdatePaymentProviderDto,
-  TestPaymentProviderRequestDto,
-  TestPaymentProviderResponseDto,
+  TestPaymentProviderDto,
+  TestPaymentProviderResultDto,
 } from '@payment-providers/types.js';
 
 // Import shipping provider types
@@ -206,8 +206,8 @@ import type {
   CreateShippingWeightTierDto,
   ProviderMethodConfigDto,
   AvailableProviderDto,
-  TestShippingProviderRequestDto,
-  TestShippingProviderResponseDto,
+  TestShippingProviderDto,
+  TestShippingProviderResultDto,
 } from '@shipping/types.js';
 
 // Import product types
@@ -226,10 +226,12 @@ import type {
   ProductOptionDto,
   SaveProductOptionDto,
   ProductViewDto,
+  ShippingOptionExclusionDto,
+  UpdateShippingExclusionsDto,
 } from '@products/types/product.types.js';
 
 // Import element type types
-import type { ElementTypeResponseModel } from '@products/types/element-type.types.js';
+import type { ElementTypeDto } from '@products/types/element-type.types.js';
 
 // Import warehouse types
 import type {
@@ -267,7 +269,7 @@ import type {
 import type {
   ExchangeRateProviderDto,
   ExchangeRateProviderFieldDto,
-  TestExchangeRateProviderResponseDto,
+  TestExchangeRateProviderResultDto,
   ExchangeRateSnapshotDto,
   SaveExchangeRateProviderSettingsDto,
 } from '../exchange-rate-providers/types.js';
@@ -455,8 +457,8 @@ export const MerchelloApi = {
     apiPut<void>('payment-providers/reorder', { orderedIds }),
 
   /** Test a payment provider configuration */
-  testPaymentProvider: (settingId: string, request: TestPaymentProviderRequestDto) =>
-    apiPost<TestPaymentProviderResponseDto>(`payment-providers/${settingId}/test`, request),
+  testPaymentProvider: (settingId: string, request: TestPaymentProviderDto) =>
+    apiPost<TestPaymentProviderResultDto>(`payment-providers/${settingId}/test`, request),
 
   // ============================================
   // Payments API
@@ -531,8 +533,8 @@ export const MerchelloApi = {
     apiGet<AvailableProviderDto[]>('shipping-providers/available-for-warehouse'),
 
   /** Test a shipping provider configuration with sample data */
-  testShippingProvider: (configurationId: string, request: TestShippingProviderRequestDto) =>
-    apiPost<TestShippingProviderResponseDto>(`shipping-providers/${configurationId}/test`, request),
+  testShippingProvider: (configurationId: string, request: TestShippingProviderDto) =>
+    apiPost<TestShippingProviderResultDto>(`shipping-providers/${configurationId}/test`, request),
 
   // ============================================
   // Products API
@@ -569,7 +571,7 @@ export const MerchelloApi = {
   getDescriptionEditorSettings: () => apiGet<DescriptionEditorSettingsDto>('settings/description-editor'),
 
   /** Get the configured Element Type structure for product content properties */
-  getProductElementType: () => apiGet<ElementTypeResponseModel | null>('products/element-type'),
+  getProductElementType: () => apiGet<ElementTypeDto | null>('products/element-type'),
 
   /** Get available product views for the view selection dropdown */
   getProductViews: () => apiGet<ProductViewDto[]>('products/views'),
@@ -605,6 +607,23 @@ export const MerchelloApi = {
   /** Save all product options (replaces existing). Variants are automatically regenerated. */
   saveProductOptions: (productRootId: string, options: SaveProductOptionDto[]) =>
     apiPut<ProductOptionDto[]>(`products/${productRootId}/options`, options),
+
+  // Shipping Exclusions
+  /** Get available shipping options for a product with their exclusion status */
+  getProductShippingOptions: (productRootId: string) =>
+    apiGet<ShippingOptionExclusionDto[]>(`products/${productRootId}/shipping-options`),
+
+  /** Update shipping exclusions for all variants (bulk mode) */
+  updateProductShippingExclusions: (productRootId: string, excludedIds: string[]) =>
+    apiPut<void>(`products/${productRootId}/shipping-exclusions`, {
+      excludedShippingOptionIds: excludedIds,
+    } as UpdateShippingExclusionsDto),
+
+  /** Update shipping exclusions for a specific variant */
+  updateVariantShippingExclusions: (productRootId: string, variantId: string, excludedIds: string[]) =>
+    apiPut<void>(`products/${productRootId}/variants/${variantId}/shipping-exclusions`, {
+      excludedShippingOptionIds: excludedIds,
+    } as UpdateShippingExclusionsDto),
 
   // ============================================
   // Shipping Options API
@@ -781,7 +800,7 @@ export const MerchelloApi = {
 
   /** Test an exchange rate provider by fetching rates */
   testExchangeRateProvider: (alias: string) =>
-    apiPost<TestExchangeRateProviderResponseDto>(`exchange-rate-providers/${alias}/test`),
+    apiPost<TestExchangeRateProviderResultDto>(`exchange-rate-providers/${alias}/test`),
 
   /** Force refresh the exchange rate cache */
   refreshExchangeRates: () =>

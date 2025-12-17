@@ -1,6 +1,6 @@
 // Element Type types for rendering Umbraco property editors in the product workspace
 
-export interface ElementTypeResponseModel {
+export interface ElementTypeDto {
   id: string;
   alias: string;
   name: string;

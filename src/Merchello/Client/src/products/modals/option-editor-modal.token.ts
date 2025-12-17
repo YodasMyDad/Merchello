@@ -7,9 +7,9 @@ export interface OptionEditorModalData {
 }
 
 export interface OptionEditorModalValue {
-  saved: boolean;
+  isSaved: boolean;
   option?: ProductOptionDto;
-  deleted?: boolean;
+  isDeleted?: boolean;
 }
 
 export const MERCHELLO_OPTION_EDITOR_MODAL = new UmbModalToken<OptionEditorModalData, OptionEditorModalValue>(

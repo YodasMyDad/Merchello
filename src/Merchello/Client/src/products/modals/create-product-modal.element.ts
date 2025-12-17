@@ -9,7 +9,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
   CreateProductModalValue
 > {
   private _handleClose(): void {
-    this.value = { created: false };
+    this.value = { isCreated: false };
     this.modalContext?.reject();
   }
 

@@ -160,7 +160,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
     }
 
     this.value = {
-      saved: true,
+      isSaved: true,
       region: result.data,
     };
     this.modalContext?.submit();
