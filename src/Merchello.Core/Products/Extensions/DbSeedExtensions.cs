@@ -1,5 +1,6 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Models;
@@ -54,6 +55,7 @@ public static class ProductServiceDbSeedExtensions
             DefaultVariant = new CreateVariantDto
             {
                 Name = name,
+                Sku = Regex.Replace(name.ToUpperInvariant(), @"[^A-Z0-9]+", "-").Trim('-'),
                 Price = price,
                 CostOfGoods = costOfGoods,
                 AvailableForPurchase = true,

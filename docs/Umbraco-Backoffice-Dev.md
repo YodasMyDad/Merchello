@@ -53,6 +53,7 @@
 | `backofficeEntryPoint` | — | — | — |
 | `ufmFilter` | `alias` (meta) | — | — |
 | `ufmComponent` | `alias` (meta) | — | — |
+| `entitySign` | `forEntityTypes`, `forEntityFlags` (meta: `iconName`, `label`, `iconColorAlias`) | `icon` | — |
 
 ## UFM (Umbraco Form Markup) Development
 
@@ -140,6 +141,83 @@ export class UfmMyTagElement extends UmbLitElement {
 - **Extension aliases**: Dot notation (`My.DateFormat.Filter`)
 - **UFM aliases** (in meta): camelCase (`dateFormat`, `tag`)
 - **Web component tags**: kebab-case with prefix (`<ufm-my-tag>`)
+
+## Entity Signs (Visual Indicators)
+
+Entity signs display visual indicators (icons/badges) on content items in trees and collections without requiring JavaScript implementation.
+
+### Architecture
+- **C# Backend**: `IFlagProvider` determines which items receive flags
+- **TypeScript Manifest**: `entitySign` extension defines the visual appearance
+- Key insight: "Flagging is purely a C# concern" - no separate TypeScript files needed
+
+### C# Flag Provider
+
+```csharp
+using Umbraco.Cms.Core.Models.ContentEditing;
+using Umbraco.Cms.Core.Signs;
+
+public class LockedDocumentFlagProvider : IFlagProvider
+{
+    public async Task PopulateFlagsAsync(FlagProviderContext context)
+    {
+        foreach (var item in context.Items)
+        {
+            if (ShouldAddFlag(item))
+            {
+                item.Flags.Add("locked");  // Flag alias referenced in manifest
+            }
+        }
+    }
+
+    private bool ShouldAddFlag(IFlaggable item)
+    {
+        // Works with DocumentTreeItemResponseModel, DocumentCollectionResponseModel, DocumentItemResponseModel
+        return item switch
+        {
+            DocumentTreeItemResponseModel doc => doc.DocumentType.Alias == "lockedPage",
+            _ => false
+        };
+    }
+}
+```
+
+### Registration (Composer)
+
+```csharp
+public class MyComposer : IComposer
+{
+    public void Compose(IUmbracoBuilder builder)
+    {
+        builder.SignProviders().Append<LockedDocumentFlagProvider>();
+    }
+}
+```
+
+### Manifest
+
+```typescript
+{
+  type: "entitySign",
+  kind: "icon",
+  alias: "My.LockedSign",
+  name: "Locked Document Sign",
+  forEntityTypes: ["document"],      // Entity types to apply to
+  forEntityFlags: ["locked"],        // Must match flag alias from C# provider
+  weight: 100,
+  meta: {
+    iconName: "icon-lock",
+    label: "Locked",
+    iconColorAlias: "danger"         // Uses UUI color aliases: danger, warning, positive, etc.
+  }
+}
+```
+
+### Use Cases
+- Indicating locked/protected content
+- Showing workflow states (pending review, approved)
+- Marking items with special conditions (expired, scheduled)
+- Displaying validation warnings
 
 ## Full Extension Examples
 
