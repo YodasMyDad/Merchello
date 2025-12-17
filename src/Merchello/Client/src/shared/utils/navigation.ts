@@ -215,3 +215,49 @@ export function getSuppliersListHref(): string {
 export function navigateToSuppliersList(): void {
   navigateToMerchelloWorkspace(SUPPLIERS_ENTITY_TYPE, "suppliers");
 }
+
+/** Entity type for customer segment detail workspace */
+export const CUSTOMER_SEGMENT_ENTITY_TYPE = "merchello-customer-segment";
+
+/**
+ * Generate the URL to view/edit a customer segment detail.
+ * Use this in href attributes on links/buttons.
+ */
+export function getSegmentDetailHref(segmentId: string): string {
+  return getMerchelloWorkspaceHref(CUSTOMER_SEGMENT_ENTITY_TYPE, `edit/${segmentId}`);
+}
+
+/**
+ * Generate the URL to create a new customer segment.
+ */
+export function getSegmentCreateHref(): string {
+  return getMerchelloWorkspaceHref(CUSTOMER_SEGMENT_ENTITY_TYPE, "create");
+}
+
+/**
+ * Navigate programmatically to a customer segment detail page using SPA routing.
+ */
+export function navigateToSegmentDetail(segmentId: string): void {
+  navigateToMerchelloWorkspace(CUSTOMER_SEGMENT_ENTITY_TYPE, `edit/${segmentId}`);
+}
+
+/**
+ * Navigate programmatically to create a new customer segment.
+ */
+export function navigateToSegmentCreate(): void {
+  navigateToMerchelloWorkspace(CUSTOMER_SEGMENT_ENTITY_TYPE, "create");
+}
+
+/**
+ * Generate the URL to the customer segments list (within Customers workspace).
+ */
+export function getSegmentsListHref(): string {
+  return `${MERCHELLO_SECTION_PATH}/workspace/merchello-customers/segments`;
+}
+
+/**
+ * Navigate programmatically to the customer segments list using SPA routing.
+ */
+export function navigateToSegmentsList(): void {
+  history.pushState({}, "", getSegmentsListHref());
+}

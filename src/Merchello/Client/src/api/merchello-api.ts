@@ -260,6 +260,23 @@ import type {
   UpdateCustomerDto,
 } from '@customers/types/customer.types.js';
 
+// Import customer segment types
+import type {
+  CustomerSegmentListItemDto,
+  CustomerSegmentDetailDto,
+  CreateCustomerSegmentDto,
+  UpdateCustomerSegmentDto,
+  SegmentMembersResponseDto,
+  AddSegmentMembersDto,
+  RemoveSegmentMembersDto,
+  CustomerPreviewResponseDto,
+  SegmentStatisticsDto,
+  CriteriaFieldMetadataDto,
+  CriteriaValidationResultDto,
+  SegmentCriteriaDto,
+  CustomerSegmentBadgeDto,
+} from '@customers/types/segment.types.js';
+
 // Import analytics types
 import type {
   AnalyticsSummaryDto,
@@ -774,6 +791,75 @@ export const MerchelloApi = {
   /** Update an existing customer */
   updateCustomer: (id: string, data: UpdateCustomerDto) =>
     apiPut<CustomerListItemDto>(`customers/${id}`, data),
+
+  /** Get segments that a customer belongs to (by email) */
+  getCustomerSegmentBadges: (email: string) =>
+    apiGet<CustomerSegmentBadgeDto[]>(`customers/segments?email=${encodeURIComponent(email)}`),
+
+  // ============================================
+  // Customer Segments API
+  // ============================================
+
+  /** Get all customer segments */
+  getCustomerSegments: () =>
+    apiGet<CustomerSegmentListItemDto[]>('customer-segments'),
+
+  /** Get a single customer segment by ID */
+  getCustomerSegment: (id: string) =>
+    apiGet<CustomerSegmentDetailDto>(`customer-segments/${id}`),
+
+  /** Create a new customer segment */
+  createCustomerSegment: (data: CreateCustomerSegmentDto) =>
+    apiPost<CustomerSegmentDetailDto>('customer-segments', data),
+
+  /** Update a customer segment */
+  updateCustomerSegment: (id: string, data: UpdateCustomerSegmentDto) =>
+    apiPut<CustomerSegmentDetailDto>(`customer-segments/${id}`, data),
+
+  /** Delete a customer segment */
+  deleteCustomerSegment: (id: string) =>
+    apiDelete(`customer-segments/${id}`),
+
+  /** Get paginated members of a segment */
+  getSegmentMembers: (segmentId: string, page = 1, pageSize = 50) =>
+    apiGet<SegmentMembersResponseDto>(
+      `customer-segments/${segmentId}/members?page=${page}&pageSize=${pageSize}`
+    ),
+
+  /** Add members to a manual segment */
+  addSegmentMembers: (segmentId: string, data: AddSegmentMembersDto) =>
+    apiPost<void>(`customer-segments/${segmentId}/members`, data),
+
+  /** Remove members from a manual segment */
+  removeSegmentMembers: (segmentId: string, data: RemoveSegmentMembersDto) =>
+    apiPost<void>(`customer-segments/${segmentId}/members/remove`, data),
+
+  /** Preview customers matching an automated segment's criteria */
+  previewSegmentMatches: (segmentId: string, page = 1, pageSize = 50) =>
+    apiGet<CustomerPreviewResponseDto>(
+      `customer-segments/${segmentId}/preview?page=${page}&pageSize=${pageSize}`
+    ),
+
+  /** Get statistics for a segment */
+  getSegmentStatistics: (segmentId: string) =>
+    apiGet<SegmentStatisticsDto>(`customer-segments/${segmentId}/statistics`),
+
+  /** Get available criteria fields for automated segments */
+  getCriteriaFields: () =>
+    apiGet<CriteriaFieldMetadataDto[]>('customer-segments/criteria/fields'),
+
+  /** Validate criteria rules */
+  validateCriteria: (criteria: SegmentCriteriaDto[]) =>
+    apiPost<CriteriaValidationResultDto>('customer-segments/criteria/validate', criteria),
+
+  /** Search customers for segment member picker */
+  searchCustomersForSegment: (search: string, excludeIds?: string[], pageSize = 50) => {
+    const params = new URLSearchParams({ search, pageSize: String(pageSize) });
+    if (excludeIds?.length) {
+      params.set('excludeIds', excludeIds.join(','));
+    }
+    return apiGet<CustomerPageDto>(`customers/search?${params.toString()}`);
+  },
 
   // ============================================
   // Locality API (Countries & Regions)

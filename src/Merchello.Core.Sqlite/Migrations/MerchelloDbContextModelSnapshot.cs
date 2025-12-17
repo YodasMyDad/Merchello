@@ -501,6 +501,11 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<Guid?>("MemberKey")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Tags")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
@@ -510,6 +515,88 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasFilter("[MemberKey] IS NOT NULL");
 
                     b.ToTable("merchelloCustomers", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Customers.Models.CustomerSegment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CriteriaJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateUpdated")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsSystemSegment")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MatchMode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SegmentType")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("Name");
+
+                    b.HasIndex("SegmentType");
+
+                    b.ToTable("merchelloCustomerSegments", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Customers.Models.CustomerSegmentMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("AddedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateAdded")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("SegmentId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("SegmentId", "CustomerId")
+                        .IsUnique();
+
+                    b.ToTable("merchelloCustomerSegmentMembers", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.ExchangeRates.Models.ExchangeRateProviderSetting", b =>
@@ -1654,6 +1741,17 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("ParentPayment");
                 });
 
+            modelBuilder.Entity("Merchello.Core.Customers.Models.CustomerSegmentMember", b =>
+                {
+                    b.HasOne("Merchello.Core.Customers.Models.CustomerSegment", "Segment")
+                        .WithMany("Members")
+                        .HasForeignKey("SegmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Segment");
+                });
+
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
                 {
                     b.HasOne("Merchello.Core.Products.Models.ProductRoot", "ProductRoot")
@@ -1991,6 +2089,11 @@ namespace Merchello.Core.Sqlite.Migrations
             modelBuilder.Entity("Merchello.Core.Customers.Models.Customer", b =>
                 {
                     b.Navigation("Invoices");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Customers.Models.CustomerSegment", b =>
+                {
+                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>

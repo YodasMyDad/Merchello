@@ -8,7 +8,7 @@
 2. [Segment Types](#2-segment-types)
 3. [Database Schema](#3-database-schema)
 4. [Backend Architecture](#4-backend-architecture)
-   - [4.6 Integration Points](#46-integration-points) - Where segment checks are called
+   - [4.6 Integration Points](#46-integration-points) - Future integration patterns
 5. [API Design](#5-api-design)
 6. [Frontend Implementation](#6-frontend-implementation)
 7. [Criteria Engine](#7-criteria-engine)
@@ -375,6 +375,9 @@ public interface ICustomerSegmentService
     // Statistics
     Task<int> GetMemberCountAsync(Guid segmentId, CancellationToken ct = default);
     Task<SegmentStatisticsDto> GetStatisticsAsync(Guid segmentId, CancellationToken ct = default);
+
+    // System Segments
+    Task<CrudResult<CustomerSegment>> EnsureSystemSegmentAsync(CreateSegmentParameters parameters, CancellationToken ct = default);
 }
 ```
 
@@ -410,8 +413,10 @@ public async Task<SegmentStatisticsDto> GetStatisticsAsync(Guid segmentId, Cance
     var segment = await GetByIdAsync(segmentId, ct);
     if (segment == null) return new SegmentStatisticsDto();
 
-    // Get member IDs (works for both manual and automated segments)
+    // Get member count and IDs based on segment type
+    int totalMembers;
     List<Guid> memberIds;
+
     if (segment.SegmentType == CustomerSegmentType.Manual)
     {
         using var scope = efCoreScopeProvider.CreateScope();
@@ -421,15 +426,18 @@ public async Task<SegmentStatisticsDto> GetStatisticsAsync(Guid segmentId, Cance
                 .Select(m => m.CustomerId)
                 .ToListAsync(ct));
         scope.Complete();
+        totalMembers = memberIds.Count;
     }
     else
     {
-        // For automated segments, get matching customer IDs
-        var matchResult = await GetMatchingCustomerIdsAsync(segmentId, page: 1, pageSize: int.MaxValue, ct);
+        // For automated segments, use count query for total, sample for stats
+        totalMembers = await GetMemberCountAsync(segmentId, ct);
+        // Get a sample of members for revenue statistics (limit to avoid performance issues)
+        var matchResult = await GetMatchingCustomerIdsAsync(segmentId, page: 1, pageSize: 1000, ct);
         memberIds = matchResult.Items.ToList();
     }
 
-    if (memberIds.Count == 0)
+    if (totalMembers == 0)
         return new SegmentStatisticsDto { TotalMembers = 0 };
 
     // Calculate statistics from invoices
@@ -450,7 +458,7 @@ public async Task<SegmentStatisticsDto> GetStatisticsAsync(Guid segmentId, Cance
 
     return new SegmentStatisticsDto
     {
-        TotalMembers = memberIds.Count,
+        TotalMembers = totalMembers,
         ActiveMembers = stats?.ActiveCustomers ?? 0,
         TotalRevenue = stats?.TotalRevenue ?? 0,
         AverageOrderValue = stats?.OrderCount > 0
@@ -585,192 +593,40 @@ public class SystemSegmentInitializer
 }
 ```
 
-### 4.6 Integration Points
-
-Segment membership is checked at these **centralized locations**. All calls go through `ICustomerSegmentService.IsCustomerInSegmentAsync()` - this is the single source of truth for segment membership.
-
-> **Note:** The code examples below are **conceptual integration patterns** showing how existing services would call `ICustomerSegmentService`. Actual service implementations must use `IEFCoreScopeProvider<MerchelloDbContext>` for database access (see section 4.2).
-
-#### Integration Summary
-
-| Location | Service | Method | Purpose |
-|----------|---------|--------|---------|
-| **Discount Eligibility** | `IDiscountService` | `GetEligibleDiscountsAsync()` | Filters discounts by segment criteria |
-| **Shipping Quotes** | `IShippingQuoteService` | `GetQuotesAsync()` | Segment-specific shipping rates/exclusions |
-| **Customer Profile** | `ICustomerService` | `GetCustomerWithSegmentsAsync()` | Display segment badges in UI |
-
-#### 4.6.1 Discount Eligibility
-
-**File**: `src/Merchello.Core/Discounts/Services/DiscountService.cs`
-
-Discounts can be restricted to specific customer segments. When calculating eligible discounts, the service filters by segment membership:
+**Registration**: Register as a hosted service to run on application startup:
 
 ```csharp
-public class DiscountService(
-    MerchelloDbContext db,
-    ICustomerSegmentService segmentService,
-    ILogger<DiscountService> logger) : IDiscountService
-{
-    public async Task<List<Discount>> GetEligibleDiscountsAsync(
-        GetEligibleDiscountsParameters parameters,
-        CancellationToken ct = default)
-    {
-        // Get all active discounts within date range
-        var discounts = await db.Discounts
-            .Where(d => d.IsActive)
-            .Where(d => d.StartDate <= DateTime.UtcNow)
-            .Where(d => d.EndDate == null || d.EndDate > DateTime.UtcNow)
-            .ToListAsync(ct);
-
-        // Filter by customer segment eligibility
-        var eligibleDiscounts = new List<Discount>();
-
-        foreach (var discount in discounts)
-        {
-            // If discount has no segment restrictions, it's available to all
-            if (discount.SegmentIds.Count == 0)
-            {
-                eligibleDiscounts.Add(discount);
-                continue;
-            }
-
-            // Check if customer is in ANY of the required segments
-            var isEligible = await CheckCustomerSegmentEligibilityAsync(
-                parameters.CustomerId,
-                discount.SegmentIds,
-                ct);
-
-            if (isEligible)
-            {
-                eligibleDiscounts.Add(discount);
-            }
-        }
-
-        return eligibleDiscounts;
-    }
-
-    /// <summary>
-    /// Centralized segment eligibility check - uses ICustomerSegmentService.
-    /// Customer must be in at least one of the specified segments.
-    /// </summary>
-    private async Task<bool> CheckCustomerSegmentEligibilityAsync(
-        Guid customerId,
-        List<Guid> requiredSegmentIds,
-        CancellationToken ct)
-    {
-        // Get all segments the customer belongs to (more efficient than checking each)
-        var customerSegmentIds = await segmentService.GetCustomerSegmentIdsAsync(customerId, ct);
-
-        // Customer is eligible if they're in ANY of the required segments
-        return requiredSegmentIds.Any(segmentId => customerSegmentIds.Contains(segmentId));
-    }
-}
+// In DI registration (e.g., MerchelloComposer or startup)
+services.AddHostedService<SystemSegmentInitializer>();
 ```
 
-#### 4.6.2 Shipping Quotes
+### 4.6 Integration Points
 
-**File**: `src/Merchello.Core/Shipping/Services/ShippingQuoteService.cs`
+Segment membership is checked through `ICustomerSegmentService` - the single source of truth for segment membership. Future features will integrate with segments as follows:
 
-Shipping options can be restricted or adjusted based on customer segments:
+#### 4.6.1 Future Integration Summary
+
+| Feature | Service | Method | Purpose |
+|---------|---------|--------|---------|
+| **Discounts** | `IDiscountService` | `GetEligibleDiscountsAsync()` | Filter discounts by segment eligibility |
+| **Shipping** | `IShippingQuoteService` | `GetQuotesAsync()` | Segment-specific rates/exclusions |
+| **Customer Profile** | `ICustomerService` | `GetCustomerWithSegmentsAsync()` | Display segment badges in UI |
+
+> **Note:** Discounts and Shipping integration details are defined in [Discounts.md](Discounts.md) (future sprint).
+
+#### 4.6.2 Integration Pattern
+
+All integrations should use these methods - never query segment tables directly:
 
 ```csharp
-public class ShippingQuoteService(
-    MerchelloDbContext db,
-    ICustomerSegmentService segmentService,
-    IExtensionManager extensionManager,
-    ILogger<ShippingQuoteService> logger) : IShippingQuoteService
-{
-    public async Task<List<ShippingQuote>> GetQuotesAsync(
-        GetShippingQuotesParameters parameters,
-        CancellationToken ct = default)
-    {
-        // Get all active shipping methods for the destination
-        var shippingMethods = await db.ShippingMethods
-            .Include(sm => sm.ShippingProvider)
-            .Where(sm => sm.IsActive)
-            .Where(sm => sm.Countries.Contains(parameters.DestinationCountry))
-            .ToListAsync(ct);
+// Check if customer is in a specific segment
+bool isVip = await segmentService.IsCustomerInSegmentAsync(vipSegmentId, customerId, ct);
 
-        // Get customer's segment IDs for filtering
-        var customerSegmentIds = await segmentService.GetCustomerSegmentIdsAsync(
-            parameters.CustomerId,
-            ct);
+// Get all segment IDs for a customer (more efficient for checking multiple segments)
+List<Guid> customerSegmentIds = await segmentService.GetCustomerSegmentIdsAsync(customerId, ct);
 
-        var quotes = new List<ShippingQuote>();
-
-        foreach (var method in shippingMethods)
-        {
-            // Check segment exclusions - skip methods excluded for this customer's segments
-            if (method.ExcludedSegmentIds.Any(segmentId => customerSegmentIds.Contains(segmentId)))
-            {
-                logger.LogDebug(
-                    "Shipping method {MethodName} excluded for customer {CustomerId} due to segment exclusion",
-                    method.Name, parameters.CustomerId);
-                continue;
-            }
-
-            // Calculate base quote from provider
-            var provider = extensionManager.GetShippingProvider(method.ShippingProviderId);
-            var baseQuote = await provider.GetQuoteAsync(method, parameters, ct);
-
-            if (baseQuote == null)
-                continue;
-
-            // Apply segment-specific shipping discounts
-            var discountedRate = await ApplySegmentShippingDiscountAsync(
-                baseQuote.Rate,
-                method,
-                customerSegmentIds,
-                ct);
-
-            quotes.Add(new ShippingQuote
-            {
-                ShippingMethodId = method.Id,
-                ShippingMethodName = method.Name,
-                ProviderName = method.ShippingProvider.Name,
-                Rate = discountedRate,
-                OriginalRate = baseQuote.Rate,
-                EstimatedDays = baseQuote.EstimatedDays,
-                SegmentDiscountApplied = discountedRate < baseQuote.Rate
-            });
-        }
-
-        return quotes.OrderBy(q => q.Rate).ToList();
-    }
-
-    /// <summary>
-    /// Apply segment-specific shipping discounts.
-    /// For example, VIP customers get free shipping on orders over £50.
-    /// </summary>
-    private async Task<decimal> ApplySegmentShippingDiscountAsync(
-        decimal baseRate,
-        ShippingMethod method,
-        List<Guid> customerSegmentIds,
-        CancellationToken ct)
-    {
-        // Check if any segment-specific shipping rules apply
-        var shippingRules = await db.SegmentShippingRules
-            .Where(r => r.ShippingMethodId == method.Id)
-            .Where(r => r.IsActive)
-            .ToListAsync(ct);
-
-        foreach (var rule in shippingRules)
-        {
-            if (customerSegmentIds.Contains(rule.SegmentId))
-            {
-                return rule.RuleType switch
-                {
-                    ShippingRuleType.FreeShipping => 0m,
-                    ShippingRuleType.FlatRate => rule.FlatRate ?? baseRate,
-                    ShippingRuleType.PercentDiscount => baseRate * (1 - (rule.DiscountPercent ?? 0) / 100m),
-                    _ => baseRate
-                };
-            }
-        }
-
-        return baseRate;
-    }
-}
+// Check eligibility against multiple segments (customer must be in ANY)
+bool isEligible = requiredSegmentIds.Any(id => customerSegmentIds.Contains(id));
 ```
 
 #### 4.6.3 Customer Profile Display
@@ -780,85 +636,49 @@ public class ShippingQuoteService(
 When loading a customer profile (for admin or checkout), include their segment memberships:
 
 ```csharp
-public class CustomerService(
-    MerchelloDbContext db,
-    ICustomerSegmentService segmentService,
-    ILogger<CustomerService> logger) : ICustomerService
+public async Task<CustomerDetailDto?> GetCustomerWithSegmentsAsync(
+    Guid customerId,
+    CancellationToken ct = default)
 {
-    public async Task<CustomerDetailDto?> GetCustomerWithSegmentsAsync(
-        Guid customerId,
-        CancellationToken ct = default)
-    {
-        var customer = await db.Customers
+    using var scope = efCoreScopeProvider.CreateScope();
+    var customer = await scope.ExecuteWithContextAsync(async db =>
+        await db.Customers
             .Include(c => c.Addresses)
-            .FirstOrDefaultAsync(c => c.Id == customerId, ct);
+            .FirstOrDefaultAsync(c => c.Id == customerId, ct));
+    scope.Complete();
 
-        if (customer == null)
-            return null;
+    if (customer == null)
+        return null;
 
-        // Get all active segments and check membership
-        var allSegments = await segmentService.GetAllAsync(ct);
-        var customerSegments = new List<CustomerSegmentSummaryDto>();
+    // Get all segments the customer belongs to
+    var customerSegmentIds = await segmentService.GetCustomerSegmentIdsAsync(customerId, ct);
+    var allSegments = await segmentService.GetAllAsync(ct);
 
-        foreach (var segment in allSegments.Where(s => s.IsActive))
+    var customerSegments = allSegments
+        .Where(s => s.IsActive && customerSegmentIds.Contains(s.Id))
+        .Select(s => new CustomerSegmentSummaryDto
         {
-            var isInSegment = await segmentService.IsCustomerInSegmentAsync(
-                segment.Id,
-                customerId,
-                ct);
+            Id = s.Id,
+            Name = s.Name,
+            SegmentType = s.SegmentType
+        })
+        .ToList();
 
-            if (isInSegment)
-            {
-                customerSegments.Add(new CustomerSegmentSummaryDto
-                {
-                    Id = segment.Id,
-                    Name = segment.Name,
-                    SegmentType = segment.SegmentType
-                });
-            }
-        }
-
-        return new CustomerDetailDto
-        {
-            Id = customer.Id,
-            Email = customer.Email,
-            FirstName = customer.FirstName,
-            LastName = customer.LastName,
-            // ... other customer properties
-            Segments = customerSegments
-        };
-    }
+    return new CustomerDetailDto
+    {
+        Id = customer.Id,
+        Email = customer.Email,
+        FirstName = customer.FirstName,
+        LastName = customer.LastName,
+        // ... other customer properties
+        Segments = customerSegments
+    };
 }
 ```
 
-#### 4.6.4 Integration Flow Diagram
+#### 4.6.4 Segment Membership Check Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         CHECKOUT FLOW                                │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  1. Customer adds items to cart                                      │
-│           │                                                          │
-│           ▼                                                          │
-│  2. Get Eligible Discounts (IDiscountService)                       │
-│           │                                                          │
-│           └──► segmentService.GetCustomerSegmentIdsAsync()          │
-│                 (filter discounts by segment eligibility)            │
-│           │                                                          │
-│           ▼                                                          │
-│  3. Get Shipping Quotes (IShippingQuoteService)                     │
-│           │                                                          │
-│           └──► segmentService.GetCustomerSegmentIdsAsync()          │
-│                 │                                                    │
-│                 ├──► Filter excluded shipping methods                │
-│                 └──► Apply segment shipping discounts                │
-│           │                                                          │
-│           ▼                                                          │
-│  4. Display checkout totals with segment-based discounts applied     │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
-
 ┌─────────────────────────────────────────────────────────────────────┐
 │                   SEGMENT MEMBERSHIP CHECK                           │
 ├─────────────────────────────────────────────────────────────────────┤
@@ -988,6 +808,15 @@ public class CustomerSegmentsApiController(
     public async Task<ActionResult<CriteriaValidationResultDto>> ValidateCriteria(
         [FromBody] List<SegmentCriteriaDto> criteria,
         CancellationToken ct)
+
+    // Search customers (for picker modal)
+    [HttpGet("customers/search")]
+    [ProducesResponseType<PaginatedResponse<CustomerListItemDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<PaginatedResponse<CustomerListItemDto>>> SearchCustomers(
+        [FromQuery] string search,
+        [FromQuery] string? excludeIds,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
 }
 ```
 
@@ -1036,6 +865,66 @@ public class SegmentStatisticsDto
     public int ActiveMembers { get; set; } // Members with recent activity
     public decimal TotalRevenue { get; set; } // Combined spend of members
     public decimal AverageOrderValue { get; set; }
+}
+
+public class UpdateCustomerSegmentDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public List<SegmentCriteriaDto>? Criteria { get; set; }
+    public SegmentMatchMode MatchMode { get; set; } = SegmentMatchMode.All;
+    public bool IsActive { get; set; } = true;
+}
+
+public class AddSegmentMembersDto
+{
+    public List<Guid> CustomerIds { get; set; } = [];
+    public string? Notes { get; set; }
+}
+
+public class RemoveSegmentMembersDto
+{
+    public List<Guid> CustomerIds { get; set; } = [];
+}
+
+public class SegmentMemberDto
+{
+    public Guid Id { get; set; }
+    public Guid CustomerId { get; set; }
+    public string CustomerName { get; set; } = string.Empty;
+    public string CustomerEmail { get; set; } = string.Empty;
+    public DateTime DateAdded { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class CustomerPreviewDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public int OrderCount { get; set; }
+    public decimal TotalSpend { get; set; }
+}
+
+public class CriteriaValidationResult
+{
+    public bool IsValid { get; set; }
+    public List<string> Errors { get; set; } = [];
+    public List<string> Warnings { get; set; } = [];
+}
+
+public class CriteriaValidationResultDto
+{
+    public bool IsValid { get; set; }
+    public List<string> Errors { get; set; } = [];
+    public List<string> Warnings { get; set; } = [];
+}
+
+public class CustomerSegmentSummaryDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public CustomerSegmentType SegmentType { get; set; }
 }
 ```
 

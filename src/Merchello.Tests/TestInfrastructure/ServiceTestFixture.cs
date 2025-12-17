@@ -5,6 +5,10 @@ using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies;
+using Merchello.Core.Customers.Factories;
+using Merchello.Core.Customers.Models;
+using Merchello.Core.Customers.Services;
+using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Services;
@@ -117,6 +121,7 @@ public class ServiceTestFixture : IDisposable
         services.AddSingleton<ProductCategoryFactory>();
         services.AddSingleton<ShippingOptionFactory>();
         services.AddSingleton<LineItemFactory>();
+        services.AddSingleton<CustomerSegmentFactory>();
 
         // Utilities
         services.AddSingleton<SlugHelper>();
@@ -143,6 +148,10 @@ public class ServiceTestFixture : IDisposable
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<IWarehouseService, WarehouseService>();
         services.AddScoped<IProductService, ProductService>();
+
+        // Customer segment services
+        services.AddScoped<ISegmentCriteriaEvaluator, SegmentCriteriaEvaluator>();
+        services.AddScoped<ICustomerSegmentService, CustomerSegmentService>();
 
         // Shipping service and its dependencies
         services.AddScoped<IOrderGroupingStrategy, DefaultOrderGroupingStrategy>();
@@ -314,6 +323,43 @@ public class ServiceTestFixture : IDisposable
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<(Dictionary<Guid, Product>, Dictionary<Guid, Warehouse>)>>>()))
                     .Returns((Func<MerchelloDbContext, Task<(Dictionary<Guid, Product>, Dictionary<Guid, Warehouse>)>> func) => func(dbContext));
+
+                // Customer segment return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<CustomerSegment?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<CustomerSegment?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<CustomerSegment>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<CustomerSegment>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<CustomerSegmentMember?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<CustomerSegmentMember?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<CustomerSegmentMember>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<CustomerSegmentMember>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<PaginatedList<CustomerSegmentMember>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<PaginatedList<CustomerSegmentMember>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<CustomerMetrics>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<CustomerMetrics>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Guid>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<Guid>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Customer?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Customer?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Customer>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<Customer>>> func) => func(dbContext));
 
                 scopeMock.Setup(s => s.Complete()).Returns(true);
                 scopeMock.Setup(s => s.Dispose()).Callback(dbContext.Dispose);

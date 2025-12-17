@@ -428,6 +428,116 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
         return discountLineItem;
     }
 
+    #region Customer Segments
+
+    /// <summary>
+    /// Creates a manual CustomerSegment
+    /// </summary>
+    public CustomerSegment CreateCustomerSegment(
+        string name = "Test Segment",
+        string? description = null,
+        bool isActive = true,
+        bool isSystemSegment = false)
+    {
+        var segment = new CustomerSegment
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            Description = description,
+            SegmentType = CustomerSegmentType.Manual,
+            IsActive = isActive,
+            IsSystemSegment = isSystemSegment,
+            MatchMode = SegmentMatchMode.All,
+            DateCreated = DateTime.UtcNow,
+            DateUpdated = DateTime.UtcNow
+        };
+
+        dbContext.CustomerSegments.Add(segment);
+        return segment;
+    }
+
+    /// <summary>
+    /// Creates an automated CustomerSegment with criteria
+    /// </summary>
+    public CustomerSegment CreateAutomatedSegment(
+        string name,
+        List<SegmentCriteria> criteria,
+        SegmentMatchMode matchMode = SegmentMatchMode.All,
+        string? description = null,
+        bool isActive = true)
+    {
+        var segment = new CustomerSegment
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            Description = description,
+            SegmentType = CustomerSegmentType.Automated,
+            CriteriaJson = System.Text.Json.JsonSerializer.Serialize(criteria),
+            MatchMode = matchMode,
+            IsActive = isActive,
+            IsSystemSegment = false,
+            DateCreated = DateTime.UtcNow,
+            DateUpdated = DateTime.UtcNow
+        };
+
+        dbContext.CustomerSegments.Add(segment);
+        return segment;
+    }
+
+    /// <summary>
+    /// Adds a customer to a manual segment
+    /// </summary>
+    public CustomerSegmentMember AddCustomerToSegment(
+        CustomerSegment segment,
+        Customer customer,
+        string? notes = null,
+        Guid? addedBy = null)
+    {
+        var member = new CustomerSegmentMember
+        {
+            Id = Guid.NewGuid(),
+            SegmentId = segment.Id,
+            CustomerId = customer.Id,
+            DateAdded = DateTime.UtcNow,
+            AddedBy = addedBy,
+            Notes = notes
+        };
+
+        dbContext.CustomerSegmentMembers.Add(member);
+        segment.Members.Add(member);
+        return member;
+    }
+
+    /// <summary>
+    /// Creates a customer with order history for segment testing
+    /// </summary>
+    public Customer CreateCustomerWithOrders(
+        string email,
+        int orderCount,
+        decimal totalSpend,
+        string? firstName = null,
+        string? lastName = null,
+        List<string>? tags = null)
+    {
+        var customer = CreateCustomer(email, firstName ?? "Test", lastName ?? "Customer");
+        if (tags != null)
+        {
+            customer.Tags = tags;
+        }
+
+        // Create invoices with orders to build order history
+        var amountPerOrder = totalSpend / orderCount;
+        for (var i = 0; i < orderCount; i++)
+        {
+            var invoice = CreateInvoice(email, amountPerOrder, customer);
+            invoice.DateCreated = DateTime.UtcNow.AddDays(-i * 30); // Spread orders over time
+        }
+
+        return customer;
+    }
+
+    #endregion
+
     /// <summary>
     /// Persists all pending changes to the database
     /// </summary>

@@ -47,6 +47,12 @@ public class Customer
     public DateTime DateUpdated { get; set; } = DateTime.UtcNow;
 
     /// <summary>
+    /// Tags for categorizing and segmenting customers.
+    /// Used by customer segments for tag-based criteria.
+    /// </summary>
+    public List<string> Tags { get; set; } = [];
+
+    /// <summary>
     /// Navigation property: Invoices for this customer
     /// </summary>
     public virtual ICollection<Invoice>? Invoices { get; set; }
