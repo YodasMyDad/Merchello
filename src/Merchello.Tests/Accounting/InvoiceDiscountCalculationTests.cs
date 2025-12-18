@@ -5,6 +5,7 @@ using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
+using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Notifications;
@@ -59,6 +60,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var settings = Options.Create(new MerchelloSettings { DefaultRounding = MidpointRounding.AwayFromZero, StoreCurrencyCode = "USD" });
         var currencyService = new CurrencyService(settings);
         var lineItemService = new LineItemService(currencyService);
+        var discountService = new Mock<IDiscountService>().Object;
         var logger = new Mock<ILogger<InvoiceService>>().Object;
 
         // Factories
@@ -79,6 +81,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             exchangeRateCacheMock.Object,
             currencyService,
             lineItemService,
+            discountService,
             invoiceFactory,
             orderFactory,
             shipmentFactory,

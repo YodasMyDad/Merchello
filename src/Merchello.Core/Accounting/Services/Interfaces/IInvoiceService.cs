@@ -199,5 +199,16 @@ public interface IInvoiceService
     Task<List<Invoice>> GetInvoicesByBillingEmailAsync(
         string email,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Apply a promotional discount to an existing invoice.
+    /// Validates the discount, calculates the amount, and creates the discount line item.
+    /// </summary>
+    /// <param name="parameters">Parameters including invoice ID, discount ID, and author info</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Result with updated invoice or error</returns>
+    Task<CrudResult<Invoice>> ApplyPromotionalDiscountAsync(
+        ApplyPromotionalDiscountParameters parameters,
+        CancellationToken cancellationToken = default);
 }
 

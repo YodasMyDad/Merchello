@@ -839,6 +839,49 @@ public class OrdersApiController(
         return Ok(items);
     }
 
+    // ============================================
+    // Discount Endpoints
+    // ============================================
+
+    /// <summary>
+    /// Apply a promotional discount to an existing invoice
+    /// </summary>
+    [HttpPost("orders/{invoiceId:guid}/apply-discount")]
+    [ProducesResponseType<ApplyDiscountResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ApplyDiscount(Guid invoiceId, [FromBody] ApplyDiscountDto request)
+    {
+        if (request.DiscountId == Guid.Empty)
+        {
+            return BadRequest("Discount ID is required");
+        }
+
+        var currentUser = backOfficeSecurityAccessor.BackOfficeSecurity?.CurrentUser;
+
+        var result = await invoiceService.ApplyPromotionalDiscountAsync(new ApplyPromotionalDiscountParameters
+        {
+            InvoiceId = invoiceId,
+            DiscountId = request.DiscountId,
+            AuthorId = currentUser?.Key,
+            AuthorName = currentUser?.Name ?? currentUser?.Username
+        });
+
+        if (result.Messages.Any(m => m.ResultMessageType == ResultMessageType.Error))
+        {
+            var errorMessage = result.Messages.First(m => m.ResultMessageType == ResultMessageType.Error).Message ?? "An error occurred";
+            return errorMessage.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                ? NotFound(new ApplyDiscountResultDto { Success = false, ErrorMessage = errorMessage })
+                : BadRequest(new ApplyDiscountResultDto { Success = false, ErrorMessage = errorMessage });
+        }
+
+        return Ok(new ApplyDiscountResultDto
+        {
+            Success = true,
+            NewTotal = result.ResultObject?.Total
+        });
+    }
+
     private static ShipmentDetailDto MapToShipmentDetail(Shipment shipment)
     {
         return new ShipmentDetailDto

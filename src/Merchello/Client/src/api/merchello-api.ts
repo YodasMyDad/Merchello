@@ -310,6 +310,23 @@ import type {
   AssignFiltersDto,
 } from '@filters/types/filters.types.js';
 
+// Import discount types
+import type {
+  DiscountDetailDto,
+  DiscountPageDto,
+  DiscountQueryParams,
+  CreateDiscountDto,
+  UpdateDiscountDto,
+  DiscountPerformanceDto,
+} from '@discounts/types/discount.types.js';
+
+// Import apply discount result from order types (for invoices)
+interface ApplyDiscountResultDto {
+  success: boolean;
+  errorMessage?: string | null;
+  newTotal?: number | null;
+}
+
 // Helper to build query string from params
 function buildQueryString(params?: Record<string, unknown>): string {
   if (!params) return '';
@@ -986,4 +1003,62 @@ export const MerchelloApi = {
   /** Get filters assigned to a product */
   getFiltersForProduct: (productId: string) =>
     apiGet<ProductFilterDto[]>(`products/${productId}/filters`),
+
+  // ============================================
+  // Discounts API
+  // ============================================
+
+  /** Get paginated list of discounts */
+  getDiscounts: (params?: DiscountQueryParams) => {
+    const queryString = buildQueryString(params as Record<string, unknown>);
+    return apiGet<DiscountPageDto>(`discounts${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Get a single discount by ID with full details */
+  getDiscount: (id: string) =>
+    apiGet<DiscountDetailDto>(`discounts/${id}`),
+
+  /** Create a new discount */
+  createDiscount: (data: CreateDiscountDto) =>
+    apiPost<DiscountDetailDto>('discounts', data),
+
+  /** Update an existing discount */
+  updateDiscount: (id: string, data: UpdateDiscountDto) =>
+    apiPut<DiscountDetailDto>(`discounts/${id}`, data),
+
+  /** Delete a discount */
+  deleteDiscount: (id: string) =>
+    apiDelete(`discounts/${id}`),
+
+  /** Activate a discount */
+  activateDiscount: (id: string) =>
+    apiPut<DiscountDetailDto>(`discounts/${id}/activate`),
+
+  /** Deactivate a discount */
+  deactivateDiscount: (id: string) =>
+    apiPut<DiscountDetailDto>(`discounts/${id}/deactivate`),
+
+  /** Generate a unique discount code */
+  generateDiscountCode: (length = 8) =>
+    apiGet<{ code: string }>(`discounts/generate-code?length=${length}`),
+
+  /** Check if a discount code is available */
+  checkDiscountCodeAvailable: (code: string, excludeId?: string) => {
+    const params = new URLSearchParams({ code });
+    if (excludeId) params.set('excludeId', excludeId);
+    return apiGet<{ available: boolean }>(`discounts/check-code?${params.toString()}`);
+  },
+
+  /** Apply a promotional discount to an invoice */
+  applyDiscountToInvoice: (invoiceId: string, discountId: string) =>
+    apiPost<ApplyDiscountResultDto>(`orders/${invoiceId}/apply-discount`, { discountId }),
+
+  /** Get performance metrics for a discount */
+  getDiscountPerformance: (id: string, startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    const queryString = params.toString();
+    return apiGet<DiscountPerformanceDto>(`discounts/${id}/performance${queryString ? `?${queryString}` : ''}`);
+  },
 };

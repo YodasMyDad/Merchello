@@ -10,6 +10,10 @@ using Merchello.Core.Customers.Factories;
 using Merchello.Core.Customers.Services;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
+using Merchello.Core.Discounts.Factories;
+using Merchello.Core.Discounts.Services;
+using Merchello.Core.Discounts.Services.Calculators;
+using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Locality.Services;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Products.Factories;
@@ -123,6 +127,9 @@ public static class Startup
         builder.Services.AddSingleton<CustomerFactory>();
         builder.Services.AddSingleton<CustomerSegmentFactory>();
 
+        // Discounts
+        builder.Services.AddSingleton<DiscountFactory>();
+
         // Other
         builder.Services.AddSingleton<ShippingOptionFactory>();
         builder.Services.AddSingleton<SupplierFactory>();
@@ -145,6 +152,11 @@ public static class Startup
         builder.Services.AddScoped<ICustomerService, CustomerService>();
         builder.Services.AddScoped<ICustomerSegmentService, CustomerSegmentService>();
         builder.Services.AddScoped<ISegmentCriteriaEvaluator, SegmentCriteriaEvaluator>();
+
+        // Discounts
+        builder.Services.AddScoped<IDiscountService, DiscountService>();
+        builder.Services.AddScoped<IDiscountEngine, DiscountEngine>();
+        builder.Services.AddScoped<IBuyXGetYCalculator, BuyXGetYCalculator>();
 
         // Products & Inventory
         builder.Services.AddScoped<IProductService, ProductService>();
@@ -187,6 +199,7 @@ public static class Startup
         // =====================================================
 
         builder.Services.AddHostedService<ExchangeRateRefreshJob>();
+        builder.Services.AddHostedService<DiscountStatusJob>();
 
         // =====================================================
         // Notification Handlers

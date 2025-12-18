@@ -17,5 +17,11 @@
             public const string Reason = "Reason";
             public const string VisibleToCustomer = "VisibleToCustomer";
             public const string IsPhysicalProduct = "IsPhysicalProduct";
+
+            // Promotional discount keys
+            public const string DiscountId = "DiscountId";
+            public const string DiscountCode = "DiscountCode";
+            public const string DiscountName = "DiscountName";
+            public const string DiscountCategory = "DiscountCategory";
         }
     }

@@ -7,6 +7,9 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Data;
+using Merchello.Core.Discounts.Models;
+using Merchello.Core.Discounts.Services;
+using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
@@ -26,6 +29,8 @@ public class CheckoutService(
     BasketFactory basketFactory,
     LineItemFactory lineItemFactory,
     IOptions<MerchelloSettings> settings,
+    IDiscountEngine? discountEngine = null,
+    IDiscountService? discountService = null,
     ILocationsService? locationsService = null) : ICheckoutService
 {
     private readonly ILocationsService _locationsService = locationsService ?? new NoopLocationsService();
@@ -508,6 +513,246 @@ public class CheckoutService(
     public LineItem CreateLineItem(Products.Models.Product product, int quantity = 1)
     {
         return lineItemFactory.CreateFromProduct(product, quantity);
+    }
+
+    /// <summary>
+    /// Applies a discount code to the basket.
+    /// </summary>
+    public async Task<CrudResult<Basket>> ApplyDiscountCodeAsync(
+        Basket basket,
+        string code,
+        string? countryCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<Basket>();
+
+        if (discountEngine == null || discountService == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Discount engine not configured.",
+                ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+            });
+            return result;
+        }
+
+        // Build discount context from basket
+        var context = BuildDiscountContext(basket);
+
+        // Validate the code
+        var validationResult = await discountEngine.ValidateCodeAsync(code, context, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = validationResult.ErrorMessage ?? "Invalid discount code.",
+                ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+            });
+            return result;
+        }
+
+        var discount = validationResult.Discount!;
+
+        // Calculate the discount
+        var calculationResult = await discountEngine.CalculateAsync(discount, context, cancellationToken);
+        if (!calculationResult.Success || calculationResult.TotalDiscountAmount <= 0)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = calculationResult.ErrorMessage ?? "Discount does not apply to items in your cart.",
+                ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+            });
+            return result;
+        }
+
+        // Add discount as a line item
+        var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
+        var errors = lineItemService.AddDiscountLineItem(
+            basket.LineItems,
+            calculationResult.TotalDiscountAmount,
+            DiscountValueType.FixedAmount,
+            currencyCode,
+            linkedSku: null,
+            name: discount.Name,
+            reason: discount.Code,
+            extendedData: new Dictionary<string, string>
+            {
+                [Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString(),
+                [Constants.ExtendedDataKeys.DiscountCode] = discount.Code ?? string.Empty,
+                [Constants.ExtendedDataKeys.DiscountName] = discount.Name,
+                [Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString()
+            });
+
+        if (errors.Count > 0)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = errors.First(),
+                ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+            });
+            return result;
+        }
+
+        await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
+        basket.DateUpdated = DateTime.UtcNow;
+
+        result.ResultObject = basket;
+        return result;
+    }
+
+    /// <summary>
+    /// Gets all applicable automatic discounts for the basket.
+    /// </summary>
+    public async Task<List<ApplicableDiscount>> GetApplicableAutomaticDiscountsAsync(
+        Basket basket,
+        CancellationToken cancellationToken = default)
+    {
+        if (discountEngine == null)
+        {
+            return [];
+        }
+
+        var context = BuildDiscountContext(basket);
+        return await discountEngine.GetApplicableAutomaticDiscountsAsync(context, cancellationToken);
+    }
+
+    /// <summary>
+    /// Refreshes automatic discounts on the basket.
+    /// </summary>
+    public async Task<Basket> RefreshAutomaticDiscountsAsync(
+        Basket basket,
+        string? countryCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (discountEngine == null)
+        {
+            return basket;
+        }
+
+        // Remove existing automatic discount line items
+        var automaticDiscountLineItems = basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Discount &&
+                         li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCategory, out var category) &&
+                         !li.ExtendedData.ContainsKey(Constants.ExtendedDataKeys.DiscountCode))
+            .ToList();
+
+        foreach (var lineItem in automaticDiscountLineItems)
+        {
+            basket.LineItems.Remove(lineItem);
+        }
+
+        // Get applicable automatic discounts
+        var context = BuildDiscountContext(basket);
+        var applicableDiscounts = await discountEngine.GetApplicableAutomaticDiscountsAsync(context, cancellationToken);
+
+        // Apply each automatic discount
+        var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
+        foreach (var applicableDiscount in applicableDiscounts)
+        {
+            var discount = applicableDiscount.Discount;
+
+            lineItemService.AddDiscountLineItem(
+                basket.LineItems,
+                applicableDiscount.CalculatedAmount,
+                DiscountValueType.FixedAmount,
+                currencyCode,
+                linkedSku: null,
+                name: discount.Name,
+                reason: "Automatic discount",
+                extendedData: new Dictionary<string, string>
+                {
+                    [Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString(),
+                    [Constants.ExtendedDataKeys.DiscountName] = discount.Name,
+                    [Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString()
+                });
+        }
+
+        await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
+        basket.DateUpdated = DateTime.UtcNow;
+
+        return basket;
+    }
+
+    /// <summary>
+    /// Removes a promotional discount from the basket.
+    /// </summary>
+    public async Task<CrudResult<Basket>> RemovePromotionalDiscountAsync(
+        Basket basket,
+        Guid discountId,
+        string? countryCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<Basket>();
+
+        // Find the discount line item with matching discount ID
+        var discountLineItem = basket.LineItems
+            .FirstOrDefault(li => li.LineItemType == LineItemType.Discount &&
+                                  li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id) &&
+                                  Guid.TryParse(id?.ToString(), out var parsedId) &&
+                                  parsedId == discountId);
+
+        if (discountLineItem == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Discount not found in basket.",
+                ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+            });
+            return result;
+        }
+
+        basket.LineItems.Remove(discountLineItem);
+
+        await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
+        basket.DateUpdated = DateTime.UtcNow;
+
+        result.ResultObject = basket;
+        return result;
+    }
+
+    /// <summary>
+    /// Builds a discount context from the basket for discount engine calculations.
+    /// </summary>
+    private DiscountContext BuildDiscountContext(Basket basket)
+    {
+        var context = new DiscountContext
+        {
+            CustomerId = basket.CustomerId,
+            SubTotal = basket.SubTotal,
+            ShippingTotal = basket.Shipping,
+            CurrencyCode = basket.Currency ?? _settings.StoreCurrencyCode,
+            ShippingAddress = basket.ShippingAddress,
+            AppliedDiscountIds = basket.LineItems
+                .Where(li => li.LineItemType == LineItemType.Discount)
+                .Select(li => li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id) &&
+                              Guid.TryParse(id as string, out var parsedId)
+                    ? parsedId
+                    : Guid.Empty)
+                .Where(id => id != Guid.Empty)
+                .ToList()
+        };
+
+        // Convert basket line items to discount context line items
+        foreach (var lineItem in basket.LineItems.Where(li => li.LineItemType == LineItemType.Product))
+        {
+            context.LineItems.Add(new DiscountContextLineItem
+            {
+                LineItemId = lineItem.Id,
+                ProductId = lineItem.ProductId ?? Guid.Empty,
+                ProductRootId = Guid.Empty, // Would need to load from product
+                CategoryIds = new List<Guid>(), // Would need to load from product
+                ProductFilterIds = new List<Guid>(), // Would need to load from product
+                ProductTypeId = null, // Would need to load from product
+                SupplierId = null, // Would need to load from product
+                WarehouseId = null, // Would need to load from product
+                Sku = lineItem.Sku ?? string.Empty,
+                Quantity = lineItem.Quantity,
+                UnitPrice = lineItem.Amount,
+                LineTotal = lineItem.Quantity * lineItem.Amount
+            });
+        }
+
+        return context;
     }
 
     private sealed class NoopLocationsService : ILocationsService

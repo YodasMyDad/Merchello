@@ -636,6 +636,277 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.ToTable("merchelloCustomerTags", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.Discounts.Models.Discount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("CanCombineWithOrderDiscounts")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanCombineWithProductDiscounts")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanCombineWithShippingDiscounts")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("CurrentUsageCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DateUpdated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("EndsAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Method")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int?>("PerCustomerUsageLimit")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PerOrderUsageLimit")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RequirementType")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("RequirementValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Timezone")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("TotalUsageLimit")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Value")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("ValueType")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasFilter("[Code] IS NOT NULL");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("StartsAt", "EndsAt");
+
+                    b.ToTable("merchelloDiscounts", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountBuyXGetYConfig", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BuyTargetIds")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("BuyTargetType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BuyTriggerType")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("BuyTriggerValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("DiscountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("GetQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("GetTargetIds")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("GetTargetType")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("GetValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("GetValueType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SelectionMethod")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DiscountId")
+                        .IsUnique();
+
+                    b.ToTable("merchelloDiscountBuyXGetYConfigs", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountEligibilityRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DiscountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EligibilityIds")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("EligibilityType")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DiscountId");
+
+                    b.ToTable("merchelloDiscountEligibilityRules", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountFreeShippingConfig", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AllowedShippingOptionIds")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CountryCodes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("CountryScope")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("DiscountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("ExcludeRatesOverAmount")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("ExcludeRatesOverValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DiscountId")
+                        .IsUnique();
+
+                    b.ToTable("merchelloDiscountFreeShippingConfigs", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountTargetRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DiscountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsExclusion")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("TargetIds")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("TargetType")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DiscountId");
+
+                    b.ToTable("merchelloDiscountTargetRules", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountUsage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("DateUsed")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("DiscountAmountInStoreCurrency")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("DiscountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("DateUsed");
+
+                    b.HasIndex("DiscountId");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("merchelloDiscountUsages", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.ExchangeRates.Models.ExchangeRateProviderSetting", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1800,6 +2071,61 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Navigation("Customer");
                 });
 
+            modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountBuyXGetYConfig", b =>
+                {
+                    b.HasOne("Merchello.Core.Discounts.Models.Discount", "Discount")
+                        .WithOne("BuyXGetYConfig")
+                        .HasForeignKey("Merchello.Core.Discounts.Models.DiscountBuyXGetYConfig", "DiscountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Discount");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountEligibilityRule", b =>
+                {
+                    b.HasOne("Merchello.Core.Discounts.Models.Discount", "Discount")
+                        .WithMany("EligibilityRules")
+                        .HasForeignKey("DiscountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Discount");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountFreeShippingConfig", b =>
+                {
+                    b.HasOne("Merchello.Core.Discounts.Models.Discount", "Discount")
+                        .WithOne("FreeShippingConfig")
+                        .HasForeignKey("Merchello.Core.Discounts.Models.DiscountFreeShippingConfig", "DiscountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Discount");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountTargetRule", b =>
+                {
+                    b.HasOne("Merchello.Core.Discounts.Models.Discount", "Discount")
+                        .WithMany("TargetRules")
+                        .HasForeignKey("DiscountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Discount");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountUsage", b =>
+                {
+                    b.HasOne("Merchello.Core.Discounts.Models.Discount", "Discount")
+                        .WithMany("Usages")
+                        .HasForeignKey("DiscountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Discount");
+                });
+
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
                 {
                     b.HasOne("Merchello.Core.Products.Models.ProductRoot", "ProductRoot")
@@ -2146,6 +2472,19 @@ namespace Merchello.Core.SqlServer.Migrations
             modelBuilder.Entity("Merchello.Core.Customers.Models.CustomerSegment", b =>
                 {
                     b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Discounts.Models.Discount", b =>
+                {
+                    b.Navigation("BuyXGetYConfig");
+
+                    b.Navigation("EligibilityRules");
+
+                    b.Navigation("FreeShippingConfig");
+
+                    b.Navigation("TargetRules");
+
+                    b.Navigation("Usages");
                 });
 
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>

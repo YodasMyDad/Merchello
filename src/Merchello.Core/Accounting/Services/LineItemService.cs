@@ -281,7 +281,8 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         string currencyCode,
         string? linkedSku = null,
         string? name = null,
-        string? reason = null)
+        string? reason = null,
+        Dictionary<string, string>? extendedData = null)
     {
         List<string> errors = [];
 
@@ -348,6 +349,15 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         if (!string.IsNullOrEmpty(reason))
         {
             discountLineItem.ExtendedData[Constants.ExtendedDataKeys.Reason] = reason;
+        }
+
+        // Add any additional extended data
+        if (extendedData != null)
+        {
+            foreach (var kvp in extendedData)
+            {
+                discountLineItem.ExtendedData[kvp.Key] = kvp.Value;
+            }
         }
 
         lineItems.Add(discountLineItem);

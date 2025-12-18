@@ -41,6 +41,7 @@ public interface ILineItemService
     /// <param name="linkedSku">Optional SKU to link discount to specific product</param>
     /// <param name="name">Optional name for the discount</param>
     /// <param name="reason">Optional reason/description for the discount</param>
+    /// <param name="extendedData">Optional additional extended data to store with the discount</param>
     /// <returns>List of validation errors (empty if successful)</returns>
     List<string> AddDiscountLineItem(
         List<LineItem> lineItems,
@@ -49,7 +50,8 @@ public interface ILineItemService
         string currencyCode,
         string? linkedSku = null,
         string? name = null,
-        string? reason = null);
+        string? reason = null,
+        Dictionary<string, string>? extendedData = null);
 
     /// <summary>
     /// Removes a discount line item from the collection by its ID

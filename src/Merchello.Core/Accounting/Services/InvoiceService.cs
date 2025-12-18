@@ -7,6 +7,8 @@ using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
+using Merchello.Core.Discounts.Models;
+using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Locality.Dtos;
@@ -47,6 +49,7 @@ public class InvoiceService(
     IExchangeRateCache exchangeRateCache,
     ICurrencyService currencyService,
     ILineItemService lineItemService,
+    IDiscountService discountService,
     InvoiceFactory invoiceFactory,
     OrderFactory orderFactory,
     ShipmentFactory shipmentFactory,
@@ -3432,5 +3435,277 @@ public class InvoiceService(
             Email = source.Email,
             Phone = source.Phone
         };
+    }
+
+    // ============================================
+    // Promotional Discount Methods
+    // ============================================
+
+    /// <inheritdoc />
+    public async Task<CrudResult<Invoice>> ApplyPromotionalDiscountAsync(
+        ApplyPromotionalDiscountParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<Invoice>();
+
+        // Get the discount
+        var discount = await discountService.GetByIdAsync(parameters.DiscountId, cancellationToken);
+        if (discount == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Discount not found",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        // Validate discount is active
+        if (discount.Status != DiscountStatus.Active)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Discount '{discount.Name}' is not active (status: {discount.Status})",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        // Check if discount has expired
+        if (discount.EndsAt.HasValue && discount.EndsAt.Value < DateTime.UtcNow)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Discount '{discount.Name}' has expired",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        // Check usage limits
+        if (discount.TotalUsageLimit.HasValue && discount.CurrentUsageCount >= discount.TotalUsageLimit.Value)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Discount '{discount.Name}' has reached its usage limit",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var invoice = await db.Invoices
+                .Include(i => i.Orders)!
+                .ThenInclude(o => o.LineItems)
+                .FirstOrDefaultAsync(i => i.Id == parameters.InvoiceId && !i.IsDeleted, cancellationToken);
+
+            if (invoice == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Invoice not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            var orders = invoice.Orders?.ToList() ?? [];
+            var (canEdit, cannotEditReason) = CanEditInvoice(orders);
+            if (!canEdit)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = cannotEditReason ?? "Invoice cannot be edited",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            // Check if this discount has already been applied
+            var existingDiscountSku = $"PROMO-{discount.Id}";
+            var alreadyApplied = orders
+                .SelectMany(o => o.LineItems ?? [])
+                .Any(li => li.LineItemType == LineItemType.Discount && li.Sku == existingDiscountSku);
+
+            if (alreadyApplied)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = $"Discount '{discount.Name}' has already been applied to this invoice",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            // Calculate subtotal for percentage discounts and minimum requirements
+            var productLineItems = orders
+                .SelectMany(o => o.LineItems ?? [])
+                .Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom)
+                .ToList();
+            var subTotal = productLineItems.Sum(li => currencyService.Round(li.Amount * li.Quantity, invoice.CurrencyCode));
+
+            // Check minimum requirements
+            if (discount.RequirementType == DiscountRequirementType.MinimumPurchaseAmount &&
+                discount.RequirementValue.HasValue &&
+                subTotal < discount.RequirementValue.Value)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = $"Minimum purchase of {invoice.CurrencySymbol}{discount.RequirementValue.Value} required for discount '{discount.Name}'",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            if (discount.RequirementType == DiscountRequirementType.MinimumQuantity &&
+                discount.RequirementValue.HasValue)
+            {
+                var totalQuantity = productLineItems.Sum(li => li.Quantity);
+                if (totalQuantity < (int)discount.RequirementValue.Value)
+                {
+                    result.Messages.Add(new ResultMessage
+                    {
+                        Message = $"Minimum quantity of {(int)discount.RequirementValue.Value} items required for discount '{discount.Name}'",
+                        ResultMessageType = ResultMessageType.Error
+                    });
+                    return;
+                }
+            }
+
+            // Calculate the discount amount based on category and value type
+            decimal discountAmount;
+
+            switch (discount.Category)
+            {
+                case DiscountCategory.AmountOffProducts:
+                case DiscountCategory.AmountOffOrder:
+                    discountAmount = discount.ValueType switch
+                    {
+                        DiscountValueType.Percentage => currencyService.Round(subTotal * (discount.Value / 100m), invoice.CurrencyCode),
+                        DiscountValueType.FixedAmount => discount.Value,
+                        DiscountValueType.Free => subTotal,
+                        _ => 0m
+                    };
+                    break;
+
+                case DiscountCategory.FreeShipping:
+                    var shippingTotal = orders.Sum(o => o.ShippingCost);
+                    discountAmount = shippingTotal; // Free shipping = discount equals shipping cost
+                    break;
+
+                default:
+                    // For BuyXGetY and other complex discounts, we'd need the full discount engine
+                    // For now, fallback to simple calculation
+                    discountAmount = discount.ValueType switch
+                    {
+                        DiscountValueType.Percentage => currencyService.Round(subTotal * (discount.Value / 100m), invoice.CurrencyCode),
+                        DiscountValueType.FixedAmount => discount.Value,
+                        _ => 0m
+                    };
+                    break;
+            }
+
+            // Cap discount to prevent negative totals
+            discountAmount = Math.Min(discountAmount, subTotal);
+
+            if (discountAmount <= 0)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Calculated discount amount is zero or negative",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            // Get first order to attach discount line item
+            var targetOrder = orders.FirstOrDefault();
+            if (targetOrder == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "No order found to attach discount to",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            // Create the discount line item
+            var discountLineItem = new LineItem
+            {
+                Id = GuidExtensions.NewSequentialGuid,
+                OrderId = targetOrder.Id,
+                Order = targetOrder,
+                LineItemType = LineItemType.Discount,
+                DependantLineItemSku = null, // Order-level discount
+                Name = discount.Code != null ? $"{discount.Name} ({discount.Code})" : discount.Name,
+                Sku = existingDiscountSku,
+                Amount = -discountAmount, // Discounts stored as negative
+                Quantity = 1,
+                IsTaxable = false,
+                TaxRate = 0,
+                DateCreated = DateTime.UtcNow,
+                DateUpdated = DateTime.UtcNow,
+                ExtendedData = new Dictionary<string, object>
+                {
+                    [Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString(),
+                    [Constants.ExtendedDataKeys.DiscountValueType] = discount.ValueType.ToString(),
+                    [Constants.ExtendedDataKeys.DiscountValue] = discount.Value,
+                    [Constants.ExtendedDataKeys.VisibleToCustomer] = true
+                }
+            };
+
+            targetOrder.LineItems ??= [];
+            targetOrder.LineItems.Add(discountLineItem);
+            db.LineItems.Add(discountLineItem);
+
+            // Recalculate invoice totals
+            RecalculateInvoiceTotals(invoice, orders);
+            ApplyPricingRateToStoreAmounts(invoice, orders);
+
+            // Add note to timeline
+            var noteText = $"**Promotional Discount Applied**\n\n" +
+                          $"Discount: {discount.Name}\n" +
+                          (discount.Code != null ? $"Code: {discount.Code}\n" : "") +
+                          $"Amount: -{invoice.CurrencySymbol}{discountAmount}";
+
+            invoice.Notes.Add(new InvoiceNote
+            {
+                DateCreated = DateTime.UtcNow,
+                AuthorId = parameters.AuthorId,
+                Author = parameters.AuthorName ?? "System",
+                Description = noteText,
+                VisibleToCustomer = false
+            });
+
+            invoice.DateUpdated = DateTime.UtcNow;
+
+            await db.SaveChangesAsync(cancellationToken);
+
+            // Record discount usage
+            var discountAmountInStoreCurrency = invoice.PricingExchangeRate.HasValue
+                ? currencyService.Round(discountAmount * invoice.PricingExchangeRate.Value, _settings.StoreCurrencyCode)
+                : discountAmount;
+
+            await discountService.RecordUsageAsync(
+                discount.Id,
+                invoice.Id,
+                invoice.CustomerId,
+                discountAmount,
+                discountAmountInStoreCurrency,
+                invoice.CurrencyCode,
+                cancellationToken);
+
+            logger.LogInformation(
+                "Applied promotional discount '{DiscountName}' ({DiscountId}) to invoice {InvoiceId} for {Amount}",
+                discount.Name, discount.Id, invoice.Id, discountAmount);
+
+            result.ResultObject = invoice;
+        });
+        scope.Complete();
+
+        return result;
     }
 }

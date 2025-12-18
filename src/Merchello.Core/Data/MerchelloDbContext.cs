@@ -2,6 +2,7 @@ using System.Reflection;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Customers.Models;
+using Merchello.Core.Discounts.Models;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Products.Models;
@@ -67,6 +68,14 @@ public class MerchelloDbContext : DbContext
 
     // Exchange Rate Provider DbSets
     public DbSet<ExchangeRateProviderSetting> ExchangeRateProviderSettings => Set<ExchangeRateProviderSetting>();
+
+    // Discount DbSets
+    public DbSet<Discount> Discounts => Set<Discount>();
+    public DbSet<DiscountTargetRule> DiscountTargetRules => Set<DiscountTargetRule>();
+    public DbSet<DiscountEligibilityRule> DiscountEligibilityRules => Set<DiscountEligibilityRule>();
+    public DbSet<DiscountBuyXGetYConfig> DiscountBuyXGetYConfigs => Set<DiscountBuyXGetYConfig>();
+    public DbSet<DiscountFreeShippingConfig> DiscountFreeShippingConfigs => Set<DiscountFreeShippingConfig>();
+    public DbSet<DiscountUsage> DiscountUsages => Set<DiscountUsage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

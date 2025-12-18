@@ -479,6 +479,7 @@ src/Merchello.Core/
 │   │   │   └── IDiscountEngine.cs
 │   │   ├── Parameters/
 │   │   │   ├── DiscountQueryParameters.cs
+│   │   │   ├── DiscountReportParameters.cs
 │   │   │   ├── CreateDiscountParameters.cs
 │   │   │   └── ApplyDiscountParameters.cs
 │   │   ├── DiscountService.cs
@@ -491,15 +492,16 @@ src/Merchello.Core/
 │   │   ├── DiscountDetailDto.cs
 │   │   ├── CreateDiscountDto.cs
 │   │   ├── UpdateDiscountDto.cs
+│   │   ├── DiscountUsageSummaryDto.cs
 │   │   └── ApplyDiscountResultDto.cs
-│   └── Notifications/
+│   └── Notifications/                        # FUTURE ENHANCEMENT
 │       ├── DiscountCreatingNotification.cs   # extends MerchelloCancelableNotification<Discount>
 │       ├── DiscountCreatedNotification.cs    # extends MerchelloNotification
 │       ├── DiscountApplyingNotification.cs   # extends MerchelloCancelableNotification<Discount> (for code validation)
 │       └── DiscountAppliedNotification.cs    # extends MerchelloNotification
 ```
 
-> **Implementation Note**: "Creating" and "Applying" notifications extend `MerchelloCancelableNotification<Discount>` allowing handlers to cancel operations via `notification.CancelOperation("reason")`. "Created" and "Applied" notifications extend `MerchelloNotification` for post-operation reactions (logging, external sync, etc.).
+> **Future Enhancement - Notifications**: The Notifications folder is planned for future extensibility. "Creating" and "Applying" notifications would extend `MerchelloCancelableNotification<Discount>` allowing handlers to cancel operations via `notification.CancelOperation("reason")`. "Created" and "Applied" notifications would extend `MerchelloNotification` for post-operation reactions (logging, external sync, etc.). This is not required for MVP.
 
 > **Note**: Customer segment models and services are defined in [Customer-Segments.md](Customer-Segments.md).
 
@@ -736,9 +738,10 @@ Task<Basket> RefreshAutomaticDiscountsAsync(Basket basket, CancellationToken ct 
 
 ```csharp
 // Add to IInvoiceService
-Task<CrudResult<Invoice>> ApplyDiscountAsync(Guid invoiceId, Guid discountId, CancellationToken ct = default);
-Task<CrudResult<Invoice>> ApplyManualDiscountAsync(Guid invoiceId, ApplyManualDiscountParameters parameters, CancellationToken ct = default);
+Task<CrudResult<Invoice>> ApplyPromotionalDiscountAsync(ApplyPromotionalDiscountParameters parameters, CancellationToken ct = default);
 ```
+
+> **Note**: Manual discounts (ad-hoc staff adjustments) continue to use the existing `ILineItemService.AddDiscountLineItem()` method directly. No separate `ApplyManualDiscountAsync` is needed as manual discounts don't require the validation, tracking, and rules enforcement that promotional discounts do.
 
 #### Manual vs Promotional Discounts
 

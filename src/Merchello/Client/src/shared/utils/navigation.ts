@@ -261,3 +261,56 @@ export function getSegmentsListHref(): string {
 export function navigateToSegmentsList(): void {
   history.pushState({}, "", getSegmentsListHref());
 }
+
+// ============================================
+// Discount Navigation
+// ============================================
+
+/** Entity type for discount detail workspace */
+export const DISCOUNT_ENTITY_TYPE = "merchello-discount";
+
+/** Entity type for discounts list workspace */
+export const DISCOUNTS_ENTITY_TYPE = "merchello-discounts";
+
+/**
+ * Generate the URL to view/edit a discount detail.
+ * Use this in href attributes on links/buttons.
+ */
+export function getDiscountDetailHref(discountId: string): string {
+  return getMerchelloWorkspaceHref(DISCOUNT_ENTITY_TYPE, `edit/${discountId}`);
+}
+
+/**
+ * Generate the URL to create a new discount with the specified category.
+ */
+export function getDiscountCreateHref(category: number): string {
+  return getMerchelloWorkspaceHref(DISCOUNT_ENTITY_TYPE, `create?category=${category}`);
+}
+
+/**
+ * Navigate programmatically to a discount detail page using SPA routing.
+ */
+export function navigateToDiscountDetail(discountId: string): void {
+  navigateToMerchelloWorkspace(DISCOUNT_ENTITY_TYPE, `edit/${discountId}`);
+}
+
+/**
+ * Navigate programmatically to create a new discount with the specified category.
+ */
+export function navigateToDiscountCreate(category: number): void {
+  navigateToMerchelloWorkspace(DISCOUNT_ENTITY_TYPE, `create?category=${category}`);
+}
+
+/**
+ * Generate the URL to the discounts list.
+ */
+export function getDiscountsListHref(): string {
+  return getMerchelloWorkspaceHref(DISCOUNTS_ENTITY_TYPE, "discounts");
+}
+
+/**
+ * Navigate programmatically to the discounts list using SPA routing.
+ */
+export function navigateToDiscountsList(): void {
+  navigateToMerchelloWorkspace(DISCOUNTS_ENTITY_TYPE, "discounts");
+}

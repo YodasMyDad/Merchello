@@ -1,5 +1,5 @@
 export const manifests: Array<UmbExtensionManifest> = [
-  // Workspace for discounts (when clicking "Discounts" in tree)
+  // Workspace for discounts list (when clicking "Discounts" in tree)
   {
     type: "workspace",
     kind: "default",
@@ -11,17 +11,17 @@ export const manifests: Array<UmbExtensionManifest> = [
     },
   },
 
-  // Workspace view for discounts
+  // Workspace view for discounts list
   {
     type: "workspaceView",
     alias: "Merchello.Discounts.Workspace.View",
     name: "Merchello Discounts View",
-    js: () => import("./components/discounts-workspace.element.js"),
+    js: () => import("./components/discounts-list.element.js"),
     weight: 100,
     meta: {
       label: "Discounts",
       pathname: "discounts",
-      icon: "icon-megaphone",
+      icon: "icon-tag",
     },
     conditions: [
       {
@@ -29,5 +29,25 @@ export const manifests: Array<UmbExtensionManifest> = [
         match: "Merchello.Discounts.Workspace",
       },
     ],
+  },
+
+  // Routable workspace for discount detail (create/edit)
+  {
+    type: "workspace",
+    kind: "routable",
+    alias: "Merchello.Discount.Detail.Workspace",
+    name: "Discount Detail Workspace",
+    api: () => import("./contexts/discount-detail-workspace.context.js"),
+    meta: {
+      entityType: "merchello-discount",
+    },
+  },
+
+  // Select discount type modal
+  {
+    type: "modal",
+    alias: "Merchello.SelectDiscountType.Modal",
+    name: "Select Discount Type Modal",
+    js: () => import("./modals/select-discount-type-modal.element.js"),
   },
 ];

@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Merchello.Core\Merchello.Core.csproj" />
+    <ProjectReference Include="..\Merchello\Merchello.csproj" />
   </ItemGroup>
 
 </Project>
