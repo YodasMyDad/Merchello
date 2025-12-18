@@ -1,9 +1,9 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { TestProviderModalData, TestProviderModalValue } from "./test-provider-modal.token.js";
-import type { WarehouseListDto, CountryInfo, SubdivisionInfo } from "@warehouses/types.js";
-import type { TestShippingProviderDto, TestShippingProviderResultDto } from "@shipping/types.js";
+import type { TestShippingProviderModalData, TestShippingProviderModalValue } from "./test-provider-modal.token.js";
+import type { WarehouseListDto, CountryInfo, SubdivisionInfo } from "@warehouses/types/warehouses.types.js";
+import type { TestShippingProviderDto, TestShippingProviderResultDto } from "@shipping/types/shipping.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
 import type { SelectOption } from "@shared/types/index.js";
@@ -25,8 +25,8 @@ interface SavedFormValues {
 
 @customElement("merchello-test-provider-modal")
 export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
-  TestProviderModalData,
-  TestProviderModalValue
+  TestShippingProviderModalData,
+  TestShippingProviderModalValue
 > {
   // Form state
   @state() private _warehouseId: string = "";
@@ -443,7 +443,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
   }
 
   private _renderServiceLevelCard(
-    level: import("@shipping/types.js").TestShippingServiceLevelDto,
+    level: import("@shipping/types/shipping.types.js").TestShippingServiceLevelDto,
     currencySymbol: string,
     showValidation: boolean
   ): unknown {

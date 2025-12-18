@@ -4,7 +4,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Providers.PaymentProviders.View",
     name: "Payment Providers View",
-    js: () => import("./payment-providers-list.element.js"),
+    js: () => import("./components/payment-providers-list.element.js"),
     weight: 100,
     meta: {
       label: "Payments",
@@ -24,7 +24,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.PaymentProvider.Config.Modal",
     name: "Payment Provider Configuration Modal",
-    js: () => import("./payment-provider-config-modal.element.js"),
+    js: () => import("./modals/payment-provider-config-modal.element.js"),
   },
 
   // Modal for displaying setup instructions
@@ -32,7 +32,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.SetupInstructions.Modal",
     name: "Setup Instructions Modal",
-    js: () => import("./setup-instructions-modal.element.js"),
+    js: () => import("./modals/setup-instructions-modal.element.js"),
   },
 
   // Modal for testing a payment provider
@@ -40,7 +40,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.TestPaymentProvider.Modal",
     name: "Test Payment Provider Modal",
-    js: () => import("./test-provider-modal.element.js"),
+    js: () => import("./modals/test-provider-modal.element.js"),
   },
 ];
 

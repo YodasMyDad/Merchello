@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { SupplierListItemDto } from "../types.js";
+import type { SupplierListItemDto } from '@suppliers/types/suppliers.types.js';
 
 export interface SupplierModalData {
   /** If provided, the modal will be in edit mode. Otherwise, it's in create mode. */

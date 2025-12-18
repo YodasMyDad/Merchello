@@ -7,13 +7,13 @@ import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
-import type { WarehouseDetailDto, SupplierDto, CountryInfo, ServiceRegionDto } from "@warehouses/types.js";
+import type { WarehouseDetailDto, SupplierDto, CountryInfo, ServiceRegionDto } from "@warehouses/types/warehouses.types.js";
 import type { MerchelloWarehouseDetailWorkspaceContext } from "@warehouses/contexts/warehouse-detail-workspace.context.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { MERCHELLO_SERVICE_REGION_MODAL } from "@warehouses/modals/service-region-modal.token.js";
 import { MERCHELLO_SUPPLIER_MODAL } from "@suppliers/modals/supplier-modal.token.js";
 import { MERCHELLO_SHIPPING_OPTION_DETAIL_MODAL } from "@shipping/modals/shipping-option-detail-modal.token.js";
-import type { ShippingOptionDto } from "@shipping/types.js";
+import type { ShippingOptionDto } from "@shipping/types/shipping.types.js";
 import {
   navigateToWarehousesList,
   getWarehousesListHref,

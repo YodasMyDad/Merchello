@@ -423,7 +423,7 @@ public class CustomerSegmentService(
     public async Task<List<Guid>> GetCustomerSegmentIdsAsync(Guid customerId, CancellationToken ct = default)
     {
         var segments = await GetAllAsync(ct);
-        var matchingSegmentIds = new List<Guid>();
+        List<Guid> matchingSegmentIds = [];
 
         foreach (var segment in segments.Where(s => s.IsActive))
         {
@@ -583,7 +583,7 @@ public class CustomerSegmentService(
         if (segmentIds.Count == 0)
             return [];
 
-        var result = new Dictionary<Guid, int>();
+        Dictionary<Guid, int> result = [];
 
         // Get all segments
         using var scope = efCoreScopeProvider.CreateScope();
@@ -672,7 +672,7 @@ public class CustomerSegmentService(
                 .Where(i => memberIds.Contains(i.CustomerId))
                 .Where(i => !i.IsDeleted && !i.IsCancelled)
                 .Select(i => new { i.CustomerId, Total = i.TotalInStoreCurrency ?? i.Total })
-                .ToListAsync(ct));
+                .ToListAsync(ct)) ?? [];
         scope.Complete();
 
         // Aggregate client-side

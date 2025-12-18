@@ -6,7 +6,7 @@ import {
   property,
 } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import type { SalesBreakdownDto } from "../types/analytics.types.js";
+import type { SalesBreakdownDto } from "@analytics/types/analytics.types.js";
 
 interface BreakdownRow {
   label: string;

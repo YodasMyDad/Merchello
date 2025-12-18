@@ -14,5 +14,5 @@ public class ProductType
     /// <summary>
     /// The Categories this product is in
     /// </summary>
-    public virtual ICollection<ProductRoot> Products { get; set; } = new HashSet<ProductRoot>();
+    public virtual ICollection<ProductRoot> Products { get; set; } = [];
 }

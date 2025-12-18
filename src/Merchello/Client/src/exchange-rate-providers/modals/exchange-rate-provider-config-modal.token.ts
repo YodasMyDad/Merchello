@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { ExchangeRateProviderDto } from "./types.js";
+import type { ExchangeRateProviderDto } from '@exchange-rate-providers/types/exchange-rate-providers.types.js';
 
 export interface ExchangeRateProviderConfigModalData {
   /** The provider to configure */

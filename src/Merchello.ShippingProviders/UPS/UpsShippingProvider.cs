@@ -309,7 +309,7 @@ public class UpsShippingProvider(
         {
             // Determine request currency for conversion
             var requestCurrency = request.CurrencyCode ?? _settings.StoreCurrencyCode;
-            var errors = new List<string>();
+            List<string> errors = [];
 
             // Build origin address from warehouse
             var origin = BuildUpsAddress(request.OriginAddress);
@@ -341,7 +341,7 @@ public class UpsShippingProvider(
             }
 
             // Build service levels from response
-            var serviceLevels = new List<ShippingServiceLevel>();
+            List<ShippingServiceLevel> serviceLevels = [];
 
             if (response.RateResponse?.RatedShipment != null)
             {
@@ -491,7 +491,7 @@ public class UpsShippingProvider(
 
         // Filter to only requested service types and apply markup
         var serviceTypeSet = new HashSet<string>(serviceTypes, StringComparer.OrdinalIgnoreCase);
-        var filteredLevels = new List<ShippingServiceLevel>();
+        List<ShippingServiceLevel> filteredLevels = [];
 
         foreach (var sl in quote.ServiceLevels)
         {
@@ -579,7 +579,7 @@ public class UpsShippingProvider(
     {
         if (address != null)
         {
-            var addressLines = new List<string>();
+            List<string> addressLines = [];
             if (!string.IsNullOrEmpty(address.AddressOne))
                 addressLines.Add(address.AddressOne);
             if (!string.IsNullOrEmpty(address.AddressTwo))

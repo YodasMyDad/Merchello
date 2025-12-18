@@ -5,7 +5,7 @@ import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
-import type { CustomerListItemDto, CustomerListParams } from "../types/customer.types.js";
+import type { CustomerListItemDto, CustomerListParams } from "@customers/types/customer.types.js";
 import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { MERCHELLO_CUSTOMER_EDIT_MODAL } from "../modals/customer-edit-modal.token.js";

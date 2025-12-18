@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { ProductFilterDto } from "../types.js";
+import type { ProductFilterDto } from "@filters/types/filters.types.js";
 
 export interface FilterModalData {
   /** The filter group ID this filter belongs to */

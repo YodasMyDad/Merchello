@@ -2,22 +2,19 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { PaymentProviderFieldDto } from "./types.js";
+import type { ExchangeRateProviderFieldDto } from '@exchange-rate-providers/types/exchange-rate-providers.types.js';
 import type {
-  PaymentProviderConfigModalData,
-  PaymentProviderConfigModalValue,
-} from "./payment-provider-config-modal.token.js";
+  ExchangeRateProviderConfigModalData,
+  ExchangeRateProviderConfigModalValue,
+} from "./exchange-rate-provider-config-modal.token.js";
 
-@customElement("merchello-payment-provider-config-modal")
-export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElement<
-  PaymentProviderConfigModalData,
-  PaymentProviderConfigModalValue
+@customElement("merchello-exchange-rate-provider-config-modal")
+export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBaseElement<
+  ExchangeRateProviderConfigModalData,
+  ExchangeRateProviderConfigModalValue
 > {
-  @state() private _fields: PaymentProviderFieldDto[] = [];
+  @state() private _fields: ExchangeRateProviderFieldDto[] = [];
   @state() private _values: Record<string, string> = {};
-  @state() private _displayName: string = "";
-  @state() private _isEnabled: boolean = true;
-  @state() private _isTestMode: boolean = true;
   @state() private _isLoading = true;
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
@@ -40,7 +37,6 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
     this._errorMessage = null;
 
     const provider = this.data?.provider;
-    const setting = this.data?.setting;
 
     if (!provider) {
       this._errorMessage = "No provider specified";
@@ -48,15 +44,9 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
       return;
     }
 
-    // Initialize display name, enabled state, and test mode
-    this._displayName = setting?.displayName ?? provider.displayName;
-    this._isEnabled = setting?.isEnabled ?? true;
-    this._isTestMode = setting?.isTestMode ?? true;
-
     // Load configuration fields
-    const { data, error } = await MerchelloApi.getPaymentProviderFields(provider.alias);
+    const { data, error } = await MerchelloApi.getExchangeRateProviderFields(provider.alias);
 
-    // Prevent state updates if component was disconnected during async operation
     if (!this.#isConnected) return;
 
     if (error) {
@@ -68,7 +58,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
     this._fields = data ?? [];
 
     // Initialize values from existing configuration or defaults
-    const existingConfig = setting?.configuration ?? {};
+    const existingConfig = provider.configuration ?? {};
     this._values = {};
 
     for (const field of this._fields) {
@@ -88,7 +78,6 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
 
   private async _handleSave(): Promise<void> {
     const provider = this.data?.provider;
-    const setting = this.data?.setting;
 
     if (!provider) return;
 
@@ -105,48 +94,22 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
     }
 
     try {
-      if (setting) {
-        // Update existing provider
-        const { error } = await MerchelloApi.updatePaymentProvider(setting.id, {
-          displayName: this._displayName,
-          isEnabled: this._isEnabled,
-          isTestMode: this._isTestMode,
-          configuration: this._values,
-        });
+      const { error } = await MerchelloApi.saveExchangeRateProviderSettings(provider.alias, {
+        configuration: this._values,
+      });
 
-        // Prevent state updates if component was disconnected during async operation
-        if (!this.#isConnected) return;
+      if (!this.#isConnected) return;
 
-        if (error) {
-          this._errorMessage = error.message;
-          this._isSaving = false;
-          return;
-        }
-      } else {
-        // Create new provider
-        const { error } = await MerchelloApi.createPaymentProvider({
-          providerAlias: provider.alias,
-          displayName: this._displayName,
-          isEnabled: this._isEnabled,
-          isTestMode: this._isTestMode,
-          configuration: this._values,
-        });
-
-        // Prevent state updates if component was disconnected during async operation
-        if (!this.#isConnected) return;
-
-        if (error) {
-          this._errorMessage = error.message;
-          this._isSaving = false;
-          return;
-        }
+      if (error) {
+        this._errorMessage = error.message;
+        this._isSaving = false;
+        return;
       }
 
       this._isSaving = false;
       this.value = { isSaved: true };
       this.modalContext?.submit();
     } catch (err) {
-      // Prevent state updates if component was disconnected during async operation
       if (!this.#isConnected) return;
       this._errorMessage = err instanceof Error ? err.message : "Failed to save configuration";
       this._isSaving = false;
@@ -157,18 +120,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
     this.modalContext?.reject();
   }
 
-  private _getSelectFieldOptions(field: PaymentProviderFieldDto, currentValue: string): Array<{ name: string; value: string; selected: boolean }> {
-    return [
-      { name: "Select...", value: "", selected: !currentValue },
-      ...(field.options?.map(opt => ({
-        name: opt.label,
-        value: opt.value,
-        selected: currentValue === opt.value
-      })) ?? [])
-    ];
-  }
-
-  private _renderField(field: PaymentProviderFieldDto): unknown {
+  private _renderField(field: ExchangeRateProviderFieldDto): unknown {
     const value = this._values[field.key] ?? "";
 
     switch (field.fieldType) {
@@ -249,23 +201,6 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
           </div>
         `;
 
-      case "Select":
-        return html`
-          <div class="form-field">
-            <label for="${field.key}">${field.label}${field.isRequired ? " *" : ""}</label>
-            ${field.description
-              ? html`<p class="field-description">${field.description}</p>`
-              : nothing}
-            <uui-select
-              id="${field.key}"
-              .options=${this._getSelectFieldOptions(field, value)}
-              ?required=${field.isRequired}
-              @change=${(e: Event) =>
-                this._handleValueChange(field.key, (e.target as HTMLSelectElement).value)}
-            ></uui-select>
-          </div>
-        `;
-
       default:
         return nothing;
     }
@@ -273,10 +208,9 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
 
   render() {
     const provider = this.data?.provider;
-    const isEditing = !!this.data?.setting;
 
     return html`
-      <umb-body-layout headline="${isEditing ? "Configure" : "Install"} ${provider?.displayName ?? "Provider"}">
+      <umb-body-layout headline="Configure ${provider?.displayName ?? "Provider"}">
         <div id="main">
           ${this._isLoading
             ? html`
@@ -295,56 +229,18 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
                     `
                   : nothing}
 
-                <div class="form-field">
-                  <label for="displayName">Display Name *</label>
-                  <p class="field-description">
-                    The name shown to customers during checkout.
-                  </p>
-                  <uui-input
-                    id="displayName"
-                    .value=${this._displayName}
-                    required
-                    @input=${(e: Event) =>
-                      (this._displayName = (e.target as HTMLInputElement).value)}
-                  ></uui-input>
-                </div>
-
-                <div class="form-field checkbox-field">
-                  <uui-checkbox
-                    id="isEnabled"
-                    ?checked=${this._isEnabled}
-                    @change=${(e: Event) =>
-                      (this._isEnabled = (e.target as HTMLInputElement).checked)}
-                  >
-                    Show In Checkout
-                  </uui-checkbox>
-                  <p class="field-description">
-                    When checked, this payment method will be displayed as an option for customers during checkout.
-                    Uncheck to keep the provider installed but hidden from customers.
-                  </p>
-                </div>
-
-                <div class="form-field checkbox-field">
-                  <uui-checkbox
-                    id="isTestMode"
-                    ?checked=${this._isTestMode}
-                    @change=${(e: Event) =>
-                      (this._isTestMode = (e.target as HTMLInputElement).checked)}
-                  >
-                    Test Mode
-                  </uui-checkbox>
-                  <p class="field-description">
-                    When enabled, the provider operates in test/sandbox mode. Disable for live/production transactions.
-                  </p>
-                </div>
-
                 ${this._fields.length > 0
                   ? html`
-                      <hr />
-                      <h3>Provider Configuration</h3>
+                      <p class="section-description">
+                        Configure the settings for ${provider?.displayName ?? "this provider"}.
+                      </p>
                       ${this._fields.map((field) => this._renderField(field))}
                     `
-                  : nothing}
+                  : html`
+                      <p class="no-fields">
+                        This provider does not require any configuration.
+                      </p>
+                    `}
               `}
         </div>
 
@@ -358,14 +254,14 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
             Cancel
           </uui-button>
           <uui-button
-            label="${isEditing ? "Save" : "Install Provider"}"
+            label="Save"
             look="primary"
             color="positive"
             @click=${this._handleSave}
-            ?disabled=${this._isLoading || this._isSaving}
+            ?disabled=${this._isLoading || this._isSaving || this._fields.length === 0}
           >
             ${this._isSaving ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
-            ${isEditing ? "Save" : "Install Provider"}
+            Save
           </uui-button>
         </div>
       </umb-body-layout>
@@ -397,16 +293,14 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
       margin-bottom: var(--uui-size-space-4);
     }
 
-    h3 {
-      margin: var(--uui-size-space-4) 0;
-      font-size: 1rem;
-      font-weight: 600;
+    .section-description {
+      color: var(--uui-color-text-alt);
+      margin-bottom: var(--uui-size-space-4);
     }
 
-    hr {
-      border: none;
-      border-top: 1px solid var(--uui-color-border);
-      margin: var(--uui-size-space-5) 0;
+    .no-fields {
+      color: var(--uui-color-text-alt);
+      font-style: italic;
     }
 
     .form-field {
@@ -437,8 +331,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
     }
 
     uui-input,
-    uui-textarea,
-    uui-select {
+    uui-textarea {
       width: 100%;
     }
 
@@ -450,11 +343,10 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
   `;
 }
 
-export default MerchelloPaymentProviderConfigModalElement;
+export default MerchelloExchangeRateProviderConfigModalElement;
 
 declare global {
   interface HTMLElementTagNameMap {
-    "merchello-payment-provider-config-modal": MerchelloPaymentProviderConfigModalElement;
+    "merchello-exchange-rate-provider-config-modal": MerchelloExchangeRateProviderConfigModalElement;
   }
 }
-

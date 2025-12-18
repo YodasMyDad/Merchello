@@ -85,22 +85,22 @@ public class ShippingOption
     /// <summary>
     /// All products using this shipping option
     /// </summary>
-    public virtual ICollection<Product> Products { get; set; } = new HashSet<Product>();
+    public virtual ICollection<Product> Products { get; set; } = [];
 
     /// <summary>
     /// Collection of country-specific shipping options associated with the shipping method.
     /// </summary>
-    public virtual ICollection<ShippingOptionCountry> ShippingOptionCountries { get; set; } = new HashSet<ShippingOptionCountry>();
+    public virtual ICollection<ShippingOptionCountry> ShippingOptionCountries { get; set; } = [];
 
     /// <summary>
     /// The country shipping costs for this shipping option (What about states and provinces)
     /// </summary>
-    public virtual ICollection<ShippingCost> ShippingCosts { get; set; } = new HashSet<ShippingCost>();
+    public virtual ICollection<ShippingCost> ShippingCosts { get; set; } = [];
 
     /// <summary>
     /// Weight-based surcharge tiers for this shipping option
     /// </summary>
-    public virtual ICollection<ShippingWeightTier> WeightTiers { get; set; } = new HashSet<ShippingWeightTier>();
+    public virtual ICollection<ShippingWeightTier> WeightTiers { get; set; } = [];
 
     /// <summary>
     /// Whether this shipping option allows customers to select a specific delivery date

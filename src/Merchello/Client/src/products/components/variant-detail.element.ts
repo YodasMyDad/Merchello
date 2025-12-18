@@ -7,7 +7,7 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
 import type { MerchelloProductDetailWorkspaceContext } from "@products/contexts/product-detail-workspace.context.js";
 import type { ProductRootDetailDto, ProductVariantDto, ProductPackageDto, UpdateVariantDto, ShippingOptionExclusionDto } from "@products/types/product.types.js";
-import type { ProductFilterGroupDto } from "@filters/types.js";
+import type { ProductFilterGroupDto } from "@filters/types/filters.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { getProductDetailHref } from "@shared/utils/navigation.js";

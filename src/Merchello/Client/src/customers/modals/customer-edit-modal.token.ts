@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { CustomerListItemDto } from "../types/customer.types.js";
+import type { CustomerListItemDto } from "@customers/types/customer.types.js";
 
 export interface CustomerEditModalData {
   /** The customer to edit - always edit mode since customers are created during checkout */

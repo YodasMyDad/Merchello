@@ -9,7 +9,7 @@ import {
 } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { Chart, registerables } from "chart.js";
-import type { TimeSeriesDataPointDto } from "../types/analytics.types.js";
+import type { TimeSeriesDataPointDto } from "@analytics/types/analytics.types.js";
 
 // Register all Chart.js components
 Chart.register(...registerables);

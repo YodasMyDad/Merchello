@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import type { CustomerPreviewDto, SegmentStatisticsDto } from "../types/segment.types.js";
+import type { CustomerPreviewDto, SegmentStatisticsDto } from "@customers/types/segment.types.js";
 import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatCurrency } from "@shared/utils/formatting.js";

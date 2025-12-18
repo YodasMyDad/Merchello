@@ -6,15 +6,15 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { ShippingProviderDto, ShippingProviderConfigurationDto } from "@shipping/types.js";
-import { MERCHELLO_SHIPPING_PROVIDER_CONFIG_MODAL } from "@shipping/shipping-provider-config-modal.token.js";
-import { MERCHELLO_TEST_PROVIDER_MODAL } from "@shipping/modals/test-provider-modal.token.js";
-import { MERCHELLO_SETUP_INSTRUCTIONS_MODAL } from "@payment-providers/setup-instructions-modal.token.js";
+import type { PaymentProviderDto, PaymentProviderSettingDto } from '@payment-providers/types/payment-providers.types.js';
+import { MERCHELLO_PAYMENT_PROVIDER_CONFIG_MODAL } from "../modals/payment-provider-config-modal.token.js";
+import { MERCHELLO_SETUP_INSTRUCTIONS_MODAL } from "../modals/setup-instructions-modal.token.js";
+import { MERCHELLO_TEST_PAYMENT_PROVIDER_MODAL } from "../modals/test-provider-modal.token.js";
 
-@customElement("merchello-shipping-providers-list")
-export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitElement) {
-  @state() private _availableProviders: ShippingProviderDto[] = [];
-  @state() private _configuredProviders: ShippingProviderConfigurationDto[] = [];
+@customElement("merchello-payment-providers-list")
+export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitElement) {
+  @state() private _availableProviders: PaymentProviderDto[] = [];
+  @state() private _configuredProviders: PaymentProviderSettingDto[] = [];
   @state() private _isLoading = true;
   @state() private _errorMessage: string | null = null;
 
@@ -49,8 +49,8 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
 
     try {
       const [availableResult, configuredResult] = await Promise.all([
-        MerchelloApi.getAvailableShippingProviders(),
-        MerchelloApi.getShippingProviders(),
+        MerchelloApi.getAvailablePaymentProviders(),
+        MerchelloApi.getPaymentProviders(),
       ]);
 
       // Prevent state updates if component was disconnected during async operation
@@ -79,24 +79,16 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     this._isLoading = false;
   }
 
-  private _getUnconfiguredProviders(): ShippingProviderDto[] {
-    const configuredKeys = new Set(this._configuredProviders.map((p) => p.providerKey));
-    // Only show providers that require global config and haven't been configured yet
-    return this._availableProviders.filter(
-      (p) => !configuredKeys.has(p.key) && p.configCapabilities?.requiresGlobalConfig
-    );
+  private _getUnconfiguredProviders(): PaymentProviderDto[] {
+    const configuredAliases = new Set(this._configuredProviders.map((p) => p.providerAlias));
+    return this._availableProviders.filter((p) => !configuredAliases.has(p.alias));
   }
 
-  private _getBuiltInProviders(): ShippingProviderDto[] {
-    // Providers that don't require global configuration (always available)
-    return this._availableProviders.filter((p) => !p.configCapabilities?.requiresGlobalConfig);
-  }
-
-  private async _openConfigModal(provider: ShippingProviderDto, configuration?: ShippingProviderConfigurationDto): Promise<void> {
+  private async _openConfigModal(provider: PaymentProviderDto, setting?: PaymentProviderSettingDto): Promise<void> {
     if (!this.#modalManager) return;
 
-    const modal = this.#modalManager.open(this, MERCHELLO_SHIPPING_PROVIDER_CONFIG_MODAL, {
-      data: { provider, configuration },
+    const modal = this.#modalManager.open(this, MERCHELLO_PAYMENT_PROVIDER_CONFIG_MODAL, {
+      data: { provider, setting },
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
@@ -105,16 +97,8 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     }
   }
 
-  private _openTestModal(configuration: ShippingProviderConfigurationDto): void {
-    if (!this.#modalManager) return;
-
-    this.#modalManager.open(this, MERCHELLO_TEST_PROVIDER_MODAL, {
-      data: { configuration },
-    });
-  }
-
-  private async _toggleProvider(configuration: ShippingProviderConfigurationDto): Promise<void> {
-    const { error } = await MerchelloApi.toggleShippingProvider(configuration.id, !configuration.isEnabled);
+  private async _toggleProvider(setting: PaymentProviderSettingDto): Promise<void> {
+    const { error } = await MerchelloApi.togglePaymentProvider(setting.id, !setting.isEnabled);
 
     // Prevent state updates if component was disconnected during async operation
     if (!this.#isConnected) return;
@@ -129,19 +113,19 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     this.#notificationContext?.peek("positive", {
       data: {
         headline: "Success",
-        message: `${configuration.displayName} ${configuration.isEnabled ? "disabled" : "enabled"}`,
+        message: `${setting.displayName} ${setting.isEnabled ? "hidden from checkout" : "now showing in checkout"}`,
       },
     });
 
     await this._loadProviders();
   }
 
-  private async _deleteProvider(configuration: ShippingProviderConfigurationDto): Promise<void> {
-    if (!confirm(`Are you sure you want to remove ${configuration.displayName}?`)) {
+  private async _deleteProvider(setting: PaymentProviderSettingDto): Promise<void> {
+    if (!confirm(`Are you sure you want to remove ${setting.displayName}?`)) {
       return;
     }
 
-    const { error } = await MerchelloApi.deleteShippingProvider(configuration.id);
+    const { error } = await MerchelloApi.deletePaymentProvider(setting.id);
 
     // Prevent state updates if component was disconnected during async operation
     if (!this.#isConnected) return;
@@ -154,13 +138,13 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     }
 
     this.#notificationContext?.peek("positive", {
-      data: { headline: "Success", message: `${configuration.displayName} removed` },
+      data: { headline: "Success", message: `${setting.displayName} removed` },
     });
 
     await this._loadProviders();
   }
 
-  private _openSetupInstructions(provider: ShippingProviderDto): void {
+  private _openSetupInstructions(provider: PaymentProviderDto): void {
     if (!this.#modalManager || !provider.setupInstructions) return;
 
     this.#modalManager.open(this, MERCHELLO_SETUP_INSTRUCTIONS_MODAL, {
@@ -171,8 +155,16 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     });
   }
 
-  private _renderConfiguredProvider(configuration: ShippingProviderConfigurationDto): unknown {
-    const provider = configuration.provider;
+  private _openTestModal(setting: PaymentProviderSettingDto): void {
+    if (!this.#modalManager) return;
+
+    this.#modalManager.open(this, MERCHELLO_TEST_PAYMENT_PROVIDER_MODAL, {
+      data: { setting },
+    });
+  }
+
+  private _renderConfiguredProvider(setting: PaymentProviderSettingDto): unknown {
+    const provider = setting.provider;
 
     return html`
       <div class="provider-card configured">
@@ -180,30 +172,30 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
           <div class="provider-info">
             ${provider?.icon
               ? html`<uui-icon name="${provider.icon}"></uui-icon>`
-              : html`<uui-icon name="icon-truck"></uui-icon>`}
+              : html`<uui-icon name="icon-credit-card"></uui-icon>`}
             <div class="provider-details">
-              <span class="provider-name">${configuration.displayName}</span>
-              <span class="provider-key">${configuration.providerKey}</span>
+              <span class="provider-name">${setting.displayName}</span>
+              <span class="provider-alias">${setting.providerAlias}</span>
             </div>
           </div>
           <div class="provider-actions">
             <uui-toggle
-              .checked=${configuration.isEnabled}
-              @change=${() => this._toggleProvider(configuration)}
-              label="${configuration.isEnabled ? 'Enabled' : 'Disabled'}"
+              .checked=${setting.isEnabled}
+              @change=${() => this._toggleProvider(setting)}
+              label="${setting.isEnabled ? 'In Checkout' : 'Hide From Checkout'}"
             ></uui-toggle>
             <uui-button
               look="secondary"
               label="Test"
-              title="Test this provider with sample data"
-              @click=${() => this._openTestModal(configuration)}
+              title="Test this provider configuration"
+              @click=${() => this._openTestModal(setting)}
             >
               <uui-icon name="icon-lab"></uui-icon>
             </uui-button>
             <uui-button
               look="secondary"
               label="Configure"
-              @click=${() => provider && this._openConfigModal(provider, configuration)}
+              @click=${() => provider && this._openConfigModal(provider, setting)}
             >
               <uui-icon name="icon-settings"></uui-icon>
             </uui-button>
@@ -211,7 +203,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
               look="secondary"
               color="danger"
               label="Remove"
-              @click=${() => this._deleteProvider(configuration)}
+              @click=${() => this._deleteProvider(setting)}
             >
               <uui-icon name="icon-trash"></uui-icon>
             </uui-button>
@@ -220,10 +212,26 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
         ${provider?.description
           ? html`<p class="provider-description">${provider.description}</p>`
           : nothing}
-        ${provider?.setupInstructions
-          ? html`
-              <div class="provider-footer">
-                <div></div>
+        <div class="provider-footer">
+          <div class="provider-features">
+            ${setting.isTestMode
+              ? html`<span class="feature-badge test-mode">Test Mode</span>`
+              : html`<span class="feature-badge live-mode">Live</span>`}
+            ${provider?.supportsRefunds
+              ? html`<span class="feature-badge">Refunds</span>`
+              : nothing}
+            ${provider?.supportsPartialRefunds
+              ? html`<span class="feature-badge">Partial Refunds</span>`
+              : nothing}
+            ${provider?.usesRedirectCheckout
+              ? html`<span class="feature-badge">Redirect Checkout</span>`
+              : nothing}
+            ${provider?.supportsAuthAndCapture
+              ? html`<span class="feature-badge">Auth & Capture</span>`
+              : nothing}
+          </div>
+          ${provider?.setupInstructions
+            ? html`
                 <uui-button
                   look="secondary"
                   compact
@@ -233,49 +241,24 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
                 >
                   <uui-icon name="icon-help-alt"></uui-icon>
                 </uui-button>
-              </div>
-            `
-          : nothing}
-      </div>
-    `;
-  }
-
-  private _renderBuiltInProvider(provider: ShippingProviderDto): unknown {
-    return html`
-      <div class="provider-card built-in">
-        <div class="provider-header">
-          <div class="provider-info">
-            ${provider.icon
-              ? html`<uui-icon name="${provider.icon}"></uui-icon>`
-              : html`<uui-icon name="icon-truck"></uui-icon>`}
-            <div class="provider-details">
-              <span class="provider-name">${provider.displayName}</span>
-              <span class="provider-key">${provider.key}</span>
-            </div>
-          </div>
-          <span class="built-in-badge">
-            <uui-icon name="icon-check"></uui-icon>
-            Always Available
-          </span>
+              `
+            : nothing}
         </div>
-        ${provider.description
-          ? html`<p class="provider-description">${provider.description}</p>`
-          : nothing}
       </div>
     `;
   }
 
-  private _renderAvailableProvider(provider: ShippingProviderDto): unknown {
+  private _renderAvailableProvider(provider: PaymentProviderDto): unknown {
     return html`
       <div class="provider-card available">
         <div class="provider-header">
           <div class="provider-info">
             ${provider.icon
               ? html`<uui-icon name="${provider.icon}"></uui-icon>`
-              : html`<uui-icon name="icon-truck"></uui-icon>`}
+              : html`<uui-icon name="icon-credit-card"></uui-icon>`}
             <div class="provider-details">
               <span class="provider-name">${provider.displayName}</span>
-              <span class="provider-key">${provider.key}</span>
+              <span class="provider-alias">${provider.alias}</span>
             </div>
           </div>
           <uui-button
@@ -315,7 +298,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
           <div class="content">
             <div class="loading">
               <uui-loader></uui-loader>
-              <span>Loading shipping providers...</span>
+              <span>Loading payment providers...</span>
             </div>
           </div>
         </umb-body-layout>
@@ -341,58 +324,41 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     }
 
     const unconfiguredProviders = this._getUnconfiguredProviders();
-    const builtInProviders = this._getBuiltInProviders();
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
       <div class="content">
-      <!-- Built-in Providers (always available, no config needed) -->
-      ${builtInProviders.length > 0
-        ? html`
-            <uui-box headline="Built-in Providers">
-              <p class="section-description">
-                These providers are built-in and always available. No configuration required.
-                Add shipping methods using these providers in your <strong>Warehouses</strong>.
-              </p>
-              <div class="providers-list">
-                ${builtInProviders.map((provider) => this._renderBuiltInProvider(provider))}
-              </div>
-            </uui-box>
-          `
-        : nothing}
-
-      <!-- Configured Third-Party Providers -->
-      <uui-box headline="Configured Shipping Providers">
+      <uui-box headline="Configured Payment Providers">
         <p class="section-description">
-          These shipping providers are installed and configured.
-          Toggle the switch to enable or disable a provider.
+          These payment providers are installed and configured.
+          Toggle the switch to show or hide a provider from checkout.
         </p>
         ${this._configuredProviders.length === 0
-          ? html`<p class="no-items">No third-party shipping providers configured yet.</p>`
+          ? html`<p class="no-items">No payment providers configured yet.</p>`
           : html`
               <div class="providers-list">
-                ${this._configuredProviders.map((config) =>
-                  this._renderConfiguredProvider(config)
+                ${this._configuredProviders.map((setting) =>
+                  this._renderConfiguredProvider(setting)
                 )}
               </div>
             `}
       </uui-box>
 
-      <!-- Available Third-Party Providers -->
-      ${unconfiguredProviders.length > 0
-        ? html`
-            <uui-box headline="Available Shipping Providers">
-              <p class="section-description">
-                These shipping providers require API credentials. Click "Install" to configure.
-              </p>
+      <uui-box headline="Available Payment Providers">
+        <p class="section-description">
+          These payment providers are available but not yet configured.
+          Click "Install" to configure and add a provider.
+        </p>
+        ${unconfiguredProviders.length === 0
+          ? html`<p class="no-items">All available providers have been configured.</p>`
+          : html`
               <div class="providers-list">
                 ${unconfiguredProviders.map((provider) =>
                   this._renderAvailableProvider(provider)
                 )}
               </div>
-            </uui-box>
-          `
-        : nothing}
+            `}
+      </uui-box>
       </div>
       </umb-body-layout>
     `;
@@ -462,23 +428,6 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
       border-left: 3px solid var(--uui-color-border-emphasis);
     }
 
-    .provider-card.built-in {
-      border-left: 3px solid var(--uui-color-positive);
-      background: var(--uui-color-surface-alt);
-    }
-
-    .built-in-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--uui-size-space-2);
-      padding: var(--uui-size-space-2) var(--uui-size-space-3);
-      background: var(--uui-color-positive-standalone);
-      color: var(--uui-color-positive-contrast);
-      border-radius: var(--uui-border-radius);
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
-
     .provider-header {
       display: flex;
       justify-content: space-between;
@@ -507,7 +456,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
       font-size: 1rem;
     }
 
-    .provider-key {
+    .provider-alias {
       font-size: 0.75rem;
       color: var(--uui-color-text-alt);
     }
@@ -532,13 +481,66 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
       margin-top: var(--uui-size-space-3);
       gap: var(--uui-size-space-3);
     }
+
+    .provider-features {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--uui-size-space-2);
+      flex: 1;
+    }
+
+    .help-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 1px solid var(--uui-color-border);
+      border-radius: 50%;
+      background: var(--uui-color-surface);
+      color: var(--uui-color-text-alt);
+      cursor: pointer;
+      transition: all 120ms ease;
+      flex-shrink: 0;
+    }
+
+    .help-button:hover {
+      background: var(--uui-color-surface-emphasis);
+      color: var(--uui-color-interactive);
+      border-color: var(--uui-color-interactive);
+    }
+
+    .help-button uui-icon {
+      font-size: 16px;
+    }
+
+    .feature-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--uui-color-surface-alt);
+      border-radius: 12px;
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .feature-badge.test-mode {
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
+    }
+
+    .feature-badge.live-mode {
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
+    }
   `;
 }
 
-export default MerchelloShippingProvidersListElement;
+export default MerchelloPaymentProvidersListElement;
 
 declare global {
   interface HTMLElementTagNameMap {
-    "merchello-shipping-providers-list": MerchelloShippingProvidersListElement;
+    "merchello-payment-providers-list": MerchelloPaymentProvidersListElement;
   }
 }
+

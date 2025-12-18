@@ -2,21 +2,22 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { ShippingProviderFieldDto } from "@shipping/types.js";
+import type { PaymentProviderFieldDto } from '@payment-providers/types/payment-providers.types.js';
 import type {
-  ShippingProviderConfigModalData,
-  ShippingProviderConfigModalValue,
-} from "@shipping/shipping-provider-config-modal.token.js";
+  PaymentProviderConfigModalData,
+  PaymentProviderConfigModalValue,
+} from "./payment-provider-config-modal.token.js";
 
-@customElement("merchello-shipping-provider-config-modal")
-export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseElement<
-  ShippingProviderConfigModalData,
-  ShippingProviderConfigModalValue
+@customElement("merchello-payment-provider-config-modal")
+export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElement<
+  PaymentProviderConfigModalData,
+  PaymentProviderConfigModalValue
 > {
-  @state() private _fields: ShippingProviderFieldDto[] = [];
+  @state() private _fields: PaymentProviderFieldDto[] = [];
   @state() private _values: Record<string, string> = {};
   @state() private _displayName: string = "";
   @state() private _isEnabled: boolean = true;
+  @state() private _isTestMode: boolean = true;
   @state() private _isLoading = true;
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
@@ -39,7 +40,7 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
     this._errorMessage = null;
 
     const provider = this.data?.provider;
-    const configuration = this.data?.configuration;
+    const setting = this.data?.setting;
 
     if (!provider) {
       this._errorMessage = "No provider specified";
@@ -47,12 +48,13 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
       return;
     }
 
-    // Initialize display name and enabled state
-    this._displayName = configuration?.displayName ?? provider.displayName;
-    this._isEnabled = configuration?.isEnabled ?? true;
+    // Initialize display name, enabled state, and test mode
+    this._displayName = setting?.displayName ?? provider.displayName;
+    this._isEnabled = setting?.isEnabled ?? true;
+    this._isTestMode = setting?.isTestMode ?? true;
 
     // Load configuration fields
-    const { data, error } = await MerchelloApi.getShippingProviderFields(provider.key);
+    const { data, error } = await MerchelloApi.getPaymentProviderFields(provider.alias);
 
     // Prevent state updates if component was disconnected during async operation
     if (!this.#isConnected) return;
@@ -66,7 +68,7 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
     this._fields = data ?? [];
 
     // Initialize values from existing configuration or defaults
-    const existingConfig = configuration?.configuration ?? {};
+    const existingConfig = setting?.configuration ?? {};
     this._values = {};
 
     for (const field of this._fields) {
@@ -86,7 +88,7 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
 
   private async _handleSave(): Promise<void> {
     const provider = this.data?.provider;
-    const configuration = this.data?.configuration;
+    const setting = this.data?.setting;
 
     if (!provider) return;
 
@@ -103,11 +105,12 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
     }
 
     try {
-      if (configuration) {
+      if (setting) {
         // Update existing provider
-        const { error } = await MerchelloApi.updateShippingProvider(configuration.id, {
+        const { error } = await MerchelloApi.updatePaymentProvider(setting.id, {
           displayName: this._displayName,
           isEnabled: this._isEnabled,
+          isTestMode: this._isTestMode,
           configuration: this._values,
         });
 
@@ -121,10 +124,11 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
         }
       } else {
         // Create new provider
-        const { error } = await MerchelloApi.createShippingProvider({
-          providerKey: provider.key,
+        const { error } = await MerchelloApi.createPaymentProvider({
+          providerAlias: provider.alias,
           displayName: this._displayName,
           isEnabled: this._isEnabled,
+          isTestMode: this._isTestMode,
           configuration: this._values,
         });
 
@@ -153,7 +157,7 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
     this.modalContext?.reject();
   }
 
-  private _getSelectFieldOptions(field: ShippingProviderFieldDto, currentValue: string): Array<{ name: string; value: string; selected: boolean }> {
+  private _getSelectFieldOptions(field: PaymentProviderFieldDto, currentValue: string): Array<{ name: string; value: string; selected: boolean }> {
     return [
       { name: "Select...", value: "", selected: !currentValue },
       ...(field.options?.map(opt => ({
@@ -164,7 +168,7 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
     ];
   }
 
-  private _renderField(field: ShippingProviderFieldDto): unknown {
+  private _renderField(field: PaymentProviderFieldDto): unknown {
     const value = this._values[field.key] ?? "";
 
     switch (field.fieldType) {
@@ -269,7 +273,7 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
 
   render() {
     const provider = this.data?.provider;
-    const isEditing = !!this.data?.configuration;
+    const isEditing = !!this.data?.setting;
 
     return html`
       <umb-body-layout headline="${isEditing ? "Configure" : "Install"} ${provider?.displayName ?? "Provider"}">
@@ -294,7 +298,7 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
                 <div class="form-field">
                   <label for="displayName">Display Name *</label>
                   <p class="field-description">
-                    The name shown to customers when selecting shipping.
+                    The name shown to customers during checkout.
                   </p>
                   <uui-input
                     id="displayName"
@@ -312,10 +316,25 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
                     @change=${(e: Event) =>
                       (this._isEnabled = (e.target as HTMLInputElement).checked)}
                   >
-                    Enabled
+                    Show In Checkout
                   </uui-checkbox>
                   <p class="field-description">
-                    When enabled, this shipping provider will be active and available for use.
+                    When checked, this payment method will be displayed as an option for customers during checkout.
+                    Uncheck to keep the provider installed but hidden from customers.
+                  </p>
+                </div>
+
+                <div class="form-field checkbox-field">
+                  <uui-checkbox
+                    id="isTestMode"
+                    ?checked=${this._isTestMode}
+                    @change=${(e: Event) =>
+                      (this._isTestMode = (e.target as HTMLInputElement).checked)}
+                  >
+                    Test Mode
+                  </uui-checkbox>
+                  <p class="field-description">
+                    When enabled, the provider operates in test/sandbox mode. Disable for live/production transactions.
                   </p>
                 </div>
 
@@ -431,10 +450,11 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
   `;
 }
 
-export default MerchelloShippingProviderConfigModalElement;
+export default MerchelloPaymentProviderConfigModalElement;
 
 declare global {
   interface HTMLElementTagNameMap {
-    "merchello-shipping-provider-config-modal": MerchelloShippingProviderConfigModalElement;
+    "merchello-payment-provider-config-modal": MerchelloPaymentProviderConfigModalElement;
   }
 }
+

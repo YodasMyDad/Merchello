@@ -141,7 +141,7 @@ public class CustomersApiController(
 
         var segmentIds = await segmentService.GetCustomerSegmentIdsAsync(customer.Id, ct);
 
-        var badges = new List<CustomerSegmentBadgeDto>();
+        List<CustomerSegmentBadgeDto> badges = [];
         foreach (var segmentId in segmentIds)
         {
             var segment = await segmentService.GetByIdAsync(segmentId, ct);

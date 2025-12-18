@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Services.Interfaces;
+using Merchello.Core.Settings.Dtos;
 using Merchello.Core.Shared.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -115,87 +116,4 @@ public class SettingsApiController(
             });
         }
     }
-}
-
-/// <summary>
-/// Country data for dropdowns
-/// </summary>
-public class CountryDto
-{
-    public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Region/state data for dropdowns
-/// </summary>
-public class RegionDto
-{
-    public string CountryCode { get; set; } = string.Empty;
-    public string RegionCode { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Store settings exposed to the admin UI
-/// </summary>
-public class StoreSettingsDto
-{
-    /// <summary>
-    /// Store currency code (ISO 4217), e.g., "GBP", "USD", "EUR"
-    /// </summary>
-    public string CurrencyCode { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Store currency symbol, e.g., "£", "$", "€"
-    /// </summary>
-    public string CurrencySymbol { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Invoice number prefix, e.g., "INV-"
-    /// </summary>
-    public string InvoiceNumberPrefix { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Product option configuration settings
-/// </summary>
-public class ProductOptionSettingsDto
-{
-    /// <summary>
-    /// Available option type aliases (e.g., "colour", "size", "material", "pattern")
-    /// </summary>
-    public string[] OptionTypeAliases { get; set; } = [];
-
-    /// <summary>
-    /// Available option UI aliases (e.g., "dropdown", "colour", "image", "checkbox", "radiobutton")
-    /// </summary>
-    public string[] OptionUiAliases { get; set; } = [];
-
-    /// <summary>
-    /// Maximum number of options allowed per product
-    /// </summary>
-    public int MaxProductOptions { get; set; }
-
-    /// <summary>
-    /// Maximum number of values allowed per option
-    /// </summary>
-    public int MaxOptionValuesPerOption { get; set; }
-}
-
-/// <summary>
-/// Settings for the Product Description rich text editor
-/// </summary>
-public class DescriptionEditorSettingsDto
-{
-    /// <summary>
-    /// The DataType key (GUID) that can be used to fetch configuration
-    /// from Umbraco's Management API (/umbraco/management/api/v1/data-type/{key})
-    /// </summary>
-    public Guid? DataTypeKey { get; set; }
-
-    /// <summary>
-    /// The property editor UI alias to use (e.g., "Umb.PropertyEditorUi.Tiptap")
-    /// </summary>
-    public string PropertyEditorUiAlias { get; set; } = string.Empty;
 }

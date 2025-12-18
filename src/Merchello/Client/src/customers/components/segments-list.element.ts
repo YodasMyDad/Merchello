@@ -3,7 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
-import type { CustomerSegmentListItemDto } from "../types/segment.types.js";
+import type { CustomerSegmentListItemDto } from "@customers/types/segment.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getSegmentDetailHref, getSegmentCreateHref } from "@shared/utils/navigation.js";
 import "@shared/components/merchello-empty-state.element.js";

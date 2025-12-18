@@ -9,5 +9,5 @@ public class Store
     public Country? DefaultCountry { get; set; }
     public Guid DefaultCountryId { get; set; }
 
-    public virtual ICollection<Warehouse> Warehouses { get; set; } = new HashSet<Warehouse>();
+    public virtual ICollection<Warehouse> Warehouses { get; set; } = [];
 }

@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { TaxGroupDto } from "../types.js";
+import type { TaxGroupDto } from '@tax/types/tax.types.js';
 
 export interface TaxGroupModalData {
   /** If provided, the modal will be in edit mode. Otherwise, it's in create mode. */

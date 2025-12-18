@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { ServiceRegionDto } from "@warehouses/types.js";
+import type { ServiceRegionDto } from "@warehouses/types/warehouses.types.js";
 
 export interface ServiceRegionModalData {
   warehouseId: string;

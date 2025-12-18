@@ -3,7 +3,7 @@ import { UmbControllerBase } from "@umbraco-cms/backoffice/class-api";
 import type { UmbRoutableWorkspaceContext } from "@umbraco-cms/backoffice/workspace";
 import { UMB_WORKSPACE_CONTEXT, UmbWorkspaceRouteManager } from "@umbraco-cms/backoffice/workspace";
 import { UmbObjectState } from "@umbraco-cms/backoffice/observable-api";
-import type { CustomerSegmentDetailDto } from "../types/segment.types.js";
+import type { CustomerSegmentDetailDto } from "@customers/types/segment.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
 export class MerchelloSegmentDetailWorkspaceContext extends UmbControllerBase implements UmbRoutableWorkspaceContext {

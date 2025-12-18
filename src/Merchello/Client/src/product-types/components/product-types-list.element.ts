@@ -5,7 +5,7 @@ import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
-import type { ProductTypeDto } from "../types.js";
+import type { ProductTypeDto } from '@product-types/types/product-types.types.js';
 import { MerchelloApi } from "@api/merchello-api.js";
 import { MERCHELLO_PRODUCT_TYPE_MODAL } from "../modals/product-type-modal.token.js";
 import "@shared/components/merchello-empty-state.element.js";

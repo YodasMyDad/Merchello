@@ -5,7 +5,7 @@ import type {
   SegmentCriteriaDto,
   SegmentMatchMode,
   CriteriaFieldMetadataDto,
-} from "../types/segment.types.js";
+} from "@customers/types/segment.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
 interface CriteriaRow extends SegmentCriteriaDto {

@@ -3,13 +3,13 @@ import { UmbElementMixin as M } from "@umbraco-cms/backoffice/element-api";
 import { UmbModalToken as _, UMB_MODAL_MANAGER_CONTEXT as C } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT as I } from "@umbraco-cms/backoffice/notification";
 import { M as v } from "./merchello-api-CCwReUh_.js";
-import { M as E } from "./setup-instructions-modal.token-CR5MFRlI.js";
-const S = new _("Merchello.ShippingProvider.Config.Modal", {
+import { M as S } from "./setup-instructions-modal.token-CR5MFRlI.js";
+const E = new _("Merchello.ShippingProvider.Config.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
   }
-}), w = new _("Merchello.TestProvider.Modal", {
+}), w = new _("Merchello.TestShippingProvider.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
@@ -70,7 +70,7 @@ let n = class extends M(k) {
   }
   async _openConfigModal(i, e) {
     if (!o(this, a)) return;
-    (await o(this, a).open(this, S, {
+    (await o(this, a).open(this, E, {
       data: { provider: i, configuration: e }
     }).onSubmit().catch(() => {
     }))?.isSaved && await this._loadProviders();
@@ -114,7 +114,7 @@ let n = class extends M(k) {
     }
   }
   _openSetupInstructions(i) {
-    !o(this, a) || !i.setupInstructions || o(this, a).open(this, E, {
+    !o(this, a) || !i.setupInstructions || o(this, a).open(this, S, {
       data: {
         providerName: i.displayName,
         instructions: i.setupInstructions
@@ -474,4 +474,4 @@ export {
   n as MerchelloShippingProvidersListElement,
   B as default
 };
-//# sourceMappingURL=shipping-providers-list.element-D08LuAaj.js.map
+//# sourceMappingURL=shipping-providers-list.element-B63hjbFj.js.map

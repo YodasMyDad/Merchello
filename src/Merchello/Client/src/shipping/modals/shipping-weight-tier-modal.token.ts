@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { ShippingWeightTierDto } from "@shipping/types.js";
+import type { ShippingWeightTierDto } from "@shipping/types/shipping.types.js";
 
 export interface ShippingWeightTierModalData {
   /** Existing tier if editing, undefined if creating new */

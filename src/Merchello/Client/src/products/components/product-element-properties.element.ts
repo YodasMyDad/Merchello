@@ -5,7 +5,7 @@ import type {
   ElementTypeDto,
   ElementTypeProperty,
   ElementTypeContainer,
-} from "../types/element-type.types.js";
+} from "@products/types/element-type.types.js";
 import "@umbraco-cms/backoffice/property";
 import type { UmbPropertyDatasetElement, UmbPropertyValueData } from "@umbraco-cms/backoffice/property";
 

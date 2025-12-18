@@ -2,16 +2,16 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type {
-  ExchangeRateProviderTestModalData,
-  ExchangeRateProviderTestModalValue,
+  TestExchangeRateProviderModalData,
+  TestExchangeRateProviderModalValue,
 } from "./test-provider-modal.token.js";
-import type { TestExchangeRateProviderResultDto } from "./types.js";
+import type { TestExchangeRateProviderResultDto } from '@exchange-rate-providers/types/exchange-rate-providers.types.js';
 import { MerchelloApi } from "@api/merchello-api.js";
 
 @customElement("merchello-exchange-rate-provider-test-modal")
 export class MerchelloExchangeRateProviderTestModalElement extends UmbModalBaseElement<
-  ExchangeRateProviderTestModalData,
-  ExchangeRateProviderTestModalValue
+  TestExchangeRateProviderModalData,
+  TestExchangeRateProviderModalValue
 > {
   @state() private _isTesting = false;
   @state() private _testResult?: TestExchangeRateProviderResultDto;

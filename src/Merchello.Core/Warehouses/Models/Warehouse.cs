@@ -44,28 +44,28 @@ public class Warehouse
     /// <summary>
     /// Shipping options available from this warehouse
     /// </summary>
-    public virtual ICollection<ShippingOption> ShippingOptions { get; set; } = new HashSet<ShippingOption>();
+    public virtual ICollection<ShippingOption> ShippingOptions { get; set; } = [];
 
     /// <summary>
     /// Regions that this warehouse is able (or unable) to service
     /// </summary>
-    public virtual ICollection<WarehouseServiceRegion> ServiceRegions { get; set; } = new HashSet<WarehouseServiceRegion>();
+    public virtual ICollection<WarehouseServiceRegion> ServiceRegions { get; set; } = [];
 
     /// <summary>
     /// A collection of ProductRootWarehouse objects representing the association
     /// between products and the warehouse for storage, including priority information.
     /// </summary>
-    public ICollection<ProductRootWarehouse> ProductRootWarehouses { get; set; } = new HashSet<ProductRootWarehouse>();
+    public ICollection<ProductRootWarehouse> ProductRootWarehouses { get; set; } = [];
 
     /// <summary>
     /// Stock levels for product variants stored at this warehouse
     /// </summary>
-    public virtual ICollection<ProductWarehouse> ProductWarehouses { get; set; } = new HashSet<ProductWarehouse>();
+    public virtual ICollection<ProductWarehouse> ProductWarehouses { get; set; } = [];
 
     /// <summary>
     /// Collection of price overrides associated with products in this warehouse.
     /// </summary>
-    public ICollection<ProductWarehousePriceOverride> ProductWarehousePriceOverrides { get; set; } = new HashSet<ProductWarehousePriceOverride>();
+    public ICollection<ProductWarehousePriceOverride> ProductWarehousePriceOverrides { get; set; } = [];
 
     /// <summary>
     /// Update date

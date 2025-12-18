@@ -5,7 +5,7 @@ import type {
   UmbTreeRootItemsRequestArgs,
 } from "@umbraco-cms/backoffice/tree";
 import { UmbControllerBase } from "@umbraco-cms/backoffice/class-api";
-import type { MerchelloTreeItemModel } from "./types.js";
+import type { MerchelloTreeItemModel } from '@tree/types/tree.types.js';
 import {
   MERCHELLO_ROOT_ENTITY_TYPE,
   MERCHELLO_ORDERS_ENTITY_TYPE,
@@ -21,7 +21,7 @@ import {
   MERCHELLO_SUPPLIERS_ENTITY_TYPE,
   MERCHELLO_WAREHOUSES_ENTITY_TYPE,
   MERCHELLO_PROVIDERS_ENTITY_TYPE,
-} from "./types.js";
+} from '@tree/types/tree.types.js';
 
 export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTreeDataSource<MerchelloTreeItemModel> {
   async getRootItems(_args: UmbTreeRootItemsRequestArgs) {

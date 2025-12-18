@@ -6,7 +6,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { ShippingOptionDto, WarehouseDto } from "@shipping/types.js";
+import type { ShippingOptionDto, WarehouseDto } from "@shipping/types/shipping.types.js";
 import { MERCHELLO_SHIPPING_OPTION_DETAIL_MODAL } from "@shipping/modals/shipping-option-detail-modal.token.js";
 
 @customElement("merchello-shipping-options-list")

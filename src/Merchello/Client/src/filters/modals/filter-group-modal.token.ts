@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { ProductFilterGroupDto } from "../types.js";
+import type { ProductFilterGroupDto } from "@filters/types/filters.types.js";
 
 export interface FilterGroupModalData {
   /** If provided, the modal will be in edit mode. Otherwise, it's in create mode. */

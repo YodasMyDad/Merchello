@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { ShippingCostDto } from "@shipping/types.js";
+import type { ShippingCostDto } from "@shipping/types/shipping.types.js";
 
 export interface ShippingCostModalData {
   /** Existing cost if editing, undefined if creating new */

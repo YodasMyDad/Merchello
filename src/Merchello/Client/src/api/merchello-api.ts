@@ -187,7 +187,7 @@ import type {
   UpdatePaymentProviderDto,
   TestPaymentProviderDto,
   TestPaymentProviderResultDto,
-} from '@payment-providers/types.js';
+} from '@payment-providers/types/payment-providers.types.js';
 
 // Import shipping provider types
 import type {
@@ -208,7 +208,7 @@ import type {
   AvailableProviderDto,
   TestShippingProviderDto,
   TestShippingProviderResultDto,
-} from '@shipping/types.js';
+} from '@shipping/types/shipping.types.js';
 
 // Import product types
 import type {
@@ -243,14 +243,14 @@ import type {
   CreateServiceRegionDto,
   CountryInfo,
   SubdivisionInfo,
-} from '@warehouses/types.js';
+} from '@warehouses/types/warehouses.types.js';
 
 // Import supplier types
 import type {
   CreateSupplierDto,
   SupplierListItemDto,
   UpdateSupplierDto,
-} from '@suppliers/types.js';
+} from '@suppliers/types/suppliers.types.js';
 
 // Import customer types
 import type {
@@ -288,7 +288,7 @@ import type {
 import type {
   CreateTaxGroupDto,
   UpdateTaxGroupDto,
-} from '../tax/types.js';
+} from '@tax/types/tax.types.js';
 
 // Import exchange rate provider types
 import type {
@@ -297,7 +297,7 @@ import type {
   TestExchangeRateProviderResultDto,
   ExchangeRateSnapshotDto,
   SaveExchangeRateProviderSettingsDto,
-} from '../exchange-rate-providers/types.js';
+} from '@exchange-rate-providers/types/exchange-rate-providers.types.js';
 
 // Import filter types
 import type {
@@ -308,7 +308,7 @@ import type {
   CreateFilterDto,
   UpdateFilterDto,
   AssignFiltersDto,
-} from '../filters/types.js';
+} from '@filters/types/filters.types.js';
 
 // Helper to build query string from params
 function buildQueryString(params?: Record<string, unknown>): string {

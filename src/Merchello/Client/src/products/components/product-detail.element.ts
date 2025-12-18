@@ -23,8 +23,8 @@ import type {
   ShippingOptionExclusionDto,
 } from "@products/types/product.types.js";
 import type { TaxGroupDto } from "@orders/types/order.types.js";
-import type { WarehouseDto } from "@shipping/types.js";
-import type { ProductFilterGroupDto } from "@filters/types.js";
+import type { WarehouseDto } from "@shipping/types/shipping.types.js";
+import type { ProductFilterGroupDto } from "@filters/types/filters.types.js";
 import type { ElementTypeDto, ElementTypeContainer } from "@products/types/element-type.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import "./product-element-properties.element.js";

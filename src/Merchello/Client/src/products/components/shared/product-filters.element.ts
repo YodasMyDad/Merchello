@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import type { ProductFilterGroupDto, ProductFilterDto } from "@filters/types.js";
+import type { ProductFilterGroupDto, ProductFilterDto } from "@filters/types/filters.types.js";
 
 // ============================================
 // Event Types

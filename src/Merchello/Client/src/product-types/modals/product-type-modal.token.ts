@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { ProductTypeDto } from "../types.js";
+import type { ProductTypeDto } from '@product-types/types/product-types.types.js';
 
 export interface ProductTypeModalData {
   /** If provided, the modal will be in edit mode. Otherwise, it's in create mode. */

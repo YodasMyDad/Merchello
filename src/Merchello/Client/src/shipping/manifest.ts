@@ -4,7 +4,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Providers.ShippingProviders.View",
     name: "Shipping Providers View",
-    js: () => import("./shipping-providers-list.element.js"),
+    js: () => import("./components/shipping-providers-list.element.js"),
     weight: 90,
     meta: {
       label: "Shipping",
@@ -27,7 +27,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.ShippingProvider.Config.Modal",
     name: "Shipping Provider Config Modal",
-    js: () => import("./shipping-provider-config-modal.element.js"),
+    js: () => import("./modals/shipping-provider-config-modal.element.js"),
   },
 
   // Test shipping provider modal
