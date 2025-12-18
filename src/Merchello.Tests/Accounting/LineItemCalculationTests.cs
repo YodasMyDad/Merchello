@@ -1,3 +1,4 @@
+using Merchello.Core;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Shared.Models;
@@ -406,9 +407,9 @@ public class LineItemCalculationTests
         // Assert
         var discount = lineItems.First(li => li.LineItemType == LineItemType.Discount);
         discount.Name.ShouldBe("Test Discount");
-        discount.ExtendedData["DiscountValueType"].ShouldBe("Percentage");
-        discount.ExtendedData["DiscountValue"].ShouldBe(15m);
-        discount.ExtendedData["Reason"].ShouldBe("VIP Customer");
+        discount.ExtendedData[Constants.ExtendedDataKeys.DiscountValueType].ShouldBe("Percentage");
+        discount.ExtendedData[Constants.ExtendedDataKeys.DiscountValue].ShouldBe(15m);
+        discount.ExtendedData[Constants.ExtendedDataKeys.Reason].ShouldBe("VIP Customer");
     }
 
     #endregion

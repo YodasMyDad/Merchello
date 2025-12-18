@@ -336,13 +336,8 @@ public enum DiscountMethod
     Automatic   // Applied automatically
 }
 
-// Located in Accounting/Models/DiscountValueType.cs
-public enum DiscountValueType
-{
-    Percentage,
-    FixedAmount,
-    Free
-}
+// NOTE: DiscountValueType already exists at src/Merchello.Core/Accounting/Models/DiscountValueType.cs
+// DO NOT duplicate - use the existing enum which has values: FixedAmount, Percentage, Free
 
 public enum DiscountRequirementType
 {
@@ -498,10 +493,13 @@ src/Merchello.Core/
 │   │   ├── UpdateDiscountDto.cs
 │   │   └── ApplyDiscountResultDto.cs
 │   └── Notifications/
-│       ├── DiscountCreatingNotification.cs
-│       ├── DiscountCreatedNotification.cs
-│       └── DiscountAppliedNotification.cs
+│       ├── DiscountCreatingNotification.cs   # extends MerchelloCancelableNotification<Discount>
+│       ├── DiscountCreatedNotification.cs    # extends MerchelloNotification
+│       ├── DiscountApplyingNotification.cs   # extends MerchelloCancelableNotification<Discount> (for code validation)
+│       └── DiscountAppliedNotification.cs    # extends MerchelloNotification
 ```
+
+> **Implementation Note**: "Creating" and "Applying" notifications extend `MerchelloCancelableNotification<Discount>` allowing handlers to cancel operations via `notification.CancelOperation("reason")`. "Created" and "Applied" notifications extend `MerchelloNotification` for post-operation reactions (logging, external sync, etc.).
 
 > **Note**: Customer segment models and services are defined in [Customer-Segments.md](Customer-Segments.md).
 
@@ -701,12 +699,12 @@ public class DiscountFactory
 
 ### 4.5 Integration with Existing Services
 
-#### Update ILineItemService
+#### Use Existing ILineItemService
 
-The discount engine will use the existing centralized method:
+The discount engine will use the **existing centralized method** - no new method needed:
 
 ```csharp
-// Existing method in ILineItemService
+// Existing method in ILineItemService - use this directly
 List<string> AddDiscountLineItem(
     List<LineItem> lineItems,
     decimal amount,
@@ -717,24 +715,20 @@ List<string> AddDiscountLineItem(
     string? reason = null);
 ```
 
-Extend this to support linking to discount records:
-
-```csharp
-// New method to add
-List<string> AddDiscountLineItemFromDiscount(
-    List<LineItem> lineItems,
-    Discount discount,
-    decimal calculatedAmount,
-    string currencyCode,
-    string? linkedSku = null);
-```
+> **Implementation Note**: After calling `AddDiscountLineItem()`, set the promotional discount metadata on the created LineItem's ExtendedData using `Constants.ExtendedDataKeys.DiscountId`, etc. (see ExtendedData Pattern section below). This approach reuses the existing centralized method rather than adding a new one.
 
 #### Update ICheckoutService
 
+> **Note**: `ICheckoutService` already has methods for **manual discounts** (used in backoffice order editing):
+> - `AddDiscountToBasketAsync()` - adds a manual discount line item
+> - `RemoveDiscountFromBasketAsync()` - removes a discount line item
+>
+> The following **new methods** are for **promotional discounts** (code-based and automatic):
+
 ```csharp
-// Add to ICheckoutService
+// Add to ICheckoutService (promotional discounts)
 Task<CrudResult<Basket>> ApplyDiscountCodeAsync(Guid basketId, string code, CancellationToken ct = default);
-Task<CrudResult<Basket>> RemoveDiscountAsync(Guid basketId, Guid discountLineItemId, CancellationToken ct = default);
+Task<List<ApplicableDiscount>> GetApplicableAutomaticDiscountsAsync(Guid basketId, CancellationToken ct = default);
 Task<Basket> RefreshAutomaticDiscountsAsync(Basket basket, CancellationToken ct = default);
 ```
 
@@ -763,23 +757,32 @@ Both systems will continue to work. Manual discounts remain for staff flexibilit
 
 #### Discount LineItem ExtendedData Pattern
 
+> **Implementation Note**: All ExtendedData keys should be defined in `src/Merchello.Core/Constants.cs` under `Constants.ExtendedDataKeys`. Add the following new keys for promotional discounts:
+> ```csharp
+> public const string DiscountId = "DiscountId";
+> public const string DiscountCode = "DiscountCode";
+> public const string DiscountName = "DiscountName";
+> public const string DiscountCategory = "DiscountCategory";
+> ```
+> The existing keys (`DiscountValueType`, `DiscountValue`, `VisibleToCustomer`, `Reason`) are already defined.
+
 **For promotional discounts** (linked to Discount entity), store full metadata:
 
 ```csharp
-ExtendedData["DiscountId"] = discount.Id.ToString();
-ExtendedData["DiscountCode"] = discount.Code ?? "";  // Empty for automatic discounts
-ExtendedData["DiscountName"] = discount.Name;
-ExtendedData["DiscountCategory"] = discount.Category.ToString();  // AmountOffProducts, BuyXGetY, etc.
-ExtendedData["DiscountValueType"] = discount.ValueType.ToString();  // Percentage, FixedAmount, Free
-ExtendedData["DiscountValue"] = discount.Value.ToString();
+ExtendedData[Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString();
+ExtendedData[Constants.ExtendedDataKeys.DiscountCode] = discount.Code ?? "";  // Empty for automatic discounts
+ExtendedData[Constants.ExtendedDataKeys.DiscountName] = discount.Name;
+ExtendedData[Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString();  // AmountOffProducts, BuyXGetY, etc.
+ExtendedData[Constants.ExtendedDataKeys.DiscountValueType] = discount.ValueType.ToString();  // Percentage, FixedAmount, Free
+ExtendedData[Constants.ExtendedDataKeys.DiscountValue] = discount.Value.ToString();
 ```
 
 **For manual discounts** (existing pattern), the simpler format continues to work:
 
 ```csharp
-ExtendedData["DiscountValueType"] = valueType.ToString();  // Percentage, FixedAmount
-ExtendedData["DiscountValue"] = value.ToString();
-ExtendedData["VisibleToCustomer"] = isVisible.ToString();
+ExtendedData[Constants.ExtendedDataKeys.DiscountValueType] = valueType.ToString();  // Percentage, FixedAmount
+ExtendedData[Constants.ExtendedDataKeys.DiscountValue] = value.ToString();
+ExtendedData[Constants.ExtendedDataKeys.VisibleToCustomer] = isVisible.ToString();
 ```
 
 The presence of `DiscountId` distinguishes promotional discounts from manual ones, enabling:

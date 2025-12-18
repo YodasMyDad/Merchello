@@ -127,9 +127,9 @@ Task<List<Invoice>> QueryAsync(InvoiceQueryParameters parameters);
 
 ## Database Migrations
 
-- **Always use `migrations.ps1`** script in root
+- **Always use `scripts/add-migration.ps1`**
 - Never use `dotnet ef migrations` directly
-- Script handles all providers (SQL Server, PostgreSQL, SQLite)
+- Script handles all providers (SQL Server, SQLite)
 
 ## Testing
 

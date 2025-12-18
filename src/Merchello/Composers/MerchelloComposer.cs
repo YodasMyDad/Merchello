@@ -71,7 +71,7 @@ namespace Merchello.Composers
                 // Configure the Swagger generation options
                 // Add in a new Swagger API document solely for our own package that can be browsed via Swagger UI
                 // Along with having a generated swagger JSON file that we can use to auto generate a TypeScript client
-                opt.SwaggerDoc(Constants.ApiName, new OpenApiInfo
+                opt.SwaggerDoc(Core.Constants.ApiName, new OpenApiInfo
                 {
                     Title = "Merchello Backoffice API",
                     Version = "1.0",
@@ -91,7 +91,7 @@ namespace Merchello.Composers
 
         public class MerchelloOperationSecurityFilter : BackOfficeSecurityRequirementsOperationFilterBase
         {
-            protected override string ApiName => Constants.ApiName;
+            protected override string ApiName => Core.Constants.ApiName;
         }
 
         // This is used to generate nice operation IDs in our swagger json file

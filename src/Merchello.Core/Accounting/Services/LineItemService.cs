@@ -66,7 +66,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
             var discountAmount = discount.Amount; // Already negative for fixed amounts
 
             // Check if this is a percentage or free discount (stored in ExtendedData)
-            if (discount.ExtendedData.TryGetValue("DiscountValueType", out var typeObj))
+            if (discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var typeObj))
             {
                 var typeStr = typeObj switch
                 {
@@ -76,7 +76,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
                 };
 
                 if (typeStr == nameof(DiscountValueType.Percentage) &&
-                    discount.ExtendedData.TryGetValue("DiscountValue", out var valueObj))
+                    discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValue, out var valueObj))
                 {
                     var percentageValue = valueObj switch
                     {
@@ -188,7 +188,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         {
             var discountAmount = discount.Amount;
 
-            if (discount.ExtendedData.TryGetValue("DiscountValueType", out var typeObj))
+            if (discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var typeObj))
             {
                 var typeStr = typeObj switch
                 {
@@ -198,7 +198,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
                 };
 
                 if (typeStr == nameof(DiscountValueType.Percentage) &&
-                    discount.ExtendedData.TryGetValue("DiscountValue", out var valueObj))
+                    discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValue, out var valueObj))
                 {
                     var percentageValue = valueObj switch
                     {
@@ -235,7 +235,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         {
             var discountAmount = discount.Amount;
 
-            if (discount.ExtendedData.TryGetValue("DiscountValueType", out var typeObj))
+            if (discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var typeObj))
             {
                 var typeStr = typeObj switch
                 {
@@ -245,7 +245,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
                 };
 
                 if (typeStr == nameof(DiscountValueType.Percentage) &&
-                    discount.ExtendedData.TryGetValue("DiscountValue", out var valueObj))
+                    discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValue, out var valueObj))
                 {
                     var percentageValue = valueObj switch
                     {
@@ -340,14 +340,14 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
             DateUpdated = DateTime.UtcNow,
             ExtendedData = new Dictionary<string, object>
             {
-                ["DiscountValueType"] = discountValueType.ToString(),
-                ["DiscountValue"] = amount
+                [Constants.ExtendedDataKeys.DiscountValueType] = discountValueType.ToString(),
+                [Constants.ExtendedDataKeys.DiscountValue] = amount
             }
         };
 
         if (!string.IsNullOrEmpty(reason))
         {
-            discountLineItem.ExtendedData["Reason"] = reason;
+            discountLineItem.ExtendedData[Constants.ExtendedDataKeys.Reason] = reason;
         }
 
         lineItems.Add(discountLineItem);

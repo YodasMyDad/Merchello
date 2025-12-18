@@ -1,3 +1,4 @@
+using Merchello.Core;
 using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
@@ -379,9 +380,9 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             TaxRate = 0,
             ExtendedData = new Dictionary<string, object>
             {
-                ["DiscountValueType"] = discountValueType.ToString(),
-                ["DiscountValue"] = discountValue ?? discountAmount,
-                ["VisibleToCustomer"] = visibleToCustomer
+                [Constants.ExtendedDataKeys.DiscountValueType] = discountValueType.ToString(),
+                [Constants.ExtendedDataKeys.DiscountValue] = discountValue ?? discountAmount,
+                [Constants.ExtendedDataKeys.VisibleToCustomer] = visibleToCustomer
             }
         };
 
@@ -416,9 +417,9 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             TaxRate = 0,
             ExtendedData = new Dictionary<string, object>
             {
-                ["DiscountValueType"] = discountValueType.ToString(),
-                ["DiscountValue"] = discountValue ?? discountAmount,
-                ["VisibleToCustomer"] = visibleToCustomer
+                [Constants.ExtendedDataKeys.DiscountValueType] = discountValueType.ToString(),
+                [Constants.ExtendedDataKeys.DiscountValue] = discountValue ?? discountAmount,
+                [Constants.ExtendedDataKeys.VisibleToCustomer] = visibleToCustomer
             }
         };
 

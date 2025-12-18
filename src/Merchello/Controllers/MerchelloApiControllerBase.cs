@@ -9,7 +9,7 @@ namespace Merchello.Controllers
     [ApiController]
     [BackOfficeRoute("api/v{version:apiVersion}")]
     [Authorize(Policy = AuthorizationPolicies.SectionAccessContent)]
-    [MapToApi(Constants.ApiName)]
+    [MapToApi(Core.Constants.ApiName)]
     public class MerchelloApiControllerBase : ControllerBase
     {
     }

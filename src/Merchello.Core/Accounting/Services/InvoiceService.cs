@@ -2134,8 +2134,8 @@ public class InvoiceService(
                     if (effectiveDiscount == null && existingDiscount != null)
                     {
                         // Convert existing discount to DTO format
-                        var discountTypeStr = existingDiscount.ExtendedData?.GetValueOrDefault("DiscountValueType")?.ToString();
-                        var discountValueRaw = existingDiscount.ExtendedData?.GetValueOrDefault("DiscountValue");
+                        var discountTypeStr = existingDiscount.ExtendedData?.GetValueOrDefault(Constants.ExtendedDataKeys.DiscountValueType)?.ToString();
+                        var discountValueRaw = existingDiscount.ExtendedData?.GetValueOrDefault(Constants.ExtendedDataKeys.DiscountValue);
 
                         // Handle JsonElement conversion (EF Core stores Dictionary<string, object> as JSON)
                         decimal discountValue;
@@ -2540,9 +2540,9 @@ public class InvoiceService(
                                 TaxRate = 0,
                                 ExtendedData = new Dictionary<string, object>
                                 {
-                                    ["DiscountValueType"] = editItem.Discount.Type.ToString(),
-                                    ["DiscountValue"] = editItem.Discount.Value,
-                                    ["VisibleToCustomer"] = editItem.Discount.IsVisibleToCustomer
+                                    [Constants.ExtendedDataKeys.DiscountValueType] = editItem.Discount.Type.ToString(),
+                                    [Constants.ExtendedDataKeys.DiscountValue] = editItem.Discount.Value,
+                                    [Constants.ExtendedDataKeys.VisibleToCustomer] = editItem.Discount.IsVisibleToCustomer
                                 }
                             };
 
@@ -2679,7 +2679,7 @@ public class InvoiceService(
                             TaxRate = taxRate,
                             ExtendedData = new Dictionary<string, object>
                             {
-                                ["IsPhysicalProduct"] = customItem.IsPhysicalProduct,
+                                [Constants.ExtendedDataKeys.IsPhysicalProduct] = customItem.IsPhysicalProduct,
                                 ["TaxGroupId"] = customItem.TaxGroupId?.ToString() ?? string.Empty,
                                 ["TaxGroupName"] = taxGroupName ?? string.Empty
                             }
@@ -2732,9 +2732,9 @@ public class InvoiceService(
                             TaxRate = 0,
                             ExtendedData = new Dictionary<string, object>
                             {
-                                ["DiscountValueType"] = orderDiscount.Type.ToString(),
-                                ["DiscountValue"] = orderDiscount.Value,
-                                ["VisibleToCustomer"] = orderDiscount.IsVisibleToCustomer
+                                [Constants.ExtendedDataKeys.DiscountValueType] = orderDiscount.Type.ToString(),
+                                [Constants.ExtendedDataKeys.DiscountValue] = orderDiscount.Value,
+                                [Constants.ExtendedDataKeys.VisibleToCustomer] = orderDiscount.IsVisibleToCustomer
                             }
                         };
 
@@ -2877,7 +2877,7 @@ public class InvoiceService(
                 var discountValueType = DiscountValueType.FixedAmount;
                 var discountValue = Math.Abs(d.Amount);
 
-                if (d.ExtendedData?.TryGetValue("DiscountValueType", out var typeObj) == true)
+                if (d.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var typeObj) == true)
                 {
                     var typeStr = typeObj switch
                     {
@@ -2892,7 +2892,7 @@ public class InvoiceService(
                     }
                 }
 
-                if (d.ExtendedData?.TryGetValue("DiscountValue", out var valueObj) == true)
+                if (d.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.DiscountValue, out var valueObj) == true)
                 {
                     discountValue = valueObj switch
                     {
@@ -2910,7 +2910,7 @@ public class InvoiceService(
 
                 // Read VisibleToCustomer, handling JsonElement
                 var visibleToCustomer = false;
-                if (d.ExtendedData?.TryGetValue("VisibleToCustomer", out var visibleObj) == true)
+                if (d.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.VisibleToCustomer, out var visibleObj) == true)
                 {
                     visibleToCustomer = visibleObj switch
                     {
@@ -2964,7 +2964,7 @@ public class InvoiceService(
         var discountValueType = DiscountValueType.FixedAmount;
         var discountValue = Math.Abs(d.Amount);
 
-        if (d.ExtendedData?.TryGetValue("DiscountValueType", out var typeObj) == true)
+        if (d.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var typeObj) == true)
         {
             var typeStr = typeObj switch
             {
@@ -2979,7 +2979,7 @@ public class InvoiceService(
             }
         }
 
-        if (d.ExtendedData?.TryGetValue("DiscountValue", out var valueObj) == true)
+        if (d.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.DiscountValue, out var valueObj) == true)
         {
             discountValue = valueObj switch
             {
@@ -2996,7 +2996,7 @@ public class InvoiceService(
         }
 
         var visibleToCustomer = false;
-        if (d.ExtendedData?.TryGetValue("VisibleToCustomer", out var visibleObj) == true)
+        if (d.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.VisibleToCustomer, out var visibleObj) == true)
         {
             visibleToCustomer = visibleObj switch
             {
@@ -3265,7 +3265,7 @@ public class InvoiceService(
                     DateUpdated = now,
                     ExtendedData = new Dictionary<string, object>
                     {
-                        ["IsPhysicalProduct"] = customItem.IsPhysicalProduct
+                        [Constants.ExtendedDataKeys.IsPhysicalProduct] = customItem.IsPhysicalProduct
                     }
                 };
 
