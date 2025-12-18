@@ -252,7 +252,7 @@ export function navigateToSegmentCreate(): void {
  * Generate the URL to the customer segments list (within Customers workspace).
  */
 export function getSegmentsListHref(): string {
-  return `${MERCHELLO_SECTION_PATH}/workspace/merchello-customers/segments`;
+  return `${MERCHELLO_SECTION_PATH}/workspace/merchello-customers/view/segments`;
 }
 
 /**

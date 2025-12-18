@@ -103,4 +103,23 @@ public interface ICustomerService
     /// <param name="ct">Cancellation token.</param>
     /// <returns>List of customer DTOs with order counts.</returns>
     Task<List<CustomerListItemDto>> GetDtosByIdsAsync(List<Guid> customerIds, CancellationToken ct = default);
+
+    // =====================================================
+    // Tag Management
+    // =====================================================
+
+    /// <summary>
+    /// Gets all tags for a specific customer.
+    /// </summary>
+    Task<List<string>> GetCustomerTagsAsync(Guid customerId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sets the tags for a customer (replaces all existing tags).
+    /// </summary>
+    Task SetCustomerTagsAsync(Guid customerId, List<string> tags, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets all unique tags across all customers (for autocomplete).
+    /// </summary>
+    Task<List<string>> GetAllUniqueTagsAsync(CancellationToken ct = default);
 }

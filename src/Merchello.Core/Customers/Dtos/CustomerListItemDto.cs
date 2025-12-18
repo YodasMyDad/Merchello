@@ -21,4 +21,9 @@ public class CustomerListItemDto
     public DateTime DateCreated { get; set; }
 
     public int OrderCount { get; set; }
+
+    /// <summary>
+    /// Tags assigned to this customer
+    /// </summary>
+    public List<string> Tags { get; set; } = [];
 }

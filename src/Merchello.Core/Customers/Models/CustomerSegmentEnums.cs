@@ -1,8 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace Merchello.Core.Customers.Models;
 
 /// <summary>
 /// The type of customer segment.
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum CustomerSegmentType
 {
     /// <summary>
@@ -19,6 +22,7 @@ public enum CustomerSegmentType
 /// <summary>
 /// How multiple criteria are combined when evaluating segment membership.
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum SegmentMatchMode
 {
     /// <summary>

@@ -179,6 +179,12 @@ public class SegmentCriteriaEvaluator(
                 .OrderByDescending(i => i.DateCreated)
                 .FirstOrDefaultAsync(ct);
 
+            // Get customer tags
+            var tags = await db.CustomerTags
+                .Where(t => t.CustomerId == customerId)
+                .Select(t => t.Tag)
+                .ToListAsync(ct);
+
             return new CustomerMetrics
             {
                 OrderCount = orderStats?.OrderCount ?? 0,
@@ -191,7 +197,7 @@ public class SegmentCriteriaEvaluator(
                 DateCreated = customer.DateCreated,
                 Email = customer.Email,
                 Country = recentInvoice?.BillingAddress?.Country,
-                Tags = customer.Tags
+                Tags = tags
             };
         });
         scope.Complete();
@@ -487,7 +493,7 @@ public class SegmentCriteriaEvaluator(
                         Id = c.Id,
                         Email = c.Email,
                         DateCreated = c.DateCreated,
-                        Tags = c.Tags,
+                        Tags = c.CustomerTags.Select(t => t.Tag).ToList(),
                         OrderCount = agg != null ? agg.OrderCount : 0,
                         TotalSpend = agg != null ? agg.TotalSpend : 0m,
                         FirstOrderDate = agg != null ? agg.FirstOrderDate : null,

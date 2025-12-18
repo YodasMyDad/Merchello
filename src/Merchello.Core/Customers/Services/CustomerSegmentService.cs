@@ -474,14 +474,17 @@ public class CustomerSegmentService(
             return [];
 
         using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
+        // Fetch data and aggregate client-side to avoid SQLite ef_sum compatibility issue
+        var invoiceData = await scope.ExecuteWithContextAsync(async db =>
             await db.Invoices
                 .Where(i => customerIds.Contains(i.CustomerId) && !i.IsDeleted && !i.IsCancelled)
-                .GroupBy(i => i.CustomerId)
-                .Select(g => new { CustomerId = g.Key, TotalSpend = g.Sum(i => i.TotalInStoreCurrency ?? i.Total) })
-                .ToDictionaryAsync(x => x.CustomerId, x => x.TotalSpend, ct));
+                .Select(i => new { i.CustomerId, Total = i.TotalInStoreCurrency ?? i.Total })
+                .ToListAsync(ct));
         scope.Complete();
-        return result;
+
+        return invoiceData
+            .GroupBy(i => i.CustomerId)
+            .ToDictionary(g => g.Key, g => g.Sum(i => i.Total));
     }
 
     /// <inheritdoc />
@@ -662,29 +665,28 @@ public class CustomerSegmentService(
         if (totalMembers == 0)
             return new SegmentStatisticsDto { TotalMembers = 0 };
 
-        // Calculate statistics from invoices
+        // Fetch invoice data and aggregate client-side to avoid SQLite ef_sum compatibility issue
         using var scope = efCoreScopeProvider.CreateScope();
-        var stats = await scope.ExecuteWithContextAsync(async db =>
+        var invoiceData = await scope.ExecuteWithContextAsync(async db =>
             await db.Invoices
                 .Where(i => memberIds.Contains(i.CustomerId))
                 .Where(i => !i.IsDeleted && !i.IsCancelled)
-                .GroupBy(_ => 1)
-                .Select(g => new
-                {
-                    TotalRevenue = g.Sum(i => i.TotalInStoreCurrency ?? i.Total),
-                    OrderCount = g.Count(),
-                    ActiveCustomers = g.Select(i => i.CustomerId).Distinct().Count()
-                })
-                .FirstOrDefaultAsync(ct));
+                .Select(i => new { i.CustomerId, Total = i.TotalInStoreCurrency ?? i.Total })
+                .ToListAsync(ct));
         scope.Complete();
+
+        // Aggregate client-side
+        var totalRevenue = invoiceData.Sum(i => i.Total);
+        var orderCount = invoiceData.Count;
+        var activeCustomers = invoiceData.Select(i => i.CustomerId).Distinct().Count();
 
         return new SegmentStatisticsDto
         {
             TotalMembers = totalMembers,
-            ActiveMembers = stats?.ActiveCustomers ?? 0,
-            TotalRevenue = stats?.TotalRevenue ?? 0,
-            AverageOrderValue = stats?.OrderCount > 0
-                ? (stats.TotalRevenue / stats.OrderCount)
+            ActiveMembers = activeCustomers,
+            TotalRevenue = totalRevenue,
+            AverageOrderValue = orderCount > 0
+                ? (totalRevenue / orderCount)
                 : 0
         };
     }

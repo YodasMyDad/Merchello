@@ -7,6 +7,7 @@ export interface CustomerListItemDto {
   memberKey: string | null;
   dateCreated: string;
   orderCount: number;
+  tags: string[];
 }
 
 // Paginated response for customer list
@@ -32,4 +33,5 @@ export interface UpdateCustomerDto {
   lastName?: string | null;
   memberKey?: string | null;
   clearMemberKey?: boolean;
+  tags?: string[];
 }

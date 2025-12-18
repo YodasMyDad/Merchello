@@ -60,7 +60,8 @@ public class CustomersApiController(
             FirstName = dto.FirstName,
             LastName = dto.LastName,
             MemberKey = dto.MemberKey,
-            ClearMemberKey = dto.ClearMemberKey
+            ClearMemberKey = dto.ClearMemberKey,
+            Tags = dto.Tags
         };
 
         var result = await customerService.UpdateAsync(parameters, ct);
@@ -77,6 +78,45 @@ public class CustomersApiController(
         // Fetch the DTO to get the correct order count
         var customer = await customerService.GetDtoByIdAsync(id, ct);
         return Ok(customer);
+    }
+
+    /// <summary>
+    /// Search customers for segment member picker (supports excluding IDs)
+    /// </summary>
+    [HttpGet("customers/search")]
+    [ProducesResponseType<CustomerPageDto>(StatusCodes.Status200OK)]
+    public async Task<CustomerPageDto> SearchCustomers(
+        [FromQuery] string search,
+        [FromQuery] string? excludeIds,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        var result = await customerService.GetPagedAsync(search, 1, pageSize, ct);
+
+        // Filter out excluded IDs if provided
+        if (!string.IsNullOrWhiteSpace(excludeIds))
+        {
+            var excludeIdList = excludeIds.Split(',')
+                .Select(id => Guid.TryParse(id.Trim(), out var guid) ? guid : (Guid?)null)
+                .Where(g => g.HasValue)
+                .Select(g => g!.Value)
+                .ToHashSet();
+
+            result.Items = result.Items.Where(c => !excludeIdList.Contains(c.Id)).ToList();
+            result.TotalItems = result.Items.Count;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Get all unique tags across all customers (for autocomplete)
+    /// </summary>
+    [HttpGet("customers/tags")]
+    [ProducesResponseType<List<string>>(StatusCodes.Status200OK)]
+    public async Task<List<string>> GetAllTags(CancellationToken ct)
+    {
+        return await customerService.GetAllUniqueTagsAsync(ct);
     }
 
     /// <summary>

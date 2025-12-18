@@ -35,4 +35,9 @@ public class UpdateCustomerParameters
     /// When true, clears the MemberKey (unlinks from member).
     /// </summary>
     public bool ClearMemberKey { get; set; }
+
+    /// <summary>
+    /// Tags to assign to this customer. Replaces all existing tags.
+    /// </summary>
+    public List<string>? Tags { get; set; }
 }

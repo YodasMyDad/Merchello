@@ -34,6 +34,7 @@ public class MerchelloDbContext : DbContext
 
     // Customer DbSets
     public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<CustomerTag> CustomerTags => Set<CustomerTag>();
     public DbSet<CustomerSegment> CustomerSegments => Set<CustomerSegment>();
     public DbSet<CustomerSegmentMember> CustomerSegmentMembers => Set<CustomerSegmentMember>();
 

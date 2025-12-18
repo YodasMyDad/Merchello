@@ -796,6 +796,9 @@ export const MerchelloApi = {
   getCustomerSegmentBadges: (email: string) =>
     apiGet<CustomerSegmentBadgeDto[]>(`customers/segments?email=${encodeURIComponent(email)}`),
 
+  /** Get all unique customer tags (for autocomplete) */
+  getAllCustomerTags: () => apiGet<string[]>('customers/tags'),
+
   // ============================================
   // Customer Segments API
   // ============================================

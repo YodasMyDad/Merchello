@@ -1,5 +1,4 @@
 using Merchello.Core.Customers.Models;
-using Merchello.Core.Shared.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -35,9 +34,6 @@ public class CustomerDbMapping : IEntityTypeConfiguration<Customer>
         // Timestamps
         builder.Property(x => x.DateCreated);
         builder.Property(x => x.DateUpdated);
-
-        // Tags - stored as JSON
-        builder.Property(x => x.Tags).ToJsonConversion(4000);
 
         // Navigation: One Customer -> Many Invoices
         builder.HasMany(x => x.Invoices)

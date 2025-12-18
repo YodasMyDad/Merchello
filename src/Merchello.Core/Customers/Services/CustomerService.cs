@@ -49,7 +49,8 @@ public class CustomerService(
                     LastName = c.LastName,
                     MemberKey = c.MemberKey,
                     DateCreated = c.DateCreated,
-                    OrderCount = c.Invoices != null ? c.Invoices.Count : 0
+                    OrderCount = c.Invoices != null ? c.Invoices.Count : 0,
+                    Tags = c.CustomerTags.Select(t => t.Tag).ToList()
                 })
                 .FirstOrDefaultAsync(ct));
         scope.Complete();
@@ -223,6 +224,29 @@ public class CustomerService(
 
             existing.DateUpdated = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
+
+            // Handle tags if provided
+            if (parameters.Tags != null)
+            {
+                var existingTags = await db.CustomerTags
+                    .Where(t => t.CustomerId == parameters.Id)
+                    .ToListAsync(ct);
+                db.CustomerTags.RemoveRange(existingTags);
+
+                var newTags = parameters.Tags
+                    .Select(t => t.Trim())
+                    .Where(t => !string.IsNullOrEmpty(t))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Select(tag => new CustomerTag
+                    {
+                        CustomerId = parameters.Id,
+                        Tag = tag
+                    });
+
+                await db.CustomerTags.AddRangeAsync(newTags, ct);
+                await db.SaveChangesAsync(ct);
+            }
+
             return existing;
         });
 
@@ -307,7 +331,8 @@ public class CustomerService(
                     LastName = c.LastName,
                     MemberKey = c.MemberKey,
                     DateCreated = c.DateCreated,
-                    OrderCount = c.Invoices != null ? c.Invoices.Count : 0
+                    OrderCount = c.Invoices != null ? c.Invoices.Count : 0,
+                    Tags = c.CustomerTags.Select(t => t.Tag).ToList()
                 })
                 .ToListAsync(ct);
 
@@ -380,8 +405,70 @@ public class CustomerService(
                     LastName = c.LastName,
                     MemberKey = c.MemberKey,
                     DateCreated = c.DateCreated,
-                    OrderCount = c.Invoices != null ? c.Invoices.Count : 0
+                    OrderCount = c.Invoices != null ? c.Invoices.Count : 0,
+                    Tags = c.CustomerTags.Select(t => t.Tag).ToList()
                 })
+                .ToListAsync(ct));
+        scope.Complete();
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<List<string>> GetCustomerTagsAsync(Guid customerId, CancellationToken ct = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.CustomerTags
+                .AsNoTracking()
+                .Where(t => t.CustomerId == customerId)
+                .Select(t => t.Tag)
+                .ToListAsync(ct));
+        scope.Complete();
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task SetCustomerTagsAsync(Guid customerId, List<string> tags, CancellationToken ct = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            // Remove existing tags
+            var existing = await db.CustomerTags
+                .Where(t => t.CustomerId == customerId)
+                .ToListAsync(ct);
+            db.CustomerTags.RemoveRange(existing);
+
+            // Add new tags (deduplicated, trimmed)
+            var newTags = tags
+                .Select(t => t.Trim())
+                .Where(t => !string.IsNullOrEmpty(t))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(tag => new CustomerTag
+                {
+                    CustomerId = customerId,
+                    Tag = tag
+                });
+
+            await db.CustomerTags.AddRangeAsync(newTags, ct);
+            await db.SaveChangesAsync(ct);
+            return true;
+        });
+        scope.Complete();
+
+        logger.LogInformation("Updated tags for customer {CustomerId}", customerId);
+    }
+
+    /// <inheritdoc />
+    public async Task<List<string>> GetAllUniqueTagsAsync(CancellationToken ct = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.CustomerTags
+                .AsNoTracking()
+                .Select(t => t.Tag)
+                .Distinct()
+                .OrderBy(t => t)
                 .ToListAsync(ct));
         scope.Complete();
         return result;

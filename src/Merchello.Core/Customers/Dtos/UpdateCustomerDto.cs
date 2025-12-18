@@ -24,4 +24,9 @@ public class UpdateCustomerDto
     /// This differentiates between "not provided" and "set to null".
     /// </summary>
     public bool ClearMemberKey { get; set; }
+
+    /// <summary>
+    /// Tags to assign to this customer. Replaces all existing tags.
+    /// </summary>
+    public List<string>? Tags { get; set; }
 }

@@ -31,14 +31,13 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
   @state() private _activePath = "tab/details";
   @state() private _routerPath = "";
   @state() private _fieldErrors: Record<string, string> = {};
+  @state() private _isNew = true;
 
   #workspaceContext?: MerchelloSegmentDetailWorkspaceContext;
   #notificationContext?: UmbNotificationContext;
 
   private _routes: UmbRoute[] = [
     { path: "tab/details", component: stubComponent },
-    { path: "tab/members", component: stubComponent },
-    { path: "tab/criteria", component: stubComponent },
     { path: "tab/preview", component: stubComponent },
     { path: "", redirectTo: "tab/details" },
   ];
@@ -47,8 +46,11 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
     super();
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
       this.#workspaceContext = context as MerchelloSegmentDetailWorkspaceContext;
+      this._isNew = this.#workspaceContext.isNew;
       this.observe(this.#workspaceContext.segment, (segment) => {
         this._segment = segment;
+        // Update isNew state reactively when segment changes
+        this._isNew = this.#workspaceContext?.isNew ?? true;
         if (segment) {
           this._formData = { ...segment };
         }
@@ -57,10 +59,6 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
     });
-  }
-
-  private get _isNew(): boolean {
-    return this.#workspaceContext?.isNew ?? true;
   }
 
   private _handleNameChange(e: Event): void {
@@ -191,15 +189,10 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
   }
 
   private _hasDetailsErrors(): boolean {
-    return !!this._fieldErrors.name;
-  }
-
-  private _hasCriteriaErrors(): boolean {
-    return !!this._fieldErrors.criteria;
+    return !!this._fieldErrors.name || !!this._fieldErrors.criteria;
   }
 
   private _renderTabs() {
-    const isManual = this._formData.segmentType === "Manual";
     const isAutomated = this._formData.segmentType === "Automated";
 
     return html`
@@ -211,42 +204,19 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
           Details
           ${this._hasDetailsErrors() ? html`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : nothing}
         </uui-tab>
-        ${isManual && !this._isNew ? html`
+        ${isAutomated && !this._isNew ? html`
           <uui-tab
-            label="Members"
-            href="${this._routerPath}/tab/members"
-            ?active=${this._activePath.includes("tab/members")}>
-            Members (${this._segment?.memberCount ?? 0})
+            label="Preview"
+            href="${this._routerPath}/tab/preview"
+            ?active=${this._activePath.includes("tab/preview")}>
+            Preview
           </uui-tab>
-        ` : nothing}
-        ${isAutomated ? html`
-          <uui-tab
-            label="Criteria"
-            href="${this._routerPath}/tab/criteria"
-            ?active=${this._activePath.includes("tab/criteria")}>
-            Criteria
-            ${this._hasCriteriaErrors() ? html`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : nothing}
-          </uui-tab>
-          ${!this._isNew ? html`
-            <uui-tab
-              label="Preview"
-              href="${this._routerPath}/tab/preview"
-              ?active=${this._activePath.includes("tab/preview")}>
-              Preview
-            </uui-tab>
-          ` : nothing}
         ` : nothing}
       </uui-tab-group>
     `;
   }
 
   private _renderActiveTabContent() {
-    if (this._activePath.includes("tab/members")) {
-      return this._renderMembersTab();
-    }
-    if (this._activePath.includes("tab/criteria")) {
-      return this._renderCriteriaTab();
-    }
     if (this._activePath.includes("tab/preview")) {
       return this._renderPreviewTab();
     }
@@ -267,7 +237,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
 
         <umb-property-layout
           label="Segment Type"
-          description="Manual segments have hand-picked members. Automated segments use criteria rules."
+          description="Manual segments let you hand-pick specific customers (e.g., VIPs, beta testers). Automated segments automatically include customers based on criteria rules."
           ?mandatory=${this._isNew}>
           <uui-select
             slot="editor"
@@ -279,6 +249,12 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
             ?disabled=${!this._isNew}>
           </uui-select>
         </umb-property-layout>
+
+        ${this._formData.segmentType === "Manual" && this._isNew ? html`
+          <div class="helper-text">
+            After saving, you'll be able to add customers to this segment below.
+          </div>
+        ` : nothing}
 
         ${this._formData.segmentType === "Automated" ? html`
           <umb-property-layout
@@ -296,6 +272,26 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
         ` : nothing}
       </uui-box>
 
+      ${this._formData.segmentType === "Automated" ? html`
+        <merchello-segment-criteria-builder
+          .criteria=${this._formData.criteria || []}
+          .matchMode=${this._formData.matchMode || "All"}
+          @criteria-changed=${this._handleCriteriaChanged}>
+        </merchello-segment-criteria-builder>
+        ${this._fieldErrors.criteria ? html`
+          <div class="error-message">${this._fieldErrors.criteria}</div>
+        ` : nothing}
+      ` : nothing}
+
+      ${this._formData.segmentType === "Manual" && !this._isNew && this._segment?.id ? html`
+        <uui-box headline="Members (${this._segment?.memberCount ?? 0})">
+          <merchello-segment-members-table
+            .segmentId=${this._segment.id}
+            @members-changed=${() => this.#workspaceContext?.reload()}>
+          </merchello-segment-members-table>
+        </uui-box>
+      ` : nothing}
+
       <uui-box headline="Status">
         <umb-property-layout label="Active" description="Inactive segments are not evaluated for membership">
           <uui-toggle
@@ -312,31 +308,6 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
             This is a system segment and cannot be deleted. Some settings may be restricted.
           </p>
         </uui-box>
-      ` : nothing}
-    `;
-  }
-
-  private _renderMembersTab() {
-    if (!this._segment?.id) {
-      return html`<p>Save the segment first to manage members.</p>`;
-    }
-    return html`
-      <merchello-segment-members-table
-        .segmentId=${this._segment.id}
-        @members-changed=${() => this.#workspaceContext?.reload()}>
-      </merchello-segment-members-table>
-    `;
-  }
-
-  private _renderCriteriaTab() {
-    return html`
-      <merchello-segment-criteria-builder
-        .criteria=${this._formData.criteria || []}
-        .matchMode=${this._formData.matchMode || "All"}
-        @criteria-changed=${this._handleCriteriaChanged}>
-      </merchello-segment-criteria-builder>
-      ${this._fieldErrors.criteria ? html`
-        <div class="error-message">${this._fieldErrors.criteria}</div>
       ` : nothing}
     `;
   }
@@ -455,6 +426,15 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
         width: 100%;
       }
 
+      uui-tab {
+        overflow: visible;
+      }
+
+      uui-tab uui-badge {
+        position: relative;
+        top: -2px;
+      }
+
       umb-router-slot {
         display: none;
       }
@@ -468,6 +448,19 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
 
       uui-box {
         --uui-box-default-padding: var(--uui-size-space-5);
+      }
+
+      umb-property-layout uui-select {
+        width: 100%;
+      }
+
+      .helper-text {
+        color: var(--uui-color-text-alt);
+        font-size: var(--uui-type-small-size);
+        margin-top: var(--uui-size-space-3);
+        padding: var(--uui-size-space-3);
+        background: var(--uui-color-surface-alt);
+        border-radius: var(--uui-border-radius);
       }
 
       .system-info {

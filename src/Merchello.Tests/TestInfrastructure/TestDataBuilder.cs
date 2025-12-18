@@ -522,7 +522,16 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
         var customer = CreateCustomer(email, firstName ?? "Test", lastName ?? "Customer");
         if (tags != null)
         {
-            customer.Tags = tags;
+            foreach (var tag in tags)
+            {
+                var customerTag = new CustomerTag
+                {
+                    CustomerId = customer.Id,
+                    Tag = tag
+                };
+                customer.CustomerTags.Add(customerTag);
+                dbContext.CustomerTags.Add(customerTag);
+            }
         }
 
         // Create invoices with orders to build order history

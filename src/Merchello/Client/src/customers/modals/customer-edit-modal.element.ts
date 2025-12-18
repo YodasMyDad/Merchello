@@ -4,6 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { CustomerEditModalData, CustomerEditModalValue } from "./customer-edit-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import "@umbraco-cms/backoffice/member";
+import "@shared/components/tag-input.element.js";
 
 @customElement("merchello-customer-edit-modal")
 export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
@@ -15,6 +16,8 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
   @state() private _lastName: string = "";
   @state() private _memberKey: string = "";
   @state() private _originalMemberKey: string = "";
+  @state() private _tags: string[] = [];
+  @state() private _allTags: string[] = [];
   @state() private _isSaving: boolean = false;
   @state() private _errors: Record<string, string> = {};
 
@@ -27,7 +30,15 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
       this._lastName = this.data.customer.lastName ?? "";
       this._memberKey = this.data.customer.memberKey ?? "";
       this._originalMemberKey = this.data.customer.memberKey ?? "";
+      this._tags = this.data.customer.tags ?? [];
     }
+    // Load all unique tags for autocomplete
+    this._loadAllTags();
+  }
+
+  private async _loadAllTags(): Promise<void> {
+    const { data } = await MerchelloApi.getAllCustomerTags();
+    this._allTags = data ?? [];
   }
 
   private _validateEmail(email: string): boolean {
@@ -64,6 +75,7 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
       lastName: this._lastName.trim() || null,
       memberKey: memberKeyChanged && this._memberKey ? this._memberKey : undefined,
       clearMemberKey,
+      tags: this._tags,
     });
 
     this._isSaving = false;
@@ -145,6 +157,17 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
               @change=${this._handleMemberChange}>
             </umb-input-member>
             <span class="hint">Link this customer to an Umbraco member account</span>
+          </div>
+
+          <div class="form-row">
+            <label>Tags</label>
+            <merchello-tag-input
+              .tags=${this._tags}
+              .suggestions=${this._allTags}
+              placeholder="Add tag..."
+              @tags-changed=${(e: CustomEvent<{ tags: string[] }>) => this._tags = e.detail.tags}>
+            </merchello-tag-input>
+            <span class="hint">Tags for segmentation and organization</span>
           </div>
         </div>
 

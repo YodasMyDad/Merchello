@@ -501,11 +501,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<Guid?>("MemberKey")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Tags")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
@@ -597,6 +592,35 @@ namespace Merchello.Core.Sqlite.Migrations
                         .IsUnique();
 
                     b.ToTable("merchelloCustomerSegmentMembers", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Customers.Models.CustomerTag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateAdded")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Tag")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("Tag");
+
+                    b.HasIndex("CustomerId", "Tag")
+                        .IsUnique();
+
+                    b.ToTable("merchelloCustomerTags", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.ExchangeRates.Models.ExchangeRateProviderSetting", b =>
@@ -1752,6 +1776,17 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("Segment");
                 });
 
+            modelBuilder.Entity("Merchello.Core.Customers.Models.CustomerTag", b =>
+                {
+                    b.HasOne("Merchello.Core.Customers.Models.Customer", "Customer")
+                        .WithMany("CustomerTags")
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+                });
+
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
                 {
                     b.HasOne("Merchello.Core.Products.Models.ProductRoot", "ProductRoot")
@@ -2088,6 +2123,8 @@ namespace Merchello.Core.Sqlite.Migrations
 
             modelBuilder.Entity("Merchello.Core.Customers.Models.Customer", b =>
                 {
+                    b.Navigation("CustomerTags");
+
                     b.Navigation("Invoices");
                 });
 

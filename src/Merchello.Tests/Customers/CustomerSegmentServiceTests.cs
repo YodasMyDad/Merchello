@@ -126,7 +126,9 @@ public class CustomerSegmentServiceTests
 
         // Assert
         result.Successful.ShouldBeFalse();
-        result.Messages.ErrorMessages().First().Message.ShouldContain("already exists");
+        var errorMessage = result.Messages.ErrorMessages().First().Message;
+        errorMessage.ShouldNotBeNull();
+        errorMessage.ShouldContain("already exists");
     }
 
     [Fact]
@@ -302,6 +304,7 @@ public class CustomerSegmentServiceTests
         // Assert
         updateResult.Successful.ShouldBeTrue();
         updateResult.ResultObject!.MatchMode.ShouldBe(SegmentMatchMode.Any);
+        updateResult.ResultObject.CriteriaJson.ShouldNotBeNull();
         updateResult.ResultObject.CriteriaJson.ShouldContain("TotalSpend");
     }
 
@@ -347,7 +350,9 @@ public class CustomerSegmentServiceTests
 
         // Assert
         deleteResult.Successful.ShouldBeFalse();
-        deleteResult.Messages.ErrorMessages().First().Message.ShouldContain("system segment");
+        var deleteErrorMessage = deleteResult.Messages.ErrorMessages().First().Message;
+        deleteErrorMessage.ShouldNotBeNull();
+        deleteErrorMessage.ShouldContain("system segment");
     }
 
     [Fact]
@@ -435,7 +440,9 @@ public class CustomerSegmentServiceTests
 
         // Assert
         result.Successful.ShouldBeFalse();
-        result.Messages.ErrorMessages().First().Message.ShouldContain("automated");
+        var addMemberErrorMessage = result.Messages.ErrorMessages().First().Message;
+        addMemberErrorMessage.ShouldNotBeNull();
+        addMemberErrorMessage.ShouldContain("automated");
     }
 
     [Fact]
