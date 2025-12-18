@@ -16,7 +16,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Marketing.Workspace.View",
     name: "Merchello Marketing View",
-    js: () => import("./marketing-workspace.element.js"),
+    js: () => import("./components/marketing-workspace.element.js"),
     weight: 100,
     meta: {
       label: "Marketing",

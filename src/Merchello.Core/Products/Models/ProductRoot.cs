@@ -58,13 +58,13 @@ public class ProductRoot
     /// <summary>
     /// A collection of associated product warehouses that relate to the product's storage or availability locations.
     /// </summary>
-    public ICollection<ProductRootWarehouse> ProductRootWarehouses { get; set; } = new HashSet<ProductRootWarehouse>();
+    public ICollection<ProductRootWarehouse> ProductRootWarehouses { get; set; } = [];
 
 
     /// <summary>
     /// The main products (Variants or default product)
     /// </summary>
-    public virtual ICollection<Product> Products { get; set; } = new HashSet<Product>();
+    public virtual ICollection<Product> Products { get; set; } = [];
 
     /// <summary>
     /// Default package configurations for shipping.
@@ -76,7 +76,7 @@ public class ProductRoot
     /// <summary>
     /// The Categories this product is in
     /// </summary>
-    public virtual ICollection<ProductCategory> Categories { get; set; } = new HashSet<ProductCategory>();
+    public virtual ICollection<ProductCategory> Categories { get; set; } = [];
 
     /// <summary>
     /// Indicates whether this is a digital product (no physical shipping required).

@@ -4,7 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { CreateShippingCostDto } from "@shipping/types.js";
+import type { CreateShippingCostDto } from "@shipping/types/shipping.types.js";
 import type { ShippingCostModalData, ShippingCostModalValue } from "./shipping-cost-modal.token.js";
 
 interface CountryOption {

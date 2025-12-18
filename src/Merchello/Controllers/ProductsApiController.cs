@@ -501,7 +501,7 @@ public class ProductsApiController(
                 .Select(propertyType => new { propertyType.Key, GroupKey = group.Key }))
             .ToDictionary(map => map.Key, map => map.GroupKey);
 
-        var properties = new List<ElementTypeProperty>();
+        List<ElementTypeProperty> properties = [];
         foreach (var prop in contentType.PropertyTypes)
         {
             var containerId = containerKeyByPropertyKey.TryGetValue(prop.Key, out var groupKey) ? groupKey : (Guid?)null;

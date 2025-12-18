@@ -142,4 +142,3 @@ export interface TestCheckoutFormFieldDto {
   /** Whether the field is required */
   isRequired: boolean;
 }
-

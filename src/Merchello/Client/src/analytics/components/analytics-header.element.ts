@@ -7,7 +7,7 @@ import {
   state,
 } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import type { DateRange, DateRangePreset } from "../types/analytics.types.js";
+import type { DateRange, DateRangePreset } from "@analytics/types/analytics.types.js";
 
 export interface DateRangeChangeDetail {
   startDate: Date;

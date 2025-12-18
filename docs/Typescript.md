@@ -97,7 +97,7 @@ These rules apply to **Umbraco v17 backoffice extensions** built with:
   - Elements: `{name}.element.ts`
   - Modal tokens: `{name}-modal.token.ts`
   - Contexts: `{name}.context.ts`
-  - Types: `{name}.types.ts` or `types.ts`
+  - Types: `{feature}.types.ts` (e.g., `shipping.types.ts`, `filters.types.ts`)
   - Manifests: `manifest.ts`
 
 - Enable **code splitting** for rarely used components.

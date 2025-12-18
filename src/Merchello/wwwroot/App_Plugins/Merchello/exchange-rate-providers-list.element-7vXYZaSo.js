@@ -9,7 +9,7 @@ const $ = new _("Merchello.ExchangeRateProvider.Config.Modal", {
     type: "sidebar",
     size: "medium"
   }
-}), A = new _("Merchello.ExchangeRateProvider.Test.Modal", {
+}), A = new _("Merchello.TestExchangeRateProvider.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
@@ -597,4 +597,4 @@ export {
   r as MerchelloExchangeRateProvidersListElement,
   j as default
 };
-//# sourceMappingURL=exchange-rate-providers-list.element-C-71unir.js.map
+//# sourceMappingURL=exchange-rate-providers-list.element-7vXYZaSo.js.map

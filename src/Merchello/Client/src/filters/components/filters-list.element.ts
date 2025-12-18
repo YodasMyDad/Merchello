@@ -6,7 +6,7 @@ import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { UmbSorterController } from "@umbraco-cms/backoffice/sorter";
-import type { ProductFilterGroupDto, ProductFilterDto } from "../types.js";
+import type { ProductFilterGroupDto, ProductFilterDto } from "@filters/types/filters.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { MERCHELLO_FILTER_GROUP_MODAL } from "../modals/filter-group-modal.token.js";
 import { MERCHELLO_FILTER_MODAL } from "../modals/filter-modal.token.js";

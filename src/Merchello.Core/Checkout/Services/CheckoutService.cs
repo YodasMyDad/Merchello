@@ -464,7 +464,7 @@ public class CheckoutService(
         }
 
         // Filter regions so that all basket items have at least one valid shipping option to that region
-        // Uses ProductExtensionMethods.GetValidShippingOptionsForCountry to match provider logic
+        // Uses ProductExtensions.GetValidShippingOptionsForCountry to match provider logic
         var filtered = regions
             .Where(r =>
             {
@@ -475,7 +475,7 @@ public class CheckoutService(
                         return false;
                     }
 
-                    var hasValid = Merchello.Core.Products.Extensions.ProductExtensionMethods
+                    var hasValid = Merchello.Core.Products.Extensions.ProductExtensions
                         .GetShippingAmountForCountry(product, countryCode, r.RegionCode)
                         .HasValue;
 

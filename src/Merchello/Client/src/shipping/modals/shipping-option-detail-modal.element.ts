@@ -14,7 +14,7 @@ import type {
   WarehouseDto,
   AvailableProviderDto,
   ProviderMethodConfigDto,
-} from "@shipping/types.js";
+} from "@shipping/types/shipping.types.js";
 import type { ShippingOptionDetailModalData, ShippingOptionDetailModalValue } from "./shipping-option-detail-modal.token.js";
 import { MERCHELLO_SHIPPING_COST_MODAL } from "./shipping-cost-modal.token.js";
 import { MERCHELLO_SHIPPING_WEIGHT_TIER_MODAL } from "./shipping-weight-tier-modal.token.js";

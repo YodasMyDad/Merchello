@@ -4,7 +4,7 @@ import type { UmbRoutableWorkspaceContext } from "@umbraco-cms/backoffice/worksp
 import { UMB_WORKSPACE_CONTEXT, UmbWorkspaceRouteManager } from "@umbraco-cms/backoffice/workspace";
 import { UmbArrayState, UmbObjectState, UmbStringState } from "@umbraco-cms/backoffice/observable-api";
 import type { ProductRootDetailDto } from "@products/types/product.types.js";
-import type { ProductFilterGroupDto } from "@filters/types.js";
+import type { ProductFilterGroupDto } from "@filters/types/filters.types.js";
 import type { ElementTypeDto } from "@products/types/element-type.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 

@@ -1,1 +1,1 @@
-export * from "./shipping-options-list.element.js";
+export * from "../components/shipping-options-list.element.js";

@@ -12,7 +12,7 @@ import type {
   SegmentCriteriaDto,
   CreateCustomerSegmentDto,
   UpdateCustomerSegmentDto,
-} from "../types/segment.types.js";
+} from "@customers/types/segment.types.js";
 import type { MerchelloSegmentDetailWorkspaceContext } from "../contexts/segment-detail-workspace.context.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getSegmentsListHref, navigateToSegmentDetail } from "@shared/utils/navigation.js";

@@ -226,7 +226,7 @@ public static class Startup
         var orderGroupingStrategyType = typeof(IOrderGroupingStrategy);
         var exchangeRateProviderType = typeof(IExchangeRateProvider);
 
-        var discoveredAssemblies = new HashSet<Assembly>();
+        HashSet<Assembly> discoveredAssemblies = [];
 
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {

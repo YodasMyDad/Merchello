@@ -47,7 +47,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "dashboard",
     alias: "Merchello.Dashboard.Stats",
     name: "Merchello Stats Dashboard",
-    element: () => import("./stats-dashboard.element.js"),
+    element: () => import("./components/stats-dashboard.element.js"),
     meta: {
       label: "Stats",
       pathname: "stats",

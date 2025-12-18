@@ -2,7 +2,7 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { ServiceRegionModalData, ServiceRegionModalValue } from "./service-region-modal.token.js";
-import type { CountryInfo, SubdivisionInfo } from "@warehouses/types.js";
+import type { CountryInfo, SubdivisionInfo } from "@warehouses/types/warehouses.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import type { SelectOption } from "@shared/types/index.js";

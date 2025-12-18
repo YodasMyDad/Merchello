@@ -2,8 +2,8 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { TestPaymentProviderModalData, TestPaymentProviderModalValue } from "./test-provider-modal.token.js";
-import type { TestPaymentProviderDto, TestPaymentProviderResultDto } from "./types.js";
-import { PaymentIntegrationType } from "./types.js";
+import type { TestPaymentProviderDto, TestPaymentProviderResultDto } from '@payment-providers/types/payment-providers.types.js';
+import { PaymentIntegrationType } from '@payment-providers/types/payment-providers.types.js';
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
 

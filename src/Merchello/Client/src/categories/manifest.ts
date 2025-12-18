@@ -16,7 +16,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Categories.Workspace.View",
     name: "Merchello Categories View",
-    js: () => import("./categories-workspace.element.js"),
+    js: () => import("./components/categories-workspace.element.js"),
     weight: 100,
     meta: {
       label: "Categories",

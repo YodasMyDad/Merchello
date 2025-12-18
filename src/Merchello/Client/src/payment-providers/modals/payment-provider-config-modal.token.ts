@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { PaymentProviderDto, PaymentProviderSettingDto } from "./types.js";
+import type { PaymentProviderDto, PaymentProviderSettingDto } from '@payment-providers/types/payment-providers.types.js';
 
 export interface PaymentProviderConfigModalData {
   /** The provider to configure */

@@ -4,7 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { CreateShippingWeightTierDto } from "@shipping/types.js";
+import type { CreateShippingWeightTierDto } from "@shipping/types/shipping.types.js";
 import type { ShippingWeightTierModalData, ShippingWeightTierModalValue } from "./shipping-weight-tier-modal.token.js";
 
 interface CountryOption {

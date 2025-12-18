@@ -6,7 +6,7 @@ using Merchello.Core.Warehouses.Models;
 
 namespace Merchello.Core.Products.Extensions;
 
-public static class ProductExtensionMethods
+public static class ProductExtensions
 {
     /// <summary>
     /// Gets the total stock for this product across all warehouses

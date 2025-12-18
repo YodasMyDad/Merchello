@@ -7,9 +7,9 @@ import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getStoreSettings } from "@api/store-settings.js";
-import type { ExchangeRateProviderDto, ExchangeRateSnapshotDto } from "./types.js";
-import { MERCHELLO_EXCHANGE_RATE_PROVIDER_CONFIG_MODAL } from "./exchange-rate-provider-config-modal.token.js";
-import { MERCHELLO_EXCHANGE_RATE_PROVIDER_TEST_MODAL } from "./test-provider-modal.token.js";
+import type { ExchangeRateProviderDto, ExchangeRateSnapshotDto } from '@exchange-rate-providers/types/exchange-rate-providers.types.js';
+import { MERCHELLO_EXCHANGE_RATE_PROVIDER_CONFIG_MODAL } from "../modals/exchange-rate-provider-config-modal.token.js";
+import { MERCHELLO_TEST_EXCHANGE_RATE_PROVIDER_MODAL } from "../modals/test-provider-modal.token.js";
 
 @customElement("merchello-exchange-rate-providers-list")
 export class MerchelloExchangeRateProvidersListElement extends UmbElementMixin(LitElement) {
@@ -144,7 +144,7 @@ export class MerchelloExchangeRateProvidersListElement extends UmbElementMixin(L
   private _openTestModal(provider: ExchangeRateProviderDto): void {
     if (!this.#modalManager) return;
 
-    this.#modalManager.open(this, MERCHELLO_EXCHANGE_RATE_PROVIDER_TEST_MODAL, {
+    this.#modalManager.open(this, MERCHELLO_TEST_EXCHANGE_RATE_PROVIDER_MODAL, {
       data: { provider },
     });
   }

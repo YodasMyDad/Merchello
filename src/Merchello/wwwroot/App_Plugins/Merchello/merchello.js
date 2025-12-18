@@ -794,7 +794,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Providers.ShippingProviders.View",
     name: "Shipping Providers View",
-    js: () => import("./shipping-providers-list.element-D08LuAaj.js"),
+    js: () => import("./shipping-providers-list.element-B63hjbFj.js"),
     weight: 90,
     meta: {
       label: "Shipping",
@@ -892,7 +892,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Providers.ExchangeRateProviders.View",
     name: "Exchange Rate Providers View",
-    js: () => import("./exchange-rate-providers-list.element-C-71unir.js"),
+    js: () => import("./exchange-rate-providers-list.element-7vXYZaSo.js"),
     weight: 80,
     // After Payments (100) and Shipping (90)
     meta: {

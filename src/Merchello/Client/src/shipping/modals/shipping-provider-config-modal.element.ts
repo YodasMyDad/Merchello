@@ -2,19 +2,21 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { ExchangeRateProviderFieldDto } from "./types.js";
+import type { ShippingProviderFieldDto } from "@shipping/types/shipping.types.js";
 import type {
-  ExchangeRateProviderConfigModalData,
-  ExchangeRateProviderConfigModalValue,
-} from "./exchange-rate-provider-config-modal.token.js";
+  ShippingProviderConfigModalData,
+  ShippingProviderConfigModalValue,
+} from "./shipping-provider-config-modal.token.js";
 
-@customElement("merchello-exchange-rate-provider-config-modal")
-export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBaseElement<
-  ExchangeRateProviderConfigModalData,
-  ExchangeRateProviderConfigModalValue
+@customElement("merchello-shipping-provider-config-modal")
+export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseElement<
+  ShippingProviderConfigModalData,
+  ShippingProviderConfigModalValue
 > {
-  @state() private _fields: ExchangeRateProviderFieldDto[] = [];
+  @state() private _fields: ShippingProviderFieldDto[] = [];
   @state() private _values: Record<string, string> = {};
+  @state() private _displayName: string = "";
+  @state() private _isEnabled: boolean = true;
   @state() private _isLoading = true;
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
@@ -37,6 +39,7 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
     this._errorMessage = null;
 
     const provider = this.data?.provider;
+    const configuration = this.data?.configuration;
 
     if (!provider) {
       this._errorMessage = "No provider specified";
@@ -44,9 +47,14 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
       return;
     }
 
-    // Load configuration fields
-    const { data, error } = await MerchelloApi.getExchangeRateProviderFields(provider.alias);
+    // Initialize display name and enabled state
+    this._displayName = configuration?.displayName ?? provider.displayName;
+    this._isEnabled = configuration?.isEnabled ?? true;
 
+    // Load configuration fields
+    const { data, error } = await MerchelloApi.getShippingProviderFields(provider.key);
+
+    // Prevent state updates if component was disconnected during async operation
     if (!this.#isConnected) return;
 
     if (error) {
@@ -58,7 +66,7 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
     this._fields = data ?? [];
 
     // Initialize values from existing configuration or defaults
-    const existingConfig = provider.configuration ?? {};
+    const existingConfig = configuration?.configuration ?? {};
     this._values = {};
 
     for (const field of this._fields) {
@@ -78,6 +86,7 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
 
   private async _handleSave(): Promise<void> {
     const provider = this.data?.provider;
+    const configuration = this.data?.configuration;
 
     if (!provider) return;
 
@@ -94,22 +103,46 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
     }
 
     try {
-      const { error } = await MerchelloApi.saveExchangeRateProviderSettings(provider.alias, {
-        configuration: this._values,
-      });
+      if (configuration) {
+        // Update existing provider
+        const { error } = await MerchelloApi.updateShippingProvider(configuration.id, {
+          displayName: this._displayName,
+          isEnabled: this._isEnabled,
+          configuration: this._values,
+        });
 
-      if (!this.#isConnected) return;
+        // Prevent state updates if component was disconnected during async operation
+        if (!this.#isConnected) return;
 
-      if (error) {
-        this._errorMessage = error.message;
-        this._isSaving = false;
-        return;
+        if (error) {
+          this._errorMessage = error.message;
+          this._isSaving = false;
+          return;
+        }
+      } else {
+        // Create new provider
+        const { error } = await MerchelloApi.createShippingProvider({
+          providerKey: provider.key,
+          displayName: this._displayName,
+          isEnabled: this._isEnabled,
+          configuration: this._values,
+        });
+
+        // Prevent state updates if component was disconnected during async operation
+        if (!this.#isConnected) return;
+
+        if (error) {
+          this._errorMessage = error.message;
+          this._isSaving = false;
+          return;
+        }
       }
 
       this._isSaving = false;
       this.value = { isSaved: true };
       this.modalContext?.submit();
     } catch (err) {
+      // Prevent state updates if component was disconnected during async operation
       if (!this.#isConnected) return;
       this._errorMessage = err instanceof Error ? err.message : "Failed to save configuration";
       this._isSaving = false;
@@ -120,7 +153,18 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
     this.modalContext?.reject();
   }
 
-  private _renderField(field: ExchangeRateProviderFieldDto): unknown {
+  private _getSelectFieldOptions(field: ShippingProviderFieldDto, currentValue: string): Array<{ name: string; value: string; selected: boolean }> {
+    return [
+      { name: "Select...", value: "", selected: !currentValue },
+      ...(field.options?.map(opt => ({
+        name: opt.label,
+        value: opt.value,
+        selected: currentValue === opt.value
+      })) ?? [])
+    ];
+  }
+
+  private _renderField(field: ShippingProviderFieldDto): unknown {
     const value = this._values[field.key] ?? "";
 
     switch (field.fieldType) {
@@ -201,6 +245,23 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
           </div>
         `;
 
+      case "Select":
+        return html`
+          <div class="form-field">
+            <label for="${field.key}">${field.label}${field.isRequired ? " *" : ""}</label>
+            ${field.description
+              ? html`<p class="field-description">${field.description}</p>`
+              : nothing}
+            <uui-select
+              id="${field.key}"
+              .options=${this._getSelectFieldOptions(field, value)}
+              ?required=${field.isRequired}
+              @change=${(e: Event) =>
+                this._handleValueChange(field.key, (e.target as HTMLSelectElement).value)}
+            ></uui-select>
+          </div>
+        `;
+
       default:
         return nothing;
     }
@@ -208,9 +269,10 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
 
   render() {
     const provider = this.data?.provider;
+    const isEditing = !!this.data?.configuration;
 
     return html`
-      <umb-body-layout headline="Configure ${provider?.displayName ?? "Provider"}">
+      <umb-body-layout headline="${isEditing ? "Configure" : "Install"} ${provider?.displayName ?? "Provider"}">
         <div id="main">
           ${this._isLoading
             ? html`
@@ -229,18 +291,41 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
                     `
                   : nothing}
 
+                <div class="form-field">
+                  <label for="displayName">Display Name *</label>
+                  <p class="field-description">
+                    The name shown to customers when selecting shipping.
+                  </p>
+                  <uui-input
+                    id="displayName"
+                    .value=${this._displayName}
+                    required
+                    @input=${(e: Event) =>
+                      (this._displayName = (e.target as HTMLInputElement).value)}
+                  ></uui-input>
+                </div>
+
+                <div class="form-field checkbox-field">
+                  <uui-checkbox
+                    id="isEnabled"
+                    ?checked=${this._isEnabled}
+                    @change=${(e: Event) =>
+                      (this._isEnabled = (e.target as HTMLInputElement).checked)}
+                  >
+                    Enabled
+                  </uui-checkbox>
+                  <p class="field-description">
+                    When enabled, this shipping provider will be active and available for use.
+                  </p>
+                </div>
+
                 ${this._fields.length > 0
                   ? html`
-                      <p class="section-description">
-                        Configure the settings for ${provider?.displayName ?? "this provider"}.
-                      </p>
+                      <hr />
+                      <h3>Provider Configuration</h3>
                       ${this._fields.map((field) => this._renderField(field))}
                     `
-                  : html`
-                      <p class="no-fields">
-                        This provider does not require any configuration.
-                      </p>
-                    `}
+                  : nothing}
               `}
         </div>
 
@@ -254,14 +339,14 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
             Cancel
           </uui-button>
           <uui-button
-            label="Save"
+            label="${isEditing ? "Save" : "Install Provider"}"
             look="primary"
             color="positive"
             @click=${this._handleSave}
-            ?disabled=${this._isLoading || this._isSaving || this._fields.length === 0}
+            ?disabled=${this._isLoading || this._isSaving}
           >
             ${this._isSaving ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
-            Save
+            ${isEditing ? "Save" : "Install Provider"}
           </uui-button>
         </div>
       </umb-body-layout>
@@ -293,14 +378,16 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
       margin-bottom: var(--uui-size-space-4);
     }
 
-    .section-description {
-      color: var(--uui-color-text-alt);
-      margin-bottom: var(--uui-size-space-4);
+    h3 {
+      margin: var(--uui-size-space-4) 0;
+      font-size: 1rem;
+      font-weight: 600;
     }
 
-    .no-fields {
-      color: var(--uui-color-text-alt);
-      font-style: italic;
+    hr {
+      border: none;
+      border-top: 1px solid var(--uui-color-border);
+      margin: var(--uui-size-space-5) 0;
     }
 
     .form-field {
@@ -331,7 +418,8 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
     }
 
     uui-input,
-    uui-textarea {
+    uui-textarea,
+    uui-select {
       width: 100%;
     }
 
@@ -343,10 +431,10 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
   `;
 }
 
-export default MerchelloExchangeRateProviderConfigModalElement;
+export default MerchelloShippingProviderConfigModalElement;
 
 declare global {
   interface HTMLElementTagNameMap {
-    "merchello-exchange-rate-provider-config-modal": MerchelloExchangeRateProviderConfigModalElement;
+    "merchello-shipping-provider-config-modal": MerchelloShippingProviderConfigModalElement;
   }
 }

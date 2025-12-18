@@ -4,3 +4,7 @@ export * from "./shipping-cost-modal.element.js";
 export * from "./shipping-cost-modal.token.js";
 export * from "./shipping-weight-tier-modal.element.js";
 export * from "./shipping-weight-tier-modal.token.js";
+export * from "./shipping-provider-config-modal.element.js";
+export * from "./shipping-provider-config-modal.token.js";
+export * from "./test-provider-modal.element.js";
+export * from "./test-provider-modal.token.js";

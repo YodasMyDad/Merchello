@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { ShippingOptionDto, WarehouseDto } from "@shipping/types.js";
+import type { ShippingOptionDto, WarehouseDto } from "@shipping/types/shipping.types.js";
 
 export interface ShippingOptionDetailModalData {
   /** Existing option if editing, undefined if creating new */
