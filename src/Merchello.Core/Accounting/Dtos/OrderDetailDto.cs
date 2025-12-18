@@ -49,6 +49,16 @@ public class OrderDetailDto
     public string FulfillmentStatus { get; set; } = string.Empty;
 
     /// <summary>
+    /// Maximum fraud/risk score across all payments (0-100 scale).
+    /// </summary>
+    public decimal? MaxRiskScore { get; set; }
+
+    /// <summary>
+    /// Source of the maximum risk score.
+    /// </summary>
+    public string? MaxRiskScoreSource { get; set; }
+
+    /// <summary>
     /// Whether the invoice has been cancelled
     /// </summary>
     public bool IsCancelled { get; set; }

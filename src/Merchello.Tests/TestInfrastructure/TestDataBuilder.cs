@@ -360,7 +360,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
         Order order,
         LineItem parentLineItem,
         decimal discountAmount,
-        DiscountType discountType = DiscountType.Amount,
+        DiscountValueType discountValueType = DiscountValueType.FixedAmount,
         decimal? discountValue = null,
         string? reason = null,
         bool visibleToCustomer = false)
@@ -379,7 +379,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             TaxRate = 0,
             ExtendedData = new Dictionary<string, object>
             {
-                ["DiscountType"] = discountType.ToString(),
+                ["DiscountValueType"] = discountValueType.ToString(),
                 ["DiscountValue"] = discountValue ?? discountAmount,
                 ["VisibleToCustomer"] = visibleToCustomer
             }
@@ -397,7 +397,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
     public LineItem CreateOrderLevelDiscount(
         Order order,
         decimal discountAmount,
-        DiscountType discountType = DiscountType.Amount,
+        DiscountValueType discountValueType = DiscountValueType.FixedAmount,
         decimal? discountValue = null,
         string? name = null,
         bool visibleToCustomer = false)
@@ -416,7 +416,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             TaxRate = 0,
             ExtendedData = new Dictionary<string, object>
             {
-                ["DiscountType"] = discountType.ToString(),
+                ["DiscountValueType"] = discountValueType.ToString(),
                 ["DiscountValue"] = discountValue ?? discountAmount,
                 ["VisibleToCustomer"] = visibleToCustomer
             }

@@ -110,7 +110,9 @@ public class PaymentsApiController(
             NetPayment = details.NetPayment,
             NetPaymentInStoreCurrency = details.NetPaymentInStoreCurrency,
             BalanceDue = details.BalanceDue,
-            BalanceDueInStoreCurrency = details.BalanceDueInStoreCurrency
+            BalanceDueInStoreCurrency = details.BalanceDueInStoreCurrency,
+            MaxRiskScore = details.MaxRiskScore,
+            MaxRiskScoreSource = details.MaxRiskScoreSource
         });
     }
 
@@ -256,6 +258,8 @@ public class PaymentsApiController(
             RefundReason = payment.RefundReason,
             ParentPaymentId = payment.ParentPaymentId,
             DateCreated = payment.DateCreated,
+            RiskScore = payment.RiskScore,
+            RiskScoreSource = payment.RiskScoreSource,
             RefundableAmount = Math.Max(0, refundableAmount),
             Refunds = payment.Refunds?
                 .OrderBy(r => r.DateCreated)

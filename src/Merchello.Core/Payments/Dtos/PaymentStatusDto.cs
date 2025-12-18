@@ -24,4 +24,14 @@ public class PaymentStatusDto
     public decimal? NetPaymentInStoreCurrency { get; set; }
     public decimal BalanceDue { get; set; }
     public decimal? BalanceDueInStoreCurrency { get; set; }
+
+    /// <summary>
+    /// Maximum fraud/risk score across all payments (0-100 scale).
+    /// </summary>
+    public decimal? MaxRiskScore { get; set; }
+
+    /// <summary>
+    /// Source of the maximum risk score.
+    /// </summary>
+    public string? MaxRiskScoreSource { get; set; }
 }

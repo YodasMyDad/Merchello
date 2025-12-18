@@ -357,6 +357,14 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<decimal?>("RiskScore")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("RiskScoreSource")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<decimal?>("SettlementAmount")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");

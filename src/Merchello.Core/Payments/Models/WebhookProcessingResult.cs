@@ -46,6 +46,16 @@ public class WebhookProcessingResult
     public decimal? SettlementAmount { get; init; }
 
     /// <summary>
+    /// Fraud/risk score (0-100 scale). Higher = higher risk.
+    /// </summary>
+    public decimal? RiskScore { get; init; }
+
+    /// <summary>
+    /// Source of the risk score (e.g., "stripe-radar").
+    /// </summary>
+    public string? RiskScoreSource { get; init; }
+
+    /// <summary>
     /// Error message if Success is false.
     /// </summary>
     public string? ErrorMessage { get; init; }
@@ -65,7 +75,9 @@ public class WebhookProcessingResult
         decimal? amount = null,
         string? settlementCurrency = null,
         decimal? settlementExchangeRate = null,
-        decimal? settlementAmount = null) => new()
+        decimal? settlementAmount = null,
+        decimal? riskScore = null,
+        string? riskScoreSource = null) => new()
     {
         Success = true,
         EventType = eventType,
@@ -74,7 +86,9 @@ public class WebhookProcessingResult
         Amount = amount,
         SettlementCurrency = settlementCurrency,
         SettlementExchangeRate = settlementExchangeRate,
-        SettlementAmount = settlementAmount
+        SettlementAmount = settlementAmount,
+        RiskScore = riskScore,
+        RiskScoreSource = riskScoreSource
     };
 
     /// <summary>

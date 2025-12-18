@@ -17,6 +17,8 @@
 
 > **Prerequisite**: This feature depends on [Customer Segments](Customer-Segments.md) being implemented first. The discount eligibility system uses segments for customer targeting.
 
+> **Note**: The `DiscountValueType` enum (in `src/Merchello.Core/Accounting/Models/DiscountValueType.cs`) supports `FixedAmount`, `Percentage`, and `Free` values. The existing manual discount feature in order editing uses this enum.
+
 ---
 
 ## 1. Overview
@@ -334,6 +336,7 @@ public enum DiscountMethod
     Automatic   // Applied automatically
 }
 
+// Located in Accounting/Models/DiscountValueType.cs
 public enum DiscountValueType
 {
     Percentage,
@@ -452,7 +455,7 @@ public class DiscountDbMapping : IEntityTypeConfiguration<Discount>
 Use the existing migration script:
 
 ```powershell
-.\migrations.ps1
+.\scripts\add-migration.ps1
 # Enter migration name: AddDiscountTables
 ```
 
@@ -707,7 +710,7 @@ The discount engine will use the existing centralized method:
 List<string> AddDiscountLineItem(
     List<LineItem> lineItems,
     decimal amount,
-    DiscountType discountType,
+    DiscountValueType discountValueType,
     string currencyCode,
     string? linkedSku = null,
     string? name = null,
@@ -742,6 +745,48 @@ Task<Basket> RefreshAutomaticDiscountsAsync(Basket basket, CancellationToken ct 
 Task<CrudResult<Invoice>> ApplyDiscountAsync(Guid invoiceId, Guid discountId, CancellationToken ct = default);
 Task<CrudResult<Invoice>> ApplyManualDiscountAsync(Guid invoiceId, ApplyManualDiscountParameters parameters, CancellationToken ct = default);
 ```
+
+#### Manual vs Promotional Discounts
+
+The system supports two types of discounts that serve different purposes:
+
+| Aspect | Manual Discounts (Existing) | Promotional Discounts (This Spec) |
+|--------|----------------------------|----------------------------------|
+| **Purpose** | Staff applies ad-hoc adjustments during order editing (price match, goodwill, error correction) | Marketing-driven promotions with rules, codes, eligibility, and tracking |
+| **Database Entity** | None - inline LineItem creation | Full `Discount` entity with relationships |
+| **Application** | Backoffice order editing only | Checkout (automatic/code) + Backoffice |
+| **Tracking** | No usage tracking | Usage limits, customer history, performance reporting |
+| **Validation** | None - staff discretion | Rules engine, date ranges, eligibility |
+| **ExtendedData** | `DiscountValueType`, `DiscountValue`, `VisibleToCustomer` | Extended keys (see below) |
+
+Both systems will continue to work. Manual discounts remain for staff flexibility; promotional discounts add marketing automation.
+
+#### Discount LineItem ExtendedData Pattern
+
+**For promotional discounts** (linked to Discount entity), store full metadata:
+
+```csharp
+ExtendedData["DiscountId"] = discount.Id.ToString();
+ExtendedData["DiscountCode"] = discount.Code ?? "";  // Empty for automatic discounts
+ExtendedData["DiscountName"] = discount.Name;
+ExtendedData["DiscountCategory"] = discount.Category.ToString();  // AmountOffProducts, BuyXGetY, etc.
+ExtendedData["DiscountValueType"] = discount.ValueType.ToString();  // Percentage, FixedAmount, Free
+ExtendedData["DiscountValue"] = discount.Value.ToString();
+```
+
+**For manual discounts** (existing pattern), the simpler format continues to work:
+
+```csharp
+ExtendedData["DiscountValueType"] = valueType.ToString();  // Percentage, FixedAmount
+ExtendedData["DiscountValue"] = value.ToString();
+ExtendedData["VisibleToCustomer"] = isVisible.ToString();
+```
+
+The presence of `DiscountId` distinguishes promotional discounts from manual ones, enabling:
+- Tracking which Discount entity created each line item
+- Reporting on promotional discount performance
+- Preventing duplicate promotional discount applications
+- Displaying discount details in UI
 
 ### 4.6 Background Jobs
 
@@ -785,15 +830,14 @@ public class DiscountStatusJob(
 
 ### 5.1 Controller Structure
 
-**File**: `src/Merchello/Api/DiscountController.cs`
+**File**: `src/Merchello/Controllers/DiscountsApiController.cs`
 
 ```csharp
-[ApiController]
-[Route("umbraco/merchello/api/v1/discounts")]
-[Authorize(Policy = "MerchelloBackoffice")]
-public class DiscountController(
+[ApiVersion("1.0")]
+[ApiExplorerSettings(GroupName = "Merchello")]
+public class DiscountsApiController(
     IDiscountService discountService,
-    IDiscountEngine discountEngine) : ControllerBase
+    IDiscountEngine discountEngine) : MerchelloApiControllerBase
 {
     // List discounts with filtering
     [HttpGet]
@@ -1828,7 +1872,7 @@ describe("discounts-list", () => {
 | Discount Service | `src/Merchello.Core/Discounts/Services/DiscountService.cs` |
 | Discount Engine | `src/Merchello.Core/Discounts/Services/DiscountEngine.cs` |
 | Discount Factory | `src/Merchello.Core/Discounts/Factories/DiscountFactory.cs` |
-| Discount API | `src/Merchello/Api/DiscountController.cs` |
+| Discount API | `src/Merchello/Controllers/DiscountsApiController.cs` |
 | DbContext | `src/Merchello.Core/Data/MerchelloDbContext.cs` |
 | Line Item Service | `src/Merchello.Core/Accounting/Services/LineItemService.cs` |
 

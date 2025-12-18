@@ -2134,7 +2134,7 @@ public class InvoiceService(
                     if (effectiveDiscount == null && existingDiscount != null)
                     {
                         // Convert existing discount to DTO format
-                        var discountTypeStr = existingDiscount.ExtendedData?.GetValueOrDefault("DiscountType")?.ToString();
+                        var discountTypeStr = existingDiscount.ExtendedData?.GetValueOrDefault("DiscountValueType")?.ToString();
                         var discountValueRaw = existingDiscount.ExtendedData?.GetValueOrDefault("DiscountValue");
 
                         // Handle JsonElement conversion (EF Core stores Dictionary<string, object> as JSON)
@@ -2154,7 +2154,12 @@ public class InvoiceService(
 
                         effectiveDiscount = new LineItemDiscountDto
                         {
-                            Type = discountTypeStr == "Percentage" ? DiscountType.Percentage : DiscountType.Amount,
+                            Type = discountTypeStr switch
+                            {
+                                "Percentage" => DiscountValueType.Percentage,
+                                "Free" => DiscountValueType.Free,
+                                _ => DiscountValueType.FixedAmount
+                            },
                             Value = discountValue
                         };
                     }
@@ -2205,7 +2210,7 @@ public class InvoiceService(
 
             // Store new order discounts - percentage ones will be calculated after subtotal is known
             var newOrderAmountDiscounts = request.OrderDiscounts
-                .Where(d => d.Type == DiscountType.Amount)
+                .Where(d => d.Type == DiscountValueType.FixedAmount)
                 .Sum(d => d.Value);
             orderDiscountTotal += newOrderAmountDiscounts;
 
@@ -2232,7 +2237,7 @@ public class InvoiceService(
                 var discountAmount = 0m;
                 if (item.Discount != null)
                 {
-                    if (item.Discount.Type == DiscountType.Percentage)
+                    if (item.Discount.Type == DiscountValueType.Percentage)
                     {
                         discountAmount = currencyService.Round(itemTotal * (item.Discount.Value / 100m), currencyCode);
                     }
@@ -2279,7 +2284,7 @@ public class InvoiceService(
 
             // Calculate new percentage order discounts now that we have subtotal
             var newOrderPercentageDiscounts = 0m;
-            foreach (var newDiscount in request.OrderDiscounts.Where(d => d.Type == DiscountType.Percentage))
+            foreach (var newDiscount in request.OrderDiscounts.Where(d => d.Type == DiscountValueType.Percentage))
             {
                 var percentageAmount = currencyService.Round(subTotal * (newDiscount.Value / 100m), currencyCode);
                 newOrderPercentageDiscounts += percentageAmount;
@@ -2312,7 +2317,7 @@ public class InvoiceService(
                     var itemDiscountAmount = 0m;
                     if (item.Discount != null)
                     {
-                        if (item.Discount.Type == DiscountType.Percentage)
+                        if (item.Discount.Type == DiscountValueType.Percentage)
                         {
                             itemDiscountAmount = currencyService.Round(itemTotal * (item.Discount.Value / 100m), currencyCode);
                         }
@@ -2535,7 +2540,7 @@ public class InvoiceService(
                                 TaxRate = 0,
                                 ExtendedData = new Dictionary<string, object>
                                 {
-                                    ["DiscountType"] = editItem.Discount.Type.ToString(),
+                                    ["DiscountValueType"] = editItem.Discount.Type.ToString(),
                                     ["DiscountValue"] = editItem.Discount.Value,
                                     ["VisibleToCustomer"] = editItem.Discount.IsVisibleToCustomer
                                 }
@@ -2545,7 +2550,7 @@ public class InvoiceService(
                             order2.LineItems.Add(discountLineItem);
                             db.LineItems.Add(discountLineItem);
 
-                            var discountDisplay = editItem.Discount.Type == DiscountType.Percentage
+                            var discountDisplay = editItem.Discount.Type == DiscountValueType.Percentage
                                 ? $"{editItem.Discount.Value}%"
                                 : $"{invoice.CurrencySymbol}{editItem.Discount.Value}";
                             changes.Add($"Applied {discountDisplay} discount to {lineItem.Name}");
@@ -2709,7 +2714,7 @@ public class InvoiceService(
                     foreach (var orderDiscount in request.OrderDiscounts)
                     {
                         // Calculate the discount amount
-                        var discountAmount = orderDiscount.Type == DiscountType.Percentage
+                        var discountAmount = orderDiscount.Type == DiscountValueType.Percentage
                             ? currencyService.Round(currentSubTotal * (orderDiscount.Value / 100m), invoice.CurrencyCode)
                             : orderDiscount.Value;
 
@@ -2727,7 +2732,7 @@ public class InvoiceService(
                             TaxRate = 0,
                             ExtendedData = new Dictionary<string, object>
                             {
-                                ["DiscountType"] = orderDiscount.Type.ToString(),
+                                ["DiscountValueType"] = orderDiscount.Type.ToString(),
                                 ["DiscountValue"] = orderDiscount.Value,
                                 ["VisibleToCustomer"] = orderDiscount.IsVisibleToCustomer
                             }
@@ -2737,7 +2742,7 @@ public class InvoiceService(
                         targetOrder.LineItems.Add(discountLineItem);
                         db.LineItems.Add(discountLineItem);
 
-                        var discountDisplay = orderDiscount.Type == DiscountType.Percentage
+                        var discountDisplay = orderDiscount.Type == DiscountValueType.Percentage
                             ? $"{orderDiscount.Value}%"
                             : $"{invoice.CurrencySymbol}{orderDiscount.Value}";
                         changes.Add($"Added order discount: {discountDisplay} off ({orderDiscount.Reason ?? "No reason specified"})");
@@ -2869,10 +2874,10 @@ public class InvoiceService(
             .Select(d =>
             {
                 // Read discount type and value from ExtendedData
-                var discountType = DiscountType.Amount;
+                var discountValueType = DiscountValueType.FixedAmount;
                 var discountValue = Math.Abs(d.Amount);
 
-                if (d.ExtendedData?.TryGetValue("DiscountType", out var typeObj) == true)
+                if (d.ExtendedData?.TryGetValue("DiscountValueType", out var typeObj) == true)
                 {
                     var typeStr = typeObj switch
                     {
@@ -2881,9 +2886,9 @@ public class InvoiceService(
                         _ => null
                     };
 
-                    if (typeStr != null && Enum.TryParse<DiscountType>(typeStr, out var parsedType))
+                    if (typeStr != null && Enum.TryParse<DiscountValueType>(typeStr, out var parsedType))
                     {
-                        discountType = parsedType;
+                        discountValueType = parsedType;
                     }
                 }
 
@@ -2921,7 +2926,7 @@ public class InvoiceService(
                     Id = d.Id,
                     Name = d.Name,
                     Amount = Math.Abs(d.Amount),
-                    Type = discountType,
+                    Type = discountValueType,
                     Value = discountValue,
                     Reason = d.Name,
                     IsVisibleToCustomer = visibleToCustomer
@@ -2956,10 +2961,10 @@ public class InvoiceService(
     /// </summary>
     private static DiscountLineItemDto MapDiscountLineItem(LineItem d)
     {
-        var discountType = DiscountType.Amount;
+        var discountValueType = DiscountValueType.FixedAmount;
         var discountValue = Math.Abs(d.Amount);
 
-        if (d.ExtendedData?.TryGetValue("DiscountType", out var typeObj) == true)
+        if (d.ExtendedData?.TryGetValue("DiscountValueType", out var typeObj) == true)
         {
             var typeStr = typeObj switch
             {
@@ -2968,9 +2973,9 @@ public class InvoiceService(
                 _ => null
             };
 
-            if (typeStr != null && Enum.TryParse<DiscountType>(typeStr, out var parsedType))
+            if (typeStr != null && Enum.TryParse<DiscountValueType>(typeStr, out var parsedType))
             {
-                discountType = parsedType;
+                discountValueType = parsedType;
             }
         }
 
@@ -3007,7 +3012,7 @@ public class InvoiceService(
             Id = d.Id,
             Name = d.Name,
             Amount = Math.Abs(d.Amount),
-            Type = discountType,
+            Type = discountValueType,
             Value = discountValue,
             Reason = d.Name,
             IsVisibleToCustomer = visibleToCustomer
@@ -3018,8 +3023,9 @@ public class InvoiceService(
     {
         return discount.Type switch
         {
-            DiscountType.Amount => discount.Value * quantity,
-            DiscountType.Percentage => (unitPrice * quantity) * (discount.Value / 100m),
+            DiscountValueType.FixedAmount => discount.Value * quantity,
+            DiscountValueType.Percentage => (unitPrice * quantity) * (discount.Value / 100m),
+            DiscountValueType.Free => unitPrice * quantity, // 100% off
             _ => 0
         };
     }

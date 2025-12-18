@@ -541,6 +541,8 @@ public class OrdersApiController(
             BalanceDueInStoreCurrency = paymentDetails.BalanceDueInStoreCurrency,
             PaymentStatus = paymentDetails.Status,
             PaymentStatusDisplay = paymentDetails.StatusDisplay,
+            MaxRiskScore = paymentDetails.MaxRiskScore,
+            MaxRiskScoreSource = paymentDetails.MaxRiskScoreSource,
             FulfillmentStatus = GetFulfillmentStatus(orders),
             IsCancelled = invoice.IsCancelled,
             BillingAddress = MapAddress(invoice.BillingAddress),

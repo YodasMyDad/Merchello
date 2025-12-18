@@ -357,6 +357,79 @@ function renderForm(formFields) {
 }
 ```
 
+## Fraud/Risk Score Support
+
+Payment providers can return fraud/risk scores from their fraud detection systems (e.g., Stripe Radar, Signifyd). Merchello stores these scores at the payment level and aggregates to the invoice level using MAX (highest risk bubbles up).
+
+### Returning Risk Scores from Webhooks
+
+The `WebhookProcessingResult.Successful()` method accepts optional risk score parameters:
+
+```csharp
+return WebhookProcessingResult.Successful(
+    eventType: WebhookEventType.PaymentCompleted,
+    transactionId: paymentIntent.Id,
+    invoiceId: invoiceId,
+    amount: amount,
+    riskScore: 65m,        // 0-100 scale, higher = higher risk
+    riskScoreSource: "stripe-radar"  // identifier for the fraud system
+);
+```
+
+### Risk Score Scale
+
+| Score Range | Risk Level | UI Display |
+|-------------|------------|------------|
+| 0-24 | Minimal | Green |
+| 25-49 | Low | Yellow |
+| 50-74 | Medium | Orange |
+| 75-100 | High | Red |
+
+### Stripe Radar Example
+
+Stripe provides fraud data via the Charge's `outcome` object:
+- `risk_level`: Always available ("normal", "elevated", "highest")
+- `risk_score`: Numeric 0-99, requires Radar for Fraud Teams subscription
+
+Map Stripe's data to Merchello's 0-100 scale:
+
+```csharp
+private static decimal? MapStripeRiskScore(long? riskScore, string? riskLevel)
+{
+    // Use actual score if available (Radar for Fraud Teams)
+    if (riskScore.HasValue)
+        return riskScore.Value;
+
+    // Otherwise map risk_level to approximate scores
+    return riskLevel?.ToLowerInvariant() switch
+    {
+        "normal" => 10m,
+        "elevated" => 60m,
+        "highest" => 90m,
+        _ => null
+    };
+}
+
+// In webhook handler, extract from charge outcome
+var charge = await chargeService.GetAsync(chargeId);
+var riskScore = MapStripeRiskScore(charge.Outcome?.RiskScore, charge.Outcome?.RiskLevel);
+```
+
+### PaymentResult Risk Scores
+
+For providers that process payments directly (not via webhook), return risk data in `PaymentResult`:
+
+```csharp
+return PaymentResult.Completed(
+    transactionId: txnId,
+    amount: amount,
+    riskScore: 45m,
+    riskScoreSource: "provider-fraud-system"
+);
+```
+
+---
+
 ## Notes
 
 - Sensitive config values (API keys) should be encrypted at rest
@@ -364,3 +437,4 @@ function renderForm(formFields) {
 - Consider rate limiting webhooks
 - Use idempotency keys to prevent duplicate payments
 - Providers auto-discovered via assembly scanning - no DI registration needed
+- Risk scores are nullable - many payments won't have fraud data (manual payments, providers without fraud detection)

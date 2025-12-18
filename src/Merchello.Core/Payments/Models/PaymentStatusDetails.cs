@@ -57,6 +57,17 @@ public record PaymentStatusDetails
     public decimal? BalanceDueInStoreCurrency { get; init; }
 
     /// <summary>
+    /// Maximum fraud/risk score across all payments (0-100 scale).
+    /// Null if no payments have risk scores.
+    /// </summary>
+    public decimal? MaxRiskScore { get; init; }
+
+    /// <summary>
+    /// Source of the maximum risk score.
+    /// </summary>
+    public string? MaxRiskScoreSource { get; init; }
+
+    /// <summary>
     /// Gets the display text for a payment status.
     /// </summary>
     public static string GetStatusDisplay(InvoicePaymentStatus status) => status switch

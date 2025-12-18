@@ -42,6 +42,10 @@ export interface PaymentDto {
   refundReason?: string;
   parentPaymentId?: string;
   dateCreated: string;
+  /** Fraud/risk score (0-100 scale). Higher = higher risk. */
+  riskScore?: number | null;
+  /** Source of the risk score (e.g., "stripe-radar", "signifyd") */
+  riskScoreSource?: string | null;
   /** Child refund payments (if any) */
   refunds?: PaymentDto[];
   /** Calculated refundable amount (original amount minus existing refunds) */
@@ -67,6 +71,10 @@ export interface PaymentStatusDto {
   netPaymentInStoreCurrency?: number | null;
   balanceDue: number;
   balanceDueInStoreCurrency?: number | null;
+  /** Maximum fraud/risk score across all payments (0-100 scale). */
+  maxRiskScore?: number | null;
+  /** Source of the maximum risk score. */
+  maxRiskScoreSource?: string | null;
 }
 
 /** Request to record a manual/offline payment */
@@ -156,6 +164,10 @@ export interface OrderDetailDto {
   balanceDueInStoreCurrency?: number | null;
   paymentStatus: InvoicePaymentStatus;
   paymentStatusDisplay: string;
+  /** Maximum fraud/risk score across all payments (0-100 scale). */
+  maxRiskScore?: number | null;
+  /** Source of the maximum risk score. */
+  maxRiskScoreSource?: string | null;
   fulfillmentStatus: string;
   isCancelled: boolean;
   billingAddress: AddressDto | null;
@@ -395,10 +407,11 @@ export interface OrderExportItemDto {
 // Invoice Edit Types
 // ============================================
 
-/** Discount type enum */
-export enum DiscountType {
-  Amount = 0,
+/** Discount value type enum */
+export enum DiscountValueType {
+  FixedAmount = 0,
   Percentage = 1,
+  Free = 2,
 }
 
 /** Invoice data for editing */
@@ -467,8 +480,8 @@ export interface DiscountLineItemDto {
   name: string | null;
   /** The calculated discount amount (always positive) */
   amount: number;
-  /** The original discount type (Amount or Percentage) */
-  type: DiscountType;
+  /** The original discount value type (FixedAmount, Percentage, or Free) */
+  type: DiscountValueType;
   /** The original discount value (e.g., 10 for £10 off or 10%) */
   value: number;
   reason: string | null;
@@ -514,7 +527,7 @@ export interface EditLineItemDto {
 
 /** Discount to apply to a line item */
 export interface LineItemDiscountDto {
-  type: DiscountType;
+  type: DiscountValueType;
   value: number;
   reason: string | null;
   isVisibleToCustomer: boolean;

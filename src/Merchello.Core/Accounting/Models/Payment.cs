@@ -81,6 +81,16 @@ public class Payment
     public string? FraudResponse { get; set; }
 
     /// <summary>
+    /// Numeric fraud/risk score (0-100 scale). Higher = higher risk.
+    /// </summary>
+    public decimal? RiskScore { get; set; }
+
+    /// <summary>
+    /// Source of the risk score (e.g., "stripe-radar", "signifyd").
+    /// </summary>
+    public string? RiskScoreSource { get; set; }
+
+    /// <summary>
     /// Description about the payment
     /// </summary>
     public string? Description { get; set; }

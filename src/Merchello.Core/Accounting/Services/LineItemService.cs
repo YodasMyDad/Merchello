@@ -65,8 +65,8 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         {
             var discountAmount = discount.Amount; // Already negative for fixed amounts
 
-            // Check if this is a percentage discount (stored in ExtendedData)
-            if (discount.ExtendedData.TryGetValue("DiscountType", out var typeObj))
+            // Check if this is a percentage or free discount (stored in ExtendedData)
+            if (discount.ExtendedData.TryGetValue("DiscountValueType", out var typeObj))
             {
                 var typeStr = typeObj switch
                 {
@@ -75,7 +75,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
                     _ => null
                 };
 
-                if (typeStr == nameof(DiscountType.Percentage) &&
+                if (typeStr == nameof(DiscountValueType.Percentage) &&
                     discount.ExtendedData.TryGetValue("DiscountValue", out var valueObj))
                 {
                     var percentageValue = valueObj switch
@@ -105,6 +105,24 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
                     {
                         // Order-level percentage - calculate percentage of subtotal
                         discountAmount = -currencyService.Round(subTotal * (percentageValue / 100m), currencyCode);
+                    }
+                }
+                else if (typeStr == nameof(DiscountValueType.Free))
+                {
+                    // Free means 100% off the linked item
+                    if (!string.IsNullOrEmpty(discount.DependantLineItemSku))
+                    {
+                        var linkedItem = productItems.FirstOrDefault(p => p.Sku == discount.DependantLineItemSku);
+                        if (linkedItem != null)
+                        {
+                            var linkedTotal = currencyService.Round(linkedItem.Amount * linkedItem.Quantity, currencyCode);
+                            discountAmount = -linkedTotal;
+                        }
+                    }
+                    else
+                    {
+                        // Order-level free - full subtotal off (unusual but supported)
+                        discountAmount = -subTotal;
                     }
                 }
             }
@@ -170,7 +188,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         {
             var discountAmount = discount.Amount;
 
-            if (discount.ExtendedData.TryGetValue("DiscountType", out var typeObj))
+            if (discount.ExtendedData.TryGetValue("DiscountValueType", out var typeObj))
             {
                 var typeStr = typeObj switch
                 {
@@ -179,7 +197,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
                     _ => null
                 };
 
-                if (typeStr == nameof(DiscountType.Percentage) &&
+                if (typeStr == nameof(DiscountValueType.Percentage) &&
                     discount.ExtendedData.TryGetValue("DiscountValue", out var valueObj))
                 {
                     var percentageValue = valueObj switch
@@ -194,6 +212,11 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
                         _ => 0m
                     };
                     discountAmount = -currencyService.Round(subTotal * (percentageValue / 100m), currencyCode);
+                }
+                else if (typeStr == nameof(DiscountValueType.Free))
+                {
+                    // Order-level free - full subtotal off
+                    discountAmount = -subTotal;
                 }
             }
 
@@ -212,7 +235,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         {
             var discountAmount = discount.Amount;
 
-            if (discount.ExtendedData.TryGetValue("DiscountType", out var typeObj))
+            if (discount.ExtendedData.TryGetValue("DiscountValueType", out var typeObj))
             {
                 var typeStr = typeObj switch
                 {
@@ -221,7 +244,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
                     _ => null
                 };
 
-                if (typeStr == nameof(DiscountType.Percentage) &&
+                if (typeStr == nameof(DiscountValueType.Percentage) &&
                     discount.ExtendedData.TryGetValue("DiscountValue", out var valueObj))
                 {
                     var percentageValue = valueObj switch
@@ -238,6 +261,12 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
                     var itemTotal = currencyService.Round(lineItem.Amount * lineItem.Quantity, currencyCode);
                     discountAmount = -currencyService.Round(itemTotal * (percentageValue / 100m), currencyCode);
                 }
+                else if (typeStr == nameof(DiscountValueType.Free))
+                {
+                    // Free means 100% off the linked item
+                    var itemTotal = currencyService.Round(lineItem.Amount * lineItem.Quantity, currencyCode);
+                    discountAmount = -itemTotal;
+                }
             }
 
             total += discountAmount;
@@ -248,7 +277,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
     public List<string> AddDiscountLineItem(
         List<LineItem> lineItems,
         decimal amount,
-        DiscountType discountType,
+        DiscountValueType discountValueType,
         string currencyCode,
         string? linkedSku = null,
         string? name = null,
@@ -262,7 +291,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
             return errors;
         }
 
-        if (discountType == DiscountType.Percentage && amount > 100)
+        if (discountValueType == DiscountValueType.Percentage && amount > 100)
         {
             errors.Add("Percentage discount cannot exceed 100%");
             return errors;
@@ -284,15 +313,15 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
 
         // Calculate the actual discount amount for storage
         decimal storedAmount;
-        if (discountType == DiscountType.Amount)
+        if (discountValueType == DiscountValueType.FixedAmount)
         {
             storedAmount = -amount; // Store as negative
         }
         else
         {
-            // For percentage, we store a placeholder negative amount
+            // For percentage/free, we store a placeholder negative amount
             // The actual calculation happens in CalculateFromLineItems
-            // We store the percentage in ExtendedData
+            // We store the value type in ExtendedData
             storedAmount = -amount; // Placeholder - will be recalculated
         }
 
@@ -300,7 +329,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         {
             Id = Guid.NewGuid(),
             LineItemType = LineItemType.Discount,
-            Name = name ?? (discountType == DiscountType.Percentage ? $"{amount}% discount" : "Discount"),
+            Name = name ?? (discountValueType == DiscountValueType.Percentage ? $"{amount}% discount" : discountValueType == DiscountValueType.Free ? "Free" : "Discount"),
             Sku = $"DISCOUNT-{Guid.NewGuid():N}",
             Amount = storedAmount,
             Quantity = 1,
@@ -311,7 +340,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
             DateUpdated = DateTime.UtcNow,
             ExtendedData = new Dictionary<string, object>
             {
-                ["DiscountType"] = discountType.ToString(),
+                ["DiscountValueType"] = discountValueType.ToString(),
                 ["DiscountValue"] = amount
             }
         };

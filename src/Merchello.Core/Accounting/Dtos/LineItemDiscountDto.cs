@@ -8,9 +8,9 @@ namespace Merchello.Core.Accounting.Dtos;
 public class LineItemDiscountDto
 {
     /// <summary>
-    /// Type of discount
+    /// Type of discount value (FixedAmount, Percentage, or Free)
     /// </summary>
-    public DiscountType Type { get; set; }
+    public DiscountValueType Type { get; set; }
 
     /// <summary>
     /// Discount value (amount in currency or percentage)

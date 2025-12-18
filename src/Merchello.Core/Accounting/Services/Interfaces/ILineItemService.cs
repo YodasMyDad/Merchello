@@ -36,7 +36,7 @@ public interface ILineItemService
     /// </summary>
     /// <param name="lineItems">Current line items collection</param>
     /// <param name="amount">Discount amount (positive value - will be stored as negative)</param>
-    /// <param name="discountType">Whether this is a fixed amount or percentage discount</param>
+    /// <param name="discountValueType">Whether this is a fixed amount, percentage, or free discount</param>
     /// <param name="currencyCode">Currency code for percentage calculation</param>
     /// <param name="linkedSku">Optional SKU to link discount to specific product</param>
     /// <param name="name">Optional name for the discount</param>
@@ -45,7 +45,7 @@ public interface ILineItemService
     List<string> AddDiscountLineItem(
         List<LineItem> lineItems,
         decimal amount,
-        DiscountType discountType,
+        DiscountValueType discountValueType,
         string currencyCode,
         string? linkedSku = null,
         string? name = null,

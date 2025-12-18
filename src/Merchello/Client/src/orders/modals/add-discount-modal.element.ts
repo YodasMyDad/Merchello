@@ -1,7 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import { DiscountType } from "@orders/types/order.types.js";
+import { DiscountValueType } from "@orders/types/order.types.js";
 import type { AddDiscountModalData, AddDiscountModalValue } from "./add-discount-modal.token.js";
 
 @customElement("merchello-add-discount-modal")
@@ -9,7 +9,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
   AddDiscountModalData,
   AddDiscountModalValue
 > {
-  @state() private _discountType: DiscountType = DiscountType.Amount;
+  @state() private _discountType: DiscountValueType = DiscountValueType.FixedAmount;
   @state() private _discountValue: number = 0;
   @state() private _discountReason: string = "";
   @state() private _isVisibleToCustomer: boolean = false;
@@ -33,7 +33,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
       errors.value = "Discount value must be greater than 0";
     }
 
-    if (this._discountType === DiscountType.Percentage && this._discountValue > 100) {
+    if (this._discountType === DiscountValueType.Percentage && this._discountValue > 100) {
       errors.value = "Percentage cannot exceed 100%";
     }
 
@@ -61,8 +61,8 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
 
   private _getDiscountTypeOptions(): Array<{ name: string; value: string; selected: boolean }> {
     return [
-      { name: "Fixed amount", value: "0", selected: this._discountType === DiscountType.Amount },
-      { name: "Percentage", value: "1", selected: this._discountType === DiscountType.Percentage },
+      { name: "Fixed amount", value: "0", selected: this._discountType === DiscountValueType.FixedAmount },
+      { name: "Percentage", value: "1", selected: this._discountType === DiscountValueType.Percentage },
     ];
   }
 
@@ -71,7 +71,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
     
     const lineTotal = (this.data.lineItemPrice ?? 0) * (this.data.lineItemQuantity ?? 1);
     
-    if (this._discountType === DiscountType.Amount) {
+    if (this._discountType === DiscountValueType.FixedAmount) {
       return Math.min(this._discountValue * (this.data.lineItemQuantity ?? 1), lineTotal);
     } else {
       return lineTotal * (this._discountValue / 100);
@@ -114,10 +114,10 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
 
           <div class="form-row">
             <label for="discount-value">
-              Value ${this._discountType === DiscountType.Percentage ? "(%)": !isOrderDiscount ? "(per unit)" : ""}
+              Value ${this._discountType === DiscountValueType.Percentage ? "(%)": !isOrderDiscount ? "(per unit)" : ""}
             </label>
             <div class="input-with-affix">
-              ${this._discountType === DiscountType.Amount
+              ${this._discountType === DiscountValueType.FixedAmount
                 ? html`<span class="prefix">${currencySymbol}</span>`
                 : nothing}
               <uui-input
@@ -128,7 +128,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
                 min="0"
                 step="0.01"
               ></uui-input>
-              ${this._discountType === DiscountType.Percentage
+              ${this._discountType === DiscountValueType.Percentage
                 ? html`<span class="suffix">%</span>`
                 : nothing}
             </div>

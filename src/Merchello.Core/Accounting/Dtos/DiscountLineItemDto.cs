@@ -14,9 +14,9 @@ public class DiscountLineItemDto
     /// </summary>
     public decimal Amount { get; set; }
     /// <summary>
-    /// The original discount type (Amount or Percentage)
+    /// The original discount value type (FixedAmount, Percentage, or Free)
     /// </summary>
-    public DiscountType Type { get; set; }
+    public DiscountValueType Type { get; set; }
     /// <summary>
     /// The original discount value (e.g., 10 for £10 off or 10%)
     /// </summary>

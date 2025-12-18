@@ -144,6 +144,13 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
     }
   }
 
+  private _getRiskLevelClass(score: number): string {
+    if (score >= 75) return "high-risk";
+    if (score >= 50) return "medium-risk";
+    if (score >= 25) return "low-risk";
+    return "minimal-risk";
+  }
+
   private _renderPayment(payment: PaymentDto): unknown {
     const isRefund = payment.paymentType === PaymentType.Refund ||
                      payment.paymentType === PaymentType.PartialRefund;
@@ -164,6 +171,12 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
             <div class="payment-date">${formatShortDate(payment.dateCreated)}</div>
             ${payment.transactionId
               ? html`<div class="transaction-id">ID: ${payment.transactionId}</div>`
+              : nothing}
+            ${payment.riskScore != null
+              ? html`<div class="risk-score ${this._getRiskLevelClass(payment.riskScore)}">
+                  Risk: ${payment.riskScore}%
+                  ${payment.riskScoreSource ? html`<span class="risk-source">(${payment.riskScoreSource})</span>` : nothing}
+                </div>`
               : nothing}
             ${payment.description
               ? html`<div class="payment-description">${payment.description}</div>`
@@ -225,9 +238,17 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
         <!-- Payment Status Summary -->
         <div class="status-summary">
           <div class="status-header">
-            <span class="status-badge ${status ? this._getStatusBadgeClass(status.status) : 'unpaid'}">
-              ${status?.statusDisplay ?? "Unknown"}
-            </span>
+            <div class="status-badges">
+              <span class="status-badge ${status ? this._getStatusBadgeClass(status.status) : 'unpaid'}">
+                ${status?.statusDisplay ?? "Unknown"}
+              </span>
+              ${status?.maxRiskScore != null
+                ? html`<span class="risk-badge ${this._getRiskLevelClass(status.maxRiskScore)}">
+                    <uui-icon name="icon-alert"></uui-icon>
+                    Risk: ${status.maxRiskScore}%
+                  </span>`
+                : nothing}
+            </div>
             ${status && status.balanceDue > 0
               ? html`
                   <uui-button
@@ -326,6 +347,12 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
       justify-content: space-between;
       align-items: center;
       margin-bottom: var(--uui-size-space-4);
+    }
+
+    .status-badges {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
     }
 
     .status-badge {
@@ -454,6 +481,49 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
 
     .refund-reason {
       font-style: italic;
+    }
+
+    .risk-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--uui-size-space-1);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .risk-score {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--uui-size-space-1);
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 8px;
+    }
+
+    .risk-source {
+      opacity: 0.7;
+    }
+
+    .high-risk {
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
+    }
+
+    .medium-risk {
+      background: #f97316;
+      color: white;
+    }
+
+    .low-risk {
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
+    }
+
+    .minimal-risk {
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
     }
 
     .payment-amount {

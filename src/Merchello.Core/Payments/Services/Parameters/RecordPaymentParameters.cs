@@ -36,6 +36,16 @@ public class RecordPaymentParameters
     public string? FraudResponse { get; init; }
 
     /// <summary>
+    /// Optional fraud/risk score (0-100 scale)
+    /// </summary>
+    public decimal? RiskScore { get; init; }
+
+    /// <summary>
+    /// Optional source of the risk score
+    /// </summary>
+    public string? RiskScoreSource { get; init; }
+
+    /// <summary>
     /// Optional settlement/payout currency reported by provider (ISO 4217).
     /// </summary>
     public string? SettlementCurrencyCode { get; init; }

@@ -352,6 +352,14 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal?>("RiskScore")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RiskScoreSource")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.Property<decimal?>("SettlementAmount")
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");

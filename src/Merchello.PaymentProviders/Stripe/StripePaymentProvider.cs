@@ -496,7 +496,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
         // Use PaymentIntent ID as the transaction ID for refunds/captures
         var transactionId = session.PaymentIntentId ?? session.Id;
 
-        var settlement = await TryGetSettlementInfoAsync(transactionId, cancellationToken);
+        var chargeInfo = await TryGetChargeInfoAsync(transactionId, cancellationToken);
 
         return WebhookProcessingResult.Successful(
             eventType: WebhookEventType.PaymentCompleted,
@@ -505,9 +505,11 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             amount: session.AmountTotal.HasValue
                 ? ConvertFromStripeAmount(session.AmountTotal.Value, session.Currency)
                 : null,
-            settlementCurrency: settlement.SettlementCurrency,
-            settlementExchangeRate: settlement.SettlementExchangeRate,
-            settlementAmount: settlement.SettlementAmount);
+            settlementCurrency: chargeInfo.SettlementCurrency,
+            settlementExchangeRate: chargeInfo.SettlementExchangeRate,
+            settlementAmount: chargeInfo.SettlementAmount,
+            riskScore: chargeInfo.RiskScore,
+            riskScoreSource: chargeInfo.RiskScoreSource);
     }
 
     private async Task<WebhookProcessingResult> HandlePaymentIntentSucceededAsync(Event stripeEvent, CancellationToken cancellationToken)
@@ -526,16 +528,18 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             invoiceId = parsedInvoiceId;
         }
 
-        var settlement = await TryGetSettlementInfoAsync(paymentIntent.Id, cancellationToken);
+        var chargeInfo = await TryGetChargeInfoAsync(paymentIntent.Id, cancellationToken);
 
         return WebhookProcessingResult.Successful(
             eventType: WebhookEventType.PaymentCompleted,
             transactionId: paymentIntent.Id,
             invoiceId: invoiceId,
             amount: ConvertFromStripeAmount(paymentIntent.Amount, paymentIntent.Currency),
-            settlementCurrency: settlement.SettlementCurrency,
-            settlementExchangeRate: settlement.SettlementExchangeRate,
-            settlementAmount: settlement.SettlementAmount);
+            settlementCurrency: chargeInfo.SettlementCurrency,
+            settlementExchangeRate: chargeInfo.SettlementExchangeRate,
+            settlementAmount: chargeInfo.SettlementAmount,
+            riskScore: chargeInfo.RiskScore,
+            riskScoreSource: chargeInfo.RiskScoreSource);
     }
 
     private WebhookProcessingResult HandlePaymentIntentFailed(Event stripeEvent)
@@ -623,13 +627,23 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
     private decimal ConvertFromStripeAmount(long amount, string? currency)
         => _currencyService.FromMinorUnits(amount, currency ?? "USD");
 
-    private async Task<(string? SettlementCurrency, decimal? SettlementExchangeRate, decimal? SettlementAmount)> TryGetSettlementInfoAsync(
+    /// <summary>
+    /// Settlement and risk data returned from charge lookup.
+    /// </summary>
+    private record ChargeInfo(
+        string? SettlementCurrency,
+        decimal? SettlementExchangeRate,
+        decimal? SettlementAmount,
+        decimal? RiskScore,
+        string? RiskScoreSource);
+
+    private async Task<ChargeInfo> TryGetChargeInfoAsync(
         string paymentIntentId,
         CancellationToken cancellationToken)
     {
         if (_client is null || string.IsNullOrWhiteSpace(paymentIntentId))
         {
-            return default;
+            return new ChargeInfo(null, null, null, null, null);
         }
 
         try
@@ -641,7 +655,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
 
             if (string.IsNullOrWhiteSpace(chargeId))
             {
-                return default;
+                return new ChargeInfo(null, null, null, null, null);
             }
 
             var chargeService = new ChargeService(_client);
@@ -650,23 +664,29 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
                 Expand = ["balance_transaction"]
             }, cancellationToken: cancellationToken);
 
+            // Extract settlement info from balance transaction
             var balance = charge.BalanceTransaction;
-            if (balance == null)
-            {
-                return default;
-            }
-
-            var settlementCurrency = balance.Currency;
-            var settlementExchangeRate = balance.ExchangeRate;
-            var settlementAmount = !string.IsNullOrWhiteSpace(balance.Currency)
+            var settlementCurrency = balance?.Currency;
+            var settlementExchangeRate = balance?.ExchangeRate;
+            var settlementAmount = balance != null && !string.IsNullOrWhiteSpace(balance.Currency)
                 ? _currencyService.FromMinorUnits(balance.Net, balance.Currency)
                 : (decimal?)null;
 
-            return (settlementCurrency, settlementExchangeRate, settlementAmount);
+            // Extract risk info from charge outcome (Stripe Radar)
+            var outcome = charge.Outcome;
+            var riskScore = MapStripeRiskScore(outcome?.RiskScore, outcome?.RiskLevel);
+            var riskScoreSource = riskScore.HasValue ? "stripe-radar" : null;
+
+            return new ChargeInfo(
+                settlementCurrency,
+                settlementExchangeRate,
+                settlementAmount,
+                riskScore,
+                riskScoreSource);
         }
         catch
         {
-            return default;
+            return new ChargeInfo(null, null, null, null, null);
         }
     }
 
@@ -686,6 +706,34 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             "duplicate" => "duplicate",
             "fraud" or "fraudulent" => "fraudulent",
             _ => "requested_by_customer"
+        };
+    }
+
+    /// <summary>
+    /// Maps Stripe Radar risk data to our 0-100 scale.
+    /// Uses actual risk_score when available (Radar for Fraud Teams subscription),
+    /// otherwise maps risk_level to approximate score.
+    /// </summary>
+    /// <param name="riskScore">The numeric risk score from Stripe (0-99), requires Radar for Fraud Teams.</param>
+    /// <param name="riskLevel">The risk level string from Stripe (normal, elevated, highest).</param>
+    /// <returns>Risk score on 0-100 scale, or null if no risk data available.</returns>
+    private static decimal? MapStripeRiskScore(long? riskScore, string? riskLevel)
+    {
+        // If we have the actual numeric score (Radar for Fraud Teams), use it
+        // Stripe uses 0-99 scale, we use 0-100, so just convert directly
+        if (riskScore.HasValue)
+        {
+            return riskScore.Value;
+        }
+
+        // Otherwise, map the risk_level to approximate scores
+        // These levels are always available with Stripe Radar (free)
+        return riskLevel?.ToLowerInvariant() switch
+        {
+            "normal" => 10m,
+            "elevated" => 60m,
+            "highest" => 90m,
+            _ => null
         };
     }
 }

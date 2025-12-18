@@ -56,7 +56,7 @@ public class CheckoutService(
     /// </summary>
     /// <param name="basket">The basket to add the discount to</param>
     /// <param name="amount">The discount amount (positive value)</param>
-    /// <param name="discountType">Whether this is a fixed amount or percentage discount</param>
+    /// <param name="discountValueType">Whether this is a fixed amount, percentage, or free discount</param>
     /// <param name="linkedSku">Optional SKU to link the discount to a specific product</param>
     /// <param name="name">Optional name for the discount</param>
     /// <param name="reason">Optional reason/description for the discount</param>
@@ -65,7 +65,7 @@ public class CheckoutService(
     public async Task AddDiscountToBasketAsync(
         Basket basket,
         decimal amount,
-        DiscountType discountType,
+        DiscountValueType discountValueType,
         string? linkedSku = null,
         string? name = null,
         string? reason = null,
@@ -76,7 +76,7 @@ public class CheckoutService(
         var errors = lineItemService.AddDiscountLineItem(
             basket.LineItems,
             amount,
-            discountType,
+            discountValueType,
             currencyCode,
             linkedSku,
             name,

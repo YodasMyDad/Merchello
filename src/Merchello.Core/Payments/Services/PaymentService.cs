@@ -137,7 +137,9 @@ public class PaymentService(
                         SettlementCurrencyCode = paymentResult.SettlementCurrency,
                         SettlementExchangeRate = paymentResult.SettlementExchangeRate,
                         SettlementAmount = paymentResult.SettlementAmount,
-                        SettlementExchangeRateSource = request.ProviderAlias
+                        SettlementExchangeRateSource = request.ProviderAlias,
+                        RiskScore = paymentResult.RiskScore,
+                        RiskScoreSource = paymentResult.RiskScoreSource
                     },
                     cancellationToken);
             }
@@ -231,7 +233,9 @@ public class PaymentService(
                 settlementCurrencyCode: parameters.SettlementCurrencyCode,
                 settlementExchangeRate: parameters.SettlementExchangeRate,
                 settlementAmount: parameters.SettlementAmount,
-                settlementExchangeRateSource: parameters.SettlementExchangeRateSource);
+                settlementExchangeRateSource: parameters.SettlementExchangeRateSource,
+                riskScore: parameters.RiskScore,
+                riskScoreSource: parameters.RiskScoreSource);
 
             db.Payments.Add(payment);
             await db.SaveChangesAsync(cancellationToken);
@@ -560,6 +564,12 @@ public class PaymentService(
             status = InvoicePaymentStatus.Unpaid;
         }
 
+        // Find max risk score
+        var maxRiskPayment = paymentList
+            .Where(p => p.RiskScore.HasValue)
+            .OrderByDescending(p => p.RiskScore)
+            .FirstOrDefault();
+
         return new PaymentStatusDetails
         {
             Status = status,
@@ -567,7 +577,9 @@ public class PaymentService(
             TotalPaid = totalPaid,
             TotalRefunded = totalRefunded,
             NetPayment = netPayment,
-            BalanceDue = balanceDue
+            BalanceDue = balanceDue,
+            MaxRiskScore = maxRiskPayment?.RiskScore,
+            MaxRiskScoreSource = maxRiskPayment?.RiskScoreSource
         };
     }
 
@@ -640,6 +652,12 @@ public class PaymentService(
             status = InvoicePaymentStatus.Unpaid;
         }
 
+        // Find max risk score
+        var maxRiskPayment = paymentList
+            .Where(p => p.RiskScore.HasValue)
+            .OrderByDescending(p => p.RiskScore)
+            .FirstOrDefault();
+
         return new PaymentStatusDetails
         {
             Status = status,
@@ -651,7 +669,9 @@ public class PaymentService(
             TotalPaidInStoreCurrency = storeTotalPaid,
             TotalRefundedInStoreCurrency = storeTotalRefunded,
             NetPaymentInStoreCurrency = storeNetPayment,
-            BalanceDueInStoreCurrency = storeBalanceDue
+            BalanceDueInStoreCurrency = storeBalanceDue,
+            MaxRiskScore = maxRiskPayment?.RiskScore,
+            MaxRiskScoreSource = maxRiskPayment?.RiskScoreSource
         };
     }
 

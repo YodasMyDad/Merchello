@@ -154,15 +154,18 @@ public class PaymentWebhookController(
                                 SettlementCurrencyCode = result.SettlementCurrency,
                                 SettlementExchangeRate = result.SettlementExchangeRate,
                                 SettlementAmount = result.SettlementAmount,
-                                SettlementExchangeRateSource = providerAlias
+                                SettlementExchangeRateSource = providerAlias,
+                                RiskScore = result.RiskScore,
+                                RiskScoreSource = result.RiskScoreSource
                             },
                             cancellationToken);
 
                         logger.LogInformation(
-                            "Payment recorded from webhook: InvoiceId={InvoiceId}, Amount={Amount}, TransactionId={TransactionId}",
+                            "Payment recorded from webhook: InvoiceId={InvoiceId}, Amount={Amount}, TransactionId={TransactionId}, RiskScore={RiskScore}",
                             result.InvoiceId,
                             result.Amount,
-                            result.TransactionId);
+                            result.TransactionId,
+                            result.RiskScore);
                     }
                     else
                     {

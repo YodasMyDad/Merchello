@@ -32,6 +32,10 @@ FACTORIES → All object creation, stateless singletons
 | Shipping quotes | `IShippingQuoteService.GetQuotesAsync()` |
 | Customer get/create | `ICustomerService.GetOrCreateByEmailAsync()` |
 | Segment membership | `ICustomerSegmentService.IsCustomerInSegmentAsync()` |
+| Discount calculation | `IDiscountEngine.CalculateAsync()` |
+| Discount validation | `IDiscountEngine.ValidateCodeAsync()` |
+| Discount application | `IDiscountEngine.ApplyDiscountsAsync()` |
+| Discount usage | `IDiscountService.RecordUsageAsync()` |
 
 ### Factories
 
@@ -48,6 +52,7 @@ FACTORIES → All object creation, stateless singletons
 | `LineItemFactory` | Line items |
 | `TaxGroupFactory` | Tax config |
 | `CustomerFactory` | Customer from email/params |
+| `DiscountFactory` | Discount, TargetRules, BuyXGetYConfig, FreeShippingConfig |
 
 ### Rules
 ```csharp
@@ -265,6 +270,8 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 | `ILineItemService` | Unified calculations (basket/invoice), discounts, tax |
 | `ITaxService` | Tax groups |
 | `ICurrencyService` | Formatting, rounding, rates |
+| `IDiscountService` | Discount CRUD, validation, usage tracking |
+| `IDiscountEngine` | Calculation, validation, application to baskets/invoices |
 
 **Principles**: DbContext in services only, RORO params, CrudResult<T>, async+CancellationToken, factories for creation
 

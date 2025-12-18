@@ -142,7 +142,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var warehouse = builder.CreateWarehouse();
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
         var lineItem = builder.CreateLineItem(order, name: "Test Product", quantity: 1, amount: itemPrice);
-        builder.CreateDiscountLineItem(order, lineItem, discountAmount, DiscountType.Amount, discountAmount, "Test discount");
+        builder.CreateDiscountLineItem(order, lineItem, discountAmount, DiscountValueType.FixedAmount, discountAmount, "Test discount");
         await builder.SaveChangesAsync();
 
         // Act
@@ -172,7 +172,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
 
         // Calculate the discount amount for the percentage
         var discountAmount = itemPrice * (discountPercent / 100m);
-        builder.CreateDiscountLineItem(order, lineItem, discountAmount, DiscountType.Percentage, discountPercent, "Percentage discount");
+        builder.CreateDiscountLineItem(order, lineItem, discountAmount, DiscountValueType.Percentage, discountPercent, "Percentage discount");
         await builder.SaveChangesAsync();
 
         // Act
@@ -198,10 +198,10 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
 
         var lineItem1 = builder.CreateLineItem(order, name: "Product 1", quantity: 1, amount: 60m);
-        builder.CreateDiscountLineItem(order, lineItem1, 6m, DiscountType.Percentage, 10m, "10% off");
+        builder.CreateDiscountLineItem(order, lineItem1, 6m, DiscountValueType.Percentage, 10m, "10% off");
 
         var lineItem2 = builder.CreateLineItem(order, name: "Product 2", quantity: 1, amount: 40m);
-        builder.CreateDiscountLineItem(order, lineItem2, 4m, DiscountType.Percentage, 10m, "10% off");
+        builder.CreateDiscountLineItem(order, lineItem2, 4m, DiscountValueType.Percentage, 10m, "10% off");
 
         await builder.SaveChangesAsync();
 
@@ -229,7 +229,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
 
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m);
-        builder.CreateOrderLevelDiscount(order, 10m, DiscountType.Amount, 10m, "SAVE10 Coupon");
+        builder.CreateOrderLevelDiscount(order, 10m, DiscountValueType.FixedAmount, 10m, "SAVE10 Coupon");
 
         await builder.SaveChangesAsync();
 
@@ -258,7 +258,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
 
         builder.CreateLineItem(order, name: "Product 1", quantity: 1, amount: 60m, taxRate: 20m);
         builder.CreateLineItem(order, name: "Product 2", quantity: 1, amount: 40m, taxRate: 20m);
-        builder.CreateOrderLevelDiscount(order, 10m, DiscountType.Amount, 10m, "Order Coupon");
+        builder.CreateOrderLevelDiscount(order, 10m, DiscountValueType.FixedAmount, 10m, "Order Coupon");
 
         await builder.SaveChangesAsync();
 
@@ -285,8 +285,8 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
 
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m);
-        builder.CreateOrderLevelDiscount(order, 5m, DiscountType.Amount, 5m, "SAVE5");
-        builder.CreateOrderLevelDiscount(order, 10m, DiscountType.Amount, 10m, "EXTRA10");
+        builder.CreateOrderLevelDiscount(order, 5m, DiscountValueType.FixedAmount, 5m, "SAVE5");
+        builder.CreateOrderLevelDiscount(order, 10m, DiscountValueType.FixedAmount, 10m, "EXTRA10");
 
         await builder.SaveChangesAsync();
 
@@ -315,8 +315,8 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
-        builder.CreateDiscountLineItem(order, lineItem, 10m, DiscountType.Amount, 10m, "Manual discount");
-        builder.CreateOrderLevelDiscount(order, 5m, DiscountType.Amount, 5m, "Coupon");
+        builder.CreateDiscountLineItem(order, lineItem, 10m, DiscountValueType.FixedAmount, 10m, "Manual discount");
+        builder.CreateOrderLevelDiscount(order, 5m, DiscountValueType.FixedAmount, 5m, "Coupon");
 
         await builder.SaveChangesAsync();
 
@@ -347,7 +347,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
-        builder.CreateDiscountLineItem(order, lineItem, 20m, DiscountType.Amount, 20m, "20 off");
+        builder.CreateDiscountLineItem(order, lineItem, 20m, DiscountValueType.FixedAmount, 20m, "20 off");
 
         await builder.SaveChangesAsync();
 
@@ -372,10 +372,10 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
 
         var lineItem1 = builder.CreateLineItem(order, name: "Product 1", quantity: 1, amount: 50m, taxRate: 20m);
-        builder.CreateDiscountLineItem(order, lineItem1, 5m, DiscountType.Amount, 5m, "Discount 1");
+        builder.CreateDiscountLineItem(order, lineItem1, 5m, DiscountValueType.FixedAmount, 5m, "Discount 1");
 
         var lineItem2 = builder.CreateLineItem(order, name: "Product 2", quantity: 1, amount: 50m, taxRate: 10m);
-        builder.CreateDiscountLineItem(order, lineItem2, 5m, DiscountType.Amount, 5m, "Discount 2");
+        builder.CreateDiscountLineItem(order, lineItem2, 5m, DiscountValueType.FixedAmount, 5m, "Discount 2");
 
         await builder.SaveChangesAsync();
 
@@ -398,7 +398,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Gift Card", quantity: 1, amount: 100m, isTaxable: false, taxRate: 0);
-        builder.CreateDiscountLineItem(order, lineItem, 10m, DiscountType.Amount, 10m, "Discount");
+        builder.CreateDiscountLineItem(order, lineItem, 10m, DiscountValueType.FixedAmount, 10m, "Discount");
 
         await builder.SaveChangesAsync();
 
@@ -424,7 +424,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
 
         builder.CreateLineItem(order, name: "Product 1", quantity: 1, amount: 60m, taxRate: 20m);
         builder.CreateLineItem(order, name: "Product 2", quantity: 1, amount: 40m, taxRate: 10m);
-        builder.CreateOrderLevelDiscount(order, 10m, DiscountType.Amount, 10m, "Coupon");
+        builder.CreateOrderLevelDiscount(order, 10m, DiscountValueType.FixedAmount, 10m, "Coupon");
 
         await builder.SaveChangesAsync();
 
@@ -452,7 +452,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 50m);
         // Note: In practice, the service should cap this, but we test what happens
-        builder.CreateDiscountLineItem(order, lineItem, 100m, DiscountType.Amount, 100m, "Huge discount");
+        builder.CreateDiscountLineItem(order, lineItem, 100m, DiscountValueType.FixedAmount, 100m, "Huge discount");
 
         await builder.SaveChangesAsync();
 
@@ -477,7 +477,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
-        builder.CreateDiscountLineItem(order, lineItem, 100m, DiscountType.Percentage, 100m, "Free item");
+        builder.CreateDiscountLineItem(order, lineItem, 100m, DiscountValueType.Percentage, 100m, "Free item");
 
         await builder.SaveChangesAsync();
 
@@ -500,7 +500,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Free Gift", quantity: 1, amount: 0m);
-        builder.CreateDiscountLineItem(order, lineItem, 10m, DiscountType.Amount, 10m, "Discount on free item");
+        builder.CreateDiscountLineItem(order, lineItem, 10m, DiscountValueType.FixedAmount, 10m, "Discount on free item");
 
         await builder.SaveChangesAsync();
 
@@ -527,7 +527,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: itemPrice);
         var calculatedDiscount = Math.Round(itemPrice * (discountPercent / 100m), 2, MidpointRounding.AwayFromZero);
-        builder.CreateDiscountLineItem(order, lineItem, calculatedDiscount, DiscountType.Percentage, discountPercent);
+        builder.CreateDiscountLineItem(order, lineItem, calculatedDiscount, DiscountValueType.Percentage, discountPercent);
 
         await builder.SaveChangesAsync();
 
@@ -554,7 +554,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 3, amount: 20m);
-        builder.CreateDiscountLineItem(order, lineItem, 15m, DiscountType.Amount, 5m, "£5 per unit");
+        builder.CreateDiscountLineItem(order, lineItem, 15m, DiscountValueType.FixedAmount, 5m, "£5 per unit");
 
         await builder.SaveChangesAsync();
 
@@ -582,8 +582,8 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
 
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m);
-        builder.CreateOrderLevelDiscount(order, 10m, DiscountType.Amount, 10m, "HOLIDAY10");
-        builder.CreateOrderLevelDiscount(order, 5m, DiscountType.Percentage, 5m, "VIP5%");
+        builder.CreateOrderLevelDiscount(order, 10m, DiscountValueType.FixedAmount, 10m, "HOLIDAY10");
+        builder.CreateOrderLevelDiscount(order, 5m, DiscountValueType.Percentage, 5m, "VIP5%");
 
         await builder.SaveChangesAsync();
 
@@ -593,8 +593,8 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Assert
         result.ShouldNotBeNull();
         result.OrderDiscounts.Count.ShouldBe(2);
-        result.OrderDiscounts.ShouldContain(d => d.Name == "HOLIDAY10" && d.Type == DiscountType.Amount);
-        result.OrderDiscounts.ShouldContain(d => d.Name == "VIP5%" && d.Type == DiscountType.Percentage);
+        result.OrderDiscounts.ShouldContain(d => d.Name == "HOLIDAY10" && d.Type == DiscountValueType.FixedAmount);
+        result.OrderDiscounts.ShouldContain(d => d.Name == "VIP5%" && d.Type == DiscountValueType.Percentage);
     }
 
     [Fact]
@@ -607,7 +607,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
 
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
-        var discount = builder.CreateOrderLevelDiscount(order, 10m, DiscountType.Amount, 10m, "Coupon");
+        var discount = builder.CreateOrderLevelDiscount(order, 10m, DiscountValueType.FixedAmount, 10m, "Coupon");
 
         await builder.SaveChangesAsync();
 
@@ -662,7 +662,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         order.ShippingCost = 10m;
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
-        builder.CreateDiscountLineItem(order, lineItem, 20m, DiscountType.Amount, 20m, "Discount");
+        builder.CreateDiscountLineItem(order, lineItem, 20m, DiscountValueType.FixedAmount, 20m, "Discount");
 
         await builder.SaveChangesAsync();
 
@@ -691,7 +691,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var warehouse = builder.CreateWarehouse();
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 2, amount: 50m, taxRate: 20m);
-        builder.CreateDiscountLineItem(order, lineItem, 20m, DiscountType.Amount, 10m, "Per-unit discount");
+        builder.CreateDiscountLineItem(order, lineItem, 20m, DiscountValueType.FixedAmount, 10m, "Per-unit discount");
         await builder.SaveChangesAsync();
 
         // Act: Preview with no changes
@@ -770,7 +770,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                     Id = lineItem.Id,
                     Discount = new LineItemDiscountDto
                     {
-                        Type = DiscountType.Percentage,
+                        Type = DiscountValueType.Percentage,
                         Value = 20
                     }
                 }],
@@ -872,7 +872,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var warehouse = builder.CreateWarehouse();
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
-        var discount = builder.CreateOrderLevelDiscount(order, 20m, DiscountType.Amount, 20m, "Coupon");
+        var discount = builder.CreateOrderLevelDiscount(order, 20m, DiscountValueType.FixedAmount, 20m, "Coupon");
         await builder.SaveChangesAsync();
 
         // Act: Preview removing order discount
@@ -973,7 +973,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var warehouse = builder.CreateWarehouse();
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 2, amount: 50m, taxRate: 20m);
-        builder.CreateDiscountLineItem(order, lineItem, 20m, DiscountType.Amount, 10m, "Per unit discount");
+        builder.CreateDiscountLineItem(order, lineItem, 20m, DiscountValueType.FixedAmount, 10m, "Per unit discount");
         await builder.SaveChangesAsync();
 
         // Act
@@ -1020,7 +1020,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                     Id = lineItem.Id,
                     Discount = new LineItemDiscountDto
                     {
-                        Type = DiscountType.Amount,
+                        Type = DiscountValueType.FixedAmount,
                         Value = 100 // More than £50 item
                     }
                 }],
@@ -1072,10 +1072,10 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         order.ShippingCost = 10m;
 
         var lineItem1 = builder.CreateLineItem(order, name: "Product 1", quantity: 2, amount: 60m, taxRate: 20m);
-        builder.CreateDiscountLineItem(order, lineItem1, 12m, DiscountType.Percentage, 10m, "10% off");
+        builder.CreateDiscountLineItem(order, lineItem1, 12m, DiscountValueType.Percentage, 10m, "10% off");
 
         var lineItem2 = builder.CreateLineItem(order, name: "Product 2", quantity: 1, amount: 40m, taxRate: 10m);
-        builder.CreateOrderLevelDiscount(order, 10m, DiscountType.Amount, 10m, "Coupon");
+        builder.CreateOrderLevelDiscount(order, 10m, DiscountValueType.FixedAmount, 10m, "Coupon");
 
         await builder.SaveChangesAsync();
 
@@ -1135,7 +1135,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderDiscounts = [new LineItemDiscountDto
                 {
-                    Type = DiscountType.Amount,
+                    Type = DiscountValueType.FixedAmount,
                     Value = 15m,
                     Reason = "Goodwill gesture",
                     IsVisibleToCustomer = false
@@ -1176,7 +1176,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderDiscounts = [new LineItemDiscountDto
                 {
-                    Type = DiscountType.Percentage,
+                    Type = DiscountValueType.Percentage,
                     Value = 10m,
                     Reason = "Customer loyalty",
                     IsVisibleToCustomer = true
@@ -1218,13 +1218,13 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 OrderDiscounts = [
                     new LineItemDiscountDto
                     {
-                        Type = DiscountType.Amount,
+                        Type = DiscountValueType.FixedAmount,
                         Value = 5m,
                         Reason = "Apology credit"
                     },
                     new LineItemDiscountDto
                     {
-                        Type = DiscountType.Percentage,
+                        Type = DiscountValueType.Percentage,
                         Value = 10m,
                         Reason = "VIP discount"
                     }
@@ -1253,7 +1253,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var warehouse = builder.CreateWarehouse();
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
-        builder.CreateDiscountLineItem(order, lineItem, 10m, DiscountType.Amount, 10m, "Line discount");
+        builder.CreateDiscountLineItem(order, lineItem, 10m, DiscountValueType.FixedAmount, 10m, "Line discount");
         await builder.SaveChangesAsync();
 
         // Act: Add £5 order discount on top of existing line discount
@@ -1267,7 +1267,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderDiscounts = [new LineItemDiscountDto
                 {
-                    Type = DiscountType.Amount,
+                    Type = DiscountValueType.FixedAmount,
                     Value = 5m,
                     Reason = "Additional discount"
                 }],
@@ -1308,7 +1308,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderDiscounts = [new LineItemDiscountDto
                 {
-                    Type = DiscountType.Amount,
+                    Type = DiscountValueType.FixedAmount,
                     Value = 10m,
                     Reason = "Order discount"
                 }],
@@ -1350,7 +1350,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderDiscounts = [new LineItemDiscountDto
                 {
-                    Type = DiscountType.Amount,
+                    Type = DiscountValueType.FixedAmount,
                     Value = 100m,
                     Reason = "Massive discount"
                 }],
@@ -1390,7 +1390,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderDiscounts = [new LineItemDiscountDto
                 {
-                    Type = DiscountType.Percentage,
+                    Type = DiscountValueType.Percentage,
                     Value = 150m // 150% would be £150, capped at £100
                 }],
                 OrderShippingUpdates = [],
@@ -1434,7 +1434,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderDiscounts = [new LineItemDiscountDto
                 {
-                    Type = DiscountType.Amount,
+                    Type = DiscountValueType.FixedAmount,
                     Value = 20m,
                     Reason = "Customer compensation",
                     IsVisibleToCustomer = true
@@ -1460,7 +1460,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         updatedResult.Tax.ShouldBe(16m); // 20% of 80
         updatedResult.OrderDiscounts.Count.ShouldBe(1);
         updatedResult.OrderDiscounts[0].Value.ShouldBe(20m);
-        updatedResult.OrderDiscounts[0].Type.ShouldBe(DiscountType.Amount);
+        updatedResult.OrderDiscounts[0].Type.ShouldBe(DiscountValueType.FixedAmount);
     }
 
     [Fact]
@@ -1485,7 +1485,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderDiscounts = [new LineItemDiscountDto
                 {
-                    Type = DiscountType.Percentage,
+                    Type = DiscountValueType.Percentage,
                     Value = 25m,
                     Reason = "VIP 25% off"
                 }],
@@ -1532,7 +1532,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderDiscounts = [new LineItemDiscountDto
                 {
-                    Type = DiscountType.Amount,
+                    Type = DiscountValueType.FixedAmount,
                     Value = 20m
                 }],
                 OrderShippingUpdates = [],
@@ -1559,7 +1559,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var warehouse = builder.CreateWarehouse();
         var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
-        builder.CreateOrderLevelDiscount(order, 10m, DiscountType.Amount, 10m, "Existing coupon");
+        builder.CreateOrderLevelDiscount(order, 10m, DiscountValueType.FixedAmount, 10m, "Existing coupon");
         await builder.SaveChangesAsync();
 
         // Act: Add another order discount
@@ -1573,7 +1573,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderDiscounts = [new LineItemDiscountDto
                 {
-                    Type = DiscountType.Amount,
+                    Type = DiscountValueType.FixedAmount,
                     Value = 5m,
                     Reason = "Additional discount"
                 }],

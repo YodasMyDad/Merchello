@@ -28,6 +28,16 @@ public class PaymentDto
     public DateTime DateCreated { get; set; }
 
     /// <summary>
+    /// Fraud/risk score (0-100 scale). Higher = higher risk.
+    /// </summary>
+    public decimal? RiskScore { get; set; }
+
+    /// <summary>
+    /// Source of the risk score (e.g., "stripe-radar", "signifyd")
+    /// </summary>
+    public string? RiskScoreSource { get; set; }
+
+    /// <summary>
     /// Child refund payments (if any)
     /// </summary>
     public List<PaymentDto>? Refunds { get; set; }

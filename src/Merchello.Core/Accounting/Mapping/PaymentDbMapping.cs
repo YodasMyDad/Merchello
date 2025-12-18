@@ -15,6 +15,8 @@ public class PaymentDbMapping : IEntityTypeConfiguration<Payment>
         builder.Property(x => x.PaymentMethod).HasMaxLength(350);
         builder.Property(x => x.TransactionId).HasMaxLength(350);
         builder.Property(x => x.FraudResponse).HasMaxLength(500);
+        builder.Property(x => x.RiskScore).HasPrecision(5, 2);
+        builder.Property(x => x.RiskScoreSource).HasMaxLength(100);
         builder.Property(x => x.Description).HasMaxLength(1000);
         builder.Property(x => x.Amount).HasPrecision(18, 4);
         builder.Property(x => x.CurrencyCode).IsRequired().HasMaxLength(3);

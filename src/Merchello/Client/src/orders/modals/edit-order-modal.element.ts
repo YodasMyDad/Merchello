@@ -19,7 +19,7 @@ import type {
   OrderShippingUpdateDto,
   PreviewEditResultDto,
 } from "@orders/types/order.types.js";
-import { DiscountType } from "@orders/types/order.types.js";
+import { DiscountValueType } from "@orders/types/order.types.js";
 import type { EditOrderModalData, EditOrderModalValue } from "./edit-order-modal.token.js";
 import { MERCHELLO_ADD_CUSTOM_ITEM_MODAL } from "./add-custom-item-modal.token.js";
 import { MERCHELLO_ADD_DISCOUNT_MODAL } from "./add-discount-modal.token.js";
@@ -47,7 +47,7 @@ interface PendingCustomItem extends AddCustomItemDto {
 }
 
 interface PendingOrderDiscount {
-  type: DiscountType;
+  type: DiscountValueType;
   value: number;
   reason: string | null;
   isVisibleToCustomer: boolean;
@@ -362,7 +362,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     const baseTotal = amount * quantity;
     if (!discount || discount.value <= 0) return baseTotal;
 
-    if (discount.type === DiscountType.Amount) {
+    if (discount.type === DiscountValueType.FixedAmount) {
       return Math.max(0, baseTotal - discount.value * quantity);
     } else {
       return baseTotal * (1 - discount.value / 100);
@@ -377,7 +377,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       return lineItem.amount;
     }
 
-    if (lineItem.discount.type === DiscountType.Amount) {
+    if (lineItem.discount.type === DiscountValueType.FixedAmount) {
       return Math.max(0, lineItem.amount - lineItem.discount.value);
     } else {
       return lineItem.amount * (1 - lineItem.discount.value / 100);
@@ -794,7 +794,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
           </div>
           ${hasDiscount ? html`
             <div class="discount-text">
-              <span>-${lineItem.discount!.type === DiscountType.Percentage
+              <span>-${lineItem.discount!.type === DiscountValueType.Percentage
                 ? `${lineItem.discount!.value}%`
                 : `${currencySymbol}${lineItem.discount!.value.toFixed(2)}`} off</span>
               <button class="remove-discount-btn" @click=${() => this._removeDiscount(lineItem.id)} title="Remove discount">×</button>
@@ -891,7 +891,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
               <div class="discount-info">
                 <span class="discount-name">${discount.name || discount.reason || "Discount"}</span>
                 <span class="discount-value">
-                  ${discount.type === DiscountType.Percentage
+                  ${discount.type === DiscountValueType.Percentage
                     ? `${discount.value}%`
                     : `${currencySymbol}${discount.value.toFixed(2)}`}
                 </span>
@@ -917,7 +917,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
               <div class="discount-info">
                 <span class="discount-name">${discount.reason || "New Discount"}</span>
                 <span class="discount-value">
-                  ${discount.type === DiscountType.Percentage
+                  ${discount.type === DiscountValueType.Percentage
                     ? `${discount.value}%`
                     : `${currencySymbol}${discount.value.toFixed(2)}`}
                 </span>

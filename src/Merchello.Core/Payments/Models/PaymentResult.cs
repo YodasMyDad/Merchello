@@ -57,6 +57,16 @@ public class PaymentResult
     /// </summary>
     public Dictionary<string, object>? ProviderData { get; init; }
 
+    /// <summary>
+    /// Fraud/risk score returned by the provider (0-100 scale).
+    /// </summary>
+    public decimal? RiskScore { get; init; }
+
+    /// <summary>
+    /// Source of the risk score (e.g., "stripe-radar").
+    /// </summary>
+    public string? RiskScoreSource { get; init; }
+
     // =====================================================
     // Factory methods
     // =====================================================
