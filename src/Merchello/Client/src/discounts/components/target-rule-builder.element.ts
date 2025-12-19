@@ -1,8 +1,15 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
+import { UMB_MODAL_MANAGER_CONTEXT, type UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { DiscountTargetRuleDto } from "@discounts/types/discount.types.js";
 import { DiscountTargetType } from "@discounts/types/discount.types.js";
+import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-picker-modal.token.js";
+import { MERCHELLO_CATEGORY_PICKER_MODAL } from "@categories/modals/category-picker-modal.token.js";
+import { MERCHELLO_PRODUCT_TYPE_PICKER_MODAL } from "@product-types/modals/product-type-picker-modal.token.js";
+import { MERCHELLO_SUPPLIER_PICKER_MODAL } from "@suppliers/modals/supplier-picker-modal.token.js";
+import { MERCHELLO_WAREHOUSE_PICKER_MODAL } from "@warehouses/modals/warehouse-picker-modal.token.js";
+import { MERCHELLO_FILTER_PICKER_MODAL } from "@filters/modals/filter-picker-modal.token.js";
 
 /** Target type options for the dropdown */
 const TARGET_TYPE_OPTIONS = [
@@ -15,12 +22,38 @@ const TARGET_TYPE_OPTIONS = [
   { value: DiscountTargetType.Warehouses, label: "Warehouses" },
 ];
 
+/** Get select options for target type dropdown with selected state */
+function getTargetTypeSelectOptions(currentValue: DiscountTargetType): Array<{ name: string; value: string; selected: boolean }> {
+  return TARGET_TYPE_OPTIONS.map((opt) => ({
+    name: opt.label,
+    value: String(opt.value),
+    selected: opt.value === currentValue,
+  }));
+}
+
+/** Get select options for include/exclude action with selected state */
+function getActionSelectOptions(isExclusion: boolean): Array<{ name: string; value: string; selected: boolean }> {
+  return [
+    { name: "Include these products", value: "include", selected: !isExclusion },
+    { name: "Exclude these products", value: "exclude", selected: isExclusion },
+  ];
+}
+
 @customElement("merchello-target-rule-builder")
 export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElement) {
   @property({ type: Array }) rules: DiscountTargetRuleDto[] = [];
   @property({ type: Boolean }) readonly = false;
 
   @state() private _editingRule?: { index: number; rule: DiscountTargetRuleDto };
+
+  #modalManager?: UmbModalManagerContext;
+
+  constructor() {
+    super();
+    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
+      this.#modalManager = context;
+    });
+  }
 
   private _dispatchChange(): void {
     this.dispatchEvent(
@@ -72,6 +105,196 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     return TARGET_TYPE_OPTIONS.find((opt) => opt.value === targetType)?.label ?? "Unknown";
   }
 
+  private async _openProductPicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+    if (!this.#modalManager) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_PRODUCT_PICKER_MODAL, {
+      data: {
+        config: {
+          currencySymbol: "",
+          excludeProductIds: rule.targetIds ?? [],
+        },
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.selections?.length) {
+      const newIds = result.selections.map((s) => s.productId);
+      const newNames = result.selections.map((s) => s.name);
+
+      this._handleUpdateRule(index, {
+        targetIds: [...(rule.targetIds ?? []), ...newIds],
+        targetNames: [...(rule.targetNames ?? []), ...newNames],
+      });
+    }
+  }
+
+  private async _openCategoryPicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+    if (!this.#modalManager) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_CATEGORY_PICKER_MODAL, {
+      data: {
+        excludeIds: rule.targetIds ?? [],
+        multiSelect: true,
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.selectedIds?.length) {
+      this._handleUpdateRule(index, {
+        targetIds: [...(rule.targetIds ?? []), ...result.selectedIds],
+        targetNames: [...(rule.targetNames ?? []), ...result.selectedNames],
+      });
+    }
+  }
+
+  private async _openProductTypePicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+    if (!this.#modalManager) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_PRODUCT_TYPE_PICKER_MODAL, {
+      data: {
+        excludeIds: rule.targetIds ?? [],
+        multiSelect: true,
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.selectedIds?.length) {
+      this._handleUpdateRule(index, {
+        targetIds: [...(rule.targetIds ?? []), ...result.selectedIds],
+        targetNames: [...(rule.targetNames ?? []), ...result.selectedNames],
+      });
+    }
+  }
+
+  private async _openSupplierPicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+    if (!this.#modalManager) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_SUPPLIER_PICKER_MODAL, {
+      data: {
+        excludeIds: rule.targetIds ?? [],
+        multiSelect: true,
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.selectedIds?.length) {
+      this._handleUpdateRule(index, {
+        targetIds: [...(rule.targetIds ?? []), ...result.selectedIds],
+        targetNames: [...(rule.targetNames ?? []), ...result.selectedNames],
+      });
+    }
+  }
+
+  private async _openWarehousePicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+    if (!this.#modalManager) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_WAREHOUSE_PICKER_MODAL, {
+      data: {
+        excludeIds: rule.targetIds ?? [],
+        multiSelect: true,
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.selectedIds?.length) {
+      this._handleUpdateRule(index, {
+        targetIds: [...(rule.targetIds ?? []), ...result.selectedIds],
+        targetNames: [...(rule.targetNames ?? []), ...result.selectedNames],
+      });
+    }
+  }
+
+  private async _openFilterPicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+    if (!this.#modalManager) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_FILTER_PICKER_MODAL, {
+      data: {
+        excludeFilterIds: rule.targetIds ?? [],
+        multiSelect: true,
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.selectedFilterIds?.length) {
+      this._handleUpdateRule(index, {
+        targetIds: [...(rule.targetIds ?? []), ...result.selectedFilterIds],
+        targetNames: [...(rule.targetNames ?? []), ...result.selectedFilterNames],
+      });
+    }
+  }
+
+  private _removeTargetItem(index: number, rule: DiscountTargetRuleDto, itemIndex: number): void {
+    const newIds = rule.targetIds?.filter((_, i) => i !== itemIndex) ?? [];
+    const newNames = rule.targetNames?.filter((_, i) => i !== itemIndex) ?? [];
+
+    this._handleUpdateRule(index, {
+      targetIds: newIds.length > 0 ? newIds : [],
+      targetNames: newNames.length > 0 ? newNames : [],
+    });
+  }
+
+  private _getIconForTargetType(targetType: DiscountTargetType): string {
+    switch (targetType) {
+      case DiscountTargetType.SpecificProducts:
+        return "icon-box";
+      case DiscountTargetType.Categories:
+        return "icon-categories";
+      case DiscountTargetType.ProductFilters:
+        return "icon-filter";
+      case DiscountTargetType.ProductTypes:
+        return "icon-item-arrangement";
+      case DiscountTargetType.Suppliers:
+        return "icon-truck";
+      case DiscountTargetType.Warehouses:
+        return "icon-store";
+      default:
+        return "icon-document";
+    }
+  }
+
+  private _getPickerButtonLabel(targetType: DiscountTargetType): string {
+    switch (targetType) {
+      case DiscountTargetType.SpecificProducts:
+        return "Select products";
+      case DiscountTargetType.Categories:
+        return "Select categories";
+      case DiscountTargetType.ProductFilters:
+        return "Select product filters";
+      case DiscountTargetType.ProductTypes:
+        return "Select product types";
+      case DiscountTargetType.Suppliers:
+        return "Select suppliers";
+      case DiscountTargetType.Warehouses:
+        return "Select warehouses";
+      default:
+        return "Select items";
+    }
+  }
+
+  private async _openPicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+    switch (rule.targetType) {
+      case DiscountTargetType.SpecificProducts:
+        await this._openProductPicker(index, rule);
+        break;
+      case DiscountTargetType.Categories:
+        await this._openCategoryPicker(index, rule);
+        break;
+      case DiscountTargetType.ProductFilters:
+        await this._openFilterPicker(index, rule);
+        break;
+      case DiscountTargetType.ProductTypes:
+        await this._openProductTypePicker(index, rule);
+        break;
+      case DiscountTargetType.Suppliers:
+        await this._openSupplierPicker(index, rule);
+        break;
+      case DiscountTargetType.Warehouses:
+        await this._openWarehousePicker(index, rule);
+        break;
+    }
+  }
+
   private _renderRuleCard(rule: DiscountTargetRuleDto, index: number): unknown {
     const isEditing = this._editingRule?.index === index;
     const hasSelection = rule.targetIds && rule.targetIds.length > 0;
@@ -109,48 +332,51 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
                 <uui-form-layout-item>
                   <uui-label slot="label">Rule Type</uui-label>
                   <uui-select
+                    .options=${getTargetTypeSelectOptions(rule.targetType)}
                     .value=${String(rule.targetType)}
                     @change=${(e: Event) =>
                       this._handleTargetTypeChange(index, parseInt((e.target as HTMLSelectElement).value, 10))}
-                  >
-                    ${TARGET_TYPE_OPTIONS.map(
-                      (opt) => html` <uui-select-option value=${String(opt.value)}>${opt.label}</uui-select-option> `
-                    )}
-                  </uui-select>
+                  ></uui-select>
                 </uui-form-layout-item>
 
                 <uui-form-layout-item>
                   <uui-label slot="label">Action</uui-label>
                   <uui-select
+                    .options=${getActionSelectOptions(rule.isExclusion)}
                     .value=${rule.isExclusion ? "exclude" : "include"}
                     @change=${(e: Event) =>
                       this._handleUpdateRule(index, { isExclusion: (e.target as HTMLSelectElement).value === "exclude" })}
-                  >
-                    <uui-select-option value="include">Include these products</uui-select-option>
-                    <uui-select-option value="exclude">Exclude these products</uui-select-option>
-                  </uui-select>
+                  ></uui-select>
                 </uui-form-layout-item>
 
                 ${rule.targetType !== DiscountTargetType.AllProducts
                   ? html`
-                      <div class="selection-placeholder">
-                        <uui-icon name="icon-search"></uui-icon>
-                        <span>
-                          ${rule.targetType === DiscountTargetType.SpecificProducts
-                            ? "Product selection coming soon"
-                            : rule.targetType === DiscountTargetType.Categories
-                              ? "Category selection coming soon"
-                              : rule.targetType === DiscountTargetType.ProductFilters
-                                ? "Product filter selection coming soon"
-                                : rule.targetType === DiscountTargetType.ProductTypes
-                                  ? "Product type selection coming soon"
-                                  : rule.targetType === DiscountTargetType.Suppliers
-                                    ? "Supplier selection coming soon"
-                                    : "Warehouse selection coming soon"}
-                        </span>
+                      <div class="selection-area">
+                        <uui-button look="secondary" @click=${() => this._openPicker(index, rule)}>
+                          <uui-icon name="icon-search"></uui-icon>
+                          ${this._getPickerButtonLabel(rule.targetType)}
+                        </uui-button>
                         ${hasSelection
-                          ? html`<small>${rule.targetIds?.length} item(s) selected</small>`
-                          : html`<small>No items selected</small>`}
+                          ? html`
+                              <uui-ref-list>
+                                ${rule.targetNames?.map(
+                                  (name, itemIndex) => html`
+                                    <uui-ref-node name=${name}>
+                                      <uui-icon slot="icon" name=${this._getIconForTargetType(rule.targetType)}></uui-icon>
+                                      <uui-action-bar slot="actions">
+                                        <uui-button
+                                          label="Remove"
+                                          @click=${(e: Event) => {
+                                            e.stopPropagation();
+                                            this._removeTargetItem(index, rule, itemIndex);
+                                          }}></uui-button>
+                                      </uui-action-bar>
+                                    </uui-ref-node>
+                                  `
+                                )}
+                              </uui-ref-list>
+                            `
+                          : html`<small class="no-selection">No items selected</small>`}
                       </div>
                     `
                   : nothing}
@@ -302,19 +528,17 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
       color: var(--uui-color-text-alt);
     }
 
-    .selection-placeholder {
+    .selection-area {
       display: flex;
       flex-direction: column;
-      align-items: center;
-      padding: var(--uui-size-space-4);
-      background: var(--uui-color-surface-alt);
-      border-radius: var(--uui-border-radius);
-      border: 1px dashed var(--uui-color-border);
-      text-align: center;
-      gap: var(--uui-size-space-2);
+      gap: var(--uui-size-space-3);
     }
 
-    .selection-placeholder small {
+    uui-ref-list {
+      margin-top: var(--uui-size-space-2);
+    }
+
+    .no-selection {
       color: var(--uui-color-text-alt);
     }
 

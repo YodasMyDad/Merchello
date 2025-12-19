@@ -1,7 +1,7 @@
 import { LitElement, html, css } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
+import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
@@ -157,11 +157,18 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
     const count = this._selectedDiscounts.size;
     if (count === 0) return;
 
-    const confirmed = confirm(
-      `Are you sure you want to delete ${count} discount${count !== 1 ? "s" : ""}? This action cannot be undone.`
-    );
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Discounts",
+        content: `Are you sure you want to delete ${count} discount${count !== 1 ? "s" : ""}? This action cannot be undone.`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
 
-    if (!confirmed) return;
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return; // User cancelled
+    if (!this.#isConnected) return; // Component disconnected while modal was open
 
     this._isDeleting = true;
 

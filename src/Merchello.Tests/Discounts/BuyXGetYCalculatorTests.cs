@@ -556,7 +556,7 @@ public class BuyXGetYCalculatorTests
 
         // Assert
         result.Success.ShouldBeFalse();
-        result.ErrorMessage.ShouldContain("configuration is missing");
+        result.ErrorMessage!.ShouldContain("configuration is missing");
     }
 
     [Fact]

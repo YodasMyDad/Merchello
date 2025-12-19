@@ -2,8 +2,10 @@ import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
-import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
+import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
+import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
+import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatShortDate } from "@shared/utils/formatting.js";
 import type { FulfillmentSummaryDto, ShipmentDetailDto } from "@orders/types/order.types.js";
@@ -22,6 +24,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
 
   #workspaceContext?: MerchelloOrderDetailWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
+  #notificationContext?: UmbNotificationContext;
   #isConnected = false;
 
   constructor() {
@@ -37,6 +40,9 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     });
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
       this.#modalManager = context;
+    });
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
+      this.#notificationContext = context;
     });
   }
 
@@ -84,10 +90,18 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
   }
 
   private async _handleDeleteShipment(shipment: ShipmentDetailDto): Promise<void> {
-    const confirmed = confirm(
-      `Are you sure you want to delete this shipment? This will release the items back to unfulfilled.`
-    );
-    if (!confirmed) return;
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Shipment",
+        content: "Are you sure you want to delete this shipment? This will release the items back to unfulfilled.",
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return; // User cancelled
+    if (!this.#isConnected) return; // Component disconnected while modal was open
 
     const { error } = await MerchelloApi.deleteShipment(shipment.id);
 
@@ -95,7 +109,9 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     if (!this.#isConnected) return;
 
     if (error) {
-      alert(error.message);
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to delete", message: error.message },
+      });
       return;
     }
 

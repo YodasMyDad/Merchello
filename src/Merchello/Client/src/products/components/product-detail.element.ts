@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
-import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
+import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
@@ -1791,8 +1791,18 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     const option = this._formData.productOptions?.find((o) => o.id === optionId);
     const optionName = option?.name || "this option";
 
-    const confirmed = confirm(`Are you sure you want to delete "${optionName}"? This action cannot be undone.`);
-    if (!confirmed) return;
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Option",
+        content: `Are you sure you want to delete "${optionName}"? This action cannot be undone.`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return; // User cancelled
+    if (!this.#isConnected) return; // Component disconnected while modal was open
 
     const options = (this._formData.productOptions || []).filter((o) => o.id !== optionId);
     this._formData = { ...this._formData, productOptions: options };
@@ -1803,7 +1813,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
    * Confirms with user before saving options that will regenerate variants.
    * Returns true if user confirms or no confirmation needed, false if cancelled.
    */
-  private _confirmVariantRegeneration(): boolean {
+  private async _confirmVariantRegeneration(): Promise<boolean> {
     const options = this._formData.productOptions || [];
     const variantOptions = options.filter((o) => o.isVariant);
     const currentVariantCount = this._product?.variants.length ?? 0;
@@ -1815,28 +1825,36 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
     // Show warning if there are existing variants and variant options exist
     if (currentVariantCount > 0 && variantOptions.length > 0) {
-      const message =
-        `⚠️ WARNING: Saving these options will regenerate all product variants.\n\n` +
-        `Current variants: ${currentVariantCount}\n` +
-        `New variants to create: ${newVariantCount}\n\n` +
-        `This will DELETE all existing variants and create new ones.\n` +
-        `Any variant-specific data (pricing, stock levels, images, SKUs) will need to be re-entered manually.\n\n` +
-        `Are you sure you want to continue?`;
+      const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+        data: {
+          headline: "Regenerate Variants",
+          content: `Saving these options will regenerate all product variants. Current variants: ${currentVariantCount}. New variants to create: ${newVariantCount}. This will DELETE all existing variants and create new ones. Any variant-specific data (pricing, stock levels, images, SKUs) will need to be re-entered manually.`,
+          confirmLabel: "Continue",
+          color: "danger",
+        },
+      });
 
-      return confirm(message);
+      const result = await modalContext?.onSubmit().catch(() => undefined);
+      if (!result) return false; // User cancelled
+      if (!this.#isConnected) return false; // Component disconnected while modal was open
+      return true;
     }
 
     // Show warning if removing all variant options (will collapse to single variant)
     if (currentVariantCount > 1 && variantOptions.length === 0) {
-      const message =
-        `⚠️ WARNING: Removing all variant options will collapse this product to a single variant.\n\n` +
-        `Current variants: ${currentVariantCount}\n` +
-        `After save: 1 variant (default only)\n\n` +
-        `${currentVariantCount - 1} variants will be DELETED.\n` +
-        `Only the default variant will be kept.\n\n` +
-        `Are you sure you want to continue?`;
+      const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+        data: {
+          headline: "Remove Variant Options",
+          content: `Removing all variant options will collapse this product to a single variant. Current variants: ${currentVariantCount}. After save: 1 variant (default only). ${currentVariantCount - 1} variants will be DELETED. Only the default variant will be kept.`,
+          confirmLabel: "Continue",
+          color: "danger",
+        },
+      });
 
-      return confirm(message);
+      const result = await modalContext?.onSubmit().catch(() => undefined);
+      if (!result) return false; // User cancelled
+      if (!this.#isConnected) return false; // Component disconnected while modal was open
+      return true;
     }
 
     return true;
@@ -1846,7 +1864,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     if (!this._product?.id) return;
 
     // Confirm with user before potentially destructive operation
-    if (!this._confirmVariantRegeneration()) {
+    const confirmed = await this._confirmVariantRegeneration();
+    if (!confirmed) {
       // User cancelled - reload to revert form state
       this.#workspaceContext?.reload();
       return;

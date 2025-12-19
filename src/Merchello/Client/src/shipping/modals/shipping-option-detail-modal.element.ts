@@ -1,7 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
+import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
@@ -339,7 +339,19 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
   }
 
   private async _deleteCost(cost: ShippingCostDto): Promise<void> {
-    if (!confirm(`Delete cost for ${cost.regionDisplay ?? cost.countryCode}?`)) return;
+    const displayName = cost.regionDisplay ?? cost.countryCode;
+
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Shipping Cost",
+        content: `Are you sure you want to delete the shipping cost for ${displayName}?`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return; // User cancelled
 
     const { error } = await MerchelloApi.deleteShippingCost(cost.id);
 
@@ -371,7 +383,19 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
   }
 
   private async _deleteWeightTier(tier: ShippingWeightTierDto): Promise<void> {
-    if (!confirm(`Delete weight tier ${tier.weightRangeDisplay}?`)) return;
+    const displayName = tier.weightRangeDisplay ?? `${tier.minWeightKg}+ kg`;
+
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Weight Tier",
+        content: `Are you sure you want to delete the weight tier "${displayName}"?`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return; // User cancelled
 
     const { error } = await MerchelloApi.deleteShippingWeightTier(tier.id);
 

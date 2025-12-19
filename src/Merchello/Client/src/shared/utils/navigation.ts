@@ -295,6 +295,14 @@ export function navigateToDiscountDetail(discountId: string): void {
 }
 
 /**
+ * Replace current URL with discount detail page (no browser history entry).
+ * Use after creating a new discount to switch from /create to /edit/{id}.
+ */
+export function replaceToDiscountDetail(discountId: string): void {
+  history.replaceState({}, "", getDiscountDetailHref(discountId));
+}
+
+/**
  * Navigate programmatically to create a new discount with the specified category.
  */
 export function navigateToDiscountCreate(category: number): void {

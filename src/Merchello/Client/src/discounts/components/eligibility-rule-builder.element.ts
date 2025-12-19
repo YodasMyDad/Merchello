@@ -1,8 +1,12 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
+import { UMB_MODAL_MANAGER_CONTEXT, type UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { DiscountEligibilityRuleDto } from "@discounts/types/discount.types.js";
 import { DiscountEligibilityType } from "@discounts/types/discount.types.js";
+import { MERCHELLO_CUSTOMER_PICKER_MODAL } from "@customers/modals/customer-picker-modal.token.js";
+import { MERCHELLO_SEGMENT_PICKER_MODAL } from "@customers/modals/segment-picker-modal.token.js";
+import { MerchelloApi } from "@api/merchello-api.js";
 
 /** Eligibility type options for the dropdown */
 const ELIGIBILITY_TYPE_OPTIONS = [
@@ -11,12 +15,30 @@ const ELIGIBILITY_TYPE_OPTIONS = [
   { value: DiscountEligibilityType.SpecificCustomers, label: "Specific customers" },
 ];
 
+/** Get select options for eligibility type dropdown with selected state */
+function getEligibilityTypeSelectOptions(currentValue: DiscountEligibilityType): Array<{ name: string; value: string; selected: boolean }> {
+  return ELIGIBILITY_TYPE_OPTIONS.map((opt) => ({
+    name: opt.label,
+    value: String(opt.value),
+    selected: opt.value === currentValue,
+  }));
+}
+
 @customElement("merchello-eligibility-rule-builder")
 export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitElement) {
   @property({ type: Array }) rules: DiscountEligibilityRuleDto[] = [];
   @property({ type: Boolean }) readonly = false;
 
   @state() private _editingRule?: { index: number; rule: DiscountEligibilityRuleDto };
+
+  #modalManager?: UmbModalManagerContext;
+
+  constructor() {
+    super();
+    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
+      this.#modalManager = context;
+    });
+  }
 
   private _dispatchChange(): void {
     this.dispatchEvent(
@@ -80,6 +102,86 @@ export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitE
     }
   }
 
+  private async _openCustomerPicker(index: number, rule: DiscountEligibilityRuleDto): Promise<void> {
+    if (!this.#modalManager) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_CUSTOMER_PICKER_MODAL, {
+      data: {
+        excludeCustomerIds: rule.eligibilityIds ?? [],
+        multiSelect: true,
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.selectedCustomerIds?.length) {
+      // Fetch customer names for display
+      const names: string[] = [];
+      for (const customerId of result.selectedCustomerIds) {
+        const { data } = await MerchelloApi.getCustomer(customerId);
+        if (data) {
+          const name = [data.firstName, data.lastName].filter(Boolean).join(" ") || data.email;
+          names.push(name);
+        }
+      }
+
+      this._handleUpdateRule(index, {
+        eligibilityIds: [...(rule.eligibilityIds ?? []), ...result.selectedCustomerIds],
+        eligibilityNames: [...(rule.eligibilityNames ?? []), ...names],
+      });
+    }
+  }
+
+  private async _openSegmentPicker(index: number, rule: DiscountEligibilityRuleDto): Promise<void> {
+    if (!this.#modalManager) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_SEGMENT_PICKER_MODAL, {
+      data: {
+        excludeIds: rule.eligibilityIds ?? [],
+        multiSelect: true,
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.selectedIds?.length) {
+      this._handleUpdateRule(index, {
+        eligibilityIds: [...(rule.eligibilityIds ?? []), ...result.selectedIds],
+        eligibilityNames: [...(rule.eligibilityNames ?? []), ...result.selectedNames],
+      });
+    }
+  }
+
+  private _removeEligibilityItem(index: number, rule: DiscountEligibilityRuleDto, itemIndex: number): void {
+    const newIds = rule.eligibilityIds?.filter((_, i) => i !== itemIndex) ?? [];
+    const newNames = rule.eligibilityNames?.filter((_, i) => i !== itemIndex) ?? [];
+
+    this._handleUpdateRule(index, {
+      eligibilityIds: newIds.length > 0 ? newIds : [],
+      eligibilityNames: newNames.length > 0 ? newNames : [],
+    });
+  }
+
+  private _getPickerButtonLabel(eligibilityType: DiscountEligibilityType): string {
+    switch (eligibilityType) {
+      case DiscountEligibilityType.SpecificCustomers:
+        return "Select customers";
+      case DiscountEligibilityType.CustomerSegments:
+        return "Select segments";
+      default:
+        return "Select items";
+    }
+  }
+
+  private async _openPicker(index: number, rule: DiscountEligibilityRuleDto): Promise<void> {
+    switch (rule.eligibilityType) {
+      case DiscountEligibilityType.SpecificCustomers:
+        await this._openCustomerPicker(index, rule);
+        break;
+      case DiscountEligibilityType.CustomerSegments:
+        await this._openSegmentPicker(index, rule);
+        break;
+    }
+  }
+
   private _renderRuleCard(rule: DiscountEligibilityRuleDto, index: number): unknown {
     const isEditing = this._editingRule?.index === index;
     const hasSelection = rule.eligibilityIds && rule.eligibilityIds.length > 0;
@@ -115,28 +217,41 @@ export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitE
                 <uui-form-layout-item>
                   <uui-label slot="label">Who can use this discount?</uui-label>
                   <uui-select
+                    .options=${getEligibilityTypeSelectOptions(rule.eligibilityType)}
                     .value=${String(rule.eligibilityType)}
                     @change=${(e: Event) =>
                       this._handleEligibilityTypeChange(index, parseInt((e.target as HTMLSelectElement).value, 10))}
-                  >
-                    ${ELIGIBILITY_TYPE_OPTIONS.map(
-                      (opt) => html` <uui-select-option value=${String(opt.value)}>${opt.label}</uui-select-option> `
-                    )}
-                  </uui-select>
+                  ></uui-select>
                 </uui-form-layout-item>
 
                 ${rule.eligibilityType !== DiscountEligibilityType.AllCustomers
                   ? html`
-                      <div class="selection-placeholder">
-                        <uui-icon name="icon-search"></uui-icon>
-                        <span>
-                          ${rule.eligibilityType === DiscountEligibilityType.SpecificCustomers
-                            ? "Customer selection coming soon"
-                            : "Customer segment selection coming soon"}
-                        </span>
+                      <div class="selection-area">
+                        <uui-button look="secondary" @click=${() => this._openPicker(index, rule)}>
+                          <uui-icon name="icon-search"></uui-icon>
+                          ${this._getPickerButtonLabel(rule.eligibilityType)}
+                        </uui-button>
                         ${hasSelection
-                          ? html`<small>${rule.eligibilityIds?.length} item(s) selected</small>`
-                          : html`<small>No items selected</small>`}
+                          ? html`
+                              <uui-ref-list>
+                                ${rule.eligibilityNames?.map(
+                                  (name, itemIndex) => html`
+                                    <uui-ref-node name=${name}>
+                                      <uui-icon slot="icon" name=${this._getTypeIcon(rule.eligibilityType)}></uui-icon>
+                                      <uui-action-bar slot="actions">
+                                        <uui-button
+                                          label="Remove"
+                                          @click=${(e: Event) => {
+                                            e.stopPropagation();
+                                            this._removeEligibilityItem(index, rule, itemIndex);
+                                          }}></uui-button>
+                                      </uui-action-bar>
+                                    </uui-ref-node>
+                                  `
+                                )}
+                              </uui-ref-list>
+                            `
+                          : html`<small class="no-selection">No items selected</small>`}
                       </div>
                     `
                   : html`
@@ -289,19 +404,17 @@ export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitE
       color: var(--uui-color-text-alt);
     }
 
-    .selection-placeholder {
+    .selection-area {
       display: flex;
       flex-direction: column;
-      align-items: center;
-      padding: var(--uui-size-space-4);
-      background: var(--uui-color-surface-alt);
-      border-radius: var(--uui-border-radius);
-      border: 1px dashed var(--uui-color-border);
-      text-align: center;
-      gap: var(--uui-size-space-2);
+      gap: var(--uui-size-space-3);
     }
 
-    .selection-placeholder small {
+    uui-ref-list {
+      margin-top: var(--uui-size-space-2);
+    }
+
+    .no-selection {
       color: var(--uui-color-text-alt);
     }
 

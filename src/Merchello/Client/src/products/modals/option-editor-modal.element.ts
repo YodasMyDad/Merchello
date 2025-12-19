@@ -1,6 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
-import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
+import { UmbModalBaseElement, UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
+import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { OptionEditorModalData, OptionEditorModalValue } from "./option-editor-modal.token.js";
@@ -26,20 +27,31 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
   @state() private _originalIsVariant = false;
 
   #notificationContext?: UmbNotificationContext;
+  #modalManager?: UmbModalManagerContext;
+  #isConnected = false;
 
   constructor() {
     super();
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
     });
+    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
+      this.#modalManager = context;
+    });
   }
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.#isConnected = true;
     if (this.data?.option) {
       this._formData = { ...this.data.option };
       this._originalIsVariant = this.data.option.isVariant;
     }
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#isConnected = false;
   }
 
   private _getOptionTypeOptions(): SelectOption[] {
@@ -63,19 +75,29 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     }));
   }
 
-  private _handleSave(): void {
+  private async _handleSave(): Promise<void> {
     if (!this._validateForm()) {
       return;
     }
 
     // Warn if changing isVariant on existing option
     if (this.data?.option && this._originalIsVariant !== this._formData.isVariant) {
-      const confirmed = confirm(
-        this._formData.isVariant
-          ? "Enabling 'Generates Variants' will create new product variants. You'll need to regenerate variants for this to take effect.\n\nContinue?"
-          : "Disabling 'Generates Variants' will not delete existing variants, but they won't be regenerated.\n\nContinue?"
-      );
-      if (!confirmed) return;
+      const warningMessage = this._formData.isVariant
+        ? "Enabling 'Generates Variants' will create new product variants. You'll need to regenerate variants for this to take effect."
+        : "Disabling 'Generates Variants' will not delete existing variants, but they won't be regenerated.";
+
+      const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+        data: {
+          headline: "Change Variant Option",
+          content: warningMessage,
+          confirmLabel: "Continue",
+          color: "warning",
+        },
+      });
+
+      const result = await modalContext?.onSubmit().catch(() => undefined);
+      if (!result) return; // User cancelled
+      if (!this.#isConnected) return; // Component disconnected while modal was open
     }
 
     this.value = {

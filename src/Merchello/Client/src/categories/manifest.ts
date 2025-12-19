@@ -30,5 +30,13 @@ export const manifests: Array<UmbExtensionManifest> = [
       },
     ],
   },
+
+  // Category picker modal (for discount targeting)
+  {
+    type: "modal",
+    alias: "Merchello.CategoryPicker.Modal",
+    name: "Category Picker Modal",
+    js: () => import("./modals/category-picker-modal.element.js"),
+  },
 ];
 

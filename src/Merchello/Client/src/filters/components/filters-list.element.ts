@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
+import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
@@ -181,15 +181,22 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
     e.stopPropagation();
 
     const filterCount = filterGroup.filters?.length || 0;
-    const confirmed = confirm(
-      `Are you sure you want to delete filter group "${filterGroup.name}"?\n\n${
-        filterCount > 0
-          ? `This will also delete ${filterCount} filter${filterCount > 1 ? "s" : ""} in this group.`
-          : ""
-      }\n\nThis action cannot be undone.`
-    );
+    const warningText = filterCount > 0
+      ? ` This will also delete ${filterCount} filter${filterCount > 1 ? "s" : ""} in this group.`
+      : "";
 
-    if (!confirmed) return;
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Filter Group",
+        content: `Are you sure you want to delete filter group "${filterGroup.name}"?${warningText} This action cannot be undone.`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return; // User cancelled
+    if (!this.#isConnected) return; // Component disconnected while modal was open
 
     this._isDeletingGroup = filterGroup.id;
 

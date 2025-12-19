@@ -3,7 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
 import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
-import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
+import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
@@ -280,11 +280,18 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
   private async _handleDelete(): Promise<void> {
     if (!this._warehouse?.id) return;
 
-    const confirmed = confirm(
-      `Are you sure you want to delete warehouse "${this._warehouse.name || "Unnamed"}"? This action cannot be undone.`
-    );
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Warehouse",
+        content: `Are you sure you want to delete warehouse "${this._warehouse.name || "Unnamed"}"? This action cannot be undone.`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
 
-    if (!confirmed) return;
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return; // User cancelled
+    if (!this.#isConnected) return; // Component disconnected while modal was open
 
     const { error } = await MerchelloApi.deleteWarehouse(this._warehouse.id);
 
@@ -327,8 +334,20 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     e.stopPropagation();
     if (!this._warehouse?.id) return;
 
-    const confirmed = confirm(`Are you sure you want to remove this service region?`);
-    if (!confirmed) return;
+    const regionDisplay = region.regionDisplay || `${region.stateOrProvinceCode || ""} ${region.countryCode}`.trim();
+
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Remove Service Region",
+        content: `Are you sure you want to remove the service region "${regionDisplay}"?`,
+        confirmLabel: "Remove",
+        color: "danger",
+      },
+    });
+
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return; // User cancelled
+    if (!this.#isConnected) return; // Component disconnected while modal was open
 
     this._isDeletingRegion = region.id;
 
@@ -374,8 +393,18 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
   private async _handleDeleteOption(e: Event, option: ShippingOptionDto): Promise<void> {
     e.stopPropagation();
 
-    const confirmed = confirm(`Are you sure you want to delete shipping option "${option.name}"?`);
-    if (!confirmed) return;
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Shipping Option",
+        content: `Are you sure you want to delete shipping option "${option.name}"?`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return; // User cancelled
+    if (!this.#isConnected) return; // Component disconnected while modal was open
 
     this._isDeletingOption = option.id;
 

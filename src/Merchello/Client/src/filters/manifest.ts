@@ -46,4 +46,12 @@ export const manifests: Array<UmbExtensionManifest> = [
     name: "Merchello Filter Modal",
     js: () => import("./modals/filter-modal.element.js"),
   },
+
+  // Filter picker modal (for discount targeting)
+  {
+    type: "modal",
+    alias: "Merchello.FilterPicker.Modal",
+    name: "Filter Picker Modal",
+    js: () => import("./modals/filter-picker-modal.element.js"),
+  },
 ];

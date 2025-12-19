@@ -78,4 +78,12 @@ export const manifests: Array<UmbExtensionManifest> = [
     name: "Customer Picker Modal",
     js: () => import("./modals/customer-picker-modal.element.js"),
   },
+
+  // Segment picker modal (for discount eligibility)
+  {
+    type: "modal",
+    alias: "Merchello.SegmentPicker.Modal",
+    name: "Segment Picker Modal",
+    js: () => import("./modals/segment-picker-modal.element.js"),
+  },
 ];

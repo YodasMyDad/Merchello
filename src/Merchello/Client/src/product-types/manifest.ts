@@ -38,4 +38,12 @@ export const manifests: Array<UmbExtensionManifest> = [
     name: "Merchello Product Type Modal",
     js: () => import("./modals/product-type-modal.element.js"),
   },
+
+  // Product type picker modal (for discount targeting)
+  {
+    type: "modal",
+    alias: "Merchello.ProductTypePicker.Modal",
+    name: "Product Type Picker Modal",
+    js: () => import("./modals/product-type-picker-modal.element.js"),
+  },
 ];

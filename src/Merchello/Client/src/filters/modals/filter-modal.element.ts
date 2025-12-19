@@ -1,6 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
-import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
+import { UmbModalBaseElement, UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
+import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { FilterModalData, FilterModalValue } from "./filter-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
@@ -19,12 +20,23 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
   @state() private _isDeleting: boolean = false;
   @state() private _errors: Record<string, string> = {};
 
+  #modalManager?: UmbModalManagerContext;
+  #isConnected = false;
+
   private get _isEditMode(): boolean {
     return !!this.data?.filter;
   }
 
+  constructor() {
+    super();
+    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
+      this.#modalManager = context;
+    });
+  }
+
   connectedCallback(): void {
     super.connectedCallback();
+    this.#isConnected = true;
     // Pre-populate form with existing filter data if editing
     if (this.data?.filter) {
       this._name = this.data.filter.name;
@@ -104,12 +116,24 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
     const filterId = this.data?.filter?.id;
     if (!filterId) return;
 
-    const confirmed = confirm(`Are you sure you want to delete "${this._name}"? This cannot be undone.`);
-    if (!confirmed) return;
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Filter",
+        content: `Are you sure you want to delete "${this._name}"? This action cannot be undone.`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return; // User cancelled
+    if (!this.#isConnected) return; // Component disconnected while modal was open
 
     this._isDeleting = true;
 
     const { error } = await MerchelloApi.deleteFilter(filterId);
+
+    if (!this.#isConnected) return;
 
     this._isDeleting = false;
 

@@ -58,7 +58,7 @@ public class DiscountEngineTests
         // Assert
         result.IsValid.ShouldBeFalse();
         result.ErrorCode.ShouldBe(DiscountValidationErrorCode.NotFound);
-        result.ErrorMessage.ShouldContain("required");
+        result.ErrorMessage!.ShouldContain("required");
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class DiscountEngineTests
         // Assert
         result.IsValid.ShouldBeFalse();
         result.ErrorCode.ShouldBe(DiscountValidationErrorCode.NotFound);
-        result.ErrorMessage.ShouldContain("not found");
+        result.ErrorMessage!.ShouldContain("not found");
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class DiscountEngineTests
         // Assert
         result.IsValid.ShouldBeFalse();
         result.ErrorCode.ShouldBe(DiscountValidationErrorCode.Inactive);
-        result.ErrorMessage.ShouldContain("not currently active");
+        result.ErrorMessage!.ShouldContain("not currently active");
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class DiscountEngineTests
         // Assert
         result.IsValid.ShouldBeFalse();
         result.ErrorCode.ShouldBe(DiscountValidationErrorCode.NotStarted);
-        result.ErrorMessage.ShouldContain("not started yet");
+        result.ErrorMessage!.ShouldContain("not started yet");
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class DiscountEngineTests
         // Assert
         result.IsValid.ShouldBeFalse();
         result.ErrorCode.ShouldBe(DiscountValidationErrorCode.Expired);
-        result.ErrorMessage.ShouldContain("expired");
+        result.ErrorMessage!.ShouldContain("expired");
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public class DiscountEngineTests
         // Assert
         result.IsValid.ShouldBeFalse();
         result.ErrorCode.ShouldBe(DiscountValidationErrorCode.UsageLimitReached);
-        result.ErrorMessage.ShouldContain("usage limit");
+        result.ErrorMessage!.ShouldContain("usage limit");
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public class DiscountEngineTests
         // Assert
         result.IsValid.ShouldBeFalse();
         result.ErrorCode.ShouldBe(DiscountValidationErrorCode.CustomerUsageLimitReached);
-        result.ErrorMessage.ShouldContain("usage limit");
+        result.ErrorMessage!.ShouldContain("usage limit");
     }
 
     [Fact]
@@ -210,7 +210,7 @@ public class DiscountEngineTests
         // Assert
         result.IsValid.ShouldBeFalse();
         result.ErrorCode.ShouldBe(DiscountValidationErrorCode.MinimumRequirementNotMet);
-        result.ErrorMessage.ShouldContain("Minimum purchase");
+        result.ErrorMessage!.ShouldContain("Minimum purchase");
     }
 
     [Fact]
@@ -233,7 +233,7 @@ public class DiscountEngineTests
         // Assert
         result.IsValid.ShouldBeFalse();
         result.ErrorCode.ShouldBe(DiscountValidationErrorCode.MinimumRequirementNotMet);
-        result.ErrorMessage.ShouldContain("Minimum quantity");
+        result.ErrorMessage!.ShouldContain("Minimum quantity");
     }
 
     [Fact]
@@ -261,7 +261,7 @@ public class DiscountEngineTests
         // Assert
         result.IsValid.ShouldBeFalse();
         result.ErrorCode.ShouldBe(DiscountValidationErrorCode.NoApplicableProducts);
-        result.ErrorMessage.ShouldContain("No products");
+        result.ErrorMessage!.ShouldContain("No products");
     }
 
     [Fact]
@@ -281,7 +281,7 @@ public class DiscountEngineTests
         // Assert
         result.IsValid.ShouldBeFalse();
         result.ErrorCode.ShouldBe(DiscountValidationErrorCode.AlreadyApplied);
-        result.ErrorMessage.ShouldContain("already been applied");
+        result.ErrorMessage!.ShouldContain("already been applied");
     }
 
     [Fact]
@@ -598,7 +598,7 @@ public class DiscountEngineTests
 
         // Assert
         result.Success.ShouldBeFalse();
-        result.ErrorMessage.ShouldContain("configuration is missing");
+        result.ErrorMessage!.ShouldContain("configuration is missing");
     }
 
     #endregion

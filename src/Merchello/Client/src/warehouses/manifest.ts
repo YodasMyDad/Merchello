@@ -82,4 +82,12 @@ export const manifests: Array<UmbExtensionManifest> = [
     name: "Merchello Service Region Modal",
     js: () => import("./modals/service-region-modal.element.js"),
   },
+
+  // Warehouse picker modal (for discount targeting)
+  {
+    type: "modal",
+    alias: "Merchello.WarehousePicker.Modal",
+    name: "Warehouse Picker Modal",
+    js: () => import("./modals/warehouse-picker-modal.element.js"),
+  },
 ];

@@ -4,6 +4,9 @@ import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
+import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
+import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
+import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
 import type { MerchelloDiscountDetailWorkspaceContext } from "@discounts/contexts/discount-detail-workspace.context.js";
 import type {
   DiscountDetailDto,
@@ -23,7 +26,7 @@ import {
   DISCOUNT_STATUS_COLORS,
 } from "@discounts/types/discount.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
-import { navigateToDiscountsList } from "@shared/utils/navigation.js";
+import { navigateToDiscountsList, getDiscountsListHref, replaceToDiscountDetail } from "@shared/utils/navigation.js";
 import "./discount-summary-card.element.js";
 import "./discount-performance.element.js";
 import "./eligibility-rule-builder.element.js";
@@ -35,19 +38,25 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
   @state() private _isNew = true;
   @state() private _isLoading = true;
   @state() private _isSaving = false;
-  @state() private _activeTab = "details";
   @state() private _validationErrors: Map<string, string> = new Map();
   @state() private _codeAvailable: boolean | null = null;
   @state() private _isGeneratingCode = false;
   @state() private _targetRules: DiscountTargetRuleDto[] = [];
   @state() private _eligibilityRules: DiscountEligibilityRuleDto[] = [];
 
+  // Router state for URL-based tab navigation
+  @state() private _routes: UmbRoute[] = [];
+  @state() private _routerPath?: string;
+  @state() private _activePath = "";
+
   #workspaceContext?: MerchelloDiscountDetailWorkspaceContext;
   #notificationContext?: UmbNotificationContext;
+  #modalManager?: UmbModalManagerContext;
   #codeCheckDebounce?: ReturnType<typeof setTimeout>;
 
   constructor() {
     super();
+    this._initRoutes();
 
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
       this.#workspaceContext = context as MerchelloDiscountDetailWorkspaceContext;
@@ -72,6 +81,10 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
     });
+
+    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
+      this.#modalManager = context;
+    });
   }
 
   override disconnectedCallback(): void {
@@ -83,8 +96,83 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
     }
   }
 
+  // ============================================
+  // Router Methods
+  // ============================================
+
+  /**
+   * Initialize routes for URL-based tab navigation
+   */
+  private _initRoutes(): void {
+    const stubComponent = (): HTMLElement => document.createElement("div");
+
+    this._routes = [
+      { path: "tab/details", component: stubComponent },
+      { path: "tab/targets", component: stubComponent },
+      { path: "tab/requirements", component: stubComponent },
+      { path: "tab/eligibility", component: stubComponent },
+      { path: "tab/combinations", component: stubComponent },
+      { path: "tab/schedule", component: stubComponent },
+      { path: "tab/performance", component: stubComponent },
+      { path: "", redirectTo: "tab/details" },
+    ];
+  }
+
+  /**
+   * Get the currently active tab from the router path
+   */
+  private _getActiveTab(): string {
+    if (this._activePath.includes("tab/targets")) return "targets";
+    if (this._activePath.includes("tab/requirements")) return "requirements";
+    if (this._activePath.includes("tab/eligibility")) return "eligibility";
+    if (this._activePath.includes("tab/combinations")) return "combinations";
+    if (this._activePath.includes("tab/schedule")) return "schedule";
+    if (this._activePath.includes("tab/performance")) return "performance";
+    return "details";
+  }
+
+  /**
+   * Handle router slot initialization
+   */
+  private _onRouterInit(event: UmbRouterSlotInitEvent): void {
+    this._routerPath = event.target.absoluteRouterPath;
+  }
+
+  /**
+   * Handle router slot path changes
+   */
+  private _onRouterChange(event: UmbRouterSlotChangeEvent): void {
+    this._activePath = event.target.localActiveViewPath || "";
+  }
+
   private _getCategoryInfo(category: DiscountCategory): typeof DISCOUNT_CATEGORIES[number] | undefined {
     return DISCOUNT_CATEGORIES.find((c) => c.category === category);
+  }
+
+  private _getMethodOptions(): Array<{ name: string; value: string; selected: boolean }> {
+    return [
+      { name: "Discount code", value: "0", selected: this._discount?.method === DiscountMethod.Code },
+      { name: "Automatic discount", value: "1", selected: this._discount?.method === DiscountMethod.Automatic },
+    ];
+  }
+
+  private _getValueTypeOptions(): Array<{ name: string; value: string; selected: boolean }> {
+    const options: Array<{ name: string; value: string; selected: boolean }> = [
+      { name: "Percentage", value: "1", selected: this._discount?.valueType === DiscountValueType.Percentage },
+      { name: "Fixed amount", value: "0", selected: this._discount?.valueType === DiscountValueType.FixedAmount },
+    ];
+    if (this._discount?.category === DiscountCategory.BuyXGetY) {
+      options.push({ name: "Free", value: "2", selected: this._discount?.valueType === DiscountValueType.Free });
+    }
+    return options;
+  }
+
+  private _getRequirementTypeOptions(): Array<{ name: string; value: string; selected: boolean }> {
+    return [
+      { name: "No minimum requirements", value: "0", selected: this._discount?.requirementType === DiscountRequirementType.None },
+      { name: "Minimum purchase amount", value: "1", selected: this._discount?.requirementType === DiscountRequirementType.MinimumPurchaseAmount },
+      { name: "Minimum quantity of items", value: "2", selected: this._discount?.requirementType === DiscountRequirementType.MinimumQuantity },
+    ];
   }
 
   private _getHeadline(): string {
@@ -234,11 +322,12 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
 
       if (data) {
         this.#workspaceContext?.updateDiscount(data);
+        this._isNew = false; // Switch to edit mode after successful creation
         this.#notificationContext?.peek("positive", {
           data: { headline: "Discount created", message: `${data.name} has been created` },
         });
         // Navigate to the edit page for the newly created discount
-        history.replaceState({}, "", `section/merchello/workspace/merchello-discount/edit/${data.id}`);
+        replaceToDiscountDetail(data.id);
       }
     } else {
       const updateDto: UpdateDiscountDto = {
@@ -295,8 +384,17 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
   private async _handleDelete(): Promise<void> {
     if (!this._discount?.id) return;
 
-    const confirmed = confirm(`Are you sure you want to delete "${this._discount.name}"? This action cannot be undone.`);
-    if (!confirmed) return;
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Discount",
+        content: `Are you sure you want to delete "${this._discount.name}"? This action cannot be undone.`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return; // User cancelled
 
     const { error } = await MerchelloApi.deleteDiscount(this._discount.id);
 
@@ -353,57 +451,55 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
     }
   }
 
-  private _renderLoading(): unknown {
-    return html`<div class="loading"><uui-loader></uui-loader></div>`;
-  }
-
   private _renderDetailsTab(): unknown {
     return html`
       <uui-box headline="Basic Information">
         <div class="form-grid">
-          <uui-form-layout-item>
-            <uui-label slot="label" required>Name</uui-label>
+          <umb-property-layout
+            label="Name"
+            ?mandatory=${true}
+            ?invalid=${this._validationErrors.has("name")}>
             <uui-input
+              slot="editor"
               .value=${this._discount?.name ?? ""}
               @input=${(e: Event) => this._handleInputChange("name", (e.target as HTMLInputElement).value)}
               placeholder="e.g., Summer Sale 20% Off"
               ?invalid=${this._validationErrors.has("name")}
             ></uui-input>
-            ${this._validationErrors.has("name")
-              ? html`<div class="error-message">${this._validationErrors.get("name")}</div>`
-              : nothing}
-          </uui-form-layout-item>
+          </umb-property-layout>
 
-          <uui-form-layout-item>
-            <uui-label slot="label">Description</uui-label>
+          <umb-property-layout
+            label="Description"
+            description="Internal description for this discount">
             <uui-textarea
+              slot="editor"
               .value=${this._discount?.description ?? ""}
               @input=${(e: Event) => this._handleInputChange("description", (e.target as HTMLTextAreaElement).value)}
               placeholder="Internal description for this discount"
             ></uui-textarea>
-          </uui-form-layout-item>
+          </umb-property-layout>
         </div>
       </uui-box>
 
       <uui-box headline="Discount Method">
         <div class="form-grid">
-          <uui-form-layout-item>
-            <uui-label slot="label">Method</uui-label>
+          <umb-property-layout label="Method">
             <uui-select
+              slot="editor"
+              .options=${this._getMethodOptions()}
               .value=${String(this._discount?.method ?? 0)}
               @change=${(e: Event) =>
                 this._handleInputChange("method", parseInt((e.target as HTMLSelectElement).value, 10))}
-            >
-              <uui-select-option value="0">Discount code</uui-select-option>
-              <uui-select-option value="1">Automatic discount</uui-select-option>
-            </uui-select>
-          </uui-form-layout-item>
+            ></uui-select>
+          </umb-property-layout>
 
           ${this._discount?.method === DiscountMethod.Code
             ? html`
-                <uui-form-layout-item>
-                  <uui-label slot="label" required>Discount Code</uui-label>
-                  <div class="code-input-row">
+                <umb-property-layout
+                  label="Discount Code"
+                  ?mandatory=${true}
+                  ?invalid=${this._validationErrors.has("code") || this._codeAvailable === false}>
+                  <div slot="editor" class="code-input-row">
                     <uui-input
                       .value=${this._discount?.code ?? ""}
                       @input=${this._handleCodeInput}
@@ -425,7 +521,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
                       : this._codeAvailable === true
                         ? html`<div class="success-message">Code is available</div>`
                         : nothing}
-                </uui-form-layout-item>
+                </umb-property-layout>
               `
             : nothing}
         </div>
@@ -433,28 +529,24 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
 
       <uui-box headline="Discount Value">
         <div class="form-grid">
-          <uui-form-layout-item>
-            <uui-label slot="label">Value Type</uui-label>
+          <umb-property-layout label="Value Type">
             <uui-select
+              slot="editor"
+              .options=${this._getValueTypeOptions()}
               .value=${String(this._discount?.valueType ?? 1)}
               @change=${(e: Event) =>
                 this._handleInputChange("valueType", parseInt((e.target as HTMLSelectElement).value, 10))}
-            >
-              <uui-select-option value="1">Percentage</uui-select-option>
-              <uui-select-option value="0">Fixed amount</uui-select-option>
-              ${this._discount?.category === DiscountCategory.BuyXGetY
-                ? html`<uui-select-option value="2">Free</uui-select-option>`
-                : nothing}
-            </uui-select>
-          </uui-form-layout-item>
+            ></uui-select>
+          </umb-property-layout>
 
           ${this._discount?.valueType !== DiscountValueType.Free
             ? html`
-                <uui-form-layout-item>
-                  <uui-label slot="label" required>
-                    ${this._discount?.valueType === DiscountValueType.Percentage ? "Percentage (%)" : "Amount"}
-                  </uui-label>
+                <umb-property-layout
+                  label=${this._discount?.valueType === DiscountValueType.Percentage ? "Percentage (%)" : "Amount"}
+                  ?mandatory=${true}
+                  ?invalid=${this._validationErrors.has("value")}>
                   <uui-input
+                    slot="editor"
                     type="number"
                     min="0"
                     max=${this._discount?.valueType === DiscountValueType.Percentage ? "100" : ""}
@@ -464,10 +556,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
                       this._handleInputChange("value", parseFloat((e.target as HTMLInputElement).value) || 0)}
                     ?invalid=${this._validationErrors.has("value")}
                   ></uui-input>
-                  ${this._validationErrors.has("value")
-                    ? html`<div class="error-message">${this._validationErrors.get("value")}</div>`
-                    : nothing}
-                </uui-form-layout-item>
+                </umb-property-layout>
               `
             : nothing}
         </div>
@@ -479,26 +568,24 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
     return html`
       <uui-box headline="Minimum Requirements">
         <div class="form-grid">
-          <uui-form-layout-item>
-            <uui-label slot="label">Requirement Type</uui-label>
+          <umb-property-layout label="Requirement Type">
             <uui-select
+              slot="editor"
+              .options=${this._getRequirementTypeOptions()}
               .value=${String(this._discount?.requirementType ?? 0)}
               @change=${(e: Event) =>
                 this._handleInputChange("requirementType", parseInt((e.target as HTMLSelectElement).value, 10))}
-            >
-              <uui-select-option value="0">No minimum requirements</uui-select-option>
-              <uui-select-option value="1">Minimum purchase amount</uui-select-option>
-              <uui-select-option value="2">Minimum quantity of items</uui-select-option>
-            </uui-select>
-          </uui-form-layout-item>
+            ></uui-select>
+          </umb-property-layout>
 
           ${this._discount?.requirementType !== DiscountRequirementType.None
             ? html`
-                <uui-form-layout-item>
-                  <uui-label slot="label" required>
-                    ${this._discount?.requirementType === DiscountRequirementType.MinimumPurchaseAmount ? "Minimum Amount" : "Minimum Quantity"}
-                  </uui-label>
+                <umb-property-layout
+                  label=${this._discount?.requirementType === DiscountRequirementType.MinimumPurchaseAmount ? "Minimum Amount" : "Minimum Quantity"}
+                  ?mandatory=${true}
+                  ?invalid=${this._validationErrors.has("requirementValue")}>
                   <uui-input
+                    slot="editor"
                     type="number"
                     min="0"
                     step=${this._discount?.requirementType === DiscountRequirementType.MinimumPurchaseAmount ? "0.01" : "1"}
@@ -507,10 +594,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
                       this._handleInputChange("requirementValue", parseFloat((e.target as HTMLInputElement).value) || null)}
                     ?invalid=${this._validationErrors.has("requirementValue")}
                   ></uui-input>
-                  ${this._validationErrors.has("requirementValue")
-                    ? html`<div class="error-message">${this._validationErrors.get("requirementValue")}</div>`
-                    : nothing}
-                </uui-form-layout-item>
+                </umb-property-layout>
               `
             : nothing}
         </div>
@@ -518,9 +602,11 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
 
       <uui-box headline="Usage Limits">
         <div class="form-grid">
-          <uui-form-layout-item>
-            <uui-label slot="label">Total usage limit</uui-label>
+          <umb-property-layout
+            label="Total usage limit"
+            description="Leave empty for unlimited uses">
             <uui-input
+              slot="editor"
               type="number"
               min="0"
               step="1"
@@ -531,12 +617,13 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
               }}
               placeholder="Unlimited"
             ></uui-input>
-            <small>Leave empty for unlimited uses</small>
-          </uui-form-layout-item>
+          </umb-property-layout>
 
-          <uui-form-layout-item>
-            <uui-label slot="label">Per customer limit</uui-label>
+          <umb-property-layout
+            label="Per customer limit"
+            description="Max uses per customer">
             <uui-input
+              slot="editor"
               type="number"
               min="0"
               step="1"
@@ -547,14 +634,15 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
               }}
               placeholder="Unlimited"
             ></uui-input>
-            <small>Max uses per customer</small>
-          </uui-form-layout-item>
+          </umb-property-layout>
 
           ${this._discount?.category === DiscountCategory.BuyXGetY
             ? html`
-                <uui-form-layout-item>
-                  <uui-label slot="label">Per order limit</uui-label>
+                <umb-property-layout
+                  label="Per order limit"
+                  description="Max times per order (for Buy X Get Y)">
                   <uui-input
+                    slot="editor"
                     type="number"
                     min="0"
                     step="1"
@@ -565,8 +653,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
                     }}
                     placeholder="Unlimited"
                   ></uui-input>
-                  <small>Max times per order (for Buy X Get Y)</small>
-                </uui-form-layout-item>
+                </umb-property-layout>
               `
             : nothing}
         </div>
@@ -614,9 +701,9 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
         <p class="box-description">
           Lower numbers have higher priority. When multiple discounts apply, higher priority discounts are calculated first.
         </p>
-        <uui-form-layout-item>
-          <uui-label slot="label">Priority</uui-label>
+        <umb-property-layout label="Priority">
           <uui-input
+            slot="editor"
             type="number"
             min="1"
             step="1"
@@ -624,7 +711,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
             @input=${(e: Event) =>
               this._handleInputChange("priority", parseInt((e.target as HTMLInputElement).value, 10) || 1000)}
           ></uui-input>
-        </uui-form-layout-item>
+        </umb-property-layout>
       </uui-box>
     `;
   }
@@ -638,10 +725,10 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
 
     return html`
       <uui-box headline="Active Dates">
-        <div class="form-grid">
-          <uui-form-layout-item>
-            <uui-label slot="label" required>Start Date</uui-label>
+        <div class="schedule-form">
+          <umb-property-layout label="Start Date" ?mandatory=${true}>
             <input
+              slot="editor"
               type="datetime-local"
               .value=${formatDateForInput(this._discount?.startsAt)}
               @change=${(e: Event) => {
@@ -649,11 +736,13 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
                 this._handleInputChange("startsAt", val ? new Date(val).toISOString() : new Date().toISOString());
               }}
             />
-          </uui-form-layout-item>
+          </umb-property-layout>
 
-          <uui-form-layout-item>
-            <uui-label slot="label">End Date</uui-label>
+          <umb-property-layout
+            label="End Date"
+            description="Leave empty for no end date">
             <input
+              slot="editor"
               type="datetime-local"
               .value=${formatDateForInput(this._discount?.endsAt)}
               @change=${(e: Event) => {
@@ -661,8 +750,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
                 this._handleInputChange("endsAt", val ? new Date(val).toISOString() : null);
               }}
             />
-            <small>Leave empty for no end date</small>
-          </uui-form-layout-item>
+          </umb-property-layout>
         </div>
       </uui-box>
     `;
@@ -690,115 +778,115 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
     `;
   }
 
-  private _renderContent(): unknown {
-    if (this._isLoading) {
-      return this._renderLoading();
-    }
+  /**
+   * Render the tabs with href-based routing
+   */
+  private _renderTabs(): unknown {
+    const activeTab = this._getActiveTab();
 
     return html`
-      <div class="detail-layout">
-        <div class="main-content">
-          <!-- Tabs -->
-          <uui-tab-group>
-            <uui-tab
-              label="Details"
-              ?active=${this._activeTab === "details"}
-              @click=${() => (this._activeTab = "details")}
-            >
-              Details
-            </uui-tab>
-            <uui-tab
-              label="Applies To"
-              ?active=${this._activeTab === "targets"}
-              @click=${() => (this._activeTab = "targets")}
-            >
-              Applies To
-            </uui-tab>
-            <uui-tab
-              label="Requirements"
-              ?active=${this._activeTab === "requirements"}
-              @click=${() => (this._activeTab = "requirements")}
-            >
-              Requirements
-            </uui-tab>
-            <uui-tab
-              label="Eligibility"
-              ?active=${this._activeTab === "eligibility"}
-              @click=${() => (this._activeTab = "eligibility")}
-            >
-              Eligibility
-            </uui-tab>
-            <uui-tab
-              label="Combinations"
-              ?active=${this._activeTab === "combinations"}
-              @click=${() => (this._activeTab = "combinations")}
-            >
-              Combinations
-            </uui-tab>
-            <uui-tab
-              label="Schedule"
-              ?active=${this._activeTab === "schedule"}
-              @click=${() => (this._activeTab = "schedule")}
-            >
-              Schedule
-            </uui-tab>
-            ${!this._isNew
-              ? html`
-                  <uui-tab
-                    label="Performance"
-                    ?active=${this._activeTab === "performance"}
-                    @click=${() => (this._activeTab = "performance")}
-                  >
-                    Performance
-                  </uui-tab>
-                `
-              : nothing}
-          </uui-tab-group>
+      <uui-tab-group slot="header">
+        <uui-tab
+          label="Details"
+          href="${this._routerPath}/tab/details"
+          ?active=${activeTab === "details"}>
+          Details
+        </uui-tab>
+        <uui-tab
+          label="Applies To"
+          href="${this._routerPath}/tab/targets"
+          ?active=${activeTab === "targets"}>
+          Applies To
+        </uui-tab>
+        <uui-tab
+          label="Requirements"
+          href="${this._routerPath}/tab/requirements"
+          ?active=${activeTab === "requirements"}>
+          Requirements
+        </uui-tab>
+        <uui-tab
+          label="Eligibility"
+          href="${this._routerPath}/tab/eligibility"
+          ?active=${activeTab === "eligibility"}>
+          Eligibility
+        </uui-tab>
+        <uui-tab
+          label="Combinations"
+          href="${this._routerPath}/tab/combinations"
+          ?active=${activeTab === "combinations"}>
+          Combinations
+        </uui-tab>
+        <uui-tab
+          label="Schedule"
+          href="${this._routerPath}/tab/schedule"
+          ?active=${activeTab === "schedule"}>
+          Schedule
+        </uui-tab>
+        ${!this._isNew
+          ? html`
+              <uui-tab
+                label="Performance"
+                href="${this._routerPath}/tab/performance"
+                ?active=${activeTab === "performance"}>
+                Performance
+              </uui-tab>
+            `
+          : nothing}
+      </uui-tab-group>
+    `;
+  }
 
-          <!-- Tab Content -->
-          <div class="tab-content">
-            ${this._activeTab === "details" ? this._renderDetailsTab() : nothing}
-            ${this._activeTab === "targets" ? this._renderTargetsTab() : nothing}
-            ${this._activeTab === "requirements" ? this._renderRequirementsTab() : nothing}
-            ${this._activeTab === "eligibility" ? this._renderEligibilityTab() : nothing}
-            ${this._activeTab === "combinations" ? this._renderCombinationsTab() : nothing}
-            ${this._activeTab === "schedule" ? this._renderScheduleTab() : nothing}
-            ${this._activeTab === "performance" && !this._isNew && this._discount?.id
-              ? html`<merchello-discount-performance discountId=${this._discount.id}></merchello-discount-performance>`
-              : nothing}
-          </div>
-        </div>
+  /**
+   * Render the active tab content
+   */
+  private _renderActiveTabContent(): unknown {
+    const activeTab = this._getActiveTab();
 
-        <!-- Sidebar -->
-        <div class="sidebar">
-          <merchello-discount-summary-card
-            .discount=${this._discount}
-            .isNew=${this._isNew}
-          ></merchello-discount-summary-card>
-        </div>
-      </div>
+    return html`
+      ${activeTab === "details" ? this._renderDetailsTab() : nothing}
+      ${activeTab === "targets" ? this._renderTargetsTab() : nothing}
+      ${activeTab === "requirements" ? this._renderRequirementsTab() : nothing}
+      ${activeTab === "eligibility" ? this._renderEligibilityTab() : nothing}
+      ${activeTab === "combinations" ? this._renderCombinationsTab() : nothing}
+      ${activeTab === "schedule" ? this._renderScheduleTab() : nothing}
+      ${activeTab === "performance" && !this._isNew && this._discount?.id
+        ? html`<merchello-discount-performance discountId=${this._discount.id}></merchello-discount-performance>`
+        : nothing}
     `;
   }
 
   render() {
+    if (this._isLoading) {
+      return html`
+        <umb-body-layout>
+          <div class="loading"><uui-loader></uui-loader></div>
+        </umb-body-layout>
+      `;
+    }
+
     const statusLabel = this._discount?.status !== undefined ? DISCOUNT_STATUS_LABELS[this._discount.status] : "";
     const statusColor = this._discount?.status !== undefined ? DISCOUNT_STATUS_COLORS[this._discount.status] : "default";
 
     return html`
-      <umb-workspace-editor alias="Merchello.Discount.Detail.Workspace" headline=${this._getHeadline()}>
-        <!-- Status badge in header -->
-        ${!this._isNew && this._discount
-          ? html`
-              <div slot="header">
-                <uui-tag look="secondary" color=${statusColor}>${statusLabel}</uui-tag>
-              </div>
-            `
-          : nothing}
+      <umb-body-layout header-fit-height main-no-padding>
+        <!-- Back button -->
+        <uui-button slot="header" compact href=${getDiscountsListHref()} label="Back to Discounts" class="back-button">
+          <uui-icon name="icon-arrow-left"></uui-icon>
+        </uui-button>
 
-        <!-- Header Actions -->
-        <div slot="action-menu">
-          ${!this._isNew
-            ? html`
+        <!-- Header with discount info -->
+        <div id="header" slot="header">
+          <umb-icon name="icon-coin-dollar"></umb-icon>
+          <span class="headline">${this._getHeadline()}</span>
+          ${!this._isNew && this._discount
+            ? html`<uui-tag look="secondary" color=${statusColor}>${statusLabel}</uui-tag>`
+            : nothing}
+        </div>
+
+        <!-- Header Actions (only for existing discounts) -->
+        ${!this._isNew
+          ? html`
+              <div slot="header" class="header-actions">
                 ${this._discount?.status === DiscountStatus.Active
                   ? html`
                       <uui-button
@@ -823,22 +911,55 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
                 <uui-button look="secondary" color="danger" label="Delete" @click=${this._handleDelete}>
                   Delete
                 </uui-button>
-              `
-            : nothing}
+              </div>
+            `
+          : nothing}
+
+        <!-- Inner layout with tabs -->
+        <umb-body-layout header-fit-height header-no-padding>
+          ${this._renderTabs()}
+
+          <!-- Router slot for URL tracking (hidden via CSS) -->
+          <umb-router-slot
+            .routes=${this._routes}
+            @init=${this._onRouterInit}
+            @change=${this._onRouterChange}>
+          </umb-router-slot>
+
+          <!-- Detail layout with main content and sidebar -->
+          <div class="detail-layout">
+            <div class="main-content">
+              <div class="tab-content">
+                ${this._renderActiveTabContent()}
+              </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+              <merchello-discount-summary-card
+                .discount=${this._discount}
+                .isNew=${this._isNew}
+              ></merchello-discount-summary-card>
+            </div>
+          </div>
+        </umb-body-layout>
+
+        <!-- Footer with Save button -->
+        <umb-footer-layout slot="footer">
           <uui-button
+            slot="actions"
             look="primary"
             color="positive"
-            label=${this._isNew ? "Create discount" : "Save"}
+            label=${this._isNew ? "Create" : "Save"}
             ?disabled=${this._isSaving}
             @click=${this._handleSave}
           >
-            ${this._isSaving ? "Saving..." : this._isNew ? "Create discount" : "Save"}
+            ${this._isSaving
+              ? this._isNew ? "Creating..." : "Saving..."
+              : this._isNew ? "Create" : "Save"}
           </uui-button>
-        </div>
-
-        <!-- Main Content -->
-        ${this._renderContent()}
-      </umb-workspace-editor>
+        </umb-footer-layout>
+      </umb-body-layout>
     `;
   }
 
@@ -846,6 +967,43 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
     :host {
       display: block;
       height: 100%;
+      --uui-tab-background: var(--uui-color-surface);
+    }
+
+    /* Back button styling */
+    .back-button {
+      margin-right: var(--uui-size-space-2);
+    }
+
+    /* Hide router slot - we use it only for URL tracking */
+    umb-router-slot {
+      display: none;
+    }
+
+    /* Header styling */
+    #header {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+      flex: 1;
+      padding: var(--uui-size-space-4) 0;
+    }
+
+    #header umb-icon {
+      font-size: 24px;
+      color: var(--uui-color-text-alt);
+    }
+
+    #header .headline {
+      font-size: var(--uui-type-h4-size);
+      font-weight: 700;
+    }
+
+    /* Header actions styling */
+    .header-actions {
+      display: flex;
+      gap: var(--uui-size-space-3);
+      padding-right: var(--uui-size-layout-1);
     }
 
     .loading {
@@ -876,12 +1034,19 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-4);
+      align-self: start;
     }
 
     .tab-content {
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-4);
+    }
+
+    /* Tab group styling */
+    uui-tab-group {
+      --uui-tab-divider: var(--uui-color-border);
+      width: 100%;
     }
 
     uui-box {
@@ -911,11 +1076,19 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
 
     input[type="datetime-local"] {
       width: 100%;
-      padding: var(--uui-size-space-2) var(--uui-size-space-3);
+      padding: var(--uui-size-space-3) var(--uui-size-space-4);
       border: 1px solid var(--uui-color-border);
       border-radius: var(--uui-border-radius);
-      font-size: var(--uui-type-small-size);
+      font-size: var(--uui-type-default-size);
+      font-family: inherit;
       background: var(--uui-color-surface);
+      color: var(--uui-color-text);
+      box-sizing: border-box;
+    }
+
+    input[type="datetime-local"]:focus {
+      outline: 2px solid var(--uui-color-focus);
+      outline-offset: 2px;
     }
 
     .code-input-row {
@@ -955,6 +1128,14 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
       top: var(--uui-size-space-4);
       align-self: start;
     }
+
+    .schedule-form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-5);
+      max-width: 400px;
+    }
+
   `;
 }
 

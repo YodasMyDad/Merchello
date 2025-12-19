@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
+import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
@@ -127,9 +127,20 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
   }
 
   private async _handleRemoveMember(member: SegmentMemberDto): Promise<void> {
-    if (!confirm(`Remove ${member.customerName || member.customerEmail} from this segment?`)) {
-      return;
-    }
+    const displayName = member.customerName || member.customerEmail;
+
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Remove Member",
+        content: `Are you sure you want to remove ${displayName} from this segment?`,
+        confirmLabel: "Remove",
+        color: "danger",
+      },
+    });
+
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return; // User cancelled
+    if (!this.#isConnected) return; // Component disconnected while modal was open
 
     this._removingIds = new Set([...this._removingIds, member.customerId]);
 

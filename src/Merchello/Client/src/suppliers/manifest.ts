@@ -46,4 +46,12 @@ export const manifests: Array<UmbExtensionManifest> = [
     name: "Merchello Supplier Modal",
     js: () => import("./modals/supplier-modal.element.js"),
   },
+
+  // Supplier picker modal (for discount targeting)
+  {
+    type: "modal",
+    alias: "Merchello.SupplierPicker.Modal",
+    name: "Supplier Picker Modal",
+    js: () => import("./modals/supplier-picker-modal.element.js"),
+  },
 ];

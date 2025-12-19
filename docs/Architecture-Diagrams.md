@@ -52,6 +52,7 @@ FACTORIES → All object creation, stateless singletons
 | `LineItemFactory` | Line items |
 | `TaxGroupFactory` | Tax config |
 | `CustomerFactory` | Customer from email/params |
+| `CustomerSegmentFactory` | CustomerSegment, CustomerSegmentMember |
 | `DiscountFactory` | Discount, TargetRules, BuyXGetYConfig, FreeShippingConfig |
 
 ### Rules
@@ -90,7 +91,7 @@ Feature/
 └── ExtensionMethods/
 ```
 
-**Modules**: Accounting, Checkout, Customers, Products, Shipping, Payments, Suppliers, Warehouses, Locality, Notifications, Stores
+**Modules**: Accounting, Checkout, Customers, Discounts, Products, Shipping, Payments, Suppliers, Warehouses, Locality, Notifications, Stores
 
 ## 3. Entity Relationships
 
@@ -106,6 +107,15 @@ ProductRoot →1:N→ Product (variant)
 Product →1:N→ PackageConfigurations, HsCode
 
 Customer →1:N→ Invoice (required, auto-created from billing email)
+        →M:N→ CustomerSegment (via CustomerSegmentMember for manual, criteria evaluation for automated)
+
+CustomerSegment →1:N→ CustomerSegmentMember (manual segments only)
+
+Discount →1:N→ DiscountTargetRule
+        →1:N→ DiscountEligibilityRule
+        →1:N→ DiscountUsage
+        →1:1→ DiscountBuyXGetYConfig (optional, for BuyXGetY category)
+        →1:1→ DiscountFreeShippingConfig (optional, for FreeShipping category)
 
 Invoice →1:N→ Order →1:N→ Shipment (N:1 Warehouse)
        →1:N→ Payment
@@ -259,6 +269,8 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 |---------|----------------|
 | `ICheckoutService` | Basket ops, discounts, shipping quotes, order grouping |
 | `ICustomerService` | Customer CRUD, get-or-create by email |
+| `ICustomerSegmentService` | Segment CRUD, membership evaluation, criteria matching |
+| `ISegmentCriteriaEvaluator` | Criteria evaluation for automated segments |
 | `IInvoiceService` | Invoice/order CRUD, status, totals |
 | `IInventoryService` | Stock reserve/allocate/release |
 | `IProductService` | Product CRUD, variants, options |

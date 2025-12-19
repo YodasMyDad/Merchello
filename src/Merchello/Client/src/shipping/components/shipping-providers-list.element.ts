@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
+import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
@@ -137,9 +137,18 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
   }
 
   private async _deleteProvider(configuration: ShippingProviderConfigurationDto): Promise<void> {
-    if (!confirm(`Are you sure you want to remove ${configuration.displayName}?`)) {
-      return;
-    }
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Remove Shipping Provider",
+        content: `Are you sure you want to remove ${configuration.displayName}?`,
+        confirmLabel: "Remove",
+        color: "danger",
+      },
+    });
+
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return; // User cancelled
+    if (!this.#isConnected) return; // Component disconnected while modal was open
 
     const { error } = await MerchelloApi.deleteShippingProvider(configuration.id);
 

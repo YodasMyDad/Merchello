@@ -4,7 +4,7 @@ import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
-import type { UmbRoute } from "@umbraco-cms/backoffice/router";
+import type { UmbRoute, UmbRouterSlotInitEvent, UmbRouterSlotChangeEvent } from "@umbraco-cms/backoffice/router";
 import type {
   CustomerSegmentDetailDto,
   CustomerSegmentType,
@@ -95,6 +95,14 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
 
   private _handleCriteriaChanged(e: CustomEvent<{ criteria: SegmentCriteriaDto[] }>): void {
     this._formData = { ...this._formData, criteria: e.detail.criteria };
+  }
+
+  private _onRouterInit(event: UmbRouterSlotInitEvent): void {
+    this._routerPath = event.target.absoluteRouterPath ?? "";
+  }
+
+  private _onRouterChange(event: UmbRouterSlotChangeEvent): void {
+    this._activePath = event.target.localActiveViewPath || "";
   }
 
   private _clearFieldError(field: string): void {
@@ -353,8 +361,8 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
           <!-- Router slot for URL tracking (hidden) -->
           <umb-router-slot
             .routes=${this._routes}
-            @init=${(e: CustomEvent) => { this._routerPath = (e.target as any).absoluteRouterPath; }}
-            @change=${(e: CustomEvent) => { this._activePath = (e.target as any).localActiveViewPath; }}>
+            @init=${this._onRouterInit}
+            @change=${this._onRouterChange}>
           </umb-router-slot>
 
           <!-- Tab content -->

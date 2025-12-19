@@ -3,6 +3,8 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
+import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
+import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { CustomerSegmentListItemDto } from "@customers/types/segment.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getSegmentDetailHref, getSegmentCreateHref } from "@shared/utils/navigation.js";
@@ -16,12 +18,16 @@ export class MerchelloSegmentsListElement extends UmbElementMixin(LitElement) {
   @state() private _deletingId: string | null = null;
 
   #notificationContext?: UmbNotificationContext;
+  #modalManager?: UmbModalManagerContext;
   #isConnected = false;
 
   constructor() {
     super();
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
+    });
+    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
+      this.#modalManager = context;
     });
   }
 
@@ -65,9 +71,18 @@ export class MerchelloSegmentsListElement extends UmbElementMixin(LitElement) {
       return;
     }
 
-    if (!confirm(`Are you sure you want to delete "${segment.name}"?`)) {
-      return;
-    }
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Segment",
+        content: `Are you sure you want to delete "${segment.name}"? This action cannot be undone.`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return; // User cancelled
+    if (!this.#isConnected) return; // Component disconnected while modal was open
 
     this._deletingId = segment.id;
     const { error } = await MerchelloApi.deleteCustomerSegment(segment.id);
