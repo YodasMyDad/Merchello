@@ -161,15 +161,17 @@ public class SegmentCriteriaEvaluator(
                 return null;
 
             // Query order metrics (exclude deleted and cancelled invoices)
+            // Cast decimal to double for SQLite compatibility (avoids ef_sum error)
             var orderStats = await db.Invoices
                 .Where(i => i.CustomerId == customerId && !i.IsDeleted && !i.IsCancelled)
+                .Select(i => new { Amount = (double)(i.TotalInStoreCurrency ?? i.Total), i.DateCreated })
                 .GroupBy(_ => 1)
                 .Select(g => new
                 {
                     OrderCount = g.Count(),
-                    TotalSpend = g.Sum(i => i.TotalInStoreCurrency ?? i.Total),
-                    FirstOrderDate = g.Min(i => i.DateCreated),
-                    LastOrderDate = g.Max(i => i.DateCreated)
+                    TotalSpend = (decimal)g.Sum(x => x.Amount),
+                    FirstOrderDate = g.Min(x => x.DateCreated),
+                    LastOrderDate = g.Max(x => x.DateCreated)
                 })
                 .FirstOrDefaultAsync(ct);
 
@@ -456,16 +458,18 @@ public class SegmentCriteriaEvaluator(
     private static IQueryable<CustomerWithMetrics> BuildCustomerWithMetricsQuery(MerchelloDbContext db, DateTime utcNow)
     {
         // Subquery for invoice aggregates per customer
+        // Cast decimal to double for SQLite compatibility (avoids ef_sum error)
         var invoiceAggregates = db.Invoices
             .Where(i => !i.IsDeleted && !i.IsCancelled)
+            .Select(i => new { i.CustomerId, Amount = (double)(i.TotalInStoreCurrency ?? i.Total), i.DateCreated })
             .GroupBy(i => i.CustomerId)
             .Select(g => new
             {
                 CustomerId = g.Key,
                 OrderCount = g.Count(),
-                TotalSpend = g.Sum(i => i.TotalInStoreCurrency ?? i.Total),
-                FirstOrderDate = (DateTime?)g.Min(i => i.DateCreated),
-                LastOrderDate = (DateTime?)g.Max(i => i.DateCreated)
+                TotalSpend = (decimal)g.Sum(x => x.Amount),
+                FirstOrderDate = (DateTime?)g.Min(x => x.DateCreated),
+                LastOrderDate = (DateTime?)g.Max(x => x.DateCreated)
             });
 
         // Subquery for most recent invoice's billing country

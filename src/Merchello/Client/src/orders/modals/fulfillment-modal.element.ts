@@ -61,13 +61,13 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadFulfillmentSummary();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -649,7 +649,7 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
     `;
   }
 
-  render() {
+  override render() {
     const ordersWithSelections = this._getOrdersWithSelections();
     const totalItemsToShip = this._getTotalItemsToShip();
     const hasSelections = ordersWithSelections.length > 0;

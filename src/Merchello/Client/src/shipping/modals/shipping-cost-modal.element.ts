@@ -40,7 +40,7 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this._loadCountries();
     
@@ -201,7 +201,7 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  render() {
+  override render() {
     const isEditing = !!this.data?.cost;
 
     return html`

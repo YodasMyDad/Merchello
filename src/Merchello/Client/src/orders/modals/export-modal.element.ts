@@ -16,7 +16,7 @@ export class MerchelloExportModalElement extends UmbModalBaseElement<
   @state() private _isExporting: boolean = false;
   @state() private _errorMessage: string | null = null;
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     // Default to last 30 days
     const today = new Date();
@@ -92,7 +92,7 @@ export class MerchelloExportModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  render() {
+  override render() {
     return html`
       <umb-body-layout headline="Export Orders">
         <div id="main">

@@ -32,7 +32,7 @@ export class MerchelloSelectDiscountTypeModalElement extends UmbModalBaseElement
     this.modalContext?.reject();
   }
 
-  render() {
+  override render() {
     return html`
       <umb-body-layout headline="Create Discount">
         <div id="main">

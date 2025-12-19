@@ -8,7 +8,7 @@ import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 
 @customElement("merchello-settings-workspace")
 export class MerchelloSettingsWorkspaceElement extends UmbElementMixin(LitElement) {
-  render() {
+  override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="content">

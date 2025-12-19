@@ -34,7 +34,7 @@ export class MerchelloEmptyStateElement extends UmbElementMixin(LitElement) {
   @property({ type: String })
   message?: string;
 
-  render() {
+  override render() {
     return html`
       <div class="empty-state">
         <uui-icon name=${this.icon}></uui-icon>

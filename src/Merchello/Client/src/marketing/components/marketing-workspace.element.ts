@@ -8,7 +8,7 @@ import "@shared/components/workspace-placeholder.element.js";
 
 @customElement("merchello-marketing-workspace")
 export class MerchelloMarketingWorkspaceElement extends UmbElementMixin(LitElement) {
-  render() {
+  override render() {
     return html`
       <merchello-workspace-placeholder
         icon="icon-megaphone"

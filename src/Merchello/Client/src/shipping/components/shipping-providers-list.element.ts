@@ -32,13 +32,13 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadProviders();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -317,7 +317,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     `;
   }
 
-  render() {
+  override render() {
     if (this._isLoading) {
       return html`
         <umb-body-layout header-fit-height main-no-padding>

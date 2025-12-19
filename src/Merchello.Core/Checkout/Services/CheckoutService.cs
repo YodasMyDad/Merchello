@@ -508,11 +508,30 @@ public class CheckoutService(
     }
 
     /// <summary>
-    /// Creates a line item for a product
+    /// Creates a line item for a product with metadata for discount matching
     /// </summary>
     public LineItem CreateLineItem(Products.Models.Product product, int quantity = 1)
     {
-        return lineItemFactory.CreateFromProduct(product, quantity);
+        var lineItem = lineItemFactory.CreateFromProduct(product, quantity);
+
+        // Add product metadata for discount matching (used by discount engine for targeting)
+        lineItem.ExtendedData[Constants.ExtendedDataKeys.ProductRootId] = product.ProductRootId.ToString();
+
+        // ProductRoot must be loaded for ProductTypeId and Categories
+        var productRoot = product.ProductRoot;
+        if (productRoot != null)
+        {
+            lineItem.ExtendedData[Constants.ExtendedDataKeys.ProductTypeId] = productRoot.ProductTypeId.ToString();
+
+            // Add category IDs if categories are loaded
+            if (productRoot.Categories.Count > 0)
+            {
+                var categoryIds = productRoot.Categories.Select(c => c.Id).ToList();
+                lineItem.ExtendedData[Constants.ExtendedDataKeys.CategoryIds] = JsonSerializer.Serialize(categoryIds);
+            }
+        }
+
+        return lineItem;
     }
 
     /// <summary>
@@ -735,21 +754,45 @@ public class CheckoutService(
         // Convert basket line items to discount context line items
         foreach (var lineItem in basket.LineItems.Where(li => li.LineItemType == LineItemType.Product))
         {
-            context.LineItems.Add(new DiscountContextLineItem
+            var ctxLineItem = new DiscountContextLineItem
             {
                 LineItemId = lineItem.Id,
                 ProductId = lineItem.ProductId ?? Guid.Empty,
-                ProductRootId = Guid.Empty, // Would need to load from product
-                CategoryIds = new List<Guid>(), // Would need to load from product
-                ProductFilterIds = new List<Guid>(), // Would need to load from product
-                ProductTypeId = null, // Would need to load from product
-                SupplierId = null, // Would need to load from product
-                WarehouseId = null, // Would need to load from product
                 Sku = lineItem.Sku ?? string.Empty,
                 Quantity = lineItem.Quantity,
                 UnitPrice = lineItem.Amount,
                 LineTotal = lineItem.Quantity * lineItem.Amount
-            });
+            };
+
+            // Read product metadata from ExtendedData (populated by CreateLineItem)
+            if (lineItem.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ProductRootId, out var rootIdObj) &&
+                rootIdObj is string rootIdStr &&
+                Guid.TryParse(rootIdStr, out var productRootId))
+            {
+                ctxLineItem.ProductRootId = productRootId;
+            }
+
+            if (lineItem.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ProductTypeId, out var typeIdObj) &&
+                typeIdObj is string typeIdStr &&
+                Guid.TryParse(typeIdStr, out var productTypeId))
+            {
+                ctxLineItem.ProductTypeId = productTypeId;
+            }
+
+            if (lineItem.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.CategoryIds, out var categoryIdsObj) &&
+                categoryIdsObj is string categoryIdsJson)
+            {
+                try
+                {
+                    ctxLineItem.CategoryIds = JsonSerializer.Deserialize<List<Guid>>(categoryIdsJson) ?? [];
+                }
+                catch
+                {
+                    // Ignore deserialization errors
+                }
+            }
+
+            context.LineItems.Add(ctxLineItem);
         }
 
         return context;

@@ -89,5 +89,36 @@ public class LineItemFactory
             ExtendedData = addonItem.ExtendedData
         };
     }
+
+    /// <summary>
+    /// Creates a discount line item for an order, scaling proportionally if the product was split across orders.
+    /// For multi-warehouse fulfillment, discounts are allocated proportionally to each order.
+    /// </summary>
+    /// <param name="discountItem">The basket discount line item</param>
+    /// <param name="allocatedQuantity">Quantity allocated to this order</param>
+    /// <param name="originalQuantity">Original quantity in the basket</param>
+    public LineItem CreateDiscountForOrder(LineItem discountItem, int allocatedQuantity, int originalQuantity)
+    {
+        // Scale discount amount proportionally if quantity was split
+        // e.g., if 10 items with £5 discount split 6/4 → £3/£2 discount per order
+        var scaleFactor = originalQuantity > 0 ? (decimal)allocatedQuantity / originalQuantity : 1m;
+        var scaledAmount = Math.Round(discountItem.Amount * scaleFactor, 2);
+
+        return new LineItem
+        {
+            Id = GuidExtensions.NewSequentialGuid,
+            ProductId = null,
+            Name = discountItem.Name,
+            Sku = discountItem.Sku,
+            Quantity = 1, // Discounts are always qty 1, amount is the discount value
+            Amount = scaledAmount,
+            OriginalAmount = discountItem.OriginalAmount,
+            LineItemType = LineItemType.Discount,
+            IsTaxable = false, // Discounts are not taxable
+            TaxRate = 0,
+            DependantLineItemSku = discountItem.DependantLineItemSku,
+            ExtendedData = discountItem.ExtendedData // Preserves DiscountId, DiscountCode, etc.
+        };
+    }
 }
 

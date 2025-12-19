@@ -16,7 +16,7 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
   @state() private _isSaving: boolean = false;
   @state() private _errorMessage: string | null = null;
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     // Default to full refundable amount
     this._amount = this.data?.payment.refundableAmount ?? 0;
@@ -71,7 +71,7 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  render() {
+  override render() {
     const payment = this.data?.payment;
     if (!payment) return nothing;
 

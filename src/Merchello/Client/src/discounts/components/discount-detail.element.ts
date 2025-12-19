@@ -151,33 +151,33 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
 
   private _getMethodOptions(): Array<{ name: string; value: string; selected: boolean }> {
     return [
-      { name: "Discount code", value: "0", selected: this._discount?.method === DiscountMethod.Code },
-      { name: "Automatic discount", value: "1", selected: this._discount?.method === DiscountMethod.Automatic },
+      { name: "Discount code", value: DiscountMethod.Code, selected: this._discount?.method === DiscountMethod.Code },
+      { name: "Automatic discount", value: DiscountMethod.Automatic, selected: this._discount?.method === DiscountMethod.Automatic },
     ];
   }
 
   private _getValueTypeOptions(): Array<{ name: string; value: string; selected: boolean }> {
     const options: Array<{ name: string; value: string; selected: boolean }> = [
-      { name: "Percentage", value: "1", selected: this._discount?.valueType === DiscountValueType.Percentage },
-      { name: "Fixed amount", value: "0", selected: this._discount?.valueType === DiscountValueType.FixedAmount },
+      { name: "Percentage", value: DiscountValueType.Percentage, selected: this._discount?.valueType === DiscountValueType.Percentage },
+      { name: "Fixed amount", value: DiscountValueType.FixedAmount, selected: this._discount?.valueType === DiscountValueType.FixedAmount },
     ];
     if (this._discount?.category === DiscountCategory.BuyXGetY) {
-      options.push({ name: "Free", value: "2", selected: this._discount?.valueType === DiscountValueType.Free });
+      options.push({ name: "Free", value: DiscountValueType.Free, selected: this._discount?.valueType === DiscountValueType.Free });
     }
     return options;
   }
 
   private _getRequirementTypeOptions(): Array<{ name: string; value: string; selected: boolean }> {
     return [
-      { name: "No minimum requirements", value: "0", selected: this._discount?.requirementType === DiscountRequirementType.None },
-      { name: "Minimum purchase amount", value: "1", selected: this._discount?.requirementType === DiscountRequirementType.MinimumPurchaseAmount },
-      { name: "Minimum quantity of items", value: "2", selected: this._discount?.requirementType === DiscountRequirementType.MinimumQuantity },
+      { name: "No minimum requirements", value: DiscountRequirementType.None, selected: this._discount?.requirementType === DiscountRequirementType.None },
+      { name: "Minimum purchase amount", value: DiscountRequirementType.MinimumPurchaseAmount, selected: this._discount?.requirementType === DiscountRequirementType.MinimumPurchaseAmount },
+      { name: "Minimum quantity of items", value: DiscountRequirementType.MinimumQuantity, selected: this._discount?.requirementType === DiscountRequirementType.MinimumQuantity },
     ];
   }
 
   private _getHeadline(): string {
     if (this._isNew) {
-      const categoryInfo = this._getCategoryInfo(this._discount?.category ?? 0);
+      const categoryInfo = this._getCategoryInfo(this._discount?.category ?? DiscountCategory.AmountOffProducts);
       return `Create ${categoryInfo?.label ?? "discount"}`;
     }
     return this._discount?.name ?? "Edit discount";
@@ -487,9 +487,9 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
             <uui-select
               slot="editor"
               .options=${this._getMethodOptions()}
-              .value=${String(this._discount?.method ?? 0)}
+              .value=${this._discount?.method ?? DiscountMethod.Code}
               @change=${(e: Event) =>
-                this._handleInputChange("method", parseInt((e.target as HTMLSelectElement).value, 10))}
+                this._handleInputChange("method", (e.target as HTMLSelectElement).value as DiscountMethod)}
             ></uui-select>
           </umb-property-layout>
 
@@ -533,9 +533,9 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
             <uui-select
               slot="editor"
               .options=${this._getValueTypeOptions()}
-              .value=${String(this._discount?.valueType ?? 1)}
+              .value=${this._discount?.valueType ?? DiscountValueType.Percentage}
               @change=${(e: Event) =>
-                this._handleInputChange("valueType", parseInt((e.target as HTMLSelectElement).value, 10))}
+                this._handleInputChange("valueType", (e.target as HTMLSelectElement).value as DiscountValueType)}
             ></uui-select>
           </umb-property-layout>
 
@@ -572,9 +572,9 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
             <uui-select
               slot="editor"
               .options=${this._getRequirementTypeOptions()}
-              .value=${String(this._discount?.requirementType ?? 0)}
+              .value=${this._discount?.requirementType ?? DiscountRequirementType.None}
               @change=${(e: Event) =>
-                this._handleInputChange("requirementType", parseInt((e.target as HTMLSelectElement).value, 10))}
+                this._handleInputChange("requirementType", (e.target as HTMLSelectElement).value as DiscountRequirementType)}
             ></uui-select>
           </umb-property-layout>
 
@@ -855,7 +855,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
     `;
   }
 
-  render() {
+  override render() {
     if (this._isLoading) {
       return html`
         <umb-body-layout>

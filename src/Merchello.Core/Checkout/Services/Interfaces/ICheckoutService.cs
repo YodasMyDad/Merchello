@@ -1,6 +1,7 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Warehouses.Models;

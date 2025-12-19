@@ -15,7 +15,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
   @state() private _isVisibleToCustomer: boolean = false;
   @state() private _errors: Record<string, string> = {};
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     // Pre-fill with existing discount if editing
     if (this.data?.existingDiscount) {
@@ -78,7 +78,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
     }
   }
 
-  render() {
+  override render() {
     const currencySymbol = this.data?.currencySymbol ?? "£";
     const isOrderDiscount = this.data?.isOrderDiscount ?? true;
     const isEditing = !!this.data?.existingDiscount;

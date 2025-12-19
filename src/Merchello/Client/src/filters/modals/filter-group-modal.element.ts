@@ -17,7 +17,7 @@ export class MerchelloFilterGroupModalElement extends UmbModalBaseElement<
     return !!this.data?.filterGroup;
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     // Pre-populate form with existing filter group data if editing
     if (this.data?.filterGroup) {
@@ -85,7 +85,7 @@ export class MerchelloFilterGroupModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  render() {
+  override render() {
     const headline = this._isEditMode ? "Edit Filter Group" : "Add Filter Group";
     const saveLabel = this._isEditMode ? "Save Changes" : "Create Filter Group";
     const savingLabel = this._isEditMode ? "Saving..." : "Creating...";

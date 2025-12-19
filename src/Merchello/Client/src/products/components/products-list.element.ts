@@ -48,13 +48,13 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this._loadFilterOptions();
     this._loadProducts();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     if (this._searchDebounceTimer) {
       clearTimeout(this._searchDebounceTimer);
@@ -248,7 +248,7 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
     return this._renderProductsTable();
   }
 
-  render() {
+  override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="products-container">

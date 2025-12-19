@@ -1,3 +1,4 @@
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Discounts.Factories;
 using Merchello.Core.Discounts.Models;
@@ -71,9 +72,11 @@ public class DiscountService(
                 DiscountOrderBy.EndsAt => parameters.Descending
                     ? query.OrderByDescending(d => d.EndsAt)
                     : query.OrderBy(d => d.EndsAt),
+                // UsageCount ordering removed - usage is now derived from line items
+                // and cannot be efficiently sorted at database level
                 DiscountOrderBy.UsageCount => parameters.Descending
-                    ? query.OrderByDescending(d => d.CurrentUsageCount)
-                    : query.OrderBy(d => d.CurrentUsageCount),
+                    ? query.OrderByDescending(d => d.DateCreated)
+                    : query.OrderBy(d => d.DateCreated),
                 DiscountOrderBy.Priority => parameters.Descending
                     ? query.OrderByDescending(d => d.Priority)
                     : query.OrderBy(d => d.Priority),
@@ -633,66 +636,104 @@ public class DiscountService(
     #region Usage Tracking
 
     /// <inheritdoc />
-    public async Task<DiscountUsage> RecordUsageAsync(
-        Guid discountId,
-        Guid invoiceId,
-        Guid? customerId,
-        decimal discountAmount,
-        decimal discountAmountInStoreCurrency,
-        string currencyCode,
-        CancellationToken ct = default)
-    {
-        var usage = discountFactory.CreateUsage(
-            discountId,
-            invoiceId,
-            customerId,
-            discountAmount,
-            discountAmountInStoreCurrency,
-            currencyCode);
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            db.DiscountUsages.Add(usage);
-
-            // Increment usage count
-            var discount = await db.Discounts.FirstOrDefaultAsync(d => d.Id == discountId, ct);
-            if (discount != null)
-            {
-                discount.CurrentUsageCount++;
-                discount.DateUpdated = DateTime.UtcNow;
-            }
-
-            await db.SaveChangesAsync(ct);
-        });
-        scope.Complete();
-
-        logger.LogInformation(
-            "Recorded usage for discount {DiscountId} on invoice {InvoiceId}",
-            discountId,
-            invoiceId);
-
-        return usage;
-    }
-
-    /// <inheritdoc />
     public async Task<int> GetUsageCountAsync(Guid discountId, CancellationToken ct = default)
     {
+        var discountIdString = discountId.ToString();
+
         using var scope = efCoreScopeProvider.CreateScope();
         var count = await scope.ExecuteWithContextAsync(async db =>
-            await db.DiscountUsages.CountAsync(u => u.DiscountId == discountId, ct));
+        {
+            // Query discount line items from valid invoices
+            var discountLineItems = await db.LineItems
+                .Include(li => li.Order)
+                    .ThenInclude(o => o!.Invoice)
+                .Where(li => li.LineItemType == LineItemType.Discount)
+                .Where(li => li.Order != null && li.Order.Invoice != null)
+                .Where(li => !li.Order!.Invoice!.IsDeleted && !li.Order.Invoice.IsCancelled)
+                .ToListAsync(ct);
+
+            // Filter to specific discount and count unique invoices
+            return discountLineItems
+                .Where(li => li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id)
+                             && id?.ToString() == discountIdString)
+                .Select(li => li.Order!.InvoiceId)
+                .Distinct()
+                .Count();
+        });
         scope.Complete();
         return count;
     }
 
     /// <inheritdoc />
+    public async Task<Dictionary<Guid, int>> GetUsageCountsAsync(List<Guid> discountIds, CancellationToken ct = default)
+    {
+        if (discountIds.Count == 0)
+        {
+            return [];
+        }
+
+        var discountIdStrings = discountIds.Select(id => id.ToString()).ToHashSet();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            // Query discount line items from valid invoices
+            var discountLineItems = await db.LineItems
+                .Include(li => li.Order)
+                    .ThenInclude(o => o!.Invoice)
+                .Where(li => li.LineItemType == LineItemType.Discount)
+                .Where(li => li.Order != null && li.Order.Invoice != null)
+                .Where(li => !li.Order!.Invoice!.IsDeleted && !li.Order.Invoice.IsCancelled)
+                .ToListAsync(ct);
+
+            // Filter to requested discounts and count unique invoices per discount
+            var usageCounts = discountLineItems
+                .Where(li => li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id)
+                             && discountIdStrings.Contains(id?.ToString() ?? ""))
+                .GroupBy(li => li.ExtendedData[Constants.ExtendedDataKeys.DiscountId]?.ToString() ?? "")
+                .ToDictionary(
+                    g => Guid.Parse(g.Key),
+                    g => g.Select(li => li.Order!.InvoiceId).Distinct().Count()
+                );
+
+            // Ensure all requested IDs are in the result (with 0 if no usage)
+            foreach (var id in discountIds)
+            {
+                usageCounts.TryAdd(id, 0);
+            }
+
+            return usageCounts;
+        });
+        scope.Complete();
+        return result;
+    }
+
+    /// <inheritdoc />
     public async Task<int> GetCustomerUsageCountAsync(Guid discountId, Guid customerId, CancellationToken ct = default)
     {
+        var discountIdString = discountId.ToString();
+
         using var scope = efCoreScopeProvider.CreateScope();
         var count = await scope.ExecuteWithContextAsync(async db =>
-            await db.DiscountUsages.CountAsync(u =>
-                u.DiscountId == discountId &&
-                u.CustomerId == customerId, ct));
+        {
+            // Query discount line items from valid invoices for this customer
+            var discountLineItems = await db.LineItems
+                .Include(li => li.Order)
+                    .ThenInclude(o => o!.Invoice)
+                .Where(li => li.LineItemType == LineItemType.Discount)
+                .Where(li => li.Order != null && li.Order.Invoice != null)
+                .Where(li => !li.Order!.Invoice!.IsDeleted && !li.Order.Invoice.IsCancelled)
+                .Where(li => li.Order!.Invoice!.CustomerId == customerId)
+                .ToListAsync(ct);
+
+            // Filter to specific discount and count unique invoices
+            return discountLineItems
+                .Where(li => li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id)
+                             && id?.ToString() == discountIdString)
+                .Select(li => li.Order!.InvoiceId)
+                .Distinct()
+                .Count();
+        });
         scope.Complete();
         return count;
     }
@@ -708,6 +749,8 @@ public class DiscountService(
         DateTime? endDate = null,
         CancellationToken ct = default)
     {
+        var discountIdString = discountId.ToString();
+
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
@@ -725,21 +768,36 @@ public class DiscountService(
             var effectiveEndDate = endDate ?? DateTime.UtcNow;
             var effectiveStartDate = startDate ?? effectiveEndDate.AddDays(-30);
 
-            // Get usage data - query at database level to avoid loading all usages into memory
-            var baseQuery = db.DiscountUsages
-                .AsNoTracking()
-                .Where(u => u.DiscountId == discountId);
+            // Get all discount line items from valid invoices
+            var allDiscountLineItems = await db.LineItems
+                .Include(li => li.Order)
+                    .ThenInclude(o => o!.Invoice)
+                .Where(li => li.LineItemType == LineItemType.Discount)
+                .Where(li => li.Order != null && li.Order.Invoice != null)
+                .Where(li => !li.Order!.Invoice!.IsDeleted && !li.Order.Invoice.IsCancelled)
+                .ToListAsync(ct);
 
-            // Calculate aggregate totals at database level
-            var totalUsageCount = await baseQuery.CountAsync(ct);
-            var uniqueCustomers = await baseQuery
-                .Where(u => u.CustomerId.HasValue)
-                .Select(u => u.CustomerId)
-                .Distinct()
-                .CountAsync(ct);
+            // Filter to this specific discount
+            var usageItems = allDiscountLineItems
+                .Where(li => li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id)
+                             && id?.ToString() == discountIdString)
+                .ToList();
 
-            var totalDiscountAmount = await baseQuery
-                .SumAsync(u => (decimal?)u.DiscountAmountInStoreCurrency, ct) ?? 0m;
+            // Group by invoice to get unique usage instances
+            var usageByInvoice = usageItems
+                .GroupBy(li => li.Order!.InvoiceId)
+                .Select(g => new
+                {
+                    InvoiceId = g.Key,
+                    Invoice = g.First().Order!.Invoice!,
+                    DiscountAmount = Math.Abs(g.Sum(li => (li.AmountInStoreCurrency ?? li.Amount) * li.Quantity)),
+                    DateUsed = g.First().Order!.Invoice!.DateCreated
+                })
+                .ToList();
+
+            var totalUsageCount = usageByInvoice.Count;
+            var uniqueCustomers = usageByInvoice.Select(u => u.Invoice.CustomerId).Distinct().Count();
+            var totalDiscountAmount = usageByInvoice.Sum(u => u.DiscountAmount);
 
             var averageDiscountPerUse = totalUsageCount > 0
                 ? totalDiscountAmount / totalUsageCount
@@ -752,54 +810,35 @@ public class DiscountService(
                 remainingUses = Math.Max(0, discount.TotalUsageLimit.Value - totalUsageCount);
             }
 
-            // Get order revenue from invoices that used this discount
-            var invoiceIds = await baseQuery
-                .Select(u => u.InvoiceId)
-                .Distinct()
-                .ToListAsync(ct);
-
-            var totalOrderRevenue = 0m;
-            var orderCount = 0;
-
-            if (invoiceIds.Count > 0)
-            {
-                var invoices = await db.Invoices
-                    .AsNoTracking()
-                    .Where(i => invoiceIds.Contains(i.Id))
-                    .Select(i => new { i.Total })
-                    .ToListAsync(ct);
-
-                totalOrderRevenue = invoices.Sum(i => i.Total);
-                orderCount = invoices.Count;
-            }
+            // Calculate order revenue from invoices that used this discount
+            var totalOrderRevenue = usageByInvoice.Sum(u => u.Invoice.TotalInStoreCurrency ?? u.Invoice.Total);
+            var orderCount = usageByInvoice.Count;
 
             var averageOrderValue = orderCount > 0
                 ? totalOrderRevenue / orderCount
                 : 0;
 
-            // Timeline data - query at database level
-            DateTime? firstUsed = await baseQuery
-                .OrderBy(u => u.DateUsed)
-                .Select(u => (DateTime?)u.DateUsed)
-                .FirstOrDefaultAsync(ct);
+            // Timeline data
+            DateTime? firstUsed = usageByInvoice.Count > 0
+                ? usageByInvoice.Min(u => u.DateUsed)
+                : null;
 
-            DateTime? lastUsed = await baseQuery
-                .OrderByDescending(u => u.DateUsed)
-                .Select(u => (DateTime?)u.DateUsed)
-                .FirstOrDefaultAsync(ct);
+            DateTime? lastUsed = usageByInvoice.Count > 0
+                ? usageByInvoice.Max(u => u.DateUsed)
+                : null;
 
-            // Usage by date (within range) - query only the date range from database
-            var usageByDate = await baseQuery
+            // Usage by date (within range)
+            var usageByDate = usageByInvoice
                 .Where(u => u.DateUsed >= effectiveStartDate && u.DateUsed <= effectiveEndDate)
                 .GroupBy(u => u.DateUsed.Date)
                 .Select(g => new Dtos.UsageByDateDto
                 {
                     Date = g.Key,
                     UsageCount = g.Count(),
-                    DiscountAmount = g.Sum(u => u.DiscountAmountInStoreCurrency)
+                    DiscountAmount = g.Sum(u => u.DiscountAmount)
                 })
                 .OrderBy(d => d.Date)
-                .ToListAsync(ct);
+                .ToList();
 
             return new Dtos.DiscountPerformanceDto
             {
@@ -831,10 +870,9 @@ public class DiscountService(
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
-            // Base query for discounts
+            // Get all discounts matching filters
             var discountQuery = db.Discounts.AsNoTracking().AsQueryable();
 
-            // Apply discount filters
             if (parameters.Status.HasValue)
             {
                 discountQuery = discountQuery.Where(d => d.Status == parameters.Status.Value);
@@ -850,61 +888,111 @@ public class DiscountService(
                 discountQuery = discountQuery.Where(d => d.Method == parameters.Method.Value);
             }
 
-            // Build usage summary query with left join to include discounts with no usages
-            var summaryQuery = from d in discountQuery
-                               join u in db.DiscountUsages on d.Id equals u.DiscountId into usages
-                               from u in usages.DefaultIfEmpty()
-                               where !parameters.StartDate.HasValue || u == null || u.DateUsed >= parameters.StartDate.Value
-                               where !parameters.EndDate.HasValue || u == null || u.DateUsed <= parameters.EndDate.Value
-                               group new { d, u } by new { d.Id, d.Name, d.Code, d.Status, d.Category } into g
-                               select new Dtos.DiscountUsageSummaryDto
-                               {
-                                   DiscountId = g.Key.Id,
-                                   Name = g.Key.Name,
-                                   Code = g.Key.Code,
-                                   Status = g.Key.Status,
-                                   Category = g.Key.Category,
-                                   TotalUsageCount = g.Count(x => x.u != null),
-                                   UniqueCustomersCount = g.Where(x => x.u != null && x.u.CustomerId.HasValue)
-                                       .Select(x => x.u!.CustomerId)
-                                       .Distinct()
-                                       .Count(),
-                                   TotalDiscountAmount = g.Where(x => x.u != null)
-                                       .Sum(x => x.u!.DiscountAmountInStoreCurrency),
-                                   AverageDiscountPerUse = g.Count(x => x.u != null) > 0
-                                       ? g.Where(x => x.u != null).Sum(x => x.u!.DiscountAmountInStoreCurrency) / g.Count(x => x.u != null)
-                                       : 0,
-                                   FirstUsed = g.Where(x => x.u != null).Min(x => (DateTime?)x.u!.DateUsed),
-                                   LastUsed = g.Where(x => x.u != null).Max(x => (DateTime?)x.u!.DateUsed)
-                               };
+            var discounts = await discountQuery.ToListAsync(ct);
+            var discountIds = discounts.Select(d => d.Id.ToString()).ToHashSet();
+
+            // Get all discount line items from valid invoices
+            var lineItemQuery = db.LineItems
+                .Include(li => li.Order)
+                    .ThenInclude(o => o!.Invoice)
+                .Where(li => li.LineItemType == LineItemType.Discount)
+                .Where(li => li.Order != null && li.Order.Invoice != null)
+                .Where(li => !li.Order!.Invoice!.IsDeleted && !li.Order.Invoice.IsCancelled);
+
+            // Apply date filters
+            if (parameters.StartDate.HasValue)
+            {
+                lineItemQuery = lineItemQuery.Where(li => li.Order!.Invoice!.DateCreated >= parameters.StartDate.Value);
+            }
+
+            if (parameters.EndDate.HasValue)
+            {
+                lineItemQuery = lineItemQuery.Where(li => li.Order!.Invoice!.DateCreated <= parameters.EndDate.Value);
+            }
+
+            var allDiscountLineItems = await lineItemQuery.ToListAsync(ct);
+
+            // Filter to only the discounts we care about and group by discount
+            var usageByDiscount = allDiscountLineItems
+                .Where(li => li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id)
+                             && discountIds.Contains(id?.ToString() ?? ""))
+                .GroupBy(li => li.ExtendedData[Constants.ExtendedDataKeys.DiscountId]?.ToString() ?? "")
+                .ToDictionary(
+                    g => g.Key,
+                    g =>
+                    {
+                        var usageByInvoice = g
+                            .GroupBy(li => li.Order!.InvoiceId)
+                            .Select(ig => new
+                            {
+                                InvoiceId = ig.Key,
+                                Invoice = ig.First().Order!.Invoice!,
+                                DiscountAmount = Math.Abs(ig.Sum(li => (li.AmountInStoreCurrency ?? li.Amount) * li.Quantity)),
+                                DateUsed = ig.First().Order!.Invoice!.DateCreated
+                            })
+                            .ToList();
+
+                        return new
+                        {
+                            UsageCount = usageByInvoice.Count,
+                            UniqueCustomers = usageByInvoice.Select(u => u.Invoice.CustomerId).Distinct().Count(),
+                            TotalAmount = usageByInvoice.Sum(u => u.DiscountAmount),
+                            FirstUsed = usageByInvoice.Count > 0 ? usageByInvoice.Min(u => u.DateUsed) : (DateTime?)null,
+                            LastUsed = usageByInvoice.Count > 0 ? usageByInvoice.Max(u => u.DateUsed) : (DateTime?)null
+                        };
+                    });
+
+            // Build summary for all discounts (including those with no usage)
+            var summaries = discounts.Select(d =>
+            {
+                var discountIdStr = d.Id.ToString();
+                var hasUsage = usageByDiscount.TryGetValue(discountIdStr, out var usage);
+
+                return new Dtos.DiscountUsageSummaryDto
+                {
+                    DiscountId = d.Id,
+                    Name = d.Name,
+                    Code = d.Code,
+                    Status = d.Status,
+                    Category = d.Category,
+                    TotalUsageCount = hasUsage ? usage!.UsageCount : 0,
+                    UniqueCustomersCount = hasUsage ? usage!.UniqueCustomers : 0,
+                    TotalDiscountAmount = hasUsage ? usage!.TotalAmount : 0,
+                    AverageDiscountPerUse = hasUsage && usage!.UsageCount > 0
+                        ? usage.TotalAmount / usage.UsageCount
+                        : 0,
+                    FirstUsed = hasUsage ? usage!.FirstUsed : null,
+                    LastUsed = hasUsage ? usage!.LastUsed : null
+                };
+            }).ToList();
 
             // Apply ordering
-            summaryQuery = parameters.OrderBy switch
+            summaries = parameters.OrderBy switch
             {
                 DiscountReportOrderBy.TotalUsage => parameters.Descending
-                    ? summaryQuery.OrderByDescending(s => s.TotalUsageCount)
-                    : summaryQuery.OrderBy(s => s.TotalUsageCount),
+                    ? summaries.OrderByDescending(s => s.TotalUsageCount).ToList()
+                    : summaries.OrderBy(s => s.TotalUsageCount).ToList(),
                 DiscountReportOrderBy.TotalDiscountAmount => parameters.Descending
-                    ? summaryQuery.OrderByDescending(s => s.TotalDiscountAmount)
-                    : summaryQuery.OrderBy(s => s.TotalDiscountAmount),
+                    ? summaries.OrderByDescending(s => s.TotalDiscountAmount).ToList()
+                    : summaries.OrderBy(s => s.TotalDiscountAmount).ToList(),
                 DiscountReportOrderBy.UniqueCustomers => parameters.Descending
-                    ? summaryQuery.OrderByDescending(s => s.UniqueCustomersCount)
-                    : summaryQuery.OrderBy(s => s.UniqueCustomersCount),
+                    ? summaries.OrderByDescending(s => s.UniqueCustomersCount).ToList()
+                    : summaries.OrderBy(s => s.UniqueCustomersCount).ToList(),
                 DiscountReportOrderBy.Name => parameters.Descending
-                    ? summaryQuery.OrderByDescending(s => s.Name)
-                    : summaryQuery.OrderBy(s => s.Name),
+                    ? summaries.OrderByDescending(s => s.Name).ToList()
+                    : summaries.OrderBy(s => s.Name).ToList(),
                 _ => parameters.Descending
-                    ? summaryQuery.OrderByDescending(s => s.TotalUsageCount)
-                    : summaryQuery.OrderBy(s => s.TotalUsageCount)
+                    ? summaries.OrderByDescending(s => s.TotalUsageCount).ToList()
+                    : summaries.OrderBy(s => s.TotalUsageCount).ToList()
             };
 
             // Apply top limit
             if (parameters.Top.HasValue)
             {
-                summaryQuery = summaryQuery.Take(parameters.Top.Value);
+                summaries = summaries.Take(parameters.Top.Value).ToList();
             }
 
-            return await summaryQuery.ToListAsync(ct);
+            return summaries;
         });
 
         scope.Complete();

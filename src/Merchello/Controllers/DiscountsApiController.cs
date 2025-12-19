@@ -46,9 +46,13 @@ public class DiscountsApiController(IDiscountService discountService) : Merchell
 
         var result = await discountService.QueryAsync(parameters, ct);
 
+        // Get usage counts for all discounts on this page in a single query
+        var discountIds = result.Items.Select(d => d.Id).ToList();
+        var usageCounts = await discountService.GetUsageCountsAsync(discountIds, ct);
+
         return new DiscountPageDto
         {
-            Items = result.Items.Select(MapToListItemDto).ToList(),
+            Items = result.Items.Select(d => MapToListItemDto(d, usageCounts.GetValueOrDefault(d.Id, 0))).ToList(),
             Page = result.PageIndex,
             PageSize = pageSize,
             TotalItems = result.TotalItems,
@@ -72,7 +76,8 @@ public class DiscountsApiController(IDiscountService discountService) : Merchell
             return NotFound();
         }
 
-        return Ok(MapToDetailDto(discount));
+        var usageCount = await discountService.GetUsageCountAsync(id, ct);
+        return Ok(MapToDetailDto(discount, usageCount));
     }
 
     /// <summary>
@@ -95,7 +100,7 @@ public class DiscountsApiController(IDiscountService discountService) : Merchell
         }
 
         var discount = await discountService.GetByIdAsync(result.ResultObject!.Id, ct);
-        var detailDto = MapToDetailDto(discount!);
+        var detailDto = MapToDetailDto(discount!, 0); // New discount has 0 usage
 
         return CreatedAtAction(nameof(GetDiscount), new { id = discount!.Id }, detailDto);
     }
@@ -127,7 +132,8 @@ public class DiscountsApiController(IDiscountService discountService) : Merchell
         }
 
         var discount = await discountService.GetByIdAsync(id, ct);
-        return Ok(MapToDetailDto(discount!));
+        var usageCount = await discountService.GetUsageCountAsync(id, ct);
+        return Ok(MapToDetailDto(discount!, usageCount));
     }
 
     /// <summary>
@@ -184,7 +190,8 @@ public class DiscountsApiController(IDiscountService discountService) : Merchell
         }
 
         var discount = await discountService.GetByIdAsync(id, ct);
-        return Ok(MapToDetailDto(discount!));
+        var usageCount = await discountService.GetUsageCountAsync(id, ct);
+        return Ok(MapToDetailDto(discount!, usageCount));
     }
 
     /// <summary>
@@ -211,7 +218,8 @@ public class DiscountsApiController(IDiscountService discountService) : Merchell
         }
 
         var discount = await discountService.GetByIdAsync(id, ct);
-        return Ok(MapToDetailDto(discount!));
+        var usageCount = await discountService.GetUsageCountAsync(id, ct);
+        return Ok(MapToDetailDto(discount!, usageCount));
     }
 
     #endregion
@@ -316,7 +324,7 @@ public class DiscountsApiController(IDiscountService discountService) : Merchell
         }
     }
 
-    private static DiscountListItemDto MapToListItemDto(Discount discount)
+    private static DiscountListItemDto MapToListItemDto(Discount discount, int usageCount)
     {
         return new DiscountListItemDto
         {
@@ -331,7 +339,7 @@ public class DiscountsApiController(IDiscountService discountService) : Merchell
             Value = discount.Value,
             StartsAt = discount.StartsAt,
             EndsAt = discount.EndsAt,
-            CurrentUsageCount = discount.CurrentUsageCount,
+            CurrentUsageCount = usageCount,
             TotalUsageLimit = discount.TotalUsageLimit,
             CanCombineWithProductDiscounts = discount.CanCombineWithProductDiscounts,
             CanCombineWithOrderDiscounts = discount.CanCombineWithOrderDiscounts,
@@ -340,7 +348,7 @@ public class DiscountsApiController(IDiscountService discountService) : Merchell
         };
     }
 
-    private static DiscountDetailDto MapToDetailDto(Discount discount)
+    private static DiscountDetailDto MapToDetailDto(Discount discount, int usageCount)
     {
         return new DiscountDetailDto
         {
@@ -359,7 +367,7 @@ public class DiscountsApiController(IDiscountService discountService) : Merchell
             TotalUsageLimit = discount.TotalUsageLimit,
             PerCustomerUsageLimit = discount.PerCustomerUsageLimit,
             PerOrderUsageLimit = discount.PerOrderUsageLimit,
-            CurrentUsageCount = discount.CurrentUsageCount,
+            CurrentUsageCount = usageCount,
             RequirementType = discount.RequirementType,
             RequirementValue = discount.RequirementValue,
             CanCombineWithProductDiscounts = discount.CanCombineWithProductDiscounts,

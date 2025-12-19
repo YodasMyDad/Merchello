@@ -1,3 +1,4 @@
+
 export const manifests: Array<UmbExtensionManifest> = [
   // Product picker modal for selecting products in orders and property editors
   {

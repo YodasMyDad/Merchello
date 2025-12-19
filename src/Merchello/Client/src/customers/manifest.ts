@@ -1,3 +1,4 @@
+
 export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for customers (when clicking "Customers" in tree)
   {

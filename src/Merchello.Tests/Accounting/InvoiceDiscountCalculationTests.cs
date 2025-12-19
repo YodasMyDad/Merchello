@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Discounts.Services.Interfaces;
@@ -53,6 +54,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var paymentService = new Mock<IPaymentService>().Object;
         var productService = new Mock<IProductService>().Object;
         var customerService = new Mock<ICustomerService>().Object;
+        var checkoutService = new Mock<ICheckoutService>().Object;
         var notificationPublisher = new Mock<IMerchelloNotificationPublisher>().Object;
         var exchangeRateCacheMock = new Mock<IExchangeRateCache>();
         exchangeRateCacheMock.Setup(x => x.GetRateQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -77,6 +79,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             paymentService,
             productService,
             customerService,
+            checkoutService,
             notificationPublisher,
             exchangeRateCacheMock.Object,
             currencyService,

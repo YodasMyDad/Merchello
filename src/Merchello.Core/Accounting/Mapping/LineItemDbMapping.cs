@@ -23,5 +23,8 @@ public class LineItemDbMapping : IEntityTypeConfiguration<LineItem>
             .WithMany(p => p.LineItems)
             .HasForeignKey(d => d.OrderId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Index on LineItemType for efficient discount line item queries
+        builder.HasIndex(x => x.LineItemType);
     }
 }

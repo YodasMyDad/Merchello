@@ -35,7 +35,7 @@ export class MerchelloWorkspacePlaceholderElement extends UmbElementMixin(LitEle
   /** Secondary hint text displayed below the description */
   @property({ type: String }) hint = "";
 
-  render() {
+  override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="content">

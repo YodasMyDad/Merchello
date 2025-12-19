@@ -24,7 +24,7 @@ export class MerchelloCustomerOrdersModalElement extends UmbModalBaseElement<
   @state() private _isLoading = true;
   @state() private _errorMessage: string | null = null;
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this._loadData();
   }
@@ -136,7 +136,7 @@ export class MerchelloCustomerOrdersModalElement extends UmbModalBaseElement<
     return this._renderOrdersTable();
   }
 
-  render() {
+  override render() {
     const customerName = this.data?.customerName ?? "Customer";
     const orderCount = this._orders.length;
 

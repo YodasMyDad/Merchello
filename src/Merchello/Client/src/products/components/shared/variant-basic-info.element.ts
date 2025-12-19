@@ -20,7 +20,7 @@ export class MerchelloVariantBasicInfoElement extends UmbElementMixin(LitElement
     this.dispatchEvent(new CustomEvent("variant-change", { detail: updated, bubbles: true, composed: true }));
   }
 
-  render() {
+  override render() {
     return html`
       <uui-box headline="Identification">
         ${this.showVariantName

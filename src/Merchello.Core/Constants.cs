@@ -23,5 +23,12 @@
             public const string DiscountCode = "DiscountCode";
             public const string DiscountName = "DiscountName";
             public const string DiscountCategory = "DiscountCategory";
+
+            // Product metadata for discount matching
+            public const string ProductRootId = "ProductRootId";
+            public const string ProductTypeId = "ProductTypeId";
+            public const string SupplierId = "SupplierId";
+            public const string CategoryIds = "CategoryIds";
+            public const string FilterIds = "FilterIds";
         }
     }

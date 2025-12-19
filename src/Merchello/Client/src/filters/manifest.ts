@@ -1,3 +1,4 @@
+
 export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for filters (when clicking "Filters" in tree)
   {

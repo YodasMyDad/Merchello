@@ -94,12 +94,12 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this._loadReferenceData();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     if (this.#customerSearchDebounceTimer) {
       clearTimeout(this.#customerSearchDebounceTimer);
@@ -761,7 +761,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     `;
   }
 
-  render() {
+  override render() {
     if (this._isLoading) {
       return html`<umb-body-layout headline="Create Order">${this._renderLoading()}</umb-body-layout>`;
     }

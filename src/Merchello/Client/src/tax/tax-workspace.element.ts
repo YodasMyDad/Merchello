@@ -31,13 +31,13 @@ export class MerchelloTaxWorkspaceElement extends UmbElementMixin(LitElement) {
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadTaxGroups();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -231,7 +231,7 @@ export class MerchelloTaxWorkspaceElement extends UmbElementMixin(LitElement) {
     return this._renderTaxGroupsTable();
   }
 
-  render() {
+  override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="tax-groups-container">

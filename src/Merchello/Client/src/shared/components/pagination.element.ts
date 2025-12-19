@@ -53,7 +53,7 @@ export class MerchelloPaginationElement extends UmbElementMixin(LitElement) {
     );
   }
 
-  render() {
+  override render() {
     if (this.state.totalItems === 0) {
       return nothing;
     }

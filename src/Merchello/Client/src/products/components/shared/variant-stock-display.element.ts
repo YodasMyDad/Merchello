@@ -48,7 +48,7 @@ export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElem
     this._emitChange({ warehouseId, trackStock });
   }
 
-  render() {
+  override render() {
     const totalStock = this.warehouseStock.reduce((sum, ws) => sum + ws.stock, 0);
 
     return html`

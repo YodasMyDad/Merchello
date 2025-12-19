@@ -31,13 +31,13 @@ export class MerchelloSegmentsListElement extends UmbElementMixin(LitElement) {
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadSegments();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -237,7 +237,7 @@ export class MerchelloSegmentsListElement extends UmbElementMixin(LitElement) {
     return this._renderSegmentsTable();
   }
 
-  render() {
+  override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="segments-container">

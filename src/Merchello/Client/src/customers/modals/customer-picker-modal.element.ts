@@ -20,12 +20,12 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
   private _searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   #isConnected = false;
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
     if (this._searchDebounceTimer) {
@@ -183,7 +183,7 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
     return this._renderCustomerList();
   }
 
-  render() {
+  override render() {
     const selectedCount = this._selectedIds.length;
 
     return html`

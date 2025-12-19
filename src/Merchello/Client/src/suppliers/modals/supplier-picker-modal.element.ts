@@ -18,13 +18,13 @@ export class MerchelloSupplierPickerModalElement extends UmbModalBaseElement<
 
   #isConnected = false;
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadSuppliers();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -134,7 +134,7 @@ export class MerchelloSupplierPickerModalElement extends UmbModalBaseElement<
     `;
   }
 
-  render() {
+  override render() {
     const selectedCount = this._selectedIds.length;
 
     return html`

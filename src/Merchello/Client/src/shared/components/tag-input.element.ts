@@ -126,7 +126,7 @@ export class MerchelloTagInputElement extends UmbElementMixin(LitElement) {
     this._inputElement?.focus();
   }
 
-  render() {
+  override render() {
     return html`
       <div class="tag-input-container" @click=${() => this._inputElement?.focus()}>
         <div class="tags-wrapper">

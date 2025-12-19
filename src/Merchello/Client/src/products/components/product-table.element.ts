@@ -163,7 +163,7 @@ export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  render() {
+  override render() {
     const cols = this._getEffectiveColumns();
     return html`
       <div class="table-container">

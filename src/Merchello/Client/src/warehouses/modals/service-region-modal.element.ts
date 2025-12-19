@@ -21,7 +21,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
   @state() private _isSaving: boolean = false;
   @state() private _errors: Record<string, string> = {};
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this._loadCountries();
 
@@ -170,7 +170,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  render() {
+  override render() {
     const isEditing = !!this.data?.region;
     const headline = isEditing ? "Edit Service Region" : "Add Service Region";
     const hasRegions = this._regions.length > 0 || this._isLoadingRegions;

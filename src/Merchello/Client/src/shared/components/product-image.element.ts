@@ -54,7 +54,7 @@ export class MerchelloProductImageElement extends UmbElementMixin(LitElement) {
     return SIZE_MAP[this.size] || SIZE_MAP.medium;
   }
 
-  render() {
+  override render() {
     const dimension = this._dimension;
 
     if (this.mediaKey) {

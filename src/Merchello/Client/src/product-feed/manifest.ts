@@ -1,3 +1,4 @@
+
 export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for product feed (when clicking "Product Feed" in tree)
   {

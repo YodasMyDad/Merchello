@@ -1,3 +1,4 @@
+
 export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for discounts list (when clicking "Discounts" in tree)
   {

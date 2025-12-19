@@ -53,7 +53,7 @@ export class MerchelloStatusBadgeElement extends UmbElementMixin(LitElement) {
     return getFulfillmentStatusBadgeClass(this.status as string);
   }
 
-  render() {
+  override render() {
     return html`<span class="badge ${this._getBadgeClass()}">${this.label}</span>`;
   }
 

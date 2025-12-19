@@ -18,7 +18,7 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
     this.dispatchEvent(new CustomEvent("variant-change", { detail: updated, bubbles: true, composed: true }));
   }
 
-  render() {
+  override render() {
     return html`
       <uui-box headline="Shopping Feed Settings">
         <umb-property-layout label="Remove from Feed" description="Exclude this product from shopping feeds">

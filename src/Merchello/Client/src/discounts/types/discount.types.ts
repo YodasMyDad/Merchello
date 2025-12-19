@@ -1,4 +1,5 @@
 // Discount types matching the API DTOs
+// All enums use string values to match C# JsonStringEnumConverter serialization
 
 // ============================================
 // Enums
@@ -6,76 +7,76 @@
 
 /** Discount status enum */
 export enum DiscountStatus {
-  Draft = 0,
-  Active = 1,
-  Scheduled = 2,
-  Expired = 3,
-  Disabled = 4,
+  Draft = "Draft",
+  Active = "Active",
+  Scheduled = "Scheduled",
+  Expired = "Expired",
+  Disabled = "Disabled",
 }
 
-/** Discount category enum - must match C# DiscountCategory */
+/** Discount category enum */
 export enum DiscountCategory {
-  AmountOffProducts = 0,
-  BuyXGetY = 1,
-  AmountOffOrder = 2,
-  FreeShipping = 3,
+  AmountOffProducts = "AmountOffProducts",
+  BuyXGetY = "BuyXGetY",
+  AmountOffOrder = "AmountOffOrder",
+  FreeShipping = "FreeShipping",
 }
 
 /** Discount method enum */
 export enum DiscountMethod {
-  Code = 0,
-  Automatic = 1,
+  Code = "Code",
+  Automatic = "Automatic",
 }
 
 /** Discount value type enum */
 export enum DiscountValueType {
-  FixedAmount = 0,
-  Percentage = 1,
-  Free = 2,
+  FixedAmount = "FixedAmount",
+  Percentage = "Percentage",
+  Free = "Free",
 }
 
 /** Discount requirement type enum */
 export enum DiscountRequirementType {
-  None = 0,
-  MinimumPurchaseAmount = 1,
-  MinimumQuantity = 2,
+  None = "None",
+  MinimumPurchaseAmount = "MinimumPurchaseAmount",
+  MinimumQuantity = "MinimumQuantity",
 }
 
-/** Discount target type enum - must match C# DiscountTargetType */
+/** Discount target type enum */
 export enum DiscountTargetType {
-  AllProducts = 0,
-  SpecificProducts = 1,
-  Categories = 2,
-  ProductFilters = 3,
-  ProductTypes = 4,
-  Suppliers = 5,
-  Warehouses = 6,
+  AllProducts = "AllProducts",
+  SpecificProducts = "SpecificProducts",
+  Categories = "Categories",
+  ProductFilters = "ProductFilters",
+  ProductTypes = "ProductTypes",
+  Suppliers = "Suppliers",
+  Warehouses = "Warehouses",
 }
 
-/** Discount eligibility type enum - must match C# DiscountEligibilityType */
+/** Discount eligibility type enum */
 export enum DiscountEligibilityType {
-  AllCustomers = 0,
-  CustomerSegments = 1,
-  SpecificCustomers = 2,
+  AllCustomers = "AllCustomers",
+  CustomerSegments = "CustomerSegments",
+  SpecificCustomers = "SpecificCustomers",
 }
 
-/** Buy X trigger type enum - must match C# BuyXTriggerType */
+/** Buy X trigger type enum */
 export enum BuyXTriggerType {
-  MinimumQuantity = 0,
-  MinimumPurchaseAmount = 1,
+  MinimumQuantity = "MinimumQuantity",
+  MinimumPurchaseAmount = "MinimumPurchaseAmount",
 }
 
-/** Buy X Get Y selection method enum - must match C# BuyXGetYSelectionMethod */
+/** Buy X Get Y selection method enum */
 export enum BuyXGetYSelectionMethod {
-  Cheapest = 0,
-  MostExpensive = 1,
+  Cheapest = "Cheapest",
+  MostExpensive = "MostExpensive",
 }
 
-/** Free shipping country scope enum - must match C# FreeShippingCountryScope */
+/** Free shipping country scope enum */
 export enum FreeShippingCountryScope {
-  AllCountries = 0,
-  SelectedCountries = 1,
-  ExcludedCountries = 2,
+  AllCountries = "AllCountries",
+  SelectedCountries = "SelectedCountries",
+  ExcludedCountries = "ExcludedCountries",
 }
 
 // ============================================

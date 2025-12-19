@@ -13,7 +13,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  render() {
+  override render() {
     return html`
       <umb-body-layout headline="Add Product">
         <div class="content">

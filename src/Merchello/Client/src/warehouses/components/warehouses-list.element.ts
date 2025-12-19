@@ -36,13 +36,13 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadWarehouses();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -233,7 +233,7 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
     return this._renderWarehousesTable();
   }
 
-  render() {
+  override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="warehouses-container">

@@ -54,7 +54,8 @@ Products/
 | Style | Use For |
 |-------|---------|
 | PascalCase | classes, methods, public members |
-| camelCase | locals, private fields |
+| camelCase | local variables |
+| _camelCase | private fields (underscore prefix) |
 | UPPERCASE | constants |
 | I prefix | interfaces (`IUserService`) |
 

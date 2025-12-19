@@ -28,7 +28,11 @@ public partial class RichTextRenderer(
     ILogger<RichTextRenderer> logger) : IRichTextRenderer
 {
     /// <inheritdoc />
-    public IHtmlEncodedString Render(string? richTextJson)
+    public IHtmlEncodedString Render(string? richTextJson) =>
+        RenderAsync(richTextJson).GetAwaiter().GetResult();
+
+    /// <inheritdoc />
+    public async Task<IHtmlEncodedString> RenderAsync(string? richTextJson)
     {
         if (string.IsNullOrWhiteSpace(richTextJson))
             return new HtmlEncodedString(string.Empty);
@@ -79,7 +83,7 @@ public partial class RichTextRenderer(
         // 5. Render blocks if present
         if (blocksData?.ContentData?.Count > 0 && BlockRegex().IsMatch(result))
         {
-            result = RenderBlocks(result, blocksData);
+            result = await RenderBlocksAsync(result, blocksData);
         }
         else if (BlockRegex().IsMatch(result))
         {
@@ -100,7 +104,7 @@ public partial class RichTextRenderer(
     /// Renders blocks by replacing block tags with rendered partial view content.
     /// Partial views are loaded from ~/Views/Partials/richtext/Components/{ContentTypeAlias}.cshtml
     /// </summary>
-    private string RenderBlocks(string markup, RichTextBlocksData blocksData)
+    private async Task<string> RenderBlocksAsync(string markup, RichTextBlocksData blocksData)
     {
         // Build dictionaries for content and settings lookup by key
         var contentByKey = blocksData.ContentData?
@@ -127,67 +131,104 @@ public partial class RichTextRenderer(
             }
         }
 
-        return BlockRegex().Replace(markup, match =>
+        // Find all matches first, then process asynchronously
+        var matches = BlockRegex().Matches(markup);
+        if (matches.Count == 0)
+            return markup;
+
+        // Process each match and collect replacements
+        var replacements = new Dictionary<string, string>();
+        foreach (Match match in matches)
         {
-            if (!Guid.TryParse(match.Groups["key"].Value, out var contentKey))
+            if (replacements.ContainsKey(match.Value))
+                continue;
+
+            var replacement = await RenderBlockMatchAsync(
+                match,
+                contentByKey,
+                settingsByKey,
+                layoutByContentKey);
+
+            replacements[match.Value] = replacement;
+        }
+
+        // Apply all replacements
+        var result = markup;
+        foreach (var kvp in replacements)
+        {
+            result = result.Replace(kvp.Key, kvp.Value);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Renders a single block match asynchronously.
+    /// </summary>
+    private async Task<string> RenderBlockMatchAsync(
+        Match match,
+        Dictionary<Guid, BlockContentData> contentByKey,
+        Dictionary<Guid, BlockContentData> settingsByKey,
+        Dictionary<Guid, RichTextLayoutItem> layoutByContentKey)
+    {
+        if (!Guid.TryParse(match.Groups["key"].Value, out var contentKey))
+        {
+            return string.Empty;
+        }
+
+        if (!contentByKey.TryGetValue(contentKey, out var contentData))
+        {
+            logger.LogWarning("Block with key {Key} not found in content data", contentKey);
+            return string.Empty;
+        }
+
+        try
+        {
+            // Convert block data to IPublishedElement
+            var blockItemData = CreateBlockItemData(contentData);
+            var contentElement = blockEditorConverter.ConvertToElement(
+                CreateMinimalOwner(),
+                blockItemData,
+                PropertyCacheLevel.None,
+                preview: false);
+
+            if (contentElement == null)
             {
+                logger.LogWarning(
+                    "Failed to convert block {Key} to published element. " +
+                    "Content type {ContentTypeKey} may not be registered as an Element Type.",
+                    contentKey, contentData.ContentTypeKey);
                 return string.Empty;
             }
 
-            if (!contentByKey.TryGetValue(contentKey, out var contentData))
-            {
-                logger.LogWarning("Block with key {Key} not found in content data", contentKey);
-                return string.Empty;
-            }
+            // Get settings element if present
+            IPublishedElement? settingsElement = null;
+            Guid? settingsKey = null;
 
-            try
+            if (layoutByContentKey.TryGetValue(contentKey, out var layoutItem) &&
+                !string.IsNullOrEmpty(layoutItem.SettingsKey) &&
+                Guid.TryParse(layoutItem.SettingsKey, out var parsedSettingsKey) &&
+                settingsByKey.TryGetValue(parsedSettingsKey, out var settingsData))
             {
-                // Convert block data to IPublishedElement
-                var blockItemData = CreateBlockItemData(contentData);
-                var contentElement = blockEditorConverter.ConvertToElement(
+                settingsKey = parsedSettingsKey;
+                var settingsItemData = CreateBlockItemData(settingsData);
+                settingsElement = blockEditorConverter.ConvertToElement(
                     CreateMinimalOwner(),
-                    blockItemData,
+                    settingsItemData,
                     PropertyCacheLevel.None,
                     preview: false);
-
-                if (contentElement == null)
-                {
-                    logger.LogWarning(
-                        "Failed to convert block {Key} to published element. " +
-                        "Content type {ContentTypeKey} may not be registered as an Element Type.",
-                        contentKey, contentData.ContentTypeKey);
-                    return string.Empty;
-                }
-
-                // Get settings element if present
-                IPublishedElement? settingsElement = null;
-                Guid? settingsKey = null;
-
-                if (layoutByContentKey.TryGetValue(contentKey, out var layoutItem) &&
-                    !string.IsNullOrEmpty(layoutItem.SettingsKey) &&
-                    Guid.TryParse(layoutItem.SettingsKey, out var parsedSettingsKey) &&
-                    settingsByKey.TryGetValue(parsedSettingsKey, out var settingsData))
-                {
-                    settingsKey = parsedSettingsKey;
-                    var settingsItemData = CreateBlockItemData(settingsData);
-                    settingsElement = blockEditorConverter.ConvertToElement(
-                        CreateMinimalOwner(),
-                        settingsItemData,
-                        PropertyCacheLevel.None,
-                        preview: false);
-                }
-
-                // Create block item and render via partial view engine
-                // Partial view path: ~/Views/Partials/richtext/Components/{ContentTypeAlias}.cshtml
-                var blockItem = new RichTextBlockItem(contentKey, contentElement, settingsKey, settingsElement);
-                return partialViewBlockEngine.ExecuteAsync(blockItem).GetAwaiter().GetResult();
             }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error rendering block {Key}", contentKey);
-                return string.Empty;
-            }
-        });
+
+            // Create block item and render via partial view engine
+            // Partial view path: ~/Views/Partials/richtext/Components/{ContentTypeAlias}.cshtml
+            var blockItem = new RichTextBlockItem(contentKey, contentElement, settingsKey, settingsElement);
+            return await partialViewBlockEngine.ExecuteAsync(blockItem);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error rendering block {Key}", contentKey);
+            return string.Empty;
+        }
     }
 
     /// <summary>

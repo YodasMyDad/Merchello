@@ -19,12 +19,12 @@ export class MerchelloExchangeRateProviderTestModalElement extends UmbModalBaseE
 
   #isConnected = false;
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -181,7 +181,7 @@ export class MerchelloExchangeRateProviderTestModalElement extends UmbModalBaseE
     `;
   }
 
-  render() {
+  override render() {
     const providerName = this.data?.provider?.displayName ?? "Provider";
 
     return html`

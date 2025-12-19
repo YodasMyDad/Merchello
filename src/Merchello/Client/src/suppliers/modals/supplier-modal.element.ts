@@ -18,7 +18,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     return !!this.data?.supplier;
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     // Pre-populate form with existing supplier data if editing
     if (this.data?.supplier) {
@@ -89,7 +89,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  render() {
+  override render() {
     const headline = this._isEditMode ? "Edit Supplier" : "Add Supplier";
     const saveLabel = this._isEditMode ? "Save Changes" : "Create Supplier";
     const savingLabel = this._isEditMode ? "Saving..." : "Creating...";
