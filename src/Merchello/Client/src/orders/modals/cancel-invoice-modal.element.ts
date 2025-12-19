@@ -51,7 +51,7 @@ export class MerchelloCancelInvoiceModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  render() {
+  override render() {
     const invoiceNumber = this.data?.invoiceNumber ?? "Invoice";
 
     return html`

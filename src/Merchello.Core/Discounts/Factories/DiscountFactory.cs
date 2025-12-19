@@ -40,7 +40,6 @@ public class DiscountFactory
             TotalUsageLimit = parameters.TotalUsageLimit,
             PerCustomerUsageLimit = parameters.PerCustomerUsageLimit,
             PerOrderUsageLimit = parameters.PerOrderUsageLimit,
-            CurrentUsageCount = 0,
             RequirementType = parameters.RequirementType,
             RequirementValue = parameters.RequirementValue,
             CanCombineWithProductDiscounts = parameters.CanCombineWithProductDiscounts,
@@ -51,8 +50,7 @@ public class DiscountFactory
             DateCreated = now,
             DateUpdated = now,
             TargetRules = [],
-            EligibilityRules = [],
-            Usages = []
+            EligibilityRules = []
         };
     }
 
@@ -163,30 +161,6 @@ public class DiscountFactory
             AllowedShippingOptionIds = parameters.AllowedShippingOptionIds != null && parameters.AllowedShippingOptionIds.Count > 0
                 ? JsonSerializer.Serialize(parameters.AllowedShippingOptionIds)
                 : null
-        };
-    }
-
-    /// <summary>
-    /// Creates a new DiscountUsage record.
-    /// </summary>
-    public DiscountUsage CreateUsage(
-        Guid discountId,
-        Guid invoiceId,
-        Guid? customerId,
-        decimal discountAmount,
-        decimal discountAmountInStoreCurrency,
-        string currencyCode)
-    {
-        return new DiscountUsage
-        {
-            Id = GuidExtensions.NewSequentialGuid,
-            DiscountId = discountId,
-            InvoiceId = invoiceId,
-            CustomerId = customerId,
-            DiscountAmount = discountAmount,
-            DiscountAmountInStoreCurrency = discountAmountInStoreCurrency,
-            CurrencyCode = currencyCode,
-            DateUsed = DateTime.UtcNow
         };
     }
 }

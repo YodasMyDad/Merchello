@@ -113,12 +113,12 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this._loadInvoice();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     // Clean up debounce timer to prevent memory leaks
     if (this._previewDebounceTimer) {
@@ -1044,7 +1044,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     `;
   }
 
-  render() {
+  override render() {
     if (this._isLoading) {
       return html`<umb-body-layout headline="Edit Order">${this._renderLoading()}</umb-body-layout>`;
     }

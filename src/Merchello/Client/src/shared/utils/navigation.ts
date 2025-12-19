@@ -305,7 +305,7 @@ export function replaceToDiscountDetail(discountId: string): void {
 /**
  * Navigate programmatically to create a new discount with the specified category.
  */
-export function navigateToDiscountCreate(category: number): void {
+export function navigateToDiscountCreate(category: string): void {
   navigateToMerchelloWorkspace(DISCOUNT_ENTITY_TYPE, `create?category=${category}`);
 }
 

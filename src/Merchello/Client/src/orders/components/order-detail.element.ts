@@ -88,7 +88,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     this._loadCountries();
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._createRoutes();
@@ -118,7 +118,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     this._activePath = event.target.localActiveViewPath || "";
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -676,7 +676,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     return html`<div class="error">Order not found</div>`;
   }
 
-  render() {
+  override render() {
     if (this._isLoading) {
       return this._renderLoadingState();
     }
@@ -779,6 +779,13 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                     <span></span>
                     <span>-${formatCurrency(order.discountTotal, order.currencyCode, order.currencySymbol)}</span>
                   </div>
+                  ${order.discounts?.map(d => html`
+                    <div class="summary-row discount-detail">
+                      <span>${d.name || "Discount"}</span>
+                      <span></span>
+                      <span>-${formatCurrency(d.amount, order.currencyCode, order.currencySymbol)}</span>
+                    </div>
+                  `)}
                 ` : nothing}
                 <div class="summary-row">
                   <span>Shipping</span>
@@ -1474,9 +1481,19 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     .summary-row {
       display: grid;
-      grid-template-columns: 1fr 1fr auto;
+      grid-template-columns: auto 1fr auto;
       gap: var(--uui-size-space-2);
       font-size: 0.875rem;
+    }
+
+    .summary-row > span:nth-child(2) {
+      text-align: right;
+      color: var(--uui-color-text-alt);
+    }
+
+    .summary-row > span:last-child {
+      text-align: right;
+      min-width: 80px;
     }
 
     .summary-row.total {
@@ -1487,6 +1504,16 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     .summary-row.discount {
       color: var(--uui-color-positive);
+    }
+
+    .summary-row.discount-detail {
+      color: var(--uui-color-positive);
+      padding-left: var(--uui-size-space-5);
+      font-size: 0.8125rem;
+    }
+
+    .summary-row.discount-detail > span:first-child {
+      color: var(--uui-color-text-alt);
     }
 
     .summary-row.underpaid {

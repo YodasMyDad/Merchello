@@ -8,7 +8,7 @@ import "@shared/components/workspace-placeholder.element.js";
 
 @customElement("merchello-product-feed-workspace")
 export class MerchelloProductFeedWorkspaceElement extends UmbElementMixin(LitElement) {
-  render() {
+  override render() {
     return html`
       <merchello-workspace-placeholder
         icon="icon-rss"

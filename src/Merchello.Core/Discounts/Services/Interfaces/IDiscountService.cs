@@ -96,21 +96,14 @@ public interface IDiscountService
     // =====================================================
 
     /// <summary>
-    /// Records a discount usage.
-    /// </summary>
-    Task<DiscountUsage> RecordUsageAsync(
-        Guid discountId,
-        Guid invoiceId,
-        Guid? customerId,
-        decimal discountAmount,
-        decimal discountAmountInStoreCurrency,
-        string currencyCode,
-        CancellationToken ct = default);
-
-    /// <summary>
-    /// Gets the total usage count for a discount.
+    /// Gets the total usage count for a discount (derived from line items).
     /// </summary>
     Task<int> GetUsageCountAsync(Guid discountId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets usage counts for multiple discounts in a single query (derived from line items).
+    /// </summary>
+    Task<Dictionary<Guid, int>> GetUsageCountsAsync(List<Guid> discountIds, CancellationToken ct = default);
 
     /// <summary>
     /// Gets the usage count for a specific customer on a discount.

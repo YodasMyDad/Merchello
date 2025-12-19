@@ -3,7 +3,12 @@ using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Customers.Models;
 using Merchello.Core.Customers.Services.Interfaces;
+using Merchello.Core.Customers.Services.Parameters;
+using Merchello.Core.Discounts.Models;
+using Merchello.Core.Discounts.Services.Interfaces;
+using Merchello.Core.Discounts.Services.Parameters;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
@@ -33,6 +38,8 @@ public class DbSeeder(
     IPaymentService paymentService,
     ICheckoutService checkoutService,
     ICustomerService customerService,
+    ICustomerSegmentService customerSegmentService,
+    IDiscountService discountService,
     ITaxService taxService,
     IWarehouseService warehouseService,
     ISupplierService supplierService,
@@ -78,16 +85,65 @@ public class DbSeeder(
         await CreateProductsAsync(ukVat, productTypes, categories, warehouses);
         logger.LogInformation("Merchello seed data: Created products");
 
-        // 8. Load products with TaxGroup for proper line item creation (via service)
+        // 8. Create customers explicitly (before invoices so we can use them for segments)
+        var customers = await CreateCustomersAsync(cancellationToken);
+        logger.LogDebug("Created {Count} customers", customers.Count);
+
+        // 9. Create VIP customer segment with first 5 customers
+        var vipSegment = await CreateVipSegmentAsync(customers, cancellationToken);
+        if (vipSegment != null)
+        {
+            logger.LogDebug("Created VIP segment '{Name}' with {Count} members", vipSegment.Name, 5);
+
+            // Create VIP exclusive discount using the standard service
+            var vipDiscountParams = new CreateDiscountParameters
+            {
+                Name = "15% VIP Exclusive",
+                Description = "Exclusive 15% discount for VIP customers",
+                Category = DiscountCategory.AmountOffOrder,
+                Method = DiscountMethod.Automatic,
+                ValueType = DiscountValueType.Percentage,
+                Value = 15m,
+                TargetRules =
+                [
+                    new CreateDiscountTargetRuleParameters
+                    {
+                        TargetType = DiscountTargetType.AllProducts
+                    }
+                ],
+                EligibilityRules =
+                [
+                    new CreateDiscountEligibilityRuleParameters
+                    {
+                        EligibilityType = DiscountEligibilityType.CustomerSegments,
+                        EligibilityIds = [vipSegment.Id]
+                    }
+                ]
+            };
+
+            var vipResult = await discountService.CreateAsync(vipDiscountParams, cancellationToken);
+            if (vipResult.ResultObject != null)
+            {
+                await discountService.ActivateAsync(vipResult.ResultObject.Id, cancellationToken);
+                logger.LogDebug("Created VIP segment discount: {Name}", vipResult.ResultObject.Name);
+            }
+        }
+
+        // 10. Create automatic discounts (10% off T-Shirts)
+        await CreateAutomaticDiscountsAsync(productTypes, cancellationToken);
+        logger.LogDebug("Created automatic discounts");
+
+        // 11. Load products with TaxGroup for proper line item creation (via service)
         var products = await productService.GetAllProductsWithTaxGroupAsync(cancellationToken);
 
-        // 9. Seed random invoices (148 instead of 150 to leave room for explicit test cases)
+        // 12. Seed random invoices (148 instead of 150 to leave room for explicit test cases)
+        // Discounts will be auto-applied during invoice creation
         await SeedInvoicesViaServicesAsync(products, 148, cancellationToken);
 
-        // 10. Seed explicit multi-warehouse test invoices for UX testing
+        // 13. Seed explicit multi-warehouse test invoices for UX testing
         await SeedMultiWarehouseTestInvoicesAsync(products, cancellationToken);
 
-        // 11. Get counts via services for final log
+        // 14. Get counts via services for final log
         var invoiceCount = await invoiceService.GetInvoiceCountAsync(cancellationToken);
         var productCount = await productService.GetProductCountAsync(cancellationToken);
         var customerCount = await customerService.GetCountAsync(cancellationToken);
@@ -408,6 +464,105 @@ public class DbSeeder(
                 await productService.CreateFilter(sizeGroupResult.ResultObject.Id, size, null, null, cancellationToken);
             }
         }
+    }
+
+    private async Task<List<Customer>> CreateCustomersAsync(CancellationToken cancellationToken)
+    {
+        var sampleCustomers = GetSampleCustomers();
+        var customers = new List<Customer>();
+
+        foreach (var (billing, _) in sampleCustomers)
+        {
+            if (string.IsNullOrEmpty(billing.Email)) continue;
+
+            var customer = await customerService.GetOrCreateByEmailAsync(
+                billing.Email, billing, cancellationToken);
+            customers.Add(customer);
+        }
+
+        return customers;
+    }
+
+    private async Task<CustomerSegment?> CreateVipSegmentAsync(
+        List<Customer> customers,
+        CancellationToken cancellationToken)
+    {
+        // Create a manual VIP segment with the first 5 customers
+        var createParams = new CreateSegmentParameters
+        {
+            Name = "VIP Customers",
+            Description = "Our most valued customers with exclusive discounts",
+            SegmentType = CustomerSegmentType.Manual
+        };
+
+        var result = await customerSegmentService.CreateAsync(createParams, cancellationToken);
+        if (result.ResultObject == null)
+        {
+            logger.LogWarning("Failed to create VIP segment");
+            return null;
+        }
+
+        var segment = result.ResultObject;
+
+        // Add the first 5 customers as VIP members
+        var vipCustomerIds = customers.Take(5).Select(c => c.Id).ToList();
+        await customerSegmentService.AddMembersAsync(segment.Id, vipCustomerIds, ct: cancellationToken);
+
+        return segment;
+    }
+
+    private async Task CreateAutomaticDiscountsAsync(
+        Dictionary<string, ProductType> productTypes,
+        CancellationToken cancellationToken)
+    {
+        // Get the T-Shirt product type ID
+        if (!productTypes.TryGetValue("tshirt", out var tshirtType))
+        {
+            logger.LogWarning("T-Shirt product type not found, skipping automatic discount creation");
+            return;
+        }
+
+        // Create a 10% off all T-Shirts automatic discount with targeting and eligibility inline
+        var createParams = new CreateDiscountParameters
+        {
+            Name = "10% Off All T-Shirts",
+            Description = "Automatic 10% discount on all t-shirt purchases",
+            Category = DiscountCategory.AmountOffProducts,
+            Method = DiscountMethod.Automatic,
+            ValueType = DiscountValueType.Percentage,
+            Value = 10m,
+            // Target: ProductTypes with T-shirt type ID
+            TargetRules =
+            [
+                new CreateDiscountTargetRuleParameters
+                {
+                    TargetType = DiscountTargetType.ProductTypes,
+                    TargetIds = [tshirtType.Id]
+                }
+            ],
+            // Eligibility: All customers
+            EligibilityRules =
+            [
+                new CreateDiscountEligibilityRuleParameters
+                {
+                    EligibilityType = DiscountEligibilityType.AllCustomers
+                }
+            ]
+        };
+
+        var result = await discountService.CreateAsync(createParams, cancellationToken);
+        if (result.ResultObject == null)
+        {
+            logger.LogWarning("Failed to create automatic discount");
+            return;
+        }
+
+        var discount = result.ResultObject;
+
+        // Activate the discount
+        await discountService.ActivateAsync(discount.Id, cancellationToken);
+
+        logger.LogDebug("Created automatic discount: {Name}", discount.Name);
     }
 
     private async Task CreateProductsAsync(
@@ -773,6 +928,9 @@ public class DbSeeder(
             await checkoutService.AddToBasketAsync(basket, lineItem, countryCode, cancellationToken);
         }
 
+        // Apply automatic discounts
+        basket = await checkoutService.RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
+
         // 4. Get shipping options - this will create warehouse groups via the strategy
         var shippingResult = await shippingService.GetShippingOptionsForBasket(
             basket, shippingAddress, null, cancellationToken);
@@ -905,6 +1063,9 @@ public class DbSeeder(
                 var lineItem = checkoutService.CreateLineItem(product, random.Next(1, 4));
                 await checkoutService.AddToBasketAsync(basket, lineItem, countryCode, cancellationToken);
             }
+
+            // Apply automatic discounts (10% off T-Shirts, etc.)
+            basket = await checkoutService.RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
 
             // 2. Get shipping options - THIS TESTS THE ORDER GROUPING STRATEGY
             var shippingResult = await shippingService.GetShippingOptionsForBasket(

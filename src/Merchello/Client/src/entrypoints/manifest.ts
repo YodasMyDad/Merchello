@@ -1,3 +1,4 @@
+
 export const manifests: Array<UmbExtensionManifest> = [
   {
     name: "Merchello Entrypoint",

@@ -28,7 +28,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
 
   #isConnected = false;
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._restoreSavedValues();
@@ -36,7 +36,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     getStoreSettings();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -253,7 +253,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     `;
   }
 
-  render() {
+  override render() {
     const providerName = this.data?.setting.displayName ?? "Provider";
 
     return html`

@@ -60,7 +60,7 @@ export class MerchelloDiscountSummaryCardElement extends UmbElementMixin(LitElem
     `;
   }
 
-  render() {
+  override render() {
     if (!this.discount) return nothing;
 
     const categoryInfo = this._getCategoryInfo(this.discount.category);

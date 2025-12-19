@@ -162,7 +162,7 @@ export class MerchelloEditableTextListElement extends UmbElementMixin(LitElement
     this.dispatchEvent(new UmbChangeEvent());
   }
 
-  render() {
+  override render() {
     return html`
       <div class="editable-list-container">
         ${this.items.length > 0

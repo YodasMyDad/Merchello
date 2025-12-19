@@ -15,7 +15,7 @@ export class MerchelloSetupInstructionsModalElement extends UmbModalBaseElement<
 > {
   @state() private _renderedContent: string = "";
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this._renderMarkdown();
   }
@@ -38,7 +38,7 @@ export class MerchelloSetupInstructionsModalElement extends UmbModalBaseElement<
     this.modalContext?.submit();
   }
 
-  render() {
+  override render() {
     const providerName = this.data?.providerName ?? "Provider";
 
     return html`

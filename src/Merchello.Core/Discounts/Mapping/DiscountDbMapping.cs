@@ -62,7 +62,6 @@ public class DiscountDbMapping : IEntityTypeConfiguration<Discount>
         builder.Property(x => x.TotalUsageLimit);
         builder.Property(x => x.PerCustomerUsageLimit);
         builder.Property(x => x.PerOrderUsageLimit);
-        builder.Property(x => x.CurrentUsageCount);
 
         // Requirements
         builder.Property(x => x.RequirementType)
@@ -92,12 +91,6 @@ public class DiscountDbMapping : IEntityTypeConfiguration<Discount>
 
         // Navigation: One Discount -> Many EligibilityRules
         builder.HasMany(x => x.EligibilityRules)
-            .WithOne(x => x.Discount)
-            .HasForeignKey(x => x.DiscountId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        // Navigation: One Discount -> Many Usages
-        builder.HasMany(x => x.Usages)
             .WithOne(x => x.Discount)
             .HasForeignKey(x => x.DiscountId)
             .OnDelete(DeleteBehavior.Cascade);

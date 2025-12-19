@@ -79,7 +79,7 @@ export class MerchelloProductPackagesElement extends UmbElementMixin(LitElement)
   // Render Methods
   // ============================================
 
-  render() {
+  override render() {
     return html`
       ${this.showInheritedBanner && !this.editable
         ? html`

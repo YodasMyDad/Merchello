@@ -74,7 +74,7 @@ export class MerchelloWarningPopoverElement extends UmbElementMixin(LitElement) 
     `;
   }
 
-  render() {
+  override render() {
     const severity = this._getSeverity();
 
     if (severity === "none") return nothing;

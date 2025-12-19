@@ -1,3 +1,4 @@
+
 export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for analytics (when clicking "Analytics" in tree)
   {

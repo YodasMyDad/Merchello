@@ -66,7 +66,7 @@ export class MerchelloProductFiltersElement extends UmbElementMixin(LitElement) 
   // Render Methods
   // ============================================
 
-  render() {
+  override render() {
     // Show save required message for new products
     if (this.isNewProduct) {
       return html`

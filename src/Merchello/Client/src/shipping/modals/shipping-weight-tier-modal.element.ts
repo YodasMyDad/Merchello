@@ -42,7 +42,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this._loadCountries();
 
@@ -221,7 +221,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
     this.modalContext?.reject();
   }
 
-  render() {
+  override render() {
     const isEditing = !!this.data?.tier;
 
     return html`

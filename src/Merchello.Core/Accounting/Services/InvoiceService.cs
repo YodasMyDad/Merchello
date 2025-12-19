@@ -5,6 +5,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Discounts.Models;
@@ -45,6 +46,7 @@ public class InvoiceService(
     IPaymentService paymentService,
     IProductService productService,
     ICustomerService customerService,
+    ICheckoutService checkoutService,
     IMerchelloNotificationPublisher notificationPublisher,
     IExchangeRateCache exchangeRateCache,
     ICurrencyService currencyService,
@@ -76,6 +78,12 @@ public class InvoiceService(
             billingEmail,
             checkoutSession.BillingAddress,
             cancellationToken);
+
+        // Automatically apply/refresh automatic discounts before creating the order
+        // This ensures discounts are always applied without requiring manual developer intervention
+        basket.CustomerId = customer.Id;
+        var countryCode = checkoutSession.ShippingAddress.CountryCode ?? "US";
+        basket = await checkoutService.RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
 
         // Get the warehouse shipping groups using the same logic used during checkout
         var shippingResult = await shippingService.GetShippingOptionsForBasket(
@@ -221,6 +229,26 @@ public class InvoiceService(
                         var addonOrderLine = lineItemFactory.CreateAddonForOrder(addon, shippingLineItem.Quantity);
                         orderLineItems.Add(addonOrderLine);
                     }
+
+                    // Attach any discount line items dependent on this product SKU
+                    // Discounts are stored as LineItems with LineItemType.Discount and linked via DependantLineItemSku
+                    // Only match if both SKUs are non-null/non-empty to avoid accidentally matching order-level discounts
+                    var dependentDiscounts = basket.LineItems
+                        .Where(li => li.LineItemType == LineItemType.Discount &&
+                                     !string.IsNullOrEmpty(li.DependantLineItemSku) &&
+                                     !string.IsNullOrEmpty(basketLineItem.Sku) &&
+                                     li.DependantLineItemSku == basketLineItem.Sku)
+                        .ToList();
+
+                    foreach (var discountLineItem in dependentDiscounts)
+                    {
+                        // Scale discount proportionally if quantity was split across warehouses
+                        var discountOrderLine = lineItemFactory.CreateDiscountForOrder(
+                            discountLineItem,
+                            shippingLineItem.Quantity,
+                            basketLineItem.Quantity);
+                        orderLineItems.Add(discountOrderLine);
+                    }
                 }
 
                 var order = orderFactory.Create(
@@ -239,6 +267,26 @@ public class InvoiceService(
             if (!orders.Any())
             {
                 throw new InvalidOperationException("No orders were created from basket. Check shipping selections.");
+            }
+
+            // Add order-level discounts (not linked to specific products) to the first order
+            // These are discounts like "10% off entire order" that apply to the whole basket
+            var orderLevelDiscounts = basket.LineItems
+                .Where(li => li.LineItemType == LineItemType.Discount &&
+                             string.IsNullOrEmpty(li.DependantLineItemSku))
+                .ToList();
+
+            var firstOrderLineItems = orders[0].LineItems;
+            if (orderLevelDiscounts.Count > 0 && firstOrderLineItems != null)
+            {
+                foreach (var discountLineItem in orderLevelDiscounts)
+                {
+                    var orderDiscountLine = lineItemFactory.CreateDiscountForOrder(
+                        discountLineItem,
+                        allocatedQuantity: 1,
+                        originalQuantity: 1);
+                    firstOrderLineItems.Add(orderDiscountLine);
+                }
             }
 
             newInvoice.Orders = orders;
@@ -334,6 +382,7 @@ public class InvoiceService(
         });
 
         scope.Complete();
+
         return invoice;
     }
 
@@ -3483,14 +3532,18 @@ public class InvoiceService(
         }
 
         // Check usage limits
-        if (discount.TotalUsageLimit.HasValue && discount.CurrentUsageCount >= discount.TotalUsageLimit.Value)
+        if (discount.TotalUsageLimit.HasValue)
         {
-            result.Messages.Add(new ResultMessage
+            var currentUsageCount = await discountService.GetUsageCountAsync(discount.Id, cancellationToken);
+            if (currentUsageCount >= discount.TotalUsageLimit.Value)
             {
-                Message = $"Discount '{discount.Name}' has reached its usage limit",
-                ResultMessageType = ResultMessageType.Error
-            });
-            return result;
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = $"Discount '{discount.Name}' has reached its usage limit",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return result;
+            }
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
@@ -3684,19 +3737,7 @@ public class InvoiceService(
 
             await db.SaveChangesAsync(cancellationToken);
 
-            // Record discount usage
-            var discountAmountInStoreCurrency = invoice.PricingExchangeRate.HasValue
-                ? currencyService.Round(discountAmount * invoice.PricingExchangeRate.Value, _settings.StoreCurrencyCode)
-                : discountAmount;
-
-            await discountService.RecordUsageAsync(
-                discount.Id,
-                invoice.Id,
-                invoice.CustomerId,
-                discountAmount,
-                discountAmountInStoreCurrency,
-                invoice.CurrencyCode,
-                cancellationToken);
+            // Usage is now tracked via line items - no separate recording needed
 
             logger.LogInformation(
                 "Applied promotional discount '{DiscountName}' ({DiscountId}) to invoice {InvoiceId} for {Amount}",

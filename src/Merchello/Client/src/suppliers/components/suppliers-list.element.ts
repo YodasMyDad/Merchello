@@ -31,13 +31,13 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadSuppliers();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -222,7 +222,7 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
     return this._renderSuppliersTable();
   }
 
-  render() {
+  override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="suppliers-container">

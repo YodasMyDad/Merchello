@@ -14,14 +14,14 @@ export class MerchelloDiscountPerformanceElement extends UmbElementMixin(LitElem
   @state() private _error?: string;
   @state() private _dateRange: "7d" | "30d" | "90d" | "all" = "30d";
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     if (this.discountId) {
       this._loadPerformance();
     }
   }
 
-  updated(changedProperties: Map<string, unknown>): void {
+  override updated(changedProperties: Map<string, unknown>): void {
     if (changedProperties.has("discountId") && this.discountId) {
       this._loadPerformance();
     }
@@ -163,7 +163,7 @@ export class MerchelloDiscountPerformanceElement extends UmbElementMixin(LitElem
     `;
   }
 
-  render() {
+  override render() {
     if (this._isLoading) {
       return this._renderLoading();
     }

@@ -71,7 +71,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
 
     // Set pre-selected warehouse if provided
@@ -575,7 +575,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     `;
   }
 
-  render() {
+  override render() {
     const isEditing = !!(this.data?.option || this.data?.optionId);
 
     if (this._isLoading) {

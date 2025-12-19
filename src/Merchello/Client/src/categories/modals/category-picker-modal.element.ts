@@ -18,13 +18,13 @@ export class MerchelloCategoryPickerModalElement extends UmbModalBaseElement<
 
   #isConnected = false;
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadCategories();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -131,7 +131,7 @@ export class MerchelloCategoryPickerModalElement extends UmbModalBaseElement<
     `;
   }
 
-  render() {
+  override render() {
     const selectedCount = this._selectedIds.length;
 
     return html`

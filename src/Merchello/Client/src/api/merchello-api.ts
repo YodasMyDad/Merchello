@@ -137,16 +137,6 @@ async function apiDelete(endpoint: string): Promise<{ error?: Error }> {
 }
 
 // Types (only what we actually use)
-export interface UserGroup {
-  name: string;
-}
-
-export interface UserModel {
-  name?: string;
-  email: string;
-  groups: UserGroup[];
-}
-
 // Import order types
 import type {
   OrderPageDto,
@@ -355,9 +345,6 @@ export interface CountryDto {
 // API methods
 export const MerchelloApi = {
   ping: () => apiGet<string>('ping'),
-  whatsMyName: () => apiGet<string>('whatsMyName'),
-  whatsTheTimeMrWolf: () => apiGet<string>('whatsTheTimeMrWolf'),
-  whoAmI: () => apiGet<UserModel>('whoAmI'),
 
   // Store Settings
   getSettings: () => apiGet<StoreSettingsDto>('settings'),

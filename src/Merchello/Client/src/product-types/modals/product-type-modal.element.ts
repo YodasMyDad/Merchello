@@ -17,7 +17,7 @@ export class MerchelloProductTypeModalElement extends UmbModalBaseElement<
     return !!this.data?.productType;
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     // Pre-populate form with existing product type data if editing
     if (this.data?.productType) {
@@ -85,7 +85,7 @@ export class MerchelloProductTypeModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  render() {
+  override render() {
     const headline = this._isEditMode ? "Edit Product Type" : "Add Product Type";
     const saveLabel = this._isEditMode ? "Save Changes" : "Create Product Type";
     const savingLabel = this._isEditMode ? "Saving..." : "Creating...";

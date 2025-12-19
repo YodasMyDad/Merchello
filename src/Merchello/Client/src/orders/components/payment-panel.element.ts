@@ -29,7 +29,7 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     if (this.invoiceId) {
@@ -37,12 +37,12 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
     }
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
 
-  updated(changedProperties: Map<string, unknown>): void {
+  override updated(changedProperties: Map<string, unknown>): void {
     if (changedProperties.has("invoiceId") && this.invoiceId) {
       this._loadPayments();
     }
@@ -213,7 +213,7 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  render() {
+  override render() {
     if (this._isLoading) {
       return html`
         <div class="loading">

@@ -218,9 +218,9 @@ export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitE
                   <uui-label slot="label">Who can use this discount?</uui-label>
                   <uui-select
                     .options=${getEligibilityTypeSelectOptions(rule.eligibilityType)}
-                    .value=${String(rule.eligibilityType)}
+                    .value=${rule.eligibilityType}
                     @change=${(e: Event) =>
-                      this._handleEligibilityTypeChange(index, parseInt((e.target as HTMLSelectElement).value, 10))}
+                      this._handleEligibilityTypeChange(index, (e.target as HTMLSelectElement).value as DiscountEligibilityType)}
                   ></uui-select>
                 </uui-form-layout-item>
 
@@ -277,7 +277,7 @@ export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitE
     `;
   }
 
-  render() {
+  override render() {
     return html`
       <div class="eligibility-rule-builder">
         <div class="builder-header">

@@ -71,7 +71,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._createRoutes();
@@ -79,7 +79,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     this._loadCountries();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -872,7 +872,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     }
   }
 
-  render() {
+  override render() {
     if (this._isLoading) {
       return this._renderLoadingState();
     }

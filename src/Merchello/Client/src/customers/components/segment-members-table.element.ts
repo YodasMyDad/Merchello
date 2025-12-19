@@ -39,7 +39,7 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     if (this.segmentId) {
@@ -47,12 +47,12 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
     }
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
 
-  updated(changedProperties: Map<string, unknown>): void {
+  override updated(changedProperties: Map<string, unknown>): void {
     if (changedProperties.has("segmentId") && this.segmentId) {
       this._page = 1;
       this._loadMembers();
@@ -281,7 +281,7 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
     return this._renderMembersTable();
   }
 
-  render() {
+  override render() {
     return html`
       <div class="members-container">
         <!-- Header -->

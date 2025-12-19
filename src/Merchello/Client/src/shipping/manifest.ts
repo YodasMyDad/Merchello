@@ -1,3 +1,4 @@
+
 export const manifests: Array<UmbExtensionManifest> = [
   // Workspace view for shipping providers (under Providers workspace)
   {

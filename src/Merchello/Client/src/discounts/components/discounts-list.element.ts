@@ -5,9 +5,10 @@ import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backo
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
-import type {
-  DiscountListItemDto,
-  DiscountQueryParams,
+import {
+  DiscountStatus,
+  type DiscountListItemDto,
+  type DiscountQueryParams,
 } from "@discounts/types/discount.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
@@ -46,13 +47,13 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadDiscounts();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
     if (this._searchDebounceTimer) {
@@ -78,13 +79,13 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
 
     // Apply tab filters
     if (this._activeTab === "active") {
-      params.status = 1; // DiscountStatus.Active
+      params.status = DiscountStatus.Active;
     } else if (this._activeTab === "scheduled") {
-      params.status = 2; // DiscountStatus.Scheduled
+      params.status = DiscountStatus.Scheduled;
     } else if (this._activeTab === "expired") {
-      params.status = 3; // DiscountStatus.Expired
+      params.status = DiscountStatus.Expired;
     } else if (this._activeTab === "draft") {
-      params.status = 0; // DiscountStatus.Draft
+      params.status = DiscountStatus.Draft;
     }
 
     const { data, error } = await MerchelloApi.getDiscounts(params);
@@ -282,7 +283,7 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
     return this._renderDiscountsTable();
   }
 
-  render() {
+  override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
       <div class="discounts-container">

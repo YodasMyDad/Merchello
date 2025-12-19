@@ -45,6 +45,11 @@ public class DiscountsApiControllerTests
             It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PaginatedList<Discount>(discounts, 2, 1, 50));
 
+        _discountServiceMock.Setup(s => s.GetUsageCountsAsync(
+            It.IsAny<List<Guid>>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, int>());
+
         // Act
         var result = await _controller.GetDiscounts(
             status: null,
@@ -70,6 +75,11 @@ public class DiscountsApiControllerTests
             It.IsAny<CancellationToken>()))
             .Callback<DiscountQueryParameters, CancellationToken>((p, _) => capturedParams = p)
             .ReturnsAsync(new PaginatedList<Discount>([], 0, 1, 25));
+
+        _discountServiceMock.Setup(s => s.GetUsageCountsAsync(
+            It.IsAny<List<Guid>>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, int>());
 
         // Act
         await _controller.GetDiscounts(
@@ -106,6 +116,8 @@ public class DiscountsApiControllerTests
         var discount = CreateDiscount("Test Discount", id: discountId);
         _discountServiceMock.Setup(s => s.GetByIdAsync(discountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(discount);
+        _discountServiceMock.Setup(s => s.GetUsageCountAsync(discountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(5);
 
         // Act
         var result = await _controller.GetDiscount(discountId, CancellationToken.None);
@@ -224,6 +236,9 @@ public class DiscountsApiControllerTests
         _discountServiceMock.Setup(s => s.GetByIdAsync(discountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(discount);
 
+        _discountServiceMock.Setup(s => s.GetUsageCountAsync(discountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+
         var dto = new UpdateDiscountDto
         {
             Name = "Updated Discount",
@@ -340,6 +355,9 @@ public class DiscountsApiControllerTests
         _discountServiceMock.Setup(s => s.GetByIdAsync(discountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(discount);
 
+        _discountServiceMock.Setup(s => s.GetUsageCountAsync(discountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+
         // Act
         var result = await _controller.ActivateDiscount(discountId, CancellationToken.None);
 
@@ -384,6 +402,9 @@ public class DiscountsApiControllerTests
 
         _discountServiceMock.Setup(s => s.GetByIdAsync(discountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(discount);
+
+        _discountServiceMock.Setup(s => s.GetUsageCountAsync(discountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
 
         // Act
         var result = await _controller.DeactivateDiscount(discountId, CancellationToken.None);
@@ -666,7 +687,6 @@ public class DiscountsApiControllerTests
             TotalUsageLimit = 1000,
             PerCustomerUsageLimit = 5,
             PerOrderUsageLimit = 2,
-            CurrentUsageCount = 100,
             RequirementType = DiscountRequirementType.MinimumPurchaseAmount,
             RequirementValue = 50m,
             CanCombineWithProductDiscounts = false,
@@ -704,6 +724,9 @@ public class DiscountsApiControllerTests
         _discountServiceMock.Setup(s => s.GetByIdAsync(discountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(discount);
 
+        _discountServiceMock.Setup(s => s.GetUsageCountAsync(discountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(42);
+
         // Act
         var result = await _controller.GetDiscount(discountId, CancellationToken.None);
 
@@ -722,7 +745,7 @@ public class DiscountsApiControllerTests
         dto.TotalUsageLimit.ShouldBe(1000);
         dto.PerCustomerUsageLimit.ShouldBe(5);
         dto.PerOrderUsageLimit.ShouldBe(2);
-        dto.CurrentUsageCount.ShouldBe(100);
+        dto.CurrentUsageCount.ShouldBe(42); // Usage count is now derived dynamically from line items
         dto.RequirementType.ShouldBe(DiscountRequirementType.MinimumPurchaseAmount);
         dto.RequirementValue.ShouldBe(50m);
         dto.CanCombineWithProductDiscounts.ShouldBeFalse();

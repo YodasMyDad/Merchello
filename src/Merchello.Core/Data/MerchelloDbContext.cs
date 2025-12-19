@@ -75,7 +75,6 @@ public class MerchelloDbContext : DbContext
     public DbSet<DiscountEligibilityRule> DiscountEligibilityRules => Set<DiscountEligibilityRule>();
     public DbSet<DiscountBuyXGetYConfig> DiscountBuyXGetYConfigs => Set<DiscountBuyXGetYConfig>();
     public DbSet<DiscountFreeShippingConfig> DiscountFreeShippingConfigs => Set<DiscountFreeShippingConfig>();
-    public DbSet<DiscountUsage> DiscountUsages => Set<DiscountUsage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

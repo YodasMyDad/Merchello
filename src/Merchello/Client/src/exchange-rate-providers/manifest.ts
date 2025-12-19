@@ -1,3 +1,4 @@
+
 export const manifests: Array<UmbExtensionManifest> = [
   // Workspace view for exchange rate providers (under Providers workspace)
   {

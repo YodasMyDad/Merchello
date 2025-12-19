@@ -117,7 +117,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._createRoutes();
@@ -125,7 +125,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     this.#workspaceContext?.loadFilterGroups();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -594,7 +594,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     this._activePath = event.target.localActiveViewPath || "";
   }
 
-  render() {
+  override render() {
     if (this._isLoading) {
       return html`
         <umb-body-layout header-fit-height>

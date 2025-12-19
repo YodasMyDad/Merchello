@@ -46,12 +46,12 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -233,7 +233,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     }
   }
 
-  render() {
+  override render() {
     if (this._isLoading) {
       return html`<div class="loading"><uui-loader></uui-loader></div>`;
     }

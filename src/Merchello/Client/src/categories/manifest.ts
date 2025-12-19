@@ -1,3 +1,4 @@
+
 export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for categories (when clicking "Categories" in tree)
   {

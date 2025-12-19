@@ -34,7 +34,7 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     // Pre-populate form with existing filter data if editing
@@ -169,7 +169,7 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
     this._image = null;
   }
 
-  render() {
+  override render() {
     const headline = this._isEditMode ? "Edit Filter" : "Add Filter";
     const saveLabel = this._isEditMode ? "Save Changes" : "Create Filter";
     const savingLabel = this._isEditMode ? "Saving..." : "Creating...";

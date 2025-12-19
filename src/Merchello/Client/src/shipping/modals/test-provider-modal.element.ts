@@ -54,14 +54,14 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
 
   #isConnected = false;
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadInitialData();
     this._restoreSavedValues();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -484,7 +484,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
     `;
   }
 
-  render() {
+  override render() {
     const providerName = this.data?.configuration.displayName ?? "Provider";
 
     if (this._isLoadingData) {

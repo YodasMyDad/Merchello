@@ -195,8 +195,8 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             var sessionService = new SessionService(_client);
 
             // Build line items - single line item for the invoice total
-            var lineItems = new List<SessionLineItemOptions>
-            {
+            List<SessionLineItemOptions> lineItems =
+            [
                 new()
                 {
                     PriceData = new SessionLineItemPriceDataOptions
@@ -211,7 +211,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
                     },
                     Quantity = 1
                 }
-            };
+            ];
 
             // Build metadata for webhook correlation
             var metadata = new Dictionary<string, string>

@@ -30,6 +30,10 @@ public class OrderDetailDto
     /// Total discount amount (always positive)
     /// </summary>
     public decimal DiscountTotal { get; set; }
+    /// <summary>
+    /// Individual discount line items for display
+    /// </summary>
+    public List<DiscountLineItemDto> Discounts { get; set; } = [];
     public decimal ShippingCost { get; set; }
     public decimal Tax { get; set; }
     public decimal Total { get; set; }

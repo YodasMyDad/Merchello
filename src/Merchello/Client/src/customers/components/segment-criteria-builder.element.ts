@@ -24,19 +24,19 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
   #isConnected = false;
   #rowIdCounter = 0;
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadAvailableFields();
     this._initializeCriteriaRows();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
 
-  updated(changedProperties: Map<string, unknown>): void {
+  override updated(changedProperties: Map<string, unknown>): void {
     if (changedProperties.has("criteria")) {
       this._initializeCriteriaRows();
     }
@@ -251,7 +251,7 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
     `;
   }
 
-  render() {
+  override render() {
     if (this._isLoadingFields) {
       return html`<div class="loading"><uui-loader></uui-loader></div>`;
     }

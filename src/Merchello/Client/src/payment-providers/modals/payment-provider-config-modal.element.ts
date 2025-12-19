@@ -24,13 +24,13 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
 
   #isConnected = false;
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadFields();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -271,7 +271,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
     }
   }
 
-  render() {
+  override render() {
     const provider = this.data?.provider;
     const isEditing = !!this.data?.setting;
 

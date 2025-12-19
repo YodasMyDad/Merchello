@@ -82,7 +82,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     ];
   }
 
-  render() {
+  override render() {
     const currencySymbol = this.data?.currencySymbol ?? "£";
     const selectedTaxRate = this._getSelectedTaxRate();
     const subtotal = this._price * this._quantity;

@@ -3,7 +3,7 @@ import { UmbControllerBase } from "@umbraco-cms/backoffice/class-api";
 import type { UmbRoutableWorkspaceContext } from "@umbraco-cms/backoffice/workspace";
 import { UMB_WORKSPACE_CONTEXT, UmbWorkspaceRouteManager } from "@umbraco-cms/backoffice/workspace";
 import { UmbObjectState, UmbBooleanState } from "@umbraco-cms/backoffice/observable-api";
-import type { DiscountDetailDto, DiscountCategory } from "@discounts/types/discount.types.js";
+import { DiscountMethod, DiscountStatus, DiscountValueType, DiscountCategory, DiscountRequirementType, type DiscountDetailDto } from "@discounts/types/discount.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { DISCOUNT_ENTITY_TYPE } from "@shared/utils/navigation.js";
 
@@ -39,8 +39,8 @@ export class MerchelloDiscountDetailWorkspaceContext extends UmbControllerBase i
           this.#discountId = undefined;
           // Extract category from query string
           const searchParams = new URLSearchParams(window.location.search);
-          const categoryParam = searchParams.get("category");
-          this.#category = categoryParam ? parseInt(categoryParam, 10) : 0;
+          const categoryParam = searchParams.get("category") as DiscountCategory | null;
+          this.#category = categoryParam ?? DiscountCategory.AmountOffProducts;
           this.#discount.setValue(this._createEmptyDiscount(this.#category));
         },
       },
@@ -117,11 +117,11 @@ export class MerchelloDiscountDetailWorkspaceContext extends UmbControllerBase i
       id: "",
       name: "",
       description: null,
-      status: 0, // Draft
+      status: DiscountStatus.Draft,
       category: category,
-      method: 0, // Code
+      method: DiscountMethod.Code,
       code: null,
-      valueType: 1, // Percentage
+      valueType: DiscountValueType.Percentage,
       value: 0,
       startsAt: now,
       endsAt: null,
@@ -130,7 +130,7 @@ export class MerchelloDiscountDetailWorkspaceContext extends UmbControllerBase i
       perCustomerUsageLimit: null,
       perOrderUsageLimit: null,
       currentUsageCount: 0,
-      requirementType: 0, // None
+      requirementType: DiscountRequirementType.None,
       requirementValue: null,
       canCombineWithProductDiscounts: true,
       canCombineWithOrderDiscounts: true,

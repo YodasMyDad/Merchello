@@ -46,14 +46,14 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadOrders();
     this._loadStats();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
     if (this._searchDebounceTimer) {
@@ -291,7 +291,7 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     return this._renderOrdersTable();
   }
 
-  render() {
+  override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
       <div class="orders-container">

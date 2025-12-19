@@ -663,10 +663,43 @@ export { MyCondition as api };
 ### Access Current User
 ```typescript
 import { UMB_CURRENT_USER_CONTEXT } from '@umbraco-cms/backoffice/current-user';
-this.consumeContext(UMB_CURRENT_USER_CONTEXT, (ctx) => {
-  this.observe(ctx?.currentUser, (user) => { /* user.name, user.hasDocumentRootAccess */ });
-});
+import type { UmbCurrentUserModel } from '@umbraco-cms/backoffice/current-user';
+
+@customElement('my-element')
+export class MyElement extends UmbElementMixin(LitElement) {
+  @state() private _currentUser?: UmbCurrentUserModel;
+
+  constructor() {
+    super();
+    this.consumeContext(UMB_CURRENT_USER_CONTEXT, (ctx) => {
+      this.observe(ctx?.currentUser, (user) => {
+        this._currentUser = user;
+      }, '_currentUser');
+    });
+  }
+
+  render() {
+    return html`<p>Welcome, ${this._currentUser?.name}</p>`;
+  }
+}
 ```
+
+### UmbCurrentUserModel Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `string` | User's display name |
+| `email` | `string` | User's email address |
+| `allowedSections` | `string[]` | Section aliases user can access (e.g., `"Umb.Section.Content"`) |
+| `fallbackPermissions` | `string[]` | Default permissions (e.g., `"Umb.Document.Create"`) |
+| `avatarUrls` | `string[]` | User avatar image URLs |
+| `documentStartNodeUniques` | `string[]` | Document start node GUIDs |
+| `hasDocumentRootAccess` | `boolean` | Whether user can access document root |
+| `hasMediaRootAccess` | `boolean` | Whether user can access media root |
+| `mediaStartNodeUniques` | `string[]` | Media start node GUIDs |
+| `unique` | `string` | User's unique identifier (GUID) |
+| `userName` | `string` | User's login username |
+| `languageIsoCode` | `string` | User's preferred language (e.g., `"en-US"`) |
 
 ### Permission Conditions
 ```typescript

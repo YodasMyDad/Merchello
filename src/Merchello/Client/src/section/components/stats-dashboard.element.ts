@@ -24,13 +24,13 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
 
   #isConnected = false;
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._loadData();
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -74,7 +74,7 @@ export class MerchelloStatsDashboardElement extends UmbElementMixin(LitElement) 
     return "neutral";
   }
 
-  render() {
+  override render() {
     if (this._isLoading) {
       return html`
         <umb-body-layout header-fit-height main-no-padding>

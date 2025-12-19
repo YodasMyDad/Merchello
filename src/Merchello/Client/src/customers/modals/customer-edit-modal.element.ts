@@ -21,7 +21,7 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
   @state() private _isSaving: boolean = false;
   @state() private _errors: Record<string, string> = {};
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     // Pre-populate form with existing customer data
     if (this.data?.customer) {
@@ -98,7 +98,7 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
     this._memberKey = target.value ?? "";
   }
 
-  render() {
+  override render() {
     return html`
       <umb-body-layout headline="Edit Customer">
         <div id="main">

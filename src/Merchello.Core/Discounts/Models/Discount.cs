@@ -103,11 +103,6 @@ public class Discount
     /// </summary>
     public int? PerOrderUsageLimit { get; set; }
 
-    /// <summary>
-    /// Current total usage count.
-    /// </summary>
-    public int CurrentUsageCount { get; set; }
-
     // =====================================================
     // Minimum Requirements
     // =====================================================
@@ -182,11 +177,6 @@ public class Discount
     /// Eligibility rules defining who can use this discount.
     /// </summary>
     public virtual ICollection<DiscountEligibilityRule> EligibilityRules { get; set; } = [];
-
-    /// <summary>
-    /// Usage records for this discount.
-    /// </summary>
-    public virtual ICollection<DiscountUsage> Usages { get; set; } = [];
 
     /// <summary>
     /// Buy X Get Y configuration (only for BuyXGetY discounts).

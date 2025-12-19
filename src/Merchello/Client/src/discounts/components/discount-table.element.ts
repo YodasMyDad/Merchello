@@ -140,7 +140,7 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
     return `${discount.currentUsageCount}`;
   }
 
-  render() {
+  override render() {
     return html`
       <uui-table>
         <uui-table-head>

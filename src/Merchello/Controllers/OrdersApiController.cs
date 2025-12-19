@@ -505,11 +505,21 @@ public class OrdersApiController(
         var shippingCost = orders.Sum(o => o.ShippingCost);
         var shippingCostInStoreCurrency = orders.Sum(o => o.ShippingCostInStoreCurrency ?? o.ShippingCost);
 
-        // Calculate discount total from discount line items
-        var discountTotal = orders
+        // Get discount line items
+        var discountLineItems = orders
             .SelectMany(o => o.LineItems ?? [])
             .Where(li => li.LineItemType == LineItemType.Discount)
-            .Sum(li => Math.Abs(li.Amount));
+            .ToList();
+
+        var discountTotal = discountLineItems.Sum(li => Math.Abs(li.Amount));
+
+        // Map discount line items to DTOs for display
+        var discounts = discountLineItems.Select(d => new DiscountLineItemDto
+        {
+            Id = d.Id,
+            Name = d.Name,
+            Amount = Math.Abs(d.Amount)
+        }).ToList();
 
         return new OrderDetailDto
         {
@@ -527,6 +537,7 @@ public class OrdersApiController(
             PricingExchangeRateTimestampUtc = invoice.PricingExchangeRateTimestampUtc,
             SubTotal = invoice.SubTotal,
             DiscountTotal = discountTotal,
+            Discounts = discounts,
             ShippingCost = shippingCost,
             Tax = invoice.Tax,
             Total = invoice.Total,

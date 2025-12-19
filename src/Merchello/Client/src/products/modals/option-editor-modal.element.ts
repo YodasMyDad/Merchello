@@ -40,7 +40,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     });
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     if (this.data?.option) {
@@ -49,7 +49,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     }
   }
 
-  disconnectedCallback(): void {
+  override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
   }
@@ -223,7 +223,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     return (this._formData.values?.length ?? 0) >= this._getMaxValues();
   }
 
-  render() {
+  override render() {
     const isNew = !this.data?.option;
     const valueCount = this._formData.values?.length || 0;
     const maxValues = this._getMaxValues();

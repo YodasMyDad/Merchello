@@ -28,7 +28,7 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
   @state() private _isSaving: boolean = false;
   @state() private _errorMessage: string | null = null;
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     // Default amount to balance due
     this._amount = this.data?.balanceDue ?? 0;
@@ -81,7 +81,7 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
     }));
   }
 
-  render() {
+  override render() {
     const balanceDue = this.data?.balanceDue ?? 0;
     const currencyCode = this.data?.currencyCode;
     const currencySymbol = this.data?.currencySymbol;

@@ -34,7 +34,7 @@ export class MerchelloProductElementPropertiesElement extends UmbElementMixin(Li
   @state()
   private _datasetValue: Array<{ alias: string; value: unknown }> = [];
 
-  updated(changedProperties: Map<string, unknown>): void {
+  override updated(changedProperties: Map<string, unknown>): void {
     super.updated(changedProperties);
     if (changedProperties.has("values") || changedProperties.has("activeTabId") || changedProperties.has("elementType")) {
       this._updateDatasetValue();
@@ -91,7 +91,7 @@ export class MerchelloProductElementPropertiesElement extends UmbElementMixin(Li
     }));
   }
 
-  render() {
+  override render() {
     if (!this.elementType) return nothing;
 
     const containerId = this.activeTabId ?? null;

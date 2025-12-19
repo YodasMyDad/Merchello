@@ -150,6 +150,8 @@ export interface OrderDetailDto {
   subTotal: number;
   /** Total discount amount (always positive) */
   discountTotal: number;
+  /** Individual discount line items for display */
+  discounts: DiscountLineItemDto[];
   shippingCost: number;
   tax: number;
   total: number;

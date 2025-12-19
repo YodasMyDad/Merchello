@@ -14,10 +14,21 @@ public class DiscountStatusJob(
     ILogger<DiscountStatusJob> logger) : BackgroundService
 {
     private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(1);
+    private readonly TimeSpan _initialDelay = TimeSpan.FromSeconds(30);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("DiscountStatusJob started");
+        logger.LogInformation("DiscountStatusJob started, waiting for database to be ready...");
+
+        // Wait for migrations to complete before first check
+        try
+        {
+            await Task.Delay(_initialDelay, stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
 
         using var timer = new PeriodicTimer(_checkInterval);
 
@@ -26,6 +37,11 @@ public class DiscountStatusJob(
             try
             {
                 await UpdateExpiredDiscountsAsync(stoppingToken);
+            }
+            catch (Exception ex) when (IsDatabaseNotReadyException(ex))
+            {
+                // Database not ready yet (migrations still running), silently skip this cycle
+                logger.LogDebug("Database not ready yet, skipping discount expiry check");
             }
             catch (Exception ex)
             {
@@ -44,6 +60,15 @@ public class DiscountStatusJob(
         }
 
         logger.LogInformation("DiscountStatusJob stopped");
+    }
+
+    private static bool IsDatabaseNotReadyException(Exception ex)
+    {
+        // Check if this is a "table doesn't exist" error (migrations not yet complete)
+        return ex.Message.Contains("no such table", StringComparison.OrdinalIgnoreCase) ||
+               ex.Message.Contains("Invalid object name", StringComparison.OrdinalIgnoreCase) ||
+               ex.InnerException?.Message.Contains("no such table", StringComparison.OrdinalIgnoreCase) == true ||
+               ex.InnerException?.Message.Contains("Invalid object name", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private async Task UpdateExpiredDiscountsAsync(CancellationToken stoppingToken)

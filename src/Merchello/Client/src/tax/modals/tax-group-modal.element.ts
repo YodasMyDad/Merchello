@@ -18,7 +18,7 @@ export class MerchelloTaxGroupModalElement extends UmbModalBaseElement<
     return !!this.data?.taxGroup;
   }
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     // Pre-populate form with existing tax group data if editing
     if (this.data?.taxGroup) {
@@ -98,7 +98,7 @@ export class MerchelloTaxGroupModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  render() {
+  override render() {
     const headline = this._isEditMode ? "Edit Tax Group" : "Add Tax Group";
     const saveLabel = this._isEditMode ? "Save Changes" : "Create Tax Group";
     const savingLabel = this._isEditMode ? "Saving..." : "Creating...";

@@ -221,6 +221,8 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.HasIndex("InvoiceId");
 
+                    b.HasIndex("LineItemType");
+
                     b.HasIndex("OrderId");
 
                     b.ToTable("merchelloLineItems", (string)null);
@@ -661,9 +663,6 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<int>("CurrentUsageCount")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("datetime2");
 
@@ -861,50 +860,6 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.HasIndex("DiscountId");
 
                     b.ToTable("merchelloDiscountTargetRules", (string)null);
-                });
-
-            modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountUsage", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CurrencyCode")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("nvarchar(3)");
-
-                    b.Property<Guid?>("CustomerId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("DateUsed")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("DiscountAmount")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<decimal>("DiscountAmountInStoreCurrency")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<Guid>("DiscountId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("InvoiceId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CustomerId");
-
-                    b.HasIndex("DateUsed");
-
-                    b.HasIndex("DiscountId");
-
-                    b.HasIndex("InvoiceId");
-
-                    b.ToTable("merchelloDiscountUsages", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.ExchangeRates.Models.ExchangeRateProviderSetting", b =>
@@ -2115,17 +2070,6 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Navigation("Discount");
                 });
 
-            modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountUsage", b =>
-                {
-                    b.HasOne("Merchello.Core.Discounts.Models.Discount", "Discount")
-                        .WithMany("Usages")
-                        .HasForeignKey("DiscountId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Discount");
-                });
-
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
                 {
                     b.HasOne("Merchello.Core.Products.Models.ProductRoot", "ProductRoot")
@@ -2483,8 +2427,6 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Navigation("FreeShippingConfig");
 
                     b.Navigation("TargetRules");
-
-                    b.Navigation("Usages");
                 });
 
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>

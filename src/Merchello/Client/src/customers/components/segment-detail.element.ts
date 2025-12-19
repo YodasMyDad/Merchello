@@ -21,7 +21,9 @@ import "./segment-criteria-builder.element.js";
 import "./segment-preview.element.js";
 
 // Stub component for router (actual content is rendered in tab methods)
-const stubComponent = (): HTMLElement => document.createElement("div");
+function stubComponent(): HTMLElement {
+  return document.createElement("div");
+}
 
 @customElement("merchello-segment-detail")
 export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
@@ -329,7 +331,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  render() {
+  override render() {
     if (!this._segment) {
       return html`<div class="loading"><uui-loader></uui-loader></div>`;
     }

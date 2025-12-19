@@ -21,7 +21,7 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
   @state() private _isSaving: boolean = false;
   @state() private _errorMessage: string | null = null;
 
-  connectedCallback(): void {
+  override connectedCallback(): void {
     super.connectedCallback();
     const shipment = this.data?.shipment;
     if (shipment) {
@@ -66,7 +66,7 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  render() {
+  override render() {
     const shipment = this.data?.shipment;
     if (!shipment) return html`<div class="error">No shipment data</div>`;
 

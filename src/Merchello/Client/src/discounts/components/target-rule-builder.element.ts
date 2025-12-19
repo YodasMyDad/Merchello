@@ -333,9 +333,9 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
                   <uui-label slot="label">Rule Type</uui-label>
                   <uui-select
                     .options=${getTargetTypeSelectOptions(rule.targetType)}
-                    .value=${String(rule.targetType)}
+                    .value=${rule.targetType}
                     @change=${(e: Event) =>
-                      this._handleTargetTypeChange(index, parseInt((e.target as HTMLSelectElement).value, 10))}
+                      this._handleTargetTypeChange(index, (e.target as HTMLSelectElement).value as DiscountTargetType)}
                   ></uui-select>
                 </uui-form-layout-item>
 
@@ -397,7 +397,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     `;
   }
 
-  render() {
+  override render() {
     return html`
       <div class="target-rule-builder">
         <div class="builder-header">

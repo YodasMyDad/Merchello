@@ -1,36 +1,14 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Umbraco.Cms.Core.Models.Membership;
-using Umbraco.Cms.Core.Security;
 
 namespace Merchello.Controllers;
 
 [ApiVersion("1.0")]
 [ApiExplorerSettings(GroupName = "Merchello")]
-public class MerchelloApiController(
-    IBackOfficeSecurityAccessor backOfficeSecurityAccessor) : MerchelloApiControllerBase
+public class MerchelloApiController : MerchelloApiControllerBase
 {
     [HttpGet("ping")]
     [ProducesResponseType<string>(StatusCodes.Status200OK)]
     public string Ping() => "Pong";
-
-    [HttpGet("whatsTheTimeMrWolf")]
-    [ProducesResponseType(typeof(DateTime), 200)]
-    public DateTime WhatsTheTimeMrWolf() => DateTime.Now;
-
-    [HttpGet("whatsMyName")]
-    [ProducesResponseType<string>(StatusCodes.Status200OK)]
-    public async Task<string> WhatsMyNameAsync()
-    {
-        // So we can see a long request in the dashboard with a spinning progress wheel
-        await Task.Delay(2000);
-
-        var currentUser = backOfficeSecurityAccessor.BackOfficeSecurity?.CurrentUser;
-        return currentUser?.Name ?? "I have no idea who you are";
-    }
-
-    [HttpGet("whoAmI")]
-    [ProducesResponseType<IUser>(StatusCodes.Status200OK)]
-    public IUser? WhoAmI() => backOfficeSecurityAccessor.BackOfficeSecurity?.CurrentUser;
 }

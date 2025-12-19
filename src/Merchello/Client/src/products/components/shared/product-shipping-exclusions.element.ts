@@ -65,7 +65,7 @@ export class MerchelloProductShippingExclusionsElement extends UmbElementMixin(L
   // Render Methods
   // ============================================
 
-  render() {
+  override render() {
     // Handle new/unsaved product state
     if (this.isNewProduct) {
       return html`
