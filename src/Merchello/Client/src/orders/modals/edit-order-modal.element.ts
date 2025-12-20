@@ -27,6 +27,7 @@ import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-p
 
 // Import shared components
 import "@shared/components/product-image.element.js";
+import { formatNumber } from "@shared/utils/formatting.js";
 
 interface EditableLineItem extends LineItemForEditDto {
   isRemoved: boolean;
@@ -777,10 +778,10 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         <div class="line-item-price">
           <div class="price-display">
             ${hasDiscount ? html`
-              <span class="original-price">${currencySymbol}${lineItem.amount.toFixed(2)}</span>
-              <span class="discounted-price">${currencySymbol}${this._getDiscountedUnitPrice(lineItem).toFixed(2)}</span>
+              <span class="original-price">${currencySymbol}${formatNumber(lineItem.amount, 2)}</span>
+              <span class="discounted-price">${currencySymbol}${formatNumber(this._getDiscountedUnitPrice(lineItem), 2)}</span>
             ` : html`
-              <span class="price">${currencySymbol}${lineItem.amount.toFixed(2)}</span>
+              <span class="price">${currencySymbol}${formatNumber(lineItem.amount, 2)}</span>
             `}
             ${canModifyDiscount ? html`
               <button
@@ -796,7 +797,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
             <div class="discount-text">
               <span>-${lineItem.discount!.type === DiscountValueType.Percentage
                 ? `${lineItem.discount!.value}%`
-                : `${currencySymbol}${lineItem.discount!.value.toFixed(2)}`} off</span>
+                : `${currencySymbol}${formatNumber(lineItem.discount!.value, 2)}`} off</span>
               <button class="remove-discount-btn" @click=${() => this._removeDiscount(lineItem.id)} title="Remove discount">×</button>
             </div>
           ` : nothing}
@@ -813,7 +814,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         </div>
 
         <div class="line-item-total">
-          ${currencySymbol}${lineItem.calculatedTotal.toFixed(2)}
+          ${currencySymbol}${formatNumber(lineItem.calculatedTotal, 2)}
         </div>
 
         <div class="line-item-actions">
@@ -848,7 +849,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         <div class="removed-item-info">
           <span class="removed-item-name">${lineItem.name}</span>
           <span class="removed-item-qty">× ${lineItem.quantity}</span>
-          <span class="removed-item-price">${currencySymbol}${(lineItem.amount * lineItem.quantity).toFixed(2)}</span>
+          <span class="removed-item-price">${currencySymbol}${formatNumber(lineItem.amount * lineItem.quantity, 2)}</span>
         </div>
         <div class="removed-item-options">
           ${lineItem.productId && lineItem.isStockTracked ? html`
@@ -893,11 +894,11 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
                 <span class="discount-value">
                   ${discount.type === DiscountValueType.Percentage
                     ? `${discount.value}%`
-                    : `${currencySymbol}${discount.value.toFixed(2)}`}
+                    : `${currencySymbol}${formatNumber(discount.value, 2)}`}
                 </span>
               </div>
               <div class="discount-amount-cell">
-                <span class="discount-amount">-${currencySymbol}${discount.amount.toFixed(2)}</span>
+                <span class="discount-amount">-${currencySymbol}${formatNumber(discount.amount, 2)}</span>
                 <uui-button
                   compact
                   look="secondary"
@@ -919,7 +920,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
                 <span class="discount-value">
                   ${discount.type === DiscountValueType.Percentage
                     ? `${discount.value}%`
-                    : `${currencySymbol}${discount.value.toFixed(2)}`}
+                    : `${currencySymbol}${formatNumber(discount.value, 2)}`}
                 </span>
                 <span class="pending-badge">New</span>
               </div>
@@ -963,7 +964,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         </div>
 
         <div class="line-item-price">
-          ${currencySymbol}${item.price.toFixed(2)}
+          ${currencySymbol}${formatNumber(item.price, 2)}
         </div>
 
         <div class="line-item-quantity">
@@ -971,7 +972,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         </div>
 
         <div class="line-item-total">
-          ${currencySymbol}${(item.price * item.quantity).toFixed(2)}
+          ${currencySymbol}${formatNumber(item.price * item.quantity, 2)}
         </div>
 
         <div class="line-item-actions">
@@ -1013,7 +1014,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         </div>
 
         <div class="line-item-price">
-          ${currencySymbol}${product.price.toFixed(2)}
+          ${currencySymbol}${formatNumber(product.price, 2)}
         </div>
 
         <div class="line-item-quantity">
@@ -1027,7 +1028,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         </div>
 
         <div class="line-item-total">
-          ${currencySymbol}${(product.price * product.quantity).toFixed(2)}
+          ${currencySymbol}${formatNumber(product.price * product.quantity, 2)}
         </div>
 
         <div class="line-item-actions">
@@ -1148,17 +1149,17 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
             <div class="payment-row">
               <span>Subtotal</span>
-              <span>${currencySymbol}${subtotalBeforeDiscounts.toFixed(2)} ${currencyCode}</span>
+              <span>${currencySymbol}${formatNumber(subtotalBeforeDiscounts, 2)} ${currencyCode}</span>
             </div>
 
             ${hasDiscounts ? html`
               <div class="payment-row discount">
                 <span>Discounts</span>
-                <span class="discount-amount">-${currencySymbol}${discountTotal.toFixed(2)} ${currencyCode}</span>
+                <span class="discount-amount">-${currencySymbol}${formatNumber(discountTotal, 2)} ${currencyCode}</span>
               </div>
               <div class="payment-row adjusted">
                 <span>Adjusted Subtotal</span>
-                <span>${currencySymbol}${adjustedSubtotal.toFixed(2)} ${currencyCode}</span>
+                <span>${currencySymbol}${formatNumber(adjustedSubtotal, 2)} ${currencyCode}</span>
               </div>
             ` : nothing}
 
@@ -1197,7 +1198,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
                   <span class="removed-label">Removed (VAT exemption)</span>
                   <uui-button compact look="secondary" @click=${() => this._restoreTax()}>Undo</uui-button>
                 ` : html`
-                  <span>${currencySymbol}${newTax.toFixed(2)} ${currencyCode}</span>
+                  <span>${currencySymbol}${formatNumber(newTax, 2)} ${currencyCode}</span>
                   <uui-button compact look="secondary" @click=${() => this._removeTax()} title="Remove tax (VAT exemption)">
                     <uui-icon name="icon-delete"></uui-icon>
                   </uui-button>
@@ -1207,7 +1208,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
             <div class="payment-row total ${this._previewLoading ? 'loading' : ''}">
               <span>Total</span>
-              <span>${currencySymbol}${newTotal.toFixed(2)} ${currencyCode}</span>
+              <span>${currencySymbol}${formatNumber(newTotal, 2)} ${currencyCode}</span>
             </div>
 
             <p class="tax-note">${this._previewLoading ? 'Calculating...' : 'Totals calculated by server'}</p>

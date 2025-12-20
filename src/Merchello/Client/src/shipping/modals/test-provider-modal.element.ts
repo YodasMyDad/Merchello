@@ -7,6 +7,7 @@ import type { TestShippingProviderDto, TestShippingProviderResultDto } from "@sh
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
 import type { SelectOption } from "@shared/types/index.js";
+import { formatNumber } from "@shared/utils/formatting.js";
 
 const STORAGE_KEY = "merchello-test-provider-form";
 
@@ -461,7 +462,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
             ${level.serviceType || level.serviceName}
           </span>
           ${isValid
-            ? html`<span class="service-cost">${currencySymbol}${level.totalCost.toFixed(2)}</span>`
+            ? html`<span class="service-cost">${currencySymbol}${formatNumber(level.totalCost, 2)}</span>`
             : html`<span class="service-invalid">Invalid / Not Available</span>`}
         </div>
         ${isValid

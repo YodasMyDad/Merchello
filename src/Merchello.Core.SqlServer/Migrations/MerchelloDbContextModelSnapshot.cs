@@ -644,6 +644,9 @@ namespace Merchello.Core.SqlServer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("ApplyAfterTax")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("CanCombineWithOrderDiscounts")
                         .HasColumnType("bit");
 

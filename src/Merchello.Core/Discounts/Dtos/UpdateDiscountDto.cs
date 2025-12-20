@@ -28,6 +28,7 @@ public class UpdateDiscountDto
     public bool? CanCombineWithProductDiscounts { get; set; }
     public bool? CanCombineWithOrderDiscounts { get; set; }
     public bool? CanCombineWithShippingDiscounts { get; set; }
+    public bool? ApplyAfterTax { get; set; }
     public int? Priority { get; set; }
     public List<CreateDiscountTargetRuleDto>? TargetRules { get; set; }
     public List<CreateDiscountEligibilityRuleDto>? EligibilityRules { get; set; }

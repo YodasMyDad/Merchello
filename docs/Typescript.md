@@ -26,6 +26,35 @@ These rules apply to **Umbraco v17 backoffice extensions** built with:
 
 ------
 
+## Number & Currency Formatting
+
+- **Never use `.toFixed()`** for user-facing numbers or currency.
+- **Always use shared utilities** from `@shared/utils/formatting.js`:
+  - `formatCurrency(amount)` - Currency with symbol and thousand separators
+  - `formatNumber(value, decimals)` - Numbers with thousand separators
+- These utilities:
+  - Respect store currency settings
+  - Use `Intl.NumberFormat` for locale-aware formatting
+  - Always include thousand separators for consistency
+
+```typescript
+// ❌ Bad - no thousand separators, hardcoded symbol
+const price = `$${amount.toFixed(2)}`;
+
+// ✅ Good - uses store settings, thousand separators
+import { formatCurrency } from "@shared/utils/formatting.js";
+const price = formatCurrency(amount);
+
+// ❌ Bad - no thousand separators
+const count = value.toFixed(0);
+
+// ✅ Good - thousand separators included
+import { formatNumber } from "@shared/utils/formatting.js";
+const count = formatNumber(value);
+```
+
+------
+
 ## Lit Component Rules
 
 - One Lit element per file where possible.

@@ -9,7 +9,7 @@ import {
   DiscountValueType,
   DISCOUNT_STATUS_LABELS,
 } from "@discounts/types/discount.types.js";
-import { formatRelativeDate } from "@shared/utils/formatting.js";
+import { formatRelativeDate, formatCurrency } from "@shared/utils/formatting.js";
 import { getDiscountDetailHref } from "@shared/utils/navigation.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 
@@ -125,7 +125,7 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
       case DiscountValueType.Percentage:
         return `${discount.value}%`;
       case DiscountValueType.FixedAmount:
-        return `£${discount.value.toFixed(2)}`;
+        return formatCurrency(discount.value);
       case DiscountValueType.Free:
         return "Free";
       default:

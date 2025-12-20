@@ -343,6 +343,9 @@ public class DiscountService(
         if (parameters.CanCombineWithShippingDiscounts.HasValue)
             discount.CanCombineWithShippingDiscounts = parameters.CanCombineWithShippingDiscounts.Value;
 
+        if (parameters.ApplyAfterTax.HasValue)
+            discount.ApplyAfterTax = parameters.ApplyAfterTax.Value;
+
         if (parameters.Priority.HasValue)
             discount.Priority = parameters.Priority.Value;
 

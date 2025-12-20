@@ -7,6 +7,7 @@ import type {
 } from "./test-provider-modal.token.js";
 import type { TestExchangeRateProviderResultDto } from '@exchange-rate-providers/types/exchange-rate-providers.types.js';
 import { MerchelloApi } from "@api/merchello-api.js";
+import { formatNumber } from "@shared/utils/formatting.js";
 
 @customElement("merchello-exchange-rate-provider-test-modal")
 export class MerchelloExchangeRateProviderTestModalElement extends UmbModalBaseElement<
@@ -65,13 +66,13 @@ export class MerchelloExchangeRateProviderTestModalElement extends UmbModalBaseE
   }
 
   private _formatRate(rate: number): string {
-    // Format to reasonable precision, removing trailing zeros
+    // Format to reasonable precision with thousand separators
     if (rate >= 100) {
-      return rate.toFixed(2);
+      return formatNumber(rate, 2);
     } else if (rate >= 1) {
-      return rate.toFixed(4);
+      return formatNumber(rate, 4);
     } else {
-      return rate.toFixed(6);
+      return formatNumber(rate, 6);
     }
   }
 

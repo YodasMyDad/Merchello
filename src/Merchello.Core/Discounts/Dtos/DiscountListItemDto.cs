@@ -24,5 +24,6 @@ public class DiscountListItemDto
     public bool CanCombineWithProductDiscounts { get; set; }
     public bool CanCombineWithOrderDiscounts { get; set; }
     public bool CanCombineWithShippingDiscounts { get; set; }
+    public bool ApplyAfterTax { get; set; }
     public DateTime DateCreated { get; set; }
 }

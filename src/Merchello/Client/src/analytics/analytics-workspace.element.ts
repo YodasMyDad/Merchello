@@ -7,6 +7,7 @@ import {
 } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { formatNumber } from "@shared/utils/formatting.js";
 import type {
   AnalyticsSummaryDto,
   TimeSeriesDataPointDto,
@@ -139,7 +140,7 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
   }
 
   private _formatPercent(value: number): string {
-    return `${value.toFixed(1)}%`;
+    return `${formatNumber(value, 1)}%`;
   }
 
   private _formatNumber(value: number): string {

@@ -639,6 +639,9 @@ namespace Merchello.Core.Sqlite.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("ApplyAfterTax")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("CanCombineWithOrderDiscounts")
                         .HasColumnType("INTEGER");
 

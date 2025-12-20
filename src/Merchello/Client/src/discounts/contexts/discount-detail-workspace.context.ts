@@ -135,6 +135,7 @@ export class MerchelloDiscountDetailWorkspaceContext extends UmbControllerBase i
       canCombineWithProductDiscounts: true,
       canCombineWithOrderDiscounts: true,
       canCombineWithShippingDiscounts: true,
+      applyAfterTax: false,
       priority: 1000,
       dateCreated: now,
       dateUpdated: now,

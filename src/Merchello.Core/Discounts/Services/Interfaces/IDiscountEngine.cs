@@ -63,4 +63,13 @@ public interface IDiscountEngine
     /// <param name="discount2">The second discount.</param>
     /// <returns>True if the discounts can be combined.</returns>
     bool CanCombine(Discount discount1, Discount discount2);
+
+    /// <summary>
+    /// Filters a list of discounts to only include those that can be combined with each other.
+    /// Discounts are sorted by priority (lowest first) and only discounts that can combine
+    /// with all previously selected discounts are included.
+    /// </summary>
+    /// <param name="discounts">The discounts to filter.</param>
+    /// <returns>List of discounts that can be combined together.</returns>
+    List<Discount> FilterCombinableDiscounts(List<Discount> discounts);
 }

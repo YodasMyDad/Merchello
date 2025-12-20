@@ -20,6 +20,7 @@ import {
   getWarehouseDetailHref,
 } from "@shared/utils/navigation.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
+import { formatCurrency } from "@shared/utils/formatting.js";
 import type { SelectOption } from "@shared/types/index.js";
 
 type TabId = "general" | "regions" | "options";
@@ -811,7 +812,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     if (isLiveRates) {
       costDisplay = "Live Rates";
     } else if (option.fixedCost != null) {
-      costDisplay = `$${option.fixedCost.toFixed(2)}`;
+      costDisplay = formatCurrency(option.fixedCost);
     } else if (option.costCount > 0) {
       costDisplay = `${option.costCount} location(s)`;
     } else {

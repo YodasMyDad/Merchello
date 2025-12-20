@@ -781,9 +781,9 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                   </div>
                   ${order.discounts?.map(d => html`
                     <div class="summary-row discount-detail">
-                      <span>${d.name || "Discount"}</span>
+                      <span>${d.name || "Discount"} (-${formatCurrency(d.amount, order.currencyCode, order.currencySymbol)})</span>
                       <span></span>
-                      <span>-${formatCurrency(d.amount, order.currencyCode, order.currencySymbol)}</span>
+                      <span></span>
                     </div>
                   `)}
                 ` : nothing}

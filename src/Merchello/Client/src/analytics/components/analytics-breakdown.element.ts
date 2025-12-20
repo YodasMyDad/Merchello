@@ -7,6 +7,7 @@ import {
 } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import type { SalesBreakdownDto } from "@analytics/types/analytics.types.js";
+import { formatNumber } from "@shared/utils/formatting.js";
 
 interface BreakdownRow {
   label: string;
@@ -44,10 +45,7 @@ export class MerchelloAnalyticsBreakdown extends UmbElementMixin(LitElement) {
 
   private _formatCurrency(value: number, isNegative?: boolean): string {
     const absValue = Math.abs(value);
-    const formatted = absValue.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+    const formatted = formatNumber(absValue, 2);
     const prefix = isNegative && value > 0 ? "-" : "";
     return `${prefix}${this.currencySymbol}${formatted}`;
   }

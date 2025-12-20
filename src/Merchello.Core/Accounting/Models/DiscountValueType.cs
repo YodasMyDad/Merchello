@@ -1,8 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace Merchello.Core.Accounting.Models;
 
 /// <summary>
 /// Type of discount value calculation
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum DiscountValueType
 {
     /// <summary>

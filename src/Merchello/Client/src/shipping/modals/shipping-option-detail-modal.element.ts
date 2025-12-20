@@ -18,6 +18,7 @@ import type {
 import type { ShippingOptionDetailModalData, ShippingOptionDetailModalValue } from "./shipping-option-detail-modal.token.js";
 import { MERCHELLO_SHIPPING_COST_MODAL } from "./shipping-cost-modal.token.js";
 import { MERCHELLO_SHIPPING_WEIGHT_TIER_MODAL } from "./shipping-weight-tier-modal.token.js";
+import { formatCurrency } from "@shared/utils/formatting.js";
 
 @customElement("merchello-shipping-option-detail-modal")
 export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseElement<
@@ -499,7 +500,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
                     (cost) => html`
                       <tr>
                         <td>${this._formatRegionDisplay(cost.countryCode, cost.regionDisplay)}</td>
-                        <td class="cost-cell">$${cost.cost.toFixed(2)}</td>
+                        <td class="cost-cell">${formatCurrency(cost.cost)}</td>
                         <td class="actions-col">
                           <uui-button compact look="secondary" label="Edit" @click=${() => this._openCostModal(cost)}>
                             <uui-icon name="icon-edit"></uui-icon>
@@ -556,7 +557,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
                       <tr>
                         <td>${this._formatRegionDisplay(tier.countryCode, tier.regionDisplay)}</td>
                         <td>${tier.weightRangeDisplay ?? `${tier.minWeightKg}+ kg`}</td>
-                        <td class="cost-cell">+$${tier.surcharge.toFixed(2)}</td>
+                        <td class="cost-cell">+${formatCurrency(tier.surcharge)}</td>
                         <td class="actions-col">
                           <uui-button compact look="secondary" label="Edit" @click=${() => this._openWeightTierModal(tier)}>
                             <uui-icon name="icon-edit"></uui-icon>

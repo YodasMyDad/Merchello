@@ -1598,4 +1598,416 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
     }
 
     #endregion
+
+    #region K. After-Tax Discount Calculations
+
+    /// <summary>
+    /// Tests that an after-tax percentage discount is correctly reverse-calculated.
+    /// Customer sees: £100 + 20% tax = £120 total, 10% off = £12 saving, pays £108
+    /// Internal: £12 ÷ 1.20 = £10 pre-tax discount applied
+    /// </summary>
+    [Fact]
+    public async Task AfterTaxDiscount_SingleTaxRate_PercentageDiscount_CalculatesCorrectly()
+    {
+        // Arrange: £100 item at 20% tax = £120 total
+        // 10% after-tax discount = £12 saving (what customer expects)
+        // Pre-tax discount = £12 ÷ 1.20 = £10
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+
+        var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
+
+        // The discount amount stored should be the after-tax amount (£12),
+        // but the system will reverse-calculate to apply £10 pre-tax
+        builder.CreateOrderLevelDiscount(
+            order,
+            discountAmount: 12m, // After-tax discount amount
+            discountValueType: DiscountValueType.Percentage,
+            discountValue: 10m, // 10% off
+            name: "10% off total",
+            applyAfterTax: true);
+
+        await builder.SaveChangesAsync();
+
+        // Act
+        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        result.DiscountTotal.ShouldBe(10m); // Pre-tax discount applied
+        result.AdjustedSubTotal.ShouldBe(90m);
+        result.Tax.ShouldBe(18m); // 20% of £90
+        result.Total.ShouldBe(108m); // Customer pays £108 (saved £12 from original £120)
+    }
+
+    /// <summary>
+    /// Tests after-tax discount with mixed tax rates, ensuring correct pro-rating.
+    /// Item A: £60 @ 20% = £72 after tax
+    /// Item B: £40 @ 10% = £44 after tax
+    /// Total: £116 after tax
+    /// 10% off = £11.60 saving
+    /// Pro-rated pre-tax: £6 off A, £4 off B = £10 total
+    /// </summary>
+    [Fact]
+    public async Task AfterTaxDiscount_MixedTaxRates_ProRatesCorrectly()
+    {
+        // Arrange
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+
+        builder.CreateLineItem(order, name: "Product A", quantity: 1, amount: 60m, taxRate: 20m);
+        builder.CreateLineItem(order, name: "Product B", quantity: 1, amount: 40m, taxRate: 10m);
+
+        // 10% off after-tax total (£116) = £11.60 displayed saving
+        builder.CreateOrderLevelDiscount(
+            order,
+            discountAmount: 11.60m,
+            discountValueType: DiscountValueType.Percentage,
+            discountValue: 10m,
+            name: "10% off total",
+            applyAfterTax: true);
+
+        await builder.SaveChangesAsync();
+
+        // Act
+        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        result.DiscountTotal.ShouldBe(10m); // Pre-tax discount: £6 + £4
+        result.AdjustedSubTotal.ShouldBe(90m);
+        // Tax: (54 × 0.20) + (36 × 0.10) = 10.8 + 3.6 = 14.4
+        result.Tax.ShouldBe(14.4m);
+        result.Total.ShouldBe(104.4m); // Customer saved £11.60 from £116
+    }
+
+    /// <summary>
+    /// Tests fixed amount after-tax discount.
+    /// £100 @ 20% = £120 total
+    /// £24 off after tax → £24 ÷ 1.20 = £20 pre-tax
+    /// </summary>
+    [Fact]
+    public async Task AfterTaxDiscount_FixedAmount_CalculatesCorrectly()
+    {
+        // Arrange
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+
+        var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
+
+        // £24 fixed after-tax discount
+        builder.CreateOrderLevelDiscount(
+            order,
+            discountAmount: 24m,
+            discountValueType: DiscountValueType.FixedAmount,
+            discountValue: 24m,
+            name: "£24 off total",
+            applyAfterTax: true);
+
+        await builder.SaveChangesAsync();
+
+        // Act
+        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        result.DiscountTotal.ShouldBe(20m); // £24 ÷ 1.20 = £20 pre-tax
+        result.AdjustedSubTotal.ShouldBe(80m);
+        result.Tax.ShouldBe(16m); // 20% of £80
+        result.Total.ShouldBe(96m); // Customer pays £96 (saved £24 from £120)
+    }
+
+    /// <summary>
+    /// Tests that when tax rate is 0%, after-tax discount equals before-tax.
+    /// </summary>
+    [Fact]
+    public async Task AfterTaxDiscount_ZeroTaxRate_SameAsBeforeTax()
+    {
+        // Arrange: £100 at 0% tax, 10% discount = £10 either way
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+
+        var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 0m);
+
+        builder.CreateOrderLevelDiscount(
+            order,
+            discountAmount: 10m,
+            discountValueType: DiscountValueType.Percentage,
+            discountValue: 10m,
+            name: "10% off",
+            applyAfterTax: true);
+
+        await builder.SaveChangesAsync();
+
+        // Act
+        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        result.DiscountTotal.ShouldBe(10m); // Same as before-tax
+        result.AdjustedSubTotal.ShouldBe(90m);
+        result.Tax.ShouldBe(0m);
+        result.Total.ShouldBe(90m);
+    }
+
+    /// <summary>
+    /// Tests that discount cannot exceed the total - should cap at 100%.
+    /// </summary>
+    [Fact]
+    public async Task AfterTaxDiscount_ExceedingTotal_CapsAtTotal()
+    {
+        // Arrange: £100 at 20% = £120 total
+        // £150 after-tax discount (exceeds total)
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+
+        var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
+
+        builder.CreateOrderLevelDiscount(
+            order,
+            discountAmount: 150m,
+            discountValueType: DiscountValueType.FixedAmount,
+            discountValue: 150m,
+            name: "£150 off",
+            applyAfterTax: true);
+
+        await builder.SaveChangesAsync();
+
+        // Act
+        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        result.DiscountTotal.ShouldBe(100m); // Capped at subtotal
+        result.AdjustedSubTotal.ShouldBe(0m);
+        result.Tax.ShouldBe(0m);
+        result.Total.ShouldBe(0m);
+    }
+
+    /// <summary>
+    /// Tests a linked (SKU-specific) after-tax discount.
+    /// </summary>
+    [Fact]
+    public async Task AfterTaxDiscount_LinkedToSpecificItem_CalculatesCorrectly()
+    {
+        // Arrange: £50 item at 20% tax = £60 after tax
+        // 10% off this item after tax = £6 saving, £5 pre-tax
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+
+        var lineItem = builder.CreateLineItem(order, name: "Discounted Product", quantity: 1, amount: 50m, taxRate: 20m);
+        builder.CreateLineItem(order, name: "Other Product", quantity: 1, amount: 30m, taxRate: 20m);
+
+        builder.CreateDiscountLineItem(
+            order,
+            lineItem,
+            discountAmount: 6m, // After-tax amount
+            discountValueType: DiscountValueType.Percentage,
+            discountValue: 10m,
+            reason: "10% off this item",
+            applyAfterTax: true);
+
+        await builder.SaveChangesAsync();
+
+        // Act
+        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(80m); // £50 + £30
+        result.DiscountTotal.ShouldBe(5m); // £6 ÷ 1.20 = £5 pre-tax
+        result.AdjustedSubTotal.ShouldBe(75m);
+        // Tax: (45 × 0.20) + (30 × 0.20) = 9 + 6 = 15
+        result.Tax.ShouldBe(15m);
+        result.Total.ShouldBe(90m);
+    }
+
+    /// <summary>
+    /// Tests combining a before-tax discount with an after-tax discount.
+    /// </summary>
+    [Fact]
+    public async Task AfterTaxDiscount_CombinedWithBeforeTaxDiscount_CalculatesCorrectly()
+    {
+        // Arrange: £100 at 20% tax
+        // First: £10 before-tax discount → subtotal = £90, tax = £18, total = £108
+        // Second: 10% after-tax discount on £108 = £10.80 saving
+        // Pre-tax: £10.80 ÷ 1.20 = £9 additional discount
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+
+        var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
+
+        // Before-tax discount
+        builder.CreateOrderLevelDiscount(
+            order,
+            discountAmount: 10m,
+            discountValueType: DiscountValueType.FixedAmount,
+            discountValue: 10m,
+            name: "£10 off",
+            applyAfterTax: false);
+
+        // After-tax discount (applied to remaining total after first discount)
+        builder.CreateOrderLevelDiscount(
+            order,
+            discountAmount: 10.80m,
+            discountValueType: DiscountValueType.Percentage,
+            discountValue: 10m,
+            name: "10% off total",
+            applyAfterTax: true);
+
+        await builder.SaveChangesAsync();
+
+        // Act
+        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        result.DiscountTotal.ShouldBe(19m); // £10 + £9 pre-tax
+        result.AdjustedSubTotal.ShouldBe(81m);
+        result.Tax.ShouldBe(16.2m); // 20% of £81
+        result.Total.ShouldBe(97.2m);
+    }
+
+    /// <summary>
+    /// Tests that non-taxable items are handled correctly with after-tax discounts.
+    /// Only taxable items should participate in the after-tax calculation.
+    /// </summary>
+    [Fact]
+    public async Task AfterTaxDiscount_WithNonTaxableItems_OnlyConsidersTaxableItems()
+    {
+        // Arrange: £50 taxable at 20% + £50 non-taxable
+        // After-tax total of taxable portion = £60
+        // 10% off after tax = £6 saving on taxable portion
+        // Pre-tax: £6 ÷ 1.20 = £5
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+
+        builder.CreateLineItem(order, name: "Taxable Product", quantity: 1, amount: 50m, taxRate: 20m);
+        builder.CreateLineItem(order, name: "Gift Card", quantity: 1, amount: 50m, isTaxable: false, taxRate: 0m);
+
+        // 10% after-tax discount - only applies to taxable amount
+        builder.CreateOrderLevelDiscount(
+            order,
+            discountAmount: 6m, // 10% of £60 (taxable after-tax total)
+            discountValueType: DiscountValueType.Percentage,
+            discountValue: 10m,
+            name: "10% off",
+            applyAfterTax: true);
+
+        await builder.SaveChangesAsync();
+
+        // Act
+        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(100m);
+        result.DiscountTotal.ShouldBe(5m); // Only £5 pre-tax from taxable item
+        result.AdjustedSubTotal.ShouldBe(95m);
+        result.Tax.ShouldBe(9m); // 20% of £45
+        result.Total.ShouldBe(104m);
+    }
+
+    /// <summary>
+    /// Parameterized test for various after-tax discount scenarios.
+    /// </summary>
+    [Theory]
+    [InlineData(100, 20, 10, 10)]   // £100 @ 20%, 10% off → £10 pre-tax discount
+    [InlineData(100, 10, 10, 10)]   // £100 @ 10%, 10% off → £10 pre-tax discount
+    [InlineData(200, 20, 25, 50)]   // £200 @ 20%, 25% off → £50 pre-tax discount
+    [InlineData(50, 5, 20, 10)]     // £50 @ 5%, 20% off → £10 pre-tax discount
+    public async Task AfterTaxDiscount_VariousTaxRates_CalculatesCorrectPreTaxDiscount(
+        decimal subtotal,
+        decimal taxRate,
+        decimal discountPercent,
+        decimal expectedPreTaxDiscount)
+    {
+        // Arrange
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+
+        builder.CreateLineItem(order, name: "Product", quantity: 1, amount: subtotal, taxRate: taxRate);
+
+        // Calculate after-tax total and discount
+        var afterTaxTotal = subtotal * (1 + taxRate / 100m);
+        var afterTaxDiscountAmount = afterTaxTotal * (discountPercent / 100m);
+
+        builder.CreateOrderLevelDiscount(
+            order,
+            discountAmount: afterTaxDiscountAmount,
+            discountValueType: DiscountValueType.Percentage,
+            discountValue: discountPercent,
+            name: $"{discountPercent}% off",
+            applyAfterTax: true);
+
+        await builder.SaveChangesAsync();
+
+        // Act
+        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.SubTotal.ShouldBe(subtotal);
+        result.DiscountTotal.ShouldBe(expectedPreTaxDiscount);
+        result.AdjustedSubTotal.ShouldBe(subtotal - expectedPreTaxDiscount);
+    }
+
+    /// <summary>
+    /// Tests that the final total matches customer expectation.
+    /// Customer sees £120 total, expects 10% off = £108 final.
+    /// </summary>
+    [Fact]
+    public async Task AfterTaxDiscount_FinalTotalMatchesCustomerExpectation()
+    {
+        // Arrange: Customer sees £120 total, expects to pay £108 (10% off)
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+
+        builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
+
+        builder.CreateOrderLevelDiscount(
+            order,
+            discountAmount: 12m, // 10% of £120
+            discountValueType: DiscountValueType.Percentage,
+            discountValue: 10m,
+            name: "10% off",
+            applyAfterTax: true);
+
+        await builder.SaveChangesAsync();
+
+        // Act
+        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+
+        // Assert - Customer expectation: £120 - £12 = £108
+        result.ShouldNotBeNull();
+        result.Total.ShouldBe(108m);
+    }
+
+    #endregion
 }

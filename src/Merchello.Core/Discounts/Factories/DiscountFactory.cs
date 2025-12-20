@@ -45,6 +45,7 @@ public class DiscountFactory
             CanCombineWithProductDiscounts = parameters.CanCombineWithProductDiscounts,
             CanCombineWithOrderDiscounts = parameters.CanCombineWithOrderDiscounts,
             CanCombineWithShippingDiscounts = parameters.CanCombineWithShippingDiscounts,
+            ApplyAfterTax = parameters.ApplyAfterTax,
             Priority = parameters.Priority,
             CreatedBy = parameters.CreatedBy,
             DateCreated = now,

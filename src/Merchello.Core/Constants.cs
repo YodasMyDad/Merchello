@@ -23,6 +23,7 @@
             public const string DiscountCode = "DiscountCode";
             public const string DiscountName = "DiscountName";
             public const string DiscountCategory = "DiscountCategory";
+            public const string ApplyAfterTax = "ApplyAfterTax";
 
             // Product metadata for discount matching
             public const string ProductRootId = "ProductRootId";

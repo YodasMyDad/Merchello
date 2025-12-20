@@ -3,6 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { generateCsv, downloadCsv, formatDateForCsv, type CsvColumn } from "@shared/utils/index.js";
+import { formatNumber } from "@shared/utils/formatting.js";
 import type { OrderExportItemDto } from "@orders/types/order.types.js";
 import type { ExportModalData, ExportModalValue } from "./export-modal.token.js";
 
@@ -72,10 +73,10 @@ export class MerchelloExportModalElement extends UmbModalBaseElement<
       { header: "Inv Date", accessor: (item) => formatDateForCsv(item.invoiceDate) },
       { header: "Payment Status", accessor: (item) => item.paymentStatus },
       { header: "Billing Name", accessor: (item) => item.billingName },
-      { header: "Product Sub Total", accessor: (item) => item.subTotal.toFixed(2) },
-      { header: "Tax", accessor: (item) => item.tax.toFixed(2) },
-      { header: "Shipping", accessor: (item) => item.shipping.toFixed(2) },
-      { header: "Total", accessor: (item) => item.total.toFixed(2) },
+      { header: "Product Sub Total", accessor: (item) => formatNumber(item.subTotal, 2) },
+      { header: "Tax", accessor: (item) => formatNumber(item.tax, 2) },
+      { header: "Shipping", accessor: (item) => formatNumber(item.shipping, 2) },
+      { header: "Total", accessor: (item) => formatNumber(item.total, 2) },
     ];
 
     // Generate and download CSV

@@ -65,6 +65,14 @@ public class Discount
     /// </summary>
     public decimal Value { get; set; }
 
+    /// <summary>
+    /// When true, the discount is calculated based on the after-tax total,
+    /// then reverse-calculated to determine the pre-tax discount amount.
+    /// The customer sees the expected saving (e.g., 10% off £120 = £12 saved).
+    /// Default: false (discount applied to pre-tax subtotal).
+    /// </summary>
+    public bool ApplyAfterTax { get; set; }
+
     // =====================================================
     // Scheduling
     // =====================================================

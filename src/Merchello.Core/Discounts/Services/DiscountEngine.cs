@@ -119,11 +119,8 @@ public class DiscountEngine(
         var result = new ApplyDiscountsResult { Success = true };
         var allDiscountedItems = new Dictionary<Guid, DiscountedLineItem>();
 
-        // Sort discounts by priority
-        var sortedDiscounts = discounts.OrderBy(d => d.Priority).ToList();
-
-        // Check combination rules
-        var validDiscounts = FilterCombinableDiscounts(sortedDiscounts);
+        // Filter and sort by combination rules (FilterCombinableDiscounts handles sorting)
+        var validDiscounts = FilterCombinableDiscounts(discounts);
 
         foreach (var discount in validDiscounts)
         {
@@ -527,15 +524,19 @@ public class DiscountEngine(
                discount.CanCombineWithShippingDiscounts;
     }
 
-    private List<Discount> FilterCombinableDiscounts(List<Discount> discounts)
+    /// <inheritdoc />
+    public List<Discount> FilterCombinableDiscounts(List<Discount> discounts)
     {
         if (discounts.Count <= 1)
         {
             return discounts;
         }
 
+        // Sort by priority (lower number = higher priority)
+        var sortedDiscounts = discounts.OrderBy(d => d.Priority).ToList();
+
         var result = new List<Discount>();
-        foreach (var discount in discounts)
+        foreach (var discount in sortedDiscounts)
         {
             if (result.Count == 0)
             {

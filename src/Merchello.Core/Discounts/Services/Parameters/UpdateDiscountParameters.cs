@@ -136,6 +136,12 @@ public class UpdateDiscountParameters
     /// </summary>
     public bool? CanCombineWithShippingDiscounts { get; set; }
 
+    /// <summary>
+    /// Updated apply after tax flag (null to keep existing).
+    /// When true, the discount is calculated based on the after-tax total.
+    /// </summary>
+    public bool? ApplyAfterTax { get; set; }
+
     // =====================================================
     // Priority
     // =====================================================

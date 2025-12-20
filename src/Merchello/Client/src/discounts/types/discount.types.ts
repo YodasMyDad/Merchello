@@ -101,6 +101,7 @@ export interface DiscountListItemDto {
   canCombineWithProductDiscounts: boolean;
   canCombineWithOrderDiscounts: boolean;
   canCombineWithShippingDiscounts: boolean;
+  applyAfterTax: boolean;
   dateCreated: string;
 }
 
@@ -131,6 +132,7 @@ export interface DiscountDetailDto {
   canCombineWithProductDiscounts: boolean;
   canCombineWithOrderDiscounts: boolean;
   canCombineWithShippingDiscounts: boolean;
+  applyAfterTax: boolean;
   priority: number;
   dateCreated: string;
   dateUpdated: string;
@@ -220,6 +222,7 @@ export interface CreateDiscountDto {
   canCombineWithProductDiscounts: boolean;
   canCombineWithOrderDiscounts: boolean;
   canCombineWithShippingDiscounts: boolean;
+  applyAfterTax: boolean;
   priority?: number;
   targetRules?: CreateDiscountTargetRuleDto[];
   eligibilityRules?: CreateDiscountEligibilityRuleDto[];

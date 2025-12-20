@@ -2036,66 +2036,24 @@ public class InvoiceService(
                 }
             }
 
-            // Calculate totals breakdown
+            // Calculate totals using centralized calculation method
             var allLineItems = orders.SelectMany(o => o.LineItems ?? []).ToList();
-            var productItems = allLineItems.Where(li =>
-                li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom).ToList();
-            var subTotal = productItems.Sum(li => currencyService.Round(li.Amount * li.Quantity, currencyCode));
-
-            var discountItems = allLineItems.Where(li => li.LineItemType == LineItemType.Discount).ToList();
-            // Cap discount total to subtotal to prevent negative adjusted subtotal
-            var rawDiscountTotal = currencyService.Round(Math.Abs(discountItems.Sum(li => li.Amount)), currencyCode);
-            var discountTotal = Math.Min(rawDiscountTotal, subTotal);
-
-            var adjustedSubTotal = currencyService.Round(Math.Max(0, subTotal - discountTotal), currencyCode);
             var shippingTotal = currencyService.Round(orders.Sum(o => o.ShippingCost), currencyCode);
 
-            // Extract order-level discounts (not linked to any specific line item)
-            // These are discounts where DependantLineItemSku is null/empty or doesn't match any product SKU
+            // Use centralized calculation method - handles before-tax and after-tax discounts
+            var (subTotal, discountTotal, adjustedSubTotal, tax, total, _) =
+                lineItemService.CalculateFromLineItems(allLineItems, shippingTotal, 0, currencyCode, isShippingTaxable: false);
+
+            // Extract order-level discounts for display
+            var productItems = allLineItems.Where(li =>
+                li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom).ToList();
+            var discountItems = allLineItems.Where(li => li.LineItemType == LineItemType.Discount).ToList();
             var productSkus = productItems.Select(p => p.Sku).Where(s => !string.IsNullOrEmpty(s)).ToHashSet();
             var orderLevelDiscounts = discountItems
                 .Where(d => string.IsNullOrEmpty(d.DependantLineItemSku) ||
                             !productSkus.Contains(d.DependantLineItemSku))
                 .Select(MapDiscountLineItem)
                 .ToList();
-
-            // Recalculate tax dynamically from line items (same logic as RecalculateInvoiceTotals)
-            var linkedDiscounts = discountItems.Where(d => !string.IsNullOrEmpty(d.DependantLineItemSku)).ToList();
-            var unlinkedDiscountTotal = discountItems
-                .Where(d => string.IsNullOrEmpty(d.DependantLineItemSku))
-                .Sum(d => d.Amount); // Already negative
-
-            var taxableItems = allLineItems.Where(li =>
-                li.IsTaxable && li.LineItemType != LineItemType.Discount).ToList();
-            var totalTaxableAmount = taxableItems.Sum(li =>
-                currencyService.Round(li.Amount * li.Quantity, currencyCode));
-
-            decimal tax = 0;
-            foreach (var lineItem in taxableItems)
-            {
-                var itemTotal = currencyService.Round(lineItem.Amount * lineItem.Quantity, currencyCode);
-
-                // Find any linked discount applied specifically to this line item
-                var lineItemDiscount = linkedDiscounts
-                    .Where(d => d.DependantLineItemSku == lineItem.Sku)
-                    .Sum(d => d.Amount); // Already negative
-
-                // Pro-rate unlinked discounts across taxable items
-                var proRatedUnlinkedDiscount = 0m;
-                if (unlinkedDiscountTotal < 0 && totalTaxableAmount > 0)
-                {
-                    var proportion = itemTotal / totalTaxableAmount;
-                    proRatedUnlinkedDiscount = currencyService.Round(unlinkedDiscountTotal * proportion, currencyCode);
-                }
-
-                // Calculate tax on discounted amount
-                var taxableAmount = currencyService.Round(itemTotal + lineItemDiscount + proRatedUnlinkedDiscount, currencyCode);
-                taxableAmount = Math.Max(0, taxableAmount); // Ensure non-negative
-                tax += currencyService.Round(taxableAmount * (lineItem.TaxRate / 100m), currencyCode);
-            }
-
-            tax = currencyService.Round(tax, currencyCode);
-            var total = currencyService.Round(adjustedSubTotal + tax + shippingTotal, currencyCode);
 
             return new InvoiceForEditDto
             {
@@ -3706,7 +3664,8 @@ public class InvoiceService(
                     [Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString(),
                     [Constants.ExtendedDataKeys.DiscountValueType] = discount.ValueType.ToString(),
                     [Constants.ExtendedDataKeys.DiscountValue] = discount.Value,
-                    [Constants.ExtendedDataKeys.VisibleToCustomer] = true
+                    [Constants.ExtendedDataKeys.VisibleToCustomer] = true,
+                    [Constants.ExtendedDataKeys.ApplyAfterTax] = discount.ApplyAfterTax
                 }
             };
 

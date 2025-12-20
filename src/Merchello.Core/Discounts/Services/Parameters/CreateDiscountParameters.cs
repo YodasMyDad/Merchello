@@ -127,6 +127,13 @@ public class CreateDiscountParameters
     /// </summary>
     public bool CanCombineWithShippingDiscounts { get; set; }
 
+    /// <summary>
+    /// When true, the discount value is calculated based on the after-tax total,
+    /// then reverse-calculated to determine the pre-tax discount amount.
+    /// Default: false (discount applied to pre-tax subtotal).
+    /// </summary>
+    public bool ApplyAfterTax { get; set; }
+
     // =====================================================
     // Priority
     // =====================================================

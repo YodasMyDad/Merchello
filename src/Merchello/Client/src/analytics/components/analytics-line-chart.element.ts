@@ -10,6 +10,7 @@ import {
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { Chart, registerables } from "chart.js";
 import type { TimeSeriesDataPointDto } from "@analytics/types/analytics.types.js";
+import { formatNumber } from "@shared/utils/formatting.js";
 
 // Register all Chart.js components
 Chart.register(...registerables);
@@ -183,12 +184,12 @@ export class MerchelloAnalyticsLineChart extends UmbElementMixin(LitElement) {
 
   private _formatNumber(value: number): string {
     if (value >= 1000000) {
-      return (value / 1000000).toFixed(1) + "M";
+      return formatNumber(value / 1000000, 1) + "M";
     }
     if (value >= 1000) {
-      return (value / 1000).toFixed(1) + "K";
+      return formatNumber(value / 1000, 1) + "K";
     }
-    return value.toFixed(2);
+    return formatNumber(value, 2);
   }
 
   private _getTotalValue(): number {

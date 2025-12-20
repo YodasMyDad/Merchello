@@ -1,22 +1,46 @@
-import { getCurrencySymbol } from "@api/store-settings.js";
+import { getCurrencySymbol, getCurrencyCode } from "@api/store-settings.js";
 import { InvoicePaymentStatus } from "@orders/types/order.types.js";
 
 /**
  * Format a number as currency using store settings.
+ * Always includes thousand separators for consistency.
  * @param amount - The numeric amount to format
- * @returns Formatted currency string with symbol
+ * @param currencyCode - Optional currency code (e.g., "USD", "GBP"). Falls back to store settings.
+ * @param currencySymbol - Optional currency symbol. Only used if currencyCode fails.
+ * @returns Formatted currency string with symbol and thousand separators
  */
 export function formatCurrency(amount: number, currencyCode?: string, currencySymbol?: string): string {
-  if (currencyCode) {
-    try {
-      return new Intl.NumberFormat(undefined, { style: "currency", currency: currencyCode }).format(amount);
-    } catch {
-      // Fallback below
-    }
-  }
+  const code = currencyCode ?? getCurrencyCode();
 
-  const symbol = currencySymbol ?? getCurrencySymbol();
-  return `${symbol}${amount.toFixed(2)}`;
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    // Fallback if currency code is invalid - still use thousand separators
+    const symbol = currencySymbol ?? getCurrencySymbol();
+    const formattedNumber = new Intl.NumberFormat(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+    return `${symbol}${formattedNumber}`;
+  }
+}
+
+/**
+ * Format a number with thousand separators (no currency).
+ * @param value - The numeric value to format
+ * @param decimals - Number of decimal places (default: 0)
+ * @returns Formatted number string with thousand separators
+ */
+export function formatNumber(value: number, decimals: number = 0): string {
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(value);
 }
 
 /**

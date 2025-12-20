@@ -32,6 +32,7 @@ import type { ElementPropertiesChangeDetail } from "./product-element-properties
 import { MERCHELLO_OPTION_EDITOR_MODAL } from "@products/modals/option-editor-modal.token.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { getProductsListHref, getVariantDetailHref } from "@shared/utils/navigation.js";
+import { formatCurrency } from "@shared/utils/formatting.js";
 import type { SelectOption } from "@shared/types/index.js";
 import "@shared/components/editable-text-list.element.js";
 
@@ -1496,7 +1497,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           </div>
         </uui-table-cell>
         <uui-table-cell>${variant.sku || "—"}</uui-table-cell>
-        <uui-table-cell>$${variant.price.toFixed(2)}</uui-table-cell>
+        <uui-table-cell>${formatCurrency(variant.price)}</uui-table-cell>
         <uui-table-cell>
           <span class="badge ${this._getStockBadgeClass(variant.totalStock)}">${variant.totalStock}</span>
         </uui-table-cell>
@@ -1730,7 +1731,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         ${value.priceAdjustment !== 0
           ? html`
               <span class="price-adjustment">
-                ${value.priceAdjustment > 0 ? "+" : ""}$${value.priceAdjustment.toFixed(2)}
+                ${value.priceAdjustment > 0 ? "+" : ""}${formatCurrency(value.priceAdjustment)}
               </span>
             `
           : nothing}

@@ -2,6 +2,7 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { AddCustomItemModalData, AddCustomItemModalValue } from "./add-custom-item-modal.token.js";
+import { formatNumber } from "@shared/utils/formatting.js";
 
 @customElement("merchello-add-custom-item-modal")
 export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
@@ -154,7 +155,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
               @change=${this._handleTaxGroupChange}
             ></uui-select>
             ${this._selectedTaxGroupId ? html`
-              <span class="tax-info">Tax: ${currencySymbol}${taxAmount.toFixed(2)} at ${selectedTaxRate}%</span>
+              <span class="tax-info">Tax: ${currencySymbol}${formatNumber(taxAmount, 2)} at ${selectedTaxRate}%</span>
             ` : nothing}
           </div>
 
@@ -171,17 +172,17 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
             <div class="summary">
               <div class="summary-row">
                 <span>Subtotal</span>
-                <span>${currencySymbol}${subtotal.toFixed(2)}</span>
+                <span>${currencySymbol}${formatNumber(subtotal, 2)}</span>
               </div>
               ${this._selectedTaxGroupId ? html`
                 <div class="summary-row">
                   <span>Tax (${selectedTaxRate}%)</span>
-                  <span>${currencySymbol}${taxAmount.toFixed(2)}</span>
+                  <span>${currencySymbol}${formatNumber(taxAmount, 2)}</span>
                 </div>
               ` : nothing}
               <div class="summary-row total">
                 <span>Total</span>
-                <span>${currencySymbol}${total.toFixed(2)}</span>
+                <span>${currencySymbol}${formatNumber(total, 2)}</span>
               </div>
             </div>
           ` : nothing}

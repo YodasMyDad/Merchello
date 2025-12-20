@@ -3,7 +3,7 @@ import { customElement, property, state } from "@umbraco-cms/backoffice/external
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import type { DiscountPerformanceDto } from "@discounts/types/discount.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
-import { formatCurrency } from "@shared/utils/formatting.js";
+import { formatCurrency, formatNumber } from "@shared/utils/formatting.js";
 
 @customElement("merchello-discount-performance")
 export class MerchelloDiscountPerformanceElement extends UmbElementMixin(LitElement) {
@@ -68,10 +68,6 @@ export class MerchelloDiscountPerformanceElement extends UmbElementMixin(LitElem
   private _handleDateRangeChange(range: typeof this._dateRange): void {
     this._dateRange = range;
     this._loadPerformance();
-  }
-
-  private _formatNumber(num: number): string {
-    return num.toLocaleString();
   }
 
   private _formatCurrency(amount: number): string {
@@ -212,13 +208,13 @@ export class MerchelloDiscountPerformanceElement extends UmbElementMixin(LitElem
         <div class="metrics-grid">
           ${this._renderMetricCard(
             "Total Uses",
-            this._formatNumber(this._performance.totalUsageCount),
+            formatNumber(this._performance.totalUsageCount),
             "icon-users",
             "var(--uui-color-positive)"
           )}
           ${this._renderMetricCard(
             "Unique Customers",
-            this._formatNumber(this._performance.uniqueCustomersCount),
+            formatNumber(this._performance.uniqueCustomersCount),
             "icon-user",
             "var(--uui-color-current)"
           )}
@@ -251,7 +247,7 @@ export class MerchelloDiscountPerformanceElement extends UmbElementMixin(LitElem
                   <div class="revenue-item">
                     <span class="revenue-label">Remaining Uses</span>
                     <span class="revenue-value ${this._performance.remainingUses === 0 ? "exhausted" : ""}">
-                      ${this._formatNumber(this._performance.remainingUses)}
+                      ${formatNumber(this._performance.remainingUses)}
                     </span>
                   </div>
                 `

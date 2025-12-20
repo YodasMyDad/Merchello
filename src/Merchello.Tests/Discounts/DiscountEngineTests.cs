@@ -828,6 +828,168 @@ public class DiscountEngineTests
 
     #endregion
 
+    #region I. FilterCombinableDiscounts Tests
+
+    [Fact]
+    public void FilterCombinableDiscounts_SingleDiscount_ReturnsDiscount()
+    {
+        // Arrange
+        var discount = CreateDiscount(category: DiscountCategory.AmountOffOrder);
+
+        // Act
+        var result = _engine.FilterCombinableDiscounts([discount]);
+
+        // Assert
+        result.Count.ShouldBe(1);
+        result[0].ShouldBe(discount);
+    }
+
+    [Fact]
+    public void FilterCombinableDiscounts_EmptyList_ReturnsEmptyList()
+    {
+        // Act
+        var result = _engine.FilterCombinableDiscounts([]);
+
+        // Assert
+        result.Count.ShouldBe(0);
+    }
+
+    [Fact]
+    public void FilterCombinableDiscounts_TwoNonCombinableDiscounts_ReturnsOnlyHighestPriority()
+    {
+        // Arrange: Two discounts that cannot combine with each other
+        var discount1 = CreateDiscount(category: DiscountCategory.AmountOffProducts, value: 10m);
+        discount1.Priority = 1; // Higher priority (lower number)
+        discount1.CanCombineWithProductDiscounts = false;
+
+        var discount2 = CreateDiscount(category: DiscountCategory.AmountOffProducts, value: 5m);
+        discount2.Priority = 2; // Lower priority
+        discount2.CanCombineWithProductDiscounts = false;
+
+        // Act
+        var result = _engine.FilterCombinableDiscounts([discount1, discount2]);
+
+        // Assert: Only the highest priority discount is returned
+        result.Count.ShouldBe(1);
+        result[0].Id.ShouldBe(discount1.Id);
+    }
+
+    [Fact]
+    public void FilterCombinableDiscounts_TwoCombinableDiscounts_ReturnsBoth()
+    {
+        // Arrange: Two discounts that can combine with each other
+        var discount1 = CreateDiscount(category: DiscountCategory.AmountOffProducts, value: 10m);
+        discount1.CanCombineWithProductDiscounts = true;
+
+        var discount2 = CreateDiscount(category: DiscountCategory.AmountOffProducts, value: 5m);
+        discount2.CanCombineWithProductDiscounts = true;
+
+        // Act
+        var result = _engine.FilterCombinableDiscounts([discount1, discount2]);
+
+        // Assert: Both discounts are returned
+        result.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void FilterCombinableDiscounts_MixedCombinability_ReturnsCompatibleSet()
+    {
+        // Arrange: Three discounts - discount1 and discount2 can combine,
+        // but discount3 cannot combine with product discounts
+        var discount1 = CreateDiscount(category: DiscountCategory.AmountOffProducts, value: 10m);
+        discount1.Priority = 1;
+        discount1.CanCombineWithProductDiscounts = true;
+        discount1.CanCombineWithOrderDiscounts = true;
+
+        var discount2 = CreateDiscount(category: DiscountCategory.AmountOffOrder, value: 5m);
+        discount2.Priority = 2;
+        discount2.CanCombineWithProductDiscounts = true;
+        discount2.CanCombineWithOrderDiscounts = true;
+
+        var discount3 = CreateDiscount(category: DiscountCategory.AmountOffProducts, value: 15m);
+        discount3.Priority = 3;
+        discount3.CanCombineWithProductDiscounts = false; // Can't combine with other product discounts
+
+        // Act
+        var result = _engine.FilterCombinableDiscounts([discount1, discount2, discount3]);
+
+        // Assert: discount1 and discount2 can combine, discount3 cannot join them
+        result.Count.ShouldBe(2);
+        result.ShouldContain(d => d.Id == discount1.Id);
+        result.ShouldContain(d => d.Id == discount2.Id);
+    }
+
+    [Fact]
+    public void FilterCombinableDiscounts_SortsBeforeFiltering_HighestPriorityWins()
+    {
+        // Arrange: Two non-combinable discounts passed in wrong order
+        // The lower priority one is passed first, but higher priority should win
+        var lowPriorityDiscount = CreateDiscount(category: DiscountCategory.AmountOffOrder, value: 5m);
+        lowPriorityDiscount.Priority = 100; // Lower priority (higher number)
+        lowPriorityDiscount.CanCombineWithOrderDiscounts = false;
+
+        var highPriorityDiscount = CreateDiscount(category: DiscountCategory.AmountOffOrder, value: 10m);
+        highPriorityDiscount.Priority = 1; // Higher priority (lower number)
+        highPriorityDiscount.CanCombineWithOrderDiscounts = false;
+
+        // Act: Pass in wrong order (low priority first)
+        var result = _engine.FilterCombinableDiscounts([lowPriorityDiscount, highPriorityDiscount]);
+
+        // Assert: Higher priority discount wins regardless of input order
+        result.Count.ShouldBe(1);
+        result[0].Id.ShouldBe(highPriorityDiscount.Id);
+    }
+
+    [Fact]
+    public void FilterCombinableDiscounts_AllCombinationsFalse_OnlyReturnsFirst()
+    {
+        // Arrange: Discount with ALL combination flags set to false
+        // This is the exact scenario from the bug report
+        var discount1 = CreateDiscount(category: DiscountCategory.AmountOffProducts, value: 10m);
+        discount1.Priority = 1;
+        discount1.CanCombineWithProductDiscounts = false;
+        discount1.CanCombineWithOrderDiscounts = false;
+        discount1.CanCombineWithShippingDiscounts = false;
+
+        var discount2 = CreateDiscount(category: DiscountCategory.AmountOffOrder, value: 20m);
+        discount2.Priority = 2;
+        discount2.CanCombineWithProductDiscounts = true;
+        discount2.CanCombineWithOrderDiscounts = true;
+        discount2.CanCombineWithShippingDiscounts = true;
+
+        // Act
+        var result = _engine.FilterCombinableDiscounts([discount1, discount2]);
+
+        // Assert: Only discount1 is returned because it can't combine with anything
+        // and it has higher priority
+        result.Count.ShouldBe(1);
+        result[0].Id.ShouldBe(discount1.Id);
+    }
+
+    [Fact]
+    public void FilterCombinableDiscounts_DifferentCategories_RespectsCategoryFlags()
+    {
+        // Arrange: Product discount that allows order discount combination
+        var productDiscount = CreateDiscount(category: DiscountCategory.AmountOffProducts, value: 10m);
+        productDiscount.Priority = 1;
+        productDiscount.CanCombineWithProductDiscounts = false;
+        productDiscount.CanCombineWithOrderDiscounts = true;
+
+        // Order discount that allows product discount combination
+        var orderDiscount = CreateDiscount(category: DiscountCategory.AmountOffOrder, value: 5m);
+        orderDiscount.Priority = 2;
+        orderDiscount.CanCombineWithProductDiscounts = true;
+        orderDiscount.CanCombineWithOrderDiscounts = false;
+
+        // Act
+        var result = _engine.FilterCombinableDiscounts([productDiscount, orderDiscount]);
+
+        // Assert: Both can combine because their categories allow it
+        result.Count.ShouldBe(2);
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static Discount CreateDiscount(

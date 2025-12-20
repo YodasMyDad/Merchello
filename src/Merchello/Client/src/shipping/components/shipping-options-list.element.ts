@@ -8,6 +8,7 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { ShippingOptionDto, WarehouseDto } from "@shipping/types/shipping.types.js";
 import { MERCHELLO_SHIPPING_OPTION_DETAIL_MODAL } from "@shipping/modals/shipping-option-detail-modal.token.js";
+import { formatCurrency } from "@shared/utils/formatting.js";
 
 @customElement("merchello-shipping-options-list")
 export class MerchelloShippingOptionsListElement extends UmbElementMixin(LitElement) {
@@ -136,7 +137,7 @@ export class MerchelloShippingOptionsListElement extends UmbElementMixin(LitElem
         </td>
         <td>${option.warehouseName ?? "Unknown"}</td>
         <td>${this._formatDays(option)}</td>
-        <td>${option.fixedCost != null ? `$${option.fixedCost.toFixed(2)}` : "-"}</td>
+        <td>${option.fixedCost != null ? formatCurrency(option.fixedCost) : "-"}</td>
         <td>${option.costCount}</td>
         <td>${option.weightTierCount}</td>
         <td class="actions">

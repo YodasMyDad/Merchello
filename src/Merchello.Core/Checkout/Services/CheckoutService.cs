@@ -599,7 +599,8 @@ public class CheckoutService(
                 [Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString(),
                 [Constants.ExtendedDataKeys.DiscountCode] = discount.Code ?? string.Empty,
                 [Constants.ExtendedDataKeys.DiscountName] = discount.Name,
-                [Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString()
+                [Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString(),
+                [Constants.ExtendedDataKeys.ApplyAfterTax] = discount.ApplyAfterTax.ToString()
             });
 
         if (errors.Count > 0)
@@ -664,9 +665,45 @@ public class CheckoutService(
         var context = BuildDiscountContext(basket);
         var applicableDiscounts = await discountEngine.GetApplicableAutomaticDiscountsAsync(context, cancellationToken);
 
-        // Apply each automatic discount
+        // Get existing code-based discounts from basket to consider in combination filtering
+        var existingCodeDiscountIds = basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Discount &&
+                         li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out _) &&
+                         li.ExtendedData.ContainsKey(Constants.ExtendedDataKeys.DiscountCode))
+            .Select(li => Guid.TryParse(li.ExtendedData[Constants.ExtendedDataKeys.DiscountId] as string, out var id) ? id : Guid.Empty)
+            .Where(id => id != Guid.Empty)
+            .ToList();
+
+        var existingCodeDiscounts = new List<Discount>();
+        if (discountService != null)
+        {
+            foreach (var discountId in existingCodeDiscountIds)
+            {
+                var discount = await discountService.GetByIdAsync(discountId, cancellationToken);
+                if (discount != null)
+                {
+                    existingCodeDiscounts.Add(discount);
+                }
+            }
+        }
+
+        // Filter automatic discounts based on combination rules with both:
+        // - Each other (automatic discounts)
+        // - Existing code-based discounts in basket
+        var allDiscountsToConsider = existingCodeDiscounts
+            .Concat(applicableDiscounts.Select(ad => ad.Discount))
+            .ToList();
+
+        var filteredDiscounts = discountEngine.FilterCombinableDiscounts(allDiscountsToConsider);
+
+        // Only apply automatic discounts that made it through the filter
+        var discountsToApply = applicableDiscounts
+            .Where(ad => filteredDiscounts.Contains(ad.Discount))
+            .ToList();
+
+        // Apply each automatic discount that passed combination filtering
         var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
-        foreach (var applicableDiscount in applicableDiscounts)
+        foreach (var applicableDiscount in discountsToApply)
         {
             var discount = applicableDiscount.Discount;
 
@@ -682,7 +719,8 @@ public class CheckoutService(
                 {
                     [Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString(),
                     [Constants.ExtendedDataKeys.DiscountName] = discount.Name,
-                    [Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString()
+                    [Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString(),
+                    [Constants.ExtendedDataKeys.ApplyAfterTax] = discount.ApplyAfterTax.ToString()
                 });
         }
 

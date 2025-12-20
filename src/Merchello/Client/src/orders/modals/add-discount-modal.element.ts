@@ -3,6 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { DiscountValueType } from "@orders/types/order.types.js";
 import type { AddDiscountModalData, AddDiscountModalValue } from "./add-discount-modal.token.js";
+import { formatNumber } from "@shared/utils/formatting.js";
 
 @customElement("merchello-add-discount-modal")
 export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
@@ -97,7 +98,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
               <span class="item-name">${this.data.lineItemName}</span>
               ${this.data.lineItemPrice !== undefined ? html`
                 <span class="item-price">
-                  ${currencySymbol}${this.data.lineItemPrice.toFixed(2)} x ${this.data.lineItemQuantity ?? 1}
+                  ${currencySymbol}${formatNumber(this.data.lineItemPrice, 2)} x ${this.data.lineItemQuantity ?? 1}
                 </span>
               ` : nothing}
             </div>
@@ -159,7 +160,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
               <div class="summary-row">
                 <span>Discount</span>
                 <span class="discount-amount">
-                  -${currencySymbol}${this._getCalculatedDiscount().toFixed(2)}
+                  -${currencySymbol}${formatNumber(this._getCalculatedDiscount(), 2)}
                 </span>
               </div>
             </div>

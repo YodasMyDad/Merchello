@@ -2,6 +2,7 @@
 // Reusable product picker modal types for order editing and future property editors
 
 import type { ProductVariantDto, VariantWarehouseStockDto } from "@products/types/product.types.js";
+import { formatNumber } from "@shared/utils/formatting.js";
 
 /**
  * Configuration options for the product picker modal
@@ -178,10 +179,10 @@ export interface WarehouseRegionCache {
 }
 
 /**
- * Helper to format a price with currency symbol
+ * Helper to format a price with currency symbol and thousand separators
  */
 export function formatPrice(price: number, currencySymbol: string): string {
-  return `${currencySymbol}${price.toFixed(2)}`;
+  return `${currencySymbol}${formatNumber(price, 2)}`;
 }
 
 /**

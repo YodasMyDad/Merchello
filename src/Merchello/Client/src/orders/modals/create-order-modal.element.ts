@@ -16,6 +16,7 @@ import type {
 import type { CreateOrderModalData, CreateOrderModalValue } from "./create-order-modal.token.js";
 import { MERCHELLO_ADD_CUSTOM_ITEM_MODAL } from "./add-custom-item-modal.token.js";
 import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-picker-modal.token.js";
+import { formatNumber } from "@shared/utils/formatting.js";
 
 interface PendingCustomItem extends AddCustomItemDto {
   tempId: string;
@@ -629,9 +630,9 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
             <div class="line-item-sku">${item.sku ?? "Custom item"} · ${taxInfo}</div>
           </div>
         </div>
-        <div class="line-item-price">${this._currencySymbol}${item.price.toFixed(2)}</div>
+        <div class="line-item-price">${this._currencySymbol}${formatNumber(item.price, 2)}</div>
         <div class="line-item-quantity">${item.quantity}</div>
-        <div class="line-item-total">${this._currencySymbol}${(item.price * item.quantity).toFixed(2)}</div>
+        <div class="line-item-total">${this._currencySymbol}${formatNumber(item.price * item.quantity, 2)}</div>
         <div class="line-item-actions">
           <uui-button
             look="secondary"
@@ -664,7 +665,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
             </div>
           </div>
         </div>
-        <div class="line-item-price">${this._currencySymbol}${product.price.toFixed(2)}</div>
+        <div class="line-item-price">${this._currencySymbol}${formatNumber(product.price, 2)}</div>
         <div class="line-item-quantity">
           <uui-input
             type="number"
@@ -674,7 +675,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
             min="1"
           ></uui-input>
         </div>
-        <div class="line-item-total">${this._currencySymbol}${(product.price * product.quantity).toFixed(2)}</div>
+        <div class="line-item-total">${this._currencySymbol}${formatNumber(product.price * product.quantity, 2)}</div>
         <div class="line-item-actions">
           <uui-button
             look="secondary"
@@ -735,7 +736,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
       <uui-box headline="Order Summary">
         <div class="summary-row">
           <span>Subtotal</span>
-          <span>${this._currencySymbol}${subtotal.toFixed(2)}</span>
+          <span>${this._currencySymbol}${formatNumber(subtotal, 2)}</span>
         </div>
 
         <div class="summary-row muted">
@@ -750,7 +751,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
 
         <div class="summary-row total">
           <span>Total</span>
-          <span>${this._currencySymbol}${subtotal.toFixed(2)}</span>
+          <span>${this._currencySymbol}${formatNumber(subtotal, 2)}</span>
         </div>
 
         <p class="summary-note">

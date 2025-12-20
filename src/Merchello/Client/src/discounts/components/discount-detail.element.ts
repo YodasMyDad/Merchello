@@ -298,6 +298,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
         canCombineWithProductDiscounts: this._discount.canCombineWithProductDiscounts,
         canCombineWithOrderDiscounts: this._discount.canCombineWithOrderDiscounts,
         canCombineWithShippingDiscounts: this._discount.canCombineWithShippingDiscounts,
+        applyAfterTax: this._discount.applyAfterTax,
         priority: this._discount.priority,
         targetRules: this._targetRules.map((r) => ({
           targetType: r.targetType,
@@ -350,6 +351,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
         canCombineWithProductDiscounts: this._discount.canCombineWithProductDiscounts,
         canCombineWithOrderDiscounts: this._discount.canCombineWithOrderDiscounts,
         canCombineWithShippingDiscounts: this._discount.canCombineWithShippingDiscounts,
+        applyAfterTax: this._discount.applyAfterTax,
         priority: this._discount.priority,
         targetRules: this._targetRules.map((r) => ({
           targetType: r.targetType,
@@ -666,6 +668,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
       <uui-box headline="Discount Combinations">
         <p class="box-description">
           Choose which other discount types can be used together with this discount.
+          If no options are selected, this discount cannot be combined with any other discounts.
         </p>
         <div class="checkbox-group">
           <uui-checkbox
@@ -697,11 +700,32 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
         </div>
       </uui-box>
 
+      <uui-box headline="Tax Calculation">
+        <p class="box-description">
+          Choose how the discount is calculated in relation to tax.
+        </p>
+        <div class="checkbox-group">
+          <uui-checkbox
+            label="Calculate discount on total including tax"
+            ?checked=${this._discount?.applyAfterTax}
+            @change=${(e: Event) =>
+              this._handleInputChange("applyAfterTax", (e.target as HTMLInputElement).checked)}
+          >
+            Calculate discount on total including tax
+          </uui-checkbox>
+          <small>
+            When enabled, customers see the discount as a percentage/amount off their total (including tax).
+            The system will correctly calculate the pre-tax adjustment for accounting purposes.
+          </small>
+        </div>
+      </uui-box>
+
       <uui-box headline="Priority">
         <p class="box-description">
           Lower numbers have higher priority. When multiple discounts apply, higher priority discounts are calculated first.
         </p>
-        <umb-property-layout label="Priority">
+        <umb-property-layout label="Priority"
+          description="When discounts cannot be combined (based on the settings above), only the discount with the lowest priority number will be applied.">
           <uui-input
             slot="editor"
             type="number"

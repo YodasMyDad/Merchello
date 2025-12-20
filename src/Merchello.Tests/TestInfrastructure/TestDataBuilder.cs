@@ -364,8 +364,21 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
         DiscountValueType discountValueType = DiscountValueType.FixedAmount,
         decimal? discountValue = null,
         string? reason = null,
-        bool visibleToCustomer = false)
+        bool visibleToCustomer = false,
+        bool applyAfterTax = false)
     {
+        var extendedData = new Dictionary<string, object>
+        {
+            [Constants.ExtendedDataKeys.DiscountValueType] = discountValueType.ToString(),
+            [Constants.ExtendedDataKeys.DiscountValue] = discountValue ?? discountAmount,
+            [Constants.ExtendedDataKeys.VisibleToCustomer] = visibleToCustomer
+        };
+
+        if (applyAfterTax)
+        {
+            extendedData[Constants.ExtendedDataKeys.ApplyAfterTax] = true;
+        }
+
         var discountLineItem = new LineItem
         {
             OrderId = order.Id,
@@ -378,12 +391,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             DependantLineItemSku = parentLineItem.Sku,
             IsTaxable = false,
             TaxRate = 0,
-            ExtendedData = new Dictionary<string, object>
-            {
-                [Constants.ExtendedDataKeys.DiscountValueType] = discountValueType.ToString(),
-                [Constants.ExtendedDataKeys.DiscountValue] = discountValue ?? discountAmount,
-                [Constants.ExtendedDataKeys.VisibleToCustomer] = visibleToCustomer
-            }
+            ExtendedData = extendedData
         };
 
         dbContext.LineItems.Add(discountLineItem);
@@ -401,8 +409,21 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
         DiscountValueType discountValueType = DiscountValueType.FixedAmount,
         decimal? discountValue = null,
         string? name = null,
-        bool visibleToCustomer = false)
+        bool visibleToCustomer = false,
+        bool applyAfterTax = false)
     {
+        var extendedData = new Dictionary<string, object>
+        {
+            [Constants.ExtendedDataKeys.DiscountValueType] = discountValueType.ToString(),
+            [Constants.ExtendedDataKeys.DiscountValue] = discountValue ?? discountAmount,
+            [Constants.ExtendedDataKeys.VisibleToCustomer] = visibleToCustomer
+        };
+
+        if (applyAfterTax)
+        {
+            extendedData[Constants.ExtendedDataKeys.ApplyAfterTax] = true;
+        }
+
         var discountLineItem = new LineItem
         {
             OrderId = order.Id,
@@ -415,12 +436,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             DependantLineItemSku = null, // Not linked to any specific product
             IsTaxable = false,
             TaxRate = 0,
-            ExtendedData = new Dictionary<string, object>
-            {
-                [Constants.ExtendedDataKeys.DiscountValueType] = discountValueType.ToString(),
-                [Constants.ExtendedDataKeys.DiscountValue] = discountValue ?? discountAmount,
-                [Constants.ExtendedDataKeys.VisibleToCustomer] = visibleToCustomer
-            }
+            ExtendedData = extendedData
         };
 
         dbContext.LineItems.Add(discountLineItem);
