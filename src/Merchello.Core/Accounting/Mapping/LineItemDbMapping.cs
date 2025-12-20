@@ -26,5 +26,6 @@ public class LineItemDbMapping : IEntityTypeConfiguration<LineItem>
 
         // Index on LineItemType for efficient discount line item queries
         builder.HasIndex(x => x.LineItemType);
+        builder.HasIndex(x => x.ProductId);
     }
 }

@@ -640,7 +640,7 @@ const e = [
     kind: "routable",
     alias: "Merchello.Discount.Detail.Workspace",
     name: "Discount Detail Workspace",
-    api: () => import("./discount-detail-workspace.context-sSjO6CQs.js"),
+    api: () => import("./discount-detail-workspace.context-M5Y2hFvn.js"),
     meta: {
       entityType: "merchello-discount"
     }

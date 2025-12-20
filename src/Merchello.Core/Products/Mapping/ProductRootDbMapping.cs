@@ -44,5 +44,6 @@ public class ProductRootDbMapping : IEntityTypeConfiguration<ProductRoot>
 
         // Index for front-end URL routing performance
         builder.HasIndex(x => x.RootUrl);
+        builder.HasIndex(x => x.ProductTypeId);
     }
 }

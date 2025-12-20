@@ -20,6 +20,9 @@ public class WarehouseDbMapping : IEntityTypeConfiguration<Warehouse>
         builder.Property(x => x.ExtendedData).ToJsonConversion(1000);
         builder.Property(x => x.AutomationMethod).HasMaxLength(1000);
 
+        // Unique constraint on warehouse code
+        builder.HasIndex(x => x.Code).IsUnique();
+
         // Relationship to Supplier is configured in SupplierDbMapping
     }
 }

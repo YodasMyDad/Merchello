@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Merchello.Core.Sqlite.Migrations
 {
     [DbContext(typeof(MerchelloDbContext))]
-    [Migration("20251220090136_Initial")]
+    [Migration("20251220140300_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -146,6 +146,8 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasIndex("CustomerId");
 
+                    b.HasIndex("DateCreated");
+
                     b.HasIndex("IsCancelled");
 
                     b.HasIndex("IsDeleted");
@@ -223,6 +225,8 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasIndex("OrderId");
 
+                    b.HasIndex("ProductId");
+
                     b.ToTable("merchelloLineItems", (string)null);
                 });
 
@@ -297,6 +301,10 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("InvoiceId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("WarehouseId");
 
                     b.ToTable("merchelloOrders", (string)null);
                 });
@@ -515,6 +523,8 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DateCreated");
 
                     b.HasIndex("Email")
                         .IsUnique();
@@ -1658,6 +1668,9 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
 
                     b.HasIndex("SupplierId");
 

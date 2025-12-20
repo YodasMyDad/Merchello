@@ -32,5 +32,9 @@ public class OrderDbMapping : IEntityTypeConfiguration<Order>
         builder.Property(x => x.CancelledDate).IsRequired(false);
         builder.Property(x => x.CancellationReason).HasMaxLength(1000);
         builder.Property(x => x.InternalNotes).HasMaxLength(2000);
+
+        // Indexes for fulfillment queries
+        builder.HasIndex(x => x.Status);
+        builder.HasIndex(x => x.WarehouseId);
     }
 }

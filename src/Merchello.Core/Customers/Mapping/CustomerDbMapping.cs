@@ -34,6 +34,7 @@ public class CustomerDbMapping : IEntityTypeConfiguration<Customer>
         // Timestamps
         builder.Property(x => x.DateCreated);
         builder.Property(x => x.DateUpdated);
+        builder.HasIndex(x => x.DateCreated);
 
         // Navigation: One Customer -> Many Invoices
         builder.HasMany(x => x.Invoices)

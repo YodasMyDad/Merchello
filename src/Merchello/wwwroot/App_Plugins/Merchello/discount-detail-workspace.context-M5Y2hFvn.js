@@ -9,7 +9,7 @@ class U extends r {
     super(t, i.toString()), this.workspaceAlias = "Merchello.Discount.Detail.Workspace", this.#e = !1, this.#s = new u(void 0), this.discount = this.#s.asObservable(), this.#i = new a(!1), this.isLoading = this.#i.asObservable(), this.#o = new a(!1), this.isSaving = this.#o.asObservable(), this.routes = new n(t), this.provideContext(i, this), this.routes.setRoutes([
       {
         path: "create",
-        component: () => import("./discount-detail.element-DHNIAfzf.js"),
+        component: () => import("./discount-detail.element-CJon_v6s.js"),
         setup: () => {
           this.#e = !0, this.#t = void 0;
           const s = new URLSearchParams(window.location.search).get("category");
@@ -18,7 +18,7 @@ class U extends r {
       },
       {
         path: "edit/:id",
-        component: () => import("./discount-detail.element-DHNIAfzf.js"),
+        component: () => import("./discount-detail.element-CJon_v6s.js"),
         setup: (e, s) => {
           this.#e = !1;
           const o = s.match.params.id;
@@ -106,4 +106,4 @@ export {
   U as MerchelloDiscountDetailWorkspaceContext,
   U as api
 };
-//# sourceMappingURL=discount-detail-workspace.context-sSjO6CQs.js.map
+//# sourceMappingURL=discount-detail-workspace.context-M5Y2hFvn.js.map

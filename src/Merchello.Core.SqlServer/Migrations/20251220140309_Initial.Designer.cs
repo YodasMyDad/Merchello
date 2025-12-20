@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Merchello.Core.SqlServer.Migrations
 {
     [DbContext(typeof(MerchelloDbContext))]
-    [Migration("20251220090139_Initial")]
+    [Migration("20251220140309_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -151,6 +151,8 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.HasIndex("CustomerId");
 
+                    b.HasIndex("DateCreated");
+
                     b.HasIndex("IsCancelled");
 
                     b.HasIndex("IsDeleted");
@@ -228,6 +230,8 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.HasIndex("OrderId");
 
+                    b.HasIndex("ProductId");
+
                     b.ToTable("merchelloLineItems", (string)null);
                 });
 
@@ -302,6 +306,10 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("InvoiceId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("WarehouseId");
 
                     b.ToTable("merchelloOrders", (string)null);
                 });
@@ -520,6 +528,8 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DateCreated");
 
                     b.HasIndex("Email")
                         .IsUnique();
@@ -1663,6 +1673,10 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasFilter("[Code] IS NOT NULL");
 
                     b.HasIndex("SupplierId");
 

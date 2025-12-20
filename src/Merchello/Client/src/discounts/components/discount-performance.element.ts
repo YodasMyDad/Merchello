@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external
 import { customElement, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import type { DiscountPerformanceDto } from "@discounts/types/discount.types.js";
+import type { DateRange, DateRangePreset } from "@analytics/types/analytics.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatCurrency, formatNumber } from "@shared/utils/formatting.js";
 
@@ -12,7 +13,11 @@ export class MerchelloDiscountPerformanceElement extends UmbElementMixin(LitElem
   @state() private _performance?: DiscountPerformanceDto;
   @state() private _isLoading = true;
   @state() private _error?: string;
-  @state() private _dateRange: "7d" | "30d" | "90d" | "all" = "30d";
+  @state() private _dateRange: DateRange = this._getDefaultDateRange();
+  @state() private _activePreset: DateRangePreset = "last30days";
+  @state() private _showCustomPicker = false;
+  @state() private _customStartDate = "";
+  @state() private _customEndDate = "";
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -31,28 +36,10 @@ export class MerchelloDiscountPerformanceElement extends UmbElementMixin(LitElem
     this._isLoading = true;
     this._error = undefined;
 
-    const endDate = new Date();
-    let startDate: Date | undefined;
-
-    switch (this._dateRange) {
-      case "7d":
-        startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case "30d":
-        startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
-        break;
-      case "90d":
-        startDate = new Date(endDate.getTime() - 90 * 24 * 60 * 60 * 1000);
-        break;
-      case "all":
-        startDate = undefined;
-        break;
-    }
-
     const { data, error } = await MerchelloApi.getDiscountPerformance(
       this.discountId,
-      startDate?.toISOString(),
-      endDate.toISOString()
+      this._dateRange.startDate.toISOString(),
+      this._dateRange.endDate.toISOString()
     );
 
     this._isLoading = false;
@@ -65,9 +52,78 @@ export class MerchelloDiscountPerformanceElement extends UmbElementMixin(LitElem
     this._performance = data;
   }
 
-  private _handleDateRangeChange(range: typeof this._dateRange): void {
-    this._dateRange = range;
-    this._loadPerformance();
+  private _getDefaultDateRange(): DateRange {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 30);
+    return { startDate: start, endDate: end };
+  }
+
+  private _getPresetDateRange(preset: DateRangePreset): DateRange {
+    const end = new Date();
+    const start = new Date();
+
+    switch (preset) {
+      case "today":
+        break;
+      case "last7days":
+        start.setDate(start.getDate() - 7);
+        break;
+      case "last30days":
+        start.setDate(start.getDate() - 30);
+        break;
+      case "thisMonth":
+        start.setDate(1);
+        break;
+      case "lastMonth": {
+        start.setMonth(start.getMonth() - 1);
+        start.setDate(1);
+        const lastDayOfLastMonth = new Date(end.getFullYear(), end.getMonth(), 0);
+        return { startDate: start, endDate: lastDayOfLastMonth };
+      }
+      default:
+        start.setDate(start.getDate() - 30);
+    }
+
+    return { startDate: start, endDate: end };
+  }
+
+  private _handlePresetClick(preset: DateRangePreset): void {
+    this._activePreset = preset;
+    this._showCustomPicker = preset === "custom";
+
+    if (preset !== "custom") {
+      this._dateRange = this._getPresetDateRange(preset);
+      this._loadPerformance();
+    }
+  }
+
+  private _handleCustomStartChange(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    this._customStartDate = input.value;
+    this._tryApplyCustomRange();
+  }
+
+  private _handleCustomEndChange(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    this._customEndDate = input.value;
+    this._tryApplyCustomRange();
+  }
+
+  private _tryApplyCustomRange(): void {
+    if (this._customStartDate && this._customEndDate) {
+      const startDate = new Date(this._customStartDate);
+      const endDate = new Date(this._customEndDate);
+
+      if (startDate <= endDate) {
+        this._dateRange = { startDate, endDate };
+        this._loadPerformance();
+      }
+    }
+  }
+
+  private _formatDateForInput(date: Date): string {
+    return date.toISOString().split("T")[0];
   }
 
   private _formatCurrency(amount: number): string {
@@ -176,32 +232,63 @@ export class MerchelloDiscountPerformanceElement extends UmbElementMixin(LitElem
       <div class="performance-container">
         <!-- Date Range Selector -->
         <div class="date-range-selector">
-          <uui-button-group>
+          <div class="preset-buttons">
             <uui-button
-              look=${this._dateRange === "7d" ? "primary" : "secondary"}
-              @click=${() => this._handleDateRangeChange("7d")}
-            >
-              7 Days
+              look=${this._activePreset === "today" ? "primary" : "secondary"}
+              compact
+              @click=${() => this._handlePresetClick("today")}
+              label="Today">
+              Today
             </uui-button>
             <uui-button
-              look=${this._dateRange === "30d" ? "primary" : "secondary"}
-              @click=${() => this._handleDateRangeChange("30d")}
-            >
-              30 Days
+              look=${this._activePreset === "last7days" ? "primary" : "secondary"}
+              compact
+              @click=${() => this._handlePresetClick("last7days")}
+              label="Last 7 days">
+              Last 7 days
             </uui-button>
             <uui-button
-              look=${this._dateRange === "90d" ? "primary" : "secondary"}
-              @click=${() => this._handleDateRangeChange("90d")}
-            >
-              90 Days
+              look=${this._activePreset === "last30days" ? "primary" : "secondary"}
+              compact
+              @click=${() => this._handlePresetClick("last30days")}
+              label="Last 30 days">
+              Last 30 days
             </uui-button>
             <uui-button
-              look=${this._dateRange === "all" ? "primary" : "secondary"}
-              @click=${() => this._handleDateRangeChange("all")}
-            >
-              All Time
+              look=${this._activePreset === "thisMonth" ? "primary" : "secondary"}
+              compact
+              @click=${() => this._handlePresetClick("thisMonth")}
+              label="This month">
+              This month
             </uui-button>
-          </uui-button-group>
+            <uui-button
+              look=${this._activePreset === "custom" ? "primary" : "secondary"}
+              compact
+              @click=${() => this._handlePresetClick("custom")}
+              label="Custom">
+              Custom
+            </uui-button>
+          </div>
+
+          ${this._showCustomPicker
+            ? html`
+                <div class="custom-picker">
+                  <uui-input
+                    type="date"
+                    .value=${this._customStartDate || this._formatDateForInput(this._dateRange.startDate)}
+                    @change=${this._handleCustomStartChange}
+                    label="Start date">
+                  </uui-input>
+                  <span class="date-separator">to</span>
+                  <uui-input
+                    type="date"
+                    .value=${this._customEndDate || this._formatDateForInput(this._dateRange.endDate)}
+                    @change=${this._handleCustomEndChange}
+                    label="End date">
+                  </uui-input>
+                </div>
+              `
+            : nothing}
         </div>
 
         <!-- Key Metrics -->
@@ -329,6 +416,30 @@ export class MerchelloDiscountPerformanceElement extends UmbElementMixin(LitElem
     .date-range-selector {
       display: flex;
       justify-content: flex-end;
+      align-items: center;
+      gap: var(--uui-size-space-4);
+      flex-wrap: wrap;
+    }
+
+    .preset-buttons {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      flex-wrap: wrap;
+    }
+
+    .custom-picker {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+    }
+
+    .date-separator {
+      color: var(--uui-color-text-alt);
+      font-size: var(--uui-type-small-size);
+    }
+
+    uui-input[type="date"] {
+      width: 150px;
     }
 
     .metrics-grid {

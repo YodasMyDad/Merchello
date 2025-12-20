@@ -1069,6 +1069,11 @@ namespace Merchello.Core.Sqlite.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_merchelloCustomers_DateCreated",
+                table: "merchelloCustomers",
+                column: "DateCreated");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_merchelloCustomers_Email",
                 table: "merchelloCustomers",
                 column: "Email",
@@ -1183,6 +1188,11 @@ namespace Merchello.Core.Sqlite.Migrations
                 column: "CustomerId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_merchelloInvoices_DateCreated",
+                table: "merchelloInvoices",
+                column: "DateCreated");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_merchelloInvoices_IsCancelled",
                 table: "merchelloInvoices",
                 column: "IsCancelled");
@@ -1208,9 +1218,24 @@ namespace Merchello.Core.Sqlite.Migrations
                 column: "OrderId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_merchelloLineItems_ProductId",
+                table: "merchelloLineItems",
+                column: "ProductId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_merchelloOrders_InvoiceId",
                 table: "merchelloOrders",
                 column: "InvoiceId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_merchelloOrders_Status",
+                table: "merchelloOrders",
+                column: "Status");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_merchelloOrders_WarehouseId",
+                table: "merchelloOrders",
+                column: "WarehouseId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloPaymentProviders_ProviderAlias",
@@ -1338,6 +1363,12 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "IX_merchelloShippingWeightTiers_ShippingOptionId_CountryCode_StateOrProvinceCode",
                 table: "merchelloShippingWeightTiers",
                 columns: new[] { "ShippingOptionId", "CountryCode", "StateOrProvinceCode" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_merchelloWarehouses_Code",
+                table: "merchelloWarehouses",
+                column: "Code",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloWarehouses_SupplierId",

@@ -143,6 +143,8 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasIndex("CustomerId");
 
+                    b.HasIndex("DateCreated");
+
                     b.HasIndex("IsCancelled");
 
                     b.HasIndex("IsDeleted");
@@ -220,6 +222,8 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasIndex("OrderId");
 
+                    b.HasIndex("ProductId");
+
                     b.ToTable("merchelloLineItems", (string)null);
                 });
 
@@ -294,6 +298,10 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("InvoiceId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("WarehouseId");
 
                     b.ToTable("merchelloOrders", (string)null);
                 });
@@ -512,6 +520,8 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DateCreated");
 
                     b.HasIndex("Email")
                         .IsUnique();
@@ -1655,6 +1665,9 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
 
                     b.HasIndex("SupplierId");
 

@@ -1,20 +1,20 @@
-import { LitElement as E, nothing as u, html as s, css as A, property as w, customElement as O, state as d } from "@umbraco-cms/backoffice/external/lit";
-import { UmbElementMixin as N } from "@umbraco-cms/backoffice/element-api";
+import { LitElement as E, nothing as n, html as s, css as A, property as I, customElement as O, state as d } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as M } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT as se } from "@umbraco-cms/backoffice/workspace";
 import { UMB_NOTIFICATION_CONTEXT as re } from "@umbraco-cms/backoffice/notification";
-import { UmbModalToken as S, UMB_MODAL_MANAGER_CONTEXT as V, UMB_CONFIRM_MODAL as oe } from "@umbraco-cms/backoffice/modal";
-import { f as H, a as v, b as K, g as j, D as C, e as y, h as b, i as l, d as F, c as ne } from "./discount.types-BwYCYlL5.js";
-import { M as $ } from "./merchello-api-BW8jq3Oc.js";
+import { UmbModalToken as k, UMB_MODAL_MANAGER_CONTEXT as V, UMB_CONFIRM_MODAL as oe } from "@umbraco-cms/backoffice/modal";
+import { f as H, a as v, b as K, g as Y, D, e as b, h as y, i as l, d as F, c as ne } from "./discount.types-BwYCYlL5.js";
+import { M as x } from "./merchello-api-BW8jq3Oc.js";
 import { t as ue, u as le, v as ce } from "./navigation-m-G5wLvz.js";
 import { a as de, c as B } from "./formatting-D9W2VVNu.js";
 import { M as he } from "./customer-picker-modal.token-BZSMisS9.js";
 import { M as pe } from "./product-picker-modal.token-BfbHsSHl.js";
 var me = Object.defineProperty, ge = Object.getOwnPropertyDescriptor, G = (e, t, i, a) => {
-  for (var r = a > 1 ? void 0 : a ? ge(t, i) : t, n = e.length - 1, o; n >= 0; n--)
-    (o = e[n]) && (r = (a ? o(t, i, r) : o(r)) || r);
+  for (var r = a > 1 ? void 0 : a ? ge(t, i) : t, u = e.length - 1, o; u >= 0; u--)
+    (o = e[u]) && (r = (a ? o(t, i, r) : o(r)) || r);
   return a && r && me(t, i, r), r;
 };
-let z = class extends N(E) {
+let z = class extends M(E) {
   constructor() {
     super(...arguments), this.isNew = !1;
   }
@@ -34,9 +34,9 @@ let z = class extends N(E) {
     }) : "Not set";
   }
   _renderSummaryItem(e, t, i) {
-    return t == null || t === "" ? u : s`
+    return t == null || t === "" ? n : s`
       <div class="summary-item">
-        ${i ? s`<uui-icon name=${i}></uui-icon>` : u}
+        ${i ? s`<uui-icon name=${i}></uui-icon>` : n}
         <div class="summary-item-content">
           <span class="summary-item-label">${e}</span>
           <span class="summary-item-value">${t}</span>
@@ -45,8 +45,8 @@ let z = class extends N(E) {
     `;
   }
   render() {
-    if (!this.discount) return u;
-    const e = this._getCategoryInfo(this.discount.category), t = K[this.discount.status], i = j[this.discount.status];
+    if (!this.discount) return n;
+    const e = this._getCategoryInfo(this.discount.category), t = K[this.discount.status], i = Y[this.discount.status];
     return s`
       <uui-box>
         <!-- Header with category icon -->
@@ -55,12 +55,12 @@ let z = class extends N(E) {
             <uui-icon name=${e?.icon ?? "icon-tag"}></uui-icon>
             <span>${e?.label ?? "Discount"}</span>
           </div>
-          ${this.isNew ? u : s`<uui-tag look="secondary" color=${i}>${t}</uui-tag>`}
+          ${this.isNew ? n : s`<uui-tag look="secondary" color=${i}>${t}</uui-tag>`}
         </div>
 
         <!-- Code or Automatic badge -->
         <div class="method-section">
-          ${this.discount.method === C.Code ? s`
+          ${this.discount.method === D.Code ? s`
                 <div class="code-display">
                   <uui-icon name="icon-barcode"></uui-icon>
                   <span class="code-value">${this.discount.code || "No code set"}</span>
@@ -79,11 +79,11 @@ let z = class extends N(E) {
         <div class="summary-list">
           ${this._renderSummaryItem("Value", this._formatValue(), "icon-coin")}
 
-          ${this.discount.requirementType !== y.None ? this._renderSummaryItem(
+          ${this.discount.requirementType !== b.None ? this._renderSummaryItem(
       "Minimum",
-      this.discount.requirementType === y.MinimumPurchaseAmount ? `${this.discount.requirementValue} purchase` : `${this.discount.requirementValue} items`,
+      this.discount.requirementType === b.MinimumPurchaseAmount ? `${this.discount.requirementValue} purchase` : `${this.discount.requirementValue} items`,
       "icon-shopping-basket"
-    ) : u}
+    ) : n}
 
           ${this._renderSummaryItem(
       "Usage",
@@ -93,7 +93,7 @@ let z = class extends N(E) {
 
           ${this._renderSummaryItem("Starts", this._formatDate(this.discount.startsAt), "icon-calendar")}
 
-          ${this.discount.endsAt ? this._renderSummaryItem("Ends", this._formatDate(this.discount.endsAt), "icon-calendar") : u}
+          ${this.discount.endsAt ? this._renderSummaryItem("Ends", this._formatDate(this.discount.endsAt), "icon-calendar") : n}
         </div>
 
         <hr class="divider" />
@@ -102,10 +102,10 @@ let z = class extends N(E) {
         <div class="combinations-section">
           <span class="section-label">Combinations</span>
           <div class="combinations-icons">
-            ${this.discount.canCombineWithProductDiscounts ? s`<uui-icon name="icon-tags" title="Combines with product discounts"></uui-icon>` : u}
-            ${this.discount.canCombineWithOrderDiscounts ? s`<uui-icon name="icon-receipt-dollar" title="Combines with order discounts"></uui-icon>` : u}
-            ${this.discount.canCombineWithShippingDiscounts ? s`<uui-icon name="icon-truck" title="Combines with shipping discounts"></uui-icon>` : u}
-            ${!this.discount.canCombineWithProductDiscounts && !this.discount.canCombineWithOrderDiscounts && !this.discount.canCombineWithShippingDiscounts ? s`<span class="no-combinations">None</span>` : u}
+            ${this.discount.canCombineWithProductDiscounts ? s`<uui-icon name="icon-tags" title="Combines with product discounts"></uui-icon>` : n}
+            ${this.discount.canCombineWithOrderDiscounts ? s`<uui-icon name="icon-receipt-dollar" title="Combines with order discounts"></uui-icon>` : n}
+            ${this.discount.canCombineWithShippingDiscounts ? s`<uui-icon name="icon-truck" title="Combines with shipping discounts"></uui-icon>` : n}
+            ${!this.discount.canCombineWithProductDiscounts && !this.discount.canCombineWithOrderDiscounts && !this.discount.canCombineWithShippingDiscounts ? s`<span class="no-combinations">None</span>` : n}
           </div>
         </div>
       </uui-box>
@@ -237,22 +237,22 @@ z.styles = A`
     }
   `;
 G([
-  w({ type: Object })
+  I({ type: Object })
 ], z.prototype, "discount", 2);
 G([
-  w({ type: Boolean })
+  I({ type: Boolean })
 ], z.prototype, "isNew", 2);
 z = G([
   O("merchello-discount-summary-card")
 ], z);
-var ve = Object.defineProperty, be = Object.getOwnPropertyDescriptor, R = (e, t, i, a) => {
-  for (var r = a > 1 ? void 0 : a ? be(t, i) : t, n = e.length - 1, o; n >= 0; n--)
-    (o = e[n]) && (r = (a ? o(t, i, r) : o(r)) || r);
+var ve = Object.defineProperty, ye = Object.getOwnPropertyDescriptor, $ = (e, t, i, a) => {
+  for (var r = a > 1 ? void 0 : a ? ye(t, i) : t, u = e.length - 1, o; u >= 0; u--)
+    (o = e[u]) && (r = (a ? o(t, i, r) : o(r)) || r);
   return a && r && ve(t, i, r), r;
 };
-let T = class extends N(E) {
+let C = class extends M(E) {
   constructor() {
-    super(...arguments), this.discountId = "", this._isLoading = !0, this._dateRange = "30d";
+    super(...arguments), this.discountId = "", this._isLoading = !0, this._dateRange = this._getDefaultDateRange(), this._activePreset = "last30days", this._showCustomPicker = !1, this._customStartDate = "", this._customEndDate = "";
   }
   connectedCallback() {
     super.connectedCallback(), this.discountId && this._loadPerformance();
@@ -262,35 +262,64 @@ let T = class extends N(E) {
   }
   async _loadPerformance() {
     this._isLoading = !0, this._error = void 0;
-    const e = /* @__PURE__ */ new Date();
-    let t;
-    switch (this._dateRange) {
-      case "7d":
-        t = new Date(e.getTime() - 10080 * 60 * 1e3);
-        break;
-      case "30d":
-        t = new Date(e.getTime() - 720 * 60 * 60 * 1e3);
-        break;
-      case "90d":
-        t = new Date(e.getTime() - 2160 * 60 * 60 * 1e3);
-        break;
-      case "all":
-        t = void 0;
-        break;
-    }
-    const { data: i, error: a } = await $.getDiscountPerformance(
+    const { data: e, error: t } = await x.getDiscountPerformance(
       this.discountId,
-      t?.toISOString(),
-      e.toISOString()
+      this._dateRange.startDate.toISOString(),
+      this._dateRange.endDate.toISOString()
     );
-    if (this._isLoading = !1, a) {
-      this._error = a.message;
+    if (this._isLoading = !1, t) {
+      this._error = t.message;
       return;
     }
-    this._performance = i;
+    this._performance = e;
   }
-  _handleDateRangeChange(e) {
-    this._dateRange = e, this._loadPerformance();
+  _getDefaultDateRange() {
+    const e = /* @__PURE__ */ new Date(), t = /* @__PURE__ */ new Date();
+    return t.setDate(t.getDate() - 30), { startDate: t, endDate: e };
+  }
+  _getPresetDateRange(e) {
+    const t = /* @__PURE__ */ new Date(), i = /* @__PURE__ */ new Date();
+    switch (e) {
+      case "today":
+        break;
+      case "last7days":
+        i.setDate(i.getDate() - 7);
+        break;
+      case "last30days":
+        i.setDate(i.getDate() - 30);
+        break;
+      case "thisMonth":
+        i.setDate(1);
+        break;
+      case "lastMonth": {
+        i.setMonth(i.getMonth() - 1), i.setDate(1);
+        const a = new Date(t.getFullYear(), t.getMonth(), 0);
+        return { startDate: i, endDate: a };
+      }
+      default:
+        i.setDate(i.getDate() - 30);
+    }
+    return { startDate: i, endDate: t };
+  }
+  _handlePresetClick(e) {
+    this._activePreset = e, this._showCustomPicker = e === "custom", e !== "custom" && (this._dateRange = this._getPresetDateRange(e), this._loadPerformance());
+  }
+  _handleCustomStartChange(e) {
+    const t = e.target;
+    this._customStartDate = t.value, this._tryApplyCustomRange();
+  }
+  _handleCustomEndChange(e) {
+    const t = e.target;
+    this._customEndDate = t.value, this._tryApplyCustomRange();
+  }
+  _tryApplyCustomRange() {
+    if (this._customStartDate && this._customEndDate) {
+      const e = new Date(this._customStartDate), t = new Date(this._customEndDate);
+      e <= t && (this._dateRange = { startDate: e, endDate: t }, this._loadPerformance());
+    }
+  }
+  _formatDateForInput(e) {
+    return e.toISOString().split("T")[0];
   }
   _formatCurrency(e) {
     return de(e);
@@ -372,32 +401,61 @@ let T = class extends N(E) {
       <div class="performance-container">
         <!-- Date Range Selector -->
         <div class="date-range-selector">
-          <uui-button-group>
+          <div class="preset-buttons">
             <uui-button
-              look=${this._dateRange === "7d" ? "primary" : "secondary"}
-              @click=${() => this._handleDateRangeChange("7d")}
-            >
-              7 Days
+              look=${this._activePreset === "today" ? "primary" : "secondary"}
+              compact
+              @click=${() => this._handlePresetClick("today")}
+              label="Today">
+              Today
             </uui-button>
             <uui-button
-              look=${this._dateRange === "30d" ? "primary" : "secondary"}
-              @click=${() => this._handleDateRangeChange("30d")}
-            >
-              30 Days
+              look=${this._activePreset === "last7days" ? "primary" : "secondary"}
+              compact
+              @click=${() => this._handlePresetClick("last7days")}
+              label="Last 7 days">
+              Last 7 days
             </uui-button>
             <uui-button
-              look=${this._dateRange === "90d" ? "primary" : "secondary"}
-              @click=${() => this._handleDateRangeChange("90d")}
-            >
-              90 Days
+              look=${this._activePreset === "last30days" ? "primary" : "secondary"}
+              compact
+              @click=${() => this._handlePresetClick("last30days")}
+              label="Last 30 days">
+              Last 30 days
             </uui-button>
             <uui-button
-              look=${this._dateRange === "all" ? "primary" : "secondary"}
-              @click=${() => this._handleDateRangeChange("all")}
-            >
-              All Time
+              look=${this._activePreset === "thisMonth" ? "primary" : "secondary"}
+              compact
+              @click=${() => this._handlePresetClick("thisMonth")}
+              label="This month">
+              This month
             </uui-button>
-          </uui-button-group>
+            <uui-button
+              look=${this._activePreset === "custom" ? "primary" : "secondary"}
+              compact
+              @click=${() => this._handlePresetClick("custom")}
+              label="Custom">
+              Custom
+            </uui-button>
+          </div>
+
+          ${this._showCustomPicker ? s`
+                <div class="custom-picker">
+                  <uui-input
+                    type="date"
+                    .value=${this._customStartDate || this._formatDateForInput(this._dateRange.startDate)}
+                    @change=${this._handleCustomStartChange}
+                    label="Start date">
+                  </uui-input>
+                  <span class="date-separator">to</span>
+                  <uui-input
+                    type="date"
+                    .value=${this._customEndDate || this._formatDateForInput(this._dateRange.endDate)}
+                    @change=${this._handleCustomEndChange}
+                    label="End date">
+                  </uui-input>
+                </div>
+              ` : n}
         </div>
 
         <!-- Key Metrics -->
@@ -445,7 +503,7 @@ let T = class extends N(E) {
                       ${B(this._performance.remainingUses)}
                     </span>
                   </div>
-                ` : u}
+                ` : n}
           </div>
         </uui-box>
 
@@ -477,7 +535,7 @@ let T = class extends N(E) {
     `;
   }
 };
-T.styles = A`
+C.styles = A`
     :host {
       display: block;
     }
@@ -523,6 +581,30 @@ T.styles = A`
     .date-range-selector {
       display: flex;
       justify-content: flex-end;
+      align-items: center;
+      gap: var(--uui-size-space-4);
+      flex-wrap: wrap;
+    }
+
+    .preset-buttons {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      flex-wrap: wrap;
+    }
+
+    .custom-picker {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+    }
+
+    .date-separator {
+      color: var(--uui-color-text-alt);
+      font-size: var(--uui-type-small-size);
+    }
+
+    uui-input[type="date"] {
+      width: 150px;
     }
 
     .metrics-grid {
@@ -669,41 +751,53 @@ T.styles = A`
       font-weight: 500;
     }
   `;
-R([
-  w({ type: String })
-], T.prototype, "discountId", 2);
-R([
+$([
+  I({ type: String })
+], C.prototype, "discountId", 2);
+$([
   d()
-], T.prototype, "_performance", 2);
-R([
+], C.prototype, "_performance", 2);
+$([
   d()
-], T.prototype, "_isLoading", 2);
-R([
+], C.prototype, "_isLoading", 2);
+$([
   d()
-], T.prototype, "_error", 2);
-R([
+], C.prototype, "_error", 2);
+$([
   d()
-], T.prototype, "_dateRange", 2);
-T = R([
+], C.prototype, "_dateRange", 2);
+$([
+  d()
+], C.prototype, "_activePreset", 2);
+$([
+  d()
+], C.prototype, "_showCustomPicker", 2);
+$([
+  d()
+], C.prototype, "_customStartDate", 2);
+$([
+  d()
+], C.prototype, "_customEndDate", 2);
+C = $([
   O("merchello-discount-performance")
-], T);
-const ye = new S("Merchello.SegmentPicker.Modal", {
+], C);
+const be = new k("Merchello.SegmentPicker.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
   }
 });
-var _e = Object.defineProperty, fe = Object.getOwnPropertyDescriptor, Y = (e) => {
+var _e = Object.defineProperty, fe = Object.getOwnPropertyDescriptor, j = (e) => {
   throw TypeError(e);
 }, q = (e, t, i, a) => {
-  for (var r = a > 1 ? void 0 : a ? fe(t, i) : t, n = e.length - 1, o; n >= 0; n--)
-    (o = e[n]) && (r = (a ? o(t, i, r) : o(r)) || r);
+  for (var r = a > 1 ? void 0 : a ? fe(t, i) : t, u = e.length - 1, o; u >= 0; u--)
+    (o = e[u]) && (r = (a ? o(t, i, r) : o(r)) || r);
   return a && r && _e(t, i, r), r;
-}, X = (e, t, i) => t.has(e) || Y("Cannot " + i), L = (e, t, i) => (X(e, t, "read from private field"), t.get(e)), $e = (e, t, i) => t.has(e) ? Y("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), Ce = (e, t, i, a) => (X(e, t, "write to private field"), t.set(e, i), i), I;
+}, X = (e, t, i) => t.has(e) || j("Cannot " + i), L = (e, t, i) => (X(e, t, "read from private field"), t.get(e)), Ce = (e, t, i) => t.has(e) ? j("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), $e = (e, t, i, a) => (X(e, t, "write to private field"), t.set(e, i), i), w;
 const Q = [
-  { value: b.AllCustomers, label: "Everyone" },
-  { value: b.CustomerSegments, label: "Customer segments" },
-  { value: b.SpecificCustomers, label: "Specific customers" }
+  { value: y.AllCustomers, label: "Everyone" },
+  { value: y.CustomerSegments, label: "Customer segments" },
+  { value: y.SpecificCustomers, label: "Specific customers" }
 ];
 function xe(e) {
   return Q.map((t) => ({
@@ -712,10 +806,10 @@ function xe(e) {
     selected: t.value === e
   }));
 }
-let D = class extends N(E) {
+let P = class extends M(E) {
   constructor() {
-    super(), this.rules = [], this.readonly = !1, $e(this, I), this.consumeContext(V, (e) => {
-      Ce(this, I, e);
+    super(), this.rules = [], this.readonly = !1, Ce(this, w), this.consumeContext(V, (e) => {
+      $e(this, w, e);
     });
   }
   _dispatchChange() {
@@ -730,7 +824,7 @@ let D = class extends N(E) {
   _handleAddRule() {
     const e = {
       id: crypto.randomUUID(),
-      eligibilityType: b.AllCustomers,
+      eligibilityType: y.AllCustomers,
       eligibilityIds: null,
       eligibilityNames: null
     };
@@ -745,7 +839,7 @@ let D = class extends N(E) {
   _handleEligibilityTypeChange(e, t) {
     this._handleUpdateRule(e, {
       eligibilityType: t,
-      eligibilityIds: t === b.AllCustomers ? null : [],
+      eligibilityIds: t === y.AllCustomers ? null : [],
       eligibilityNames: null
     });
   }
@@ -754,19 +848,19 @@ let D = class extends N(E) {
   }
   _getTypeIcon(e) {
     switch (e) {
-      case b.AllCustomers:
+      case y.AllCustomers:
         return "icon-globe";
-      case b.CustomerSegments:
+      case y.CustomerSegments:
         return "icon-users";
-      case b.SpecificCustomers:
+      case y.SpecificCustomers:
         return "icon-user";
       default:
         return "icon-user";
     }
   }
   async _openCustomerPicker(e, t) {
-    if (!L(this, I)) return;
-    const a = await L(this, I).open(this, he, {
+    if (!L(this, w)) return;
+    const a = await L(this, w).open(this, he, {
       data: {
         excludeCustomerIds: t.eligibilityIds ?? [],
         multiSelect: !0
@@ -775,8 +869,8 @@ let D = class extends N(E) {
     });
     if (a?.selectedCustomerIds?.length) {
       const r = [];
-      for (const n of a.selectedCustomerIds) {
-        const { data: o } = await $.getCustomer(n);
+      for (const u of a.selectedCustomerIds) {
+        const { data: o } = await x.getCustomer(u);
         if (o) {
           const ae = [o.firstName, o.lastName].filter(Boolean).join(" ") || o.email;
           r.push(ae);
@@ -789,8 +883,8 @@ let D = class extends N(E) {
     }
   }
   async _openSegmentPicker(e, t) {
-    if (!L(this, I)) return;
-    const a = await L(this, I).open(this, ye, {
+    if (!L(this, w)) return;
+    const a = await L(this, w).open(this, be, {
       data: {
         excludeIds: t.eligibilityIds ?? [],
         multiSelect: !0
@@ -803,7 +897,7 @@ let D = class extends N(E) {
     });
   }
   _removeEligibilityItem(e, t, i) {
-    const a = t.eligibilityIds?.filter((n, o) => o !== i) ?? [], r = t.eligibilityNames?.filter((n, o) => o !== i) ?? [];
+    const a = t.eligibilityIds?.filter((u, o) => o !== i) ?? [], r = t.eligibilityNames?.filter((u, o) => o !== i) ?? [];
     this._handleUpdateRule(e, {
       eligibilityIds: a.length > 0 ? a : [],
       eligibilityNames: r.length > 0 ? r : []
@@ -811,9 +905,9 @@ let D = class extends N(E) {
   }
   _getPickerButtonLabel(e) {
     switch (e) {
-      case b.SpecificCustomers:
+      case y.SpecificCustomers:
         return "Select customers";
-      case b.CustomerSegments:
+      case y.CustomerSegments:
         return "Select segments";
       default:
         return "Select items";
@@ -821,10 +915,10 @@ let D = class extends N(E) {
   }
   async _openPicker(e, t) {
     switch (t.eligibilityType) {
-      case b.SpecificCustomers:
+      case y.SpecificCustomers:
         await this._openCustomerPicker(e, t);
         break;
-      case b.CustomerSegments:
+      case y.CustomerSegments:
         await this._openSegmentPicker(e, t);
         break;
     }
@@ -838,7 +932,7 @@ let D = class extends N(E) {
             <uui-icon name=${this._getTypeIcon(e.eligibilityType)}></uui-icon>
             <span>${this._getEligibilityTypeLabel(e.eligibilityType)}</span>
           </div>
-          ${this.readonly ? u : s`
+          ${this.readonly ? n : s`
                 <div class="rule-actions">
                   <uui-button
                     look="secondary"
@@ -865,7 +959,7 @@ let D = class extends N(E) {
                   ></uui-select>
                 </uui-form-layout-item>
 
-                ${e.eligibilityType !== b.AllCustomers ? s`
+                ${e.eligibilityType !== y.AllCustomers ? s`
                       <div class="selection-area">
                         <uui-button look="secondary" @click=${() => this._openPicker(t, e)}>
                           <uui-icon name="icon-search"></uui-icon>
@@ -874,14 +968,14 @@ let D = class extends N(E) {
                         ${a ? s`
                               <uui-ref-list>
                                 ${e.eligibilityNames?.map(
-      (r, n) => s`
+      (r, u) => s`
                                     <uui-ref-node name=${r}>
                                       <uui-icon slot="icon" name=${this._getTypeIcon(e.eligibilityType)}></uui-icon>
                                       <uui-action-bar slot="actions">
                                         <uui-button
                                           label="Remove"
                                           @click=${(o) => {
-        o.stopPropagation(), this._removeEligibilityItem(t, e, n);
+        o.stopPropagation(), this._removeEligibilityItem(t, e, u);
       }}></uui-button>
                                       </uui-action-bar>
                                     </uui-ref-node>
@@ -899,7 +993,7 @@ let D = class extends N(E) {
               </div>
             ` : s`
               <div class="rule-summary">
-                ${e.eligibilityType === b.AllCustomers ? s`<span>Available to everyone</span>` : s`
+                ${e.eligibilityType === y.AllCustomers ? s`<span>Available to everyone</span>` : s`
                       <span>
                         ${a ? `${e.eligibilityIds?.length} item(s) selected` : "No items selected"}
                       </span>
@@ -928,7 +1022,7 @@ let D = class extends N(E) {
               </div>
             `}
 
-        ${this.readonly ? u : s`
+        ${this.readonly ? n : s`
               <uui-button look="secondary" @click=${this._handleAddRule}>
                 <uui-icon name="icon-add"></uui-icon>
                 Add eligibility rule
@@ -938,8 +1032,8 @@ let D = class extends N(E) {
     `;
   }
 };
-I = /* @__PURE__ */ new WeakMap();
-D.styles = A`
+w = /* @__PURE__ */ new WeakMap();
+P.styles = A`
     :host {
       display: block;
     }
@@ -1070,50 +1164,50 @@ D.styles = A`
     }
   `;
 q([
-  w({ type: Array })
-], D.prototype, "rules", 2);
+  I({ type: Array })
+], P.prototype, "rules", 2);
 q([
-  w({ type: Boolean })
-], D.prototype, "readonly", 2);
+  I({ type: Boolean })
+], P.prototype, "readonly", 2);
 q([
   d()
-], D.prototype, "_editingRule", 2);
-D = q([
+], P.prototype, "_editingRule", 2);
+P = q([
   O("merchello-eligibility-rule-builder")
-], D);
-const Te = new S("Merchello.CategoryPicker.Modal", {
+], P);
+const De = new k("Merchello.CategoryPicker.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
   }
-}), Ie = new S("Merchello.ProductTypePicker.Modal", {
+}), Te = new k("Merchello.ProductTypePicker.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
   }
-}), we = new S("Merchello.SupplierPicker.Modal", {
+}), we = new k("Merchello.SupplierPicker.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
   }
-}), De = new S("Merchello.WarehousePicker.Modal", {
+}), Ie = new k("Merchello.WarehousePicker.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
   }
-}), Pe = new S("Merchello.FilterPicker.Modal", {
+}), Pe = new k("Merchello.FilterPicker.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
   }
 });
-var Se = Object.defineProperty, Re = Object.getOwnPropertyDescriptor, Z = (e) => {
+var Se = Object.defineProperty, ke = Object.getOwnPropertyDescriptor, Z = (e) => {
   throw TypeError(e);
 }, W = (e, t, i, a) => {
-  for (var r = a > 1 ? void 0 : a ? Re(t, i) : t, n = e.length - 1, o; n >= 0; n--)
-    (o = e[n]) && (r = (a ? o(t, i, r) : o(r)) || r);
+  for (var r = a > 1 ? void 0 : a ? ke(t, i) : t, u = e.length - 1, o; u >= 0; u--)
+    (o = e[u]) && (r = (a ? o(t, i, r) : o(r)) || r);
   return a && r && Se(t, i, r), r;
-}, J = (e, t, i) => t.has(e) || Z("Cannot " + i), f = (e, t, i) => (J(e, t, "read from private field"), t.get(e)), ke = (e, t, i) => t.has(e) ? Z("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), ze = (e, t, i, a) => (J(e, t, "write to private field"), t.set(e, i), i), p;
+}, J = (e, t, i) => t.has(e) || Z("Cannot " + i), f = (e, t, i) => (J(e, t, "read from private field"), t.get(e)), Re = (e, t, i) => t.has(e) ? Z("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), ze = (e, t, i, a) => (J(e, t, "write to private field"), t.set(e, i), i), p;
 const ee = [
   { value: l.AllProducts, label: "All products" },
   { value: l.SpecificProducts, label: "Specific products" },
@@ -1136,9 +1230,9 @@ function Ae(e) {
     { name: "Exclude these products", value: "exclude", selected: e }
   ];
 }
-let P = class extends N(E) {
+let S = class extends M(E) {
   constructor() {
-    super(), this.rules = [], this.readonly = !1, ke(this, p), this.consumeContext(V, (e) => {
+    super(), this.rules = [], this.readonly = !1, Re(this, p), this.consumeContext(V, (e) => {
       ze(this, p, e);
     });
   }
@@ -1189,16 +1283,16 @@ let P = class extends N(E) {
     }).onSubmit().catch(() => {
     });
     if (a?.selections?.length) {
-      const r = a.selections.map((o) => o.productId), n = a.selections.map((o) => o.name);
+      const r = a.selections.map((o) => o.productId), u = a.selections.map((o) => o.name);
       this._handleUpdateRule(e, {
         targetIds: [...t.targetIds ?? [], ...r],
-        targetNames: [...t.targetNames ?? [], ...n]
+        targetNames: [...t.targetNames ?? [], ...u]
       });
     }
   }
   async _openCategoryPicker(e, t) {
     if (!f(this, p)) return;
-    const a = await f(this, p).open(this, Te, {
+    const a = await f(this, p).open(this, De, {
       data: {
         excludeIds: t.targetIds ?? [],
         multiSelect: !0
@@ -1212,7 +1306,7 @@ let P = class extends N(E) {
   }
   async _openProductTypePicker(e, t) {
     if (!f(this, p)) return;
-    const a = await f(this, p).open(this, Ie, {
+    const a = await f(this, p).open(this, Te, {
       data: {
         excludeIds: t.targetIds ?? [],
         multiSelect: !0
@@ -1240,7 +1334,7 @@ let P = class extends N(E) {
   }
   async _openWarehousePicker(e, t) {
     if (!f(this, p)) return;
-    const a = await f(this, p).open(this, De, {
+    const a = await f(this, p).open(this, Ie, {
       data: {
         excludeIds: t.targetIds ?? [],
         multiSelect: !0
@@ -1267,7 +1361,7 @@ let P = class extends N(E) {
     });
   }
   _removeTargetItem(e, t, i) {
-    const a = t.targetIds?.filter((n, o) => o !== i) ?? [], r = t.targetNames?.filter((n, o) => o !== i) ?? [];
+    const a = t.targetIds?.filter((u, o) => o !== i) ?? [], r = t.targetNames?.filter((u, o) => o !== i) ?? [];
     this._handleUpdateRule(e, {
       targetIds: a.length > 0 ? a : [],
       targetNames: r.length > 0 ? r : []
@@ -1340,7 +1434,7 @@ let P = class extends N(E) {
             ${e.isExclusion ? s`<uui-tag look="secondary" color="danger">Exclude</uui-tag>` : s`<uui-tag look="secondary" color="positive">Include</uui-tag>`}
             <span>${this._getTargetTypeLabel(e.targetType)}</span>
           </div>
-          ${this.readonly ? u : s`
+          ${this.readonly ? n : s`
                 <div class="rule-actions">
                   <uui-button
                     look="secondary"
@@ -1385,14 +1479,14 @@ let P = class extends N(E) {
                         ${a ? s`
                               <uui-ref-list>
                                 ${e.targetNames?.map(
-      (r, n) => s`
+      (r, u) => s`
                                     <uui-ref-node name=${r}>
                                       <uui-icon slot="icon" name=${this._getIconForTargetType(e.targetType)}></uui-icon>
                                       <uui-action-bar slot="actions">
                                         <uui-button
                                           label="Remove"
                                           @click=${(o) => {
-        o.stopPropagation(), this._removeTargetItem(t, e, n);
+        o.stopPropagation(), this._removeTargetItem(t, e, u);
       }}></uui-button>
                                       </uui-action-bar>
                                     </uui-ref-node>
@@ -1401,7 +1495,7 @@ let P = class extends N(E) {
                               </uui-ref-list>
                             ` : s`<small class="no-selection">No items selected</small>`}
                       </div>
-                    ` : u}
+                    ` : n}
               </div>
             ` : s`
               <div class="rule-summary">
@@ -1434,7 +1528,7 @@ let P = class extends N(E) {
               </div>
             `}
 
-        ${this.readonly ? u : s`
+        ${this.readonly ? n : s`
               <uui-button look="secondary" @click=${this._handleAddRule}>
                 <uui-icon name="icon-add"></uui-icon>
                 Add target rule
@@ -1445,7 +1539,7 @@ let P = class extends N(E) {
   }
 };
 p = /* @__PURE__ */ new WeakMap();
-P.styles = A`
+S.styles = A`
     :host {
       display: block;
     }
@@ -1566,28 +1660,28 @@ P.styles = A`
     }
   `;
 W([
-  w({ type: Array })
-], P.prototype, "rules", 2);
+  I({ type: Array })
+], S.prototype, "rules", 2);
 W([
-  w({ type: Boolean })
-], P.prototype, "readonly", 2);
+  I({ type: Boolean })
+], S.prototype, "readonly", 2);
 W([
   d()
-], P.prototype, "_editingRule", 2);
-P = W([
+], S.prototype, "_editingRule", 2);
+S = W([
   O("merchello-target-rule-builder")
-], P);
-var Oe = Object.defineProperty, Ne = Object.getOwnPropertyDescriptor, te = (e) => {
+], S);
+var Oe = Object.defineProperty, Me = Object.getOwnPropertyDescriptor, te = (e) => {
   throw TypeError(e);
 }, _ = (e, t, i, a) => {
-  for (var r = a > 1 ? void 0 : a ? Ne(t, i) : t, n = e.length - 1, o; n >= 0; n--)
-    (o = e[n]) && (r = (a ? o(t, i, r) : o(r)) || r);
+  for (var r = a > 1 ? void 0 : a ? Me(t, i) : t, u = e.length - 1, o; u >= 0; u--)
+    (o = e[u]) && (r = (a ? o(t, i, r) : o(r)) || r);
   return a && r && Oe(t, i, r), r;
-}, ie = (e, t, i) => t.has(e) || te("Cannot " + i), c = (e, t, i) => (ie(e, t, "read from private field"), i ? i.call(e) : t.get(e)), M = (e, t, i) => t.has(e) ? te("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), k = (e, t, i, a) => (ie(e, t, "write to private field"), t.set(e, i), i), m, g, U, x;
-let h = class extends N(E) {
+}, ie = (e, t, i) => t.has(e) || te("Cannot " + i), c = (e, t, i) => (ie(e, t, "read from private field"), i ? i.call(e) : t.get(e)), N = (e, t, i) => t.has(e) ? te("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), R = (e, t, i, a) => (ie(e, t, "write to private field"), t.set(e, i), i), m, g, U, T;
+let h = class extends M(E) {
   constructor() {
-    super(), this._isNew = !0, this._isLoading = !0, this._isSaving = !1, this._validationErrors = /* @__PURE__ */ new Map(), this._codeAvailable = null, this._isGeneratingCode = !1, this._targetRules = [], this._eligibilityRules = [], this._routes = [], this._activePath = "", M(this, m), M(this, g), M(this, U), M(this, x), this._initRoutes(), this.consumeContext(se, (e) => {
-      k(this, m, e), this._isNew = c(this, m).isNew, this.observe(c(this, m).discount, (t) => {
+    super(), this._isNew = !0, this._isLoading = !0, this._isSaving = !1, this._validationErrors = /* @__PURE__ */ new Map(), this._codeAvailable = null, this._isGeneratingCode = !1, this._targetRules = [], this._eligibilityRules = [], this._routes = [], this._activePath = "", N(this, m), N(this, g), N(this, U), N(this, T), this._initRoutes(), this.consumeContext(se, (e) => {
+      R(this, m, e), this._isNew = c(this, m).isNew, this.observe(c(this, m).discount, (t) => {
         this._discount = t, this._targetRules = t?.targetRules ?? [], this._eligibilityRules = t?.eligibilityRules ?? [], this._isLoading = !1;
       }), this.observe(c(this, m).isLoading, (t) => {
         this._isLoading = t;
@@ -1595,13 +1689,13 @@ let h = class extends N(E) {
         this._isSaving = t;
       });
     }), this.consumeContext(re, (e) => {
-      k(this, g, e);
+      R(this, g, e);
     }), this.consumeContext(V, (e) => {
-      k(this, U, e);
+      R(this, U, e);
     });
   }
   disconnectedCallback() {
-    super.disconnectedCallback(), c(this, x) && (clearTimeout(c(this, x)), k(this, x, void 0));
+    super.disconnectedCallback(), c(this, T) && (clearTimeout(c(this, T)), R(this, T, void 0));
   }
   // ============================================
   // Router Methods
@@ -1645,8 +1739,8 @@ let h = class extends N(E) {
   }
   _getMethodOptions() {
     return [
-      { name: "Discount code", value: C.Code, selected: this._discount?.method === C.Code },
-      { name: "Automatic discount", value: C.Automatic, selected: this._discount?.method === C.Automatic }
+      { name: "Discount code", value: D.Code, selected: this._discount?.method === D.Code },
+      { name: "Automatic discount", value: D.Automatic, selected: this._discount?.method === D.Automatic }
     ];
   }
   _getValueTypeOptions() {
@@ -1658,9 +1752,9 @@ let h = class extends N(E) {
   }
   _getRequirementTypeOptions() {
     return [
-      { name: "No minimum requirements", value: y.None, selected: this._discount?.requirementType === y.None },
-      { name: "Minimum purchase amount", value: y.MinimumPurchaseAmount, selected: this._discount?.requirementType === y.MinimumPurchaseAmount },
-      { name: "Minimum quantity of items", value: y.MinimumQuantity, selected: this._discount?.requirementType === y.MinimumQuantity }
+      { name: "No minimum requirements", value: b.None, selected: this._discount?.requirementType === b.None },
+      { name: "Minimum purchase amount", value: b.MinimumPurchaseAmount, selected: this._discount?.requirementType === b.MinimumPurchaseAmount },
+      { name: "Minimum quantity of items", value: b.MinimumQuantity, selected: this._discount?.requirementType === b.MinimumQuantity }
     ];
   }
   _getHeadline() {
@@ -1673,12 +1767,12 @@ let h = class extends N(E) {
   }
   _handleCodeInput(e) {
     const i = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    this._handleInputChange("code", i || null), c(this, x) && clearTimeout(c(this, x)), i ? k(this, x, setTimeout(() => {
+    this._handleInputChange("code", i || null), c(this, T) && clearTimeout(c(this, T)), i ? R(this, T, setTimeout(() => {
       this._checkCodeAvailability(i);
     }, 500)) : this._codeAvailable = null;
   }
   async _checkCodeAvailability(e) {
-    const { data: t, error: i } = await $.checkDiscountCodeAvailable(
+    const { data: t, error: i } = await x.checkDiscountCodeAvailable(
       e,
       this._isNew ? void 0 : this._discount?.id
     );
@@ -1686,7 +1780,7 @@ let h = class extends N(E) {
   }
   async _handleGenerateCode() {
     this._isGeneratingCode = !0;
-    const { data: e, error: t } = await $.generateDiscountCode(8);
+    const { data: e, error: t } = await x.generateDiscountCode(8);
     this._isGeneratingCode = !1, !t && e && (this._handleInputChange("code", e.code), this._codeAvailable = !0);
   }
   _handleTargetRulesChange(e) {
@@ -1696,7 +1790,7 @@ let h = class extends N(E) {
     this._eligibilityRules = e.detail.rules;
   }
   _validate() {
-    return this._validationErrors.clear(), this._discount?.name?.trim() || this._validationErrors.set("name", "Name is required"), this._discount?.method === C.Code && !this._discount.code?.trim() && this._validationErrors.set("code", "Code is required for code-based discounts"), (this._discount?.value === void 0 || this._discount.value <= 0) && this._validationErrors.set("value", "Value must be greater than 0"), this._discount?.valueType === v.Percentage && this._discount.value > 100 && this._validationErrors.set("value", "Percentage cannot exceed 100%"), this._discount?.requirementType !== y.None && !this._discount?.requirementValue && this._validationErrors.set("requirementValue", "Requirement value is required"), this.requestUpdate(), this._validationErrors.size === 0;
+    return this._validationErrors.clear(), this._discount?.name?.trim() || this._validationErrors.set("name", "Name is required"), this._discount?.method === D.Code && !this._discount.code?.trim() && this._validationErrors.set("code", "Code is required for code-based discounts"), (this._discount?.value === void 0 || this._discount.value <= 0) && this._validationErrors.set("value", "Value must be greater than 0"), this._discount?.valueType === v.Percentage && this._discount.value > 100 && this._validationErrors.set("value", "Percentage cannot exceed 100%"), this._discount?.requirementType !== b.None && !this._discount?.requirementValue && this._validationErrors.set("requirementValue", "Requirement value is required"), this.requestUpdate(), this._validationErrors.size === 0;
   }
   async _handleSave() {
     if (!this._discount || !this._validate()) {
@@ -1736,7 +1830,7 @@ let h = class extends N(E) {
           eligibilityType: a.eligibilityType,
           eligibilityIds: a.eligibilityIds
         }))
-      }, { data: t, error: i } = await $.createDiscount(e);
+      }, { data: t, error: i } = await x.createDiscount(e);
       if (c(this, m)?.setIsSaving(!1), i) {
         c(this, g)?.peek("danger", {
           data: { headline: "Failed to create discount", message: i.message }
@@ -1778,7 +1872,7 @@ let h = class extends N(E) {
           eligibilityType: a.eligibilityType,
           eligibilityIds: a.eligibilityIds
         }))
-      }, { data: t, error: i } = await $.updateDiscount(this._discount.id, e);
+      }, { data: t, error: i } = await x.updateDiscount(this._discount.id, e);
       if (c(this, m)?.setIsSaving(!1), i) {
         c(this, g)?.peek("danger", {
           data: { headline: "Failed to update discount", message: i.message }
@@ -1800,7 +1894,7 @@ let h = class extends N(E) {
       }
     })?.onSubmit().catch(() => {
     })) return;
-    const { error: i } = await $.deleteDiscount(this._discount.id);
+    const { error: i } = await x.deleteDiscount(this._discount.id);
     if (i) {
       c(this, g)?.peek("danger", {
         data: { headline: "Failed to delete discount", message: i.message }
@@ -1813,7 +1907,7 @@ let h = class extends N(E) {
   }
   async _handleActivate() {
     if (!this._discount?.id) return;
-    const { data: e, error: t } = await $.activateDiscount(this._discount.id);
+    const { data: e, error: t } = await x.activateDiscount(this._discount.id);
     if (t) {
       c(this, g)?.peek("danger", {
         data: { headline: "Failed to activate discount", message: t.message }
@@ -1826,7 +1920,7 @@ let h = class extends N(E) {
   }
   async _handleDeactivate() {
     if (!this._discount?.id) return;
-    const { data: e, error: t } = await $.deactivateDiscount(this._discount.id);
+    const { data: e, error: t } = await x.deactivateDiscount(this._discount.id);
     if (t) {
       c(this, g)?.peek("danger", {
         data: { headline: "Failed to deactivate discount", message: t.message }
@@ -1873,12 +1967,12 @@ let h = class extends N(E) {
             <uui-select
               slot="editor"
               .options=${this._getMethodOptions()}
-              .value=${this._discount?.method ?? C.Code}
+              .value=${this._discount?.method ?? D.Code}
               @change=${(e) => this._handleInputChange("method", e.target.value)}
             ></uui-select>
           </umb-property-layout>
 
-          ${this._discount?.method === C.Code ? s`
+          ${this._discount?.method === D.Code ? s`
                 <umb-property-layout
                   label="Discount Code"
                   ?mandatory=${!0}
@@ -1898,9 +1992,9 @@ let h = class extends N(E) {
                       ${this._isGeneratingCode ? "Generating..." : "Generate"}
                     </uui-button>
                   </div>
-                  ${this._validationErrors.has("code") ? s`<div class="error-message">${this._validationErrors.get("code")}</div>` : this._codeAvailable === !1 ? s`<div class="error-message">This code is already in use</div>` : this._codeAvailable === !0 ? s`<div class="success-message">Code is available</div>` : u}
+                  ${this._validationErrors.has("code") ? s`<div class="error-message">${this._validationErrors.get("code")}</div>` : this._codeAvailable === !1 ? s`<div class="error-message">This code is already in use</div>` : this._codeAvailable === !0 ? s`<div class="success-message">Code is available</div>` : n}
                 </umb-property-layout>
-              ` : u}
+              ` : n}
         </div>
       </uui-box>
 
@@ -1931,7 +2025,7 @@ let h = class extends N(E) {
                     ?invalid=${this._validationErrors.has("value")}
                   ></uui-input>
                 </umb-property-layout>
-              ` : u}
+              ` : n}
         </div>
       </uui-box>
     `;
@@ -1944,27 +2038,27 @@ let h = class extends N(E) {
             <uui-select
               slot="editor"
               .options=${this._getRequirementTypeOptions()}
-              .value=${this._discount?.requirementType ?? y.None}
+              .value=${this._discount?.requirementType ?? b.None}
               @change=${(e) => this._handleInputChange("requirementType", e.target.value)}
             ></uui-select>
           </umb-property-layout>
 
-          ${this._discount?.requirementType !== y.None ? s`
+          ${this._discount?.requirementType !== b.None ? s`
                 <umb-property-layout
-                  label=${this._discount?.requirementType === y.MinimumPurchaseAmount ? "Minimum Amount" : "Minimum Quantity"}
+                  label=${this._discount?.requirementType === b.MinimumPurchaseAmount ? "Minimum Amount" : "Minimum Quantity"}
                   ?mandatory=${!0}
                   ?invalid=${this._validationErrors.has("requirementValue")}>
                   <uui-input
                     slot="editor"
                     type="number"
                     min="0"
-                    step=${this._discount?.requirementType === y.MinimumPurchaseAmount ? "0.01" : "1"}
+                    step=${this._discount?.requirementType === b.MinimumPurchaseAmount ? "0.01" : "1"}
                     .value=${String(this._discount?.requirementValue ?? "")}
                     @input=${(e) => this._handleInputChange("requirementValue", parseFloat(e.target.value) || null)}
                     ?invalid=${this._validationErrors.has("requirementValue")}
                   ></uui-input>
                 </umb-property-layout>
-              ` : u}
+              ` : n}
         </div>
       </uui-box>
 
@@ -2021,7 +2115,7 @@ let h = class extends N(E) {
                     placeholder="Unlimited"
                   ></uui-input>
                 </umb-property-layout>
-              ` : u}
+              ` : n}
         </div>
       </uui-box>
     `;
@@ -2194,7 +2288,7 @@ let h = class extends N(E) {
           ?active=${e === "schedule"}>
           Schedule
         </uui-tab>
-        ${this._isNew ? u : s`
+        ${this._isNew ? n : s`
               <uui-tab
                 label="Performance"
                 href="${this._routerPath}/tab/performance"
@@ -2211,13 +2305,13 @@ let h = class extends N(E) {
   _renderActiveTabContent() {
     const e = this._getActiveTab();
     return s`
-      ${e === "details" ? this._renderDetailsTab() : u}
-      ${e === "targets" ? this._renderTargetsTab() : u}
-      ${e === "requirements" ? this._renderRequirementsTab() : u}
-      ${e === "eligibility" ? this._renderEligibilityTab() : u}
-      ${e === "combinations" ? this._renderCombinationsTab() : u}
-      ${e === "schedule" ? this._renderScheduleTab() : u}
-      ${e === "performance" && !this._isNew && this._discount?.id ? s`<merchello-discount-performance discountId=${this._discount.id}></merchello-discount-performance>` : u}
+      ${e === "details" ? this._renderDetailsTab() : n}
+      ${e === "targets" ? this._renderTargetsTab() : n}
+      ${e === "requirements" ? this._renderRequirementsTab() : n}
+      ${e === "eligibility" ? this._renderEligibilityTab() : n}
+      ${e === "combinations" ? this._renderCombinationsTab() : n}
+      ${e === "schedule" ? this._renderScheduleTab() : n}
+      ${e === "performance" && !this._isNew && this._discount?.id ? s`<merchello-discount-performance discountId=${this._discount.id}></merchello-discount-performance>` : n}
     `;
   }
   render() {
@@ -2227,7 +2321,7 @@ let h = class extends N(E) {
           <div class="loading"><uui-loader></uui-loader></div>
         </umb-body-layout>
       `;
-    const e = this._discount?.status !== void 0 ? K[this._discount.status] : "", t = this._discount?.status !== void 0 ? j[this._discount.status] : "default";
+    const e = this._discount?.status !== void 0 ? K[this._discount.status] : "", t = this._discount?.status !== void 0 ? Y[this._discount.status] : "default";
     return s`
       <umb-body-layout header-fit-height main-no-padding>
         <!-- Back button -->
@@ -2239,11 +2333,11 @@ let h = class extends N(E) {
         <div id="header" slot="header">
           <umb-icon name="icon-coin-dollar"></umb-icon>
           <span class="headline">${this._getHeadline()}</span>
-          ${!this._isNew && this._discount ? s`<uui-tag look="secondary" color=${t}>${e}</uui-tag>` : u}
+          ${!this._isNew && this._discount ? s`<uui-tag look="secondary" color=${t}>${e}</uui-tag>` : n}
         </div>
 
         <!-- Header Actions (only for existing discounts) -->
-        ${this._isNew ? u : s`
+        ${this._isNew ? n : s`
               <div slot="header" class="header-actions">
                 ${this._discount?.status === ne.Active ? s`
                       <uui-button
@@ -2319,7 +2413,7 @@ let h = class extends N(E) {
 m = /* @__PURE__ */ new WeakMap();
 g = /* @__PURE__ */ new WeakMap();
 U = /* @__PURE__ */ new WeakMap();
-x = /* @__PURE__ */ new WeakMap();
+T = /* @__PURE__ */ new WeakMap();
 h.styles = A`
     :host {
       display: block;
@@ -2533,9 +2627,9 @@ _([
 h = _([
   O("merchello-discount-detail")
 ], h);
-const je = h;
+const Ye = h;
 export {
   h as MerchelloDiscountDetailElement,
-  je as default
+  Ye as default
 };
-//# sourceMappingURL=discount-detail.element-DHNIAfzf.js.map
+//# sourceMappingURL=discount-detail.element-CJon_v6s.js.map
