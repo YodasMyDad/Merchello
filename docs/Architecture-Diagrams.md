@@ -36,6 +36,7 @@ FACTORIES → All object creation, stateless singletons
 | Discount validation | `IDiscountEngine.ValidateCodeAsync()` |
 | Discount application | `IDiscountEngine.ApplyDiscountsAsync()` |
 | Discount usage | `IDiscountService.RecordUsageAsync()` |
+| BOGO calculation | `IBuyXGetYCalculator.Calculate()` |
 
 ### Factories
 
@@ -284,8 +285,15 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 | `ICurrencyService` | Formatting, rounding, rates |
 | `IDiscountService` | Discount CRUD, validation, usage tracking |
 | `IDiscountEngine` | Calculation, validation, application to baskets/invoices |
+| `IBuyXGetYCalculator` | BOGO discount calculation logic |
 
 **Principles**: DbContext in services only, RORO params, CrudResult<T>, async+CancellationToken, factories for creation
+
+### Background Jobs
+
+| Job | Responsibility |
+|-----|----------------|
+| `DiscountStatusJob` | Updates discount status (Scheduled→Active, Active→Expired) on schedule |
 
 ## 10. Extension Points
 
