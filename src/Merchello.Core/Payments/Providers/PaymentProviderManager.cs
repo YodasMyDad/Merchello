@@ -1,5 +1,7 @@
 using Merchello.Core.Data;
+using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shared.Reflection;
@@ -373,6 +375,208 @@ public class PaymentProviderManager(
     {
         DisposeProviders();
         _cachedProviders = null;
+    }
+
+    // =====================================================
+    // Payment Methods
+    // =====================================================
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyCollection<PaymentMethodDto>> GetEnabledPaymentMethodsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var enabledProviders = await GetEnabledProvidersAsync(cancellationToken);
+        var methods = new List<PaymentMethodDto>();
+
+        foreach (var registered in enabledProviders)
+        {
+            var availableMethods = registered.Provider.GetAvailablePaymentMethods();
+            var methodSettings = registered.Setting?.MethodSettings ?? [];
+
+            foreach (var methodDef in availableMethods)
+            {
+                // Find method setting - if none exists, method is enabled by default
+                var methodSetting = methodSettings.FirstOrDefault(ms =>
+                    string.Equals(ms.MethodAlias, methodDef.Alias, StringComparison.OrdinalIgnoreCase));
+
+                // Skip disabled methods
+                if (methodSetting != null && !methodSetting.IsEnabled)
+                {
+                    continue;
+                }
+
+                methods.Add(new PaymentMethodDto
+                {
+                    ProviderAlias = registered.Metadata.Alias,
+                    MethodAlias = methodDef.Alias,
+                    DisplayName = methodSetting?.DisplayNameOverride ?? methodDef.DisplayName,
+                    Icon = methodDef.Icon,
+                    Description = methodDef.Description,
+                    IntegrationType = methodDef.IntegrationType,
+                    IsExpressCheckout = methodDef.IsExpressCheckout,
+                    SortOrder = methodSetting?.SortOrder ?? methodDef.DefaultSortOrder
+                });
+            }
+        }
+
+        return methods
+            .OrderBy(m => m.SortOrder)
+            .ThenBy(m => m.DisplayName)
+            .ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyCollection<PaymentMethodDto>> GetExpressCheckoutMethodsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var allMethods = await GetEnabledPaymentMethodsAsync(cancellationToken);
+        return allMethods.Where(m => m.IsExpressCheckout).ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyCollection<PaymentMethodDto>> GetStandardPaymentMethodsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var allMethods = await GetEnabledPaymentMethodsAsync(cancellationToken);
+        return allMethods.Where(m => !m.IsExpressCheckout).ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyCollection<PaymentMethodSetting>> GetMethodSettingsAsync(
+        Guid providerSettingId,
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var settings = await scope.ExecuteWithContextAsync(async db =>
+            await db.PaymentMethodSettings
+                .AsNoTracking()
+                .Where(ms => ms.PaymentProviderSettingId == providerSettingId)
+                .OrderBy(ms => ms.SortOrder)
+                .ToListAsync(cancellationToken));
+        scope.Complete();
+        return settings;
+    }
+
+    /// <inheritdoc />
+    public async Task<CrudResult<PaymentMethodSetting>> SetMethodEnabledAsync(
+        Guid providerSettingId,
+        string methodAlias,
+        bool enabled,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<PaymentMethodSetting>();
+
+        // Validate provider exists and has this method
+        var providerSetting = await GetProviderSettingAsync(providerSettingId, cancellationToken);
+        if (providerSetting == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Payment provider setting with ID '{providerSettingId}' was not found.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        var provider = await GetProviderAsync(providerSetting.ProviderAlias, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Payment provider '{providerSetting.ProviderAlias}' was not found.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        var methodDef = provider.Provider.GetAvailablePaymentMethods()
+            .FirstOrDefault(m => string.Equals(m.Alias, methodAlias, StringComparison.OrdinalIgnoreCase));
+
+        if (methodDef == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Payment method '{methodAlias}' is not available for provider '{providerSetting.ProviderAlias}'.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var existing = await db.PaymentMethodSettings
+                .FirstOrDefaultAsync(ms =>
+                    ms.PaymentProviderSettingId == providerSettingId &&
+                    ms.MethodAlias == methodAlias,
+                    cancellationToken);
+
+            if (existing != null)
+            {
+                existing.IsEnabled = enabled;
+                existing.DateUpdated = DateTime.UtcNow;
+                result.ResultObject = existing;
+            }
+            else
+            {
+                // Create new method setting
+                var newSetting = new PaymentMethodSetting
+                {
+                    Id = GuidExtensions.NewSequentialGuid,
+                    PaymentProviderSettingId = providerSettingId,
+                    MethodAlias = methodAlias,
+                    IsEnabled = enabled,
+                    SortOrder = methodDef.DefaultSortOrder,
+                    DateCreated = DateTime.UtcNow,
+                    DateUpdated = DateTime.UtcNow
+                };
+                db.PaymentMethodSettings.Add(newSetting);
+                result.ResultObject = newSetting;
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+        });
+        scope.Complete();
+
+        RefreshCache();
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<CrudResult<bool>> UpdateMethodSortOrderAsync(
+        Guid providerSettingId,
+        IEnumerable<string> orderedMethodAliases,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<bool>();
+        var aliasList = orderedMethodAliases.ToList();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var settings = await db.PaymentMethodSettings
+                .Where(ms => ms.PaymentProviderSettingId == providerSettingId)
+                .ToListAsync(cancellationToken);
+
+            for (int i = 0; i < aliasList.Count; i++)
+            {
+                var setting = settings.FirstOrDefault(ms =>
+                    string.Equals(ms.MethodAlias, aliasList[i], StringComparison.OrdinalIgnoreCase));
+
+                if (setting != null)
+                {
+                    setting.SortOrder = i;
+                    setting.DateUpdated = DateTime.UtcNow;
+                }
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            result.ResultObject = true;
+        });
+        scope.Complete();
+
+        RefreshCache();
+        return result;
     }
 
     /// <summary>

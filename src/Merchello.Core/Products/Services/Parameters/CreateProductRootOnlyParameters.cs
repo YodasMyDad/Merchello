@@ -36,9 +36,9 @@ public class CreateProductRootOnlyParameters
     public required Guid ProductTypeId { get; init; }
 
     /// <summary>
-    /// Category IDs
+    /// Collection IDs
     /// </summary>
-    public required List<Guid> CategoryIds { get; init; }
+    public required List<Guid> CollectionIds { get; init; }
 
     /// <summary>
     /// Optional product description

@@ -29,7 +29,7 @@
             public const string ProductRootId = "ProductRootId";
             public const string ProductTypeId = "ProductTypeId";
             public const string SupplierId = "SupplierId";
-            public const string CategoryIds = "CategoryIds";
+            public const string CollectionIds = "CollectionIds";
             public const string FilterIds = "FilterIds";
         }
     }

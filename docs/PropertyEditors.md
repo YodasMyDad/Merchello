@@ -9,7 +9,7 @@ Property editors define how content editors interact with data in the Umbraco ba
 | **Property Editor UI** | `propertyEditorUi` | Frontend element (Lit component) |
 | **Property Editor Schema** | `propertyEditorSchema` | Backend value type definition |
 
-> For picker-style editors (category, filter, product), see [Picker Property Editors](#picker-property-editors).
+> For picker-style editors (collection, filter, product), see [Picker Property Editors](#picker-property-editors).
 
 ---
 
@@ -182,17 +182,17 @@ Modal Element (*-picker-modal.element.ts)
 For simple pickers, you can skip the input component layer:
 
 ```typescript
-// category-picker/property-editor-ui-category-picker.element.ts
+// collection-picker/property-editor-ui-collection-picker.element.ts
 import { customElement, property, state, html, css } from '@umbraco-cms/backoffice/external/lit';
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { UmbFormControlMixin } from '@umbraco-cms/backoffice/validation';
 import { UmbChangeEvent } from '@umbraco-cms/backoffice/event';
 import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
 import type { UmbPropertyEditorUiElement } from '@umbraco-cms/backoffice/property-editor';
-import { CATEGORY_PICKER_MODAL } from './category-picker-modal.token.js';
+import { COLLECTION_PICKER_MODAL } from './collection-picker-modal.token.js';
 
-@customElement('merchello-property-editor-ui-category-picker')
-export class MerchelloCategoryPickerElement
+@customElement('merchello-property-editor-ui-collection-picker')
+export class MerchelloCollectionPickerElement
   extends UmbFormControlMixin<string, typeof UmbLitElement, undefined>(UmbLitElement, undefined)
   implements UmbPropertyEditorUiElement
 {
@@ -215,7 +215,7 @@ export class MerchelloCategoryPickerElement
     if (this.readonly || !this.#modalManager) return;
 
     const result = await this.#modalManager
-      .open(this, CATEGORY_PICKER_MODAL, {
+      .open(this, COLLECTION_PICKER_MODAL, {
         data: { currentSelection: this.value },
       })
       .onSubmit()
@@ -239,7 +239,7 @@ export class MerchelloCategoryPickerElement
       <uui-input-lock ?locked=${this.readonly}>
         <uui-input
           .value=${this._selectedName ?? ''}
-          placeholder="Select a category..."
+          placeholder="Select a collection..."
           readonly
           @click=${this.#openPicker}>
         </uui-input>
@@ -419,23 +419,23 @@ export class MerchelloFilterPickerElement
 Define the modal's data and return types:
 
 ```typescript
-// category-picker-modal.token.ts
+// collection-picker-modal.token.ts
 import { UmbModalToken } from '@umbraco-cms/backoffice/modal';
 
-export interface CategoryPickerModalData {
+export interface CollectionPickerModalData {
   currentSelection?: string;
   filter?: string;  // Optional filter
 }
 
-export interface CategoryPickerModalValue {
+export interface CollectionPickerModalValue {
   id: string;
   name: string;
 }
 
-export const CATEGORY_PICKER_MODAL = new UmbModalToken<
-  CategoryPickerModalData,
-  CategoryPickerModalValue
->('Merchello.Modal.CategoryPicker', {
+export const COLLECTION_PICKER_MODAL = new UmbModalToken<
+  CollectionPickerModalData,
+  CollectionPickerModalValue
+>('Merchello.Modal.CollectionPicker', {
   modal: {
     type: 'sidebar',
     size: 'small',
@@ -446,24 +446,24 @@ export const CATEGORY_PICKER_MODAL = new UmbModalToken<
 ### Modal Element
 
 ```typescript
-// category-picker-modal.element.ts
+// collection-picker-modal.element.ts
 import { customElement, state, html, css, repeat } from '@umbraco-cms/backoffice/external/lit';
 import { UmbModalBaseElement } from '@umbraco-cms/backoffice/modal';
-import type { CategoryPickerModalData, CategoryPickerModalValue } from './category-picker-modal.token.js';
+import type { CollectionPickerModalData, CollectionPickerModalValue } from './collection-picker-modal.token.js';
 import { MerchelloApi } from '@api/merchello-api.js';
 
-interface Category {
+interface Collection {
   id: string;
   name: string;
 }
 
-@customElement('merchello-category-picker-modal')
-export class MerchelloCategoryPickerModalElement extends UmbModalBaseElement<
-  CategoryPickerModalData,
-  CategoryPickerModalValue
+@customElement('merchello-collection-picker-modal')
+export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
+  CollectionPickerModalData,
+  CollectionPickerModalValue
 > {
   @state()
-  private _categories: Category[] = [];
+  private _collections: Category[] = [];
 
   @state()
   private _loading = true;
@@ -477,24 +477,24 @@ export class MerchelloCategoryPickerModalElement extends UmbModalBaseElement<
   override async connectedCallback() {
     super.connectedCallback();
     this._selectedId = this.data?.currentSelection;
-    await this.#loadCategories();
+    await this.#loadCollections();
   }
 
-  async #loadCategories() {
+  async #loadCollections() {
     this._loading = true;
-    const { data, error } = await MerchelloApi.getCategories();
+    const { data, error } = await MerchelloApi.getCollections();
     if (!error && data) {
-      this._categories = data;
+      this._collections = data;
     }
     this._loading = false;
   }
 
-  #onSelect(category: Category) {
-    this._selectedId = category.id;
+  #onSelect(collection: Collection) {
+    this._selectedId = collection.id;
   }
 
   #onSubmit() {
-    const selected = this._categories.find((c) => c.id === this._selectedId);
+    const selected = this._collections.find((c) => c.id === this._selectedId);
     if (selected) {
       this.modalContext?.submit({ id: selected.id, name: selected.name });
     }
@@ -504,18 +504,18 @@ export class MerchelloCategoryPickerModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  get #filteredCategories() {
-    if (!this._searchQuery) return this._categories;
+  get #filteredCollections() {
+    if (!this._searchQuery) return this._collections;
     const query = this._searchQuery.toLowerCase();
-    return this._categories.filter((c) => c.name.toLowerCase().includes(query));
+    return this._collections.filter((c) => c.name.toLowerCase().includes(query));
   }
 
   override render() {
     return html`
-      <umb-body-layout headline="Select Category">
+      <umb-body-layout headline="Select Collection">
         <uui-box>
           <uui-input
-            placeholder="Search categories..."
+            placeholder="Search collections..."
             .value=${this._searchQuery}
             @input=${(e: InputEvent) => (this._searchQuery = (e.target as HTMLInputElement).value)}>
             <uui-icon name="icon-search" slot="prepend"></uui-icon>
@@ -526,7 +526,7 @@ export class MerchelloCategoryPickerModalElement extends UmbModalBaseElement<
             : html`
                 <uui-ref-list>
                   ${repeat(
-                    this.#filteredCategories,
+                    this.#filteredCollections,
                     (cat) => cat.id,
                     (cat) => html`
                       <uui-ref-node
@@ -564,7 +564,7 @@ export class MerchelloCategoryPickerModalElement extends UmbModalBaseElement<
   `;
 }
 
-export default MerchelloCategoryPickerModalElement;
+export default MerchelloCollectionPickerModalElement;
 ```
 
 ### Multi-Select Modal
@@ -677,11 +677,11 @@ export const manifests = [
   // Property Editor UI
   {
     type: 'propertyEditorUi',
-    alias: 'Merchello.PropertyEditorUi.CategoryPicker',
-    name: 'Category Picker',
-    element: () => import('./property-editor-ui-category-picker.element.js'),
+    alias: 'Merchello.PropertyEditorUi.CollectionPicker',
+    name: 'Collection Picker',
+    element: () => import('./property-editor-ui-collection-picker.element.js'),
     meta: {
-      label: 'Category Picker',
+      label: 'Collection Picker',
       icon: 'icon-folder',
       group: 'Merchello',
       propertyEditorSchemaAlias: 'Umbraco.Plain.String',
@@ -690,9 +690,9 @@ export const manifests = [
   // Modal
   {
     type: 'modal',
-    alias: 'Merchello.Modal.CategoryPicker',
-    name: 'Category Picker Modal',
-    element: () => import('./category-picker-modal.element.js'),
+    alias: 'Merchello.Modal.CollectionPicker',
+    name: 'Collection Picker Modal',
+    element: () => import('./collection-picker-modal.element.js'),
   },
 ];
 ```
@@ -854,16 +854,16 @@ protected override firstUpdated(): void {
 For custom value types, register a property editor schema:
 
 ```csharp
-// MerchelloCategoryPickerPropertyEditor.cs
+// MerchelloCollectionPickerPropertyEditor.cs
 using Umbraco.Cms.Core.PropertyEditors;
 
 [DataEditor(
-    alias: "Merchello.CategoryPicker",
-    name: "Merchello Category Picker",
-    view: "~/App_Plugins/Merchello/property-editor-ui-category-picker.element.js")]
-public class MerchelloCategoryPickerPropertyEditor : DataEditor
+    alias: "Merchello.CollectionPicker",
+    name: "Merchello Collection Picker",
+    view: "~/App_Plugins/Merchello/property-editor-ui-collection-picker.element.js")]
+public class MerchelloCollectionPickerPropertyEditor : DataEditor
 {
-    public MerchelloCategoryPickerPropertyEditor(
+    public MerchelloCollectionPickerPropertyEditor(
         IDataValueEditorFactory dataValueEditorFactory)
         : base(dataValueEditorFactory)
     {
@@ -882,28 +882,28 @@ public class MerchelloCategoryPickerPropertyEditor : DataEditor
 Convert stored value to strongly-typed model:
 
 ```csharp
-// CategoryPickerValueConverter.cs
+// CollectionPickerValueConverter.cs
 using Umbraco.Cms.Core.PropertyEditors;
 using Umbraco.Cms.Core.PublishedCache;
-using Merchello.Core.Categories;
+using Merchello.Core.Collections;
 
-public class CategoryPickerValueConverter : PropertyValueConverterBase
+public class CollectionPickerValueConverter : PropertyValueConverterBase
 {
-    private readonly ICategoryService _categoryService;
+    private readonly ICollectionService _collectionService;
 
-    public CategoryPickerValueConverter(ICategoryService categoryService)
+    public CollectionPickerValueConverter(ICollectionService categoryService)
     {
-        _categoryService = categoryService;
+        _collectionService = categoryService;
     }
 
     public override bool IsConverter(IPublishedPropertyType propertyType)
     {
-        return propertyType.EditorAlias == "Merchello.CategoryPicker";
+        return propertyType.EditorAlias == "Merchello.CollectionPicker";
     }
 
     public override Type GetPropertyValueType(IPublishedPropertyType propertyType)
     {
-        return typeof(Category);
+        return typeof(Collection);
     }
 
     public override object? ConvertSourceToIntermediate(
@@ -912,10 +912,10 @@ public class CategoryPickerValueConverter : PropertyValueConverterBase
         object? source,
         bool preview)
     {
-        if (source is not string categoryId || string.IsNullOrEmpty(categoryId))
+        if (source is not string collectionId || string.IsNullOrEmpty(collectionId))
             return null;
 
-        return Guid.TryParse(categoryId, out var id) ? id : (Guid?)null;
+        return Guid.TryParse(collectionId, out var id) ? id : (Guid?)null;
     }
 
     public override object? ConvertIntermediateToObject(
@@ -925,10 +925,10 @@ public class CategoryPickerValueConverter : PropertyValueConverterBase
         object? inter,
         bool preview)
     {
-        if (inter is not Guid categoryId)
+        if (inter is not Guid collectionId)
             return null;
 
-        return _categoryService.GetById(categoryId);
+        return _collectionService.GetById(collectionId);
     }
 }
 ```
@@ -990,23 +990,23 @@ public class MerchelloDataTypeInitializer : INotificationHandler<UmbracoApplicat
 
     public async Task Handle(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
-        await EnsureCategoryPickerDataTypeAsync();
+        await EnsureCollectionPickerDataTypeAsync();
     }
 
-    private async Task EnsureCategoryPickerDataTypeAsync()
+    private async Task EnsureCollectionPickerDataTypeAsync()
     {
         var key = new Guid("12345678-1234-1234-1234-123456789012");
 
         var existing = await _dataTypeService.GetAsync(key);
         if (existing != null) return;
 
-        if (!_propertyEditors.TryGet("Merchello.CategoryPicker", out var editor))
+        if (!_propertyEditors.TryGet("Merchello.CollectionPicker", out var editor))
             return;
 
         var dataType = new DataType(editor, _serializer, -1)
         {
             Key = key,
-            Name = "Merchello Category Picker",
+            Name = "Merchello Collection Picker",
             Configuration = new Dictionary<string, object>
             {
                 { "minItems", 0 },
@@ -1032,7 +1032,7 @@ import { MerchelloApi } from '@api/merchello-api.js';
 async #loadData() {
   this._loading = true;
 
-  const { data, error } = await MerchelloApi.getCategories({
+  const { data, error } = await MerchelloApi.getCollections({
     parentId: this._rootId,
     includeChildren: true,
   });
@@ -1040,7 +1040,7 @@ async #loadData() {
   if (error) {
     // Handle error - show notification
     this.#notificationContext?.peek('danger', {
-      data: { headline: 'Failed to load categories', message: error.message },
+      data: { headline: 'Failed to load collections', message: error.message },
     });
     this._loading = false;
     return;
@@ -1051,15 +1051,15 @@ async #loadData() {
 }
 ```
 
-### Complete Category Picker File Structure
+### Complete Collection Picker File Structure
 
 ```
 src/property-editors/
-└── category-picker/
+└── collection-picker/
     ├── manifests.ts                              # All manifests
-    ├── property-editor-ui-category-picker.element.ts  # Main UI
-    ├── category-picker-modal.token.ts            # Modal token
-    ├── category-picker-modal.element.ts          # Modal element
+    ├── property-editor-ui-collection-picker.element.ts  # Main UI
+    ├── collection-picker-modal.token.ts            # Modal token
+    ├── collection-picker-modal.element.ts          # Modal element
     ├── types.ts                                  # TypeScript types
     └── index.ts                                  # Exports
 ```
@@ -1068,7 +1068,7 @@ src/property-editors/
 
 ```typescript
 // bundle.manifests.ts
-import { manifests as categoryPicker } from './property-editors/category-picker/manifests.js';
+import { manifests as categoryPicker } from './property-editors/collection-picker/manifests.js';
 import { manifests as filterPicker } from './property-editors/filter-picker/manifests.js';
 
 export const manifests = [

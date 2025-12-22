@@ -118,7 +118,7 @@ public class ServiceTestFixture : IDisposable
         services.AddSingleton<ProductRootFactory>();
         services.AddSingleton<ProductFactory>();
         services.AddSingleton<ProductOptionFactory>();
-        services.AddSingleton<ProductCategoryFactory>();
+        services.AddSingleton<ProductCollectionFactory>();
         services.AddSingleton<ShippingOptionFactory>();
         services.AddSingleton<LineItemFactory>();
         services.AddSingleton<CustomerSegmentFactory>();
@@ -282,16 +282,16 @@ public class ServiceTestFixture : IDisposable
                     .Returns((Func<MerchelloDbContext, Task<ProductType?>> func) => func(dbContext));
 
                 scopeMock
-                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductCategory?>>>()))
-                    .Returns((Func<MerchelloDbContext, Task<ProductCategory?>> func) => func(dbContext));
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductCollection?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<ProductCollection?>> func) => func(dbContext));
 
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<ProductType>>>>()))
                     .Returns((Func<MerchelloDbContext, Task<List<ProductType>>> func) => func(dbContext));
 
                 scopeMock
-                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<ProductCategory>>>>()))
-                    .Returns((Func<MerchelloDbContext, Task<List<ProductCategory>>> func) => func(dbContext));
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<ProductCollection>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<ProductCollection>>> func) => func(dbContext));
 
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<ProductFilterGroup>>>>()))

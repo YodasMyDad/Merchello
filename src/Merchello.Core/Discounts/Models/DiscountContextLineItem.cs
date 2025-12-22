@@ -21,9 +21,9 @@ public class DiscountContextLineItem
     public Guid ProductRootId { get; set; }
 
     /// <summary>
-    /// The category IDs this product belongs to.
+    /// The collection IDs this product belongs to.
     /// </summary>
-    public List<Guid> CategoryIds { get; set; } = [];
+    public List<Guid> CollectionIds { get; set; } = [];
 
     /// <summary>
     /// The product filter IDs this product matches.

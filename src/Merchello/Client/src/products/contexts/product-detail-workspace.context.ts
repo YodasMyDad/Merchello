@@ -184,7 +184,7 @@ export class MerchelloProductDetailWorkspaceContext extends UmbControllerBase im
       taxGroupName: null,
       productTypeId: "",
       productTypeName: null,
-      categoryIds: [],
+      collectionIds: [],
       warehouseIds: [],
       productOptions: [],
       variants: [],

@@ -8,6 +8,6 @@ public class ProductRootQueryParameters
 
     public Guid? ProductTypeKey { get; set; }
     public string? ProductTypeAlias { get; set; }
-    public List<Guid>? CategoryIds { get; set; }
+    public List<Guid>? CollectionIds { get; set; }
 }
 

@@ -65,9 +65,9 @@ public class DbSeeder(
         var productTypes = await CreateProductTypesAsync(cancellationToken);
         logger.LogDebug("Created {Count} product types", productTypes.Count);
 
-        // 3. Create Categories via service
-        var categories = await CreateCategoriesAsync(cancellationToken);
-        logger.LogDebug("Created {Count} categories", categories.Count);
+        // 3. Create Collections via service
+        var collections = await CreateCollectionsAsync(cancellationToken);
+        logger.LogDebug("Created {Count} collections", collections.Count);
 
         // 4. Create Suppliers (UK and US) via service
         var (ukSupplier, usSupplier) = await CreateSuppliersAsync(cancellationToken);
@@ -82,7 +82,7 @@ public class DbSeeder(
         logger.LogDebug("Created color and size filter groups");
 
         // 7. Create all products with various configurations (via ProductService)
-        await CreateProductsAsync(ukVat, productTypes, categories, warehouses);
+        await CreateProductsAsync(ukVat, productTypes, collections, warehouses);
         logger.LogInformation("Merchello seed data: Created products");
 
         // 8. Create customers explicitly (before invoices so we can use them for segments)
@@ -179,9 +179,9 @@ public class DbSeeder(
         return types;
     }
 
-    private async Task<Dictionary<string, ProductCategory>> CreateCategoriesAsync(CancellationToken cancellationToken)
+    private async Task<Dictionary<string, ProductCollection>> CreateCollectionsAsync(CancellationToken cancellationToken)
     {
-        var categoryNames = new[]
+        var collectionNames = new[]
         {
             ("clothing", "Clothing"),
             ("tshirts", "T-Shirts"),
@@ -195,17 +195,17 @@ public class DbSeeder(
             ("digital", "Digital Products")
         };
 
-        Dictionary<string, ProductCategory> categories = [];
-        foreach (var (alias, name) in categoryNames)
+        Dictionary<string, ProductCollection> collections = [];
+        foreach (var (alias, name) in collectionNames)
         {
-            var result = await productService.CreateProductCategory(name, cancellationToken);
+            var result = await productService.CreateProductCollection(name, cancellationToken);
             if (result.ResultObject != null)
             {
-                categories[alias] = result.ResultObject;
+                collections[alias] = result.ResultObject;
             }
         }
 
-        return categories;
+        return collections;
     }
 
     private async Task<(Supplier ukSupplier, Supplier usSupplier)> CreateSuppliersAsync(CancellationToken cancellationToken)
@@ -568,7 +568,7 @@ public class DbSeeder(
     private async Task CreateProductsAsync(
         TaxGroup taxGroup,
         Dictionary<string, ProductType> productTypes,
-        Dictionary<string, ProductCategory> categories,
+        Dictionary<string, ProductCollection> collections,
         Warehouse[] warehouses)
     {
         // Warehouse indices: 0=UK, 1=EU, 2=US-East, 3=US-West
@@ -580,42 +580,42 @@ public class DbSeeder(
         // Classic Cotton Tee - HIGH STOCK in all 4 warehouses (global bestseller)
         await CreateProductAsync("Classic Cotton Tee",
             "Comfortable 100% cotton t-shirt with a classic fit. A wardrobe staple.",
-            19.99m, taxGroup, productTypes["tshirt"], [categories["clothing"], categories["tshirts"]],
+            19.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
             0.2m, ["Black", "White", "Navy"], standardSizes,
             warehouses, [(0, 50, 100, true), (1, 40, 80, true), (2, 35, 70, true), (3, 30, 60, true)]);
 
         // Premium V-Neck - LOW STOCK across warehouses
         await CreateProductAsync("Premium V-Neck",
             "Premium quality v-neck t-shirt with a modern fit. Limited availability.",
-            24.99m, taxGroup, productTypes["tshirt"], [categories["clothing"], categories["tshirts"]],
+            24.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
             0.2m, ["Grey", "White", "Burgundy"], standardSizes,
             warehouses, [(0, 3, 8, true), (1, 5, 12, true), (2, 4, 10, true), (3, 2, 6, true)]);
 
         // Organic Crew Neck - REGIONAL SHORTAGE (only in US warehouses)
         await CreateProductAsync("Organic Crew Neck",
             "100% organic cotton crew neck, sustainably produced.",
-            27.99m, taxGroup, productTypes["tshirt"], [categories["clothing"], categories["tshirts"]],
+            27.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
             0.2m, ["Forest Green", "Black", "Natural"], standardSizes,
             warehouses, [(0, 0, 0, true), (1, 0, 0, true), (2, 15, 25, true), (3, 10, 20, true)]);
 
         // Graphic Print Tee - MIXED STOCK levels
         await CreateProductAsync("Graphic Print Tee",
             "Bold graphic print t-shirt for statement style.",
-            22.99m, taxGroup, productTypes["tshirt"], [categories["clothing"], categories["tshirts"]],
+            22.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
             0.2m, ["White", "Black", "Red"], standardSizes,
             warehouses, [(0, 5, 15, true), (1, 8, 20, true), (2, 25, 50, true), (3, 20, 40, true)]);
 
         // Long Sleeve Tee - Good stock in UK/EU, lower in US
         await CreateProductAsync("Long Sleeve Tee",
             "Long sleeve cotton t-shirt perfect for layering.",
-            29.99m, taxGroup, productTypes["tshirt"], [categories["clothing"], categories["tshirts"]],
+            29.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
             0.25m, ["Navy", "Grey", "Black"], standardSizes,
             warehouses, [(0, 20, 40, true), (1, 25, 45, true), (2, 10, 20, true), (3, 8, 15, true)]);
 
         // Sold Out Limited Tee - OUT OF STOCK everywhere (for OOS UI testing)
         await CreateProductAsync("Limited Edition Tee",
             "Exclusive limited edition t-shirt. Currently sold out.",
-            34.99m, taxGroup, productTypes["tshirt"], [categories["clothing"], categories["tshirts"]],
+            34.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
             0.2m, ["Black", "White"], standardSizes,
             warehouses, [(0, 0, 0, true), (1, 0, 0, true), (2, 0, 0, true), (3, 0, 0, true)]);
 
@@ -624,21 +624,21 @@ public class DbSeeder(
         // Premium Hoodie - SPLIT STOCK scenario (UK:50, EU:30, US-E:10, US-W:0)
         await CreateProductAsync("Premium Pullover Hoodie",
             "Heavyweight premium hoodie with kangaroo pocket. Soft brushed fleece interior.",
-            59.99m, taxGroup, productTypes["hoodie"], [categories["clothing"], categories["hoodies"]],
+            59.99m, taxGroup, productTypes["hoodie"], [collections["clothing"], collections["hoodies"]],
             0.6m, ["Black", "Navy", "Heather Grey", "Burgundy"], extendedSizes,
             warehouses, [(0, 40, 60, true), (1, 25, 35, true), (2, 8, 15, true)]);
 
         // Zip-Up Hoodie - UK and EU only
         await CreateProductAsync("Classic Zip Hoodie",
             "Full zip hoodie with metal zipper and split kangaroo pockets.",
-            64.99m, taxGroup, productTypes["hoodie"], [categories["clothing"], categories["hoodies"]],
+            64.99m, taxGroup, productTypes["hoodie"], [collections["clothing"], collections["hoodies"]],
             0.65m, ["Black", "Charcoal", "Navy"], standardSizes,
             warehouses, [(0, 20, 40, true), (1, 15, 30, true), (2, 10, 20, true)]);
 
         // Lightweight Hoodie - EU warehouse only (summer item)
         await CreateProductAsync("Lightweight Summer Hoodie",
             "Breathable lightweight hoodie perfect for cool summer evenings.",
-            44.99m, taxGroup, productTypes["hoodie"], [categories["clothing"], categories["hoodies"]],
+            44.99m, taxGroup, productTypes["hoodie"], [collections["clothing"], collections["hoodies"]],
             0.4m, ["White", "Sky Blue", "Grey"], standardSizes,
             warehouses, [(1, 30, 60, true)]);
 
@@ -647,14 +647,14 @@ public class DbSeeder(
         // Classic Polo - US priority, available in UK too
         await CreateProductAsync("Classic Pique Polo",
             "Timeless pique polo shirt with ribbed collar and cuffs.",
-            34.99m, taxGroup, productTypes["polo"], [categories["clothing"], categories["polos"]],
+            34.99m, taxGroup, productTypes["polo"], [collections["clothing"], collections["polos"]],
             0.3m, ["White", "Navy", "Black", "Royal Blue", "Burgundy"], standardSizes,
             warehouses, [(2, 30, 50, true), (3, 25, 45, true), (0, 15, 30, true)]);
 
         // Performance Polo - US warehouses only
         await CreateProductAsync("Performance Polo",
             "Moisture-wicking performance polo, perfect for golf or active wear.",
-            39.99m, taxGroup, productTypes["polo"], [categories["clothing"], categories["polos"]],
+            39.99m, taxGroup, productTypes["polo"], [collections["clothing"], collections["polos"]],
             0.25m, ["White", "Black", "Grey", "Navy"], standardSizes,
             warehouses, [(2, 20, 40, true), (3, 15, 30, true), (0, 8, 15, true)]);
 
@@ -663,21 +663,21 @@ public class DbSeeder(
         // Bomber Jacket - LIMITED stock, UK and EU only
         await CreateProductAsync("Classic Bomber Jacket",
             "Retro-style bomber jacket with ribbed cuffs and hem.",
-            89.99m, taxGroup, productTypes["jacket"], [categories["clothing"], categories["jackets"]],
+            89.99m, taxGroup, productTypes["jacket"], [collections["clothing"], collections["jackets"]],
             0.8m, ["Black", "Olive"], extendedSizes,
             warehouses, [(0, 5, 12, true), (1, 4, 10, true)]);
 
         // Denim Jacket - LOW STOCK UK/EU only
         await CreateProductAsync("Denim Jacket",
             "Classic denim jacket with button front and chest pockets.",
-            79.99m, taxGroup, productTypes["jacket"], [categories["clothing"], categories["jackets"]],
+            79.99m, taxGroup, productTypes["jacket"], [collections["clothing"], collections["jackets"]],
             0.9m, ["Navy", "Black", "Sky Blue"], extendedSizes,
             warehouses, [(0, 5, 12, true), (1, 4, 10, true)]);
 
         // Softshell Jacket - UK and EU
         await CreateProductAsync("Softshell Jacket",
             "Water-resistant softshell jacket with fleece lining.",
-            99.99m, taxGroup, productTypes["jacket"], [categories["clothing"], categories["jackets"]],
+            99.99m, taxGroup, productTypes["jacket"], [collections["clothing"], collections["jackets"]],
             0.7m, ["Black", "Charcoal", "Navy"], extendedSizes,
             warehouses, [(0, 12, 25, true), (1, 10, 20, true)]);
 
@@ -686,21 +686,21 @@ public class DbSeeder(
         // Baseball Cap - All warehouses, UK priority
         await CreateProductAsync("Classic Baseball Cap",
             "Adjustable cotton twill baseball cap with curved brim.",
-            19.99m, taxGroup, productTypes["cap"], [categories["headwear"]],
+            19.99m, taxGroup, productTypes["cap"], [collections["headwear"]],
             0.1m, ["Black", "Navy", "White", "Red", "Grey", "Olive"], null,
             warehouses, [(0, 40, 70, true), (1, 30, 55, true), (2, 25, 45, true), (3, 20, 40, true)]);
 
         // Snapback - US priority
         await CreateProductAsync("Snapback Cap",
             "Flat brim snapback cap with adjustable strap.",
-            24.99m, taxGroup, productTypes["cap"], [categories["headwear"]],
+            24.99m, taxGroup, productTypes["cap"], [collections["headwear"]],
             0.12m, ["Black", "Navy", "Heather Grey", "Burgundy"], null,
             warehouses, [(2, 30, 50, true), (3, 25, 45, true), (0, 15, 30, true), (1, 10, 25, true)]);
 
         // Beanie - UK/EU priority (winter item)
         await CreateProductAsync("Knit Beanie",
             "Warm knit beanie with fold-up cuff.",
-            14.99m, taxGroup, productTypes["cap"], [categories["headwear"]],
+            14.99m, taxGroup, productTypes["cap"], [collections["headwear"]],
             0.08m, ["Black", "Grey", "Navy", "Burgundy", "Forest Green"], null,
             warehouses, [(0, 50, 90, true), (1, 40, 70, true), (2, 20, 35, true), (3, 15, 30, true)]);
 
@@ -709,21 +709,21 @@ public class DbSeeder(
         // Canvas Tote - HIGH STOCK, all warehouses
         await CreateProductAsync("Canvas Tote Bag",
             "Sturdy canvas tote bag with reinforced handles.",
-            14.99m, taxGroup, productTypes["bag"], [categories["bags"]],
+            14.99m, taxGroup, productTypes["bag"], [collections["bags"]],
             0.3m, ["Natural", "Black", "Navy", "Grey"], null,
             warehouses, [(0, 60, 100, true), (2, 50, 90, true), (3, 45, 80, true)]);
 
         // Backpack - UK and US
         await CreateProductAsync("Classic Backpack",
             "Durable everyday backpack with laptop compartment.",
-            49.99m, taxGroup, productTypes["bag"], [categories["bags"]],
+            49.99m, taxGroup, productTypes["bag"], [collections["bags"]],
             0.5m, ["Black", "Navy", "Grey"], ["S", "L"],
             warehouses, [(0, 20, 40, true), (2, 15, 30, true), (3, 12, 25, true)]);
 
         // Gym Bag - UK and US
         await CreateProductAsync("Duffle Gym Bag",
             "Spacious duffle bag with shoe compartment.",
-            39.99m, taxGroup, productTypes["bag"], [categories["bags"]],
+            39.99m, taxGroup, productTypes["bag"], [collections["bags"]],
             0.4m, ["Black", "Navy", "Charcoal"], null,
             warehouses, [(0, 25, 45, true), (2, 20, 35, true), (3, 15, 30, true)]);
 
@@ -732,14 +732,14 @@ public class DbSeeder(
         // Ceramic Mug - UK and US-East
         await CreateProductAsync("Ceramic Mug (11oz)",
             "Classic 11oz ceramic mug, dishwasher and microwave safe.",
-            12.99m, taxGroup, productTypes["mug"], [categories["drinkware"]],
+            12.99m, taxGroup, productTypes["mug"], [collections["drinkware"]],
             0.35m, ["White", "Black", "Navy", "Red", "Pink", "Sky Blue", "Grey", "Forest Green"], null,
             warehouses, [(0, 60, 100, true), (2, 45, 80, true)]);
 
         // Travel Mug - UK and US-East
         await CreateProductAsync("Insulated Travel Mug",
             "16oz stainless steel travel mug with leak-proof lid.",
-            24.99m, taxGroup, productTypes["mug"], [categories["drinkware"]],
+            24.99m, taxGroup, productTypes["mug"], [collections["drinkware"]],
             0.4m, ["Black", "White", "Navy", "Red"], null,
             warehouses, [(0, 30, 55, true), (2, 25, 45, true)]);
 
@@ -748,27 +748,27 @@ public class DbSeeder(
         // Sticker Pack - UK only, UNTRACKED
         await CreateProductAsync("Sticker Pack (10 pcs)",
             "Assorted vinyl sticker pack, weatherproof and durable.",
-            9.99m, taxGroup, productTypes["accessories"], [categories["accessories"]],
+            9.99m, taxGroup, productTypes["accessories"], [collections["accessories"]],
             0.05m, null, null,
             warehouses, [(0, 0, 0, false)]);
 
         // Poster Print - UK only, UNTRACKED (print on demand)
         await CreateProductAsync("Art Print Poster",
             "High-quality giclée art print on premium paper.",
-            19.99m, taxGroup, productTypes["accessories"], [categories["accessories"]],
+            19.99m, taxGroup, productTypes["accessories"], [collections["accessories"]],
             0.1m, null, ["A4", "A3", "A2"],
             warehouses, [(0, 0, 0, false)]);
 
         // Gift Cards - AMOUNT VARIANTS, DIGITAL
         await CreateProductWithAmountVariantsAsync("Gift Card",
             "Digital gift card, delivered via email.",
-            taxGroup, productTypes["digital"], [categories["digital"]],
+            taxGroup, productTypes["digital"], [collections["digital"]],
             warehouses[0], [25m, 50m, 75m, 100m]);
 
         // Custom Print Service - NO VARIANTS, MADE TO ORDER
         await CreateProductAsync("Custom Print Service",
             "Made-to-order custom print service. Upload your design!",
-            34.99m, taxGroup, productTypes["digital"], [categories["digital"]],
+            34.99m, taxGroup, productTypes["digital"], [collections["digital"]],
             0.2m, null, null,
             warehouses, [(0, 0, 0, false), (1, 0, 0, false)]);
     }
@@ -779,7 +779,7 @@ public class DbSeeder(
         decimal price,
         TaxGroup taxGroup,
         ProductType productType,
-        List<ProductCategory> productCategories,
+        List<ProductCollection> productCollections,
         decimal weight,
         string[]? colors,
         string[]? sizes,
@@ -802,7 +802,7 @@ public class DbSeeder(
             price,
             taxGroup,
             productType,
-            categories: productCategories,
+            collections: productCollections,
             weight: weight,
             colors: colors,
             sizes: sizes,
@@ -815,7 +815,7 @@ public class DbSeeder(
         string description,
         TaxGroup taxGroup,
         ProductType productType,
-        List<ProductCategory> categories,
+        List<ProductCollection> collections,
         Warehouse warehouse,
         decimal[] amounts)
     {
@@ -828,7 +828,7 @@ public class DbSeeder(
                 amount,
                 taxGroup,
                 productType,
-                categories: categories,
+                collections: collections,
                 weight: 0,
                 colors: null,
                 sizes: null,

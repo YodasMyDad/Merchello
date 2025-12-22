@@ -368,7 +368,7 @@ public class DiscountsApiController(
             rule.TargetNames = rule.TargetType switch
             {
                 DiscountTargetType.SpecificProducts => await GetProductNamesAsync(rule.TargetIds, ct),
-                DiscountTargetType.Categories => await GetCategoryNamesAsync(rule.TargetIds, ct),
+                DiscountTargetType.Collections => await GetCollectionNamesAsync(rule.TargetIds, ct),
                 DiscountTargetType.ProductTypes => await GetProductTypeNamesAsync(rule.TargetIds, ct),
                 DiscountTargetType.ProductFilters => await GetFilterNamesAsync(rule.TargetIds, ct),
                 DiscountTargetType.Suppliers => await GetSupplierNamesAsync(rule.TargetIds, ct),
@@ -415,18 +415,18 @@ public class DiscountsApiController(
         return names;
     }
 
-    private async Task<List<string>> GetCategoryNamesAsync(List<Guid> ids, CancellationToken ct)
+    private async Task<List<string>> GetCollectionNamesAsync(List<Guid> ids, CancellationToken ct)
     {
-        var allCategories = await productService.GetProductCategories(ct) ?? [];
-        if (allCategories.Count == 0)
+        var allCollections = await productService.GetProductCollections(ct) ?? [];
+        if (allCollections.Count == 0)
         {
             return [];
         }
 
         var idSet = ids.ToHashSet();
-        return allCategories
+        return allCollections
             .Where(c => idSet.Contains(c.Id))
-            .Select(c => c.Name ?? "Unknown Category")
+            .Select(c => c.Name ?? "Unknown Collection")
             .ToList();
     }
 

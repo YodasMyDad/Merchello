@@ -911,6 +911,44 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.ToTable("merchelloExchangeRateProviders", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.Payments.Models.PaymentMethodSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateUpdated")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayNameOverride")
+                        .HasMaxLength(250)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MethodAlias")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("PaymentProviderSettingId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaymentProviderSettingId", "MethodAlias")
+                        .IsUnique();
+
+                    b.ToTable("merchelloPaymentMethods", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.Payments.Models.PaymentProviderSetting", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1074,7 +1112,7 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.ToTable("merchelloProducts", (string)null);
                 });
 
-            modelBuilder.Entity("Merchello.Core.Products.Models.ProductCategory", b =>
+            modelBuilder.Entity("Merchello.Core.Products.Models.ProductCollection", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1087,7 +1125,7 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("merchelloProductCategories", (string)null);
+                    b.ToTable("merchelloProductCollections", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.Products.Models.ProductFilter", b =>
@@ -1747,19 +1785,19 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.ToTable("merchelloProductFiltersProducts");
                 });
 
-            modelBuilder.Entity("merchelloProductRootCategories", b =>
+            modelBuilder.Entity("merchelloProductRootCollections", b =>
                 {
-                    b.Property<Guid>("CategoryId")
+                    b.Property<Guid>("CollectionId")
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("ProductRootId")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("CategoryId", "ProductRootId");
+                    b.HasKey("CollectionId", "ProductRootId");
 
                     b.HasIndex("ProductRootId");
 
-                    b.ToTable("merchelloProductRootCategories");
+                    b.ToTable("merchelloProductRootCollections");
                 });
 
             modelBuilder.Entity("merchelloProductRootShippingOptions", b =>
@@ -2081,6 +2119,17 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("Discount");
                 });
 
+            modelBuilder.Entity("Merchello.Core.Payments.Models.PaymentMethodSetting", b =>
+                {
+                    b.HasOne("Merchello.Core.Payments.Models.PaymentProviderSetting", "ProviderSetting")
+                        .WithMany("MethodSettings")
+                        .HasForeignKey("PaymentProviderSettingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProviderSetting");
+                });
+
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
                 {
                     b.HasOne("Merchello.Core.Products.Models.ProductRoot", "ProductRoot")
@@ -2361,11 +2410,11 @@ namespace Merchello.Core.Sqlite.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("merchelloProductRootCategories", b =>
+            modelBuilder.Entity("merchelloProductRootCollections", b =>
                 {
-                    b.HasOne("Merchello.Core.Products.Models.ProductCategory", null)
+                    b.HasOne("Merchello.Core.Products.Models.ProductCollection", null)
                         .WithMany()
-                        .HasForeignKey("CategoryId")
+                        .HasForeignKey("CollectionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2436,6 +2485,11 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("FreeShippingConfig");
 
                     b.Navigation("TargetRules");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Payments.Models.PaymentProviderSetting", b =>
+                {
+                    b.Navigation("MethodSettings");
                 });
 
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>

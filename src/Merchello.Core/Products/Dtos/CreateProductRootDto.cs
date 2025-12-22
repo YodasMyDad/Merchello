@@ -8,7 +8,7 @@ public class CreateProductRootDto
     public string RootName { get; set; } = string.Empty;
     public Guid TaxGroupId { get; set; }
     public Guid ProductTypeId { get; set; }
-    public List<Guid>? CategoryIds { get; set; }
+    public List<Guid>? CollectionIds { get; set; }
     public List<Guid>? WarehouseIds { get; set; }
     public List<Guid>? RootImages { get; set; }
     public bool IsDigitalProduct { get; set; }

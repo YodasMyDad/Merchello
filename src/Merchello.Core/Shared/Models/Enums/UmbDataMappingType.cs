@@ -14,6 +14,6 @@ public enum UmbDataMappingType
     SingleContentPicker,
     MultiContentPicker,
     ProductOptions,
-    ProductCategories,
+    ProductCollections,
     ProductFilters
 }

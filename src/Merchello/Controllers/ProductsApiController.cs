@@ -271,9 +271,9 @@ public class ProductsApiController(
             OrderBy = ProductOrderBy.ProductRoot
         };
 
-        if (query.CategoryId.HasValue)
+        if (query.CollectionId.HasValue)
         {
-            parameters.CategoryIds = [query.CategoryId.Value];
+            parameters.CollectionIds = [query.CollectionId.Value];
         }
 
         var result = await productService.QueryProducts(parameters);
@@ -382,13 +382,102 @@ public class ProductsApiController(
         return NoContent();
     }
 
-    [HttpGet("products/categories")]
-    [ProducesResponseType<List<ProductCategoryDto>>(StatusCodes.Status200OK)]
-    public async Task<List<ProductCategoryDto>> GetProductCategories()
+    #region Collections
+
+    [HttpGet("products/collections")]
+    [ProducesResponseType<List<ProductCollectionDto>>(StatusCodes.Status200OK)]
+    public async Task<List<ProductCollectionDto>> GetProductCollections()
     {
-        var categories = await productService.GetProductCategories();
-        return categories.Select(c => new ProductCategoryDto { Id = c.Id, Name = c.Name ?? string.Empty }).ToList();
+        return await productService.GetProductCollectionsWithCounts();
     }
+
+    [HttpPost("products/collections")]
+    [ProducesResponseType<ProductCollectionDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateProductCollection([FromBody] CreateProductCollectionDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Name))
+        {
+            return BadRequest("Collection name is required");
+        }
+
+        var result = await productService.CreateProductCollection(dto.Name.Trim());
+
+        if (!result.Successful)
+        {
+            var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to create collection";
+            return BadRequest(message);
+        }
+
+        var collection = result.ResultObject!;
+        return CreatedAtAction(
+            nameof(GetProductCollections),
+            new ProductCollectionDto
+            {
+                Id = collection.Id,
+                Name = collection.Name ?? string.Empty,
+                ProductCount = 0
+            });
+    }
+
+    [HttpPut("products/collections/{id:guid}")]
+    [ProducesResponseType<ProductCollectionDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateProductCollection(Guid id, [FromBody] UpdateProductCollectionDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Name))
+        {
+            return BadRequest("Collection name is required");
+        }
+
+        var result = await productService.UpdateProductCollection(id, dto.Name.Trim());
+
+        if (!result.Successful)
+        {
+            var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to update collection";
+            if (message.Contains("not found", StringComparison.OrdinalIgnoreCase))
+            {
+                return NotFound(message);
+            }
+            return BadRequest(message);
+        }
+
+        var collection = result.ResultObject!;
+        // Get the updated product count
+        var collections = await productService.GetProductCollectionsWithCounts();
+        var updatedCollection = collections.FirstOrDefault(c => c.Id == id);
+
+        return Ok(new ProductCollectionDto
+        {
+            Id = collection.Id,
+            Name = collection.Name ?? string.Empty,
+            ProductCount = updatedCollection?.ProductCount ?? 0
+        });
+    }
+
+    [HttpDelete("products/collections/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteProductCollection(Guid id)
+    {
+        var result = await productService.DeleteProductCollection(id);
+
+        if (!result.Successful)
+        {
+            var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to delete collection";
+            if (message.Contains("not found", StringComparison.OrdinalIgnoreCase))
+            {
+                return NotFound(message);
+            }
+            return BadRequest(message);
+        }
+
+        return NoContent();
+    }
+
+    #endregion
 
     private static ProductListItemDto MapToListItem(Product product)
     {
@@ -425,7 +514,7 @@ public class ProductsApiController(
             TotalStock = totalStock,
             VariantCount = variantCount,
             ProductTypeName = product.ProductRoot?.ProductType?.Name ?? "",
-            CategoryNames = product.ProductRoot?.Categories?.Select(c => c.Name ?? string.Empty).ToList() ?? [],
+            CollectionNames = product.ProductRoot?.Collections?.Select(c => c.Name ?? string.Empty).ToList() ?? [],
             ImageUrl = product.Images.FirstOrDefault() ?? product.ProductRoot?.RootImages.FirstOrDefault(),
             HasWarehouse = hasWarehouse,
             HasShippingOptions = hasShippingOptions,

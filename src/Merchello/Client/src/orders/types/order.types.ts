@@ -131,7 +131,6 @@ export interface OrderListItemDto {
   itemCount: number;
   deliveryStatus: string;
   deliveryMethod: string;
-  tags: string[];
 }
 
 export interface OrderDetailDto {

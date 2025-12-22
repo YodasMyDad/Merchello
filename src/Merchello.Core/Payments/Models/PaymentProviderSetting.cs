@@ -52,5 +52,10 @@ public class PaymentProviderSetting
     /// Date this record was last updated.
     /// </summary>
     public DateTime DateUpdated { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Method settings for this provider. Each method can be individually enabled/disabled.
+    /// </summary>
+    public List<PaymentMethodSetting> MethodSettings { get; set; } = [];
 }
 

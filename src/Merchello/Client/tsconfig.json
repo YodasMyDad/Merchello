@@ -25,7 +25,7 @@
     "paths": {
       "@api/*": [ "src/api/*" ],
       "@analytics/*": [ "src/analytics/*" ],
-      "@categories/*": [ "src/categories/*" ],
+      "@collections/*": [ "src/collections/*" ],
       "@customers/*": [ "src/customers/*" ],
       "@dashboards/*": [ "src/dashboards/*" ],
       "@discounts/*": [ "src/discounts/*" ],

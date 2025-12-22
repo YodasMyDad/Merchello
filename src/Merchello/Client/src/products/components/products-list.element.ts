@@ -7,7 +7,7 @@ import type {
   ProductListItemDto,
   ProductListParams,
   ProductTypeDto,
-  ProductCategoryDto,
+  ProductCollectionDto,
   ProductColumnKey,
 } from "@products/types/product.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
@@ -32,11 +32,11 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
   @state() private _selectedProducts: Set<string> = new Set();
   @state() private _searchTerm: string = "";
   @state() private _productTypeId: string = "";
-  @state() private _categoryId: string = "";
+  @state() private _collectionId: string = "";
   @state() private _availability: string = "all";
   @state() private _stockStatus: string = "all";
   @state() private _productTypes: ProductTypeDto[] = [];
-  @state() private _categories: ProductCategoryDto[] = [];
+  @state() private _collections: ProductCollectionDto[] = [];
 
   private _searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   #modalManager?: UmbModalManagerContext;
@@ -62,13 +62,13 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
   }
 
   private async _loadFilterOptions(): Promise<void> {
-    const [typesResult, categoriesResult] = await Promise.all([
+    const [typesResult, collectionsResult] = await Promise.all([
       MerchelloApi.getProductTypes(),
-      MerchelloApi.getProductCategories(),
+      MerchelloApi.getProductCollections(),
     ]);
 
     if (typesResult.data) this._productTypes = typesResult.data;
-    if (categoriesResult.data) this._categories = categoriesResult.data;
+    if (collectionsResult.data) this._collections = collectionsResult.data;
   }
 
   private async _loadProducts(): Promise<void> {
@@ -84,7 +84,7 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
 
     if (this._searchTerm.trim()) params.search = this._searchTerm.trim();
     if (this._productTypeId) params.productTypeId = this._productTypeId;
-    if (this._categoryId) params.categoryId = this._categoryId;
+    if (this._collectionId) params.collectionId = this._collectionId;
     if (this._availability !== "all") params.availability = this._availability as ProductListParams["availability"];
     if (this._stockStatus !== "all") params.stockStatus = this._stockStatus as ProductListParams["stockStatus"];
 
@@ -127,8 +127,8 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
     this._loadProducts();
   }
 
-  private _handleCategoryChange(e: Event): void {
-    this._categoryId = (e.target as HTMLSelectElement).value;
+  private _handleCollectionChange(e: Event): void {
+    this._collectionId = (e.target as HTMLSelectElement).value;
     this._page = 1;
     this._loadProducts();
   }
@@ -184,10 +184,10 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
     ];
   }
 
-  private _getCategoryOptions(): SelectOption[] {
+  private _getCollectionOptions(): SelectOption[] {
     return [
-      { name: "All Categories", value: "", selected: this._categoryId === "" },
-      ...this._categories.map((c) => ({ name: c.name, value: c.id, selected: this._categoryId === c.id })),
+      { name: "All Collections", value: "", selected: this._collectionId === "" },
+      ...this._collections.map((c) => ({ name: c.name, value: c.id, selected: this._collectionId === c.id })),
     ];
   }
 
@@ -272,7 +272,7 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
             </div>
             <div class="filter-dropdowns">
               <uui-select label="Product Type" .options=${this._getProductTypeOptions()} @change=${this._handleProductTypeChange}></uui-select>
-              <uui-select label="Category" .options=${this._getCategoryOptions()} @change=${this._handleCategoryChange}></uui-select>
+              <uui-select label="Collection" .options=${this._getCollectionOptions()} @change=${this._handleCollectionChange}></uui-select>
               <uui-select label="Availability" .options=${this._getAvailabilityOptions()} @change=${this._handleAvailabilityChange}></uui-select>
               <uui-select label="Stock Status" .options=${this._getStockStatusOptions()} @change=${this._handleStockStatusChange}></uui-select>
             </div>

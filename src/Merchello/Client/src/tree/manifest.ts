@@ -31,7 +31,7 @@ export const manifests: Array<UmbExtensionManifest> = [
       "merchello-order",
       "merchello-products",
       "merchello-customers",
-      "merchello-categories",
+      "merchello-collections",
       "merchello-filters",
       "merchello-product-types",
       "merchello-product-feed",

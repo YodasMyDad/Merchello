@@ -11,9 +11,20 @@ public class TestPaymentProvider : PaymentProviderBase
     public override PaymentProviderMetadata Metadata => new()
     {
         Alias = "test",
-        DisplayName = "Test Provider",
-        IntegrationType = PaymentIntegrationType.DirectForm
+        DisplayName = "Test Provider"
     };
+
+    public override IReadOnlyList<PaymentMethodDefinition> GetAvailablePaymentMethods() =>
+    [
+        new PaymentMethodDefinition
+        {
+            Alias = "test",
+            DisplayName = "Test Payment",
+            IntegrationType = PaymentIntegrationType.DirectForm,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 0
+        }
+    ];
 
     public override Task<PaymentSessionResult> CreatePaymentSessionAsync(
         PaymentRequest request,

@@ -293,13 +293,14 @@ public class PaymentProvidersApiController(
         {
             ProviderAlias = setting.ProviderAlias,
             ProviderName = setting.DisplayName,
-            IntegrationType = provider.Metadata.IntegrationType
+            IntegrationType = PaymentIntegrationType.Redirect // Will be updated from session result
         };
 
         try
         {
             var sessionResult = await provider.Provider.CreatePaymentSessionAsync(paymentRequest, cancellationToken);
 
+            response.IntegrationType = sessionResult.IntegrationType;
             response.IsSuccessful = sessionResult.Success;
             response.SessionId = sessionResult.SessionId;
             response.RedirectUrl = sessionResult.RedirectUrl;
@@ -337,6 +338,8 @@ public class PaymentProvidersApiController(
     private static PaymentProviderDto MapToProviderDto(RegisteredPaymentProvider registered)
     {
         var meta = registered.Metadata;
+        // Get integration type from first payment method (providers can support multiple methods with different types)
+        var firstMethod = registered.Provider.GetAvailablePaymentMethods().FirstOrDefault();
         return new PaymentProviderDto
         {
             Alias = meta.Alias,
@@ -345,7 +348,7 @@ public class PaymentProvidersApiController(
             Description = meta.Description,
             SupportsRefunds = meta.SupportsRefunds,
             SupportsPartialRefunds = meta.SupportsPartialRefunds,
-            IntegrationType = meta.IntegrationType,
+            IntegrationType = firstMethod?.IntegrationType ?? PaymentIntegrationType.Redirect,
             SupportsAuthAndCapture = meta.SupportsAuthAndCapture,
             RequiresWebhook = meta.RequiresWebhook,
             WebhookPath = meta.WebhookPath,

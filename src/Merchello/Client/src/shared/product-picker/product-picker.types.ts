@@ -30,8 +30,8 @@ export interface ProductPickerConfig {
   /** Filter by product type ID */
   productTypeId?: string;
 
-  /** Filter by category ID */
-  categoryId?: string;
+  /** Filter by collection ID */
+  collectionId?: string;
 }
 
 /**

@@ -26,7 +26,7 @@ public class MerchelloDbContext : DbContext
     // Product DbSets
     public DbSet<ProductRoot> RootProducts => Set<ProductRoot>();
     public DbSet<Product> Products => Set<Product>();
-    public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<ProductCollection> ProductCollections => Set<ProductCollection>();
     public DbSet<ProductFilter> ProductFilters => Set<ProductFilter>();
     public DbSet<ProductFilterGroup> ProductFilterGroups => Set<ProductFilterGroup>();
     public DbSet<ProductType> ProductTypes => Set<ProductType>();
@@ -65,6 +65,7 @@ public class MerchelloDbContext : DbContext
 
     // Payment Provider DbSets
     public DbSet<PaymentProviderSetting> PaymentProviderSettings => Set<PaymentProviderSetting>();
+    public DbSet<PaymentMethodSetting> PaymentMethodSettings => Set<PaymentMethodSetting>();
 
     // Exchange Rate Provider DbSets
     public DbSet<ExchangeRateProviderSetting> ExchangeRateProviderSettings => Set<ExchangeRateProviderSetting>();

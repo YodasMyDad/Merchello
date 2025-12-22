@@ -16,13 +16,13 @@ public interface IProductService
     Task<CrudResult<Product>> Update(Product product);
     Task<CrudResult<ProductRoot>> Delete(ProductRoot productRoot);
     Task<List<ProductFilterGroup>> GetFilterGroups(CancellationToken cancellationToken = default);
-    Task<ProductCategory?> GetCategory(Guid categoryId, CancellationToken cancellationToken = default);
+    Task<ProductCollection?> GetCollection(Guid collectionId, CancellationToken cancellationToken = default);
     Task<Product?> GetProduct(GetProductParameters parameters, CancellationToken cancellationToken = default);
     Task<PaginatedList<Product>> QueryProducts(ProductQueryParameters parameters, CancellationToken cancellationToken = default);
     Task<PaginatedList<ProductRoot>> QueryProductRoots(ProductRootQueryParameters parameters, CancellationToken cancellationToken = default);
 
     // Wizard creation methods
-    Task<CrudResult<ProductRoot>> CreateProductRootOnly(string name, decimal price, decimal costOfGoods, decimal weight, Guid taxGroupId, Guid productTypeId, List<Guid> categoryIds, string? description = null, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductRoot>> CreateProductRootOnly(string name, decimal price, decimal costOfGoods, decimal weight, Guid taxGroupId, Guid productTypeId, List<Guid> collectionIds, string? description = null, CancellationToken cancellationToken = default);
     Task<CrudResult<ProductOption>> AddProductOption(Guid productRootId, string name, string? alias, int sortOrder, string? optionTypeAlias, string? optionUiAlias, bool isVariant, List<(string Name, string? FullName, int SortOrder, string? HexValue, decimal PriceAdjustment, decimal CostAdjustment, string? SkuSuffix)> values, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> RemoveProductOption(Guid productRootId, Guid optionId, CancellationToken cancellationToken = default);
     Task<CrudResult<List<Product>>> GenerateVariantsFromOptions(Guid productRootId, decimal defaultPrice, decimal defaultCostOfGoods, CancellationToken cancellationToken = default);
@@ -43,9 +43,12 @@ public interface IProductService
     Task<CrudResult<ProductType>> CreateProductType(string name, CancellationToken cancellationToken = default);
     Task<CrudResult<ProductType>> UpdateProductType(Guid id, string name, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> DeleteProductType(Guid id, CancellationToken cancellationToken = default);
-    Task<CrudResult<ProductCategory>> CreateProductCategory(string name, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductCollection>> CreateProductCollection(string name, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductCollection>> UpdateProductCollection(Guid id, string name, CancellationToken cancellationToken = default);
+    Task<CrudResult<bool>> DeleteProductCollection(Guid id, CancellationToken cancellationToken = default);
     Task<List<ProductType>> GetProductTypes(CancellationToken cancellationToken = default);
-    Task<List<ProductCategory>> GetProductCategories(CancellationToken cancellationToken = default);
+    Task<List<ProductCollection>> GetProductCollections(CancellationToken cancellationToken = default);
+    Task<List<ProductCollectionDto>> GetProductCollectionsWithCounts(CancellationToken cancellationToken = default);
     Task<ProductRoot?> GetProductRoot(Guid productRootId, bool includeProducts = false, bool includeWarehouses = false, CancellationToken cancellationToken = default);
 
     // Product detail view methods

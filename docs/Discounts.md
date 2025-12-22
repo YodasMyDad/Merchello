@@ -38,7 +38,7 @@
 |---------|-------------|
 | **Discount Types** | Amount off products, Buy X get Y, Amount off order, Free shipping |
 | **Methods** | Discount codes (manual entry) or Automatic (auto-applied) |
-| **Targeting** | Products, Variants, Categories, ProductFilters, ProductTypes, Suppliers, Warehouses |
+| **Targeting** | Products, Variants, Collections, ProductFilters, ProductTypes, Suppliers, Warehouses |
 | **Eligibility** | All customers, Customer segments, Specific customers |
 | **Requirements** | Minimum purchase amount, Minimum quantity |
 | **Limits** | Total uses, Per-customer uses, Per-order uses |
@@ -66,7 +66,7 @@ Configuration:
 ├── Value: decimal (e.g., 10 for 10% or £10)
 ├── Applies To:
 │   ├── All Products
-│   ├── Specific Collections (Categories)
+│   ├── Specific Collections
 │   ├── Specific Products (including variants)
 │   ├── Product Filters (e.g., Color: Blue, Size: Large)
 │   ├── Product Types
@@ -204,7 +204,7 @@ public class DiscountTargetRule
     public Guid Id { get; set; } = GuidExtensions.NewSequentialGuid;
     public Guid DiscountId { get; set; }
 
-    public DiscountTargetType TargetType { get; set; } // AllProducts, SpecificProducts, Categories, ProductFilters, ProductTypes, Suppliers, Warehouses
+    public DiscountTargetType TargetType { get; set; } // AllProducts, SpecificProducts, Collections, ProductFilters, ProductTypes, Suppliers, Warehouses
 
     // Store as JSON array of GUIDs for flexibility
     public string? TargetIds { get; set; } // JSON: ["guid1", "guid2"]
@@ -350,7 +350,7 @@ public enum DiscountTargetType
 {
     AllProducts,
     SpecificProducts,    // Includes variants
-    Categories,
+    Collections,
     ProductFilters,      // Filter values (e.g., "Blue", "Large") from ProductFilterGroups
     ProductTypes,
     Suppliers,
@@ -437,7 +437,7 @@ public class DiscountDbMapping : IEntityTypeConfiguration<Discount>
 | Table | Purpose |
 |-------|---------|
 | `merchelloDiscounts` | Core discount definitions |
-| `merchelloDiscountTargetRules` | What products/categories the discount applies to |
+| `merchelloDiscountTargetRules` | What products/collections the discount applies to |
 | `merchelloDiscountEligibilityRules` | Who can use the discount (references segments) |
 | `merchelloDiscountBuyXGetYConfigs` | BOGO-specific configuration |
 | `merchelloDiscountFreeShippingConfigs` | Free shipping-specific configuration |
@@ -605,7 +605,7 @@ public class DiscountContextLineItem
 {
     public Guid? ProductId { get; set; }
     public Guid? ProductRootId { get; set; }
-    public List<Guid>? CategoryIds { get; set; } // Products can belong to multiple categories
+    public List<Guid>? CollectionIds { get; set; } // Products can belong to multiple collections
     public Guid? ProductTypeId { get; set; }
     public Guid? SupplierId { get; set; }
     public Guid? WarehouseId { get; set; }
@@ -963,7 +963,7 @@ src/Merchello/Client/src/discounts/
 │   ├── discounts-list.element.ts         # Main list view
 │   ├── discount-detail.element.ts        # Edit/create view
 │   ├── discount-table.element.ts         # Table component
-│   ├── discount-target-picker.element.ts # Product/category picker
+│   ├── discount-target-picker.element.ts # Product/collection picker
 │   └── discount-summary-card.element.ts  # Right sidebar summary
 ├── contexts/
 │   └── discount-detail-workspace.context.ts
@@ -1056,7 +1056,7 @@ export type DiscountCategory = "AmountOffProducts" | "BuyXGetY" | "AmountOffOrde
 export type DiscountMethod = "Code" | "Automatic";
 export type DiscountValueType = "Percentage" | "FixedAmount" | "Free";
 export type DiscountRequirementType = "None" | "MinimumPurchaseAmount" | "MinimumQuantity";
-export type DiscountTargetType = "AllProducts" | "SpecificProducts" | "Categories" | "ProductFilters" | "ProductTypes" | "Suppliers" | "Warehouses";
+export type DiscountTargetType = "AllProducts" | "SpecificProducts" | "Collections" | "ProductFilters" | "ProductTypes" | "Suppliers" | "Warehouses";
 export type DiscountEligibilityType = "AllCustomers" | "CustomerSegments" | "SpecificCustomers";
 
 export interface DiscountListItemDto {
@@ -1859,7 +1859,7 @@ describe("discounts-list", () => {
 | Usage limits (total) | Yes | Yes |
 | Usage limits (per customer) | Yes | Yes |
 | Customer eligibility | Yes | Yes (segments) |
-| Product collections | Yes | Yes (categories) |
+| Product collections | Yes | Yes |
 | Product filters | No | Yes (extended) |
 | Product types | No | Yes (extended) |
 | Suppliers | No | Yes (extended) |

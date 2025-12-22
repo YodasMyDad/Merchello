@@ -55,7 +55,7 @@ public class ProductService(
         {
             // First product root
             var productRootDb = await db.RootProducts
-                .Include(x => x.Categories)
+                .Include(x => x.Collections)
                 .Include(x => x.ProductType)
                 .Include(x => x.ProductRootWarehouses)
                 .Include(x => x.TaxGroup)
@@ -344,7 +344,7 @@ public class ProductService(
         decimal weight,
         Guid taxGroupId,
         Guid productTypeId,
-        List<Guid> categoryIds,
+        List<Guid> collectionIds,
         string? description = null,
         CancellationToken cancellationToken = default)
     {
@@ -368,8 +368,8 @@ public class ProductService(
                 return;
             }
 
-            var categories = await db.ProductCategories
-                .Where(c => categoryIds.Contains(c.Id))
+            var collections = await db.ProductCollections
+                .Where(c => collectionIds.Contains(c.Id))
                 .ToListAsync(cancellationToken);
 
             productRoot = new ProductRoot
@@ -381,7 +381,7 @@ public class ProductService(
                 TaxGroupId = taxGroupId,
                 ProductType = productType,
                 ProductTypeId = productTypeId,
-                Categories = categories
+                Collections = collections
             };
 
             // Note: weight parameter will be applied to Product variants when they are created
@@ -710,30 +710,30 @@ public class ProductService(
     }
 
     /// <summary>
-    /// Creates a new ProductCategory
+    /// Creates a new ProductCollection
     /// </summary>
-    public async Task<CrudResult<ProductCategory>> CreateProductCategory(
+    public async Task<CrudResult<ProductCollection>> CreateProductCollection(
         string name,
         CancellationToken cancellationToken = default)
     {
-        var result = new CrudResult<ProductCategory>();
-        ProductCategory? category = null;
+        var result = new CrudResult<ProductCollection>();
+        ProductCollection? collection = null;
         using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
-            category = new ProductCategory
+            collection = new ProductCollection
             {
                 Id = Guid.NewGuid(),
                 Name = name
             };
 
-            db.ProductCategories.Add(category);
+            db.ProductCollections.Add(collection);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
         });
 
         scope.Complete();
-        result.ResultObject = category;
+        result.ResultObject = collection;
         return result;
     }
 
@@ -750,17 +750,108 @@ public class ProductService(
     }
 
     /// <summary>
-    /// Gets all product categories
+    /// Gets all product collections
     /// </summary>
-    public async Task<List<ProductCategory>> GetProductCategories(CancellationToken cancellationToken = default)
+    public async Task<List<ProductCollection>> GetProductCollections(CancellationToken cancellationToken = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductCategories.AsNoTracking().OrderBy(pc => pc.Name).ToListAsync(cancellationToken));
+            await db.ProductCollections.AsNoTracking().OrderBy(pc => pc.Name).ToListAsync(cancellationToken));
         scope.Complete();
         return result;
     }
 
+    /// <summary>
+    /// Gets all product collections with product counts
+    /// </summary>
+    public async Task<List<ProductCollectionDto>> GetProductCollectionsWithCounts(CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.ProductCollections
+                .AsNoTracking()
+                .OrderBy(pc => pc.Name)
+                .Select(pc => new ProductCollectionDto
+                {
+                    Id = pc.Id,
+                    Name = pc.Name ?? string.Empty,
+                    ProductCount = pc.Products.Count
+                })
+                .ToListAsync(cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Updates a product collection
+    /// </summary>
+    public async Task<CrudResult<ProductCollection>> UpdateProductCollection(
+        Guid id,
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<ProductCollection>();
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var collection = await db.ProductCollections.FindAsync([id], cancellationToken);
+            if (collection == null)
+            {
+                result.Messages.Add(new Shared.Models.ResultMessage
+                {
+                    Message = "Collection not found",
+                    ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+                });
+                return;
+            }
+
+            collection.Name = name;
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            result.ResultObject = collection;
+        });
+
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Deletes a product collection
+    /// </summary>
+    public async Task<CrudResult<bool>> DeleteProductCollection(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<bool>();
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var collection = await db.ProductCollections
+                .Include(c => c.Products)
+                .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
+
+            if (collection == null)
+            {
+                result.Messages.Add(new Shared.Models.ResultMessage
+                {
+                    Message = "Collection not found",
+                    ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+                });
+                return;
+            }
+
+            // Remove collection from all products (clear the relationship)
+            collection.Products.Clear();
+
+            db.ProductCollections.Remove(collection);
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            result.ResultObject = true;
+        });
+
+        scope.Complete();
+        return result;
+    }
 
     /// <summary>
     /// Creates new variants from the product options.
@@ -847,7 +938,7 @@ public class ProductService(
         {
             IQueryable<ProductRoot> query = db.RootProducts
                 .AsNoTracking()
-                .Include(pr => pr.Categories)
+                .Include(pr => pr.Collections)
                 .Include(pr => pr.ProductType)
                 .Include(pr => pr.TaxGroup);
 
@@ -1085,41 +1176,41 @@ public class ProductService(
     }
 
     /// <summary>
-    /// Updates, adds and removes the categories on the product root
+    /// Updates, adds and removes the collections on the product root
     /// </summary>
     /// <param name="db">Database context</param>
-    /// <param name="updatedProductRoot">Updated product root with new categories</param>
+    /// <param name="updatedProductRoot">Updated product root with new collections</param>
     /// <param name="productRootDb">Existing product root from database</param>
-    private void UpdateCategories(MerchelloDbContext db, ProductRoot updatedProductRoot, ProductRoot productRootDb)
+    private void UpdateCollections(MerchelloDbContext db, ProductRoot updatedProductRoot, ProductRoot productRootDb)
     {
-        if (updatedProductRoot.Categories.Any())
+        if (updatedProductRoot.Collections.Any())
         {
-            if (productRootDb.Categories.Any())
+            if (productRootDb.Collections.Any())
             {
-                // We have categories, so we need to check which ones to add and remove
-                var itemsToRemove = productRootDb.Categories
-                    .ExceptBy(updatedProductRoot.Categories.Select(x => x.Id), x => x.Id)
+                // We have collections, so we need to check which ones to add and remove
+                var itemsToRemove = productRootDb.Collections
+                    .ExceptBy(updatedProductRoot.Collections.Select(x => x.Id), x => x.Id)
                     .ToList();
-                foreach (var productCategory in itemsToRemove)
+                foreach (var productCollection in itemsToRemove)
                 {
-                    productRootDb.Categories.Remove(productCategory);
+                    productRootDb.Collections.Remove(productCollection);
                 }
 
                 var itemsToAdd =
-                    updatedProductRoot.Categories.ExceptBy(productRootDb.Categories.Select(x => x.Id), x => x.Id);
-                foreach (var productCategory in itemsToAdd)
+                    updatedProductRoot.Collections.ExceptBy(productRootDb.Collections.Select(x => x.Id), x => x.Id);
+                foreach (var productCollection in itemsToAdd)
                 {
-                    productRootDb.Categories.Add(productCategory);
+                    productRootDb.Collections.Add(productCollection);
                 }
             }
             else
             {
-                foreach (var productRootCategory in updatedProductRoot.Categories)
+                foreach (var productRootCollection in updatedProductRoot.Collections)
                 {
-                    var dbCat = db.ProductCategories.FirstOrDefault(x => x.Id == productRootCategory.Id);
-                    if (dbCat != null)
+                    var dbCol = db.ProductCollections.FirstOrDefault(x => x.Id == productRootCollection.Id);
+                    if (dbCol != null)
                     {
-                        productRootDb.Categories.Add(dbCat);
+                        productRootDb.Collections.Add(dbCol);
                     }
                 }
             }
@@ -1127,7 +1218,7 @@ public class ProductService(
         else
         {
             // Should we use clear? Or should we loop and remove()
-            productRootDb.Categories.Clear();
+            productRootDb.Collections.Clear();
         }
     }
 
@@ -1150,15 +1241,15 @@ public class ProductService(
     }
 
     /// <summary>
-    /// Get a product category by ID
+    /// Get a product collection by ID
     /// </summary>
-    public async Task<ProductCategory?> GetCategory(Guid categoryId, CancellationToken cancellationToken = default)
+    public async Task<ProductCollection?> GetCollection(Guid collectionId, CancellationToken cancellationToken = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductCategories
+            await db.ProductCollections
                 .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.Id == categoryId, cancellationToken));
+                .FirstOrDefaultAsync(c => c.Id == collectionId, cancellationToken));
         scope.Complete();
         return result;
     }
@@ -1242,9 +1333,9 @@ public class ProductService(
                 baseQuery = baseQuery.Where(x => x.ProductRoot.ProductType.Id == parameters.ProductTypeKey.Value);
             }
 
-            if (parameters.CategoryIds?.Any() == true)
+            if (parameters.CollectionIds?.Any() == true)
             {
-                baseQuery = baseQuery.Where(x => x.ProductRoot.Categories.Any(pc => parameters.CategoryIds.Contains(pc.Id)));
+                baseQuery = baseQuery.Where(x => x.ProductRoot.Collections.Any(pc => parameters.CollectionIds.Contains(pc.Id)));
             }
 
             if (parameters.FilterKeys?.Any() == true)
@@ -1329,7 +1420,7 @@ public class ProductService(
                 .Where(p => orderedIds.Contains(p.Id));
             itemsQuery = itemsQuery
                 .Include(x => x.ProductRoot)
-                .ThenInclude(x => x.Categories);
+                .ThenInclude(x => x.Collections);
 
             if (parameters.FilterKeys?.Any() == true)
             {
@@ -1385,7 +1476,7 @@ public class ProductService(
         {
             var query =
                 db.RootProducts
-                    .Include(x => x.Categories)
+                    .Include(x => x.Collections)
                     .Include(x => x.ProductType)
                     .AsQueryable();
 
@@ -1399,9 +1490,9 @@ public class ProductService(
                 query = query.Where(x => x.ProductType.Id == parameters.ProductTypeKey);
             }
 
-            if (parameters.CategoryIds?.Any() == true)
+            if (parameters.CollectionIds?.Any() == true)
             {
-                query = query.Where(x => x.Categories.Any(pc => parameters.CategoryIds.Contains(pc.Id)));
+                query = query.Where(x => x.Collections.Any(pc => parameters.CollectionIds.Contains(pc.Id)));
             }
 
             // Paging
@@ -1434,7 +1525,7 @@ public class ProductService(
                 .AsNoTracking()
                 .Include(pr => pr.TaxGroup)
                 .Include(pr => pr.ProductType)
-                .Include(pr => pr.Categories)
+                .Include(pr => pr.Collections)
                 .Include(pr => pr.ProductRootWarehouses)
                     .ThenInclude(prw => prw.Warehouse)
                         .ThenInclude(w => w!.ShippingOptions)
@@ -1482,8 +1573,8 @@ public class ProductService(
                 return;
             }
 
-            var categories = request.CategoryIds?.Any() == true
-                ? await db.ProductCategories.Where(c => request.CategoryIds.Contains(c.Id)).ToListAsync(cancellationToken)
+            var collections = request.CollectionIds?.Any() == true
+                ? await db.ProductCollections.Where(c => request.CollectionIds.Contains(c.Id)).ToListAsync(cancellationToken)
                 : [];
 
             // Validate SKU uniqueness if one was provided
@@ -1507,7 +1598,7 @@ public class ProductService(
                 ProductType = productType,
                 ProductTypeId = request.ProductTypeId,
                 IsDigitalProduct = request.IsDigitalProduct,
-                Categories = categories,
+                Collections = collections,
                 RootImages = request.RootImages?.Select(g => g.ToString()).ToList() ?? []
             };
 
@@ -1567,7 +1658,7 @@ public class ProductService(
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             productRoot = await db.RootProducts
-                .Include(pr => pr.Categories)
+                .Include(pr => pr.Collections)
                 .Include(pr => pr.ProductRootWarehouses)
                 .Include(pr => pr.Products)
                 .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
@@ -1640,18 +1731,18 @@ public class ProductService(
                 productRoot.ProductTypeId = request.ProductTypeId.Value;
             }
 
-            // Update categories
-            if (request.CategoryIds != null)
+            // Update collections
+            if (request.CollectionIds != null)
             {
-                productRoot.Categories.Clear();
-                if (request.CategoryIds.Any())
+                productRoot.Collections.Clear();
+                if (request.CollectionIds.Any())
                 {
-                    var categories = await db.ProductCategories
-                        .Where(c => request.CategoryIds.Contains(c.Id))
+                    var collections = await db.ProductCollections
+                        .Where(c => request.CollectionIds.Contains(c.Id))
                         .ToListAsync(cancellationToken);
-                    foreach (var category in categories)
+                    foreach (var collection in collections)
                     {
-                        productRoot.Categories.Add(category);
+                        productRoot.Collections.Add(collection);
                     }
                 }
             }
@@ -2115,7 +2206,7 @@ public class ProductService(
             TaxGroupName = productRoot.TaxGroup?.Name,
             ProductTypeId = productRoot.ProductTypeId,
             ProductTypeName = productRoot.ProductType?.Name,
-            CategoryIds = productRoot.Categories.Select(c => c.Id).ToList(),
+            CollectionIds = productRoot.Collections.Select(c => c.Id).ToList(),
             WarehouseIds = productRoot.ProductRootWarehouses.Select(prw => prw.WarehouseId).ToList(),
             ProductOptions = productRoot.ProductOptions.OrderBy(o => o.SortOrder).Select(MapToProductOptionDto).ToList(),
             Variants = productRoot.Products.OrderByDescending(p => p.Default).ThenBy(p => p.Name)

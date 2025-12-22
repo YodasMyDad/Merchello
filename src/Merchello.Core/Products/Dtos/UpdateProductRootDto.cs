@@ -12,7 +12,7 @@ public class UpdateProductRootDto
     public bool? IsDigitalProduct { get; set; }
     public Guid? TaxGroupId { get; set; }
     public Guid? ProductTypeId { get; set; }
-    public List<Guid>? CategoryIds { get; set; }
+    public List<Guid>? CollectionIds { get; set; }
     public List<Guid>? WarehouseIds { get; set; }
 
     /// <summary>

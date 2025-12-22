@@ -118,7 +118,7 @@ public static class Startup
         builder.Services.AddSingleton<ProductRootFactory>();
         builder.Services.AddSingleton<ProductFactory>();
         builder.Services.AddSingleton<ProductTypeFactory>();
-        builder.Services.AddSingleton<ProductCategoryFactory>();
+        builder.Services.AddSingleton<ProductCollectionFactory>();
         builder.Services.AddSingleton<ProductFilterGroupFactory>();
         builder.Services.AddSingleton<ProductFilterFactory>();
         builder.Services.AddSingleton<ProductOptionFactory>();

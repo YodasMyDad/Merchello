@@ -27,7 +27,7 @@ public class ProductListItemDto
 
     public string ProductTypeName { get; set; } = string.Empty;
 
-    public List<string> CategoryNames { get; set; } = [];
+    public List<string> CollectionNames { get; set; } = [];
 
     public string? ImageUrl { get; set; }
 

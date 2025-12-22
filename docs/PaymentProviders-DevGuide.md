@@ -7,26 +7,44 @@ Guide for third-party developers creating custom payment providers.
 1. Create .NET Class Library project
 2. Reference `Merchello.Core`
 3. Implement `IPaymentProvider` or extend `PaymentProviderBase`
-4. Package as NuGet
-5. Install - Merchello auto-discovers via assembly scanning
+4. Define payment methods via `GetAvailablePaymentMethods()`
+5. Package as NuGet
+6. Install - Merchello auto-discovers via assembly scanning
 
-## Integration Types
+## Key Concepts
+
+### Provider vs Method
+
+- **Provider** = Payment gateway (Stripe, Braintree) - holds API credentials
+- **Method** = Checkout option (Cards, Apple Pay, PayPal) - customer-facing
+
+Each provider declares available methods. Each method has its own integration type.
+
+### Integration Types
 
 | Type | Value | Use When |
 |------|-------|----------|
 | `Redirect` | 0 | Customer sent to external payment page |
 | `HostedFields` | 10 | PCI-compliant iframes on your checkout |
-| `Widget` | 20 | Provider's embedded UI component |
+| `Widget` | 20 | Provider's embedded UI component (Apple Pay, PayPal) |
 | `DirectForm` | 30 | Custom form fields (PO, manual) |
+
+### Express Checkout
+
+Methods with `IsExpressCheckout = true`:
+- Appear at start of checkout (before address entry)
+- Collect customer data from provider (email, shipping address)
+- Skip checkout form, go straight to confirmation
+- Examples: Apple Pay, Google Pay, PayPal Express
 
 ---
 
-## Example 1: Stripe (Redirect)
+## Example 1: Stripe (Multiple Methods)
 
 ```csharp
-public class StripePaymentProvider : PaymentProviderBase
+public class StripePaymentProvider(ICurrencyService currencyService) : PaymentProviderBase
 {
-    private string? _secretKey;
+    private StripeClient? _client;
     private string? _webhookSecret;
 
     public override PaymentProviderMetadata Metadata => new()
@@ -34,13 +52,47 @@ public class StripePaymentProvider : PaymentProviderBase
         Alias = "stripe",
         DisplayName = "Stripe",
         Icon = "icon-credit-card",
-        Description = "Accept payments via Stripe Checkout",
-        IntegrationType = PaymentIntegrationType.Redirect,
+        Description = "Accept payments via Stripe",
         SupportsRefunds = true,
         SupportsPartialRefunds = true,
         SupportsAuthAndCapture = true,
         RequiresWebhook = true
     };
+
+    // Define payment methods this provider supports
+    public override IReadOnlyList<PaymentMethodDefinition> GetAvailablePaymentMethods() =>
+    [
+        new PaymentMethodDefinition
+        {
+            Alias = "cards",
+            DisplayName = "Credit/Debit Card",
+            Icon = "icon-credit-card",
+            Description = "Pay with Visa, Mastercard, American Express",
+            IntegrationType = PaymentIntegrationType.Redirect,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 10
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "applepay",
+            DisplayName = "Apple Pay",
+            Icon = "icon-apple",
+            Description = "Fast, secure checkout with Apple Pay",
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = true,
+            DefaultSortOrder = 0
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "googlepay",
+            DisplayName = "Google Pay",
+            Icon = "icon-google",
+            Description = "Fast, secure checkout with Google Pay",
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = true,
+            DefaultSortOrder = 1
+        }
+    ];
 
     public override ValueTask<IEnumerable<PaymentProviderConfigurationField>>
         GetConfigurationFieldsAsync(CancellationToken ct = default)
@@ -53,32 +105,14 @@ public class StripePaymentProvider : PaymentProviderBase
         ]);
     }
 
-    public override ValueTask ConfigureAsync(PaymentProviderConfiguration? config, CancellationToken ct = default)
-    {
-        _secretKey = config?.GetValue("secretKey");
-        _webhookSecret = config?.GetValue("webhookSecret");
-        return ValueTask.CompletedTask;
-    }
-
     public override async Task<PaymentSessionResult> CreatePaymentSessionAsync(
         PaymentRequest request, CancellationToken ct = default)
     {
-        var session = await _stripeClient.Checkout.Sessions.CreateAsync(new SessionCreateOptions
+        // Session creation based on method alias
+        var session = await _client!.Checkout.Sessions.CreateAsync(new SessionCreateOptions
         {
             PaymentMethodTypes = ["card"],
-            LineItems =
-            [
-                new()
-                {
-                    PriceData = new()
-                    {
-                        Currency = request.Currency.ToLower(),
-                        UnitAmount = (long)(request.Amount * 100),
-                        ProductData = new() { Name = request.Description ?? "Payment" }
-                    },
-                    Quantity = 1
-                }
-            ],
+            LineItems = [/* ... */],
             Mode = "payment",
             SuccessUrl = request.ReturnUrl,
             CancelUrl = request.CancelUrl,
@@ -93,6 +127,23 @@ public class StripePaymentProvider : PaymentProviderBase
     {
         // Redirect providers confirm via webhook - return pending
         return Task.FromResult(PaymentResult.Pending(request.SessionId ?? "", request.Amount ?? 0));
+    }
+
+    // Express checkout processing for Apple Pay / Google Pay
+    public override async Task<ExpressCheckoutResult> ProcessExpressCheckoutAsync(
+        ExpressCheckoutRequest request, CancellationToken ct = default)
+    {
+        var paymentIntent = await _client!.PaymentIntents.CreateAsync(new PaymentIntentCreateOptions
+        {
+            Amount = currencyService.ToMinorUnits(request.Amount, request.Currency),
+            Currency = request.Currency.ToLower(),
+            PaymentMethod = request.PaymentToken,
+            Confirm = true
+        }, cancellationToken: ct);
+
+        return paymentIntent.Status == "succeeded"
+            ? ExpressCheckoutResult.Completed(paymentIntent.Id, request.Amount)
+            : ExpressCheckoutResult.Failed($"Payment failed: {paymentIntent.Status}");
     }
 
     public override Task<bool> ValidateWebhookAsync(
@@ -128,7 +179,7 @@ public class StripePaymentProvider : PaymentProviderBase
 
 ---
 
-## Example 2: Braintree (HostedFields)
+## Example 2: Braintree (HostedFields + PayPal)
 
 ```csharp
 public class BraintreePaymentProvider : PaymentProviderBase
@@ -140,13 +191,36 @@ public class BraintreePaymentProvider : PaymentProviderBase
         Alias = "braintree",
         DisplayName = "Braintree",
         Icon = "icon-credit-card",
-        Description = "Accept payments via Braintree Hosted Fields",
-        IntegrationType = PaymentIntegrationType.HostedFields,
+        Description = "Accept payments via Braintree",
         SupportsRefunds = true,
         SupportsPartialRefunds = true,
         SupportsAuthAndCapture = true,
         RequiresWebhook = false
     };
+
+    public override IReadOnlyList<PaymentMethodDefinition> GetAvailablePaymentMethods() =>
+    [
+        new PaymentMethodDefinition
+        {
+            Alias = "cards",
+            DisplayName = "Credit/Debit Card",
+            Icon = "icon-credit-card",
+            Description = "Pay with credit or debit card",
+            IntegrationType = PaymentIntegrationType.HostedFields,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 10
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "paypal",
+            DisplayName = "PayPal",
+            Icon = "icon-paypal",
+            Description = "Pay with your PayPal account",
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = true,
+            DefaultSortOrder = 0
+        }
+    ];
 
     public override async Task<PaymentSessionResult> CreatePaymentSessionAsync(
         PaymentRequest request, CancellationToken ct = default)
@@ -164,8 +238,7 @@ public class BraintreePaymentProvider : PaymentProviderBase
                     number = new { selector = "#card-number", placeholder = "Card Number" },
                     cvv = new { selector = "#cvv", placeholder = "CVV" },
                     expirationDate = new { selector = "#expiry", placeholder = "MM/YY" }
-                },
-                ["styles"] = new { input = new { fontSize = "16px" } }
+                }
             },
             sessionId: Guid.NewGuid().ToString());
     }
@@ -189,72 +262,35 @@ public class BraintreePaymentProvider : PaymentProviderBase
 
 ---
 
-## Example 3: Klarna (Widget)
+## Example 3: Manual Payment (DirectForm)
 
 ```csharp
-public class KlarnaPaymentProvider : PaymentProviderBase
+public class ManualPaymentProvider : PaymentProviderBase
 {
     public override PaymentProviderMetadata Metadata => new()
     {
-        Alias = "klarna",
-        DisplayName = "Klarna",
-        Icon = "icon-klarna",
-        Description = "Buy now, pay later with Klarna",
-        IntegrationType = PaymentIntegrationType.Widget,
-        SupportsRefunds = true,
-        SupportsPartialRefunds = true,
-        RequiresWebhook = true
-    };
-
-    public override async Task<PaymentSessionResult> CreatePaymentSessionAsync(
-        PaymentRequest request, CancellationToken ct = default)
-    {
-        var session = await _klarnaClient.CreatePaymentSessionAsync(new
-        {
-            purchase_country = "GB",
-            purchase_currency = request.Currency,
-            order_amount = (int)(request.Amount * 100)
-        });
-
-        return PaymentSessionResult.Widget(
-            clientToken: session.ClientToken,
-            jsSdkUrl: "https://x.klarnacdn.net/kp/lib/v1/api.js",
-            sdkConfig: new Dictionary<string, object>
-            {
-                ["container"] = "#klarna-payments-container",
-                ["paymentMethodCategories"] = session.PaymentMethodCategories
-            },
-            sessionId: session.SessionId);
-    }
-
-    public override async Task<PaymentResult> ProcessPaymentAsync(
-        ProcessPaymentRequest request, CancellationToken ct = default)
-    {
-        // AuthorizationToken from Klarna.Payments.authorize()
-        var order = await _klarnaClient.CreateOrderAsync(request.AuthorizationToken, new { });
-        return PaymentResult.Completed(order.OrderId, order.OrderAmount / 100m);
-    }
-}
-```
-
----
-
-## Example 4: Purchase Order (DirectForm)
-
-```csharp
-public class PurchaseOrderPaymentProvider : PaymentProviderBase
-{
-    public override PaymentProviderMetadata Metadata => new()
-    {
-        Alias = "purchase-order",
-        DisplayName = "Purchase Order",
-        Icon = "icon-document",
-        Description = "Pay by Purchase Order (B2B)",
-        IntegrationType = PaymentIntegrationType.DirectForm,
+        Alias = "manual",
+        DisplayName = "Manual Payment",
+        Icon = "icon-wallet",
+        Description = "Record offline payments",
         SupportsRefunds = true,
         SupportsPartialRefunds = true,
         RequiresWebhook = false
     };
+
+    public override IReadOnlyList<PaymentMethodDefinition> GetAvailablePaymentMethods() =>
+    [
+        new PaymentMethodDefinition
+        {
+            Alias = "manual",
+            DisplayName = "Manual Payment",
+            Icon = "icon-wallet",
+            Description = "Record cash, check, or bank transfer payments",
+            IntegrationType = PaymentIntegrationType.DirectForm,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 100
+        }
+    ];
 
     public override Task<PaymentSessionResult> CreatePaymentSessionAsync(
         PaymentRequest request, CancellationToken ct = default)
@@ -264,17 +300,19 @@ public class PurchaseOrderPaymentProvider : PaymentProviderBase
             [
                 new()
                 {
-                    Key = "poNumber",
-                    Label = "Purchase Order Number",
-                    FieldType = CheckoutFieldType.Text,
+                    Key = "paymentMethod",
+                    Label = "Payment Method",
+                    FieldType = CheckoutFieldType.Select,
                     IsRequired = true,
-                    ValidationPattern = @"^PO-\d{5,}$",
-                    ValidationMessage = "PO number must be in format PO-XXXXX",
-                    Placeholder = "PO-12345"
+                    Options =
+                    [
+                        new SelectOption { Value = "cash", Label = "Cash" },
+                        new SelectOption { Value = "check", Label = "Check" },
+                        new SelectOption { Value = "bank_transfer", Label = "Bank Transfer" }
+                    ]
                 },
-                new() { Key = "companyName", Label = "Company Name", FieldType = CheckoutFieldType.Text, IsRequired = true },
-                new() { Key = "authorizedBy", Label = "Authorized By", FieldType = CheckoutFieldType.Text, IsRequired = true },
-                new() { Key = "notes", Label = "Additional Notes", FieldType = CheckoutFieldType.Textarea, IsRequired = false }
+                new() { Key = "reference", Label = "Reference Number", FieldType = CheckoutFieldType.Text },
+                new() { Key = "notes", Label = "Notes", FieldType = CheckoutFieldType.Textarea }
             ],
             sessionId: Guid.NewGuid().ToString()));
     }
@@ -283,12 +321,7 @@ public class PurchaseOrderPaymentProvider : PaymentProviderBase
         ProcessPaymentRequest request, CancellationToken ct = default)
     {
         var formData = request.FormData ?? [];
-        var poNumber = formData.GetValueOrDefault("poNumber", "");
-
-        if (!Regex.IsMatch(poNumber, @"^PO-\d{5,}$"))
-            return Task.FromResult(PaymentResult.Failed("Invalid PO number format"));
-
-        var transactionId = $"po_{poNumber}_{DateTime.UtcNow:yyyyMMddHHmmss}";
+        var transactionId = $"manual_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}";
         return Task.FromResult(PaymentResult.Completed(transactionId, request.Amount ?? 0));
     }
 }
@@ -298,12 +331,15 @@ public class PurchaseOrderPaymentProvider : PaymentProviderBase
 
 ## Frontend Integration
 
+### Standard Payment Flow
+
 ```typescript
-async function initiatePayment(invoiceId: string, providerAlias: string) {
+async function initiatePayment(invoiceId: string, providerAlias: string, methodAlias: string) {
   const response = await fetch(`/api/merchello/checkout/${invoiceId}/pay`, {
     method: 'POST',
     body: JSON.stringify({
       providerAlias,
+      methodAlias,
       returnUrl: `${window.location.origin}/checkout/return`,
       cancelUrl: `${window.location.origin}/checkout/cancel`
     })
@@ -327,43 +363,59 @@ async function initiatePayment(invoiceId: string, providerAlias: string) {
       break;
   }
 }
+```
 
-async function setupHostedFields(session) {
-  await loadScript(session.javaScriptSdkUrl);
-  const client = await braintree.client.create({ authorization: session.clientToken });
-  const hostedFields = await braintree.hostedFields.create({ client, ...session.sdkConfiguration });
+### Express Checkout Flow
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const { nonce } = await hostedFields.tokenize();
-    await fetch(`/api/merchello/checkout/process`, {
-      method: 'POST',
-      body: JSON.stringify({ invoiceId, providerAlias: 'braintree', sessionId: session.sessionId, paymentMethodToken: nonce })
-    });
-  });
+```typescript
+async function loadExpressCheckoutButtons(basketId: string) {
+  const methods = await fetch('/api/merchello/checkout/express-methods').then(r => r.json());
+
+  for (const method of methods) {
+    if (method.methodAlias === 'applepay') {
+      setupApplePayButton(method, basketId);
+    } else if (method.methodAlias === 'googlepay') {
+      setupGooglePayButton(method, basketId);
+    }
+  }
 }
 
-function renderForm(formFields) {
-  formFields.forEach(field => container.appendChild(createFormField(field)));
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = Object.fromEntries(formFields.map(f => [f.key, document.getElementById(f.key).value]));
-    await fetch(`/api/merchello/checkout/process`, {
-      method: 'POST',
-      body: JSON.stringify({ invoiceId, providerAlias: 'manual', sessionId: session.sessionId, formData })
-    });
+async function onApplePayAuthorized(payment: ApplePayPayment, basketId: string) {
+  const response = await fetch('/api/merchello/checkout/express', {
+    method: 'POST',
+    body: JSON.stringify({
+      basketId,
+      providerAlias: 'stripe',
+      methodAlias: 'applepay',
+      paymentToken: payment.token.paymentData,
+      customerData: {
+        email: payment.shippingContact.emailAddress,
+        fullName: `${payment.shippingContact.givenName} ${payment.shippingContact.familyName}`,
+        shippingAddress: {
+          line1: payment.shippingContact.addressLines[0],
+          city: payment.shippingContact.locality,
+          region: payment.shippingContact.administrativeArea,
+          postalCode: payment.shippingContact.postalCode,
+          countryCode: payment.shippingContact.countryCode
+        }
+      }
+    })
   });
+
+  const result = await response.json();
+  if (result.success) {
+    window.location.href = result.redirectUrl; // Confirmation page
+  }
 }
 ```
 
+---
+
 ## Fraud/Risk Score Support
 
-Payment providers can return fraud/risk scores from their fraud detection systems (e.g., Stripe Radar, Signifyd). Merchello stores these scores at the payment level and aggregates to the invoice level using MAX (highest risk bubbles up).
+Payment providers can return fraud/risk scores from their fraud detection systems (e.g., Stripe Radar, Signifyd).
 
 ### Returning Risk Scores from Webhooks
-
-The `WebhookProcessingResult.Successful()` method accepts optional risk score parameters:
 
 ```csharp
 return WebhookProcessingResult.Successful(
@@ -371,8 +423,8 @@ return WebhookProcessingResult.Successful(
     transactionId: paymentIntent.Id,
     invoiceId: invoiceId,
     amount: amount,
-    riskScore: 65m,        // 0-100 scale, higher = higher risk
-    riskScoreSource: "stripe-radar"  // identifier for the fraud system
+    riskScore: 65m,              // 0-100 scale, higher = higher risk
+    riskScoreSource: "stripe-radar"
 );
 ```
 
@@ -385,49 +437,6 @@ return WebhookProcessingResult.Successful(
 | 50-74 | Medium | Orange |
 | 75-100 | High | Red |
 
-### Stripe Radar Example
-
-Stripe provides fraud data via the Charge's `outcome` object:
-- `risk_level`: Always available ("normal", "elevated", "highest")
-- `risk_score`: Numeric 0-99, requires Radar for Fraud Teams subscription
-
-Map Stripe's data to Merchello's 0-100 scale:
-
-```csharp
-private static decimal? MapStripeRiskScore(long? riskScore, string? riskLevel)
-{
-    // Use actual score if available (Radar for Fraud Teams)
-    if (riskScore.HasValue)
-        return riskScore.Value;
-
-    // Otherwise map risk_level to approximate scores
-    return riskLevel?.ToLowerInvariant() switch
-    {
-        "normal" => 10m,
-        "elevated" => 60m,
-        "highest" => 90m,
-        _ => null
-    };
-}
-
-// In webhook handler, extract from charge outcome
-var charge = await chargeService.GetAsync(chargeId);
-var riskScore = MapStripeRiskScore(charge.Outcome?.RiskScore, charge.Outcome?.RiskLevel);
-```
-
-### PaymentResult Risk Scores
-
-For providers that process payments directly (not via webhook), return risk data in `PaymentResult`:
-
-```csharp
-return PaymentResult.Completed(
-    transactionId: txnId,
-    amount: amount,
-    riskScore: 45m,
-    riskScoreSource: "provider-fraud-system"
-);
-```
-
 ---
 
 ## Notes
@@ -437,4 +446,5 @@ return PaymentResult.Completed(
 - Consider rate limiting webhooks
 - Use idempotency keys to prevent duplicate payments
 - Providers auto-discovered via assembly scanning - no DI registration needed
-- Risk scores are nullable - many payments won't have fraud data (manual payments, providers without fraud detection)
+- Express checkout methods collect customer data from the provider
+- Risk scores are nullable - many payments won't have fraud data

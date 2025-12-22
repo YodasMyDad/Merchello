@@ -1,0 +1,111 @@
+import { LitElement as h, html as p, css as g, property as a, customElement as d } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as m } from "@umbraco-cms/backoffice/element-api";
+var v = Object.defineProperty, f = Object.getOwnPropertyDescriptor, s = (n, t, c, o) => {
+  for (var e = o > 1 ? void 0 : o ? f(t, c) : t, r = n.length - 1, l; r >= 0; r--)
+    (l = n[r]) && (e = (o ? l(t, c, e) : l(e)) || e);
+  return o && e && v(t, c, e), e;
+};
+let i = class extends m(h) {
+  constructor() {
+    super(...arguments), this.icon = "icon-settings", this.title = "Coming Soon", this.description = "", this.hint = "";
+  }
+  render() {
+    return p`
+      <umb-body-layout header-fit-height main-no-padding>
+        <div class="content">
+          <uui-box headline=${this.title}>
+            <div class="placeholder">
+              <uui-icon name=${this.icon}></uui-icon>
+              <h2>${this.title}</h2>
+              <p>${this.description}</p>
+              ${this.hint ? p`<p class="hint">${this.hint}</p>` : ""}
+            </div>
+          </uui-box>
+        </div>
+      </umb-body-layout>
+    `;
+  }
+};
+i.styles = [
+  g`
+      :host {
+        display: block;
+        height: 100%;
+      }
+
+      .content {
+        padding: var(--uui-size-layout-1);
+      }
+
+      .placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: var(--uui-size-layout-4);
+        text-align: center;
+      }
+
+      .placeholder uui-icon {
+        font-size: 4rem;
+        color: var(--uui-color-border-emphasis);
+        margin-bottom: var(--uui-size-space-4);
+      }
+
+      .placeholder h2 {
+        margin: 0 0 var(--uui-size-space-2) 0;
+        color: var(--uui-color-text);
+      }
+
+      .placeholder p {
+        margin: 0;
+        color: var(--uui-color-text-alt);
+      }
+
+      .placeholder .hint {
+        margin-top: var(--uui-size-space-4);
+        font-size: 0.875rem;
+      }
+    `
+];
+s([
+  a({ type: String })
+], i.prototype, "icon", 2);
+s([
+  a({ type: String })
+], i.prototype, "title", 2);
+s([
+  a({ type: String })
+], i.prototype, "description", 2);
+s([
+  a({ type: String })
+], i.prototype, "hint", 2);
+i = s([
+  d("merchello-workspace-placeholder")
+], i);
+var y = Object.getOwnPropertyDescriptor, b = (n, t, c, o) => {
+  for (var e = o > 1 ? void 0 : o ? y(t, c) : t, r = n.length - 1, l; r >= 0; r--)
+    (l = n[r]) && (e = l(e) || e);
+  return e;
+};
+let u = class extends m(h) {
+  render() {
+    return p`
+      <merchello-workspace-placeholder
+        icon="icon-rss"
+        title="Product Feed"
+        description="Product feed management coming soon."
+        hint="This section will allow you to create and manage product feeds for Google Shopping, Facebook Catalog, and other marketing channels.">
+      </merchello-workspace-placeholder>
+    `;
+  }
+};
+u = b([
+  d("merchello-product-feed-workspace")
+], u);
+const _ = u;
+export {
+  u as MerchelloProductFeedWorkspaceElement,
+  _ as default
+};
+//# sourceMappingURL=product-feed-workspace.element-LoMR_rol.js.map

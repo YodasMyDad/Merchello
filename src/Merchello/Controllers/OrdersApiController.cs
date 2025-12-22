@@ -484,8 +484,7 @@ public class OrdersApiController(
             IsCancelled = invoice.IsCancelled,
             ItemCount = itemCount,
             DeliveryStatus = deliveryStatus,
-            DeliveryMethod = deliveryMethod,
-            Tags = []
+            DeliveryMethod = deliveryMethod
         };
     }
 

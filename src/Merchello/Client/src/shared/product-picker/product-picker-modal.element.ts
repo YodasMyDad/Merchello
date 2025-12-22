@@ -85,8 +85,8 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     if (this._config?.productTypeId) {
       params.productTypeId = this._config.productTypeId;
     }
-    if (this._config?.categoryId) {
-      params.categoryId = this._config.categoryId;
+    if (this._config?.collectionId) {
+      params.collectionId = this._config.collectionId;
     }
 
     const { data, error } = await MerchelloApi.getProducts(params);

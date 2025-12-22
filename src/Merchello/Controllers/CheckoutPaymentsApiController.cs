@@ -27,23 +27,10 @@ public class CheckoutPaymentsApiController(
     /// Get available payment methods for checkout
     /// </summary>
     [HttpGet("payment-methods")]
-    [ProducesResponseType<List<PaymentMethodDto>>(StatusCodes.Status200OK)]
-    public async Task<List<PaymentMethodDto>> GetPaymentMethods(CancellationToken cancellationToken = default)
+    [ProducesResponseType<IReadOnlyCollection<PaymentMethodDto>>(StatusCodes.Status200OK)]
+    public async Task<IReadOnlyCollection<PaymentMethodDto>> GetPaymentMethods(CancellationToken cancellationToken = default)
     {
-        var providers = await providerManager.GetEnabledProvidersAsync(cancellationToken);
-
-        return providers
-            .OrderBy(p => p.SortOrder)
-            .Select(p => new PaymentMethodDto
-            {
-                Alias = p.Metadata.Alias,
-                DisplayName = p.DisplayName,
-                Icon = p.Metadata.Icon,
-                Description = p.Metadata.Description,
-                IntegrationType = p.Metadata.IntegrationType,
-                SortOrder = p.SortOrder
-            })
-            .ToList();
+        return await providerManager.GetEnabledPaymentMethodsAsync(cancellationToken);
     }
 
     /// <summary>

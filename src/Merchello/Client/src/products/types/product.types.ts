@@ -68,7 +68,7 @@ export interface ProductListItemDto {
   totalStock: number;
   variantCount: number;
   productTypeName: string;
-  categoryNames: string[];
+  collectionNames: string[];
   imageUrl: string | null;
   hasWarehouse: boolean;
   hasShippingOptions: boolean;
@@ -105,7 +105,7 @@ export interface ProductRootDetailDto {
   taxGroupName: string | null;
   productTypeId: string;
   productTypeName: string | null;
-  categoryIds: string[];
+  collectionIds: string[];
   warehouseIds: string[];
 
   productOptions: ProductOptionDto[];
@@ -236,7 +236,7 @@ export interface CreateProductRootDto {
   rootName: string;
   taxGroupId: string;
   productTypeId: string;
-  categoryIds?: string[];
+  collectionIds?: string[];
   warehouseIds?: string[];
   rootImages?: string[];
   isDigitalProduct: boolean;
@@ -258,7 +258,7 @@ export interface UpdateProductRootDto {
   isDigitalProduct?: boolean;
   taxGroupId?: string;
   productTypeId?: string;
-  categoryIds?: string[];
+  collectionIds?: string[];
   warehouseIds?: string[];
   description?: string;
   metaDescription?: string;
@@ -341,7 +341,7 @@ export interface ProductListParams {
   pageSize?: number;
   search?: string;
   productTypeId?: string;
-  categoryId?: string;
+  collectionId?: string;
   availability?: "all" | "available" | "unavailable";
   stockStatus?: "all" | "in-stock" | "low-stock" | "out-of-stock";
   sortBy?: string;
@@ -354,8 +354,17 @@ export interface ProductTypeDto {
   alias: string | null;
 }
 
-export interface ProductCategoryDto {
+export interface ProductCollectionDto {
   id: string;
+  name: string;
+  productCount: number;
+}
+
+export interface CreateProductCollectionDto {
+  name: string;
+}
+
+export interface UpdateProductCollectionDto {
   name: string;
 }
 

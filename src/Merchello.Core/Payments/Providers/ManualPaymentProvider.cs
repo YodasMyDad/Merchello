@@ -19,7 +19,6 @@ public class ManualPaymentProvider : PaymentProviderBase
         DisplayName = "Manual Payment",
         Description = "Record offline payments (cash, check, bank transfer, purchase order)",
         Icon = "icon-wallet",
-        IntegrationType = PaymentIntegrationType.DirectForm,
         SupportsRefunds = true,
         SupportsPartialRefunds = true,
         SupportsAuthAndCapture = false,
@@ -53,6 +52,21 @@ public class ManualPaymentProvider : PaymentProviderBase
             Manual refunds can be recorded for any payment. These are tracked in the system but no actual refund is processed (since the original payment was offline).
             """
     };
+
+    /// <inheritdoc />
+    public override IReadOnlyList<PaymentMethodDefinition> GetAvailablePaymentMethods() =>
+    [
+        new PaymentMethodDefinition
+        {
+            Alias = "manual",
+            DisplayName = "Manual Payment",
+            Icon = "icon-wallet",
+            Description = "Record offline payments (cash, check, bank transfer, purchase order)",
+            IntegrationType = PaymentIntegrationType.DirectForm,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 100  // Show last in checkout
+        }
+    ];
 
     /// <inheritdoc />
     public override Task<PaymentSessionResult> CreatePaymentSessionAsync(

@@ -10,7 +10,7 @@ public class ProductQueryDto
 
     public Guid? ProductTypeId { get; set; }
 
-    public Guid? CategoryId { get; set; }
+    public Guid? CollectionId { get; set; }
 
     public string? Availability { get; set; } // "all", "available", "unavailable"
 

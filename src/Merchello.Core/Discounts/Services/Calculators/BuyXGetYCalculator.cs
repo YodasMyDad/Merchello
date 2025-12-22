@@ -248,7 +248,7 @@ public class BuyXGetYCalculator(ICurrencyService currencyService) : IBuyXGetYCal
                     LineItemId = item.LineItemId,
                     ProductId = item.ProductId,
                     ProductRootId = item.ProductRootId,
-                    CategoryIds = item.CategoryIds,
+                    CollectionIds = item.CollectionIds,
                     ProductFilterIds = item.ProductFilterIds,
                     ProductTypeId = item.ProductTypeId,
                     SupplierId = item.SupplierId,

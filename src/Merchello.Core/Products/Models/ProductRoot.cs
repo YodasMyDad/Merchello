@@ -74,9 +74,9 @@ public class ProductRoot
     public List<ProductPackage> DefaultPackageConfigurations { get; set; } = [];
 
     /// <summary>
-    /// The Categories this product is in
+    /// The Collections this product is in
     /// </summary>
-    public virtual ICollection<ProductCategory> Categories { get; set; } = [];
+    public virtual ICollection<ProductCollection> Collections { get; set; } = [];
 
     /// <summary>
     /// Indicates whether this is a digital product (no physical shipping required).

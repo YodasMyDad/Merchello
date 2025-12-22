@@ -46,7 +46,7 @@ export enum DiscountRequirementType {
 export enum DiscountTargetType {
   AllProducts = "AllProducts",
   SpecificProducts = "SpecificProducts",
-  Categories = "Categories",
+  Collections = "Collections",
   ProductFilters = "ProductFilters",
   ProductTypes = "ProductTypes",
   Suppliers = "Suppliers",
@@ -275,7 +275,7 @@ export const DISCOUNT_CATEGORIES: DiscountCategoryInfo[] = [
   {
     category: DiscountCategory.AmountOffProducts,
     label: "Amount off products",
-    description: "Discount specific products or categories",
+    description: "Discount specific products or collections",
     icon: "icon-tags",
   },
   {

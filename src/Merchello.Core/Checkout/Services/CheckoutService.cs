@@ -523,11 +523,11 @@ public class CheckoutService(
         {
             lineItem.ExtendedData[Constants.ExtendedDataKeys.ProductTypeId] = productRoot.ProductTypeId.ToString();
 
-            // Add category IDs if categories are loaded
-            if (productRoot.Categories.Count > 0)
+            // Add collection IDs if collections are loaded
+            if (productRoot.Collections.Count > 0)
             {
-                var categoryIds = productRoot.Categories.Select(c => c.Id).ToList();
-                lineItem.ExtendedData[Constants.ExtendedDataKeys.CategoryIds] = JsonSerializer.Serialize(categoryIds);
+                var collectionIds = productRoot.Collections.Select(c => c.Id).ToList();
+                lineItem.ExtendedData[Constants.ExtendedDataKeys.CollectionIds] = JsonSerializer.Serialize(collectionIds);
             }
         }
 
@@ -817,12 +817,12 @@ public class CheckoutService(
                 ctxLineItem.ProductTypeId = productTypeId;
             }
 
-            if (lineItem.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.CategoryIds, out var categoryIdsObj) &&
-                categoryIdsObj is string categoryIdsJson)
+            if (lineItem.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.CollectionIds, out var collectionIdsObj) &&
+                collectionIdsObj is string collectionIdsJson)
             {
                 try
                 {
-                    ctxLineItem.CategoryIds = JsonSerializer.Deserialize<List<Guid>>(categoryIdsJson) ?? [];
+                    ctxLineItem.CollectionIds = JsonSerializer.Deserialize<List<Guid>>(collectionIdsJson) ?? [];
                 }
                 catch
                 {

@@ -1,3 +1,4 @@
+using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Shared.Models;
 
@@ -5,6 +6,7 @@ namespace Merchello.Core.Payments.Providers;
 
 /// <summary>
 /// Manages payment provider discovery, configuration, and lifecycle.
+/// Providers can offer multiple payment methods, each individually configurable.
 /// </summary>
 public interface IPaymentProviderManager
 {
@@ -100,5 +102,71 @@ public interface IPaymentProviderManager
     /// Refresh the provider cache (forces re-discovery and re-configuration).
     /// </summary>
     void RefreshCache();
+
+    // =====================================================
+    // Payment Methods
+    // =====================================================
+
+    /// <summary>
+    /// Get all enabled payment methods across all enabled providers.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>All enabled payment methods ordered by sort order.</returns>
+    Task<IReadOnlyCollection<PaymentMethodDto>> GetEnabledPaymentMethodsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get express checkout methods only (Apple Pay, Google Pay, PayPal, etc.).
+    /// These appear at the start of checkout and collect customer data from the provider.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Enabled express checkout methods ordered by sort order.</returns>
+    Task<IReadOnlyCollection<PaymentMethodDto>> GetExpressCheckoutMethodsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get standard (non-express) payment methods only.
+    /// These appear in the payment step after customer has entered their details.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Enabled standard payment methods ordered by sort order.</returns>
+    Task<IReadOnlyCollection<PaymentMethodDto>> GetStandardPaymentMethodsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get method settings for a specific provider.
+    /// </summary>
+    /// <param name="providerSettingId">The provider setting ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Method settings for the provider.</returns>
+    Task<IReadOnlyCollection<PaymentMethodSetting>> GetMethodSettingsAsync(
+        Guid providerSettingId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Enable or disable a specific payment method.
+    /// </summary>
+    /// <param name="providerSettingId">The provider setting ID.</param>
+    /// <param name="methodAlias">The method alias (e.g., "cards", "applepay").</param>
+    /// <param name="enabled">Whether to enable the method.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result indicating success or failure.</returns>
+    Task<CrudResult<PaymentMethodSetting>> SetMethodEnabledAsync(
+        Guid providerSettingId,
+        string methodAlias,
+        bool enabled,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Update the sort order of payment methods for a provider.
+    /// </summary>
+    /// <param name="providerSettingId">The provider setting ID.</param>
+    /// <param name="orderedMethodAliases">Method aliases in desired order.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result indicating success or failure.</returns>
+    Task<CrudResult<bool>> UpdateMethodSortOrderAsync(
+        Guid providerSettingId,
+        IEnumerable<string> orderedMethodAliases,
+        CancellationToken cancellationToken = default);
 }
 

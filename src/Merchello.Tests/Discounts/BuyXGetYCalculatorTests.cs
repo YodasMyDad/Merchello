@@ -328,23 +328,23 @@ public class BuyXGetYCalculatorTests
     public void Calculate_BuyACategoryGetBFree_AppliesCorrectly()
     {
         // Arrange: Buy 2 from category A, get 1 from category B free
-        var categoryA = Guid.NewGuid();
-        var categoryB = Guid.NewGuid();
+        var collectionA = Guid.NewGuid();
+        var collectionB = Guid.NewGuid();
 
         var context = CreateContext(new[]
         {
-            CreateLineItem(Guid.NewGuid(), quantity: 2, unitPrice: 30m, categoryIds: [categoryA]),
-            CreateLineItem(Guid.NewGuid(), quantity: 1, unitPrice: 15m, categoryIds: [categoryB])
+            CreateLineItem(Guid.NewGuid(), quantity: 2, unitPrice: 30m, collectionIds: [collectionA]),
+            CreateLineItem(Guid.NewGuid(), quantity: 1, unitPrice: 15m, collectionIds: [collectionB])
         });
 
         var discount = CreateBuyXGetYDiscount(
             buyTriggerType: BuyXTriggerType.MinimumQuantity,
             buyTriggerValue: 2,
-            buyTargetType: DiscountTargetType.Categories,
-            buyTargetIds: [categoryA],
+            buyTargetType: DiscountTargetType.Collections,
+            buyTargetIds: [collectionA],
             getQuantity: 1,
-            getTargetType: DiscountTargetType.Categories,
-            getTargetIds: [categoryB],
+            getTargetType: DiscountTargetType.Collections,
+            getTargetIds: [collectionB],
             getValueType: DiscountValueType.Free);
 
         // Act
@@ -390,19 +390,19 @@ public class BuyXGetYCalculatorTests
     public void Calculate_NoBuyItemsMatch_ZeroDiscount()
     {
         // Arrange: Buy from category A, but cart has category B
-        var categoryA = Guid.NewGuid();
-        var categoryB = Guid.NewGuid();
+        var collectionA = Guid.NewGuid();
+        var collectionB = Guid.NewGuid();
 
         var context = CreateContext(new[]
         {
-            CreateLineItem(Guid.NewGuid(), quantity: 5, unitPrice: 20m, categoryIds: [categoryB])
+            CreateLineItem(Guid.NewGuid(), quantity: 5, unitPrice: 20m, collectionIds: [collectionB])
         });
 
         var discount = CreateBuyXGetYDiscount(
             buyTriggerType: BuyXTriggerType.MinimumQuantity,
             buyTriggerValue: 2,
-            buyTargetType: DiscountTargetType.Categories,
-            buyTargetIds: [categoryA],
+            buyTargetType: DiscountTargetType.Collections,
+            buyTargetIds: [collectionA],
             getQuantity: 1,
             getValueType: DiscountValueType.Free);
 
@@ -418,7 +418,7 @@ public class BuyXGetYCalculatorTests
     public void Calculate_NoGetItemsMatch_ZeroDiscount()
     {
         // Arrange: Buy any, get category B free - but no category B items
-        var categoryB = Guid.NewGuid();
+        var collectionB = Guid.NewGuid();
 
         var context = CreateContext(new[]
         {
@@ -429,8 +429,8 @@ public class BuyXGetYCalculatorTests
             buyTriggerType: BuyXTriggerType.MinimumQuantity,
             buyTriggerValue: 2,
             getQuantity: 1,
-            getTargetType: DiscountTargetType.Categories,
-            getTargetIds: [categoryB],
+            getTargetType: DiscountTargetType.Collections,
+            getTargetIds: [collectionB],
             getValueType: DiscountValueType.Free);
 
         // Act
@@ -714,7 +714,7 @@ public class BuyXGetYCalculatorTests
         Guid productId,
         int quantity = 1,
         decimal unitPrice = 10m,
-        List<Guid>? categoryIds = null)
+        List<Guid>? collectionIds = null)
     {
         return new DiscountContextLineItem
         {
@@ -724,7 +724,7 @@ public class BuyXGetYCalculatorTests
             Quantity = quantity,
             UnitPrice = unitPrice,
             LineTotal = quantity * unitPrice,
-            CategoryIds = categoryIds ?? []
+            CollectionIds = collectionIds ?? []
         };
     }
 

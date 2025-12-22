@@ -32,7 +32,7 @@ public class ProductRootDetailDto
     public string? TaxGroupName { get; set; }
     public Guid ProductTypeId { get; set; }
     public string? ProductTypeName { get; set; }
-    public List<Guid> CategoryIds { get; set; } = [];
+    public List<Guid> CollectionIds { get; set; } = [];
     public List<Guid> WarehouseIds { get; set; } = [];
 
     // Options and variants

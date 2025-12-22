@@ -4,7 +4,7 @@ import { manifests as tree } from "./tree/manifest.js";
 import { manifests as orders } from "./orders/manifest.js";
 import { manifests as products } from "./products/manifest.js";
 import { manifests as customers } from "./customers/manifest.js";
-import { manifests as categories } from "./categories/manifest.js";
+import { manifests as collections } from "./collections/manifest.js";
 import { manifests as filters } from "./filters/manifest.js";
 import { manifests as productTypes } from "./product-types/manifest.js";
 import { manifests as productFeed } from "./product-feed/manifest.js";
@@ -29,7 +29,7 @@ export const manifests: Array<UmbExtensionManifest> = [
   ...orders,
   ...products,
   ...customers,
-  ...categories,
+  ...collections,
   ...filters,
   ...productTypes,
   ...productFeed,

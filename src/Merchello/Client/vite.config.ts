@@ -6,7 +6,7 @@ export default defineConfig({
     alias: {
       "@api": resolve(__dirname, "src/api"),
       "@analytics": resolve(__dirname, "src/analytics"),
-      "@categories": resolve(__dirname, "src/categories"),
+      "@collections": resolve(__dirname, "src/collections"),
       "@customers": resolve(__dirname, "src/customers"),
       "@dashboards": resolve(__dirname, "src/dashboards"),
       "@discounts": resolve(__dirname, "src/discounts"),

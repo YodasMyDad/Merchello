@@ -46,7 +46,7 @@ public class ProductServiceTests
             weight: 1.5m,
             taxGroupId: taxGroup.Id,
             productTypeId: productType.Id,
-            categoryIds: []);
+            collectionIds: []);
 
         // Assert
         result.Successful.ShouldBeTrue();
@@ -77,7 +77,7 @@ public class ProductServiceTests
             weight: 0.5m,
             taxGroupId: taxGroup.Id,
             productTypeId: productType.Id,
-            categoryIds: []);
+            collectionIds: []);
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -112,7 +112,7 @@ public class ProductServiceTests
             weight: 0.3m,
             taxGroupId: taxGroup.Id,
             productTypeId: productType.Id,
-            categoryIds: []);
+            collectionIds: []);
         createResult.Successful.ShouldBeTrue();
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
@@ -168,7 +168,7 @@ public class ProductServiceTests
             weight: 0.4m,
             taxGroupId: taxGroup.Id,
             productTypeId: productType.Id,
-            categoryIds: []);
+            collectionIds: []);
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -237,7 +237,7 @@ public class ProductServiceTests
             weight: 0.2m,
             taxGroupId: taxGroup.Id,
             productTypeId: productType.Id,
-            categoryIds: []);
+            collectionIds: []);
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -299,7 +299,7 @@ public class ProductServiceTests
             weight: 0.5m,
             taxGroupId: taxGroup.Id,
             productTypeId: productType.Id,
-            categoryIds: []);
+            collectionIds: []);
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -376,7 +376,7 @@ public class ProductServiceTests
             weight: 0.6m,
             taxGroupId: taxGroup.Id,
             productTypeId: productType.Id,
-            categoryIds: []);
+            collectionIds: []);
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -442,7 +442,7 @@ public class ProductServiceTests
             weight: 0.8m,
             taxGroupId: taxGroup.Id,
             productTypeId: productType.Id,
-            categoryIds: []);
+            collectionIds: []);
         var productRoot = createResult.ResultObject!;
         var productRootId = productRoot.Id;
         _fixture.DbContext.ChangeTracker.Clear();
@@ -509,7 +509,7 @@ public class ProductServiceTests
             weight: 1.0m,
             taxGroupId: taxGroup.Id,
             productTypeId: productType.Id,
-            categoryIds: []);
+            collectionIds: []);
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -562,7 +562,7 @@ public class ProductServiceTests
                 weight: i * 0.1m,
                 taxGroupId: taxGroup.Id,
                 productTypeId: productType.Id,
-                categoryIds: []);
+                collectionIds: []);
             _fixture.DbContext.ChangeTracker.Clear();
         }
 
@@ -599,7 +599,7 @@ public class ProductServiceTests
             weight: 0.7m,
             taxGroupId: taxGroup.Id,
             productTypeId: productType.Id,
-            categoryIds: []);
+            collectionIds: []);
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -685,7 +685,7 @@ public class ProductServiceTests
             weight: 0.3m,
             taxGroupId: taxGroup.Id,
             productTypeId: productType.Id,
-            categoryIds: []);
+            collectionIds: []);
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 

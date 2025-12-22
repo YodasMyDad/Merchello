@@ -32,8 +32,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
         Alias = "stripe",
         DisplayName = "Stripe",
         Icon = "icon-credit-card",
-        Description = "Accept payments via Stripe Checkout. Supports credit cards, Apple Pay, Google Pay, and more.",
-        IntegrationType = PaymentIntegrationType.Redirect,
+        Description = "Accept payments via Stripe. Supports credit cards, Apple Pay, Google Pay, and more.",
         SupportsRefunds = true,
         SupportsPartialRefunds = true,
         SupportsAuthAndCapture = true,
@@ -114,6 +113,41 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             6. Uncheck **Test Mode** in the provider settings
             """
     };
+
+    /// <inheritdoc />
+    public override IReadOnlyList<PaymentMethodDefinition> GetAvailablePaymentMethods() =>
+    [
+        new PaymentMethodDefinition
+        {
+            Alias = "cards",
+            DisplayName = "Credit/Debit Card",
+            Icon = "icon-credit-card",
+            Description = "Pay with Visa, Mastercard, American Express, and more.",
+            IntegrationType = PaymentIntegrationType.Redirect,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 10
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "applepay",
+            DisplayName = "Apple Pay",
+            Icon = "icon-apple",
+            Description = "Fast, secure checkout with Apple Pay.",
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = true,
+            DefaultSortOrder = 0
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "googlepay",
+            DisplayName = "Google Pay",
+            Icon = "icon-google",
+            Description = "Fast, secure checkout with Google Pay.",
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = true,
+            DefaultSortOrder = 1
+        }
+    ];
 
     /// <inheritdoc />
     public override ValueTask<IEnumerable<PaymentProviderConfigurationField>> GetConfigurationFieldsAsync(

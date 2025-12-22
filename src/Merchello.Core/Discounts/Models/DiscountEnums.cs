@@ -101,7 +101,7 @@ public enum DiscountRequirementType
 }
 
 /// <summary>
-/// What the discount targets (products, categories, etc.).
+/// What the discount targets (products, collections, etc.).
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum DiscountTargetType
@@ -117,9 +117,9 @@ public enum DiscountTargetType
     SpecificProducts,
 
     /// <summary>
-    /// Applies to products in specific categories.
+    /// Applies to products in specific collections.
     /// </summary>
-    Categories,
+    Collections,
 
     /// <summary>
     /// Applies to products matching specific filter values.

@@ -725,7 +725,7 @@ public class DiscountsApiControllerTests
             TargetRules = [new DiscountTargetRule
             {
                 Id = Guid.NewGuid(),
-                TargetType = DiscountTargetType.Categories,
+                TargetType = DiscountTargetType.Collections,
                 TargetIds = "[\"" + Guid.NewGuid() + "\"]",
                 IsExclusion = false
             }],

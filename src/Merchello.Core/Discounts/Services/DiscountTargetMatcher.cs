@@ -82,7 +82,7 @@ public static class DiscountTargetMatcher
             DiscountTargetType.AllProducts => true,
             DiscountTargetType.SpecificProducts => targetIds.Contains(lineItem.ProductId) ||
                                                    targetIds.Contains(lineItem.ProductRootId),
-            DiscountTargetType.Categories => lineItem.CategoryIds.Any(cid => targetIds.Contains(cid)),
+            DiscountTargetType.Collections => lineItem.CollectionIds.Any(cid => targetIds.Contains(cid)),
             DiscountTargetType.ProductFilters => lineItem.ProductFilterIds.Any(fid => targetIds.Contains(fid)),
             DiscountTargetType.ProductTypes => lineItem.ProductTypeId.HasValue &&
                                                targetIds.Contains(lineItem.ProductTypeId.Value),

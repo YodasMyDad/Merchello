@@ -8,7 +8,7 @@ Build a **Shopify-style built-in checkout** for Merchello - a consistent, mobile
 - Standalone checkout isolated from user's site theme
 - Multi-step flow: Information → Shipping → Payment → Confirmation
 - Guest checkout (email-only, customer auto-created)
-- Express checkout (Apple Pay, Google Pay)
+- Express checkout (Apple Pay, Google Pay, Link by Stripe, PayPal One Touch)
 - Mobile-first, Shopify-quality UX
 
 ### Design Philosophy: Familiar Checkout Experience
@@ -20,7 +20,7 @@ The checkout **must look and feel like Shopify's checkout**. This is intentional
 
 Key Shopify patterns to follow:
 - Clean, minimal layout with order summary sidebar
-- Express checkout buttons (Apple Pay, Google Pay) prominently at top
+- Express checkout buttons (Apple Pay, Google Pay, Link, PayPal) prominently at top
 - Breadcrumb progress indicator
 - Collapsible sections showing completed step summaries
 - Mobile: full-width forms, sticky bottom buttons, collapsible order summary
@@ -34,21 +34,59 @@ Key Shopify patterns to follow:
 - **Existing `IPaymentProvider` architecture** for all payment processing
 
 ### Payment Provider Architecture
-The checkout is **provider-agnostic** - it works with any enabled payment provider via the existing `IPaymentProvider` interface. The checkout UI adapts based on each provider's `IntegrationType`:
+The checkout is **provider-agnostic** - it works with any enabled payment provider via the existing `IPaymentProvider` interface. Each provider declares multiple **payment methods**, and the checkout UI adapts based on each method's `IntegrationType`:
 
-| Integration Type | UI Behaviour | Example Providers |
-|------------------|--------------|-------------------|
-| **Redirect** | User redirected to external payment page | Stripe Checkout, PayPal |
-| **HostedFields** | Inline card fields via provider's JS SDK | Braintree, Stripe Elements |
-| **Widget** | Provider's embedded widget | Klarna, Affirm |
+**Provider → Method Relationship:**
+- **Provider** = Payment gateway (Stripe, Braintree) - holds API credentials
+- **Method** = Checkout option (Cards, Apple Pay, PayPal) - customer-facing, individually enabled
+
+| Integration Type | UI Behaviour | Example Methods |
+|------------------|--------------|-----------------|
+| **Redirect** | User redirected to external payment page | Stripe Checkout Cards |
+| **HostedFields** | Inline card fields via provider's JS SDK | Braintree Cards, Stripe Elements |
+| **Widget** | Provider's embedded widget | Apple Pay, Google Pay, PayPal |
 | **DirectForm** | Simple form fields (backoffice only) | Manual payments |
 
 **Sprint 4 delivers Braintree** as the first HostedFields provider, demonstrating how to:
+- Declare multiple methods (Cards, PayPal, Apple Pay) from one provider
 - Integrate a provider's JS SDK for inline card entry
-- Handle Apple Pay / Google Pay via provider SDK
+- Handle Apple Pay / Google Pay via Widget integration type
 - Maintain PCI compliance (card data never touches our servers)
 
-Future providers (Stripe Elements, Adyen, Square) follow the same pattern.
+Future providers (Stripe Elements, Adyen, Square) follow the same pattern. See [PaymentProviders-Architecture.md](PaymentProviders-Architecture.md) for details.
+
+### Express Checkout Requirements
+
+The checkout **must support** express checkout methods - these are payment methods with `IsExpressCheckout = true` that appear at the **start of checkout** (before address entry) and allow customers to complete payment in one tap.
+
+| Express Method | Provider | Status | Description |
+|----------------|----------|--------|-------------|
+| **Apple Pay** | Braintree or Stripe | Required | One-tap payment for iOS/Safari users |
+| **Google Pay** | Braintree or Stripe | Required | One-tap payment for Android/Chrome users |
+| **Link by Stripe** | Stripe | Required | Stripe's one-click checkout (saves payment info across Stripe merchants) |
+| **PayPal One Touch** | PayPal | Required | One-tap PayPal without leaving checkout |
+
+**Express Checkout Flow:**
+
+Express checkout **skips the checkout form entirely** and goes straight to confirmation:
+
+```
+1. Customer on cart page or first checkout step
+2. Express checkout buttons rendered (Apple Pay, Google Pay, PayPal)
+3. Customer clicks express button
+4. Provider handles authentication (Apple Pay sheet, PayPal popup, etc.)
+5. Provider returns: payment token + customer data (email, shipping address, billing)
+6. Backend creates order immediately using provider-returned data
+7. Customer redirected to confirmation page
+```
+
+**Key Points:**
+- No form filling required - provider collects all customer data
+- Customer data (email, addresses) comes from the payment provider
+- Order created in single step from express checkout callback
+- Processed via `ProcessExpressCheckoutAsync()` method
+
+> **Note**: Express methods are declared by providers via `GetAvailablePaymentMethods()` with `IsExpressCheckout = true`. The checkout UI automatically shows buttons for enabled express methods.
 
 ### Key Architecture References
 - Follow patterns in `@docs/Architecture-Diagrams.md`
@@ -145,6 +183,14 @@ Build the first checkout step - contact info, billing/shipping addresses, discou
 - [ ] API endpoints: apply discount, remove discount, get summary
 - [ ] Client + server-side validation
 - [ ] Country dropdown filtered by `MerchelloSettings.AllowedCountries`
+- [ ] Placeholder section for express checkout buttons (populated in Phase 9)
+
+### Key Files
+| New | Location |
+|-----|----------|
+| Information.cshtml | `src/Merchello/Views/Checkout/` |
+| _OrderSummary.cshtml | `src/Merchello/Views/Checkout/` |
+| _AddressForm.cshtml | `src/Merchello/Views/Checkout/` |
 
 ### Key Services
 - `ICheckoutService.ApplyDiscountCodeAsync()` - wraps `IDiscountEngine.ValidateCodeAsync()`
@@ -160,6 +206,7 @@ Build the first checkout step - contact info, billing/shipping addresses, discou
 - Order summary updates in real-time
 - Validation prevents progression without required fields
 - "Continue to shipping" navigates to shipping step
+- Express checkout placeholder area exists (buttons added in Phase 9)
 
 ---
 
@@ -177,6 +224,12 @@ Display warehouse groups with shipping options. User selects shipping method per
 - [ ] Real-time total updates when shipping selected
 - [ ] Breadcrumb navigation (Information → Shipping → Payment)
 
+### Key Files
+| New | Location |
+|-----|----------|
+| Shipping.cshtml | `src/Merchello/Views/Checkout/` |
+| _ShipmentGroup.cshtml | `src/Merchello/Views/Checkout/` |
+
 ### Key Services
 - `IShippingQuoteService.GetQuotesAsync()` - gets available shipping options per warehouse group
 - `IOrderGroupingStrategy.GroupItemsAsync()` - splits basket by warehouse/fulfillment location
@@ -193,35 +246,31 @@ Display warehouse groups with shipping options. User selects shipping method per
 
 ---
 
-## Phase 4: Payment Step & Braintree Provider
+## Phase 4: Payment Step UI
 
 ### Goal
-Build the payment step UI that adapts to any payment provider's integration type. Add Braintree as the first HostedFields provider demonstrating inline card entry and express checkout.
+Build the payment step UI that adapts to any payment method's integration type. This phase focuses on the UI only - provider implementations come in later phases.
 
 ### Deliverables
-
-**Payment Step (Provider-Agnostic)**
-- [ ] `Payment.cshtml` view that renders based on provider's `IntegrationType`
-- [ ] Payment method selector (list enabled providers)
+- [ ] `Payment.cshtml` view that renders based on method's `IntegrationType`
+- [ ] Payment method selector (list enabled methods from all providers)
 - [ ] Handle Redirect flow (redirect to provider, handle return)
 - [ ] Handle HostedFields flow (load provider SDK, render inline fields)
-- [ ] Express checkout section (shows Apple Pay/Google Pay when provider supports)
+- [ ] Handle Widget flow (provider's embedded widget)
 - [ ] Error handling and retry logic
 - [ ] Order creation on successful payment
+- [ ] `payment.js` - dynamic provider SDK loading
 
-**Braintree Provider (HostedFields Example)**
-- [ ] `BraintreePaymentProvider` implementing `IPaymentProvider`
-- [ ] Configuration fields (merchant ID, public/private keys, environment)
-- [ ] Client token generation for Drop-in UI
-- [ ] Apple Pay / Google Pay integration via Braintree SDK
-- [ ] Webhook endpoint for async payment confirmation
-- [ ] Refund support
-
-> **Note**: Follow the payment provider patterns in `@docs/PaymentProviders-Architecture.md` and `@docs/PaymentProviders-DevGuide.md`. Reference `StripePaymentProvider` as the existing implementation example.
+### Key Files
+| New | Location |
+|-----|----------|
+| Payment.cshtml | `src/Merchello/Views/Checkout/` |
+| payment.js | `src/Merchello/wwwroot/js/checkout/` |
 
 ### Key Services
-- `IPaymentProviderManager.GetEnabledProvidersAsync()` - list available providers
-- `IPaymentService.CreatePaymentSessionAsync()` - get provider session data
+- `IPaymentProviderManager.GetStandardPaymentMethodsAsync()` - list non-express payment methods
+- `IPaymentProviderManager.GetExpressCheckoutMethodsAsync()` - list express checkout methods
+- `IPaymentService.CreatePaymentSessionAsync()` - get provider session data (requires providerAlias + methodAlias)
 - `IPaymentService.ProcessPaymentAsync()` - process payment result
 - `IInvoiceService.CreateInvoiceFromBasketAsync()` - create invoice/orders
 
@@ -229,22 +278,31 @@ Build the payment step UI that adapts to any payment provider's integration type
 The checkout must handle different integration types dynamically:
 
 ```javascript
-// Payment step adapts to provider type
-if (provider.integrationType === 'Redirect') {
-    window.location.href = session.redirectUrl;
-} else if (provider.integrationType === 'HostedFields') {
-    loadProviderSdk(session.javaScriptSdkUrl, session.clientToken);
+// Payment step adapts to method's integration type
+async function initiatePayment(invoiceId, providerAlias, methodAlias) {
+    const session = await createPaymentSession(invoiceId, providerAlias, methodAlias);
+
+    switch (session.integrationType) {
+        case 0: // Redirect
+            window.location.href = session.redirectUrl;
+            break;
+        case 10: // HostedFields
+            await loadProviderSdk(session.javaScriptSdkUrl, session.clientToken);
+            break;
+        case 20: // Widget
+            await setupWidget(session);
+            break;
+        case 30: // DirectForm
+            renderForm(session.formFields);
+            break;
+    }
 }
 ```
 
-### Dependencies
-- NuGet: `Braintree` (for Braintree provider only)
-
 ### Done When
-- Payment step lists all enabled payment providers
-- Existing Stripe (Redirect) still works through new UI
-- Braintree (HostedFields) processes card payments in sandbox
-- Apple Pay / Google Pay buttons appear when configured
+- Payment step lists all enabled payment methods (grouped by provider)
+- Existing Stripe Cards (Redirect) still works through new UI
+- UI correctly adapts to different `IntegrationType` values per method
 - Payment failures show clear error messages
 - Successful payment creates invoice and redirects to confirmation
 
@@ -264,6 +322,11 @@ Show order confirmation with details. Handle optional redirect to Umbraco conten
 - [ ] Email confirmation trigger (via notification system)
 - [ ] Handle edge cases (expired session, already completed order)
 
+### Key Files
+| New | Location |
+|-----|----------|
+| Confirmation.cshtml | `src/Merchello/Views/Checkout/` |
+
 ### Key Services
 - `IInvoiceService.GetAsync()`
 - Notification: `InvoiceCreatedNotification`
@@ -276,7 +339,198 @@ Show order confirmation with details. Handle optional redirect to Umbraco conten
 
 ---
 
-## Phase 6: Analytics Integration
+## Phase 6: Braintree Provider
+
+### Goal
+Implement Braintree as a multi-method provider, demonstrating the Provider → Methods architecture with inline card entry and Apple Pay / Google Pay as separate methods.
+
+### Deliverables
+- [ ] `BraintreePaymentProvider` implementing `IPaymentProvider`
+- [ ] `GetAvailablePaymentMethods()` returning:
+  - Cards (HostedFields, `IsExpressCheckout = false`)
+  - PayPal (Widget, `IsExpressCheckout = true`)
+  - Apple Pay (Widget, `IsExpressCheckout = true`)
+  - Google Pay (Widget, `IsExpressCheckout = true`)
+- [ ] Configuration fields (merchant ID, public/private keys, environment)
+- [ ] Client token generation for Drop-in UI
+- [ ] `ProcessExpressCheckoutAsync()` for Apple Pay / Google Pay / PayPal
+- [ ] Webhook endpoint for async payment confirmation
+- [ ] Refund support
+- [ ] Sandbox testing
+
+### Key Files
+| New | Location |
+|-----|----------|
+| BraintreePaymentProvider.cs | `src/Merchello.PaymentProviders/Braintree/` |
+| BraintreeSettings.cs | `src/Merchello.PaymentProviders/Braintree/` |
+| BraintreeWebhookController.cs | `src/Merchello.PaymentProviders/Braintree/` |
+
+### Dependencies
+- NuGet: `Braintree`
+
+> **Note**: Follow the payment provider patterns in `@docs/PaymentProviders-Architecture.md` and `@docs/PaymentProviders-DevGuide.md`. Reference `StripePaymentProvider` as the existing implementation example.
+
+### Done When
+- Braintree appears as payment option when enabled
+- Card payments process successfully in sandbox
+- Apple Pay button appears on supported devices
+- Google Pay button appears on supported devices
+- Webhooks update payment status correctly
+- Refunds can be processed from backoffice
+
+---
+
+## Phase 7: Stripe Provider Update
+
+### Goal
+Update the existing Stripe provider to add HostedFields (Stripe Elements) and express checkout methods (Link, Apple Pay, Google Pay) using the Provider → Methods architecture.
+
+### Deliverables
+- [ ] Update `StripePaymentProvider.GetAvailablePaymentMethods()` to include:
+  - Cards - Redirect (existing Stripe Checkout)
+  - Cards - Elements (HostedFields, new)
+  - Apple Pay (Widget, `IsExpressCheckout = true`)
+  - Google Pay (Widget, `IsExpressCheckout = true`)
+  - Link by Stripe (Widget, `IsExpressCheckout = true`)
+- [ ] `ProcessExpressCheckoutAsync()` for Apple Pay / Google Pay / Link
+- [ ] Stripe Payment Element integration for HostedFields card entry
+- [ ] Update configuration for Payment Element client secret
+
+### Key Files
+| New/Modified | Location |
+|--------------|----------|
+| StripePaymentProvider.cs | `src/Merchello.PaymentProviders/Stripe/` (modify) |
+
+### Dependencies
+- NuGet: `Stripe.net` (existing)
+
+### Done When
+- Stripe Elements renders inline card fields
+- Link by Stripe button appears for eligible users
+- Apple Pay / Google Pay buttons appear on supported devices
+- Existing Stripe Checkout (Redirect) still works
+- All methods can be individually enabled/disabled
+
+---
+
+## Phase 8: PayPal Provider
+
+### Goal
+Implement PayPal as a payment provider using the Provider → Methods architecture.
+
+### Deliverables
+- [ ] `PayPalPaymentProvider` implementing `IPaymentProvider`
+- [ ] `GetAvailablePaymentMethods()` returning:
+  - PayPal (Widget, `IsExpressCheckout = true`)
+  - Pay Later (Widget, `IsExpressCheckout = false`)
+- [ ] `ProcessExpressCheckoutAsync()` for PayPal One Touch
+- [ ] PayPal JS SDK integration for inline button
+- [ ] Webhook endpoint for payment confirmation
+- [ ] Refund support
+- [ ] Sandbox testing
+
+### Key Files
+| New | Location |
+|-----|----------|
+| PayPalPaymentProvider.cs | `src/Merchello.PaymentProviders/PayPal/` |
+| PayPalSettings.cs | `src/Merchello.PaymentProviders/PayPal/` |
+| PayPalWebhookController.cs | `src/Merchello.PaymentProviders/PayPal/` |
+
+### Dependencies
+- NuGet: `PayPalCheckoutSdk`
+
+### Done When
+- PayPal appears as payment option when enabled
+- PayPal button renders via JS SDK
+- One Touch allows express PayPal payment
+- Webhooks update payment status correctly
+- Refunds can be processed from backoffice
+
+---
+
+## Phase 9: Express Checkout Integration
+
+### Goal
+Wire up express checkout buttons on the Information step, allowing customers to skip the checkout form entirely using Apple Pay, Google Pay, Link by Stripe, or PayPal One Touch.
+
+### Deliverables
+- [ ] Express checkout section on Information step (before address form)
+- [ ] Dynamic button rendering based on enabled express methods
+- [ ] Apple Pay button (via Braintree or Stripe - whichever is enabled)
+- [ ] Google Pay button (via Braintree or Stripe - whichever is enabled)
+- [ ] Link by Stripe button (when Stripe enabled)
+- [ ] PayPal One Touch button (when PayPal enabled)
+- [ ] Handle customer data return from express providers
+- [ ] Call `POST /api/merchello/checkout/express` to complete checkout
+- [ ] Redirect to confirmation page after express payment
+- [ ] `IPaymentProviderManager.GetExpressCheckoutMethodsAsync()` - list express options
+
+### Key Files
+| New | Location |
+|-----|----------|
+| _ExpressCheckout.cshtml | `src/Merchello/Views/Checkout/` |
+| express-checkout.js | `src/Merchello/wwwroot/js/checkout/` |
+
+### Express Checkout Flow
+Express checkout **skips the checkout form entirely** and goes straight to confirmation:
+
+```
+1. Customer on checkout Information step
+2. GET /api/merchello/checkout/express-methods → Render buttons
+3. Customer clicks Apple Pay → Wallet opens → Payment authorized
+4. Provider returns: payment token + customer data (email, shipping address)
+5. POST /api/merchello/checkout/express with:
+   - basketId, providerAlias, methodAlias
+   - paymentToken
+   - customerData (email, address from provider)
+6. Backend: ProcessExpressCheckoutAsync() → creates order + records payment
+7. Redirect to confirmation page
+```
+
+### Express Checkout Endpoint
+```typescript
+// POST /api/merchello/checkout/express
+const response = await fetch('/api/merchello/checkout/express', {
+    method: 'POST',
+    body: JSON.stringify({
+        basketId: 'guid',
+        providerAlias: 'stripe',
+        methodAlias: 'applepay',
+        paymentToken: 'tok_xxx',
+        customerData: {
+            email: 'customer@example.com',
+            fullName: 'John Doe',
+            shippingAddress: {
+                line1: '123 Main St',
+                city: 'London',
+                postalCode: 'SW1A 1AA',
+                countryCode: 'GB'
+            }
+        }
+    })
+});
+
+// Response
+{
+    success: true,
+    invoiceId: 'guid',
+    invoiceNumber: 'INV-0001',
+    redirectUrl: '/checkout/confirmation/guid'
+}
+```
+
+### Done When
+- Express checkout buttons appear prominently at top of Information step
+- Clicking express button opens respective wallet/popup
+- Customer data (email, address) captured from express provider
+- Order created immediately without form entry
+- Customer redirected to confirmation page
+- Buttons only show when respective method is enabled
+- Works on mobile (iOS Safari for Apple Pay, etc.)
+
+---
+
+## Phase 10: Analytics Integration
 
 ### Goal
 Add GTM dataLayer events and Facebook Pixel tracking for marketing attribution.
@@ -289,6 +543,11 @@ Add GTM dataLayer events and Facebook Pixel tracking for marketing attribution.
 - [ ] `purchase` event on successful order
 - [ ] Facebook Pixel events (InitiateCheckout, AddPaymentInfo, Purchase)
 - [ ] GA4 ecommerce item mapping
+
+### Key Files
+| New | Location |
+|-----|----------|
+| analytics.js | `src/Merchello/wwwroot/js/checkout/` |
 
 ### Events (GA4 Standard)
 | Event | Trigger |
@@ -306,20 +565,25 @@ Add GTM dataLayer events and Facebook Pixel tracking for marketing attribution.
 
 ---
 
-## Phase 7: Polish & Testing
+## Phase 11: Polish & Testing
 
 ### Goal
-Final polish, testing, and mobile refinement. All checkout settings are configured via `appsettings.json` (no admin UI needed).
+Final polish, testing, and mobile refinement.
 
 ### Deliverables
 - [ ] Mobile UX refinement (touch targets, bottom-fixed buttons)
-- [ ] Cross-browser testing
+- [ ] Cross-browser testing (Chrome, Safari, Firefox, Edge)
+- [ ] Mobile testing (iOS Safari, Android Chrome)
 - [ ] Accessibility audit (WCAG 2.1 AA)
+- [ ] Performance testing (< 3s page load on 3G)
+- [ ] End-to-end testing of all payment flows
 
 ### Done When
 - Works smoothly on mobile (iOS Safari, Android Chrome)
 - Passes accessibility checks
 - No console errors, smooth animations
+- All payment providers tested end-to-end
+- Express checkout works on all supported devices
 
 ---
 
@@ -329,24 +593,44 @@ Final polish, testing, and mobile refinement. All checkout settings are configur
 ```csharp
 public class CheckoutSettings
 {
-    // Branding
+    // === Header/Banner ===
+    public string? HeaderBackgroundImageUrl { get; set; }  // Banner image (1000x400px recommended)
+    public string? HeaderBackgroundColor { get; set; }     // Fallback if no image
+
+    // === Logo ===
     public string? LogoUrl { get; set; }
+    public LogoPosition LogoPosition { get; set; } = LogoPosition.Left;
+    public int LogoMaxWidth { get; set; } = 200;
+
+    // === Colors ===
     public string PrimaryColor { get; set; } = "#000000";
     public string AccentColor { get; set; } = "#0066FF";
     public string BackgroundColor { get; set; } = "#FFFFFF";
     public string TextColor { get; set; } = "#333333";
+    public string ErrorColor { get; set; } = "#DC2626";
 
-    // Company Info
+    // === Typography ===
+    public string HeadingFontFamily { get; set; } = "system-ui";
+    public string BodyFontFamily { get; set; } = "system-ui";
+
+    // === Company Info ===
     public string? CompanyName { get; set; }
     public string? SupportEmail { get; set; }
     public string? SupportPhone { get; set; }
 
-    // Behavior
+    // === Behavior ===
     public bool ShowExpressCheckout { get; set; } = true;
     public bool RequirePhone { get; set; } = false;
     public string? ConfirmationRedirectUrl { get; set; }
     public string? TermsUrl { get; set; }
     public string? PrivacyUrl { get; set; }
+}
+
+public enum LogoPosition
+{
+    Left,
+    Center,
+    Right
 }
 ```
 
@@ -372,11 +656,18 @@ public class CheckoutController(IOptions<CheckoutSettings> settings) : Controlle
   "Merchello": {
     "StoreCurrencyCode": "GBP",
     "Checkout": {
+      "HeaderBackgroundImageUrl": "/images/checkout-banner.jpg",
+      "HeaderBackgroundColor": "#1a1a1a",
       "LogoUrl": "/images/logo.png",
+      "LogoPosition": "Left",
+      "LogoMaxWidth": 200,
       "PrimaryColor": "#000000",
       "AccentColor": "#0066FF",
       "BackgroundColor": "#FFFFFF",
       "TextColor": "#333333",
+      "ErrorColor": "#DC2626",
+      "HeadingFontFamily": "Inter, system-ui, sans-serif",
+      "BodyFontFamily": "Inter, system-ui, sans-serif",
       "CompanyName": "My Store",
       "SupportEmail": "support@example.com",
       "SupportPhone": "+44 123 456 7890",
@@ -402,9 +693,12 @@ src/Merchello/
 ├── Views/Checkout/
 │   ├── _Layout.cshtml
 │   ├── _OrderSummary.cshtml
+│   ├── _AddressForm.cshtml
+│   ├── _ShipmentGroup.cshtml
+│   ├── _ExpressCheckout.cshtml     # Express checkout buttons (Phase 9)
 │   ├── Information.cshtml
 │   ├── Shipping.cshtml
-│   ├── Payment.cshtml              # Provider-agnostic, adapts to IntegrationType
+│   ├── Payment.cshtml              # Method-agnostic, adapts to method IntegrationType
 │   └── Confirmation.cshtml
 ├── Styles/
 │   ├── tailwind.config.js         # Tailwind configuration
@@ -413,27 +707,38 @@ src/Merchello/
     ├── css/checkout.css           # Generated Tailwind output - do not edit
     └── js/checkout/
         ├── checkout.js
-        ├── analytics.js
-        └── payment.js              # Handles all provider integration types
+        ├── analytics.js            # Phase 10
+        ├── payment.js              # Handles all method integration types
+        └── express-checkout.js     # Phase 9
 
 src/Merchello.Core/Checkout/Models/
 └── CheckoutSettings.cs
 
-# Payment providers are separate - checkout works with ANY enabled provider
+# Payment providers are separate - checkout works with ANY enabled method
+# Each provider declares multiple methods via GetAvailablePaymentMethods()
 src/Merchello.PaymentProviders/
 ├── Stripe/
-│   └── StripePaymentProvider.cs    # Already exists (Redirect type)
-└── Braintree/
-    └── BraintreePaymentProvider.cs # New (HostedFields type)
+│   ├── StripePaymentProvider.cs      # Methods: Cards (Redirect), Apple Pay, Google Pay
+│   └── StripeWebhookController.cs
+├── Braintree/
+│   ├── BraintreePaymentProvider.cs   # Methods: Cards (HostedFields), PayPal, Apple Pay, Google Pay
+│   ├── BraintreeSettings.cs
+│   └── BraintreeWebhookController.cs
+└── PayPal/
+    ├── PayPalPaymentProvider.cs      # Methods: PayPal (Widget), Pay Later
+    ├── PayPalSettings.cs
+    └── PayPalWebhookController.cs
 ```
 
 ### Dependencies
-| Package | Purpose | Used By |
-|---------|---------|---------|
-| Alpine.js (CDN) | Frontend reactivity | Checkout |
-| Tailwind CSS | Utility-first CSS | Checkout |
-| Penguin UI | Alpine.js + Tailwind components | Checkout |
-| Braintree | Braintree SDK | BraintreePaymentProvider only |
+| Package | Purpose | Used By | Phase |
+|---------|---------|---------|-------|
+| Alpine.js (CDN) | Frontend reactivity | Checkout | 1 |
+| Tailwind CSS | Utility-first CSS | Checkout | 1 |
+| Penguin UI | Alpine.js + Tailwind components | Checkout | 1 |
+| Braintree | Braintree SDK | BraintreePaymentProvider | 6 |
+| Stripe.net | Stripe SDK | StripePaymentProvider | 7 |
+| PayPalCheckoutSdk | PayPal SDK | PayPalPaymentProvider | 8 |
 
 Note: Each payment provider has its own NuGet dependency. The checkout itself only depends on `IPaymentProvider` interface.
 
@@ -485,7 +790,8 @@ Copy component markup from Penguin UI and adapt to Razor views. Components use A
 |----------|---------|
 | Functional | Complete checkout flow cart → confirmation |
 | Mobile | Fully responsive, touch-optimized |
-| Payments | Card + Apple Pay + Google Pay working |
+| Payments | Card payments via Braintree + Stripe working |
+| Express Checkout | Apple Pay, Google Pay, Link by Stripe, PayPal One Touch all working |
 | Discounts | Promotional codes apply correctly |
 | Multi-warehouse | Split shipments display clearly |
 | Analytics | All GTM events firing |

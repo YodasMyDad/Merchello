@@ -28,7 +28,7 @@ public static class ProductServiceDbSeedExtensions
         decimal price,
         TaxGroup taxGroup,
         ProductType productType,
-        List<ProductCategory>? categories = null,
+        List<ProductCollection>? collections = null,
         decimal? weight = null,
         string? googleShoppingCategory = null,
         string[]? colors = null,
@@ -49,7 +49,7 @@ public static class ProductServiceDbSeedExtensions
             RootName = name,
             TaxGroupId = taxGroup.Id,
             ProductTypeId = productType.Id,
-            CategoryIds = categories?.Select(c => c.Id).ToList(),
+            CollectionIds = collections?.Select(c => c.Id).ToList(),
             WarehouseIds = warehouses?.Select(w => w.warehouse.Id).ToList(),
             IsDigitalProduct = false,
             DefaultVariant = new CreateVariantDto

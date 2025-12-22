@@ -35,5 +35,4 @@ public class OrderListItemDto
     public int ItemCount { get; set; }
     public string DeliveryStatus { get; set; } = string.Empty;
     public string DeliveryMethod { get; set; } = string.Empty;
-    public List<string> Tags { get; set; } = [];
 }

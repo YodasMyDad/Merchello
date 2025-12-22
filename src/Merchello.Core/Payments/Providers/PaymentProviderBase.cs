@@ -20,6 +20,9 @@ public abstract class PaymentProviderBase : IPaymentProvider
     public abstract PaymentProviderMetadata Metadata { get; }
 
     /// <inheritdoc />
+    public abstract IReadOnlyList<PaymentMethodDefinition> GetAvailablePaymentMethods();
+
+    /// <inheritdoc />
     public virtual ValueTask<IEnumerable<PaymentProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
     {
@@ -48,6 +51,20 @@ public abstract class PaymentProviderBase : IPaymentProvider
     public abstract Task<PaymentResult> ProcessPaymentAsync(
         ProcessPaymentRequest request,
         CancellationToken cancellationToken = default);
+
+    // =====================================================
+    // Express Checkout
+    // =====================================================
+
+    /// <inheritdoc />
+    public virtual Task<ExpressCheckoutResult> ProcessExpressCheckoutAsync(
+        ExpressCheckoutRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // Default implementation for providers that don't support express checkout
+        return Task.FromResult(ExpressCheckoutResult.Failed(
+            "This payment provider does not support express checkout."));
+    }
 
     // =====================================================
     // Capture

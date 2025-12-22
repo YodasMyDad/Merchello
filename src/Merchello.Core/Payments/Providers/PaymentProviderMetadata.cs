@@ -1,9 +1,8 @@
-using Merchello.Core.Payments.Models;
-
 namespace Merchello.Core.Payments.Providers;
 
 /// <summary>
-/// Immutable metadata describing a payment provider implementation.
+/// Immutable metadata describing a payment provider (gateway) implementation.
+/// Providers can offer multiple payment methods via GetAvailablePaymentMethods().
 /// </summary>
 public class PaymentProviderMetadata
 {
@@ -27,12 +26,6 @@ public class PaymentProviderMetadata
     /// Description of the provider.
     /// </summary>
     public string? Description { get; init; }
-
-    /// <summary>
-    /// The integration type this provider uses.
-    /// Determines how the checkout UI is rendered.
-    /// </summary>
-    public required PaymentIntegrationType IntegrationType { get; init; }
 
     /// <summary>
     /// Whether this provider supports refunds.

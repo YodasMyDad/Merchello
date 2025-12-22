@@ -205,7 +205,9 @@ import type {
   ProductPageDto,
   ProductListParams,
   ProductTypeDto,
-  ProductCategoryDto,
+  ProductCollectionDto,
+  CreateProductCollectionDto,
+  UpdateProductCollectionDto,
   ProductRootDetailDto,
   ProductOptionSettingsDto,
   DescriptionEditorSettingsDto,
@@ -597,8 +599,20 @@ export const MerchelloApi = {
   deleteProductType: (id: string) =>
     apiDelete(`products/types/${id}`),
 
-  /** Get all product categories for filtering */
-  getProductCategories: () => apiGet<ProductCategoryDto[]>('products/categories'),
+  /** Get all product collections with product counts */
+  getProductCollections: () => apiGet<ProductCollectionDto[]>('products/collections'),
+
+  /** Create a new product collection */
+  createProductCollection: (data: CreateProductCollectionDto) =>
+    apiPost<ProductCollectionDto>('products/collections', data),
+
+  /** Update a product collection */
+  updateProductCollection: (id: string, data: UpdateProductCollectionDto) =>
+    apiPut<ProductCollectionDto>(`products/collections/${id}`, data),
+
+  /** Delete a product collection */
+  deleteProductCollection: (id: string) =>
+    apiDelete(`products/collections/${id}`),
 
   /** Get product option settings (available type and UI aliases) */
   getProductOptionSettings: () => apiGet<ProductOptionSettingsDto>('settings/product-options'),

@@ -127,7 +127,6 @@ public class PaymentServiceTests
         {
             Alias = "no-partial-refund-provider",
             DisplayName = "No Partial Refund Provider",
-            IntegrationType = PaymentIntegrationType.DirectForm,
             SupportsRefunds = true,
             SupportsPartialRefunds = false // Key: doesn't support partial
         });

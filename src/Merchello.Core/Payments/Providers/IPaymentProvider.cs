@@ -7,14 +7,21 @@ namespace Merchello.Core.Payments.Providers;
 
 /// <summary>
 /// Contract that payment provider plugins must implement.
-/// Supports multiple integration types: Redirect, HostedFields, Widget, and DirectForm.
+/// Providers can offer multiple payment methods, each with its own integration type.
 /// </summary>
 public interface IPaymentProvider
 {
     /// <summary>
     /// Provider metadata - alias is immutable and set on the class.
+    /// Describes the gateway itself (Stripe, Braintree, etc.).
     /// </summary>
     PaymentProviderMetadata Metadata { get; }
+
+    /// <summary>
+    /// Get the payment methods this provider supports.
+    /// Each method can have a different integration type and express checkout capability.
+    /// </summary>
+    IReadOnlyList<PaymentMethodDefinition> GetAvailablePaymentMethods();
 
     // =====================================================
     // Configuration
@@ -61,6 +68,22 @@ public interface IPaymentProvider
     /// <returns>Result of the payment processing.</returns>
     Task<PaymentResult> ProcessPaymentAsync(
         ProcessPaymentRequest request,
+        CancellationToken cancellationToken = default);
+
+    // =====================================================
+    // Express Checkout
+    // =====================================================
+
+    /// <summary>
+    /// Process an express checkout payment (Apple Pay, Google Pay, PayPal).
+    /// Express checkout flows return both payment authorization and customer data,
+    /// allowing the order to be created in a single step.
+    /// </summary>
+    /// <param name="request">Express checkout request with payment token and customer data.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result of the express checkout payment.</returns>
+    Task<ExpressCheckoutResult> ProcessExpressCheckoutAsync(
+        ExpressCheckoutRequest request,
         CancellationToken cancellationToken = default);
 
     // =====================================================

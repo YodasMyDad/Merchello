@@ -236,18 +236,18 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
     }
 
     /// <summary>
-    /// Creates a ProductCategory
+    /// Creates a ProductCollection
     /// </summary>
-    public ProductCategory CreateProductCategory(string name = "Test Category")
+    public ProductCollection CreateProductCollection(string name = "Test Collection")
     {
-        var category = new ProductCategory
+        var collection = new ProductCollection
         {
             Name = name,
-            
+
         };
 
-        dbContext.ProductCategories.Add(category);
-        return category;
+        dbContext.ProductCollections.Add(collection);
+        return collection;
     }
 
     /// <summary>

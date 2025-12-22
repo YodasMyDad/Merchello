@@ -5,7 +5,7 @@ import { UMB_MODAL_MANAGER_CONTEXT, type UmbModalManagerContext } from "@umbraco
 import type { DiscountTargetRuleDto } from "@discounts/types/discount.types.js";
 import { DiscountTargetType } from "@discounts/types/discount.types.js";
 import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-picker-modal.token.js";
-import { MERCHELLO_CATEGORY_PICKER_MODAL } from "@categories/modals/category-picker-modal.token.js";
+import { MERCHELLO_COLLECTION_PICKER_MODAL } from "@collections/modals/collection-picker-modal.token.js";
 import { MERCHELLO_PRODUCT_TYPE_PICKER_MODAL } from "@product-types/modals/product-type-picker-modal.token.js";
 import { MERCHELLO_SUPPLIER_PICKER_MODAL } from "@suppliers/modals/supplier-picker-modal.token.js";
 import { MERCHELLO_WAREHOUSE_PICKER_MODAL } from "@warehouses/modals/warehouse-picker-modal.token.js";
@@ -15,7 +15,7 @@ import { MERCHELLO_FILTER_PICKER_MODAL } from "@filters/modals/filter-picker-mod
 const TARGET_TYPE_OPTIONS = [
   { value: DiscountTargetType.AllProducts, label: "All products" },
   { value: DiscountTargetType.SpecificProducts, label: "Specific products" },
-  { value: DiscountTargetType.Categories, label: "Specific categories" },
+  { value: DiscountTargetType.Collections, label: "Specific collections" },
   { value: DiscountTargetType.ProductFilters, label: "Product filters" },
   { value: DiscountTargetType.ProductTypes, label: "Product types" },
   { value: DiscountTargetType.Suppliers, label: "Suppliers" },
@@ -129,10 +129,10 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     }
   }
 
-  private async _openCategoryPicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+  private async _openCollectionPicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
     if (!this.#modalManager) return;
 
-    const modal = this.#modalManager.open(this, MERCHELLO_CATEGORY_PICKER_MODAL, {
+    const modal = this.#modalManager.open(this, MERCHELLO_COLLECTION_PICKER_MODAL, {
       data: {
         excludeIds: rule.targetIds ?? [],
         multiSelect: true,
@@ -238,7 +238,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     switch (targetType) {
       case DiscountTargetType.SpecificProducts:
         return "icon-box";
-      case DiscountTargetType.Categories:
+      case DiscountTargetType.Collections:
         return "icon-categories";
       case DiscountTargetType.ProductFilters:
         return "icon-filter";
@@ -257,8 +257,8 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     switch (targetType) {
       case DiscountTargetType.SpecificProducts:
         return "Select products";
-      case DiscountTargetType.Categories:
-        return "Select categories";
+      case DiscountTargetType.Collections:
+        return "Select collections";
       case DiscountTargetType.ProductFilters:
         return "Select product filters";
       case DiscountTargetType.ProductTypes:
@@ -277,8 +277,8 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
       case DiscountTargetType.SpecificProducts:
         await this._openProductPicker(index, rule);
         break;
-      case DiscountTargetType.Categories:
-        await this._openCategoryPicker(index, rule);
+      case DiscountTargetType.Collections:
+        await this._openCollectionPicker(index, rule);
         break;
       case DiscountTargetType.ProductFilters:
         await this._openFilterPicker(index, rule);

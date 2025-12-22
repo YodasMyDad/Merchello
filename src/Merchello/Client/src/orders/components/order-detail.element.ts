@@ -1056,17 +1056,6 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                 `}
               </div>
             </div>
-
-            <!-- Tags -->
-            <div class="card">
-              <div class="card-header-with-action">
-                <h3>Tags</h3>
-                <uui-button look="secondary" compact label="Edit tags">
-                  <uui-icon name="icon-edit"></uui-icon>
-                </uui-button>
-              </div>
-              <uui-input type="text" placeholder="Add tags..." label="Tags"></uui-input>
-            </div>
           </div>
         </div>
         `}
@@ -1839,14 +1828,6 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
       margin-top: var(--uui-size-space-2);
-    }
-
-    .tags-input {
-      width: 100%;
-      padding: var(--uui-size-space-2);
-      border: 1px solid var(--uui-color-border);
-      border-radius: var(--uui-border-radius);
-      box-sizing: border-box;
     }
 
     /* Markdown content styles for timeline notes */
