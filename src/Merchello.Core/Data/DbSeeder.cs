@@ -727,14 +727,14 @@ public class DbSeeder(
             0.4m, ["Black", "Navy", "Charcoal"], null,
             warehouses, [(0, 25, 45, true), (2, 20, 35, true), (3, 15, 30, true)]);
 
-        // ============ MUGS (2 products) - UK and US-East only (fragile) ============
+        // ============ MUGS (2 products) - fragile items ============
 
-        // Ceramic Mug - UK and US-East
+        // Ceramic Mug - UK, US-West (priority), US-East
         await CreateProductAsync("Ceramic Mug (11oz)",
             "Classic 11oz ceramic mug, dishwasher and microwave safe.",
             12.99m, taxGroup, productTypes["mug"], [collections["drinkware"]],
             0.35m, ["White", "Black", "Navy", "Red", "Pink", "Sky Blue", "Grey", "Forest Green"], null,
-            warehouses, [(0, 60, 100, true), (2, 45, 80, true)]);
+            warehouses, [(0, 60, 100, true), (3, 40, 70, true), (2, 45, 80, true)]);
 
         // Travel Mug - UK and US-East
         await CreateProductAsync("Insulated Travel Mug",

@@ -1,30 +1,34 @@
-import { html as r, nothing as l, css as z, state as p, customElement as O } from "@umbraco-cms/backoffice/external/lit";
-import { UmbModalToken as I, UmbModalBaseElement as C, UMB_MODAL_MANAGER_CONTEXT as R } from "@umbraco-cms/backoffice/modal";
+import { html as r, nothing as c, css as D, state as p, customElement as O } from "@umbraco-cms/backoffice/external/lit";
+import { UmbModalToken as S, UmbModalBaseElement as C, UMB_MODAL_MANAGER_CONTEXT as R } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT as M } from "@umbraco-cms/backoffice/notification";
-import { M as y } from "./merchello-api-s-9cx0Ue.js";
-import { D as g, c } from "./formatting-BzzWJIvp.js";
-import { M as L } from "./add-custom-item-modal.token-Ced0pQA6.js";
-import { M as q } from "./product-picker-modal.token-BfbHsSHl.js";
+import { M as b } from "./merchello-api-s-9cx0Ue.js";
+import { D as f, c as a } from "./formatting-BzzWJIvp.js";
+import { M as A } from "./product-picker-modal.token-BfbHsSHl.js";
 import "./product-image.element-D7HwAIKr.js";
-const x = new I("Merchello.AddDiscount.Modal", {
+const L = new S("Merchello.AddCustomItem.Modal", {
+  modal: {
+    type: "dialog",
+    size: "medium"
+  }
+}), w = new S("Merchello.AddDiscount.Modal", {
   modal: {
     type: "dialog",
     size: "medium"
   }
 });
-var A = Object.defineProperty, E = Object.getOwnPropertyDescriptor, k = (e) => {
+var q = Object.defineProperty, E = Object.getOwnPropertyDescriptor, T = (e) => {
   throw TypeError(e);
-}, d = (e, i, o, t) => {
+}, l = (e, i, o, t) => {
   for (var s = t > 1 ? void 0 : t ? E(i, o) : i, n = e.length - 1, h; n >= 0; n--)
     (h = e[n]) && (s = (t ? h(i, o, s) : h(s)) || s);
-  return t && s && A(i, o, s), s;
-}, S = (e, i, o) => i.has(e) || k("Cannot " + o), v = (e, i, o) => (S(e, i, "read from private field"), i.get(e)), w = (e, i, o) => i.has(e) ? k("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, o), $ = (e, i, o, t) => (S(e, i, "write to private field"), i.set(e, o), o), m, _;
-let a = class extends C {
+  return t && s && q(i, o, s), s;
+}, P = (e, i, o) => i.has(e) || T("Cannot " + o), v = (e, i, o) => (P(e, i, "read from private field"), i.get(e)), $ = (e, i, o) => i.has(e) ? T("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, o), k = (e, i, o, t) => (P(e, i, "write to private field"), i.set(e, o), o), m, y;
+let u = class extends C {
   constructor() {
-    super(), this._invoice = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._editReason = "", this._orders = [], this._lineItems = [], this._customItems = [], this._pendingProducts = [], this._taxGroups = [], this._removedShippingOrders = /* @__PURE__ */ new Set(), this._taxRemoved = !1, this._removedOrderDiscounts = /* @__PURE__ */ new Set(), this._pendingOrderDiscounts = [], this._previewResult = null, this._previewLoading = !1, w(this, m), w(this, _), this.consumeContext(R, (e) => {
-      $(this, m, e);
+    super(), this._invoice = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._editReason = "", this._orders = [], this._lineItems = [], this._customItems = [], this._pendingProducts = [], this._taxGroups = [], this._removedShippingOrders = /* @__PURE__ */ new Set(), this._taxRemoved = !1, this._removedOrderDiscounts = /* @__PURE__ */ new Set(), this._pendingOrderDiscounts = [], this._previewResult = null, this._previewLoading = !1, $(this, m), $(this, y), this.consumeContext(R, (e) => {
+      k(this, m, e);
     }), this.consumeContext(M, (e) => {
-      $(this, _, e);
+      k(this, y, e);
     });
   }
   connectedCallback() {
@@ -36,8 +40,8 @@ let a = class extends C {
   async _loadInvoice() {
     this._isLoading = !0, this._errorMessage = null;
     const [e, i] = await Promise.all([
-      y.getInvoiceForEdit(this.data.invoiceId),
-      y.getTaxGroups()
+      b.getInvoiceForEdit(this.data.invoiceId),
+      b.getTaxGroups()
     ]);
     if (e.error) {
       this._errorMessage = e.error.message, this._isLoading = !1;
@@ -114,7 +118,7 @@ let a = class extends C {
     if (!v(this, m) || !this._invoice) return;
     const i = this._lineItems.find((s) => s.id === e);
     if (!i) return;
-    const t = await v(this, m).open(this, x, {
+    const t = await v(this, m).open(this, w, {
       data: {
         currencySymbol: this._invoice.currencySymbol,
         isOrderDiscount: !1,
@@ -133,7 +137,7 @@ let a = class extends C {
   }
   async _openAddDiscountModal() {
     if (!v(this, m) || !this._invoice) return;
-    const i = await v(this, m).open(this, x, {
+    const i = await v(this, m).open(this, w, {
       data: {
         currencySymbol: this._invoice.currencySymbol,
         isOrderDiscount: !0
@@ -165,13 +169,13 @@ let a = class extends C {
    */
   _getOptimisticLineItemTotal(e, i, o) {
     const t = e * i;
-    return !o || o.value <= 0 ? t : o.type === g.FixedAmount ? Math.max(0, t - o.value * i) : t * (1 - o.value / 100);
+    return !o || o.value <= 0 ? t : o.type === f.FixedAmount ? Math.max(0, t - o.value * i) : t * (1 - o.value / 100);
   }
   /**
    * Calculate the discounted unit price for display.
    */
   _getDiscountedUnitPrice(e) {
-    return !e.discount || e.discount.value <= 0 ? e.amount : e.discount.type === g.FixedAmount ? Math.max(0, e.amount - e.discount.value) : e.amount * (1 - e.discount.value / 100);
+    return !e.discount || e.discount.value <= 0 ? e.amount : e.discount.type === f.FixedAmount ? Math.max(0, e.amount - e.discount.value) : e.amount * (1 - e.discount.value / 100);
   }
   async _openAddCustomItemModal() {
     if (!v(this, m) || !this._invoice) return;
@@ -195,7 +199,7 @@ let a = class extends C {
   }
   async _openProductPickerModal() {
     if (!v(this, m) || !this._invoice) return;
-    const e = this._lineItems.filter((s) => s.productId && !s.isRemoved).map((s) => s.productId), i = this._pendingProducts.map((s) => s.productId), t = await v(this, m).open(this, q, {
+    const e = this._lineItems.filter((s) => s.productId && !s.isRemoved).map((s) => s.productId), i = this._pendingProducts.map((s) => s.productId), t = await v(this, m).open(this, A, {
       data: {
         config: {
           currencySymbol: this._invoice.currencySymbol,
@@ -220,7 +224,8 @@ let a = class extends C {
         // Always add as qty 1
         imageUrl: n.imageUrl,
         warehouseId: n.warehouseId,
-        warehouseName: n.warehouseName
+        warehouseName: n.warehouseName,
+        addons: n.selectedAddons ?? []
       }));
       this._pendingProducts = [...this._pendingProducts, ...s], this._refreshPreview();
     }
@@ -274,6 +279,19 @@ let a = class extends C {
         taxGroupId: t.taxGroupId,
         isPhysicalProduct: t.isPhysicalProduct
       })),
+      productsToAdd: this._pendingProducts.map((t) => ({
+        productId: t.productId,
+        quantity: t.quantity,
+        warehouseId: t.warehouseId,
+        addons: t.addons.map((s) => ({
+          optionId: s.optionId,
+          optionValueId: s.valueId,
+          name: s.valueName,
+          priceAdjustment: s.priceAdjustment,
+          costAdjustment: s.costAdjustment ?? 0,
+          skuSuffix: s.skuSuffix
+        }))
+      })),
       orderDiscounts: this._pendingOrderDiscounts.map((t) => ({
         type: t.type,
         value: t.value,
@@ -292,7 +310,7 @@ let a = class extends C {
   _refreshPreview() {
     this._invoice && (this._previewDebounceTimer && clearTimeout(this._previewDebounceTimer), this._previewDebounceTimer = setTimeout(async () => {
       this._previewLoading = !0;
-      const e = this._buildPreviewRequest(), { data: i, error: o } = await y.previewInvoiceEdit(this._invoice.id, e);
+      const e = this._buildPreviewRequest(), { data: i, error: o } = await b.previewInvoiceEdit(this._invoice.id, e);
       if (this._previewLoading = !1, o) {
         console.error("Preview calculation failed:", o);
         return;
@@ -331,7 +349,7 @@ let a = class extends C {
   async _handleSave() {
     if (!this._invoice || !this._hasChanges()) return;
     this._isSaving = !0, this._errorMessage = null;
-    const e = this._buildPreviewRequest(), { data: i, error: o } = await y.editInvoice(this._invoice.id, e);
+    const e = this._buildPreviewRequest(), { data: i, error: o } = await b.editInvoice(this._invoice.id, e);
     if (this._isSaving = !1, o) {
       this._errorMessage = o.message;
       return;
@@ -339,13 +357,13 @@ let a = class extends C {
     if (i?.isSuccessful) {
       if (i.warnings && i.warnings.length > 0)
         for (const t of i.warnings)
-          v(this, _)?.peek("warning", {
+          v(this, y)?.peek("warning", {
             data: {
               headline: "Stock Warning",
               message: t
             }
           });
-      v(this, _)?.peek("positive", {
+      v(this, y)?.peek("positive", {
         data: {
           headline: "Order Updated",
           message: "The order has been successfully updated."
@@ -385,14 +403,14 @@ let a = class extends C {
     `;
   }
   _renderLineItem(e) {
-    if (e.isRemoved) return l;
-    const i = this._invoice?.currencySymbol ?? "£", o = e.discount !== null, t = e.newQuantity < e.quantity, s = e.newQuantity > e.quantity, n = e.newQuantity - e.quantity, h = s && e.isStockTracked && e.availableStock !== null && e.availableStock < n, b = !e.hadOriginalDiscount || o;
+    if (e.isRemoved) return c;
+    const i = this._invoice?.currencySymbol ?? "£", o = e.discount !== null, t = e.newQuantity < e.quantity, s = e.newQuantity > e.quantity, n = e.newQuantity - e.quantity, h = s && e.isStockTracked && e.availableStock !== null && e.availableStock < n, x = !e.hadOriginalDiscount || o, g = e.childLineItems ?? [];
     return r`
-      <div class="line-item ${h ? "has-error" : ""}">
+      <div class="line-item ${h ? "has-error" : ""} ${g.length > 0 ? "has-addons" : ""}">
         <div class="line-item-product">
           <div class="line-item-image">
             <merchello-product-image
-              media-key=${e.imageUrl || l}
+              media-key=${e.imageUrl || c}
               size="medium"
               alt=${e.name || ""}>
             </merchello-product-image>
@@ -400,24 +418,24 @@ let a = class extends C {
 
           <div class="line-item-details">
             <div class="line-item-name">${e.name}</div>
-            ${e.sku ? r`<div class="line-item-sku">${e.sku}</div>` : l}
+            ${e.sku ? r`<div class="line-item-sku">${e.sku}</div>` : c}
             ${e.isStockTracked && e.availableStock !== null ? r`
               <div class="stock-info ${h ? "error" : ""}">
                 ${h ? r`<uui-icon name="icon-alert"></uui-icon> Only ${e.availableStock} available` : r`${e.availableStock} in stock`}
               </div>
-            ` : l}
+            ` : c}
           </div>
         </div>
 
         <div class="line-item-price">
           <div class="price-display">
             ${o ? r`
-              <span class="original-price">${i}${c(e.amount, 2)}</span>
-              <span class="discounted-price">${i}${c(this._getDiscountedUnitPrice(e), 2)}</span>
+              <span class="original-price">${i}${a(e.amount, 2)}</span>
+              <span class="discounted-price">${i}${a(this._getDiscountedUnitPrice(e), 2)}</span>
             ` : r`
-              <span class="price">${i}${c(e.amount, 2)}</span>
+              <span class="price">${i}${a(e.amount, 2)}</span>
             `}
-            ${b ? r`
+            ${x ? r`
               <button
                 class="discount-trigger ${o ? "active" : ""}"
                 @click=${() => this._openLineItemDiscountModal(e.id)}
@@ -425,27 +443,27 @@ let a = class extends C {
               >
                 <uui-icon name="${o ? "icon-sale" : "icon-add"}"></uui-icon>
               </button>
-            ` : l}
+            ` : c}
           </div>
           ${o ? r`
             <div class="discount-text">
-              <span>-${e.discount.type === g.Percentage ? `${e.discount.value}%` : `${i}${c(e.discount.value, 2)}`} off</span>
+              <span>-${e.discount.type === f.Percentage ? `${e.discount.value}%` : `${i}${a(e.discount.value, 2)}`} off</span>
               <button class="remove-discount-btn" @click=${() => this._removeDiscount(e.id)} title="Remove discount">×</button>
             </div>
-          ` : l}
+          ` : c}
         </div>
 
         <div class="line-item-quantity">
           <uui-input
             type="number"
             .value=${e.newQuantity.toString()}
-            @input=${(f) => this._updateQuantity(e.id, parseInt(f.target.value) || 1)}
+            @input=${(_) => this._updateQuantity(e.id, parseInt(_.target.value) || 1)}
             min="1"
           ></uui-input>
         </div>
 
         <div class="line-item-total">
-          ${i}${c(e.calculatedTotal, 2)}
+          ${i}${a(e.calculatedTotal, 2)}
         </div>
 
         <div class="line-item-actions">
@@ -468,7 +486,41 @@ let a = class extends C {
             Return ${e.quantity - e.newQuantity} to stock
           </uui-checkbox>
         </div>
-      ` : l}
+      ` : c}
+      ${g.map((_) => this._renderAddonLineItem(_, e.newQuantity, i))}
+    `;
+  }
+  _renderAddonLineItem(e, i, o) {
+    const t = e.amount * i;
+    return r`
+      <div class="line-item child-item addon-item">
+        <div class="line-item-product">
+          <div class="addon-indicator">
+            <span class="addon-connector"></span>
+            <span class="addon-badge">Add-on</span>
+          </div>
+          <div class="line-item-details">
+            <div class="line-item-name">${e.name}</div>
+            ${e.sku ? r`<div class="line-item-sku">${e.sku}</div>` : c}
+          </div>
+        </div>
+
+        <div class="line-item-price">
+          <span class="addon-price">+${o}${a(e.amount, 2)}</span>
+        </div>
+
+        <div class="line-item-quantity addon-quantity">
+          ${i}
+        </div>
+
+        <div class="line-item-total">
+          +${o}${a(t, 2)}
+        </div>
+
+        <div class="line-item-actions">
+          <!-- Add-ons follow parent - no direct actions -->
+        </div>
+      </div>
     `;
   }
   _renderRemovedItem(e) {
@@ -478,7 +530,7 @@ let a = class extends C {
         <div class="removed-item-info">
           <span class="removed-item-name">${e.name}</span>
           <span class="removed-item-qty">× ${e.quantity}</span>
-          <span class="removed-item-price">${i}${c(e.amount * e.quantity, 2)}</span>
+          <span class="removed-item-price">${i}${a(e.amount * e.quantity, 2)}</span>
         </div>
         <div class="removed-item-options">
           ${e.productId && e.isStockTracked ? r`
@@ -488,7 +540,7 @@ let a = class extends C {
             >
               Return to stock
             </uui-checkbox>
-          ` : l}
+          ` : c}
           <uui-button look="secondary" compact @click=${() => this._restoreLineItem(e.id)}>
             Undo
           </uui-button>
@@ -497,11 +549,11 @@ let a = class extends C {
     `;
   }
   _renderOrderDiscounts() {
-    if (!this._invoice) return l;
+    if (!this._invoice) return c;
     const e = this._invoice.orderDiscounts.filter(
       (s) => !this._removedOrderDiscounts.has(s.id)
     ), i = this._pendingOrderDiscounts.length > 0;
-    if (!(e.length > 0) && !i) return l;
+    if (!(e.length > 0) && !i) return c;
     const t = this._invoice.currencySymbol;
     return r`
       <div class="order-discounts-section">
@@ -512,11 +564,11 @@ let a = class extends C {
               <div class="discount-info">
                 <span class="discount-name">${s.name || s.reason || "Discount"}</span>
                 <span class="discount-value">
-                  ${s.type === g.Percentage ? `${s.value}%` : `${t}${c(s.value, 2)}`}
+                  ${s.type === f.Percentage ? `${s.value}%` : `${t}${a(s.value, 2)}`}
                 </span>
               </div>
               <div class="discount-amount-cell">
-                <span class="discount-amount">-${t}${c(s.amount, 2)}</span>
+                <span class="discount-amount">-${t}${a(s.amount, 2)}</span>
                 <uui-button
                   compact
                   look="secondary"
@@ -536,7 +588,7 @@ let a = class extends C {
               <div class="discount-info">
                 <span class="discount-name">${s.reason || "New Discount"}</span>
                 <span class="discount-value">
-                  ${s.type === g.Percentage ? `${s.value}%` : `${t}${c(s.value, 2)}`}
+                  ${s.type === f.Percentage ? `${s.value}%` : `${t}${a(s.value, 2)}`}
                 </span>
                 <span class="pending-badge">New</span>
               </div>
@@ -573,7 +625,7 @@ let a = class extends C {
         </div>
 
         <div class="line-item-price">
-          ${i}${c(e.price, 2)}
+          ${i}${a(e.price, 2)}
         </div>
 
         <div class="line-item-quantity">
@@ -581,7 +633,7 @@ let a = class extends C {
         </div>
 
         <div class="line-item-total">
-          ${i}${c(e.price * e.quantity, 2)}
+          ${i}${a(e.price * e.quantity, 2)}
         </div>
 
         <div class="line-item-actions">
@@ -598,13 +650,13 @@ let a = class extends C {
     `;
   }
   _renderPendingProduct(e) {
-    const i = this._invoice?.currencySymbol ?? "£";
+    const i = this._invoice?.currencySymbol ?? "£", o = e.addons.reduce((s, n) => s + n.priceAdjustment, 0), t = (e.price + o) * e.quantity;
     return r`
       <div class="line-item pending-product">
         <div class="line-item-product">
           <div class="line-item-image">
             <merchello-product-image
-              media-key=${e.imageUrl || l}
+              media-key=${e.imageUrl || c}
               size="medium"
               alt=${e.name || ""}>
             </merchello-product-image>
@@ -621,20 +673,20 @@ let a = class extends C {
         </div>
 
         <div class="line-item-price">
-          ${i}${c(e.price, 2)}
+          ${i}${a(e.price, 2)}
         </div>
 
         <div class="line-item-quantity">
           <uui-input
             type="number"
             .value=${e.quantity.toString()}
-            @input=${(o) => this._updatePendingProductQuantity(e.tempId, parseInt(o.target.value) || 1)}
+            @input=${(s) => this._updatePendingProductQuantity(e.tempId, parseInt(s.target.value) || 1)}
             min="1"
           ></uui-input>
         </div>
 
         <div class="line-item-total">
-          ${i}${c(e.price * e.quantity, 2)}
+          ${i}${a(t, 2)}
         </div>
 
         <div class="line-item-actions">
@@ -648,6 +700,41 @@ let a = class extends C {
           </uui-button>
         </div>
       </div>
+      ${e.addons.map((s) => this._renderPendingAddon(s, e.quantity, i))}
+    `;
+  }
+  /** Render a pending add-on as a child row */
+  _renderPendingAddon(e, i, o) {
+    return r`
+      <div class="line-item child-item addon-item">
+        <div class="line-item-product">
+          <div class="addon-indicator">
+            <span class="addon-connector"></span>
+          </div>
+          <div class="line-item-details">
+            <div class="line-item-name">
+              <span class="addon-badge">Add-on</span>
+              ${e.optionName}: ${e.valueName}
+            </div>
+          </div>
+        </div>
+
+        <div class="line-item-price">
+          +${o}${a(e.priceAdjustment, 2)}
+        </div>
+
+        <div class="line-item-quantity">
+          ${i}
+        </div>
+
+        <div class="line-item-total">
+          ${o}${a(e.priceAdjustment * i, 2)}
+        </div>
+
+        <div class="line-item-actions">
+          <!-- Add-ons follow parent quantity, no individual actions -->
+        </div>
+      </div>
     `;
   }
   render() {
@@ -657,7 +744,7 @@ let a = class extends C {
       return r`<umb-body-layout headline="Edit Order">${this._renderError()}</umb-body-layout>`;
     if (!this._invoice?.canEdit)
       return r`<umb-body-layout headline="Edit Order">${this._renderCannotEdit()}</umb-body-layout>`;
-    const e = this._invoice.currencySymbol, i = this._invoice.currencyCode, o = this._subtotalBeforeDiscounts, t = this._discountTotal, s = this._adjustedSubtotal, n = this._newTax, h = this._newTotal, b = this._hasChanges(), f = this._lineItems.filter((u) => u.isRemoved), T = t > 0;
+    const e = this._invoice.currencySymbol, i = this._invoice.currencyCode, o = this._subtotalBeforeDiscounts, t = this._discountTotal, s = this._adjustedSubtotal, n = this._newTax, h = this._newTotal, x = this._hasChanges(), g = this._lineItems.filter((d) => d.isRemoved), _ = t > 0;
     return r`
       <umb-body-layout headline="Edit Order">
         <div id="main">
@@ -670,7 +757,7 @@ let a = class extends C {
           </div>
 
           <!-- Orders and Line Items -->
-          ${this._orders.map((u) => this._renderOrderSection(u))}
+          ${this._orders.map((d) => this._renderOrderSection(d))}
 
           <!-- Custom Items Section (if any) -->
           ${this._customItems.length > 0 ? r`
@@ -679,10 +766,10 @@ let a = class extends C {
                 <h4>Custom Items (New Order)</h4>
               </div>
               <div class="items-list">
-                ${this._customItems.map((u) => this._renderCustomItem(u))}
+                ${this._customItems.map((d) => this._renderCustomItem(d))}
               </div>
             </div>
-          ` : l}
+          ` : c}
 
           <!-- Pending Products Section (if any) -->
           ${this._pendingProducts.length > 0 ? r`
@@ -698,10 +785,10 @@ let a = class extends C {
                 <div class="header-cell actions"></div>
               </div>
               <div class="items-list">
-                ${this._pendingProducts.map((u) => this._renderPendingProduct(u))}
+                ${this._pendingProducts.map((d) => this._renderPendingProduct(d))}
               </div>
             </div>
-          ` : l}
+          ` : c}
 
           <!-- Add Items Actions -->
           <div class="add-items-section">
@@ -720,12 +807,12 @@ let a = class extends C {
           </div>
 
           <!-- Removed Items Section -->
-          ${f.length > 0 ? r`
+          ${g.length > 0 ? r`
             <div class="removed-items-section">
               <h4>Removed Items</h4>
-              ${f.map((u) => this._renderRemovedItem(u))}
+              ${g.map((d) => this._renderRemovedItem(d))}
             </div>
-          ` : l}
+          ` : c}
 
           <!-- Order Discounts Section (coupons, etc.) -->
           ${this._renderOrderDiscounts()}
@@ -736,40 +823,40 @@ let a = class extends C {
 
             <div class="payment-row">
               <span>Subtotal</span>
-              <span>${e}${c(o, 2)} ${i}</span>
+              <span>${e}${a(o, 2)} ${i}</span>
             </div>
 
-            ${T ? r`
+            ${_ ? r`
               <div class="payment-row discount">
                 <span>Discounts</span>
-                <span class="discount-amount">-${e}${c(t, 2)} ${i}</span>
+                <span class="discount-amount">-${e}${a(t, 2)} ${i}</span>
               </div>
               <div class="payment-row adjusted">
                 <span>Adjusted Subtotal</span>
-                <span>${e}${c(s, 2)} ${i}</span>
+                <span>${e}${a(s, 2)} ${i}</span>
               </div>
-            ` : l}
+            ` : c}
 
             <!-- Shipping per order with edit/remove -->
-            ${this._orders.map((u, P) => r`
-              <div class="payment-row shipping-row ${this._removedShippingOrders.has(u.id) ? "removed" : ""}">
-                <span>${u.shippingMethodName ?? "Shipping"}${this._orders.length > 1 ? ` (Order ${P + 1})` : ""}</span>
+            ${this._orders.map((d, z) => r`
+              <div class="payment-row shipping-row ${this._removedShippingOrders.has(d.id) ? "removed" : ""}">
+                <span>${d.shippingMethodName ?? "Shipping"}${this._orders.length > 1 ? ` (Order ${z + 1})` : ""}</span>
                 <div class="summary-edit-controls">
-                  ${this._removedShippingOrders.has(u.id) ? r`
+                  ${this._removedShippingOrders.has(d.id) ? r`
                     <span class="removed-label">Removed</span>
-                    <uui-button compact look="secondary" @click=${() => this._restoreShipping(u.id)}>Undo</uui-button>
+                    <uui-button compact look="secondary" @click=${() => this._restoreShipping(d.id)}>Undo</uui-button>
                   ` : r`
                     <div class="summary-input">
                       <span class="prefix">${e}</span>
                       <uui-input
                         type="number"
-                        .value=${u.newShippingCost.toString()}
-                        @input=${(D) => this._updateOrderShipping(u.id, parseFloat(D.target.value) || 0)}
+                        .value=${d.newShippingCost.toString()}
+                        @input=${(I) => this._updateOrderShipping(d.id, parseFloat(I.target.value) || 0)}
                         min="0"
                         step="0.01"
                       ></uui-input>
                     </div>
-                    <uui-button compact look="secondary" @click=${() => this._removeShipping(u.id)} title="Remove shipping">
+                    <uui-button compact look="secondary" @click=${() => this._removeShipping(d.id)} title="Remove shipping">
                       <uui-icon name="icon-delete"></uui-icon>
                     </uui-button>
                   `}
@@ -785,7 +872,7 @@ let a = class extends C {
                   <span class="removed-label">Removed (VAT exemption)</span>
                   <uui-button compact look="secondary" @click=${() => this._restoreTax()}>Undo</uui-button>
                 ` : r`
-                  <span>${e}${c(n, 2)} ${i}</span>
+                  <span>${e}${a(n, 2)} ${i}</span>
                   <uui-button compact look="secondary" @click=${() => this._removeTax()} title="Remove tax (VAT exemption)">
                     <uui-icon name="icon-delete"></uui-icon>
                   </uui-button>
@@ -795,7 +882,7 @@ let a = class extends C {
 
             <div class="payment-row total ${this._previewLoading ? "loading" : ""}">
               <span>Total</span>
-              <span>${e}${c(h, 2)} ${i}</span>
+              <span>${e}${a(h, 2)} ${i}</span>
             </div>
 
             <p class="tax-note">${this._previewLoading ? "Calculating..." : "Totals calculated by server"}</p>
@@ -806,7 +893,7 @@ let a = class extends C {
             <h3>Reason for edit</h3>
             <uui-textarea
               .value=${this._editReason}
-              @input=${(u) => this._editReason = u.target.value}
+              @input=${(d) => this._editReason = d.target.value}
               placeholder="Add a reason for this edit..."
             ></uui-textarea>
             <p class="reason-note">Only visible to staff</p>
@@ -817,7 +904,7 @@ let a = class extends C {
               <uui-icon name="icon-alert"></uui-icon>
               ${this._errorMessage}
             </div>
-          ` : l}
+          ` : c}
         </div>
 
         <div slot="actions">
@@ -833,7 +920,7 @@ let a = class extends C {
             label="Update order"
             look="primary"
             @click=${this._handleSave}
-            ?disabled=${this._isSaving || !b}
+            ?disabled=${this._isSaving || !x}
           >
             ${this._isSaving ? r`<uui-loader-circle></uui-loader-circle>` : "Update order"}
           </uui-button>
@@ -843,7 +930,9 @@ let a = class extends C {
     `;
   }
   _renderOrderSection(e) {
-    const i = this._lineItems.filter((o) => o.orderId === e.id && !o.isRemoved);
+    const i = this._lineItems.filter(
+      (o) => o.orderId === e.id && !o.isRemoved && !o.isAddon
+    );
     return r`
       <div class="items-section order-section">
         <div class="section-header">
@@ -866,8 +955,8 @@ let a = class extends C {
   }
 };
 m = /* @__PURE__ */ new WeakMap();
-_ = /* @__PURE__ */ new WeakMap();
-a.styles = z`
+y = /* @__PURE__ */ new WeakMap();
+u.styles = D`
     :host {
       display: block;
     }
@@ -1196,6 +1285,55 @@ a.styles = z`
 
     .line-item.has-error {
       background: rgba(var(--uui-color-danger-rgb), 0.05);
+    }
+
+    /* Child/Add-on Line Items */
+    .line-item.child-item {
+      background: var(--uui-color-surface-alt);
+      padding-left: calc(var(--uui-size-space-4) + 24px);
+      border-left: 2px solid var(--uui-color-positive);
+    }
+
+    .line-item.addon-item .line-item-product {
+      padding-left: 0;
+    }
+
+    .addon-indicator {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+    }
+
+    .addon-connector {
+      display: block;
+      width: 12px;
+      height: 2px;
+      background: var(--uui-color-positive);
+    }
+
+    .addon-badge {
+      font-size: 0.625rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      background: var(--uui-color-positive-emphasis);
+      color: white;
+      padding: 2px 6px;
+      border-radius: var(--uui-border-radius);
+    }
+
+    .addon-price {
+      color: var(--uui-color-positive);
+      font-weight: 500;
+    }
+
+    .addon-quantity {
+      color: var(--uui-color-text-alt);
+      font-size: 0.875rem;
+      text-align: center;
+    }
+
+    .line-item.child-item .line-item-total {
+      color: var(--uui-color-positive);
     }
 
     /* Return to Stock Row - separate row below line item */
@@ -1532,60 +1670,60 @@ a.styles = z`
       border-radius: 4px;
     }
   `;
-d([
+l([
   p()
-], a.prototype, "_invoice", 2);
-d([
+], u.prototype, "_invoice", 2);
+l([
   p()
-], a.prototype, "_isLoading", 2);
-d([
+], u.prototype, "_isLoading", 2);
+l([
   p()
-], a.prototype, "_isSaving", 2);
-d([
+], u.prototype, "_isSaving", 2);
+l([
   p()
-], a.prototype, "_errorMessage", 2);
-d([
+], u.prototype, "_errorMessage", 2);
+l([
   p()
-], a.prototype, "_editReason", 2);
-d([
+], u.prototype, "_editReason", 2);
+l([
   p()
-], a.prototype, "_orders", 2);
-d([
+], u.prototype, "_orders", 2);
+l([
   p()
-], a.prototype, "_lineItems", 2);
-d([
+], u.prototype, "_lineItems", 2);
+l([
   p()
-], a.prototype, "_customItems", 2);
-d([
+], u.prototype, "_customItems", 2);
+l([
   p()
-], a.prototype, "_pendingProducts", 2);
-d([
+], u.prototype, "_pendingProducts", 2);
+l([
   p()
-], a.prototype, "_taxGroups", 2);
-d([
+], u.prototype, "_taxGroups", 2);
+l([
   p()
-], a.prototype, "_removedShippingOrders", 2);
-d([
+], u.prototype, "_removedShippingOrders", 2);
+l([
   p()
-], a.prototype, "_taxRemoved", 2);
-d([
+], u.prototype, "_taxRemoved", 2);
+l([
   p()
-], a.prototype, "_removedOrderDiscounts", 2);
-d([
+], u.prototype, "_removedOrderDiscounts", 2);
+l([
   p()
-], a.prototype, "_pendingOrderDiscounts", 2);
-d([
+], u.prototype, "_pendingOrderDiscounts", 2);
+l([
   p()
-], a.prototype, "_previewResult", 2);
-d([
+], u.prototype, "_previewResult", 2);
+l([
   p()
-], a.prototype, "_previewLoading", 2);
-a = d([
+], u.prototype, "_previewLoading", 2);
+u = l([
   O("merchello-edit-order-modal")
-], a);
-const H = a;
+], u);
+const B = u;
 export {
-  a as MerchelloEditOrderModalElement,
-  H as default
+  u as MerchelloEditOrderModalElement,
+  B as default
 };
-//# sourceMappingURL=edit-order-modal.element-BOLm6sqk.js.map
+//# sourceMappingURL=edit-order-modal.element-BBQVUima.js.map

@@ -1,39 +1,15 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
-import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { CountryDto } from "@api/merchello-api.js";
 import type {
   AddressDto,
-  AddCustomItemDto,
-  TaxGroupDto,
   CustomerLookupResultDto,
 } from "@orders/types/order.types.js";
 import type { CreateOrderModalData, CreateOrderModalValue } from "./create-order-modal.token.js";
-import { MERCHELLO_ADD_CUSTOM_ITEM_MODAL } from "./add-custom-item-modal.token.js";
-import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-picker-modal.token.js";
-import { formatNumber } from "@shared/utils/formatting.js";
-
-interface PendingCustomItem extends AddCustomItemDto {
-  tempId: string;
-}
-
-interface PendingProduct {
-  tempId: string;
-  productId: string;
-  productRootId: string;
-  name: string;
-  sku: string | null;
-  price: number;
-  quantity: number;
-  imageUrl: string | null;
-  warehouseId: string;
-  warehouseName: string;
-}
 
 function createEmptyAddress(): AddressDto {
   return {
@@ -59,8 +35,6 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
   @state() private _billingAddress: AddressDto = createEmptyAddress();
   @state() private _shippingAddress: AddressDto = createEmptyAddress();
   @state() private _useShippingAddress: boolean = false;
-  @state() private _customItems: PendingCustomItem[] = [];
-  @state() private _pendingProducts: PendingProduct[] = [];
 
   // Customer search state
   @state() private _customerSearchResults: CustomerLookupResultDto[] = [];
@@ -74,22 +48,16 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
   @state() private _errorMessage: string | null = null;
 
   // Reference data
-  @state() private _taxGroups: TaxGroupDto[] = [];
   @state() private _countries: CountryDto[] = [];
-  @state() private _currencySymbol: string = "£";
 
   // Validation
   @state() private _validationErrors: Record<string, string> = {};
 
-  #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
   #customerSearchDebounceTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
     super();
-    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
-      this.#modalManager = context;
-    });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
     });
@@ -110,15 +78,8 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
   private async _loadReferenceData(): Promise<void> {
     this._isLoading = true;
 
-    const [taxGroupsResult, countriesResult, settingsResult] = await Promise.all([
-      MerchelloApi.getTaxGroups(),
-      MerchelloApi.getCountries(),
-      MerchelloApi.getSettings(),
-    ]);
-
-    this._taxGroups = taxGroupsResult.data ?? [];
-    this._countries = countriesResult.data ?? [];
-    this._currencySymbol = settingsResult.data?.currencySymbol ?? "£";
+    const { data } = await MerchelloApi.getCountries();
+    this._countries = data ?? [];
 
     this._isLoading = false;
   }
@@ -210,86 +171,6 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     }
   }
 
-  private async _openAddCustomItemModal(): Promise<void> {
-    if (!this.#modalManager) return;
-
-    const modal = this.#modalManager.open(this, MERCHELLO_ADD_CUSTOM_ITEM_MODAL, {
-      data: {
-        currencySymbol: this._currencySymbol,
-        taxGroups: this._taxGroups,
-      },
-    });
-
-    const result = await modal.onSubmit().catch(() => undefined);
-    if (result?.item) {
-      this._customItems = [
-        ...this._customItems,
-        {
-          ...result.item,
-          tempId: `custom-${Date.now()}`,
-        },
-      ];
-    }
-  }
-
-  private _removeCustomItem(tempId: string): void {
-    this._customItems = this._customItems.filter((item) => item.tempId !== tempId);
-  }
-
-  private async _openProductPickerModal(): Promise<void> {
-    if (!this.#modalManager) return;
-
-    // Get shipping address for region validation
-    const shippingAddress = this._useShippingAddress ? this._shippingAddress : this._billingAddress;
-
-    // Get existing pending product IDs to exclude from picker
-    const excludeProductIds = this._pendingProducts.map((p) => p.productId);
-
-    const modal = this.#modalManager.open(this, MERCHELLO_PRODUCT_PICKER_MODAL, {
-      data: {
-        config: {
-          currencySymbol: this._currencySymbol,
-          shippingAddress: shippingAddress.countryCode
-            ? {
-                countryCode: shippingAddress.countryCode,
-                stateCode: shippingAddress.countyState ?? undefined,
-              }
-            : null,
-          excludeProductIds,
-        },
-      },
-    });
-
-    const result = await modal.onSubmit().catch(() => undefined);
-    if (result?.selections?.length) {
-      // Add selected products to pending products
-      const newProducts: PendingProduct[] = result.selections.map((selection) => ({
-        tempId: `product-${Date.now()}-${selection.productId}`,
-        productId: selection.productId,
-        productRootId: selection.productRootId,
-        name: selection.name,
-        sku: selection.sku,
-        price: selection.price,
-        quantity: 1, // Always add as qty 1
-        imageUrl: selection.imageUrl,
-        warehouseId: selection.warehouseId,
-        warehouseName: selection.warehouseName,
-      }));
-
-      this._pendingProducts = [...this._pendingProducts, ...newProducts];
-    }
-  }
-
-  private _removePendingProduct(tempId: string): void {
-    this._pendingProducts = this._pendingProducts.filter((p) => p.tempId !== tempId);
-  }
-
-  private _updatePendingProductQuantity(tempId: string, quantity: number): void {
-    this._pendingProducts = this._pendingProducts.map((p) =>
-      p.tempId === tempId ? { ...p, quantity: Math.max(1, quantity) } : p
-    );
-  }
-
   private _validateForm(): boolean {
     const errors: Record<string, string> = {};
 
@@ -340,12 +221,6 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
 
   private _isValidEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  }
-
-  private _getSubtotal(): number {
-    const customItemsTotal = this._customItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const productsTotal = this._pendingProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
-    return customItemsTotal + productsTotal;
   }
 
   /** Options for country dropdown - uui-select requires .options property */
@@ -402,14 +277,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     const request = {
       billingAddress: this._billingAddress,
       shippingAddress: this._useShippingAddress ? this._shippingAddress : null,
-      customItems: this._customItems.map((item) => ({
-        name: item.name,
-        sku: item.sku,
-        price: item.price,
-        quantity: item.quantity,
-        taxGroupId: item.taxGroupId,
-        isPhysicalProduct: item.isPhysicalProduct,
-      })),
+      customItems: [], // Items are added in the edit modal
     };
 
     const { data, error } = await MerchelloApi.createDraftOrder(request);
@@ -422,14 +290,12 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     }
 
     if (data?.isSuccessful && data.invoiceId) {
-      this.#notificationContext?.peek("positive", {
-        data: {
-          headline: "Order Created",
-          message: `Draft order ${data.invoiceNumber} has been created.`,
-        },
-      });
-
-      this.value = { isCreated: true, invoiceId: data.invoiceId };
+      // Return shouldOpenEdit so the orders list opens the edit modal
+      this.value = {
+        isCreated: true,
+        invoiceId: data.invoiceId,
+        shouldOpenEdit: true,
+      };
       this.modalContext?.submit();
     } else {
       this._errorMessage = data?.errorMessage ?? "Failed to create order";
@@ -613,155 +479,6 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     `;
   }
 
-  private _renderCustomItem(item: PendingCustomItem) {
-    const taxGroup = item.taxGroupId
-      ? this._taxGroups.find((tg) => tg.id === item.taxGroupId)
-      : null;
-    const taxInfo = taxGroup ? `${taxGroup.name} (${taxGroup.taxPercentage}%)` : "Not taxable";
-
-    return html`
-      <div class="line-item">
-        <div class="line-item-product">
-          <div class="line-item-image">
-            <div class="placeholder-image custom"><uui-icon name="icon-add"></uui-icon></div>
-          </div>
-          <div class="line-item-details">
-            <div class="line-item-name">${item.name}</div>
-            <div class="line-item-sku">${item.sku ?? "Custom item"} · ${taxInfo}</div>
-          </div>
-        </div>
-        <div class="line-item-price">${this._currencySymbol}${formatNumber(item.price, 2)}</div>
-        <div class="line-item-quantity">${item.quantity}</div>
-        <div class="line-item-total">${this._currencySymbol}${formatNumber(item.price * item.quantity, 2)}</div>
-        <div class="line-item-actions">
-          <uui-button
-            look="secondary"
-            compact
-            @click=${() => this._removeCustomItem(item.tempId)}
-            title="Remove item"
-          >
-            <uui-icon name="icon-delete"></uui-icon>
-          </uui-button>
-        </div>
-      </div>
-    `;
-  }
-
-  private _renderPendingProduct(product: PendingProduct) {
-    return html`
-      <div class="line-item pending-product">
-        <div class="line-item-product">
-          <div class="line-item-image">
-            ${product.imageUrl
-              ? html`<img src=${product.imageUrl} alt=${product.name} />`
-              : html`<div class="placeholder-image product"><uui-icon name="icon-box"></uui-icon></div>`}
-          </div>
-          <div class="line-item-details">
-            <div class="line-item-name">${product.name}</div>
-            <div class="line-item-sku">${product.sku ?? "No SKU"}</div>
-            <div class="warehouse-info">
-              <uui-icon name="icon-home"></uui-icon>
-              ${product.warehouseName || "Default warehouse"}
-            </div>
-          </div>
-        </div>
-        <div class="line-item-price">${this._currencySymbol}${formatNumber(product.price, 2)}</div>
-        <div class="line-item-quantity">
-          <uui-input
-            type="number"
-            .value=${product.quantity.toString()}
-            @input=${(e: Event) =>
-              this._updatePendingProductQuantity(product.tempId, parseInt((e.target as HTMLInputElement).value) || 1)}
-            min="1"
-          ></uui-input>
-        </div>
-        <div class="line-item-total">${this._currencySymbol}${formatNumber(product.price * product.quantity, 2)}</div>
-        <div class="line-item-actions">
-          <uui-button
-            look="secondary"
-            compact
-            @click=${() => this._removePendingProduct(product.tempId)}
-            title="Remove product"
-          >
-            <uui-icon name="icon-delete"></uui-icon>
-          </uui-button>
-        </div>
-      </div>
-    `;
-  }
-
-  private _renderItemsSection() {
-    const hasItems = this._customItems.length > 0 || this._pendingProducts.length > 0;
-
-    return html`
-      <uui-box headline="Items">
-        ${hasItems ? html`
-          <div class="items-table">
-            <div class="items-header">
-              <div class="header-cell product">Product</div>
-              <div class="header-cell price">Price</div>
-              <div class="header-cell quantity">Qty</div>
-              <div class="header-cell total">Total</div>
-              <div class="header-cell actions"></div>
-            </div>
-            <div class="items-list">
-              ${this._pendingProducts.map((product) => this._renderPendingProduct(product))}
-              ${this._customItems.map((item) => this._renderCustomItem(item))}
-            </div>
-          </div>
-        ` : html`
-          <div class="empty-items">
-            <p>No items added yet. Add products or custom items below.</p>
-          </div>
-        `}
-
-        <div class="add-items-actions">
-          <uui-button look="secondary" @click=${this._openProductPickerModal}>
-            <uui-icon name="icon-add"></uui-icon>
-            Add product
-          </uui-button>
-          <uui-button look="secondary" @click=${this._openAddCustomItemModal}>
-            <uui-icon name="icon-add"></uui-icon>
-            Add custom item
-          </uui-button>
-        </div>
-      </uui-box>
-    `;
-  }
-
-  private _renderSummary() {
-    const subtotal = this._getSubtotal();
-
-    return html`
-      <uui-box headline="Order Summary">
-        <div class="summary-row">
-          <span>Subtotal</span>
-          <span>${this._currencySymbol}${formatNumber(subtotal, 2)}</span>
-        </div>
-
-        <div class="summary-row muted">
-          <span>Shipping</span>
-          <span>Calculated after save</span>
-        </div>
-
-        <div class="summary-row muted">
-          <span>Tax</span>
-          <span>Calculated after save</span>
-        </div>
-
-        <div class="summary-row total">
-          <span>Total</span>
-          <span>${this._currencySymbol}${formatNumber(subtotal, 2)}</span>
-        </div>
-
-        <p class="summary-note">
-          Shipping and tax will be calculated after the order is created.
-          You can edit the order to adjust these values.
-        </p>
-      </uui-box>
-    `;
-  }
-
   override render() {
     if (this._isLoading) {
       return html`<umb-body-layout headline="Create Order">${this._renderLoading()}</umb-body-layout>`;
@@ -770,10 +487,17 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     return html`
       <umb-body-layout headline="Create Order">
         <div id="main">
+          <!-- Info banner -->
+          <div class="info-banner">
+            <uui-icon name="icon-info"></uui-icon>
+            <div>
+              <strong>Quick start</strong>
+              <p>Enter customer details and click Create. You'll then be able to add products, discounts, and configure shipping in the full order editor.</p>
+            </div>
+          </div>
+
           ${this._renderBillingAddressForm()}
           ${this._renderShippingAddressForm()}
-          ${this._renderItemsSection()}
-          ${this._renderSummary()}
 
           ${this._errorMessage ? html`
             <div class="error-message">
@@ -793,12 +517,12 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
             Cancel
           </uui-button>
           <uui-button
-            label="Create Order"
+            label="Create & Edit"
             look="primary"
             @click=${this._handleSave}
             ?disabled=${this._isSaving}
           >
-            ${this._isSaving ? html`<uui-loader-circle></uui-loader-circle>` : "Create Order"}
+            ${this._isSaving ? html`<uui-loader-circle></uui-loader-circle>` : "Create & Edit"}
           </uui-button>
         </div>
       </umb-body-layout>
@@ -929,183 +653,32 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
       margin-top: var(--uui-size-space-2);
     }
 
-    /* Items Table */
-    .items-table {
+    /* Info Banner */
+    .info-banner {
+      display: flex;
+      gap: var(--uui-size-space-3);
+      padding: var(--uui-size-space-4);
+      background: var(--uui-color-surface-alt);
       border: 1px solid var(--uui-color-border);
       border-radius: var(--uui-border-radius);
-      overflow: hidden;
-      margin-bottom: var(--uui-size-space-4);
+      border-left: 3px solid var(--uui-color-current);
     }
 
-    .items-header {
-      display: grid;
-      grid-template-columns: minmax(150px, 2fr) 80px 60px 80px 40px;
-      gap: var(--uui-size-space-3);
-      padding: var(--uui-size-space-3) var(--uui-size-space-4);
-      background: var(--uui-color-surface-alt);
-      border-bottom: 1px solid var(--uui-color-border);
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      color: var(--uui-color-text-alt);
-    }
-
-    .header-cell.price,
-    .header-cell.quantity,
-    .header-cell.total {
-      text-align: right;
-    }
-
-    .items-list {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .line-item {
-      display: grid;
-      grid-template-columns: minmax(150px, 2fr) 80px 60px 80px 40px;
-      gap: var(--uui-size-space-3);
-      padding: var(--uui-size-space-3) var(--uui-size-space-4);
-      align-items: center;
-      border-bottom: 1px solid var(--uui-color-border);
-    }
-
-    .line-item:last-child {
-      border-bottom: none;
-    }
-
-    .line-item-product {
-      display: flex;
-      gap: var(--uui-size-space-3);
-      align-items: center;
-      min-width: 0;
-    }
-
-    .line-item-image {
-      width: 36px;
-      height: 36px;
+    .info-banner uui-icon {
+      color: var(--uui-color-current);
       flex-shrink: 0;
+      font-size: 1.25rem;
     }
 
-    .placeholder-image {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--uui-color-surface-alt);
-      border-radius: var(--uui-border-radius);
-      color: var(--uui-color-text-alt);
+    .info-banner strong {
+      display: block;
+      margin-bottom: var(--uui-size-space-1);
     }
 
-    .placeholder-image.custom {
-      background: var(--uui-color-positive-emphasis);
-      color: white;
-    }
-
-    .placeholder-image.product {
-      background: var(--uui-color-surface-alt);
-      color: var(--uui-color-text-alt);
-    }
-
-    .line-item-image img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      border-radius: var(--uui-border-radius);
-    }
-
-    .warehouse-info {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
-      margin-top: 2px;
-    }
-
-    .warehouse-info uui-icon {
-      font-size: 0.75rem;
-    }
-
-    .line-item-quantity uui-input {
-      width: 60px;
-      text-align: right;
-    }
-
-    .line-item-details {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      min-width: 0;
-    }
-
-    .line-item-name {
-      font-weight: 500;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .line-item-sku {
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
-    }
-
-    .line-item-price,
-    .line-item-quantity,
-    .line-item-total {
-      text-align: right;
-    }
-
-    .line-item-total {
-      font-weight: 500;
-    }
-
-    .line-item-actions {
-      display: flex;
-      justify-content: flex-end;
-    }
-
-    .empty-items {
-      text-align: center;
-      padding: var(--uui-size-space-5);
-      color: var(--uui-color-text-alt);
-    }
-
-    .empty-items p {
+    .info-banner p {
       margin: 0;
-    }
-
-    .add-items-actions {
-      display: flex;
-      gap: var(--uui-size-space-2);
-    }
-
-    /* Summary Rows */
-    .summary-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: var(--uui-size-space-2) 0;
-    }
-
-    .summary-row.muted {
-      color: var(--uui-color-text-alt);
       font-size: 0.875rem;
-    }
-
-    .summary-row.total {
-      border-top: 1px solid var(--uui-color-border);
-      margin-top: var(--uui-size-space-2);
-      padding-top: var(--uui-size-space-3);
-      font-weight: 600;
-    }
-
-    .summary-note {
-      font-size: 0.75rem;
       color: var(--uui-color-text-alt);
-      margin: var(--uui-size-space-3) 0 0 0;
     }
 
     /* Error Message */

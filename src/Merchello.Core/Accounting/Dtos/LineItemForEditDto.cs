@@ -33,5 +33,20 @@ public class LineItemForEditDto
     /// Child discount line items for this item
     /// </summary>
     public List<DiscountLineItemDto> Discounts { get; set; } = [];
+
+    /// <summary>
+    /// Child add-on line items linked to this parent product
+    /// </summary>
+    public List<LineItemForEditDto> ChildLineItems { get; set; } = [];
+
+    /// <summary>
+    /// The parent line item SKU if this is a child add-on item
+    /// </summary>
+    public string? ParentLineItemSku { get; set; }
+
+    /// <summary>
+    /// Whether this line item represents an add-on (non-variant option value)
+    /// </summary>
+    public bool IsAddon { get; set; }
 }
 

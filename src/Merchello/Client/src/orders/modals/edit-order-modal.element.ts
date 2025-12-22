@@ -19,6 +19,7 @@ import type {
   OrderShippingUpdateDto,
   PreviewEditResultDto,
 } from "@orders/types/order.types.js";
+import type { SelectedAddon } from "@shared/product-picker/product-picker.types.js";
 import { DiscountValueType } from "@orders/types/order.types.js";
 import type { EditOrderModalData, EditOrderModalValue } from "./edit-order-modal.token.js";
 import { MERCHELLO_ADD_CUSTOM_ITEM_MODAL } from "./add-custom-item-modal.token.js";
@@ -66,6 +67,8 @@ interface PendingProduct {
   imageUrl: string | null;
   warehouseId: string;
   warehouseName: string;
+  /** Selected add-ons for this product */
+  addons: SelectedAddon[];
 }
 
 @customElement("merchello-edit-order-modal")
@@ -453,6 +456,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         imageUrl: selection.imageUrl,
         warehouseId: selection.warehouseId,
         warehouseName: selection.warehouseName,
+        addons: selection.selectedAddons ?? [],
       }));
 
       this._pendingProducts = [...this._pendingProducts, ...newProducts];
@@ -567,6 +571,19 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         quantity: item.quantity,
         taxGroupId: item.taxGroupId,
         isPhysicalProduct: item.isPhysicalProduct,
+      })),
+      productsToAdd: this._pendingProducts.map((product) => ({
+        productId: product.productId,
+        quantity: product.quantity,
+        warehouseId: product.warehouseId,
+        addons: product.addons.map((addon) => ({
+          optionId: addon.optionId,
+          optionValueId: addon.valueId,
+          name: addon.valueName,
+          priceAdjustment: addon.priceAdjustment,
+          costAdjustment: addon.costAdjustment ?? 0,
+          skuSuffix: addon.skuSuffix,
+        })),
       })),
       orderDiscounts: this._pendingOrderDiscounts.map((d) => ({
         type: d.type,
@@ -751,8 +768,11 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     // (user can only remove original discounts, not replace them with new ones)
     const canModifyDiscount = !lineItem.hadOriginalDiscount || hasDiscount;
 
+    // Get child add-on line items from the DTO
+    const childAddons = lineItem.childLineItems ?? [];
+
     return html`
-      <div class="line-item ${hasInsufficientStock ? 'has-error' : ''}">
+      <div class="line-item ${hasInsufficientStock ? 'has-error' : ''} ${childAddons.length > 0 ? 'has-addons' : ''}">
         <div class="line-item-product">
           <div class="line-item-image">
             <merchello-product-image
@@ -838,6 +858,42 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
           </uui-checkbox>
         </div>
       ` : nothing}
+      ${childAddons.map((addon) => this._renderAddonLineItem(addon, lineItem.newQuantity, currencySymbol))}
+    `;
+  }
+
+  private _renderAddonLineItem(addon: LineItemForEditDto, parentQuantity: number, currencySymbol: string) {
+    const addonTotal = addon.amount * parentQuantity;
+
+    return html`
+      <div class="line-item child-item addon-item">
+        <div class="line-item-product">
+          <div class="addon-indicator">
+            <span class="addon-connector"></span>
+            <span class="addon-badge">Add-on</span>
+          </div>
+          <div class="line-item-details">
+            <div class="line-item-name">${addon.name}</div>
+            ${addon.sku ? html`<div class="line-item-sku">${addon.sku}</div>` : nothing}
+          </div>
+        </div>
+
+        <div class="line-item-price">
+          <span class="addon-price">+${currencySymbol}${formatNumber(addon.amount, 2)}</span>
+        </div>
+
+        <div class="line-item-quantity addon-quantity">
+          ${parentQuantity}
+        </div>
+
+        <div class="line-item-total">
+          +${currencySymbol}${formatNumber(addonTotal, 2)}
+        </div>
+
+        <div class="line-item-actions">
+          <!-- Add-ons follow parent - no direct actions -->
+        </div>
+      </div>
     `;
   }
 
@@ -991,6 +1047,9 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
   private _renderPendingProduct(product: PendingProduct) {
     const currencySymbol = this._invoice?.currencySymbol ?? "£";
+    // Calculate total including add-ons
+    const addonTotal = product.addons.reduce((sum, addon) => sum + addon.priceAdjustment, 0);
+    const lineTotal = (product.price + addonTotal) * product.quantity;
 
     return html`
       <div class="line-item pending-product">
@@ -1028,7 +1087,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         </div>
 
         <div class="line-item-total">
-          ${currencySymbol}${formatNumber(product.price * product.quantity, 2)}
+          ${currencySymbol}${formatNumber(lineTotal, 2)}
         </div>
 
         <div class="line-item-actions">
@@ -1040,6 +1099,42 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
           >
             <uui-icon name="icon-delete"></uui-icon>
           </uui-button>
+        </div>
+      </div>
+      ${product.addons.map((addon) => this._renderPendingAddon(addon, product.quantity, currencySymbol))}
+    `;
+  }
+
+  /** Render a pending add-on as a child row */
+  private _renderPendingAddon(addon: SelectedAddon, quantity: number, currencySymbol: string) {
+    return html`
+      <div class="line-item child-item addon-item">
+        <div class="line-item-product">
+          <div class="addon-indicator">
+            <span class="addon-connector"></span>
+          </div>
+          <div class="line-item-details">
+            <div class="line-item-name">
+              <span class="addon-badge">Add-on</span>
+              ${addon.optionName}: ${addon.valueName}
+            </div>
+          </div>
+        </div>
+
+        <div class="line-item-price">
+          +${currencySymbol}${formatNumber(addon.priceAdjustment, 2)}
+        </div>
+
+        <div class="line-item-quantity">
+          ${quantity}
+        </div>
+
+        <div class="line-item-total">
+          ${currencySymbol}${formatNumber(addon.priceAdjustment * quantity, 2)}
+        </div>
+
+        <div class="line-item-actions">
+          <!-- Add-ons follow parent quantity, no individual actions -->
         </div>
       </div>
     `;
@@ -1257,7 +1352,10 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
   }
 
   private _renderOrderSection(order: EditableOrder) {
-    const orderLineItems = this._lineItems.filter((li) => li.orderId === order.id && !li.isRemoved);
+    // Filter to parent line items only (exclude add-ons - they're rendered as children)
+    const orderLineItems = this._lineItems.filter(
+      (li) => li.orderId === order.id && !li.isRemoved && !li.isAddon
+    );
 
     return html`
       <div class="items-section order-section">
@@ -1609,6 +1707,55 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
     .line-item.has-error {
       background: rgba(var(--uui-color-danger-rgb), 0.05);
+    }
+
+    /* Child/Add-on Line Items */
+    .line-item.child-item {
+      background: var(--uui-color-surface-alt);
+      padding-left: calc(var(--uui-size-space-4) + 24px);
+      border-left: 2px solid var(--uui-color-positive);
+    }
+
+    .line-item.addon-item .line-item-product {
+      padding-left: 0;
+    }
+
+    .addon-indicator {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+    }
+
+    .addon-connector {
+      display: block;
+      width: 12px;
+      height: 2px;
+      background: var(--uui-color-positive);
+    }
+
+    .addon-badge {
+      font-size: 0.625rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      background: var(--uui-color-positive-emphasis);
+      color: white;
+      padding: 2px 6px;
+      border-radius: var(--uui-border-radius);
+    }
+
+    .addon-price {
+      color: var(--uui-color-positive);
+      font-weight: 500;
+    }
+
+    .addon-quantity {
+      color: var(--uui-color-text-alt);
+      font-size: 0.875rem;
+      text-align: center;
+    }
+
+    .line-item.child-item .line-item-total {
+      color: var(--uui-color-positive);
     }
 
     /* Return to Stock Row - separate row below line item */

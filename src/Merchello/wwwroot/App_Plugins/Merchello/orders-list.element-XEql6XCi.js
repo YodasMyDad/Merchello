@@ -1,33 +1,34 @@
-import { LitElement as x, html as u, css as O, state as o, customElement as T } from "@umbraco-cms/backoffice/external/lit";
+import { LitElement as O, html as u, css as x, state as o, customElement as T } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin as C } from "@umbraco-cms/backoffice/element-api";
-import { UmbModalToken as b, UMB_MODAL_MANAGER_CONTEXT as S, UMB_CONFIRM_MODAL as $ } from "@umbraco-cms/backoffice/modal";
-import { UMB_NOTIFICATION_CONTEXT as k } from "@umbraco-cms/backoffice/notification";
+import { UmbModalToken as b, UMB_MODAL_MANAGER_CONTEXT as S, UMB_CONFIRM_MODAL as M } from "@umbraco-cms/backoffice/modal";
+import { UMB_NOTIFICATION_CONTEXT as $ } from "@umbraco-cms/backoffice/notification";
 import { M as g } from "./merchello-api-s-9cx0Ue.js";
 import "./pagination.element-sDi4Myhy.js";
 import "./merchello-empty-state.element-mt97UoA5.js";
 import "./order-table.element-0KrbBfi2.js";
-import { n as M } from "./navigation-m-G5wLvz.js";
-const w = new b("Merchello.Export.Modal", {
+import { M as k } from "./edit-order-modal.token-BUHVPYdq.js";
+import { n as w } from "./navigation-m-G5wLvz.js";
+const D = new b("Merchello.Export.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
   }
-}), D = new b("Merchello.CreateOrder.Modal", {
+}), E = new b("Merchello.CreateOrder.Modal", {
   modal: {
     type: "sidebar",
     size: "large"
   }
 });
-var z = Object.defineProperty, E = Object.getOwnPropertyDescriptor, f = (e) => {
+var z = Object.defineProperty, L = Object.getOwnPropertyDescriptor, f = (e) => {
   throw TypeError(e);
-}, s = (e, t, i, c) => {
-  for (var l = c > 1 ? void 0 : c ? E(t, i) : t, _ = e.length - 1, m; _ >= 0; _--)
+}, r = (e, t, i, c) => {
+  for (var l = c > 1 ? void 0 : c ? L(t, i) : t, _ = e.length - 1, m; _ >= 0; _--)
     (m = e[_]) && (l = (c ? m(t, i, l) : m(l)) || l);
   return c && l && z(t, i, l), l;
-}, y = (e, t, i) => t.has(e) || f("Cannot " + i), r = (e, t, i) => (y(e, t, "read from private field"), t.get(e)), v = (e, t, i) => t.has(e) ? f("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), p = (e, t, i, c) => (y(e, t, "write to private field"), t.set(e, i), i), d, h, n;
-let a = class extends C(x) {
+}, y = (e, t, i) => t.has(e) || f("Cannot " + i), s = (e, t, i) => (y(e, t, "read from private field"), t.get(e)), v = (e, t, i) => t.has(e) ? f("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), p = (e, t, i, c) => (y(e, t, "write to private field"), t.set(e, i), i), n, h, d;
+let a = class extends C(O) {
   constructor() {
-    super(), this._orders = [], this._isLoading = !0, this._errorMessage = null, this._page = 1, this._pageSize = 50, this._totalItems = 0, this._totalPages = 0, this._activeTab = "all", this._selectedOrders = /* @__PURE__ */ new Set(), this._stats = null, this._searchTerm = "", this._isDeleting = !1, this._searchDebounceTimer = null, v(this, d), v(this, h), v(this, n, !1), this._tableColumns = [
+    super(), this._orders = [], this._isLoading = !0, this._errorMessage = null, this._page = 1, this._pageSize = 50, this._totalItems = 0, this._totalPages = 0, this._activeTab = "all", this._selectedOrders = /* @__PURE__ */ new Set(), this._stats = null, this._searchTerm = "", this._isDeleting = !1, this._searchDebounceTimer = null, v(this, n), v(this, h), v(this, d, !1), this._tableColumns = [
       "select",
       "invoiceNumber",
       "date",
@@ -39,16 +40,16 @@ let a = class extends C(x) {
       "itemCount",
       "deliveryMethod"
     ], this.consumeContext(S, (e) => {
-      p(this, d, e);
-    }), this.consumeContext(k, (e) => {
+      p(this, n, e);
+    }), this.consumeContext($, (e) => {
       p(this, h, e);
     });
   }
   connectedCallback() {
-    super.connectedCallback(), p(this, n, !0), this._loadOrders(), this._loadStats();
+    super.connectedCallback(), p(this, d, !0), this._loadOrders(), this._loadStats();
   }
   disconnectedCallback() {
-    super.disconnectedCallback(), p(this, n, !1), this._searchDebounceTimer && clearTimeout(this._searchDebounceTimer);
+    super.disconnectedCallback(), p(this, d, !1), this._searchDebounceTimer && clearTimeout(this._searchDebounceTimer);
   }
   async _loadOrders() {
     this._isLoading = !0, this._errorMessage = null;
@@ -60,7 +61,7 @@ let a = class extends C(x) {
     };
     this._searchTerm.trim() && (e.search = this._searchTerm.trim()), this._activeTab === "unfulfilled" ? e.fulfillmentStatus = "unfulfilled" : this._activeTab === "unpaid" ? e.paymentStatus = "unpaid" : this._activeTab === "cancelled" && (e.cancellationStatus = "cancelled");
     const { data: t, error: i } = await g.getOrders(e);
-    if (r(this, n)) {
+    if (s(this, d)) {
       if (i) {
         this._errorMessage = i.message, this._isLoading = !1;
         return;
@@ -70,7 +71,7 @@ let a = class extends C(x) {
   }
   async _loadStats() {
     const { data: e } = await g.getOrderStats();
-    r(this, n) && e && (this._stats = e);
+    s(this, d) && e && (this._stats = e);
   }
   _handleTabClick(e) {
     this._activeTab = e, this._page = 1, this._loadOrders();
@@ -100,7 +101,7 @@ let a = class extends C(x) {
   }
   async _handleDeleteSelected() {
     const e = this._selectedOrders.size;
-    if (e === 0 || !await r(this, d)?.open(this, $, {
+    if (e === 0 || !await s(this, n)?.open(this, M, {
       data: {
         headline: "Delete Orders",
         content: `Are you sure you want to delete ${e} order${e !== 1 ? "s" : ""}? This action cannot be undone.`,
@@ -108,33 +109,41 @@ let a = class extends C(x) {
         color: "danger"
       }
     })?.onSubmit().catch(() => {
-    }) || !r(this, n)) return;
+    }) || !s(this, d)) return;
     this._isDeleting = !0;
     const c = Array.from(this._selectedOrders), { error: l } = await g.deleteOrders(c);
-    if (r(this, n)) {
+    if (s(this, d)) {
       if (this._isDeleting = !1, l) {
-        this._errorMessage = `Failed to delete orders: ${l.message}`, r(this, h)?.peek("danger", {
+        this._errorMessage = `Failed to delete orders: ${l.message}`, s(this, h)?.peek("danger", {
           data: { headline: "Failed to delete", message: l.message || "Could not delete orders" }
         });
         return;
       }
-      r(this, h)?.peek("positive", {
+      s(this, h)?.peek("positive", {
         data: { headline: "Orders deleted", message: `${e} order${e !== 1 ? "s" : ""} deleted successfully` }
       }), this._selectedOrders = /* @__PURE__ */ new Set(), this._loadOrders(), this._loadStats();
     }
   }
   async _handleExport() {
-    r(this, d) && r(this, d).open(this, w, {
+    s(this, n) && s(this, n).open(this, D, {
       data: {}
     });
   }
   async _handleCreateOrder() {
-    if (!r(this, d)) return;
-    const t = await r(this, d).open(this, D, {
+    if (!s(this, n)) return;
+    const t = await s(this, n).open(this, E, {
       data: {}
     }).onSubmit().catch(() => {
     });
-    r(this, n) && t?.isCreated && t.invoiceId && M(t.invoiceId);
+    if (s(this, d) && t?.isCreated && t.invoiceId)
+      if (this._loadOrders(), this._loadStats(), t.shouldOpenEdit) {
+        if (await s(this, n).open(this, k, {
+          data: { invoiceId: t.invoiceId }
+        }).onSubmit().catch(() => {
+        }), !s(this, d)) return;
+        this._loadOrders(), this._loadStats();
+      } else
+        w(t.invoiceId);
   }
   _renderLoadingState() {
     return u`<div class="loading"><uui-loader></uui-loader></div>`;
@@ -307,10 +316,10 @@ let a = class extends C(x) {
     `;
   }
 };
-d = /* @__PURE__ */ new WeakMap();
-h = /* @__PURE__ */ new WeakMap();
 n = /* @__PURE__ */ new WeakMap();
-a.styles = O`
+h = /* @__PURE__ */ new WeakMap();
+d = /* @__PURE__ */ new WeakMap();
+a.styles = x`
     :host {
       display: block;
       height: 100%;
@@ -445,48 +454,48 @@ a.styles = O`
       border-top: 1px solid var(--uui-color-border);
     }
   `;
-s([
+r([
   o()
 ], a.prototype, "_orders", 2);
-s([
+r([
   o()
 ], a.prototype, "_isLoading", 2);
-s([
+r([
   o()
 ], a.prototype, "_errorMessage", 2);
-s([
+r([
   o()
 ], a.prototype, "_page", 2);
-s([
+r([
   o()
 ], a.prototype, "_pageSize", 2);
-s([
+r([
   o()
 ], a.prototype, "_totalItems", 2);
-s([
+r([
   o()
 ], a.prototype, "_totalPages", 2);
-s([
+r([
   o()
 ], a.prototype, "_activeTab", 2);
-s([
+r([
   o()
 ], a.prototype, "_selectedOrders", 2);
-s([
+r([
   o()
 ], a.prototype, "_stats", 2);
-s([
+r([
   o()
 ], a.prototype, "_searchTerm", 2);
-s([
+r([
   o()
 ], a.prototype, "_isDeleting", 2);
-a = s([
+a = r([
   T("merchello-orders-list")
 ], a);
-const W = a;
+const G = a;
 export {
   a as MerchelloOrdersListElement,
-  W as default
+  G as default
 };
-//# sourceMappingURL=orders-list.element-CVY8XtvL.js.map
+//# sourceMappingURL=orders-list.element-XEql6XCi.js.map

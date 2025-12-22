@@ -169,41 +169,64 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
 
   private _renderValueEditor(value: ProductOptionValueDto, index: number): unknown {
     const uiAlias = this._formData.optionUiAlias;
+    const isAddon = !this._formData.isVariant;
 
     return html`
-      <div class="value-row">
-        <div class="value-main">
-          <uui-input
-            .value=${value.name}
-            placeholder="Value name"
-            @input=${(e: Event) => this._updateValue(index, "name", (e.target as HTMLInputElement).value)}>
-          </uui-input>
+      <div class="value-row ${isAddon ? "is-addon" : ""}">
+        <div class="value-content">
+          <div class="value-name-row">
+            <uui-input
+              .value=${value.name}
+              placeholder="Value name"
+              @input=${(e: Event) => this._updateValue(index, "name", (e.target as HTMLInputElement).value)}>
+            </uui-input>
 
-          ${uiAlias === "colour"
+            ${uiAlias === "colour"
+              ? html`
+                  <uui-input
+                    type="color"
+                    class="color-input"
+                    .value=${value.hexValue || "#000000"}
+                    @input=${(e: Event) => this._updateValue(index, "hexValue", (e.target as HTMLInputElement).value)}>
+                  </uui-input>
+                `
+              : nothing}
+          </div>
+
+          ${isAddon
             ? html`
-                <uui-input
-                  type="color"
-                  .value=${value.hexValue || "#000000"}
-                  @input=${(e: Event) => this._updateValue(index, "hexValue", (e.target as HTMLInputElement).value)}>
-                </uui-input>
-              `
-            : nothing}
+                <div class="addon-fields">
+                  <div class="addon-field">
+                    <label class="field-label">Price +/-</label>
+                    <uui-input
+                      type="number"
+                      step="0.01"
+                      .value=${String(value.priceAdjustment)}
+                      placeholder="0.00"
+                      @input=${(e: Event) => this._updateValue(index, "priceAdjustment", parseFloat((e.target as HTMLInputElement).value) || 0)}>
+                    </uui-input>
+                  </div>
 
-          ${!this._formData.isVariant
-            ? html`
-                <uui-input
-                  type="number"
-                  step="0.01"
-                  .value=${String(value.priceAdjustment)}
-                  placeholder="Price +/-"
-                  @input=${(e: Event) => this._updateValue(index, "priceAdjustment", parseFloat((e.target as HTMLInputElement).value) || 0)}>
-                </uui-input>
+                  <div class="addon-field">
+                    <label class="field-label">Cost +/-</label>
+                    <uui-input
+                      type="number"
+                      step="0.01"
+                      .value=${String(value.costAdjustment)}
+                      placeholder="0.00"
+                      @input=${(e: Event) => this._updateValue(index, "costAdjustment", parseFloat((e.target as HTMLInputElement).value) || 0)}>
+                    </uui-input>
+                  </div>
 
-                <uui-input
-                  .value=${value.skuSuffix || ""}
-                  placeholder="SKU suffix"
-                  @input=${(e: Event) => this._updateValue(index, "skuSuffix", (e.target as HTMLInputElement).value)}>
-                </uui-input>
+                  <div class="addon-field sku-field">
+                    <label class="field-label">SKU Suffix</label>
+                    <uui-input
+                      .value=${value.skuSuffix || ""}
+                      placeholder="e.g., -GW"
+                      @input=${(e: Event) => this._updateValue(index, "skuSuffix", (e.target as HTMLInputElement).value)}>
+                    </uui-input>
+                  </div>
+                </div>
               `
             : nothing}
         </div>
@@ -248,6 +271,18 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                   <div>
                     <strong>Variant Generation</strong>
                     <p>${variantEstimate} (when combined with other variant options, this creates a cartesian product)</p>
+                  </div>
+                </div>
+              `
+            : nothing}
+
+          ${!this._formData.isVariant && valueCount > 0
+            ? html`
+                <div class="info-banner addon-info">
+                  <uui-icon name="icon-coin"></uui-icon>
+                  <div>
+                    <strong>Add-on Pricing</strong>
+                    <p>Price and cost adjustments are added to the base product when customers select this option. Negative values apply discounts.</p>
                   </div>
                 </div>
               `
@@ -437,7 +472,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     .values-list {
       display: flex;
       flex-direction: column;
-      gap: var(--uui-size-space-2);
+      gap: var(--uui-size-space-3);
     }
 
     .value-row {
@@ -449,16 +484,72 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
       border-radius: var(--uui-border-radius);
     }
 
-    .value-main {
-      flex: 1;
-      display: flex;
-      gap: var(--uui-size-space-2);
-      flex-wrap: wrap;
+    .value-row.is-addon {
+      padding: var(--uui-size-space-4);
     }
 
-    .value-main > * {
+    .value-content {
       flex: 1;
-      min-width: 150px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+    }
+
+    .value-name-row {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      align-items: center;
+    }
+
+    .value-name-row > uui-input:first-child {
+      flex: 1;
+    }
+
+    .color-input {
+      width: 48px;
+      flex-shrink: 0;
+    }
+
+    .addon-fields {
+      display: flex;
+      gap: var(--uui-size-space-3);
+      flex-wrap: wrap;
+      padding-top: var(--uui-size-space-2);
+      border-top: 1px dashed var(--uui-color-border);
+    }
+
+    .addon-field {
+      flex: 1;
+      min-width: 100px;
+      max-width: 140px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-1);
+    }
+
+    .addon-field.sku-field {
+      flex: 1.2;
+      max-width: 160px;
+    }
+
+    .addon-field .field-label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--uui-color-text-alt);
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+    }
+
+    .addon-field uui-input {
+      width: 100%;
+    }
+
+    .info-banner.addon-info {
+      border-left-color: var(--uui-color-warning);
+    }
+
+    .info-banner.addon-info uui-icon {
+      color: var(--uui-color-warning);
     }
 
     .empty-state {

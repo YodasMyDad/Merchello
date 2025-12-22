@@ -32,6 +32,104 @@ export interface ProductPickerConfig {
 
   /** Filter by collection ID */
   collectionId?: string;
+
+  /**
+   * Whether to show add-on selection step after variant selection.
+   * When true, products with non-variant options will show add-on selection UI.
+   * Default: true (for order creation), set to false for simple property editors.
+   */
+  showAddons?: boolean;
+
+  /**
+   * Whether to show product images in the picker.
+   * Default: true. Set to false for a more compact/minimal picker.
+   */
+  showImages?: boolean;
+}
+
+/**
+ * A selected add-on option value
+ */
+export interface SelectedAddon {
+  /** Option ID */
+  optionId: string;
+
+  /** Option name (e.g., "Gift Wrap") */
+  optionName: string;
+
+  /** Selected value ID */
+  valueId: string;
+
+  /** Selected value name (e.g., "Premium") */
+  valueName: string;
+
+  /** Price adjustment to add to product price */
+  priceAdjustment: number;
+
+  /** Cost adjustment to add to product cost */
+  costAdjustment: number;
+
+  /** SKU suffix for line item */
+  skuSuffix: string | null;
+}
+
+/**
+ * An add-on option available for selection (IsVariant = false)
+ */
+export interface PickerAddonOption {
+  /** Option ID */
+  id: string;
+
+  /** Option name */
+  name: string;
+
+  /** Option alias */
+  alias: string | null;
+
+  /** UI display type (dropdown, radio, etc.) */
+  optionUiAlias: string | null;
+
+  /** Available values */
+  values: PickerAddonValue[];
+}
+
+/**
+ * An add-on value that can be selected
+ */
+export interface PickerAddonValue {
+  /** Value ID */
+  id: string;
+
+  /** Value name */
+  name: string;
+
+  /** Price adjustment */
+  priceAdjustment: number;
+
+  /** Cost adjustment */
+  costAdjustment: number;
+
+  /** SKU suffix */
+  skuSuffix: string | null;
+}
+
+/**
+ * Current view state for the picker modal
+ */
+export type PickerViewState = "product-selection" | "addon-selection";
+
+/**
+ * Pending selection awaiting add-on configuration
+ */
+export interface PendingAddonSelection {
+  /** The selected variant */
+  variant: PickerVariant;
+
+  /** Add-on options available for this product */
+  addonOptions: PickerAddonOption[];
+
+  /** Root product name for display */
+  rootName: string;
 }
 
 /**
@@ -61,6 +159,9 @@ export interface ProductPickerSelection {
 
   /** The warehouse name for display */
   warehouseName: string;
+
+  /** Selected add-on options (if any) */
+  selectedAddons?: SelectedAddon[];
 }
 
 /**

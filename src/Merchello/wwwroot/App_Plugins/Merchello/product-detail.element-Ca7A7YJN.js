@@ -1,13 +1,13 @@
-import { LitElement as C, nothing as n, html as o, css as S, property as x, state as c, customElement as O } from "@umbraco-cms/backoffice/external/lit";
-import { UmbElementMixin as E } from "@umbraco-cms/backoffice/element-api";
+import { LitElement as S, nothing as n, html as o, css as O, property as x, state as c, customElement as E } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as F } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT as G } from "@umbraco-cms/backoffice/workspace";
 import { UmbModalToken as N, UMB_MODAL_MANAGER_CONTEXT as R, UMB_CONFIRM_MODAL as I } from "@umbraco-cms/backoffice/modal";
-import { UMB_NOTIFICATION_CONTEXT as B } from "@umbraco-cms/backoffice/notification";
+import { UMB_NOTIFICATION_CONTEXT as j } from "@umbraco-cms/backoffice/notification";
 import { M as m } from "./merchello-api-s-9cx0Ue.js";
 import "@umbraco-cms/backoffice/property";
-import { b as L } from "./badge.styles-DUcdl6GY.js";
-import { c as j, d as W } from "./navigation-m-G5wLvz.js";
-import { a as F } from "./formatting-BzzWJIvp.js";
+import { b as B } from "./badge.styles-DUcdl6GY.js";
+import { c as L, d as W } from "./navigation-m-G5wLvz.js";
+import { a as C } from "./formatting-BzzWJIvp.js";
 import { UmbChangeEvent as K } from "@umbraco-cms/backoffice/event";
 import "./product-shipping-exclusions.element-Dh22Hlbj.js";
 import { UmbDataTypeDetailRepository as H } from "@umbraco-cms/backoffice/data-type";
@@ -18,7 +18,7 @@ var q = Object.defineProperty, Y = Object.getOwnPropertyDescriptor, T = (t, e, i
     (u = t[l]) && (r = (a ? u(e, i, r) : u(r)) || r);
   return a && r && q(e, i, r), r;
 };
-let y = class extends E(C) {
+let y = class extends F(S) {
   constructor() {
     super(...arguments), this.values = {}, this._datasetValue = [];
   }
@@ -103,7 +103,7 @@ let y = class extends E(C) {
       return t.dataTypeConfiguration;
   }
 };
-y.styles = S`
+y.styles = O`
     :host {
       display: block;
     }
@@ -141,9 +141,9 @@ T([
   c()
 ], y.prototype, "_datasetValue", 2);
 y = T([
-  O("merchello-product-element-properties")
+  E("merchello-product-element-properties")
 ], y);
-const z = new N(
+const A = new N(
   "Merchello.OptionEditor.Modal",
   {
     modal: {
@@ -157,7 +157,7 @@ var J = Object.defineProperty, X = Object.getOwnPropertyDescriptor, w = (t, e, i
     (u = t[l]) && (r = (a ? u(e, i, r) : u(r)) || r);
   return a && r && J(e, i, r), r;
 };
-let b = class extends E(C) {
+let b = class extends F(S) {
   constructor() {
     super(...arguments), this.items = [], this.placeholder = "Add item...", this.readonly = !1, this._newItemValue = "", this._editingIndex = null, this._editingValue = "";
   }
@@ -337,7 +337,7 @@ let b = class extends E(C) {
     `;
   }
 };
-b.styles = S`
+b.styles = O`
     :host {
       display: block;
     }
@@ -444,7 +444,7 @@ w([
   c()
 ], b.prototype, "_editingValue", 2);
 b = w([
-  O("merchello-editable-text-list")
+  E("merchello-editable-text-list")
 ], b);
 function Q(t, e = {}) {
   const i = {};
@@ -501,14 +501,14 @@ function st(t) {
     return t;
   }
 }
-var nt = Object.defineProperty, lt = Object.getOwnPropertyDescriptor, A = (t) => {
+var nt = Object.defineProperty, lt = Object.getOwnPropertyDescriptor, z = (t) => {
   throw TypeError(t);
 }, p = (t, e, i, a) => {
   for (var r = a > 1 ? void 0 : a ? lt(e, i) : e, l = t.length - 1, u; l >= 0; l--)
     (u = t[l]) && (r = (a ? u(e, i, r) : u(r)) || r);
   return a && r && nt(e, i, r), r;
-}, M = (t, e, i) => e.has(t) || A("Cannot " + i), s = (t, e, i) => (M(t, e, "read from private field"), e.get(t)), $ = (t, e, i) => e.has(t) ? A("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(t) : e.set(t, i), D = (t, e, i, a) => (M(t, e, "write to private field"), e.set(t, i), i), k, h, v, g, f;
-let d = class extends E(C) {
+}, M = (t, e, i) => e.has(t) || z("Cannot " + i), s = (t, e, i) => (M(t, e, "read from private field"), e.get(t)), $ = (t, e, i) => e.has(t) ? z("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(t) : e.set(t, i), D = (t, e, i, a) => (M(t, e, "write to private field"), e.set(t, i), i), k, h, v, g, f;
+let d = class extends F(S) {
   constructor() {
     super(), this._product = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._validationAttempted = !1, this._fieldErrors = {}, this._routes = [], this._activePath = "", this._formData = {}, this._variantFormData = {}, this._variantFieldErrors = {}, this._taxGroups = [], this._productTypes = [], this._warehouses = [], this._productViews = [], this._optionSettings = null, this._filterGroups = [], this._assignedFilterIds = [], this._originalAssignedFilterIds = [], this._shippingOptions = [], this._elementType = null, this._elementPropertyValues = {}, this._descriptionEditorConfig = void 0, this._descriptionBlocks = null, $(this, k, new H(this)), $(this, h), $(this, v), $(this, g), $(this, f, !1), this.consumeContext(G, (t) => {
       D(this, h, t), s(this, h) && (this.observe(s(this, h).product, (e) => {
@@ -522,7 +522,7 @@ let d = class extends E(C) {
       }));
     }), this.consumeContext(R, (t) => {
       D(this, v, t);
-    }), this.consumeContext(B, (t) => {
+    }), this.consumeContext(j, (t) => {
       D(this, g, t);
     });
   }
@@ -1497,7 +1497,7 @@ let d = class extends E(C) {
     `;
   }
   _renderVariantRow(t) {
-    const e = this._product ? j(this._product.id, t.id) : "", i = this._getVariantOptionDescription(t);
+    const e = this._product ? L(this._product.id, t.id) : "", i = this._getVariantOptionDescription(t);
     return o`
       <uui-table-row>
         <uui-table-cell>
@@ -1516,7 +1516,7 @@ let d = class extends E(C) {
           </div>
         </uui-table-cell>
         <uui-table-cell>${t.sku || "—"}</uui-table-cell>
-        <uui-table-cell>${F(t.price)}</uui-table-cell>
+        <uui-table-cell>${C(t.price)}</uui-table-cell>
         <uui-table-cell>
           <span class="badge ${this._getStockBadgeClass(t.totalStock)}">${t.totalStock}</span>
         </uui-table-cell>
@@ -1690,13 +1690,16 @@ let d = class extends E(C) {
     `;
   }
   _renderOptionValue(t, e) {
+    const i = t.priceAdjustment !== 0 || t.costAdjustment !== 0;
     return o`
       <div class="option-value-chip">
         ${e === "colour" && t.hexValue ? o` <span class="color-swatch" style="background-color: ${t.hexValue}"></span> ` : n}
         <span>${t.name}</span>
-        ${t.priceAdjustment !== 0 ? o`
-              <span class="price-adjustment">
-                ${t.priceAdjustment > 0 ? "+" : ""}${F(t.priceAdjustment)}
+        ${i ? o`
+              <span class="adjustments">
+                ${t.priceAdjustment !== 0 ? o`<span class="price-adjustment">${t.priceAdjustment > 0 ? "+" : ""}${C(t.priceAdjustment)}</span>` : n}
+                ${t.priceAdjustment !== 0 && t.costAdjustment !== 0 ? o`<span class="adjustment-separator">/</span>` : n}
+                ${t.costAdjustment !== 0 ? o`<span class="cost-adjustment">${t.costAdjustment > 0 ? "+" : ""}${C(t.costAdjustment)} cost</span>` : n}
               </span>
             ` : n}
       </div>
@@ -1704,7 +1707,7 @@ let d = class extends E(C) {
   }
   async _addNewOption() {
     if (!s(this, v) || !this._optionSettings) return;
-    const e = await s(this, v).open(this, z, {
+    const e = await s(this, v).open(this, A, {
       data: {
         option: void 0,
         settings: this._optionSettings
@@ -1721,7 +1724,7 @@ let d = class extends E(C) {
   }
   async _editOption(t) {
     if (!s(this, v) || !this._optionSettings) return;
-    const i = await s(this, v).open(this, z, {
+    const i = await s(this, v).open(this, A, {
       data: {
         option: t,
         settings: this._optionSettings
@@ -1945,8 +1948,8 @@ v = /* @__PURE__ */ new WeakMap();
 g = /* @__PURE__ */ new WeakMap();
 f = /* @__PURE__ */ new WeakMap();
 d.styles = [
-  L,
-  S`
+  B,
+  O`
       :host {
         display: block;
         width: 100%;
@@ -2303,9 +2306,26 @@ d.styles = [
         border: 1px solid var(--uui-color-border);
       }
 
+      .adjustments {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-1);
+        font-size: 0.8125rem;
+      }
+
       .price-adjustment {
         font-weight: 600;
         color: var(--uui-color-positive);
+      }
+
+      .cost-adjustment {
+        font-weight: 500;
+        color: var(--uui-color-text-alt);
+        font-style: italic;
+      }
+
+      .adjustment-separator {
+        color: var(--uui-color-border-standalone);
       }
 
       /* Empty state for options */
@@ -2506,11 +2526,11 @@ p([
   c()
 ], d.prototype, "_descriptionBlocks", 2);
 d = p([
-  O("merchello-product-detail")
+  E("merchello-product-detail")
 ], d);
 const Dt = d;
 export {
   d as MerchelloProductDetailElement,
   Dt as default
 };
-//# sourceMappingURL=product-detail.element-VgaxFRmG.js.map
+//# sourceMappingURL=product-detail.element-Ca7A7YJN.js.map
