@@ -5,5 +5,6 @@ public enum LineItemType
     Product,
     Custom,
     Shipping,
-    Discount
+    Discount,
+    Addon
 }

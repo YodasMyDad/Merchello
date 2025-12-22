@@ -1722,16 +1722,26 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   }
 
   private _renderOptionValue(value: ProductOptionValueDto, uiAlias: string | null): unknown {
+    const hasAdjustments = value.priceAdjustment !== 0 || value.costAdjustment !== 0;
+
     return html`
       <div class="option-value-chip">
         ${uiAlias === "colour" && value.hexValue
           ? html` <span class="color-swatch" style="background-color: ${value.hexValue}"></span> `
           : nothing}
         <span>${value.name}</span>
-        ${value.priceAdjustment !== 0
+        ${hasAdjustments
           ? html`
-              <span class="price-adjustment">
-                ${value.priceAdjustment > 0 ? "+" : ""}${formatCurrency(value.priceAdjustment)}
+              <span class="adjustments">
+                ${value.priceAdjustment !== 0
+                  ? html`<span class="price-adjustment">${value.priceAdjustment > 0 ? "+" : ""}${formatCurrency(value.priceAdjustment)}</span>`
+                  : nothing}
+                ${value.priceAdjustment !== 0 && value.costAdjustment !== 0
+                  ? html`<span class="adjustment-separator">/</span>`
+                  : nothing}
+                ${value.costAdjustment !== 0
+                  ? html`<span class="cost-adjustment">${value.costAdjustment > 0 ? "+" : ""}${formatCurrency(value.costAdjustment)} cost</span>`
+                  : nothing}
               </span>
             `
           : nothing}
@@ -2424,9 +2434,26 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         border: 1px solid var(--uui-color-border);
       }
 
+      .adjustments {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-1);
+        font-size: 0.8125rem;
+      }
+
       .price-adjustment {
         font-weight: 600;
         color: var(--uui-color-positive);
+      }
+
+      .cost-adjustment {
+        font-weight: 500;
+        color: var(--uui-color-text-alt);
+        font-style: italic;
+      }
+
+      .adjustment-separator {
+        color: var(--uui-color-border-standalone);
       }
 
       /* Empty state for options */

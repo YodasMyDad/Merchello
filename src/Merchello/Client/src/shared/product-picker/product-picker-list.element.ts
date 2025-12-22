@@ -23,6 +23,9 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
   @property({ type: String })
   currencySymbol = "£";
 
+  @property({ type: Boolean })
+  showImages = true;
+
   private _handleRootClick(root: PickerProductRoot): void {
     this.dispatchEvent(
       new CustomEvent("toggle-expand", {
@@ -81,7 +84,7 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
     const isSingleVariant = root.variantCount === 1;
 
     return html`
-      <div class="product-root ${root.isExpanded ? "expanded" : ""}">
+      <div class="product-root ${root.isExpanded ? "expanded" : ""} ${this.showImages ? "" : "no-images"}">
         <button
           type="button"
           class="product-root-header"
@@ -89,7 +92,7 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
           aria-expanded=${root.isExpanded}
         >
           ${!isSingleVariant ? this._renderExpandIcon(root.isExpanded) : html`<div class="expand-spacer"></div>`}
-          ${this._renderProductImage(root.imageUrl, root.rootName)}
+          ${this.showImages ? this._renderProductImage(root.imageUrl, root.rootName) : nothing}
           <div class="product-info">
             <div class="product-name">${root.rootName}</div>
             <div class="product-meta">
@@ -102,13 +105,14 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
 
         ${root.isExpanded && root.variantsLoaded
           ? html`
-              <div class="variants-container">
+              <div class="variants-container ${this.showImages ? "" : "no-images"}">
                 ${root.variants.map(
                   (variant) => html`
                     <merchello-product-picker-variant-row
                       .variant=${variant}
                       .selected=${this.selectedIds.includes(variant.id)}
                       .currencySymbol=${this.currencySymbol}
+                      .showImage=${this.showImages}
                       @select=${() => this._handleVariantSelect(variant)}
                     ></merchello-product-picker-variant-row>
                   `
@@ -272,9 +276,17 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
       padding-bottom: var(--uui-size-space-2);
     }
 
+    .variants-container.no-images {
+      padding-left: calc(0.75rem + var(--uui-size-space-3));
+    }
+
     .variants-loading {
       padding: var(--uui-size-space-3);
       padding-left: calc(0.75rem + var(--uui-size-space-3) + 40px + var(--uui-size-space-3));
+    }
+
+    .product-root.no-images .variants-loading {
+      padding-left: calc(0.75rem + var(--uui-size-space-3));
     }
 
     .empty {

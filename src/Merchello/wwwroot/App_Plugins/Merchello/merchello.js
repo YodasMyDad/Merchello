@@ -166,7 +166,7 @@ const e = [
     type: "modal",
     alias: "Merchello.EditOrder.Modal",
     name: "Merchello Edit Order Modal",
-    js: () => import("./edit-order-modal.element-BOLm6sqk.js")
+    js: () => import("./edit-order-modal.element-BBQVUima.js")
   },
   // Add custom item modal for edit order
   {
@@ -187,7 +187,7 @@ const e = [
     type: "modal",
     alias: "Merchello.CreateOrder.Modal",
     name: "Merchello Create Order Modal",
-    js: () => import("./create-order-modal.element-VSNkTSEr.js")
+    js: () => import("./create-order-modal.element-BV9Oq4Hc.js")
   },
   // Customer orders modal for viewing all orders by a customer
   {
@@ -212,7 +212,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Orders.ListView",
     name: "Orders List View",
-    js: () => import("./orders-list.element-CVY8XtvL.js"),
+    js: () => import("./orders-list.element-XEql6XCi.js"),
     weight: 100,
     meta: {
       label: "Orders",
@@ -232,7 +232,7 @@ const e = [
     kind: "routable",
     alias: "Merchello.Order.Detail.Workspace",
     name: "Order Detail Workspace",
-    api: () => import("./order-detail-workspace.context-BnSdWMcV.js"),
+    api: () => import("./order-detail-workspace.context-HTfOKvUp.js"),
     meta: {
       entityType: "merchello-order"
     }
@@ -250,7 +250,7 @@ const e = [
     type: "modal",
     alias: "Merchello.OptionEditor.Modal",
     name: "Merchello Option Editor Modal",
-    js: () => import("./option-editor-modal.element-B6VbDy09.js")
+    js: () => import("./option-editor-modal.element-D2Yhvkyh.js")
   },
   // Workspace for products list (when clicking "Products" in tree)
   {
@@ -288,7 +288,7 @@ const e = [
     kind: "routable",
     alias: "Merchello.Product.Detail.Workspace",
     name: "Product Detail Workspace",
-    api: () => import("./product-detail-workspace.context-CSyrCe_f.js"),
+    api: () => import("./product-detail-workspace.context-TIc4D17T.js"),
     meta: {
       entityType: "merchello-product"
     }
@@ -298,7 +298,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Product.Detail.View",
     name: "Product Detail View",
-    js: () => import("./product-detail.element-VgaxFRmG.js"),
+    js: () => import("./product-detail.element-Ca7A7YJN.js"),
     weight: 100,
     meta: {
       label: "Product",
@@ -989,7 +989,7 @@ const e = [
     type: "modal",
     alias: "Merchello.ProductPicker.Modal",
     name: "Merchello Product Picker Modal",
-    js: () => import("./product-picker-modal.element-NnXCWQqC.js")
+    js: () => import("./product-picker-modal.element-CsyvazTx.js")
   }
 ], g = [
   ...e,

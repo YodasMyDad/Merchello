@@ -473,6 +473,12 @@ export interface LineItemForEditDto {
   /** Available stock (current - reserved) for quantity increase validation */
   availableStock: number | null;
   discounts: DiscountLineItemDto[];
+  /** Child add-on line items linked to this parent product */
+  childLineItems: LineItemForEditDto[];
+  /** The parent line item SKU if this is a child add-on item */
+  parentLineItemSku: string | null;
+  /** Whether this line item represents an add-on (non-variant option value) */
+  isAddon: boolean;
 }
 
 /** Discount line item */
@@ -496,12 +502,42 @@ export interface EditInvoiceDto {
   /** IDs of order-level discounts to remove (coupons, etc.) */
   removedOrderDiscounts: string[];
   customItems: AddCustomItemDto[];
+  /** Products to add (with optional add-ons) */
+  productsToAdd?: AddProductToOrderDto[];
   /** Order-level discounts to add (not tied to specific line items) */
   orderDiscounts?: LineItemDiscountDto[];
   orderShippingUpdates: OrderShippingUpdateDto[];
   editReason: string | null;
   /** If true, removes tax from all line items (VAT exemption) */
   shouldRemoveTax: boolean;
+}
+
+/** Request to add a product (variant) to an order, with optional add-on selections */
+export interface AddProductToOrderDto {
+  /** The product variant ID */
+  productId: string;
+  /** Quantity to add */
+  quantity: number;
+  /** The warehouse that will fulfill this product */
+  warehouseId: string;
+  /** Selected add-on options (non-variant product options) */
+  addons: SelectedAddonDto[];
+}
+
+/** A selected add-on option value for a product */
+export interface SelectedAddonDto {
+  /** The option ID (ProductOption.Id) */
+  optionId: string;
+  /** The option value ID (ProductOptionValue.Id) */
+  optionValueId: string;
+  /** Display name for the add-on (e.g., "Gift Wrap: Premium") */
+  name: string;
+  /** Price adjustment to add to the base product price */
+  priceAdjustment: number;
+  /** Cost adjustment for this add-on (for profit calculations) */
+  costAdjustment: number;
+  /** SKU suffix to append to the parent product SKU */
+  skuSuffix: string | null;
 }
 
 /** Line item removal with return-to-stock option */

@@ -2,30 +2,26 @@ import { LitElement as F, nothing as o, html as a, css as U, state as d, customE
 import { d as q, p as ae } from "./purify.es-Cuv6u9x0.js";
 import { UmbElementMixin as V } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT as G } from "@umbraco-cms/backoffice/workspace";
-import { UmbModalToken as P, UMB_MODAL_MANAGER_CONTEXT as j, UMB_CONFIRM_MODAL as re } from "@umbraco-cms/backoffice/modal";
+import { UmbModalToken as O, UMB_MODAL_MANAGER_CONTEXT as j, UMB_CONFIRM_MODAL as re } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT as X } from "@umbraco-cms/backoffice/notification";
 import { UMB_CURRENT_USER_CONTEXT as se } from "@umbraco-cms/backoffice/current-user";
 import { b as N, I as y, P as H, a as p, j as oe } from "./formatting-BzzWJIvp.js";
-import { M as ne } from "./customer-orders-modal.token-DUOTW0Xz.js";
+import { M as ne } from "./edit-order-modal.token-BUHVPYdq.js";
+import { M as le } from "./customer-orders-modal.token-DUOTW0Xz.js";
 import { M as b } from "./merchello-api-s-9cx0Ue.js";
-import { q as le } from "./navigation-m-G5wLvz.js";
+import { q as de } from "./navigation-m-G5wLvz.js";
 import "./product-image.element-D7HwAIKr.js";
-const de = new P("Merchello.Fulfillment.Modal", {
+const ue = new O("Merchello.Fulfillment.Modal", {
   modal: {
     type: "sidebar",
     size: "large"
   }
-}), ue = new P("Merchello.EditOrder.Modal", {
-  modal: {
-    type: "sidebar",
-    size: "large"
-  }
-}), ce = new P("Merchello.CancelInvoice.Modal", {
+}), ce = new O("Merchello.CancelInvoice.Modal", {
   modal: {
     type: "sidebar",
     size: "small"
   }
-}), pe = new P("Merchello.ShipmentEdit.Modal", {
+}), pe = new O("Merchello.ShipmentEdit.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
@@ -37,24 +33,24 @@ var me = Object.defineProperty, he = Object.getOwnPropertyDescriptor, Y = (e) =>
   for (var r = s > 1 ? void 0 : s ? he(i, t) : i, l = e.length - 1, c; l >= 0; l--)
     (c = e[l]) && (r = (s ? c(i, t, r) : c(r)) || r);
   return s && r && me(i, t, r), r;
-}, K = (e, i, t) => i.has(e) || Y("Cannot " + t), _ = (e, i, t) => (K(e, i, "read from private field"), t ? t.call(e) : i.get(e)), T = (e, i, t) => i.has(e) ? Y("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, t), M = (e, i, t, s) => (K(e, i, "write to private field"), i.set(e, t), t), O, z, L, w;
+}, K = (e, i, t) => i.has(e) || Y("Cannot " + t), _ = (e, i, t) => (K(e, i, "read from private field"), t ? t.call(e) : i.get(e)), I = (e, i, t) => i.has(e) ? Y("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, t), E = (e, i, t, s) => (K(e, i, "write to private field"), i.set(e, t), t), D, S, L, w;
 let C = class extends V(F) {
   constructor() {
-    super(), this._invoiceId = null, this._fulfillmentData = null, this._isLoading = !0, this._errorMessage = null, T(this, O), T(this, z), T(this, L), T(this, w, !1), this.consumeContext(G, (e) => {
-      M(this, O, e), this.observe(_(this, O).order, (i) => {
+    super(), this._invoiceId = null, this._fulfillmentData = null, this._isLoading = !0, this._errorMessage = null, I(this, D), I(this, S), I(this, L), I(this, w, !1), this.consumeContext(G, (e) => {
+      E(this, D, e), this.observe(_(this, D).order, (i) => {
         i?.id && i.id !== this._invoiceId && (this._invoiceId = i.id, this._loadShipments());
       });
     }), this.consumeContext(j, (e) => {
-      M(this, z, e);
+      E(this, S, e);
     }), this.consumeContext(X, (e) => {
-      M(this, L, e);
+      E(this, L, e);
     });
   }
   connectedCallback() {
-    super.connectedCallback(), M(this, w, !0);
+    super.connectedCallback(), E(this, w, !0);
   }
   disconnectedCallback() {
-    super.disconnectedCallback(), M(this, w, !1);
+    super.disconnectedCallback(), E(this, w, !1);
   }
   async _loadShipments() {
     if (!this._invoiceId) return;
@@ -63,14 +59,14 @@ let C = class extends V(F) {
     _(this, w) && (i ? this._errorMessage = i.message : this._fulfillmentData = e ?? null, this._isLoading = !1);
   }
   async _handleEditShipment(e) {
-    if (!_(this, z)) return;
-    (await _(this, z).open(this, pe, {
+    if (!_(this, S)) return;
+    (await _(this, S).open(this, pe, {
       data: { shipment: e }
     }).onSubmit().catch(() => {
     }))?.isUpdated && this._loadShipments();
   }
   async _handleDeleteShipment(e) {
-    if (!await _(this, z)?.open(this, re, {
+    if (!await _(this, S)?.open(this, re, {
       data: {
         headline: "Delete Shipment",
         content: "Are you sure you want to delete this shipment? This will release the items back to unfulfilled.",
@@ -87,7 +83,7 @@ let C = class extends V(F) {
         });
         return;
       }
-      this._loadShipments(), this._invoiceId && _(this, O)?.load(this._invoiceId);
+      this._loadShipments(), this._invoiceId && _(this, D)?.load(this._invoiceId);
     }
   }
   _renderShipmentCard(e, i) {
@@ -225,8 +221,8 @@ let C = class extends V(F) {
     `;
   }
 };
-O = /* @__PURE__ */ new WeakMap();
-z = /* @__PURE__ */ new WeakMap();
+D = /* @__PURE__ */ new WeakMap();
+S = /* @__PURE__ */ new WeakMap();
 L = /* @__PURE__ */ new WeakMap();
 w = /* @__PURE__ */ new WeakMap();
 C.styles = U`
@@ -515,12 +511,12 @@ A([
 C = A([
   B("merchello-shipments-view")
 ], C);
-const ve = new P("Merchello.ManualPayment.Modal", {
+const ve = new O("Merchello.ManualPayment.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
   }
-}), ge = new P("Merchello.Refund.Modal", {
+}), ge = new O("Merchello.Refund.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
@@ -528,22 +524,22 @@ const ve = new P("Merchello.ManualPayment.Modal", {
 });
 var fe = Object.defineProperty, be = Object.getOwnPropertyDescriptor, J = (e) => {
   throw TypeError(e);
-}, E = (e, i, t, s) => {
+}, P = (e, i, t, s) => {
   for (var r = s > 1 ? void 0 : s ? be(i, t) : i, l = e.length - 1, c; l >= 0; l--)
     (c = e[l]) && (r = (s ? c(i, t, r) : c(r)) || r);
   return s && r && fe(i, t, r), r;
-}, Q = (e, i, t) => i.has(e) || J("Cannot " + t), k = (e, i, t) => (Q(e, i, "read from private field"), i.get(e)), W = (e, i, t) => i.has(e) ? J("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, t), R = (e, i, t, s) => (Q(e, i, "write to private field"), i.set(e, t), t), $, S;
+}, Q = (e, i, t) => i.has(e) || J("Cannot " + t), k = (e, i, t) => (Q(e, i, "read from private field"), i.get(e)), W = (e, i, t) => i.has(e) ? J("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, t), R = (e, i, t, s) => (Q(e, i, "write to private field"), i.set(e, t), t), $, z;
 let x = class extends V(F) {
   constructor() {
-    super(), this.invoiceId = "", this._payments = [], this._status = null, this._isLoading = !0, this._errorMessage = null, W(this, $), W(this, S, !1), this.consumeContext(j, (e) => {
+    super(), this.invoiceId = "", this._payments = [], this._status = null, this._isLoading = !0, this._errorMessage = null, W(this, $), W(this, z, !1), this.consumeContext(j, (e) => {
       R(this, $, e);
     });
   }
   connectedCallback() {
-    super.connectedCallback(), R(this, S, !0), this.invoiceId && this._loadPayments();
+    super.connectedCallback(), R(this, z, !0), this.invoiceId && this._loadPayments();
   }
   disconnectedCallback() {
-    super.disconnectedCallback(), R(this, S, !1);
+    super.disconnectedCallback(), R(this, z, !1);
   }
   updated(e) {
     e.has("invoiceId") && this.invoiceId && this._loadPayments();
@@ -556,7 +552,7 @@ let x = class extends V(F) {
           b.getInvoicePayments(this.invoiceId),
           b.getPaymentStatus(this.invoiceId)
         ]);
-        if (!k(this, S)) return;
+        if (!k(this, z)) return;
         if (e.error) {
           this._errorMessage = e.error.message, this._isLoading = !1;
           return;
@@ -567,7 +563,7 @@ let x = class extends V(F) {
         }
         this._payments = e.data ?? [], this._status = i.data ?? null;
       } catch (e) {
-        if (!k(this, S)) return;
+        if (!k(this, z)) return;
         this._errorMessage = e instanceof Error ? e.message : "Failed to load payments";
       }
       this._isLoading = !1;
@@ -742,7 +738,7 @@ let x = class extends V(F) {
   }
 };
 $ = /* @__PURE__ */ new WeakMap();
-S = /* @__PURE__ */ new WeakMap();
+z = /* @__PURE__ */ new WeakMap();
 x.styles = U`
     :host {
       display: block;
@@ -984,22 +980,22 @@ x.styles = U`
       margin-bottom: 0;
     }
   `;
-E([
+P([
   ie({ type: String })
 ], x.prototype, "invoiceId", 2);
-E([
+P([
   d()
 ], x.prototype, "_payments", 2);
-E([
+P([
   d()
 ], x.prototype, "_status", 2);
-E([
+P([
   d()
 ], x.prototype, "_isLoading", 2);
-E([
+P([
   d()
 ], x.prototype, "_errorMessage", 2);
-x = E([
+x = P([
   B("merchello-payment-panel")
 ], x);
 var ye = Object.defineProperty, _e = Object.getOwnPropertyDescriptor, Z = (e) => {
@@ -1008,25 +1004,25 @@ var ye = Object.defineProperty, _e = Object.getOwnPropertyDescriptor, Z = (e) =>
   for (var r = s > 1 ? void 0 : s ? _e(i, t) : i, l = e.length - 1, c; l >= 0; l--)
     (c = e[l]) && (r = (s ? c(i, t, r) : c(r)) || r);
   return s && r && ye(i, t, r), r;
-}, ee = (e, i, t) => i.has(e) || Z("Cannot " + t), n = (e, i, t) => (ee(e, i, "read from private field"), i.get(e)), I = (e, i, t) => i.has(e) ? Z("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, t), D = (e, i, t, s) => (ee(e, i, "write to private field"), i.set(e, t), t), h, v, f, g;
+}, ee = (e, i, t) => i.has(e) || Z("Cannot " + t), n = (e, i, t) => (ee(e, i, "read from private field"), i.get(e)), T = (e, i, t) => i.has(e) ? Z("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, t), M = (e, i, t, s) => (ee(e, i, "write to private field"), i.set(e, t), t), h, v, f, g;
 let u = class extends V(F) {
   constructor() {
-    super(), this._order = null, this._isLoading = !0, this._routes = [], this._activePath = "", this._newNoteText = "", this._isVisibleToCustomer = !1, this._isPostingNote = !1, this._noteError = null, this._editingSection = null, this._editFormData = {}, this._isSavingAddress = !1, this._validationErrors = {}, this._countries = [], this._isEditingPurchaseOrder = !1, this._purchaseOrderValue = "", this._isSavingPurchaseOrder = !1, I(this, h), I(this, v), I(this, f), I(this, g, !1), this.consumeContext(G, (e) => {
-      D(this, h, e), n(this, h) && this.observe(n(this, h).order, (i) => {
+    super(), this._order = null, this._isLoading = !0, this._routes = [], this._activePath = "", this._newNoteText = "", this._isVisibleToCustomer = !1, this._isPostingNote = !1, this._noteError = null, this._editingSection = null, this._editFormData = {}, this._isSavingAddress = !1, this._validationErrors = {}, this._countries = [], this._isEditingPurchaseOrder = !1, this._purchaseOrderValue = "", this._isSavingPurchaseOrder = !1, T(this, h), T(this, v), T(this, f), T(this, g, !1), this.consumeContext(G, (e) => {
+      M(this, h, e), n(this, h) && this.observe(n(this, h).order, (i) => {
         this._order = i ?? null, this._isLoading = !i;
       });
     }), this.consumeContext(j, (e) => {
-      D(this, v, e);
+      M(this, v, e);
     }), this.consumeContext(se, (e) => {
       this.observe(e?.currentUser, (i) => {
         this._currentUser = i;
       });
     }), this.consumeContext(X, (e) => {
-      D(this, f, e);
+      M(this, f, e);
     }), this._loadCountries();
   }
   connectedCallback() {
-    super.connectedCallback(), D(this, g, !0), this._createRoutes();
+    super.connectedCallback(), M(this, g, !0), this._createRoutes();
   }
   _createRoutes() {
     const e = () => document.createElement("div");
@@ -1047,7 +1043,7 @@ let u = class extends V(F) {
     this._activePath = e.target.localActiveViewPath || "";
   }
   disconnectedCallback() {
-    super.disconnectedCallback(), D(this, g, !1);
+    super.disconnectedCallback(), M(this, g, !1);
   }
   async _loadCountries() {
     const { data: e } = await b.getCountries();
@@ -1067,7 +1063,7 @@ let u = class extends V(F) {
   async _openFulfillmentModal() {
     if (!this._order || !n(this, v)) return;
     const e = this._order.id;
-    await n(this, v).open(this, de, {
+    await n(this, v).open(this, ue, {
       data: { invoiceId: e }
     }).onSubmit().catch(() => {
     }), n(this, g) && n(this, h)?.load(e);
@@ -1075,7 +1071,7 @@ let u = class extends V(F) {
   async _openEditOrderModal() {
     if (!this._order || !n(this, v)) return;
     const e = this._order.id;
-    await n(this, v).open(this, ue, {
+    await n(this, v).open(this, ne, {
       data: { invoiceId: e }
     }).onSubmit().catch(() => {
     }), n(this, g) && n(this, h)?.load(e);
@@ -1099,7 +1095,7 @@ let u = class extends V(F) {
   async _openCustomerOrdersModal() {
     if (!this._order || !n(this, v)) return;
     const e = this._order.billingAddress?.email;
-    e && n(this, v).open(this, ne, {
+    e && n(this, v).open(this, le, {
       data: {
         email: e,
         customerName: this._order.billingAddress?.name || "Customer"
@@ -1394,7 +1390,7 @@ let u = class extends V(F) {
     return a`
       <umb-body-layout header-fit-height main-no-padding>
         <!-- Back button -->
-        <uui-button slot="header" compact href=${le()} label="Back to orders" class="back-button">
+        <uui-button slot="header" compact href=${de()} label="Back to orders" class="back-button">
           <uui-icon name="icon-arrow-left"></uui-icon>
         </uui-button>
 
@@ -1737,17 +1733,6 @@ let u = class extends V(F) {
                       `}
                 `}
               </div>
-            </div>
-
-            <!-- Tags -->
-            <div class="card">
-              <div class="card-header-with-action">
-                <h3>Tags</h3>
-                <uui-button look="secondary" compact label="Edit tags">
-                  <uui-icon name="icon-edit"></uui-icon>
-                </uui-button>
-              </div>
-              <uui-input type="text" placeholder="Add tags..." label="Tags"></uui-input>
             </div>
           </div>
         </div>
@@ -2527,14 +2512,6 @@ u.styles = U`
       margin-top: var(--uui-size-space-2);
     }
 
-    .tags-input {
-      width: 100%;
-      padding: var(--uui-size-space-2);
-      border: 1px solid var(--uui-color-border);
-      border-radius: var(--uui-border-radius);
-      box-sizing: border-box;
-    }
-
     /* Markdown content styles for timeline notes */
     .markdown-content {
       line-height: 1.5;
@@ -2651,9 +2628,9 @@ m([
 u = m([
   B("merchello-order-detail")
 ], u);
-const Ae = u;
+const Ie = u;
 export {
   u as MerchelloOrderDetailElement,
-  Ae as default
+  Ie as default
 };
-//# sourceMappingURL=order-detail.element-C_Osq70s.js.map
+//# sourceMappingURL=order-detail.element-Bd4w2Ei0.js.map

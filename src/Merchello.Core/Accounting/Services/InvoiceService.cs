@@ -2513,6 +2513,18 @@ public class InvoiceService(
                         lineItem.Quantity = newQty;
                         lineItem.DateUpdated = DateTime.UtcNow;
                         changes.Add($"Changed quantity of {lineItem.Name} from {oldQty} to {newQty}");
+
+                        // Cascade quantity change to add-on children
+                        var addonChildren = orders
+                            .SelectMany(o => o.LineItems ?? [])
+                            .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == lineItem.Sku)
+                            .ToList();
+
+                        foreach (var addonChild in addonChildren)
+                        {
+                            addonChild.Quantity = newQty;
+                            addonChild.DateUpdated = DateTime.UtcNow;
+                        }
                     }
 
                     // Apply discount
@@ -2604,17 +2616,22 @@ public class InvoiceService(
                         changes.Add($"Removed {lineItem.Name} (stock not returned - marked as damaged/faulty)");
                     }
 
-                    // Remove any dependent discounts
-                    var dependentDiscounts = orders
+                    // Remove any dependent discounts and add-ons
+                    var dependentItems = orders
                         .SelectMany(o => o.LineItems ?? [])
-                        .Where(li => li.LineItemType == LineItemType.Discount && li.DependantLineItemSku == lineItem.Sku)
+                        .Where(li => (li.LineItemType == LineItemType.Discount || li.LineItemType == LineItemType.Addon)
+                                     && li.DependantLineItemSku == lineItem.Sku)
                         .ToList();
 
-                    foreach (var discount in dependentDiscounts)
+                    foreach (var dependentItem in dependentItems)
                     {
-                        var discountOrder = orders.First(o => o.LineItems?.Contains(discount) == true);
-                        discountOrder.LineItems?.Remove(discount);
-                        db.LineItems.Remove(discount);
+                        var dependentOrder = orders.First(o => o.LineItems?.Contains(dependentItem) == true);
+                        dependentOrder.LineItems?.Remove(dependentItem);
+                        db.LineItems.Remove(dependentItem);
+                        if (dependentItem.LineItemType == LineItemType.Addon)
+                        {
+                            changes.Add($"  - Removed add-on: {dependentItem.Name}");
+                        }
                     }
 
                     var itemOrder = orders.First(o => o.LineItems?.Contains(lineItem) == true);
@@ -2639,17 +2656,38 @@ public class InvoiceService(
                     }
                 }
 
-                // Add custom items - create a new order for custom items
+                // Add custom items - use existing order if available, otherwise create new
                 if (request.CustomItems.Any())
                 {
-                    // Create a new order for custom items
-                    var customOrder = orderFactory.Create(
-                        invoice.Id,
-                        orders.FirstOrDefault()?.WarehouseId ?? Guid.Empty,
-                        orders.FirstOrDefault()?.ShippingOptionId ?? Guid.Empty,
-                        shippingCost: 0);
-                    customOrder.Status = OrderStatus.ReadyToFulfill;
-                    customOrder.LineItems = [];
+                    // Try to use existing order instead of always creating a new one
+                    var targetOrder = orders.FirstOrDefault();
+                    var createdNewOrder = false;
+
+                    if (targetOrder == null)
+                    {
+                        // Edge case: no existing orders - need to create one
+                        var warehouse = await db.Warehouses
+                            .Include(w => w.ShippingOptions)
+                            .FirstOrDefaultAsync(cancellationToken);
+
+                        if (warehouse == null || !warehouse.ShippingOptions.Any())
+                        {
+                            return OperationResult<EditInvoiceResultDto>.Fail("No warehouse or shipping option configured");
+                        }
+
+                        targetOrder = orderFactory.Create(
+                            invoice.Id,
+                            warehouse.Id,
+                            warehouse.ShippingOptions.First().Id,
+                            shippingCost: 0);
+                        // Factory default is Pending - don't override status
+                        targetOrder.LineItems = [];
+                        db.Orders.Add(targetOrder);
+                        orders.Add(targetOrder);
+                        createdNewOrder = true;
+                    }
+
+                    targetOrder.LineItems ??= [];
 
                     foreach (var customItem in request.CustomItems)
                     {
@@ -2679,7 +2717,7 @@ public class InvoiceService(
                         var customLineItem = new LineItem
                         {
                             Id = GuidExtensions.NewSequentialGuid,
-                            OrderId = customOrder.Id,
+                            OrderId = targetOrder.Id,
                             LineItemType = LineItemType.Custom,
                             Name = customItem.Name,
                             Sku = string.IsNullOrWhiteSpace(customItem.Sku) ? $"CUSTOM-{DateTime.UtcNow.Ticks}" : customItem.Sku,
@@ -2695,14 +2733,165 @@ public class InvoiceService(
                             }
                         };
 
-                        customOrder.LineItems.Add(customLineItem);
+                        targetOrder.LineItems.Add(customLineItem);
                         db.LineItems.Add(customLineItem);
                         changes.Add($"Added custom item: {customItem.Name}");
                     }
 
-                    db.Orders.Add(customOrder);
-                    orders.Add(customOrder);
-                    changes.Add("Created new order for custom items");
+                    if (createdNewOrder)
+                    {
+                        changes.Add("Created new order for custom items");
+                    }
+                }
+
+                // Add products with optional add-ons
+                if (request.ProductsToAdd.Any())
+                {
+                    // Load product details
+                    var productIds = request.ProductsToAdd.Select(p => p.ProductId).ToList();
+                    var products = await db.Products
+                        .Include(p => p.ProductRoot!)
+                        .ThenInclude(pr => pr.TaxGroup)
+                        .Where(p => productIds.Contains(p.Id))
+                        .ToDictionaryAsync(p => p.Id, cancellationToken);
+
+                    // Group by warehouse
+                    var warehouseGroups = request.ProductsToAdd.GroupBy(p => p.WarehouseId);
+
+                    foreach (var warehouseGroup in warehouseGroups)
+                    {
+                        var warehouseId = warehouseGroup.Key;
+
+                        // Find existing order for this warehouse or create new one
+                        var targetOrder = orders.FirstOrDefault(o => o.WarehouseId == warehouseId);
+                        if (targetOrder == null)
+                        {
+                            // Get first shipping option for this warehouse
+                            var shippingOption = await db.ShippingOptions
+                                .Where(so => so.WarehouseId == warehouseId)
+                                .FirstOrDefaultAsync(cancellationToken);
+
+                            if (shippingOption == null)
+                            {
+                                return OperationResult<EditInvoiceResultDto>.Fail($"No shipping option found for warehouse {warehouseId}");
+                            }
+
+                            targetOrder = orderFactory.Create(invoice.Id, warehouseId, shippingOption.Id, shippingCost: 0);
+                            // Factory default is Pending - don't override status prematurely
+                            targetOrder.LineItems = [];
+                            db.Orders.Add(targetOrder);
+                            orders.Add(targetOrder);
+                            changes.Add($"Created new order for warehouse products");
+                        }
+
+                        targetOrder.LineItems ??= [];
+
+                        foreach (var productToAdd in warehouseGroup)
+                        {
+                            if (!products.TryGetValue(productToAdd.ProductId, out var product))
+                            {
+                                logger.LogWarning("Product {ProductId} not found when adding to order", productToAdd.ProductId);
+                                continue;
+                            }
+
+                            // Validate and reserve stock
+                            var isTracked = await inventoryService.IsStockTrackedAsync(
+                                productToAdd.ProductId, warehouseId, cancellationToken);
+
+                            if (isTracked)
+                            {
+                                var availableStock = await inventoryService.GetAvailableStockAsync(
+                                    productToAdd.ProductId, warehouseId, cancellationToken);
+
+                                if (availableStock < productToAdd.Quantity)
+                                {
+                                    return OperationResult<EditInvoiceResultDto>.Fail(
+                                        $"Insufficient stock for '{product.Name}'. Available: {availableStock}, Requested: {productToAdd.Quantity}");
+                                }
+
+                                var reserveResult = await inventoryService.ReserveStockAsync(
+                                    productToAdd.ProductId, warehouseId, productToAdd.Quantity, cancellationToken);
+
+                                if (!reserveResult.ResultObject)
+                                {
+                                    var error = reserveResult.Messages.FirstOrDefault()?.Message ?? "Failed to reserve stock";
+                                    return OperationResult<EditInvoiceResultDto>.Fail(error);
+                                }
+                            }
+
+                            // Determine tax info from product root
+                            var taxRate = product.ProductRoot?.TaxGroup?.TaxPercentage ?? 0;
+                            var isTaxable = product.ProductRoot?.TaxGroup != null;
+
+                            // Get product image from media
+                            string? imageUrl = null;
+                            if (product.Images.Any())
+                            {
+                                imageUrl = product.Images.First();
+                            }
+                            else if (product.ProductRoot?.RootImages.Any() == true)
+                            {
+                                imageUrl = product.ProductRoot.RootImages.First();
+                            }
+
+                            // Create parent product line item
+                            var parentSku = product.Sku ?? $"PROD-{product.Id:N}".Substring(0, 20);
+                            var isDigital = product.ProductRoot?.IsDigitalProduct ?? false;
+                            var parentLineItem = new LineItem
+                            {
+                                Id = GuidExtensions.NewSequentialGuid,
+                                OrderId = targetOrder.Id,
+                                LineItemType = LineItemType.Product,
+                                ProductId = product.Id,
+                                Name = product.Name ?? product.ProductRoot?.RootName ?? "Unknown Product",
+                                Sku = parentSku,
+                                Amount = product.Price,
+                                OriginalAmount = product.Price,
+                                Quantity = productToAdd.Quantity,
+                                IsTaxable = isTaxable,
+                                TaxRate = taxRate,
+                                ExtendedData = new Dictionary<string, object>
+                                {
+                                    [Constants.ExtendedDataKeys.IsPhysicalProduct] = !isDigital,
+                                    ["ImageUrl"] = imageUrl ?? string.Empty
+                                }
+                            };
+
+                            targetOrder.LineItems.Add(parentLineItem);
+                            db.LineItems.Add(parentLineItem);
+                            changes.Add($"Added {productToAdd.Quantity}x {parentLineItem.Name}");
+
+                            // Create child add-on line items
+                            foreach (var addon in productToAdd.Addons)
+                            {
+                                var addonSku = $"{parentSku}{addon.SkuSuffix ?? $"-ADDON-{addon.OptionValueId:N}".Substring(0, 15)}";
+                                var addonLineItem = new LineItem
+                                {
+                                    Id = GuidExtensions.NewSequentialGuid,
+                                    OrderId = targetOrder.Id,
+                                    LineItemType = LineItemType.Addon,
+                                    DependantLineItemSku = parentSku,
+                                    Name = addon.Name,
+                                    Sku = addonSku,
+                                    Amount = addon.PriceAdjustment,
+                                    Quantity = productToAdd.Quantity, // Same quantity as parent
+                                    IsTaxable = isTaxable, // Inherit taxability from parent
+                                    TaxRate = taxRate,
+                                    ExtendedData = new Dictionary<string, object>
+                                    {
+                                        ["OptionId"] = addon.OptionId.ToString(),
+                                        ["OptionValueId"] = addon.OptionValueId.ToString(),
+                                        ["CostAdjustment"] = addon.CostAdjustment,
+                                        ["IsAddon"] = true
+                                    }
+                                };
+
+                                targetOrder.LineItems.Add(addonLineItem);
+                                db.LineItems.Add(addonLineItem);
+                                changes.Add($"  + Add-on: {addon.Name} ({invoice.CurrencySymbol}{addon.PriceAdjustment})");
+                            }
+                        }
+                    }
                 }
 
                 // Add new order-level discounts
@@ -2863,6 +3052,7 @@ public class InvoiceService(
         var lineItems = order.LineItems?.ToList() ?? [];
         var productLineItems = lineItems.Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom).ToList();
         var discountLineItems = lineItems.Where(li => li.LineItemType == LineItemType.Discount).ToList();
+        var addonLineItems = lineItems.Where(li => li.LineItemType == LineItemType.Addon).ToList();
 
         return new OrderForEditDto
         {
@@ -2870,13 +3060,14 @@ public class InvoiceService(
             Status = order.Status.ToString(),
             ShippingCost = order.ShippingCost,
             ShippingMethodName = shippingOptionNames.GetValueOrDefault(order.ShippingOptionId),
-            LineItems = productLineItems.Select(li => MapLineItemForEdit(li, discountLineItems, stockInfoMap)).ToList()
+            LineItems = productLineItems.Select(li => MapLineItemForEdit(li, discountLineItems, addonLineItems, stockInfoMap)).ToList()
         };
     }
 
     private static LineItemForEditDto MapLineItemForEdit(
         LineItem lineItem,
         List<LineItem> allDiscounts,
+        List<LineItem> allAddons,
         Dictionary<Guid, (bool IsTracked, int Available)> stockInfoMap)
     {
         var discounts = allDiscounts
@@ -2947,6 +3138,31 @@ public class InvoiceService(
         // Get stock info if available
         var hasStockInfo = stockInfoMap.TryGetValue(lineItem.Id, out var stockInfo);
 
+        // Get child add-on items linked to this parent
+        var childAddons = allAddons
+            .Where(a => a.DependantLineItemSku == lineItem.Sku)
+            .Select(a => new LineItemForEditDto
+            {
+                Id = a.Id,
+                OrderId = a.OrderId ?? Guid.Empty,
+                Sku = a.Sku,
+                Name = a.Name,
+                ProductId = null,
+                Quantity = a.Quantity,
+                Amount = a.Amount,
+                OriginalAmount = a.OriginalAmount,
+                IsTaxable = a.IsTaxable,
+                TaxRate = a.TaxRate,
+                LineItemType = a.LineItemType.ToString(),
+                IsStockTracked = false,
+                AvailableStock = null,
+                Discounts = [],
+                ChildLineItems = [],
+                ParentLineItemSku = lineItem.Sku,
+                IsAddon = true
+            })
+            .ToList();
+
         return new LineItemForEditDto
         {
             Id = lineItem.Id,
@@ -2962,7 +3178,10 @@ public class InvoiceService(
             LineItemType = lineItem.LineItemType.ToString(),
             IsStockTracked = hasStockInfo && stockInfo.IsTracked,
             AvailableStock = hasStockInfo ? stockInfo.Available : null,
-            Discounts = discounts
+            Discounts = discounts,
+            ChildLineItems = childAddons,
+            ParentLineItemSku = null,
+            IsAddon = false
         };
     }
 

@@ -7,6 +7,8 @@ export interface CreateOrderModalValue {
   isCreated: boolean;
   /** The ID of the created invoice (if successful) */
   invoiceId?: string;
+  /** Whether the edit modal should be opened after creation */
+  shouldOpenEdit?: boolean;
 }
 
 export const MERCHELLO_CREATE_ORDER_MODAL = new UmbModalToken<

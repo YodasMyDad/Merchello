@@ -14,6 +14,7 @@ import "./order-table.element.js";
 import type { OrderSelectionChangeEventDetail } from "./order-table.element.js";
 import { MERCHELLO_EXPORT_MODAL } from "@orders/modals/export-modal.token.js";
 import { MERCHELLO_CREATE_ORDER_MODAL } from "@orders/modals/create-order-modal.token.js";
+import { MERCHELLO_EDIT_ORDER_MODAL } from "@orders/modals/edit-order-modal.token.js";
 import { navigateToOrderDetail } from "@shared/utils/navigation.js";
 
 @customElement("merchello-orders-list")
@@ -221,9 +222,28 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
 
     const result = await modal.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
+
     if (result?.isCreated && result.invoiceId) {
-      // Navigate to the new order using SPA routing
-      navigateToOrderDetail(result.invoiceId);
+      // Refresh the list to show the new order
+      this._loadOrders();
+      this._loadStats();
+
+      if (result.shouldOpenEdit) {
+        // Open the edit modal to add products, discounts, etc.
+        const editModal = this.#modalManager.open(this, MERCHELLO_EDIT_ORDER_MODAL, {
+          data: { invoiceId: result.invoiceId },
+        });
+
+        await editModal.onSubmit().catch(() => undefined);
+        if (!this.#isConnected) return;
+
+        // Refresh again after editing
+        this._loadOrders();
+        this._loadStats();
+      } else {
+        // Navigate to the order detail (legacy behavior)
+        navigateToOrderDetail(result.invoiceId);
+      }
     }
   }
 

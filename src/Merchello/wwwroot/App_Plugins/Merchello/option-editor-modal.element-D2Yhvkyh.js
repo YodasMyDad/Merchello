@@ -1,13 +1,13 @@
-import { nothing as u, html as s, css as y, state as m, customElement as D } from "@umbraco-cms/backoffice/external/lit";
+import { nothing as n, html as s, css as y, state as m, customElement as D } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement as x, UMB_MODAL_MANAGER_CONTEXT as V, UMB_CONFIRM_MODAL as $ } from "@umbraco-cms/backoffice/modal";
-import { UMB_NOTIFICATION_CONTEXT as O } from "@umbraco-cms/backoffice/notification";
-var A = Object.defineProperty, C = Object.getOwnPropertyDescriptor, g = (a) => {
-  throw TypeError(a);
-}, p = (a, t, i, e) => {
-  for (var o = e > 1 ? void 0 : e ? C(t, i) : t, n = a.length - 1, v; n >= 0; n--)
-    (v = a[n]) && (o = (e ? v(t, i, o) : v(o)) || o);
-  return e && o && A(t, i, o), o;
-}, b = (a, t, i) => t.has(a) || g("Cannot " + i), f = (a, t, i) => (b(a, t, "read from private field"), t.get(a)), _ = (a, t, i) => t.has(a) ? g("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(a) : t.set(a, i), c = (a, t, i, e) => (b(a, t, "write to private field"), t.set(a, i), i), d, h, l;
+import { UMB_NOTIFICATION_CONTEXT as A } from "@umbraco-cms/backoffice/notification";
+var O = Object.defineProperty, w = Object.getOwnPropertyDescriptor, _ = (e) => {
+  throw TypeError(e);
+}, d = (e, a, i, o) => {
+  for (var t = o > 1 ? void 0 : o ? w(a, i) : a, l = e.length - 1, v; l >= 0; l--)
+    (v = e[l]) && (t = (o ? v(a, i, t) : v(t)) || t);
+  return o && t && O(a, i, t), t;
+}, b = (e, a, i) => a.has(e) || _("Cannot " + i), f = (e, a, i) => (b(e, a, "read from private field"), a.get(e)), g = (e, a, i) => a.has(e) ? _("Cannot add the same private member more than once") : a instanceof WeakSet ? a.add(e) : a.set(e, i), p = (e, a, i, o) => (b(e, a, "write to private field"), a.set(e, i), i), c, h, u;
 let r = class extends x {
   constructor() {
     super(), this._formData = {
@@ -18,49 +18,49 @@ let r = class extends x {
       optionUiAlias: "dropdown",
       isVariant: !1,
       values: []
-    }, this._isSaving = !1, this._errorMessage = null, this._originalIsVariant = !1, _(this, d), _(this, h), _(this, l, !1), this.consumeContext(O, (a) => {
-      c(this, d, a);
-    }), this.consumeContext(V, (a) => {
-      c(this, h, a);
+    }, this._isSaving = !1, this._errorMessage = null, this._originalIsVariant = !1, g(this, c), g(this, h), g(this, u, !1), this.consumeContext(A, (e) => {
+      p(this, c, e);
+    }), this.consumeContext(V, (e) => {
+      p(this, h, e);
     });
   }
   connectedCallback() {
-    super.connectedCallback(), c(this, l, !0), this.data?.option && (this._formData = { ...this.data.option }, this._originalIsVariant = this.data.option.isVariant);
+    super.connectedCallback(), p(this, u, !0), this.data?.option && (this._formData = { ...this.data.option }, this._originalIsVariant = this.data.option.isVariant);
   }
   disconnectedCallback() {
-    super.disconnectedCallback(), c(this, l, !1);
+    super.disconnectedCallback(), p(this, u, !1);
   }
   _getOptionTypeOptions() {
-    const a = this.data?.settings?.optionTypeAliases ?? [];
+    const e = this.data?.settings?.optionTypeAliases ?? [];
     return [
       { name: "Select type...", value: "", selected: !this._formData.optionTypeAlias },
-      ...a.map((t) => ({
-        name: t.charAt(0).toUpperCase() + t.slice(1),
-        value: t,
-        selected: t === this._formData.optionTypeAlias
+      ...e.map((a) => ({
+        name: a.charAt(0).toUpperCase() + a.slice(1),
+        value: a,
+        selected: a === this._formData.optionTypeAlias
       }))
     ];
   }
   _getOptionUiOptions() {
-    return (this.data?.settings?.optionUiAliases ?? []).map((t) => ({
-      name: t.charAt(0).toUpperCase() + t.slice(1),
-      value: t,
-      selected: t === this._formData.optionUiAlias
+    return (this.data?.settings?.optionUiAliases ?? []).map((a) => ({
+      name: a.charAt(0).toUpperCase() + a.slice(1),
+      value: a,
+      selected: a === this._formData.optionUiAlias
     }));
   }
   async _handleSave() {
     if (this._validateForm()) {
       if (this.data?.option && this._originalIsVariant !== this._formData.isVariant) {
-        const a = this._formData.isVariant ? "Enabling 'Generates Variants' will create new product variants. You'll need to regenerate variants for this to take effect." : "Disabling 'Generates Variants' will not delete existing variants, but they won't be regenerated.";
+        const e = this._formData.isVariant ? "Enabling 'Generates Variants' will create new product variants. You'll need to regenerate variants for this to take effect." : "Disabling 'Generates Variants' will not delete existing variants, but they won't be regenerated.";
         if (!await f(this, h)?.open(this, $, {
           data: {
             headline: "Change Variant Option",
-            content: a,
+            content: e,
             confirmLabel: "Continue",
             color: "warning"
           }
         })?.onSubmit().catch(() => {
-        }) || !f(this, l)) return;
+        }) || !f(this, u)) return;
       }
       this.value = {
         isSaved: !0,
@@ -74,7 +74,7 @@ let r = class extends x {
           isVariant: this._formData.isVariant || !1,
           values: this._formData.values || []
         }
-      }, f(this, d)?.peek("positive", { data: { headline: "Option saved", message: `"${this._formData.name}" has been saved` } }), this.modalContext?.submit();
+      }, f(this, c)?.peek("positive", { data: { headline: "Option saved", message: `"${this._formData.name}" has been saved` } }), this.modalContext?.submit();
     }
   }
   _handleDelete() {
@@ -87,64 +87,86 @@ let r = class extends x {
     return this._formData.name ? !this._formData.values || this._formData.values.length === 0 ? (this._errorMessage = "At least one value is required", !1) : !0 : (this._errorMessage = "Option name is required", !1);
   }
   _addValue() {
-    const a = [...this._formData.values || []];
-    a.push({
+    const e = [...this._formData.values || []];
+    e.push({
       id: crypto.randomUUID(),
       name: "",
       fullName: null,
-      sortOrder: a.length,
+      sortOrder: e.length,
       hexValue: null,
       mediaKey: null,
       priceAdjustment: 0,
       costAdjustment: 0,
       skuSuffix: null
-    }), this._formData = { ...this._formData, values: a };
+    }), this._formData = { ...this._formData, values: e };
   }
-  _removeValue(a) {
-    const t = [...this._formData.values || []];
-    t.splice(a, 1), t.forEach((i, e) => i.sortOrder = e), this._formData = { ...this._formData, values: t };
+  _removeValue(e) {
+    const a = [...this._formData.values || []];
+    a.splice(e, 1), a.forEach((i, o) => i.sortOrder = o), this._formData = { ...this._formData, values: a };
   }
-  _updateValue(a, t, i) {
-    const e = [...this._formData.values || []];
-    e[a] = { ...e[a], [t]: i }, this._formData = { ...this._formData, values: e };
+  _updateValue(e, a, i) {
+    const o = [...this._formData.values || []];
+    o[e] = { ...o[e], [a]: i }, this._formData = { ...this._formData, values: o };
   }
-  _renderValueEditor(a, t) {
-    const i = this._formData.optionUiAlias;
+  _renderValueEditor(e, a) {
+    const i = this._formData.optionUiAlias, o = !this._formData.isVariant;
     return s`
-      <div class="value-row">
-        <div class="value-main">
-          <uui-input
-            .value=${a.name}
-            placeholder="Value name"
-            @input=${(e) => this._updateValue(t, "name", e.target.value)}>
-          </uui-input>
+      <div class="value-row ${o ? "is-addon" : ""}">
+        <div class="value-content">
+          <div class="value-name-row">
+            <uui-input
+              .value=${e.name}
+              placeholder="Value name"
+              @input=${(t) => this._updateValue(a, "name", t.target.value)}>
+            </uui-input>
 
-          ${i === "colour" ? s`
-                <uui-input
-                  type="color"
-                  .value=${a.hexValue || "#000000"}
-                  @input=${(e) => this._updateValue(t, "hexValue", e.target.value)}>
-                </uui-input>
-              ` : u}
+            ${i === "colour" ? s`
+                  <uui-input
+                    type="color"
+                    class="color-input"
+                    .value=${e.hexValue || "#000000"}
+                    @input=${(t) => this._updateValue(a, "hexValue", t.target.value)}>
+                  </uui-input>
+                ` : n}
+          </div>
 
-          ${this._formData.isVariant ? u : s`
-                <uui-input
-                  type="number"
-                  step="0.01"
-                  .value=${String(a.priceAdjustment)}
-                  placeholder="Price +/-"
-                  @input=${(e) => this._updateValue(t, "priceAdjustment", parseFloat(e.target.value) || 0)}>
-                </uui-input>
+          ${o ? s`
+                <div class="addon-fields">
+                  <div class="addon-field">
+                    <label class="field-label">Price +/-</label>
+                    <uui-input
+                      type="number"
+                      step="0.01"
+                      .value=${String(e.priceAdjustment)}
+                      placeholder="0.00"
+                      @input=${(t) => this._updateValue(a, "priceAdjustment", parseFloat(t.target.value) || 0)}>
+                    </uui-input>
+                  </div>
 
-                <uui-input
-                  .value=${a.skuSuffix || ""}
-                  placeholder="SKU suffix"
-                  @input=${(e) => this._updateValue(t, "skuSuffix", e.target.value)}>
-                </uui-input>
-              `}
+                  <div class="addon-field">
+                    <label class="field-label">Cost +/-</label>
+                    <uui-input
+                      type="number"
+                      step="0.01"
+                      .value=${String(e.costAdjustment)}
+                      placeholder="0.00"
+                      @input=${(t) => this._updateValue(a, "costAdjustment", parseFloat(t.target.value) || 0)}>
+                    </uui-input>
+                  </div>
+
+                  <div class="addon-field sku-field">
+                    <label class="field-label">SKU Suffix</label>
+                    <uui-input
+                      .value=${e.skuSuffix || ""}
+                      placeholder="e.g., -GW"
+                      @input=${(t) => this._updateValue(a, "skuSuffix", t.target.value)}>
+                    </uui-input>
+                  </div>
+                </div>
+              ` : n}
         </div>
 
-        <uui-button compact look="secondary" color="danger" @click=${() => this._removeValue(t)}>
+        <uui-button compact look="secondary" color="danger" @click=${() => this._removeValue(a)}>
           <uui-icon name="icon-trash"></uui-icon>
         </uui-button>
       </div>
@@ -157,26 +179,36 @@ let r = class extends x {
     return (this._formData.values?.length ?? 0) >= this._getMaxValues();
   }
   render() {
-    const a = !this.data?.option, t = this._formData.values?.length || 0, i = this._getMaxValues(), e = this._formData.isVariant && t > 0 ? `Will create ${t} variants` : "";
+    const e = !this.data?.option, a = this._formData.values?.length || 0, i = this._getMaxValues(), o = this._formData.isVariant && a > 0 ? `Will create ${a} variants` : "";
     return s`
-      <umb-body-layout headline="${a ? "Add Option" : `Edit Option: ${this._formData.name}`}">
+      <umb-body-layout headline="${e ? "Add Option" : `Edit Option: ${this._formData.name}`}">
         <div class="modal-content">
           ${this._errorMessage ? s`
                 <div class="error-banner">
                   <uui-icon name="icon-alert"></uui-icon>
                   ${this._errorMessage}
                 </div>
-              ` : u}
+              ` : n}
 
-          ${this._formData.isVariant && t > 0 ? s`
+          ${this._formData.isVariant && a > 0 ? s`
                 <div class="info-banner">
                   <uui-icon name="icon-lightbulb"></uui-icon>
                   <div>
                     <strong>Variant Generation</strong>
-                    <p>${e} (when combined with other variant options, this creates a cartesian product)</p>
+                    <p>${o} (when combined with other variant options, this creates a cartesian product)</p>
                   </div>
                 </div>
-              ` : u}
+              ` : n}
+
+          ${!this._formData.isVariant && a > 0 ? s`
+                <div class="info-banner addon-info">
+                  <uui-icon name="icon-coin"></uui-icon>
+                  <div>
+                    <strong>Add-on Pricing</strong>
+                    <p>Price and cost adjustments are added to the base product when customers select this option. Negative values apply discounts.</p>
+                  </div>
+                </div>
+              ` : n}
 
           <uui-box headline="Option Details">
             <umb-property-layout
@@ -187,7 +219,7 @@ let r = class extends x {
                 slot="editor"
                 .value=${this._formData.name || ""}
                 placeholder="e.g., Size, Color, Material"
-                @input=${(o) => this._formData = { ...this._formData, name: o.target.value }}
+                @input=${(t) => this._formData = { ...this._formData, name: t.target.value }}
                 aria-required="true">
               </uui-input>
             </umb-property-layout>
@@ -199,7 +231,7 @@ let r = class extends x {
                 slot="editor"
                 .value=${this._formData.alias || ""}
                 placeholder="Optional: machine-readable name"
-                @input=${(o) => this._formData = { ...this._formData, alias: o.target.value }}>
+                @input=${(t) => this._formData = { ...this._formData, alias: t.target.value }}>
               </uui-input>
             </umb-property-layout>
 
@@ -209,7 +241,7 @@ let r = class extends x {
               <uui-select
                 slot="editor"
                 .options=${this._getOptionTypeOptions()}
-                @change=${(o) => this._formData = { ...this._formData, optionTypeAlias: o.target.value }}>
+                @change=${(t) => this._formData = { ...this._formData, optionTypeAlias: t.target.value }}>
               </uui-select>
             </umb-property-layout>
 
@@ -219,7 +251,7 @@ let r = class extends x {
               <uui-select
                 slot="editor"
                 .options=${this._getOptionUiOptions()}
-                @change=${(o) => this._formData = { ...this._formData, optionUiAlias: o.target.value }}>
+                @change=${(t) => this._formData = { ...this._formData, optionUiAlias: t.target.value }}>
               </uui-select>
             </umb-property-layout>
 
@@ -229,7 +261,7 @@ let r = class extends x {
               <uui-toggle
                 slot="editor"
                 .checked=${this._formData.isVariant ?? !1}
-                @change=${(o) => this._formData = { ...this._formData, isVariant: o.target.checked }}>
+                @change=${(t) => this._formData = { ...this._formData, isVariant: t.target.checked }}>
               </uui-toggle>
             </umb-property-layout>
           </uui-box>
@@ -237,7 +269,7 @@ let r = class extends x {
           <uui-box>
             <div class="section-header" slot="headline">
               <span>Option Values</span>
-              <span class="value-count">${t}/${i}</span>
+              <span class="value-count">${a}/${i}</span>
             </div>
             <div class="section-header-actions" slot="header-actions">
               <uui-button
@@ -254,7 +286,7 @@ let r = class extends x {
 
             ${this._formData.values && this._formData.values.length > 0 ? s`
                   <div class="values-list">
-                    ${this._formData.values.map((o, n) => this._renderValueEditor(o, n))}
+                    ${this._formData.values.map((t, l) => this._renderValueEditor(t, l))}
                   </div>
                 ` : s`
                   <div class="empty-state">
@@ -268,7 +300,7 @@ let r = class extends x {
 
         <div slot="actions">
           <uui-button look="secondary" @click=${() => this.modalContext?.reject()}> Cancel </uui-button>
-          ${a ? u : s`
+          ${e ? n : s`
                 <uui-button look="primary" color="danger" @click=${this._handleDelete} label="Delete Option">
                   <uui-icon name="icon-trash"></uui-icon>
                   Delete Option
@@ -283,9 +315,9 @@ let r = class extends x {
     `;
   }
 };
-d = /* @__PURE__ */ new WeakMap();
+c = /* @__PURE__ */ new WeakMap();
 h = /* @__PURE__ */ new WeakMap();
-l = /* @__PURE__ */ new WeakMap();
+u = /* @__PURE__ */ new WeakMap();
 r.styles = y`
     :host {
       display: block;
@@ -361,7 +393,7 @@ r.styles = y`
     .values-list {
       display: flex;
       flex-direction: column;
-      gap: var(--uui-size-space-2);
+      gap: var(--uui-size-space-3);
     }
 
     .value-row {
@@ -373,16 +405,72 @@ r.styles = y`
       border-radius: var(--uui-border-radius);
     }
 
-    .value-main {
-      flex: 1;
-      display: flex;
-      gap: var(--uui-size-space-2);
-      flex-wrap: wrap;
+    .value-row.is-addon {
+      padding: var(--uui-size-space-4);
     }
 
-    .value-main > * {
+    .value-content {
       flex: 1;
-      min-width: 150px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+    }
+
+    .value-name-row {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      align-items: center;
+    }
+
+    .value-name-row > uui-input:first-child {
+      flex: 1;
+    }
+
+    .color-input {
+      width: 48px;
+      flex-shrink: 0;
+    }
+
+    .addon-fields {
+      display: flex;
+      gap: var(--uui-size-space-3);
+      flex-wrap: wrap;
+      padding-top: var(--uui-size-space-2);
+      border-top: 1px dashed var(--uui-color-border);
+    }
+
+    .addon-field {
+      flex: 1;
+      min-width: 100px;
+      max-width: 140px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-1);
+    }
+
+    .addon-field.sku-field {
+      flex: 1.2;
+      max-width: 160px;
+    }
+
+    .addon-field .field-label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--uui-color-text-alt);
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+    }
+
+    .addon-field uui-input {
+      width: 100%;
+    }
+
+    .info-banner.addon-info {
+      border-left-color: var(--uui-color-warning);
+    }
+
+    .info-banner.addon-info uui-icon {
+      color: var(--uui-color-warning);
     }
 
     .empty-state {
@@ -410,24 +498,24 @@ r.styles = y`
       width: 100%;
     }
   `;
-p([
+d([
   m()
 ], r.prototype, "_formData", 2);
-p([
+d([
   m()
 ], r.prototype, "_isSaving", 2);
-p([
+d([
   m()
 ], r.prototype, "_errorMessage", 2);
-p([
+d([
   m()
 ], r.prototype, "_originalIsVariant", 2);
-r = p([
+r = d([
   D("merchello-option-editor-modal")
 ], r);
-const z = r;
+const M = r;
 export {
   r as MerchelloOptionEditorModalElement,
-  z as default
+  M as default
 };
-//# sourceMappingURL=option-editor-modal.element-B6VbDy09.js.map
+//# sourceMappingURL=option-editor-modal.element-D2Yhvkyh.js.map

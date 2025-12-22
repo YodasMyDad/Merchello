@@ -22,6 +22,9 @@ export class MerchelloProductPickerVariantRowElement extends UmbElementMixin(Lit
   @property({ type: String })
   currencySymbol = "£";
 
+  @property({ type: Boolean })
+  showImage = true;
+
   private _handleClick(): void {
     if (!this.variant.canSelect) return;
 
@@ -123,7 +126,7 @@ export class MerchelloProductPickerVariantRowElement extends UmbElementMixin(Lit
           label="Select variant"
         ></uui-checkbox>
 
-        ${this._renderImage()}
+        ${this.showImage ? this._renderImage() : nothing}
 
         <div class="variant-info">
           <div class="variant-name-row">

@@ -7,7 +7,7 @@ class u extends i {
     super(e, o.toString()), this.workspaceAlias = "Merchello.Order.Detail.Workspace", this.#e = new d(void 0), this.order = this.#e.asObservable(), this.routes = new a(e), this.provideContext(o, this), this.routes.setRoutes([
       {
         path: "edit/:id",
-        component: () => import("./order-detail.element-C_Osq70s.js"),
+        component: () => import("./order-detail.element-Bd4w2Ei0.js"),
         setup: (t, r) => {
           const s = r.match.params.id;
           this.load(s);
@@ -37,4 +37,4 @@ export {
   u as MerchelloOrderDetailWorkspaceContext,
   u as api
 };
-//# sourceMappingURL=order-detail-workspace.context-BnSdWMcV.js.map
+//# sourceMappingURL=order-detail-workspace.context-HTfOKvUp.js.map

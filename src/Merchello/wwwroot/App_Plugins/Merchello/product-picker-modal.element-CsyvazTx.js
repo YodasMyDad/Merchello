@@ -1,28 +1,28 @@
-import { LitElement as P, html as r, nothing as d, css as $, property as f, customElement as w, state as p } from "@umbraco-cms/backoffice/external/lit";
+import { LitElement as A, html as a, nothing as c, css as x, property as g, customElement as $, state as p } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement as z } from "@umbraco-cms/backoffice/modal";
-import { M as y } from "./merchello-api-s-9cx0Ue.js";
-import { c as R } from "./formatting-BzzWJIvp.js";
-import { UmbElementMixin as C } from "@umbraco-cms/backoffice/element-api";
-function b(e, t) {
-  return `${t}${R(e, 2)}`;
+import { M as w } from "./merchello-api-s-9cx0Ue.js";
+import { c as C } from "./formatting-BzzWJIvp.js";
+import { UmbElementMixin as P } from "@umbraco-cms/backoffice/element-api";
+function h(e, t) {
+  return `${t}${C(e, 2)}`;
 }
-function I(e, t, a) {
-  return e === null && t === null ? "N/A" : e === t || t === null ? b(e ?? 0, a) : e === null ? b(t, a) : `${b(e, a)} - ${b(t, a)}`;
+function I(e, t, i) {
+  return e === null && t === null ? "N/A" : e === t || t === null ? h(e ?? 0, i) : e === null ? h(t, i) : `${h(e, i)} - ${h(t, i)}`;
 }
-function E(e) {
+function R(e) {
   return e.name ? e.name : null;
 }
-function T(e, t) {
+function N(e, t) {
   return e.images.length > 0 && !e.excludeRootProductImages ? e.images[0] : !e.excludeRootProductImages && t.length > 0 ? t[0] : e.images.length > 0 ? e.images[0] : null;
 }
-var N = Object.defineProperty, D = Object.getOwnPropertyDescriptor, x = (e, t, a, s) => {
-  for (var i = s > 1 ? void 0 : s ? D(t, a) : t, o = e.length - 1, n; o >= 0; o--)
-    (n = e[o]) && (i = (s ? n(t, a, i) : n(i)) || i);
-  return s && i && N(t, a, i), i;
+var D = Object.defineProperty, M = Object.getOwnPropertyDescriptor, y = (e, t, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? M(t, i) : t, r = e.length - 1, n; r >= 0; r--)
+    (n = e[r]) && (o = (s ? n(t, i, o) : n(o)) || o);
+  return s && o && D(t, i, o), o;
 };
-let m = class extends C(P) {
+let v = class extends P(A) {
   constructor() {
-    super(...arguments), this.selected = !1, this.currencySymbol = "£";
+    super(...arguments), this.selected = !1, this.currencySymbol = "£", this.showImage = !0;
   }
   _handleClick() {
     this.variant.canSelect && this.dispatchEvent(
@@ -41,7 +41,7 @@ let m = class extends C(P) {
     );
   }
   _renderImage() {
-    return this.variant.imageUrl ? r`<img src="${this.variant.imageUrl}" alt="${this.variant.name ?? ""}" class="variant-image" />` : r`
+    return this.variant.imageUrl ? a`<img src="${this.variant.imageUrl}" alt="${this.variant.name ?? ""}" class="variant-image" />` : a`
       <div class="variant-image placeholder">
         <uui-icon name="icon-picture"></uui-icon>
       </div>
@@ -49,31 +49,31 @@ let m = class extends C(P) {
   }
   _renderName() {
     const e = this.variant.optionValuesDisplay ?? this.variant.name ?? "Default";
-    return r`<span class="variant-name">${e}</span>`;
+    return a`<span class="variant-name">${e}</span>`;
   }
   _renderSku() {
-    return this.variant.sku ? r`<span class="variant-sku">${this.variant.sku}</span>` : d;
+    return this.variant.sku ? a`<span class="variant-sku">${this.variant.sku}</span>` : c;
   }
   _renderPrice() {
-    return r`<span class="variant-price">${b(this.variant.price, this.currencySymbol)}</span>`;
+    return a`<span class="variant-price">${h(this.variant.price, this.currencySymbol)}</span>`;
   }
   _renderStockStatus() {
-    return this.variant.trackStock ? this.variant.availableStock <= 0 ? r`<span class="status blocked">Out of stock</span>` : this.variant.availableStock <= 5 ? r`<span class="status warning">Low: ${this.variant.availableStock}</span>` : r`<span class="status available">${this.variant.availableStock} in stock</span>` : r`<span class="status available">Available</span>`;
+    return this.variant.trackStock ? this.variant.availableStock <= 0 ? a`<span class="status blocked">Out of stock</span>` : this.variant.availableStock <= 5 ? a`<span class="status warning">Low: ${this.variant.availableStock}</span>` : a`<span class="status available">${this.variant.availableStock} in stock</span>` : a`<span class="status available">Available</span>`;
   }
   _renderRegionStatus() {
-    return this.variant.canShipToRegion ? d : r`<span class="status blocked">${this.variant.regionMessage ?? "Cannot ship"}</span>`;
+    return this.variant.canShipToRegion ? c : a`<span class="status blocked">${this.variant.regionMessage ?? "Cannot ship"}</span>`;
   }
   _renderBlockedReason() {
-    return !this.variant.canSelect && this.variant.blockedReason ? r`
+    return !this.variant.canSelect && this.variant.blockedReason ? a`
         <div class="blocked-overlay">
           <uui-icon name="icon-block"></uui-icon>
           <span>${this.variant.blockedReason}</span>
         </div>
-      ` : d;
+      ` : c;
   }
   render() {
     const e = !this.variant.canSelect;
-    return r`
+    return a`
       <div
         class="variant-row ${e ? "blocked" : ""} ${this.selected ? "selected" : ""}"
         @click=${this._handleClick}
@@ -88,7 +88,7 @@ let m = class extends C(P) {
           label="Select variant"
         ></uui-checkbox>
 
-        ${this._renderImage()}
+        ${this.showImage ? this._renderImage() : c}
 
         <div class="variant-info">
           <div class="variant-name-row">
@@ -107,7 +107,7 @@ let m = class extends C(P) {
     `;
   }
 };
-m.styles = $`
+v.styles = x`
     :host {
       display: block;
     }
@@ -229,26 +229,29 @@ m.styles = $`
       font-size: 0.75rem;
     }
   `;
-x([
-  f({ type: Object })
-], m.prototype, "variant", 2);
-x([
-  f({ type: Boolean })
-], m.prototype, "selected", 2);
-x([
-  f({ type: String })
-], m.prototype, "currencySymbol", 2);
-m = x([
-  w("merchello-product-picker-variant-row")
-], m);
-var M = Object.defineProperty, O = Object.getOwnPropertyDescriptor, S = (e, t, a, s) => {
-  for (var i = s > 1 ? void 0 : s ? O(t, a) : t, o = e.length - 1, n; o >= 0; o--)
-    (n = e[o]) && (i = (s ? n(t, a, i) : n(i)) || i);
-  return s && i && M(t, a, i), i;
+y([
+  g({ type: Object })
+], v.prototype, "variant", 2);
+y([
+  g({ type: Boolean })
+], v.prototype, "selected", 2);
+y([
+  g({ type: String })
+], v.prototype, "currencySymbol", 2);
+y([
+  g({ type: Boolean })
+], v.prototype, "showImage", 2);
+v = y([
+  $("merchello-product-picker-variant-row")
+], v);
+var T = Object.defineProperty, E = Object.getOwnPropertyDescriptor, k = (e, t, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? E(t, i) : t, r = e.length - 1, n; r >= 0; r--)
+    (n = e[r]) && (o = (s ? n(t, i, o) : n(o)) || o);
+  return s && o && T(t, i, o), o;
 };
-let v = class extends C(P) {
+let f = class extends P(A) {
   constructor() {
-    super(...arguments), this.productRoots = [], this.selectedIds = [], this.currencySymbol = "£";
+    super(...arguments), this.productRoots = [], this.selectedIds = [], this.currencySymbol = "£", this.showImages = !0;
   }
   _handleRootClick(e) {
     this.dispatchEvent(
@@ -269,7 +272,7 @@ let v = class extends C(P) {
     );
   }
   _renderProductImage(e, t) {
-    return e ? r`<img src="${e}" alt="${t}" class="product-image" />` : r`
+    return e ? a`<img src="${e}" alt="${t}" class="product-image" />` : a`
       <div class="product-image placeholder">
         <uui-icon name="icon-picture"></uui-icon>
       </div>
@@ -279,67 +282,68 @@ let v = class extends C(P) {
     return I(e.minPrice, e.maxPrice, this.currencySymbol);
   }
   _renderStockBadge(e) {
-    return e.isDigitalProduct ? r`<span class="badge digital">Digital</span>` : e.totalStock <= 0 ? r`<span class="badge out-of-stock">Out of stock</span>` : e.totalStock <= 5 ? r`<span class="badge low-stock">Low: ${e.totalStock}</span>` : r`<span class="badge in-stock">${e.totalStock} in stock</span>`;
+    return e.isDigitalProduct ? a`<span class="badge digital">Digital</span>` : e.totalStock <= 0 ? a`<span class="badge out-of-stock">Out of stock</span>` : e.totalStock <= 5 ? a`<span class="badge low-stock">Low: ${e.totalStock}</span>` : a`<span class="badge in-stock">${e.totalStock} in stock</span>`;
   }
   _renderExpandIcon(e) {
-    return r`
+    return a`
       <uui-icon name=${e ? "icon-navigation-down" : "icon-navigation-right"} class="expand-icon"></uui-icon>
     `;
   }
   _renderProductRoot(e) {
     const t = e.variantCount === 1;
-    return r`
-      <div class="product-root ${e.isExpanded ? "expanded" : ""}">
+    return a`
+      <div class="product-root ${e.isExpanded ? "expanded" : ""} ${this.showImages ? "" : "no-images"}">
         <button
           type="button"
           class="product-root-header"
           @click=${() => this._handleRootClick(e)}
           aria-expanded=${e.isExpanded}
         >
-          ${t ? r`<div class="expand-spacer"></div>` : this._renderExpandIcon(e.isExpanded)}
-          ${this._renderProductImage(e.imageUrl, e.rootName)}
+          ${t ? a`<div class="expand-spacer"></div>` : this._renderExpandIcon(e.isExpanded)}
+          ${this.showImages ? this._renderProductImage(e.imageUrl, e.rootName) : c}
           <div class="product-info">
             <div class="product-name">${e.rootName}</div>
             <div class="product-meta">
               <span class="price">${this._renderPriceRange(e)}</span>
-              ${t ? d : r`<span class="variant-count">${e.variantCount} variants</span>`}
+              ${t ? c : a`<span class="variant-count">${e.variantCount} variants</span>`}
               ${this._renderStockBadge(e)}
             </div>
           </div>
         </button>
 
-        ${e.isExpanded && e.variantsLoaded ? r`
-              <div class="variants-container">
+        ${e.isExpanded && e.variantsLoaded ? a`
+              <div class="variants-container ${this.showImages ? "" : "no-images"}">
                 ${e.variants.map(
-      (a) => r`
+      (i) => a`
                     <merchello-product-picker-variant-row
-                      .variant=${a}
-                      .selected=${this.selectedIds.includes(a.id)}
+                      .variant=${i}
+                      .selected=${this.selectedIds.includes(i.id)}
                       .currencySymbol=${this.currencySymbol}
-                      @select=${() => this._handleVariantSelect(a)}
+                      .showImage=${this.showImages}
+                      @select=${() => this._handleVariantSelect(i)}
                     ></merchello-product-picker-variant-row>
                   `
     )}
               </div>
-            ` : d}
+            ` : c}
 
-        ${e.isExpanded && !e.variantsLoaded ? r`
+        ${e.isExpanded && !e.variantsLoaded ? a`
               <div class="variants-loading">
                 <uui-loader-bar></uui-loader-bar>
               </div>
-            ` : d}
+            ` : c}
       </div>
     `;
   }
   render() {
-    return this.productRoots.length === 0 ? r`<div class="empty">No products to display</div>` : r`
+    return this.productRoots.length === 0 ? a`<div class="empty">No products to display</div>` : a`
       <div class="product-list">
         ${this.productRoots.map((e) => this._renderProductRoot(e))}
       </div>
     `;
   }
 };
-v.styles = $`
+f.styles = x`
     :host {
       display: block;
     }
@@ -471,9 +475,17 @@ v.styles = $`
       padding-bottom: var(--uui-size-space-2);
     }
 
+    .variants-container.no-images {
+      padding-left: calc(0.75rem + var(--uui-size-space-3));
+    }
+
     .variants-loading {
       padding: var(--uui-size-space-3);
       padding-left: calc(0.75rem + var(--uui-size-space-3) + 40px + var(--uui-size-space-3));
+    }
+
+    .product-root.no-images .variants-loading {
+      padding-left: calc(0.75rem + var(--uui-size-space-3));
     }
 
     .empty {
@@ -482,26 +494,29 @@ v.styles = $`
       color: var(--uui-color-text-alt);
     }
   `;
-S([
-  f({ type: Array })
-], v.prototype, "productRoots", 2);
-S([
-  f({ type: Array })
-], v.prototype, "selectedIds", 2);
-S([
-  f({ type: String })
-], v.prototype, "currencySymbol", 2);
-v = S([
-  w("merchello-product-picker-list")
-], v);
-var V = Object.defineProperty, j = Object.getOwnPropertyDescriptor, u = (e, t, a, s) => {
-  for (var i = s > 1 ? void 0 : s ? j(t, a) : t, o = e.length - 1, n; o >= 0; o--)
-    (n = e[o]) && (i = (s ? n(t, a, i) : n(i)) || i);
-  return s && i && V(t, a, i), i;
+k([
+  g({ type: Array })
+], f.prototype, "productRoots", 2);
+k([
+  g({ type: Array })
+], f.prototype, "selectedIds", 2);
+k([
+  g({ type: String })
+], f.prototype, "currencySymbol", 2);
+k([
+  g({ type: Boolean })
+], f.prototype, "showImages", 2);
+f = k([
+  $("merchello-product-picker-list")
+], f);
+var j = Object.defineProperty, O = Object.getOwnPropertyDescriptor, u = (e, t, i, s) => {
+  for (var o = s > 1 ? void 0 : s ? O(t, i) : t, r = e.length - 1, n; r >= 0; r--)
+    (n = e[r]) && (o = (s ? n(t, i, o) : n(o)) || o);
+  return s && o && j(t, i, o), o;
 };
-let l = class extends z {
+let d = class extends z {
   constructor() {
-    super(...arguments), this._searchTerm = "", this._page = 1, this._pageSize = 20, this._totalPages = 0, this._isLoading = !0, this._errorMessage = null, this._productRoots = [], this._selections = /* @__PURE__ */ new Map(), this._regionCache = {
+    super(...arguments), this._searchTerm = "", this._page = 1, this._pageSize = 20, this._totalPages = 0, this._isLoading = !0, this._errorMessage = null, this._productRoots = [], this._selections = /* @__PURE__ */ new Map(), this._viewState = "product-selection", this._pendingAddonSelection = null, this._selectedAddons = /* @__PURE__ */ new Map(), this._productDetailCache = /* @__PURE__ */ new Map(), this._regionCache = {
       destinations: /* @__PURE__ */ new Map(),
       regions: /* @__PURE__ */ new Map()
     }, this._searchDebounceTimer = null;
@@ -521,6 +536,12 @@ let l = class extends z {
   get _excludeProductIds() {
     return this._config?.excludeProductIds ?? [];
   }
+  get _showAddons() {
+    return this._config?.showAddons !== !1;
+  }
+  get _showImages() {
+    return this._config?.showImages !== !1;
+  }
   // ============================================
   // Data Loading
   // ============================================
@@ -533,14 +554,14 @@ let l = class extends z {
       sortDir: "asc"
     };
     this._searchTerm.trim() && (e.search = this._searchTerm.trim()), this._config?.productTypeId && (e.productTypeId = this._config.productTypeId), this._config?.collectionId && (e.collectionId = this._config.collectionId);
-    const { data: t, error: a } = await y.getProducts(e);
-    if (a) {
-      this._errorMessage = a.message, this._isLoading = !1;
+    const { data: t, error: i } = await w.getProducts(e);
+    if (i) {
+      this._errorMessage = i.message, this._isLoading = !1;
       return;
     }
     if (t) {
       const s = this._excludeProductIds;
-      this._productRoots = t.items.filter((i) => !s.includes(i.productRootId)).map((i) => this._mapToPickerRoot(i)), this._totalPages = t.totalPages;
+      this._productRoots = t.items.filter((o) => !s.includes(o.productRootId)).map((o) => this._mapToPickerRoot(o)), this._totalPages = t.totalPages;
     }
     this._isLoading = !1;
   }
@@ -560,48 +581,49 @@ let l = class extends z {
     };
   }
   async _loadVariantsForRoot(e) {
-    const t = this._productRoots.findIndex((o) => o.id === e);
+    const t = this._productRoots.findIndex((r) => r.id === e);
     if (t === -1) return;
-    const { data: a, error: s } = await y.getProductDetail(e);
-    if (s || !a) {
+    const { data: i, error: s } = await w.getProductDetail(e);
+    if (s || !i) {
       console.error("Failed to load product variants:", s);
       return;
     }
-    const i = await Promise.all(
-      a.variants.map(async (o) => this._mapToPickerVariant(o, a))
+    this._productDetailCache.set(e, i);
+    const o = await Promise.all(
+      i.variants.map(async (r) => this._mapToPickerVariant(r, i))
     );
     this._productRoots = this._productRoots.map(
-      (o, n) => n === t ? { ...o, variants: i, variantsLoaded: !0 } : o
+      (r, n) => n === t ? { ...r, variants: o, variantsLoaded: !0 } : r
     );
   }
   async _mapToPickerVariant(e, t) {
-    const a = e.warehouseStock.reduce((c, _) => _.trackStock ? c + Math.max(0, _.stock) : c + 999999, 0), s = e.warehouseStock.some((c) => c.trackStock);
-    let i = !0, o = null, n = null, h = null;
+    const i = e.warehouseStock.reduce((l, b) => b.trackStock ? l + Math.max(0, b.stock) : l + 999999, 0), s = e.warehouseStock.some((l) => l.trackStock);
+    let o = !0, r = null, n = null, m = null;
     if (this._config?.shippingAddress && !t.isDigitalProduct) {
-      const c = await this._checkRegionEligibility(e.warehouseStock);
-      i = c.canShip, o = c.message, n = c.warehouseId, h = c.warehouseName;
+      const l = await this._checkRegionEligibility(e.warehouseStock);
+      o = l.canShip, r = l.message, n = l.warehouseId, m = l.warehouseName;
     } else if (e.warehouseStock.length > 0) {
-      const c = e.warehouseStock.find((_) => !_.trackStock || _.stock > 0);
-      c && (n = c.warehouseId, h = c.warehouseName);
+      const l = e.warehouseStock.find((b) => !b.trackStock || b.stock > 0);
+      l && (n = l.warehouseId, m = l.warehouseName);
     }
-    let g = !0, k = null;
-    return s && a <= 0 && (g = !1, k = "Out of stock"), g && !i && (g = !1, k = "Cannot ship to region"), g && !e.availableForPurchase && (g = !1, k = "Not available for purchase"), {
+    let _ = !0, S = null;
+    return s && i <= 0 && (_ = !1, S = "Out of stock"), _ && !o && (_ = !1, S = "Cannot ship to region"), _ && !e.availableForPurchase && (_ = !1, S = "Not available for purchase"), {
       id: e.id,
       productRootId: t.id,
       name: e.name,
       rootName: t.rootName,
       sku: e.sku,
       price: e.price,
-      imageUrl: T(e, t.rootImages),
-      optionValuesDisplay: E(e),
-      canSelect: g,
-      blockedReason: k,
-      availableStock: a,
+      imageUrl: N(e, t.rootImages),
+      optionValuesDisplay: R(e),
+      canSelect: _,
+      blockedReason: S,
+      availableStock: i,
       trackStock: s,
-      canShipToRegion: i,
-      regionMessage: o,
+      canShipToRegion: o,
+      regionMessage: r,
       fulfillingWarehouseId: n,
-      fulfillingWarehouseName: h,
+      fulfillingWarehouseName: m,
       warehouseStock: e.warehouseStock
     };
   }
@@ -612,10 +634,10 @@ let l = class extends z {
     const t = this._config?.shippingAddress;
     if (!t)
       return { canShip: !0, warehouseId: null, warehouseName: null, message: null };
-    for (const a of e) {
-      if (a.trackStock && a.stock <= 0) continue;
-      if (await this._canWarehouseServeRegion(a.warehouseId, t.countryCode, t.stateCode))
-        return { canShip: !0, warehouseId: a.warehouseId, warehouseName: a.warehouseName, message: null };
+    for (const i of e) {
+      if (i.trackStock && i.stock <= 0) continue;
+      if (await this._canWarehouseServeRegion(i.warehouseId, t.countryCode, t.stateCode))
+        return { canShip: !0, warehouseId: i.warehouseId, warehouseName: i.warehouseName, message: null };
     }
     return {
       canShip: !1,
@@ -624,22 +646,22 @@ let l = class extends z {
       message: `Cannot ship to ${t.countryCode}`
     };
   }
-  async _canWarehouseServeRegion(e, t, a) {
+  async _canWarehouseServeRegion(e, t, i) {
     if (!this._regionCache.destinations.has(e)) {
-      const { data: n } = await y.getAvailableDestinationsForWarehouse(e);
-      n ? this._regionCache.destinations.set(e, new Set(n.map((h) => h.code))) : this._regionCache.destinations.set(e, /* @__PURE__ */ new Set());
+      const { data: n } = await w.getAvailableDestinationsForWarehouse(e);
+      n ? this._regionCache.destinations.set(e, new Set(n.map((m) => m.code))) : this._regionCache.destinations.set(e, /* @__PURE__ */ new Set());
     }
     if (!this._regionCache.destinations.get(e).has(t))
       return !1;
-    if (!a)
+    if (!i)
       return !0;
-    const i = `${e}:${t}`;
-    if (!this._regionCache.regions.has(i)) {
-      const { data: n } = await y.getAvailableRegionsForWarehouse(e, t);
-      n && n.length > 0 ? this._regionCache.regions.set(i, new Set(n.map((h) => h.regionCode))) : this._regionCache.regions.set(i, null);
+    const o = `${e}:${t}`;
+    if (!this._regionCache.regions.has(o)) {
+      const { data: n } = await w.getAvailableRegionsForWarehouse(e, t);
+      n && n.length > 0 ? this._regionCache.regions.set(o, new Set(n.map((m) => m.regionCode))) : this._regionCache.regions.set(o, null);
     }
-    const o = this._regionCache.regions.get(i);
-    return o == null ? !0 : o.has(a);
+    const r = this._regionCache.regions.get(o);
+    return r == null ? !0 : r.has(i);
   }
   // ============================================
   // Event Handlers
@@ -657,14 +679,47 @@ let l = class extends z {
     this._page = e, this._loadProducts();
   }
   async _handleToggleExpand(e) {
-    const t = this._productRoots.find((a) => a.id === e);
+    const t = this._productRoots.find((i) => i.id === e);
     t && (t.variantsLoaded || await this._loadVariantsForRoot(e), this._productRoots = this._productRoots.map(
-      (a) => a.id === e ? { ...a, isExpanded: !a.isExpanded } : a
+      (i) => i.id === e ? { ...i, isExpanded: !i.isExpanded } : i
     ));
   }
   _handleVariantSelect(e) {
-    if (!e.canSelect) return;
-    const t = {
+    if (e.canSelect) {
+      if (this._showAddons) {
+        const t = this._productDetailCache.get(e.productRootId);
+        if (t) {
+          const i = this._getAddonOptions(t);
+          if (i.length > 0) {
+            this._pendingAddonSelection = {
+              variant: e,
+              addonOptions: i,
+              rootName: e.rootName
+            }, this._selectedAddons = /* @__PURE__ */ new Map(), this._viewState = "addon-selection";
+            return;
+          }
+        }
+      }
+      this._addSelectionWithAddons(e, []);
+    }
+  }
+  _getAddonOptions(e) {
+    return e.productOptions.filter((t) => !t.isVariant && t.values.length > 0).map((t) => ({
+      id: t.id,
+      name: t.name ?? "",
+      alias: t.alias,
+      optionUiAlias: t.optionUiAlias,
+      values: t.values.map((i) => ({
+        id: i.id,
+        name: i.name ?? "",
+        priceAdjustment: i.priceAdjustment,
+        costAdjustment: i.costAdjustment,
+        skuSuffix: i.skuSuffix
+      }))
+    }));
+  }
+  _addSelectionWithAddons(e, t) {
+    const i = {
       productId: e.id,
       productRootId: e.productRootId,
       name: e.optionValuesDisplay ? `${e.rootName} - ${e.optionValuesDisplay}` : e.rootName,
@@ -672,9 +727,39 @@ let l = class extends z {
       price: e.price,
       imageUrl: e.imageUrl,
       warehouseId: e.fulfillingWarehouseId ?? "",
-      warehouseName: e.fulfillingWarehouseName ?? ""
+      warehouseName: e.fulfillingWarehouseName ?? "",
+      selectedAddons: t.length > 0 ? t : void 0
     };
-    this._selections.has(e.id) ? this._selections.delete(e.id) : this._selections.set(e.id, t), this._selections = new Map(this._selections);
+    this._selections.set(e.id, i), this._selections = new Map(this._selections);
+  }
+  // ============================================
+  // Add-on Selection Handlers
+  // ============================================
+  _handleAddonSelect(e, t, i) {
+    const s = {
+      optionId: e,
+      optionName: t,
+      valueId: i.id,
+      valueName: i.name,
+      priceAdjustment: i.priceAdjustment,
+      costAdjustment: i.costAdjustment,
+      skuSuffix: i.skuSuffix
+    };
+    this._selectedAddons.set(e, s), this._selectedAddons = new Map(this._selectedAddons);
+  }
+  _handleAddonClear(e) {
+    this._selectedAddons.delete(e), this._selectedAddons = new Map(this._selectedAddons);
+  }
+  _handleBackToProducts() {
+    this._viewState = "product-selection", this._pendingAddonSelection = null, this._selectedAddons = /* @__PURE__ */ new Map();
+  }
+  _handleSkipAddons() {
+    this._pendingAddonSelection && (this._addSelectionWithAddons(this._pendingAddonSelection.variant, []), this._viewState = "product-selection", this._pendingAddonSelection = null, this._selectedAddons = /* @__PURE__ */ new Map());
+  }
+  _handleConfirmWithAddons() {
+    if (!this._pendingAddonSelection) return;
+    const e = Array.from(this._selectedAddons.values());
+    this._addSelectionWithAddons(this._pendingAddonSelection.variant, e), this._viewState = "product-selection", this._pendingAddonSelection = null, this._selectedAddons = /* @__PURE__ */ new Map();
   }
   _handleAdd() {
     this.value = {
@@ -688,7 +773,7 @@ let l = class extends z {
   // Render Methods
   // ============================================
   _renderSearch() {
-    return r`
+    return a`
       <div class="search-container">
         <uui-input
           type="text"
@@ -698,26 +783,27 @@ let l = class extends z {
           label="Search products"
         >
           <uui-icon name="icon-search" slot="prepend"></uui-icon>
-          ${this._searchTerm ? r`
+          ${this._searchTerm ? a`
                 <uui-button slot="append" compact look="secondary" label="Clear" @click=${this._handleSearchClear}>
                   <uui-icon name="icon-wrong"></uui-icon>
                 </uui-button>
-              ` : d}
+              ` : c}
         </uui-input>
       </div>
     `;
   }
   _renderContent() {
-    return this._isLoading ? r`<div class="loading"><uui-loader></uui-loader></div>` : this._errorMessage ? r`<div class="error">${this._errorMessage}</div>` : this._productRoots.length === 0 ? r`
+    return this._isLoading ? a`<div class="loading"><uui-loader></uui-loader></div>` : this._errorMessage ? a`<div class="error">${this._errorMessage}</div>` : this._productRoots.length === 0 ? a`
         <div class="empty">
           <uui-icon name="icon-box"></uui-icon>
           <p>No products found</p>
         </div>
-      ` : r`
+      ` : a`
       <merchello-product-picker-list
         .productRoots=${this._productRoots}
         .selectedIds=${Array.from(this._selections.keys())}
         .currencySymbol=${this._currencySymbol}
+        .showImages=${this._showImages}
         @toggle-expand=${(e) => this._handleToggleExpand(e.detail.rootId)}
         @variant-select=${(e) => this._handleVariantSelect(e.detail.variant)}
       ></merchello-product-picker-list>
@@ -725,7 +811,7 @@ let l = class extends z {
     `;
   }
   _renderPagination() {
-    return this._totalPages <= 1 ? d : r`
+    return this._totalPages <= 1 ? c : a`
       <div class="pagination">
         <uui-button
           look="secondary"
@@ -747,10 +833,97 @@ let l = class extends z {
   }
   _renderSelectionSummary() {
     const e = this._selections.size;
-    return e === 0 ? r`<span class="selection-count">No products selected</span>` : r`<span class="selection-count">${e} product${e === 1 ? "" : "s"} selected</span>`;
+    return e === 0 ? a`<span class="selection-count">No products selected</span>` : a`<span class="selection-count">${e} product${e === 1 ? "" : "s"} selected</span>`;
   }
+  // ============================================
+  // Add-on Selection View
+  // ============================================
+  _renderAddonSelectionView() {
+    const e = this._pendingAddonSelection;
+    if (!e) return c;
+    const t = e.variant, i = t.optionValuesDisplay ? `${t.rootName} - ${t.optionValuesDisplay}` : t.rootName, s = Array.from(this._selectedAddons.values()).reduce(
+      (r, n) => r + n.priceAdjustment,
+      0
+    ), o = t.price + s;
+    return a`
+      <umb-body-layout headline="Select Add-ons (Optional)">
+        <div id="main">
+          <div class="addon-product-summary">
+            <div class="product-info">
+              <strong>${i}</strong>
+              ${t.sku ? a`<span class="sku">${t.sku}</span>` : c}
+            </div>
+            <div class="product-pricing">
+              <span class="base-price">${h(t.price, this._currencySymbol)}</span>
+              ${s !== 0 ? a`
+                    <span class="addon-total">
+                      ${s > 0 ? "+" : ""}${h(s, this._currencySymbol)}
+                    </span>
+                    <span class="total-price">= ${h(o, this._currencySymbol)}</span>
+                  ` : c}
+            </div>
+          </div>
+
+          <div class="addon-options">
+            ${e.addonOptions.map((r) => this._renderAddonOption(r))}
+          </div>
+        </div>
+
+        <div slot="actions">
+          <uui-button look="secondary" @click=${this._handleBackToProducts}>
+            <uui-icon name="icon-arrow-left"></uui-icon>
+            Back
+          </uui-button>
+          <uui-button look="secondary" @click=${this._handleSkipAddons}>
+            Skip Add-ons
+          </uui-button>
+          <uui-button look="primary" color="positive" @click=${this._handleConfirmWithAddons}>
+            Add to Order
+          </uui-button>
+        </div>
+      </umb-body-layout>
+    `;
+  }
+  _renderAddonOption(e) {
+    const t = this._selectedAddons.get(e.id);
+    return a`
+      <div class="addon-option">
+        <div class="addon-option-header">
+          <span class="addon-option-name">${e.name}</span>
+          <span class="addon-optional">(optional)</span>
+          ${t ? a`
+                <uui-button compact look="secondary" @click=${() => this._handleAddonClear(e.id)}>
+                  Clear
+                </uui-button>
+              ` : c}
+        </div>
+        <div class="addon-values">
+          ${e.values.map((i) => this._renderAddonValue(e, i, t?.valueId === i.id))}
+        </div>
+      </div>
+    `;
+  }
+  _renderAddonValue(e, t, i) {
+    return a`
+      <button
+        type="button"
+        class="addon-value-button ${i ? "selected" : ""}"
+        @click=${() => this._handleAddonSelect(e.id, e.name, t)}
+      >
+        <span class="value-name">${t.name}</span>
+        ${t.priceAdjustment !== 0 ? a`
+              <span class="value-price ${t.priceAdjustment > 0 ? "positive" : "negative"}">
+                ${t.priceAdjustment > 0 ? "+" : ""}${h(t.priceAdjustment, this._currencySymbol)}
+              </span>
+            ` : c}
+      </button>
+    `;
+  }
+  // ============================================
+  // Main Render
+  // ============================================
   render() {
-    return r`
+    return this._viewState === "addon-selection" ? this._renderAddonSelectionView() : a`
       <umb-body-layout headline="Select Products">
         <div id="main">
           ${this._renderSearch()}
@@ -778,7 +951,7 @@ let l = class extends z {
     `;
   }
 };
-l.styles = $`
+d.styles = x`
     :host {
       display: block;
     }
@@ -861,37 +1034,162 @@ l.styles = $`
       font-size: 0.875rem;
       color: var(--uui-color-text-alt);
     }
+
+    /* Add-on Selection View Styles */
+    .addon-product-summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--uui-size-space-4);
+      background: var(--uui-color-surface-alt);
+      border-radius: var(--uui-border-radius);
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .addon-product-summary .product-info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-1);
+    }
+
+    .addon-product-summary .sku {
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .addon-product-summary .product-pricing {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      font-size: 0.875rem;
+    }
+
+    .addon-product-summary .base-price {
+      font-weight: 600;
+    }
+
+    .addon-product-summary .addon-total {
+      color: var(--uui-color-positive);
+    }
+
+    .addon-product-summary .total-price {
+      font-weight: 700;
+      color: var(--uui-color-current);
+    }
+
+    .addon-options {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-5);
+    }
+
+    .addon-option {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+    }
+
+    .addon-option-header {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+    }
+
+    .addon-option-name {
+      font-weight: 600;
+    }
+
+    .addon-optional {
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .addon-values {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--uui-size-space-2);
+    }
+
+    .addon-value-button {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--uui-size-space-1);
+      padding: var(--uui-size-space-3) var(--uui-size-space-4);
+      background: var(--uui-color-surface);
+      border: 2px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      min-width: 100px;
+    }
+
+    .addon-value-button:hover {
+      border-color: var(--uui-color-selected);
+      background: var(--uui-color-surface-emphasis);
+    }
+
+    .addon-value-button.selected {
+      border-color: var(--uui-color-positive);
+      background: var(--uui-color-positive-surface);
+    }
+
+    .addon-value-button .value-name {
+      font-weight: 500;
+    }
+
+    .addon-value-button .value-price {
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .addon-value-button .value-price.positive {
+      color: var(--uui-color-positive);
+    }
+
+    .addon-value-button .value-price.negative {
+      color: var(--uui-color-danger);
+    }
   `;
 u([
   p()
-], l.prototype, "_searchTerm", 2);
+], d.prototype, "_searchTerm", 2);
 u([
   p()
-], l.prototype, "_page", 2);
+], d.prototype, "_page", 2);
 u([
   p()
-], l.prototype, "_pageSize", 2);
+], d.prototype, "_pageSize", 2);
 u([
   p()
-], l.prototype, "_totalPages", 2);
+], d.prototype, "_totalPages", 2);
 u([
   p()
-], l.prototype, "_isLoading", 2);
+], d.prototype, "_isLoading", 2);
 u([
   p()
-], l.prototype, "_errorMessage", 2);
+], d.prototype, "_errorMessage", 2);
 u([
   p()
-], l.prototype, "_productRoots", 2);
+], d.prototype, "_productRoots", 2);
 u([
   p()
-], l.prototype, "_selections", 2);
-l = u([
-  w("merchello-product-picker-modal")
-], l);
-const F = l;
+], d.prototype, "_selections", 2);
+u([
+  p()
+], d.prototype, "_viewState", 2);
+u([
+  p()
+], d.prototype, "_pendingAddonSelection", 2);
+u([
+  p()
+], d.prototype, "_selectedAddons", 2);
+d = u([
+  $("merchello-product-picker-modal")
+], d);
+const F = d;
 export {
-  l as MerchelloProductPickerModalElement,
+  d as MerchelloProductPickerModalElement,
   F as default
 };
-//# sourceMappingURL=product-picker-modal.element-NnXCWQqC.js.map
+//# sourceMappingURL=product-picker-modal.element-CsyvazTx.js.map

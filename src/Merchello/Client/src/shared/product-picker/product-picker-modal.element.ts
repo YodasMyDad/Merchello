@@ -7,10 +7,14 @@ import type {
   PickerProductRoot,
   PickerVariant,
   WarehouseRegionCache,
+  PickerViewState,
+  PendingAddonSelection,
+  SelectedAddon,
+  PickerAddonOption,
 } from "./product-picker.types.js";
 import type { ProductListItemDto, ProductListParams, ProductRootDetailDto } from "@products/types/product.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
-import { getVariantImageUrl, buildOptionValuesDisplay } from "./product-picker.types.js";
+import { getVariantImageUrl, buildOptionValuesDisplay, formatPrice } from "./product-picker.types.js";
 import "./product-picker-list.element.js";
 
 @customElement("merchello-product-picker-modal")
@@ -31,6 +35,14 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
 
   // Selection state (variant ID -> selection data)
   @state() private _selections: Map<string, ProductPickerSelection> = new Map();
+
+  // View state for two-step add-on flow
+  @state() private _viewState: PickerViewState = "product-selection";
+  @state() private _pendingAddonSelection: PendingAddonSelection | null = null;
+  @state() private _selectedAddons: Map<string, SelectedAddon> = new Map(); // optionId -> selected addon
+
+  // Cache product detail for add-on options
+  private _productDetailCache: Map<string, ProductRootDetailDto> = new Map();
 
   // Region validation cache
   private _regionCache: WarehouseRegionCache = {
@@ -62,6 +74,14 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
 
   private get _excludeProductIds(): string[] {
     return this._config?.excludeProductIds ?? [];
+  }
+
+  private get _showAddons(): boolean {
+    return this._config?.showAddons !== false; // Default true
+  }
+
+  private get _showImages(): boolean {
+    return this._config?.showImages !== false; // Default true
   }
 
   // ============================================
@@ -134,6 +154,9 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       console.error("Failed to load product variants:", error);
       return;
     }
+
+    // Cache the product detail for add-on option access
+    this._productDetailCache.set(rootId, data);
 
     // Map variants with eligibility check
     const variants = await Promise.all(
@@ -351,6 +374,49 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
   private _handleVariantSelect(variant: PickerVariant): void {
     if (!variant.canSelect) return;
 
+    // Check if product has add-on options and showAddons is enabled
+    if (this._showAddons) {
+      const productDetail = this._productDetailCache.get(variant.productRootId);
+      if (productDetail) {
+        const addonOptions = this._getAddonOptions(productDetail);
+        if (addonOptions.length > 0) {
+          // Show add-on selection view
+          this._pendingAddonSelection = {
+            variant,
+            addonOptions,
+            rootName: variant.rootName,
+          };
+          this._selectedAddons = new Map();
+          this._viewState = "addon-selection";
+          return;
+        }
+      }
+    }
+
+    // No add-ons or showAddons disabled - add directly
+    this._addSelectionWithAddons(variant, []);
+  }
+
+  private _getAddonOptions(productDetail: ProductRootDetailDto): PickerAddonOption[] {
+    // Filter to non-variant options only (isVariant === false)
+    return productDetail.productOptions
+      .filter((opt) => !opt.isVariant && opt.values.length > 0)
+      .map((opt) => ({
+        id: opt.id,
+        name: opt.name ?? "",
+        alias: opt.alias,
+        optionUiAlias: opt.optionUiAlias,
+        values: opt.values.map((v) => ({
+          id: v.id,
+          name: v.name ?? "",
+          priceAdjustment: v.priceAdjustment,
+          costAdjustment: v.costAdjustment,
+          skuSuffix: v.skuSuffix,
+        })),
+      }));
+  }
+
+  private _addSelectionWithAddons(variant: PickerVariant, addons: SelectedAddon[]): void {
     const selection: ProductPickerSelection = {
       productId: variant.id,
       productRootId: variant.productRootId,
@@ -362,17 +428,62 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       imageUrl: variant.imageUrl,
       warehouseId: variant.fulfillingWarehouseId ?? "",
       warehouseName: variant.fulfillingWarehouseName ?? "",
+      selectedAddons: addons.length > 0 ? addons : undefined,
     };
 
-    // Toggle selection
-    if (this._selections.has(variant.id)) {
-      this._selections.delete(variant.id);
-    } else {
-      this._selections.set(variant.id, selection);
-    }
+    // Toggle selection (if already selected without addons, replace with new selection)
+    this._selections.set(variant.id, selection);
 
     // Trigger reactivity
     this._selections = new Map(this._selections);
+  }
+
+  // ============================================
+  // Add-on Selection Handlers
+  // ============================================
+
+  private _handleAddonSelect(optionId: string, optionName: string, value: PickerAddonOption["values"][0]): void {
+    const addon: SelectedAddon = {
+      optionId,
+      optionName,
+      valueId: value.id,
+      valueName: value.name,
+      priceAdjustment: value.priceAdjustment,
+      costAdjustment: value.costAdjustment,
+      skuSuffix: value.skuSuffix,
+    };
+    this._selectedAddons.set(optionId, addon);
+    this._selectedAddons = new Map(this._selectedAddons);
+  }
+
+  private _handleAddonClear(optionId: string): void {
+    this._selectedAddons.delete(optionId);
+    this._selectedAddons = new Map(this._selectedAddons);
+  }
+
+  private _handleBackToProducts(): void {
+    this._viewState = "product-selection";
+    this._pendingAddonSelection = null;
+    this._selectedAddons = new Map();
+  }
+
+  private _handleSkipAddons(): void {
+    if (!this._pendingAddonSelection) return;
+
+    this._addSelectionWithAddons(this._pendingAddonSelection.variant, []);
+    this._viewState = "product-selection";
+    this._pendingAddonSelection = null;
+    this._selectedAddons = new Map();
+  }
+
+  private _handleConfirmWithAddons(): void {
+    if (!this._pendingAddonSelection) return;
+
+    const addons = Array.from(this._selectedAddons.values());
+    this._addSelectionWithAddons(this._pendingAddonSelection.variant, addons);
+    this._viewState = "product-selection";
+    this._pendingAddonSelection = null;
+    this._selectedAddons = new Map();
   }
 
   private _handleAdd(): void {
@@ -436,6 +547,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
         .productRoots=${this._productRoots}
         .selectedIds=${Array.from(this._selections.keys())}
         .currencySymbol=${this._currencySymbol}
+        .showImages=${this._showImages}
         @toggle-expand=${(e: CustomEvent<{ rootId: string }>) => this._handleToggleExpand(e.detail.rootId)}
         @variant-select=${(e: CustomEvent<{ variant: PickerVariant }>) => this._handleVariantSelect(e.detail.variant)}
       ></merchello-product-picker-list>
@@ -475,7 +587,120 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     return html`<span class="selection-count">${count} product${count === 1 ? "" : "s"} selected</span>`;
   }
 
+  // ============================================
+  // Add-on Selection View
+  // ============================================
+
+  private _renderAddonSelectionView() {
+    const pending = this._pendingAddonSelection;
+    if (!pending) return nothing;
+
+    const variant = pending.variant;
+    const variantName = variant.optionValuesDisplay
+      ? `${variant.rootName} - ${variant.optionValuesDisplay}`
+      : variant.rootName;
+
+    // Calculate total with add-ons
+    const addonsTotal = Array.from(this._selectedAddons.values()).reduce(
+      (sum, addon) => sum + addon.priceAdjustment,
+      0
+    );
+    const totalPrice = variant.price + addonsTotal;
+
+    return html`
+      <umb-body-layout headline="Select Add-ons (Optional)">
+        <div id="main">
+          <div class="addon-product-summary">
+            <div class="product-info">
+              <strong>${variantName}</strong>
+              ${variant.sku ? html`<span class="sku">${variant.sku}</span>` : nothing}
+            </div>
+            <div class="product-pricing">
+              <span class="base-price">${formatPrice(variant.price, this._currencySymbol)}</span>
+              ${addonsTotal !== 0
+                ? html`
+                    <span class="addon-total">
+                      ${addonsTotal > 0 ? "+" : ""}${formatPrice(addonsTotal, this._currencySymbol)}
+                    </span>
+                    <span class="total-price">= ${formatPrice(totalPrice, this._currencySymbol)}</span>
+                  `
+                : nothing}
+            </div>
+          </div>
+
+          <div class="addon-options">
+            ${pending.addonOptions.map((option) => this._renderAddonOption(option))}
+          </div>
+        </div>
+
+        <div slot="actions">
+          <uui-button look="secondary" @click=${this._handleBackToProducts}>
+            <uui-icon name="icon-arrow-left"></uui-icon>
+            Back
+          </uui-button>
+          <uui-button look="secondary" @click=${this._handleSkipAddons}>
+            Skip Add-ons
+          </uui-button>
+          <uui-button look="primary" color="positive" @click=${this._handleConfirmWithAddons}>
+            Add to Order
+          </uui-button>
+        </div>
+      </umb-body-layout>
+    `;
+  }
+
+  private _renderAddonOption(option: PickerAddonOption) {
+    const selectedAddon = this._selectedAddons.get(option.id);
+
+    return html`
+      <div class="addon-option">
+        <div class="addon-option-header">
+          <span class="addon-option-name">${option.name}</span>
+          <span class="addon-optional">(optional)</span>
+          ${selectedAddon
+            ? html`
+                <uui-button compact look="secondary" @click=${() => this._handleAddonClear(option.id)}>
+                  Clear
+                </uui-button>
+              `
+            : nothing}
+        </div>
+        <div class="addon-values">
+          ${option.values.map((value) => this._renderAddonValue(option, value, selectedAddon?.valueId === value.id))}
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderAddonValue(option: PickerAddonOption, value: PickerAddonOption["values"][0], isSelected: boolean) {
+    return html`
+      <button
+        type="button"
+        class="addon-value-button ${isSelected ? "selected" : ""}"
+        @click=${() => this._handleAddonSelect(option.id, option.name, value)}
+      >
+        <span class="value-name">${value.name}</span>
+        ${value.priceAdjustment !== 0
+          ? html`
+              <span class="value-price ${value.priceAdjustment > 0 ? "positive" : "negative"}">
+                ${value.priceAdjustment > 0 ? "+" : ""}${formatPrice(value.priceAdjustment, this._currencySymbol)}
+              </span>
+            `
+          : nothing}
+      </button>
+    `;
+  }
+
+  // ============================================
+  // Main Render
+  // ============================================
+
   override render() {
+    // Switch between product selection and add-on selection views
+    if (this._viewState === "addon-selection") {
+      return this._renderAddonSelectionView();
+    }
+
     return html`
       <umb-body-layout headline="Select Products">
         <div id="main">
@@ -586,6 +811,122 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       flex: 1;
       font-size: 0.875rem;
       color: var(--uui-color-text-alt);
+    }
+
+    /* Add-on Selection View Styles */
+    .addon-product-summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--uui-size-space-4);
+      background: var(--uui-color-surface-alt);
+      border-radius: var(--uui-border-radius);
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .addon-product-summary .product-info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-1);
+    }
+
+    .addon-product-summary .sku {
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .addon-product-summary .product-pricing {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      font-size: 0.875rem;
+    }
+
+    .addon-product-summary .base-price {
+      font-weight: 600;
+    }
+
+    .addon-product-summary .addon-total {
+      color: var(--uui-color-positive);
+    }
+
+    .addon-product-summary .total-price {
+      font-weight: 700;
+      color: var(--uui-color-current);
+    }
+
+    .addon-options {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-5);
+    }
+
+    .addon-option {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+    }
+
+    .addon-option-header {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+    }
+
+    .addon-option-name {
+      font-weight: 600;
+    }
+
+    .addon-optional {
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .addon-values {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--uui-size-space-2);
+    }
+
+    .addon-value-button {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--uui-size-space-1);
+      padding: var(--uui-size-space-3) var(--uui-size-space-4);
+      background: var(--uui-color-surface);
+      border: 2px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      min-width: 100px;
+    }
+
+    .addon-value-button:hover {
+      border-color: var(--uui-color-selected);
+      background: var(--uui-color-surface-emphasis);
+    }
+
+    .addon-value-button.selected {
+      border-color: var(--uui-color-positive);
+      background: var(--uui-color-positive-surface);
+    }
+
+    .addon-value-button .value-name {
+      font-weight: 500;
+    }
+
+    .addon-value-button .value-price {
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .addon-value-button .value-price.positive {
+      color: var(--uui-color-positive);
+    }
+
+    .addon-value-button .value-price.negative {
+      color: var(--uui-color-danger);
     }
   `;
 }
