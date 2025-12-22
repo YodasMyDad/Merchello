@@ -19,4 +19,10 @@ public class StoreSettingsDto
     /// Invoice number prefix, e.g., "INV-"
     /// </summary>
     public string InvoiceNumberPrefix { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Stock threshold below which items are considered "low stock".
+    /// Products with stock at or below this value (but greater than 0) display a warning badge.
+    /// </summary>
+    public int LowStockThreshold { get; set; } = 10;
 }

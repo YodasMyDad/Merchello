@@ -21,6 +21,11 @@ public class AddProductToOrderDto
     public Guid WarehouseId { get; set; }
 
     /// <summary>
+    /// The shipping option for this product
+    /// </summary>
+    public Guid ShippingOptionId { get; set; }
+
+    /// <summary>
     /// Selected add-on options (non-variant product options)
     /// </summary>
     public List<SelectedAddonDto> Addons { get; set; } = [];

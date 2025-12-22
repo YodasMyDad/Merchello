@@ -6,12 +6,14 @@ using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Security;
 
 namespace Merchello.Controllers;
@@ -23,9 +25,11 @@ public class OrdersApiController(
     IInvoiceService invoiceService,
     IProductService productService,
     ICurrencyService currencyService,
+    IOptions<MerchelloSettings> merchelloSettings,
     IBackOfficeSecurityAccessor backOfficeSecurityAccessor) : MerchelloApiControllerBase
 {
     private readonly ICurrencyService _currencyService = currencyService;
+    private readonly MerchelloSettings _settings = merchelloSettings.Value;
     /// <summary>
     /// Get paginated list of orders/invoices
     /// </summary>
@@ -396,6 +400,36 @@ public class OrdersApiController(
     }
 
     /// <summary>
+    /// Preview calculated discount amount for a line item.
+    /// This is the single source of truth for discount calculations.
+    /// Frontend should call this instead of calculating locally.
+    /// </summary>
+    [HttpPost("orders/preview-discount")]
+    [ProducesResponseType<PreviewDiscountResultDto>(StatusCodes.Status200OK)]
+    public PreviewDiscountResultDto PreviewDiscount([FromBody] PreviewDiscountRequestDto request)
+    {
+        // Use provided currency code or default to store currency
+        var currencyCode = !string.IsNullOrEmpty(request.CurrencyCode)
+            ? request.CurrencyCode
+            : _settings.StoreCurrencyCode;
+
+        var lineTotal = request.LineItemPrice * request.Quantity;
+        var discountAmount = request.DiscountType == DiscountValueType.FixedAmount
+            ? Math.Min(request.DiscountValue * request.Quantity, lineTotal)
+            : lineTotal * (request.DiscountValue / 100m);
+
+        // Round using currency-aware rounding from MerchelloSettings
+        var roundedDiscount = _currencyService.Round(discountAmount, currencyCode);
+
+        return new PreviewDiscountResultDto
+        {
+            LineTotal = _currencyService.Round(lineTotal, currencyCode),
+            DiscountAmount = roundedDiscount,
+            DiscountedTotal = _currencyService.Round(lineTotal - roundedDiscount, currencyCode)
+        };
+    }
+
+    /// <summary>
     /// Edit an invoice (update quantities, apply discounts, add custom items, etc.)
     /// </summary>
     [HttpPut("orders/{invoiceId:guid}/edit")]
@@ -549,6 +583,12 @@ public class OrdersApiController(
             BalanceDue = paymentDetails.BalanceDue,
             AmountPaidInStoreCurrency = paymentDetails.NetPaymentInStoreCurrency,
             BalanceDueInStoreCurrency = paymentDetails.BalanceDueInStoreCurrency,
+            BalanceStatus = paymentDetails.BalanceDue switch
+            {
+                > 0 => "Underpaid",
+                < 0 => "Overpaid",
+                _ => "Balanced"
+            },
             PaymentStatus = paymentDetails.Status,
             PaymentStatusDisplay = paymentDetails.StatusDisplay,
             MaxRiskScore = paymentDetails.MaxRiskScore,
@@ -611,7 +651,9 @@ public class OrdersApiController(
                 Quantity = li.Quantity,
                 Amount = li.Amount,
                 OriginalAmount = li.OriginalAmount,
-                ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null
+                ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null,
+                // Backend is single source of truth for calculated total
+                CalculatedTotal = li.Amount * li.Quantity
             }).ToList() ?? [],
             Shipments = order.Shipments?.Select(s => new ShipmentDto
             {

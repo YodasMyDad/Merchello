@@ -121,6 +121,16 @@ public interface IProductService
     /// Views are discovered using ApplicationPartManager from files and compiled RCLs.
     /// </summary>
     IReadOnlyList<ProductViewInfo> GetAvailableViews();
+
+    /// <summary>
+    /// Calculates the total price for a variant with selected add-ons.
+    /// Backend-calculated to ensure proper currency handling.
+    /// </summary>
+    /// <param name="variantId">The product variant ID</param>
+    /// <param name="request">The selected add-ons</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Price preview with base price, addons total, and total price</returns>
+    Task<AddonPricePreviewDto?> PreviewAddonPriceAsync(Guid variantId, AddonPricePreviewRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

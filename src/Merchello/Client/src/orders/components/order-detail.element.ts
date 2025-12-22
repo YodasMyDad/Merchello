@@ -11,14 +11,13 @@ import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { UMB_CURRENT_USER_CONTEXT, type UmbCurrentUserModel } from "@umbraco-cms/backoffice/current-user";
-import { InvoicePaymentStatus } from "@orders/types/order.types.js";
 import type { OrderDetailDto, AddressDto, FulfillmentOrderDto, InvoiceNoteDto } from "@orders/types/order.types.js";
 import type { MerchelloOrderDetailWorkspaceContext } from "@orders/contexts/order-detail-workspace.context.js";
 import { MERCHELLO_FULFILLMENT_MODAL } from "@orders/modals/fulfillment-modal.token.js";
 import { MERCHELLO_EDIT_ORDER_MODAL } from "@orders/modals/edit-order-modal.token.js";
 import { MERCHELLO_CUSTOMER_ORDERS_MODAL } from "@orders/modals/customer-orders-modal.token.js";
 import { MERCHELLO_CANCEL_INVOICE_MODAL } from "@orders/modals/cancel-invoice-modal.token.js";
-import { formatCurrency, formatDateTime } from "@shared/utils/formatting.js";
+import { formatCurrency, formatDateTime, getPaymentStatusBadgeClass } from "@shared/utils/formatting.js";
 import { MerchelloApi, type CountryDto } from "@api/merchello-api.js";
 import { getOrdersListHref } from "@shared/utils/navigation.js";
 
@@ -236,21 +235,6 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     });
   }
 
-  private _getPaymentStatusBadgeClass(status: InvoicePaymentStatus): string {
-    switch (status) {
-      case InvoicePaymentStatus.Paid:
-        return "paid";
-      case InvoicePaymentStatus.PartiallyPaid:
-        return "partial";
-      case InvoicePaymentStatus.Refunded:
-      case InvoicePaymentStatus.PartiallyRefunded:
-        return "refunded";
-      case InvoicePaymentStatus.AwaitingPayment:
-        return "awaiting";
-      default:
-        return "unpaid";
-    }
-  }
 
   private _formatAddress(address: AddressDto | null): string[] {
     if (!address) return ["No address"];
@@ -549,7 +533,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                   <span class="fulfillment-item-multiply">×</span>
                   <span class="fulfillment-item-qty">${item.quantity}</span>
                 </div>
-                <div class="fulfillment-item-total">${formatCurrency(item.amount * item.quantity, currencyCode, currencySymbol)}</div>
+                <div class="fulfillment-item-total">${formatCurrency(item.calculatedTotal, currencyCode, currencySymbol)}</div>
               </div>
             `
           )}
@@ -702,7 +686,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <h1>${order.invoiceNumber || "Order"}</h1>
             <span class="order-meta">${formatDateTime(order.dateCreated)} from ${order.channel}</span>
           </div>
-          <span class="badge ${this._getPaymentStatusBadgeClass(order.paymentStatus)}">${order.paymentStatusDisplay}</span>
+          <span class="badge ${getPaymentStatusBadgeClass(order.paymentStatus)}">${order.paymentStatusDisplay}</span>
           <span class="badge ${order.fulfillmentStatus.toLowerCase().replace(" ", "-")}">${order.fulfillmentStatus}</span>
           ${order.isCancelled ? html`<span class="badge cancelled">Cancelled</span>` : nothing}
         </div>
@@ -811,7 +795,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                     <span>${formatCurrency(order.totalInStoreCurrency, order.storeCurrencyCode, order.storeCurrencySymbol)}</span>
                   </div>
                 ` : nothing}
-                <div class="summary-row ${order.amountPaid > order.total ? 'overpaid' : order.amountPaid < order.total ? 'underpaid' : ''}">
+                <div class="summary-row ${order.balanceStatus === 'Overpaid' ? 'overpaid' : order.balanceStatus === 'Underpaid' ? 'underpaid' : ''}">
                   <span>Paid</span>
                   <span></span>
                   <span>${formatCurrency(order.amountPaid, order.currencyCode, order.currencySymbol)}</span>
@@ -823,16 +807,16 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                     <span>${formatCurrency(order.amountPaidInStoreCurrency, order.storeCurrencyCode, order.storeCurrencySymbol)}</span>
                   </div>
                 ` : nothing}
-                ${order.balanceDue !== 0 ? html`
-                  <div class="summary-row balance ${order.balanceDue > 0 ? 'underpaid' : 'overpaid'}">
-                    <span>${order.balanceDue > 0 ? 'Balance Due' : 'Credit Due'}</span>
+                ${order.balanceStatus !== 'Balanced' ? html`
+                  <div class="summary-row balance ${order.balanceStatus === 'Underpaid' ? 'underpaid' : 'overpaid'}">
+                    <span>${order.balanceStatus === 'Underpaid' ? 'Balance Due' : 'Credit Due'}</span>
                     <span></span>
-                    <span>${order.balanceDue > 0 ? formatCurrency(order.balanceDue, order.currencyCode, order.currencySymbol) : formatCurrency(Math.abs(order.balanceDue), order.currencyCode, order.currencySymbol)}</span>
+                    <span>${formatCurrency(Math.abs(order.balanceDue), order.currencyCode, order.currencySymbol)}</span>
                   </div>
                 ` : nothing}
-                ${order.balanceDueInStoreCurrency != null && order.storeCurrencyCode !== order.currencyCode ? html`
+                ${order.balanceDueInStoreCurrency != null && order.storeCurrencyCode !== order.currencyCode && order.balanceStatus !== 'Balanced' ? html`
                   <div class="summary-row">
-                    <span>${(order.balanceDueInStoreCurrency ?? 0) > 0 ? 'Balance Due (Store)' : 'Credit Due (Store)'}</span>
+                    <span>${order.balanceStatus === 'Underpaid' ? 'Balance Due (Store)' : 'Credit Due (Store)'}</span>
                     <span></span>
                     <span>${formatCurrency(Math.abs(order.balanceDueInStoreCurrency ?? 0), order.storeCurrencyCode, order.storeCurrencySymbol)}</span>
                   </div>

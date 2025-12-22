@@ -182,48 +182,110 @@ public class DefaultOrderGroupingStrategy(
             : warehouseShippingOptions;
 
         var allowedShippingOptions = product.GetAllowedShippingOptions(baseShippingOptions).ToList();
-        var allowedShippingOptionIds = allowedShippingOptions.Select(so => so.Id).OrderBy(id => id).ToList();
 
-        // Find or create a group for this warehouse + shipping options combination
-        var group = orderGroups.FirstOrDefault(g =>
-            g.WarehouseId == warehouseId &&
-            g.AvailableShippingOptions.Select(so => so.ShippingOptionId).OrderBy(id => id).SequenceEqual(allowedShippingOptionIds));
-
-        if (group == null)
+        // Check if this line item has a specific shipping selection (from order edit flow)
+        // If so, group by that specific shipping option to ensure items with different
+        // selected shipping methods end up in different orders
+        Guid? selectedShippingOptionId = null;
+        if (context.LineItemShippingSelections.TryGetValue(lineItemId, out var selection) &&
+            selection.WarehouseId == warehouseId)
         {
-            group = new OrderGroup
+            selectedShippingOptionId = selection.ShippingOptionId;
+        }
+
+        OrderGroup? group;
+
+        if (selectedShippingOptionId.HasValue)
+        {
+            // Group by warehouse + selected shipping option (for order edit flow)
+            group = orderGroups.FirstOrDefault(g =>
+                g.WarehouseId == warehouseId &&
+                g.SelectedShippingOptionId == selectedShippingOptionId.Value);
+
+            if (group == null)
             {
-                GroupId = GenerateDeterministicGroupId(warehouseId, allowedShippingOptionIds),
-                GroupName = $"Shipment from {warehouseName}",
-                WarehouseId = warehouseId,
-                AvailableShippingOptions = allowedShippingOptions.Select(so => new ShippingOptionInfo
+                // Find the selected shipping option details
+                var selectedOption = allowedShippingOptions.FirstOrDefault(so => so.Id == selectedShippingOptionId.Value);
+                if (selectedOption == null)
                 {
-                    ShippingOptionId = so.Id,
-                    Name = so.Name ?? string.Empty,
-                    DaysFrom = so.DaysFrom,
-                    DaysTo = so.DaysTo,
-                    IsNextDay = so.IsNextDay,
-                    Cost = ConvertShippingCostToBasketCurrency(
-                        ResolveShippingCostForDestination(so, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode),
-                        basketCurrency,
-                        storeToBasketRate),
-                    ProviderKey = so.ProviderKey
-                }).ToList()
-            };
+                    // Fallback: try to find in warehouse options
+                    selectedOption = warehouseShippingOptions.FirstOrDefault(so => so.Id == selectedShippingOptionId.Value);
+                }
 
-            // Set selected option if provided
-            var selectedOptionId = context.SelectedShippingOptions.GetValueOrDefault(group.GroupId);
-            if (selectedOptionId == Guid.Empty)
-            {
-                selectedOptionId = context.SelectedShippingOptions.GetValueOrDefault(warehouseId);
+                var shippingOptionsForGroup = selectedOption != null
+                    ? [selectedOption]
+                    : allowedShippingOptions;
+
+                group = new OrderGroup
+                {
+                    GroupId = GenerateDeterministicGroupId(warehouseId, [selectedShippingOptionId.Value]),
+                    GroupName = $"Shipment from {warehouseName}",
+                    WarehouseId = warehouseId,
+                    SelectedShippingOptionId = selectedShippingOptionId.Value,
+                    AvailableShippingOptions = shippingOptionsForGroup.Select(so => new ShippingOptionInfo
+                    {
+                        ShippingOptionId = so.Id,
+                        Name = so.Name ?? string.Empty,
+                        DaysFrom = so.DaysFrom,
+                        DaysTo = so.DaysTo,
+                        IsNextDay = so.IsNextDay,
+                        Cost = ConvertShippingCostToBasketCurrency(
+                            ResolveShippingCostForDestination(so, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode),
+                            basketCurrency,
+                            storeToBasketRate),
+                        ProviderKey = so.ProviderKey
+                    }).ToList()
+                };
+
+                orderGroups.Add(group);
             }
+        }
+        else
+        {
+            // Standard grouping: by warehouse + available shipping options (for checkout flow)
+            var allowedShippingOptionIds = allowedShippingOptions.Select(so => so.Id).OrderBy(id => id).ToList();
 
-            if (selectedOptionId != Guid.Empty)
+            group = orderGroups.FirstOrDefault(g =>
+                g.WarehouseId == warehouseId &&
+                !g.SelectedShippingOptionId.HasValue && // Only match groups without pre-selected shipping
+                g.AvailableShippingOptions.Select(so => so.ShippingOptionId).OrderBy(id => id).SequenceEqual(allowedShippingOptionIds));
+
+            if (group == null)
             {
-                group.SelectedShippingOptionId = selectedOptionId;
-            }
+                group = new OrderGroup
+                {
+                    GroupId = GenerateDeterministicGroupId(warehouseId, allowedShippingOptionIds),
+                    GroupName = $"Shipment from {warehouseName}",
+                    WarehouseId = warehouseId,
+                    AvailableShippingOptions = allowedShippingOptions.Select(so => new ShippingOptionInfo
+                    {
+                        ShippingOptionId = so.Id,
+                        Name = so.Name ?? string.Empty,
+                        DaysFrom = so.DaysFrom,
+                        DaysTo = so.DaysTo,
+                        IsNextDay = so.IsNextDay,
+                        Cost = ConvertShippingCostToBasketCurrency(
+                            ResolveShippingCostForDestination(so, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode),
+                            basketCurrency,
+                            storeToBasketRate),
+                        ProviderKey = so.ProviderKey
+                    }).ToList()
+                };
 
-            orderGroups.Add(group);
+                // Set selected option if provided via SelectedShippingOptions
+                var groupSelectedOptionId = context.SelectedShippingOptions.GetValueOrDefault(group.GroupId);
+                if (groupSelectedOptionId == Guid.Empty)
+                {
+                    groupSelectedOptionId = context.SelectedShippingOptions.GetValueOrDefault(warehouseId);
+                }
+
+                if (groupSelectedOptionId != Guid.Empty)
+                {
+                    group.SelectedShippingOptionId = groupSelectedOptionId;
+                }
+
+                orderGroups.Add(group);
+            }
         }
 
         // Add line item to this group

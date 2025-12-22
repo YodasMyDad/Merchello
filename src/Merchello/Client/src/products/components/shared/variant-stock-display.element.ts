@@ -49,7 +49,9 @@ export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElem
   }
 
   override render() {
-    const totalStock = this.warehouseStock.reduce((sum, ws) => sum + ws.stock, 0);
+    // Use backend-calculated available stock for the summary
+    const totalAvailableStock = this.warehouseStock.reduce((sum, ws) => sum + ws.availableStock, 0);
+    const totalReservedStock = this.warehouseStock.reduce((sum, ws) => sum + ws.reservedStock, 0);
 
     return html`
       <uui-box class="info-banner">
@@ -66,13 +68,14 @@ export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElem
         ${this.warehouseStock.length > 0
           ? html`
               <div class="stock-summary">
-                <strong>Total Stock:</strong> ${totalStock} units
+                <strong>Available Stock:</strong> ${totalAvailableStock} units
+                ${totalReservedStock > 0 ? html`<span class="reserved-info">(${totalReservedStock} reserved)</span>` : ""}
               </div>
               <div class="table-container">
                 <uui-table>
                   <uui-table-head>
                     <uui-table-head-cell>Warehouse</uui-table-head-cell>
-                    <uui-table-head-cell>Available</uui-table-head-cell>
+                    <uui-table-head-cell>Stock</uui-table-head-cell>
                     <uui-table-head-cell>Reorder Point</uui-table-head-cell>
                     <uui-table-head-cell>Track Stock</uui-table-head-cell>
                   </uui-table-head>
@@ -165,6 +168,12 @@ export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElem
         padding: var(--uui-size-space-3);
         background: var(--uui-color-surface-alt);
         border-radius: var(--uui-border-radius);
+      }
+
+      .reserved-info {
+        color: var(--uui-color-text-alt);
+        font-size: 0.875rem;
+        margin-left: var(--uui-size-space-2);
       }
 
       .table-container {

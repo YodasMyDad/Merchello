@@ -5,6 +5,8 @@ using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
+using Merchello.Core.Shipping.Dtos;
+using Merchello.Core.Shipping.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -17,6 +19,7 @@ namespace Merchello.Controllers;
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class ProductsApiController(
     IProductService productService,
+    IShippingService shippingService,
     IDataTypeService dataTypeService,
     IOptions<MerchelloSettings> merchelloSettings) : MerchelloApiControllerBase
 {
@@ -217,6 +220,61 @@ public class ProductsApiController(
         return NoContent();
     }
 
+    /// <summary>
+    /// Gets fulfillment options for a product variant to a destination.
+    /// Returns the best warehouse that can fulfill based on priority, region eligibility, and stock.
+    /// Used by product picker modal to determine shipping eligibility in a single API call.
+    /// </summary>
+    [HttpGet("products/variants/{variantId:guid}/fulfillment-options")]
+    [ProducesResponseType<ProductFulfillmentOptionsDto>(StatusCodes.Status200OK)]
+    public async Task<ProductFulfillmentOptionsDto> GetFulfillmentOptionsForProduct(
+        Guid variantId,
+        [FromQuery] string destinationCountryCode,
+        [FromQuery] string? destinationStateCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await shippingService.GetFulfillmentOptionsForProductAsync(
+            variantId,
+            destinationCountryCode,
+            destinationStateCode,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the default fulfilling warehouse for a product variant based on priority and stock.
+    /// Used when no destination address is known (e.g., browsing products before checkout).
+    /// Unlike fulfillment-options endpoint, this does NOT check region serviceability.
+    /// </summary>
+    [HttpGet("products/variants/{variantId:guid}/default-warehouse")]
+    [ProducesResponseType<ProductFulfillmentOptionsDto>(StatusCodes.Status200OK)]
+    public async Task<ProductFulfillmentOptionsDto> GetDefaultFulfillingWarehouse(
+        Guid variantId,
+        CancellationToken cancellationToken = default)
+    {
+        return await shippingService.GetDefaultFulfillingWarehouseAsync(variantId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Calculates the total price for a variant with selected add-ons.
+    /// Backend-calculated to ensure proper currency handling.
+    /// Used by product picker modal to show price preview during addon selection.
+    /// </summary>
+    [HttpPost("products/variants/{variantId:guid}/preview-addon-price")]
+    [ProducesResponseType<AddonPricePreviewDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> PreviewAddonPrice(
+        Guid variantId,
+        [FromBody] AddonPricePreviewRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await productService.PreviewAddonPriceAsync(variantId, request, cancellationToken);
+        if (result == null)
+        {
+            return NotFound();
+        }
+        return Ok(result);
+    }
+
     #endregion
 
     #region Options Endpoints
@@ -278,7 +336,7 @@ public class ProductsApiController(
 
         var result = await productService.QueryProducts(parameters);
 
-        var items = result.Items.Select(MapToListItem).ToList();
+        var items = result.Items.Select(p => MapToListItem(p, _settings.LowStockThreshold)).ToList();
 
         return new ProductPageDto
         {
@@ -479,7 +537,7 @@ public class ProductsApiController(
 
     #endregion
 
-    private static ProductListItemDto MapToListItem(Product product)
+    private static ProductListItemDto MapToListItem(Product product, int lowStockThreshold)
     {
         var totalStock = product.ProductWarehouses?.Sum(pw => pw.Stock) ?? 0;
         var variants = product.ProductRoot?.Products;
@@ -501,6 +559,9 @@ public class ProductsApiController(
             prw.Warehouse?.ShippingOptions?.Any() == true) == true;
         var isDigitalProduct = product.ProductRoot?.IsDigitalProduct == true;
 
+        // Calculate stock status centrally
+        var stockStatus = CalculateStockStatus(totalStock, isDigitalProduct, lowStockThreshold);
+
         return new ProductListItemDto
         {
             Id = product.Id,
@@ -512,6 +573,7 @@ public class ProductsApiController(
             MaxPrice = maxPrice,
             Purchaseable = product.AvailableForPurchase && product.CanPurchase,
             TotalStock = totalStock,
+            StockStatus = stockStatus,
             VariantCount = variantCount,
             ProductTypeName = product.ProductRoot?.ProductType?.Name ?? "",
             CollectionNames = product.ProductRoot?.Collections?.Select(c => c.Name ?? string.Empty).ToList() ?? [],
@@ -520,6 +582,22 @@ public class ProductsApiController(
             HasShippingOptions = hasShippingOptions,
             IsDigitalProduct = isDigitalProduct
         };
+    }
+
+    /// <summary>
+    /// Calculates the stock status based on available stock and threshold.
+    /// This is the single source of truth for stock status calculation.
+    /// </summary>
+    private static StockStatus CalculateStockStatus(int totalStock, bool isDigitalProduct, int lowStockThreshold)
+    {
+        // Digital products don't track stock
+        if (isDigitalProduct)
+            return StockStatus.Untracked;
+        if (totalStock <= 0)
+            return StockStatus.OutOfStock;
+        if (totalStock <= lowStockThreshold)
+            return StockStatus.LowStock;
+        return StockStatus.InStock;
     }
 
     #endregion

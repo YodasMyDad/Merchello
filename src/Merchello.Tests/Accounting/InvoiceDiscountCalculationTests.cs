@@ -4,6 +4,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Discounts.Services.Interfaces;
@@ -63,6 +64,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var currencyService = new CurrencyService(settings);
         var lineItemService = new LineItemService(currencyService);
         var discountService = new Mock<IDiscountService>().Object;
+        var strategyResolver = new Mock<IOrderGroupingStrategyResolver>().Object;
         var logger = new Mock<ILogger<InvoiceService>>().Object;
 
         // Factories
@@ -80,6 +82,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             productService,
             customerService,
             checkoutService,
+            strategyResolver,
             notificationPublisher,
             exchangeRateCacheMock.Object,
             currencyService,

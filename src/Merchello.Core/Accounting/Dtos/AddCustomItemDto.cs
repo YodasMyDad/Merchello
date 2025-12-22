@@ -34,5 +34,15 @@ public class AddCustomItemDto
     /// Whether this is a physical product (affects shipping)
     /// </summary>
     public bool IsPhysicalProduct { get; set; } = true;
+
+    /// <summary>
+    /// Warehouse ID for shipping grouping (required if IsPhysicalProduct is true)
+    /// </summary>
+    public Guid? WarehouseId { get; set; }
+
+    /// <summary>
+    /// Selected shipping option ID for this item (required if IsPhysicalProduct is true)
+    /// </summary>
+    public Guid? ShippingOptionId { get; set; }
 }
 

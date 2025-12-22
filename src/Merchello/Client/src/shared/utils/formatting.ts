@@ -155,3 +155,4 @@ export function getFulfillmentStatusBadgeClass(status: string): string {
 export function formatItemCount(count: number): string {
   return `${count} item${count !== 1 ? "s" : ""}`;
 }
+

@@ -2210,7 +2210,7 @@ public class ProductService(
             WarehouseIds = productRoot.ProductRootWarehouses.Select(prw => prw.WarehouseId).ToList(),
             ProductOptions = productRoot.ProductOptions.OrderBy(o => o.SortOrder).Select(MapToProductOptionDto).ToList(),
             Variants = productRoot.Products.OrderByDescending(p => p.Default).ThenBy(p => p.Name)
-                .Select(p => MapToProductVariantDto(p, productRoot.ProductRootWarehouses)).ToList(),
+                .Select(p => MapToProductVariantDto(p, productRoot.ProductRootWarehouses, settings.Value.LowStockThreshold)).ToList(),
             AvailableShippingOptions = MapToShippingOptionExclusionDtos(productRoot),
             ElementProperties = DeserializeElementProperties(productRoot.ElementPropertyData),
             ViewAlias = productRoot.ViewAlias
@@ -2290,22 +2290,64 @@ public class ProductService(
     }
 
     /// <summary>
+    /// Calculates the stock status based on available stock, track stock setting, and threshold.
+    /// This is the single source of truth for stock status calculation.
+    /// </summary>
+    private static StockStatus CalculateStockStatus(int availableStock, bool trackStock, int lowStockThreshold)
+    {
+        if (!trackStock)
+            return StockStatus.Untracked;
+        if (availableStock <= 0)
+            return StockStatus.OutOfStock;
+        if (availableStock <= lowStockThreshold)
+            return StockStatus.LowStock;
+        return StockStatus.InStock;
+    }
+
+    /// <summary>
+    /// Calculates aggregate stock status across all warehouses.
+    /// Uses the "worst" status from tracked warehouses, or Untracked if none track stock.
+    /// </summary>
+    private static StockStatus CalculateAggregateStockStatus(List<VariantWarehouseStockDto> warehouseStock)
+    {
+        var trackedWarehouses = warehouseStock.Where(ws => ws.TrackStock).ToList();
+
+        if (trackedWarehouses.Count == 0)
+            return StockStatus.Untracked;
+
+        // Return the worst status (OutOfStock > LowStock > InStock)
+        if (trackedWarehouses.Any(ws => ws.StockStatus == StockStatus.OutOfStock))
+            return StockStatus.OutOfStock;
+        if (trackedWarehouses.Any(ws => ws.StockStatus == StockStatus.LowStock))
+            return StockStatus.LowStock;
+
+        return StockStatus.InStock;
+    }
+
+    /// <summary>
     /// Maps a Product entity to a ProductVariantDto
     /// </summary>
-    private static ProductVariantDto MapToProductVariantDto(Product product, ICollection<ProductRootWarehouse> rootWarehouses)
+    private static ProductVariantDto MapToProductVariantDto(Product product, ICollection<ProductRootWarehouse> rootWarehouses, int lowStockThreshold)
     {
         // Build warehouse stock from root warehouses, using actual stock if it exists
         var warehouseStock = rootWarehouses.Select(rw =>
         {
             var existingStock = product.ProductWarehouses?.FirstOrDefault(pw => pw.WarehouseId == rw.WarehouseId);
+            var stock = existingStock?.Stock ?? 0;
+            var reservedStock = existingStock?.ReservedStock ?? 0;
+            var availableStock = Math.Max(0, stock - reservedStock);
+            var trackStock = existingStock?.TrackStock ?? true;
             return new VariantWarehouseStockDto
             {
                 WarehouseId = rw.WarehouseId,
                 WarehouseName = rw.Warehouse?.Name,
-                Stock = existingStock?.Stock ?? 0,
+                Stock = stock,
+                ReservedStock = reservedStock,
+                AvailableStock = availableStock,
                 ReorderPoint = existingStock?.ReorderPoint,
                 ReorderQuantity = existingStock?.ReorderQuantity,
-                TrackStock = existingStock?.TrackStock ?? true
+                TrackStock = trackStock,
+                StockStatus = CalculateStockStatus(availableStock, trackStock, lowStockThreshold)
             };
         }).ToList();
 
@@ -2342,7 +2384,8 @@ public class ProductService(
             ShoppingFeedMaterial = product.ShoppingFeedMaterial,
             ShoppingFeedSize = product.ShoppingFeedSize,
             RemoveFromFeed = product.RemoveFromFeed,
-            TotalStock = warehouseStock.Sum(ws => ws.Stock),
+            TotalStock = warehouseStock.Sum(ws => ws.AvailableStock),
+            StockStatus = CalculateAggregateStockStatus(warehouseStock),
             WarehouseStock = warehouseStock,
             ShippingRestrictionMode = product.ShippingRestrictionMode,
             ExcludedShippingOptionIds = product.ExcludedShippingOptions.Select(eso => eso.Id).ToList()
@@ -2908,6 +2951,62 @@ public class ProductService(
             .DistinctBy(v => v.Alias, StringComparer.OrdinalIgnoreCase)
             .OrderBy(v => v.Alias)
             .ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<AddonPricePreviewDto?> PreviewAddonPriceAsync(
+        Guid variantId,
+        AddonPricePreviewRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            // Get the variant with its product root and options
+            var variant = await db.Products
+                .AsNoTracking()
+                .Include(p => p.ProductRoot)
+                    .ThenInclude(pr => pr!.ProductOptions.Where(po => !po.IsVariant))
+                        .ThenInclude(po => po.ProductOptionValues)
+                .FirstOrDefaultAsync(p => p.Id == variantId, cancellationToken);
+
+            if (variant == null)
+            {
+                return null;
+            }
+
+            var basePrice = variant.Price;
+            var addonsTotal = 0m;
+
+            // Calculate addon total from selected add-on values
+            if (request.SelectedAddons.Count > 0)
+            {
+                var addonOptions = variant.ProductRoot?.ProductOptions
+                    .Where(po => !po.IsVariant)
+                    .ToList() ?? [];
+
+                foreach (var selectedAddon in request.SelectedAddons)
+                {
+                    var option = addonOptions.FirstOrDefault(o => o.Id == selectedAddon.OptionId);
+                    var value = option?.ProductOptionValues.FirstOrDefault(v => v.Id == selectedAddon.ValueId);
+                    if (value != null)
+                    {
+                        addonsTotal += value.PriceAdjustment;
+                    }
+                }
+            }
+
+            return new AddonPricePreviewDto
+            {
+                BasePrice = basePrice,
+                AddonsTotal = addonsTotal,
+                TotalPrice = basePrice + addonsTotal
+            };
+        });
+
+        scope.Complete();
+        return result;
     }
 
     #endregion

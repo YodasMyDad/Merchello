@@ -57,7 +57,7 @@ import {
 import {
   getVariantOptionDescription,
   calculateEstimatedVariantCount,
-  getStockBadgeClass,
+  getStockStatusBadgeClass,
   hasVariantWarnings,
   hasOptionWarnings,
   formatUrlAsBreadcrumb,
@@ -1499,7 +1499,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         <uui-table-cell>${variant.sku || "—"}</uui-table-cell>
         <uui-table-cell>${formatCurrency(variant.price)}</uui-table-cell>
         <uui-table-cell>
-          <span class="badge ${this._getStockBadgeClass(variant.totalStock)}">${variant.totalStock}</span>
+          <span class="badge ${getStockStatusBadgeClass(variant.stockStatus)}">${variant.totalStock}</span>
         </uui-table-cell>
         <uui-table-cell>
           <span class="badge ${variant.availableForPurchase ? "badge-positive" : "badge-danger"}">
@@ -1508,14 +1508,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         </uui-table-cell>
       </uui-table-row>
     `;
-  }
-
-  /**
-   * Gets the appropriate CSS badge class for a stock level.
-   * Uses utility function from variant-helpers.
-   */
-  private _getStockBadgeClass(stock: number): string {
-    return getStockBadgeClass(stock);
   }
 
   /**

@@ -31,21 +31,19 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
     const payment = this.data?.payment;
     if (!payment) return;
 
-    // Validate
+    // UX validation only - business rules (amount <= refundable) are validated by backend
     if (!this._reason.trim()) {
       this._errorMessage = "Refund reason is required";
       return;
     }
 
     if (this._amount <= 0) {
-      this._errorMessage = "Amount must be greater than zero";
+      this._errorMessage = "Please enter a refund amount";
       return;
     }
 
-    if (this._amount > payment.refundableAmount) {
-      this._errorMessage = `Amount cannot exceed ${formatCurrency(payment.refundableAmount, payment.currencyCode, payment.currencySymbol)}`;
-      return;
-    }
+    // Note: Backend validates that amount doesn't exceed refundable amount
+    // and will return appropriate error message if exceeded
 
     this._isSaving = true;
     this._errorMessage = null;

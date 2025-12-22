@@ -4,9 +4,9 @@ import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
-import { formatCurrency, formatShortDate } from "@shared/utils/formatting.js";
+import { formatCurrency, formatShortDate, getPaymentStatusBadgeClass } from "@shared/utils/formatting.js";
 import type { PaymentDto, PaymentStatusDto, PaymentRecordedDetail, RefundProcessedDetail } from "@orders/types/order.types.js";
-import { PaymentType, InvoicePaymentStatus } from "@orders/types/order.types.js";
+import { PaymentType } from "@orders/types/order.types.js";
 import { MERCHELLO_MANUAL_PAYMENT_MODAL } from "@orders/modals/manual-payment-modal.token.js";
 import { MERCHELLO_REFUND_MODAL } from "@orders/modals/refund-modal.token.js";
 
@@ -128,29 +128,6 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
   }
 
 
-  private _getStatusBadgeClass(status: InvoicePaymentStatus): string {
-    switch (status) {
-      case InvoicePaymentStatus.Paid:
-        return "paid";
-      case InvoicePaymentStatus.PartiallyPaid:
-        return "partial";
-      case InvoicePaymentStatus.Refunded:
-      case InvoicePaymentStatus.PartiallyRefunded:
-        return "refunded";
-      case InvoicePaymentStatus.AwaitingPayment:
-        return "awaiting";
-      default:
-        return "unpaid";
-    }
-  }
-
-  private _getRiskLevelClass(score: number): string {
-    if (score >= 75) return "high-risk";
-    if (score >= 50) return "medium-risk";
-    if (score >= 25) return "low-risk";
-    return "minimal-risk";
-  }
-
   private _renderPayment(payment: PaymentDto): unknown {
     const isRefund = payment.paymentType === PaymentType.Refund ||
                      payment.paymentType === PaymentType.PartialRefund;
@@ -173,7 +150,7 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
               ? html`<div class="transaction-id">ID: ${payment.transactionId}</div>`
               : nothing}
             ${payment.riskScore != null
-              ? html`<div class="risk-score ${this._getRiskLevelClass(payment.riskScore)}">
+              ? html`<div class="risk-score ${payment.riskLevel ? `${payment.riskLevel}-risk` : 'minimal-risk'}">
                   Risk: ${payment.riskScore}%
                   ${payment.riskScoreSource ? html`<span class="risk-source">(${payment.riskScoreSource})</span>` : nothing}
                 </div>`
@@ -239,17 +216,17 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
         <div class="status-summary">
           <div class="status-header">
             <div class="status-badges">
-              <span class="status-badge ${status ? this._getStatusBadgeClass(status.status) : 'unpaid'}">
+              <span class="status-badge ${status ? getPaymentStatusBadgeClass(status.status) : 'unpaid'}">
                 ${status?.statusDisplay ?? "Unknown"}
               </span>
               ${status?.maxRiskScore != null
-                ? html`<span class="risk-badge ${this._getRiskLevelClass(status.maxRiskScore)}">
+                ? html`<span class="risk-badge ${status.riskLevel ? `${status.riskLevel}-risk` : 'minimal-risk'}">
                     <uui-icon name="icon-alert"></uui-icon>
                     Risk: ${status.maxRiskScore}%
                   </span>`
                 : nothing}
             </div>
-            ${status && status.balanceDue > 0
+            ${status && status.balanceStatus === 'Underpaid'
               ? html`
                   <uui-button
                     look="primary"
@@ -284,7 +261,7 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
                     : nothing}
                   <div class="status-row total">
                     <span>Balance Due</span>
-                    <span class="${status.balanceDue > 0 ? 'negative' : ''}">
+                    <span class="${status.balanceStatus === 'Underpaid' ? 'negative' : ''}">
                       ${formatCurrency(status.balanceDue, status.currencyCode, status.currencySymbol)}
                     </span>
                   </div>

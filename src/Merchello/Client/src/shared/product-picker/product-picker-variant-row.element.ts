@@ -73,20 +73,22 @@ export class MerchelloProductPickerVariantRowElement extends UmbElementMixin(Lit
     return html`<span class="variant-price">${formatPrice(this.variant.price, this.currencySymbol)}</span>`;
   }
 
+  /**
+   * Renders stock status using backend-provided stockStatus.
+   * Backend is the single source of truth for stock status classification.
+   */
   private _renderStockStatus() {
-    if (!this.variant.trackStock) {
-      return html`<span class="status available">Available</span>`;
+    switch (this.variant.stockStatus) {
+      case "Untracked":
+        return html`<span class="status available">Available</span>`;
+      case "OutOfStock":
+        return html`<span class="status blocked">Out of stock</span>`;
+      case "LowStock":
+        return html`<span class="status warning">Low: ${this.variant.availableStock}</span>`;
+      case "InStock":
+      default:
+        return html`<span class="status available">${this.variant.availableStock} in stock</span>`;
     }
-
-    if (this.variant.availableStock <= 0) {
-      return html`<span class="status blocked">Out of stock</span>`;
-    }
-
-    if (this.variant.availableStock <= 5) {
-      return html`<span class="status warning">Low: ${this.variant.availableStock}</span>`;
-    }
-
-    return html`<span class="status available">${this.variant.availableStock} in stock</span>`;
   }
 
   private _renderRegionStatus() {

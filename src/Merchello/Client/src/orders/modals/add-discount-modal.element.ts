@@ -4,6 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { DiscountValueType } from "@orders/types/order.types.js";
 import type { AddDiscountModalData, AddDiscountModalValue } from "./add-discount-modal.token.js";
 import { formatNumber } from "@shared/utils/formatting.js";
+import { MerchelloApi } from "@api/merchello-api.js";
 
 @customElement("merchello-add-discount-modal")
 export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
@@ -16,6 +17,11 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
   @state() private _isVisibleToCustomer: boolean = false;
   @state() private _errors: Record<string, string> = {};
 
+  // Discount preview state (from backend calculation)
+  @state() private _discountPreview: { discountAmount: number } | null = null;
+  @state() private _isLoadingPreview: boolean = false;
+  private _previewDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   override connectedCallback(): void {
     super.connectedCallback();
     // Pre-fill with existing discount if editing
@@ -24,18 +30,28 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
       this._discountValue = this.data.existingDiscount.value;
       this._discountReason = this.data.existingDiscount.reason ?? "";
       this._isVisibleToCustomer = this.data.existingDiscount.isVisibleToCustomer;
+      // Trigger preview for existing discount
+      this._refreshDiscountPreview();
     }
   }
 
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this._previewDebounceTimer) {
+      clearTimeout(this._previewDebounceTimer);
+    }
+  }
+
+  /**
+   * UX validation only - checks for required fields.
+   * Business rule validation (value > 0, percentage <= 100) is handled by backend.
+   */
   private _validate(): boolean {
     const errors: Record<string, string> = {};
 
-    if (this._discountValue <= 0) {
-      errors.value = "Discount value must be greater than 0";
-    }
-
-    if (this._discountType === DiscountValueType.Percentage && this._discountValue > 100) {
-      errors.value = "Percentage cannot exceed 100%";
+    // UX: Indicate if no value has been entered
+    if (!this._discountValue) {
+      errors.value = "Please enter a discount value";
     }
 
     this._errors = errors;
@@ -67,16 +83,67 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
     ];
   }
 
-  private _getCalculatedDiscount(): number {
-    if (!this.data || this.data.isOrderDiscount) return 0;
-    
-    const lineTotal = (this.data.lineItemPrice ?? 0) * (this.data.lineItemQuantity ?? 1);
-    
-    if (this._discountType === DiscountValueType.FixedAmount) {
-      return Math.min(this._discountValue * (this.data.lineItemQuantity ?? 1), lineTotal);
-    } else {
-      return lineTotal * (this._discountValue / 100);
+  /**
+   * Get the calculated discount amount from backend preview.
+   * Returns null if no preview is available - UI should show loading indicator.
+   * Backend is the single source of truth for discount calculations.
+   */
+  private _getCalculatedDiscount(): number | null {
+    return this._discountPreview?.discountAmount ?? null;
+  }
+
+  /**
+   * Refresh discount preview from backend with debouncing.
+   * This ensures calculations use the centralized backend logic.
+   */
+  private _refreshDiscountPreview(): void {
+    // Only call API for line item discounts (not order discounts)
+    if (!this.data || this.data.isOrderDiscount || this._discountValue <= 0) {
+      this._discountPreview = null;
+      return;
     }
+
+    if (this._previewDebounceTimer) {
+      clearTimeout(this._previewDebounceTimer);
+    }
+
+    this._previewDebounceTimer = setTimeout(async () => {
+      this._isLoadingPreview = true;
+      try {
+        const { data, error } = await MerchelloApi.previewDiscount({
+          lineItemPrice: this.data!.lineItemPrice ?? 0,
+          quantity: this.data!.lineItemQuantity ?? 1,
+          discountType: this._discountType,
+          discountValue: this._discountValue,
+          currencyCode: this.data!.currencyCode,
+        });
+
+        if (error) {
+          console.error("Failed to preview discount:", error);
+          // Clear preview - UI will show "Calculating..." until retry succeeds
+          this._discountPreview = null;
+        } else if (data) {
+          this._discountPreview = {
+            discountAmount: data.discountAmount,
+          };
+        }
+      } catch (err) {
+        console.error("Unexpected error previewing discount:", err);
+        this._discountPreview = null;
+      } finally {
+        this._isLoadingPreview = false;
+      }
+    }, 300);
+  }
+
+  private _handleDiscountTypeChange(e: Event): void {
+    this._discountType = parseInt((e.target as HTMLSelectElement).value);
+    this._refreshDiscountPreview();
+  }
+
+  private _handleDiscountValueChange(e: Event): void {
+    this._discountValue = parseFloat((e.target as HTMLInputElement).value) || 0;
+    this._refreshDiscountPreview();
   }
 
   override render() {
@@ -109,7 +176,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
             <uui-select
               id="discount-type"
               .options=${this._getDiscountTypeOptions()}
-              @change=${(e: Event) => (this._discountType = parseInt((e.target as HTMLSelectElement).value))}
+              @change=${this._handleDiscountTypeChange}
             ></uui-select>
           </div>
 
@@ -125,7 +192,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
                 id="discount-value"
                 type="number"
                 .value=${this._discountValue.toString()}
-                @input=${(e: Event) => (this._discountValue = parseFloat((e.target as HTMLInputElement).value) || 0)}
+                @input=${this._handleDiscountValueChange}
                 min="0"
                 step="0.01"
               ></uui-input>
@@ -156,11 +223,13 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
           </div>
 
           ${!isOrderDiscount && this._discountValue > 0 ? html`
-            <div class="summary">
+            <div class="summary ${this._isLoadingPreview ? 'loading' : ''}">
               <div class="summary-row">
                 <span>Discount</span>
                 <span class="discount-amount">
-                  -${currencySymbol}${formatNumber(this._getCalculatedDiscount(), 2)}
+                  ${this._isLoadingPreview || this._getCalculatedDiscount() === null
+                    ? html`<span class="calculating">Calculating...</span>`
+                    : html`-${currencySymbol}${formatNumber(this._getCalculatedDiscount()!, 2)}`}
                 </span>
               </div>
             </div>
@@ -269,6 +338,10 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
       padding: var(--uui-size-space-3);
     }
 
+    .summary.loading {
+      opacity: 0.6;
+    }
+
     .summary-row {
       display: flex;
       justify-content: space-between;
@@ -278,6 +351,12 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
     .discount-amount {
       font-weight: 600;
       color: var(--uui-color-positive);
+    }
+
+    .calculating {
+      font-style: italic;
+      color: var(--uui-color-text-alt);
+      font-weight: normal;
     }
 
     .error {

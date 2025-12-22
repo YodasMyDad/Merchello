@@ -1,6 +1,17 @@
 // Product types matching the API DTOs
 
 // ============================================
+// Stock Status Types
+// ============================================
+
+/**
+ * Stock status classification for products and variants.
+ * Calculated by the backend to ensure consistency - frontend should use this
+ * instead of comparing stock against threshold locally.
+ */
+export type StockStatus = "InStock" | "LowStock" | "OutOfStock" | "Untracked";
+
+// ============================================
 // Rich Text Editor Value Types
 // ============================================
 
@@ -66,6 +77,8 @@ export interface ProductListItemDto {
   maxPrice: number | null;
   purchaseable: boolean;
   totalStock: number;
+  /** Stock status classification calculated by backend - use this instead of comparing totalStock to threshold locally */
+  stockStatus: StockStatus;
   variantCount: number;
   productTypeName: string;
   collectionNames: string[];
@@ -179,6 +192,8 @@ export interface ProductVariantDto {
 
   // Stock
   totalStock: number;
+  /** Stock status classification calculated by backend - use this instead of comparing totalStock to threshold locally */
+  stockStatus: StockStatus;
   warehouseStock: VariantWarehouseStockDto[];
 
   // Shipping exclusions
@@ -213,10 +228,17 @@ export interface UpdateShippingExclusionsDto {
 export interface VariantWarehouseStockDto {
   warehouseId: string;
   warehouseName: string | null;
+  /** Total stock in this warehouse (raw value) */
   stock: number;
+  /** Stock reserved for pending orders */
+  reservedStock: number;
+  /** Available stock for new orders (stock - reservedStock) - use this for display and validation */
+  availableStock: number;
   reorderPoint: number | null;
   reorderQuantity: number | null;
   trackStock: boolean;
+  /** Stock status classification calculated by backend - use this instead of comparing availableStock to threshold locally */
+  stockStatus: StockStatus;
 }
 
 export interface ProductOptionSettingsDto {

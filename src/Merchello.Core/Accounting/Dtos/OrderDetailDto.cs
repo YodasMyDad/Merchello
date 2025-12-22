@@ -48,6 +48,13 @@ public class OrderDetailDto
     public decimal BalanceDue { get; set; }
     public decimal? AmountPaidInStoreCurrency { get; set; }
     public decimal? BalanceDueInStoreCurrency { get; set; }
+
+    /// <summary>
+    /// Balance status classification: "Balanced", "Underpaid", "Overpaid".
+    /// Calculated by backend to avoid frontend logic duplication from comparing balanceDue values.
+    /// </summary>
+    public string BalanceStatus { get; set; } = "Balanced";
+
     public InvoicePaymentStatus PaymentStatus { get; set; }
     public string PaymentStatusDisplay { get; set; } = string.Empty;
     public string FulfillmentStatus { get; set; } = string.Empty;

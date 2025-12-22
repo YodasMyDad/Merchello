@@ -4,6 +4,8 @@ import type { LineItemDiscountDto } from "@orders/types/order.types.js";
 export interface AddDiscountModalData {
   /** Currency symbol for display */
   currencySymbol: string;
+  /** Currency code for proper rounding (e.g., "GBP", "USD"). Falls back to store currency if not provided. */
+  currencyCode?: string;
   /** Whether this is an order-level discount (true) or line item discount (false) */
   isOrderDiscount: boolean;
   /** Line item name for context (only when isOrderDiscount is false) */

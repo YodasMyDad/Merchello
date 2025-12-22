@@ -6,6 +6,8 @@ using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Strategies;
+using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Discounts.Models;
@@ -21,6 +23,7 @@ using Merchello.Core.Notifications.Order;
 using Merchello.Core.Notifications.Shipment;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared;
 using Merchello.Core.Shared.Extensions;
@@ -31,6 +34,7 @@ using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Warehouses.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -47,6 +51,7 @@ public class InvoiceService(
     IProductService productService,
     ICustomerService customerService,
     ICheckoutService checkoutService,
+    IOrderGroupingStrategyResolver strategyResolver,
     IMerchelloNotificationPublisher notificationPublisher,
     IExchangeRateCache exchangeRateCache,
     ICurrencyService currencyService,
@@ -785,6 +790,37 @@ public class InvoiceService(
             await db.SaveChangesAsync(cancellationToken);
 
             logger.LogInformation("Order {OrderId} cancelled. Reason: {Reason}", orderId, reason);
+
+            // Check if all orders on the invoice are now cancelled - auto-cancel invoice if so
+            var invoice = await db.Invoices
+                .Include(i => i.Orders)
+                .FirstOrDefaultAsync(i => i.Id == order.InvoiceId, cancellationToken);
+
+            if (invoice != null && !invoice.IsCancelled)
+            {
+                var hasActiveOrders = (invoice.Orders ?? [])
+                    .Any(o => o.Status != OrderStatus.Cancelled);
+
+                if (!hasActiveOrders)
+                {
+                    invoice.IsCancelled = true;
+                    invoice.DateCancelled = DateTime.UtcNow;
+                    invoice.CancellationReason = $"All orders cancelled. Last reason: {reason}";
+                    invoice.CancelledBy = "System";
+
+                    invoice.Notes.Add(new InvoiceNote
+                    {
+                        DateCreated = DateTime.UtcNow,
+                        Author = "System",
+                        VisibleToCustomer = false,
+                        Description = "Invoice auto-cancelled: all orders have been cancelled"
+                    });
+
+                    await db.SaveChangesAsync(cancellationToken);
+
+                    logger.LogInformation("Invoice {InvoiceId} auto-cancelled - all orders cancelled", invoice.Id);
+                }
+            }
 
             result.ResultObject = true;
         });
@@ -2112,6 +2148,23 @@ public class InvoiceService(
                 .Where(tg => taxGroupIds.Contains(tg.Id))
                 .ToDictionaryAsync(tg => tg.Id, tg => tg.TaxPercentage, cancellationToken);
 
+            // Build stock availability map for all product line items
+            Dictionary<Guid, (bool IsTracked, int Available)> stockInfoMap = [];
+            foreach (var order in orders)
+            {
+                foreach (var li in order.LineItems?.Where(l => l.ProductId.HasValue) ?? [])
+                {
+                    if (stockInfoMap.ContainsKey(li.Id)) continue;
+
+                    var isTracked = await inventoryService.IsStockTrackedAsync(
+                        li.ProductId!.Value, order.WarehouseId, cancellationToken);
+                    var available = await inventoryService.GetAvailableStockAsync(
+                        li.ProductId!.Value, order.WarehouseId, cancellationToken);
+
+                    stockInfoMap[li.Id] = (isTracked, available);
+                }
+            }
+
             // Build virtual line items representing the proposed state
             List<VirtualLineItem> virtualLineItems = [];
 
@@ -2174,6 +2227,9 @@ public class InvoiceService(
                         };
                     }
 
+                    // Get stock info for this line item
+                    var hasStockInfo = stockInfoMap.TryGetValue(lineItem.Id, out var stockInfo);
+
                     virtualLineItems.Add(new VirtualLineItem
                     {
                         Id = lineItem.Id,
@@ -2181,7 +2237,13 @@ public class InvoiceService(
                         Quantity = quantity,
                         IsTaxable = lineItem.IsTaxable,
                         TaxRate = lineItem.TaxRate,
-                        Discount = effectiveDiscount
+                        Discount = effectiveDiscount,
+                        // For calculating HasInsufficientStock
+                        OriginalQuantity = lineItem.Quantity,
+                        IsStockTracked = hasStockInfo && stockInfo.IsTracked,
+                        AvailableStock = hasStockInfo ? stockInfo.Available : 0,
+                        // For calculating CanAddDiscount
+                        HadOriginalDiscount = existingDiscount != null
                     });
                 }
             }
@@ -2283,12 +2345,40 @@ public class InvoiceService(
                     taxAmount = currencyService.Round(taxableAmount * (item.TaxRate / 100m), currencyCode);
                 }
 
+                // Calculate discounted unit price
+                var discountedUnitPrice = item.Amount;
+                if (item.Discount != null && item.Discount.Value > 0)
+                {
+                    if (item.Discount.Type == DiscountValueType.Percentage)
+                    {
+                        discountedUnitPrice = currencyService.Round(item.Amount * (1 - item.Discount.Value / 100m), currencyCode);
+                    }
+                    else
+                    {
+                        discountedUnitPrice = Math.Max(0, currencyService.Round(item.Amount - item.Discount.Value, currencyCode));
+                    }
+                }
+
+                // Calculate HasInsufficientStock: quantity increased beyond available stock
+                var qtyIncrease = item.Quantity - item.OriginalQuantity;
+                var hasInsufficientStock = qtyIncrease > 0 &&
+                    item.IsStockTracked &&
+                    qtyIncrease > item.AvailableStock;
+
+                // Calculate CanAddDiscount: can't add new discount if original was removed
+                // (if had original discount and it's now null, user can only remove, not replace)
+                var hasCurrentDiscount = item.Discount != null;
+                var canAddDiscount = !item.HadOriginalDiscount || hasCurrentDiscount;
+
                 lineItemPreviews.Add(new LineItemPreviewDto
                 {
                     Id = item.Id,
                     CalculatedTotal = currencyService.Round(itemTotal - discountAmount, currencyCode),
+                    DiscountedUnitPrice = discountedUnitPrice,
                     DiscountAmount = discountAmount,
-                    TaxAmount = taxAmount
+                    TaxAmount = taxAmount,
+                    HasInsufficientStock = hasInsufficientStock,
+                    CanAddDiscount = canAddDiscount
                 });
             }
 
@@ -2389,6 +2479,14 @@ public class InvoiceService(
         public bool IsTaxable { get; set; }
         public decimal TaxRate { get; set; }
         public LineItemDiscountDto? Discount { get; set; }
+
+        // For calculating HasInsufficientStock
+        public int OriginalQuantity { get; set; }
+        public bool IsStockTracked { get; set; }
+        public int AvailableStock { get; set; }
+
+        // For calculating CanAddDiscount
+        public bool HadOriginalDiscount { get; set; }
     }
 
     /// <inheritdoc />
@@ -2656,240 +2754,149 @@ public class InvoiceService(
                     }
                 }
 
-                // Add custom items - use existing order if available, otherwise create new
-                if (request.CustomItems.Any())
-                {
-                    // Try to use existing order instead of always creating a new one
-                    var targetOrder = orders.FirstOrDefault();
-                    var createdNewOrder = false;
-
-                    if (targetOrder == null)
-                    {
-                        // Edge case: no existing orders - need to create one
-                        var warehouse = await db.Warehouses
-                            .Include(w => w.ShippingOptions)
-                            .FirstOrDefaultAsync(cancellationToken);
-
-                        if (warehouse == null || !warehouse.ShippingOptions.Any())
-                        {
-                            return OperationResult<EditInvoiceResultDto>.Fail("No warehouse or shipping option configured");
-                        }
-
-                        targetOrder = orderFactory.Create(
-                            invoice.Id,
-                            warehouse.Id,
-                            warehouse.ShippingOptions.First().Id,
-                            shippingCost: 0);
-                        // Factory default is Pending - don't override status
-                        targetOrder.LineItems = [];
-                        db.Orders.Add(targetOrder);
-                        orders.Add(targetOrder);
-                        createdNewOrder = true;
-                    }
-
-                    targetOrder.LineItems ??= [];
-
-                    foreach (var customItem in request.CustomItems)
-                    {
-                        // Determine tax rate from selected tax group
-                        decimal taxRate = 0;
-                        bool isTaxable = customItem.TaxGroupId.HasValue;
-                        string? taxGroupName = null;
-
-                        if (customItem.TaxGroupId.HasValue)
-                        {
-                            var taxGroup = await db.TaxGroups
-                                .AsNoTracking()
-                                .FirstOrDefaultAsync(tg => tg.Id == customItem.TaxGroupId.Value, cancellationToken);
-
-                            if (taxGroup != null)
-                            {
-                                taxRate = taxGroup.TaxPercentage;
-                                taxGroupName = taxGroup.Name;
-                            }
-                            else
-                            {
-                                logger.LogWarning("Tax group {TaxGroupId} not found for custom item", customItem.TaxGroupId);
-                                isTaxable = false;
-                            }
-                        }
-
-                        var customLineItem = new LineItem
-                        {
-                            Id = GuidExtensions.NewSequentialGuid,
-                            OrderId = targetOrder.Id,
-                            LineItemType = LineItemType.Custom,
-                            Name = customItem.Name,
-                            Sku = string.IsNullOrWhiteSpace(customItem.Sku) ? $"CUSTOM-{DateTime.UtcNow.Ticks}" : customItem.Sku,
-                            Amount = customItem.Price,
-                            Quantity = customItem.Quantity,
-                            IsTaxable = isTaxable,
-                            TaxRate = taxRate,
-                            ExtendedData = new Dictionary<string, object>
-                            {
-                                [Constants.ExtendedDataKeys.IsPhysicalProduct] = customItem.IsPhysicalProduct,
-                                ["TaxGroupId"] = customItem.TaxGroupId?.ToString() ?? string.Empty,
-                                ["TaxGroupName"] = taxGroupName ?? string.Empty
-                            }
-                        };
-
-                        targetOrder.LineItems.Add(customLineItem);
-                        db.LineItems.Add(customLineItem);
-                        changes.Add($"Added custom item: {customItem.Name}");
-                    }
-
-                    if (createdNewOrder)
-                    {
-                        changes.Add("Created new order for custom items");
-                    }
-                }
-
-                // Add products with optional add-ons
+                // Add products using strategy-based grouping
+                // The strategy determines how products are grouped into orders
                 if (request.ProductsToAdd.Any())
                 {
-                    // Load product details
-                    var productIds = request.ProductsToAdd.Select(p => p.ProductId).ToList();
-                    var products = await db.Products
-                        .Include(p => p.ProductRoot!)
-                        .ThenInclude(pr => pr.TaxGroup)
-                        .Where(p => productIds.Contains(p.Id))
-                        .ToDictionaryAsync(p => p.Id, cancellationToken);
+                    // Build grouping context and call strategy to determine order groupings
+                    var groupingResult = await BuildGroupingForNewItemsAsync(
+                        db,
+                        invoice,
+                        request.ProductsToAdd,
+                        cancellationToken);
 
-                    // Group by warehouse
-                    var warehouseGroups = request.ProductsToAdd.GroupBy(p => p.WarehouseId);
-
-                    foreach (var warehouseGroup in warehouseGroups)
+                    if (!groupingResult.Success)
                     {
-                        var warehouseId = warehouseGroup.Key;
+                        return OperationResult<EditInvoiceResultDto>.Fail(string.Join("; ", groupingResult.Errors.ToArray()));
+                    }
 
-                        // Find existing order for this warehouse or create new one
-                        var targetOrder = orders.FirstOrDefault(o => o.WarehouseId == warehouseId);
+                    // Process each group from the strategy
+                    foreach (var group in groupingResult.Groups)
+                    {
+                        var warehouseId = group.WarehouseId ?? Guid.Empty;
+                        var shippingOptionId = group.SelectedShippingOptionId ?? Guid.Empty;
+
+                        // Find existing order for this warehouse + shipping option or create new
+                        var targetOrder = orders.FirstOrDefault(o =>
+                            o.WarehouseId == warehouseId && o.ShippingOptionId == shippingOptionId);
+
                         if (targetOrder == null)
                         {
-                            // Get first shipping option for this warehouse
-                            var shippingOption = await db.ShippingOptions
-                                .Where(so => so.WarehouseId == warehouseId)
-                                .FirstOrDefaultAsync(cancellationToken);
+                            // Get shipping option name for the change log
+                            var shippingOptionName = group.AvailableShippingOptions
+                                .FirstOrDefault(so => so.ShippingOptionId == shippingOptionId)?.Name ?? "shipping";
 
-                            if (shippingOption == null)
-                            {
-                                return OperationResult<EditInvoiceResultDto>.Fail($"No shipping option found for warehouse {warehouseId}");
-                            }
-
-                            targetOrder = orderFactory.Create(invoice.Id, warehouseId, shippingOption.Id, shippingCost: 0);
-                            // Factory default is Pending - don't override status prematurely
+                            targetOrder = orderFactory.Create(invoice.Id, warehouseId, shippingOptionId, shippingCost: 0);
                             targetOrder.LineItems = [];
                             db.Orders.Add(targetOrder);
                             orders.Add(targetOrder);
-                            changes.Add($"Created new order for warehouse products");
+                            changes.Add($"Created new order for products with {shippingOptionName}");
                         }
 
                         targetOrder.LineItems ??= [];
 
-                        foreach (var productToAdd in warehouseGroup)
+                        // Add products from this group
+                        foreach (var groupLineItem in group.LineItems)
                         {
-                            if (!products.TryGetValue(productToAdd.ProductId, out var product))
+                            var productDto = request.ProductsToAdd.FirstOrDefault(p => p.ProductId == groupLineItem.LineItemId);
+                            if (productDto != null)
                             {
-                                logger.LogWarning("Product {ProductId} not found when adding to order", productToAdd.ProductId);
-                                continue;
-                            }
-
-                            // Validate and reserve stock
-                            var isTracked = await inventoryService.IsStockTrackedAsync(
-                                productToAdd.ProductId, warehouseId, cancellationToken);
-
-                            if (isTracked)
-                            {
-                                var availableStock = await inventoryService.GetAvailableStockAsync(
-                                    productToAdd.ProductId, warehouseId, cancellationToken);
-
-                                if (availableStock < productToAdd.Quantity)
+                                var addProductResult = await AddProductLineItemAsync(
+                                    db, targetOrder, productDto, changes, cancellationToken);
+                                if (!addProductResult.Success)
                                 {
-                                    return OperationResult<EditInvoiceResultDto>.Fail(
-                                        $"Insufficient stock for '{product.Name}'. Available: {availableStock}, Requested: {productToAdd.Quantity}");
-                                }
-
-                                var reserveResult = await inventoryService.ReserveStockAsync(
-                                    productToAdd.ProductId, warehouseId, productToAdd.Quantity, cancellationToken);
-
-                                if (!reserveResult.ResultObject)
-                                {
-                                    var error = reserveResult.Messages.FirstOrDefault()?.Message ?? "Failed to reserve stock";
-                                    return OperationResult<EditInvoiceResultDto>.Fail(error);
+                                    return OperationResult<EditInvoiceResultDto>.Fail(addProductResult.ErrorMessage!);
                                 }
                             }
+                        }
+                    }
+                }
 
-                            // Determine tax info from product root
-                            var taxRate = product.ProductRoot?.TaxGroup?.TaxPercentage ?? 0;
-                            var isTaxable = product.ProductRoot?.TaxGroup != null;
+                // Add custom items - group physical items by warehouse + shipping option directly
+                // Custom items don't go through the strategy since they have explicit user selections
+                if (request.CustomItems.Any())
+                {
+                    // Separate physical items (need shipping grouping) from non-physical items
+                    var physicalItems = request.CustomItems
+                        .Where(c => c.IsPhysicalProduct && c.WarehouseId.HasValue && c.ShippingOptionId.HasValue)
+                        .ToList();
+                    var nonPhysicalItems = request.CustomItems
+                        .Where(c => !c.IsPhysicalProduct || !c.WarehouseId.HasValue || !c.ShippingOptionId.HasValue)
+                        .ToList();
 
-                            // Get product image from media
-                            string? imageUrl = null;
-                            if (product.Images.Any())
+                    // Process physical items - group by warehouse + shipping option
+                    var physicalItemGroups = physicalItems.GroupBy(c => (c.WarehouseId!.Value, c.ShippingOptionId!.Value));
+                    foreach (var group in physicalItemGroups)
+                    {
+                        var warehouseId = group.Key.Item1;
+                        var shippingOptionId = group.Key.Item2;
+
+                        // Find existing order for this warehouse + shipping option or create new one
+                        var targetOrder = orders.FirstOrDefault(o =>
+                            o.WarehouseId == warehouseId && o.ShippingOptionId == shippingOptionId);
+
+                        if (targetOrder == null)
+                        {
+                            // Get shipping option name for the change log
+                            var shippingOption = await db.ShippingOptions
+                                .Where(so => so.Id == shippingOptionId && so.WarehouseId == warehouseId)
+                                .FirstOrDefaultAsync(cancellationToken);
+
+                            if (shippingOption == null)
                             {
-                                imageUrl = product.Images.First();
+                                return OperationResult<EditInvoiceResultDto>.Fail($"Shipping option not found for warehouse");
                             }
-                            else if (product.ProductRoot?.RootImages.Any() == true)
+
+                            targetOrder = orderFactory.Create(invoice.Id, warehouseId, shippingOptionId, shippingCost: 0);
+                            targetOrder.LineItems = [];
+                            db.Orders.Add(targetOrder);
+                            orders.Add(targetOrder);
+                            changes.Add($"Created new order for custom items with {shippingOption.Name} shipping");
+                        }
+
+                        targetOrder.LineItems ??= [];
+
+                        foreach (var customItem in group)
+                        {
+                            var lineItem = await CreateCustomLineItemAsync(db, targetOrder.Id, customItem, cancellationToken);
+                            targetOrder.LineItems.Add(lineItem);
+                            db.LineItems.Add(lineItem);
+                            changes.Add($"Added custom item: {customItem.Name}");
+                        }
+                    }
+
+                    // Process non-physical items - add to first available order
+                    if (nonPhysicalItems.Any())
+                    {
+                        var targetOrder = orders.FirstOrDefault();
+
+                        if (targetOrder == null)
+                        {
+                            var warehouse = await db.Warehouses
+                                .Include(w => w.ShippingOptions)
+                                .FirstOrDefaultAsync(cancellationToken);
+
+                            if (warehouse == null || !warehouse.ShippingOptions.Any())
                             {
-                                imageUrl = product.ProductRoot.RootImages.First();
+                                return OperationResult<EditInvoiceResultDto>.Fail("No warehouse or shipping option configured");
                             }
 
-                            // Create parent product line item
-                            var parentSku = product.Sku ?? $"PROD-{product.Id:N}".Substring(0, 20);
-                            var isDigital = product.ProductRoot?.IsDigitalProduct ?? false;
-                            var parentLineItem = new LineItem
-                            {
-                                Id = GuidExtensions.NewSequentialGuid,
-                                OrderId = targetOrder.Id,
-                                LineItemType = LineItemType.Product,
-                                ProductId = product.Id,
-                                Name = product.Name ?? product.ProductRoot?.RootName ?? "Unknown Product",
-                                Sku = parentSku,
-                                Amount = product.Price,
-                                OriginalAmount = product.Price,
-                                Quantity = productToAdd.Quantity,
-                                IsTaxable = isTaxable,
-                                TaxRate = taxRate,
-                                ExtendedData = new Dictionary<string, object>
-                                {
-                                    [Constants.ExtendedDataKeys.IsPhysicalProduct] = !isDigital,
-                                    ["ImageUrl"] = imageUrl ?? string.Empty
-                                }
-                            };
+                            targetOrder = orderFactory.Create(
+                                invoice.Id, warehouse.Id, warehouse.ShippingOptions.First().Id, shippingCost: 0);
+                            targetOrder.LineItems = [];
+                            db.Orders.Add(targetOrder);
+                            orders.Add(targetOrder);
+                            changes.Add("Created new order for non-physical custom items");
+                        }
 
-                            targetOrder.LineItems.Add(parentLineItem);
-                            db.LineItems.Add(parentLineItem);
-                            changes.Add($"Added {productToAdd.Quantity}x {parentLineItem.Name}");
+                        targetOrder.LineItems ??= [];
 
-                            // Create child add-on line items
-                            foreach (var addon in productToAdd.Addons)
-                            {
-                                var addonSku = $"{parentSku}{addon.SkuSuffix ?? $"-ADDON-{addon.OptionValueId:N}".Substring(0, 15)}";
-                                var addonLineItem = new LineItem
-                                {
-                                    Id = GuidExtensions.NewSequentialGuid,
-                                    OrderId = targetOrder.Id,
-                                    LineItemType = LineItemType.Addon,
-                                    DependantLineItemSku = parentSku,
-                                    Name = addon.Name,
-                                    Sku = addonSku,
-                                    Amount = addon.PriceAdjustment,
-                                    Quantity = productToAdd.Quantity, // Same quantity as parent
-                                    IsTaxable = isTaxable, // Inherit taxability from parent
-                                    TaxRate = taxRate,
-                                    ExtendedData = new Dictionary<string, object>
-                                    {
-                                        ["OptionId"] = addon.OptionId.ToString(),
-                                        ["OptionValueId"] = addon.OptionValueId.ToString(),
-                                        ["CostAdjustment"] = addon.CostAdjustment,
-                                        ["IsAddon"] = true
-                                    }
-                                };
-
-                                targetOrder.LineItems.Add(addonLineItem);
-                                db.LineItems.Add(addonLineItem);
-                                changes.Add($"  + Add-on: {addon.Name} ({invoice.CurrencySymbol}{addon.PriceAdjustment})");
-                            }
+                        foreach (var customItem in nonPhysicalItems)
+                        {
+                            var lineItem = await CreateCustomLineItemAsync(db, targetOrder.Id, customItem, cancellationToken);
+                            targetOrder.LineItems.Add(lineItem);
+                            db.LineItems.Add(lineItem);
+                            changes.Add($"Added custom item: {customItem.Name}");
                         }
                     }
                 }
@@ -3661,6 +3668,290 @@ public class InvoiceService(
             Email = source.Email,
             Phone = source.Phone
         };
+    }
+
+    /// <summary>
+    /// Creates a custom line item from the DTO, looking up tax group info if needed.
+    /// </summary>
+    private async Task<LineItem> CreateCustomLineItemAsync(
+        MerchelloDbContext db,
+        Guid orderId,
+        AddCustomItemDto customItem,
+        CancellationToken cancellationToken)
+    {
+        decimal taxRate = 0;
+        bool isTaxable = customItem.TaxGroupId.HasValue;
+        string? taxGroupName = null;
+
+        if (customItem.TaxGroupId.HasValue)
+        {
+            var taxGroup = await db.TaxGroups
+                .AsNoTracking()
+                .FirstOrDefaultAsync(tg => tg.Id == customItem.TaxGroupId.Value, cancellationToken);
+
+            if (taxGroup != null)
+            {
+                taxRate = taxGroup.TaxPercentage;
+                taxGroupName = taxGroup.Name;
+            }
+            else
+            {
+                logger.LogWarning("Tax group {TaxGroupId} not found for custom item", customItem.TaxGroupId);
+                isTaxable = false;
+            }
+        }
+
+        return new LineItem
+        {
+            Id = GuidExtensions.NewSequentialGuid,
+            OrderId = orderId,
+            LineItemType = LineItemType.Custom,
+            Name = customItem.Name,
+            Sku = string.IsNullOrWhiteSpace(customItem.Sku) ? $"CUSTOM-{DateTime.UtcNow.Ticks}" : customItem.Sku,
+            Amount = customItem.Price,
+            Quantity = customItem.Quantity,
+            IsTaxable = isTaxable,
+            TaxRate = taxRate,
+            ExtendedData = new Dictionary<string, object>
+            {
+                [Constants.ExtendedDataKeys.IsPhysicalProduct] = customItem.IsPhysicalProduct,
+                ["TaxGroupId"] = customItem.TaxGroupId?.ToString() ?? string.Empty,
+                ["TaxGroupName"] = taxGroupName ?? string.Empty
+            }
+        };
+    }
+
+    /// <summary>
+    /// Builds a grouping context for new products being added and calls the strategy.
+    /// This delegates all grouping logic to the configured strategy.
+    /// Custom items are handled separately since they have explicit user selections.
+    /// </summary>
+    private async Task<OrderGroupingResult> BuildGroupingForNewItemsAsync(
+        MerchelloDbContext db,
+        Invoice invoice,
+        List<AddProductToOrderDto> productsToAdd,
+        CancellationToken cancellationToken)
+    {
+        if (!productsToAdd.Any())
+        {
+            return new OrderGroupingResult { Groups = [] };
+        }
+
+        // Load products with necessary relationships
+        var productIds = productsToAdd.Select(p => p.ProductId).ToList();
+        var products = productIds.Any()
+            ? await db.Products
+                .AsNoTracking()
+                .Include(p => p.ProductRoot!)
+                    .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
+                        .ThenInclude(prw => prw.Warehouse)
+                            .ThenInclude(w => w!.ServiceRegions)
+                .Include(p => p.ProductRoot!)
+                    .ThenInclude(pr => pr!.ProductRootWarehouses)
+                        .ThenInclude(prw => prw.Warehouse)
+                            .ThenInclude(w => w!.ShippingOptions)
+                                .ThenInclude(so => so.ShippingCosts)
+                .Include(p => p.ProductWarehouses)
+                    .ThenInclude(pw => pw.Warehouse)
+                .Include(p => p.ShippingOptions)
+                .Include(p => p.AllowedShippingOptions)
+                .Include(p => p.ExcludedShippingOptions)
+                .Where(p => productIds.Contains(p.Id))
+                .AsSplitQuery()
+                .ToDictionaryAsync(p => p.Id, cancellationToken)
+            : new Dictionary<Guid, Product>();
+
+        // Load warehouses
+        var warehouseIds = productsToAdd.Select(p => p.WarehouseId)
+            .Distinct()
+            .ToList();
+
+        var warehouses = await db.Warehouses
+            .AsNoTracking()
+            .Include(w => w.ShippingOptions)
+                .ThenInclude(so => so.ShippingCosts)
+            .Include(w => w.ServiceRegions)
+            .Where(w => warehouseIds.Contains(w.Id))
+            .ToDictionaryAsync(w => w.Id, cancellationToken);
+
+        // Build virtual basket with line items for the products being added
+        var virtualLineItems = new List<LineItem>();
+        var lineItemShippingSelections = new Dictionary<Guid, (Guid WarehouseId, Guid ShippingOptionId)>();
+
+        // Add products as virtual line items
+        foreach (var productDto in productsToAdd)
+        {
+            if (!products.TryGetValue(productDto.ProductId, out var product))
+            {
+                continue;
+            }
+
+            var lineItemId = productDto.ProductId; // Use ProductId as the line item identifier
+            virtualLineItems.Add(new LineItem
+            {
+                Id = lineItemId,
+                ProductId = productDto.ProductId,
+                Name = product.Name ?? "Product",
+                Sku = product.Sku,
+                Quantity = productDto.Quantity,
+                Amount = product.Price * productDto.Quantity
+            });
+
+            // Record the explicit shipping selection
+            lineItemShippingSelections[lineItemId] = (productDto.WarehouseId, productDto.ShippingOptionId);
+        }
+
+        // Build the virtual basket
+        var virtualBasket = new Basket
+        {
+            Id = Guid.NewGuid(),
+            LineItems = virtualLineItems,
+            Currency = invoice.CurrencyCode,
+            BillingAddress = invoice.BillingAddress
+        };
+
+        // Build the grouping context
+        var context = new OrderGroupingContext
+        {
+            Basket = virtualBasket,
+            BillingAddress = invoice.BillingAddress,
+            ShippingAddress = invoice.ShippingAddress,
+            CustomerId = invoice.CustomerId,
+            CustomerEmail = invoice.BillingAddress?.Email,
+            Products = products,
+            Warehouses = warehouses,
+            LineItemShippingSelections = lineItemShippingSelections
+        };
+
+        // Get the strategy and execute grouping
+        var strategy = strategyResolver.GetStrategy();
+        logger.LogDebug("Using order grouping strategy: {StrategyKey} for order edit", strategy.Metadata.Key);
+
+        var groupingResult = await strategy.GroupItemsAsync(context, cancellationToken);
+
+        return groupingResult;
+    }
+
+    /// <summary>
+    /// Adds a product line item to an order, including stock validation and add-ons.
+    /// </summary>
+    private async Task<(bool Success, string? ErrorMessage)> AddProductLineItemAsync(
+        MerchelloDbContext db,
+        Order targetOrder,
+        AddProductToOrderDto productDto,
+        List<string> changes,
+        CancellationToken cancellationToken)
+    {
+        var product = await db.Products
+            .Include(p => p.ProductRoot!)
+            .ThenInclude(pr => pr.TaxGroup)
+            .FirstOrDefaultAsync(p => p.Id == productDto.ProductId, cancellationToken);
+
+        if (product == null)
+        {
+            logger.LogWarning("Product {ProductId} not found when adding to order", productDto.ProductId);
+            return (true, null); // Skip missing products, don't fail the whole operation
+        }
+
+        var warehouseId = productDto.WarehouseId;
+
+        // Validate and reserve stock
+        var isTracked = await inventoryService.IsStockTrackedAsync(
+            productDto.ProductId, warehouseId, cancellationToken);
+
+        if (isTracked)
+        {
+            var availableStock = await inventoryService.GetAvailableStockAsync(
+                productDto.ProductId, warehouseId, cancellationToken);
+
+            if (availableStock < productDto.Quantity)
+            {
+                return (false, $"Insufficient stock for '{product.Name}'. Available: {availableStock}, Requested: {productDto.Quantity}");
+            }
+
+            var reserveResult = await inventoryService.ReserveStockAsync(
+                productDto.ProductId, warehouseId, productDto.Quantity, cancellationToken);
+
+            if (!reserveResult.ResultObject)
+            {
+                var error = reserveResult.Messages.FirstOrDefault()?.Message ?? "Failed to reserve stock";
+                return (false, error);
+            }
+        }
+
+        // Determine tax info from product root
+        var taxRate = product.ProductRoot?.TaxGroup?.TaxPercentage ?? 0;
+        var isTaxable = product.ProductRoot?.TaxGroup != null;
+
+        // Get product image
+        string? imageUrl = null;
+        if (product.Images.Any())
+        {
+            imageUrl = product.Images.First();
+        }
+        else if (product.ProductRoot?.RootImages.Any() == true)
+        {
+            imageUrl = product.ProductRoot.RootImages.First();
+        }
+
+        // Create parent product line item
+        var parentSku = product.Sku ?? $"PROD-{product.Id:N}"[..20];
+        var isDigital = product.ProductRoot?.IsDigitalProduct ?? false;
+        var parentLineItem = new LineItem
+        {
+            Id = GuidExtensions.NewSequentialGuid,
+            OrderId = targetOrder.Id,
+            LineItemType = LineItemType.Product,
+            ProductId = product.Id,
+            Name = product.Name ?? product.ProductRoot?.RootName ?? "Unknown Product",
+            Sku = parentSku,
+            Amount = product.Price,
+            OriginalAmount = product.Price,
+            Quantity = productDto.Quantity,
+            IsTaxable = isTaxable,
+            TaxRate = taxRate,
+            ExtendedData = new Dictionary<string, object>
+            {
+                [Constants.ExtendedDataKeys.IsPhysicalProduct] = !isDigital,
+                ["ImageUrl"] = imageUrl ?? string.Empty
+            }
+        };
+
+        targetOrder.LineItems!.Add(parentLineItem);
+        db.LineItems.Add(parentLineItem);
+        changes.Add($"Added {productDto.Quantity}x {parentLineItem.Name}");
+
+        // Create child add-on line items
+        foreach (var addon in productDto.Addons)
+        {
+            var addonSku = $"{parentSku}{addon.SkuSuffix ?? $"-ADDON-{addon.OptionValueId:N}"[..15]}";
+            var addonLineItem = new LineItem
+            {
+                Id = GuidExtensions.NewSequentialGuid,
+                OrderId = targetOrder.Id,
+                LineItemType = LineItemType.Addon,
+                DependantLineItemSku = parentSku,
+                Name = addon.Name,
+                Sku = addonSku,
+                Amount = addon.PriceAdjustment,
+                Quantity = productDto.Quantity,
+                IsTaxable = isTaxable,
+                TaxRate = taxRate,
+                ExtendedData = new Dictionary<string, object>
+                {
+                    ["OptionId"] = addon.OptionId.ToString(),
+                    ["OptionValueId"] = addon.OptionValueId.ToString(),
+                    ["CostAdjustment"] = addon.CostAdjustment,
+                    ["IsAddon"] = true
+                }
+            };
+
+            targetOrder.LineItems.Add(addonLineItem);
+            db.LineItems.Add(addonLineItem);
+            changes.Add($"  + Add-on: {addon.Name}");
+        }
+
+        return (true, null);
     }
 
     // ============================================

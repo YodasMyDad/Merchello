@@ -12,4 +12,10 @@ public class LineItemDto
     public decimal Amount { get; set; }
     public decimal? OriginalAmount { get; set; }
     public string? ImageUrl { get; set; }
+
+    /// <summary>
+    /// Calculated total for this line item (Amount * Quantity, adjusted for any discounts)
+    /// Backend is single source of truth for this value.
+    /// </summary>
+    public decimal CalculatedTotal { get; set; }
 }

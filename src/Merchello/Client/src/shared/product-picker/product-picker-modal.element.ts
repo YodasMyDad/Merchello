@@ -6,9 +6,10 @@ import type {
   ProductPickerSelection,
   PickerProductRoot,
   PickerVariant,
-  WarehouseRegionCache,
   PickerViewState,
   PendingAddonSelection,
+  PendingShippingSelection,
+  ShippingOptionForPicker,
   SelectedAddon,
   PickerAddonOption,
 } from "./product-picker.types.js";
@@ -36,21 +37,24 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
   // Selection state (variant ID -> selection data)
   @state() private _selections: Map<string, ProductPickerSelection> = new Map();
 
-  // View state for two-step add-on flow
+  // View state for multi-step flow
   @state() private _viewState: PickerViewState = "product-selection";
   @state() private _pendingAddonSelection: PendingAddonSelection | null = null;
   @state() private _selectedAddons: Map<string, SelectedAddon> = new Map(); // optionId -> selected addon
 
+  // Shipping selection state
+  @state() private _pendingShippingSelection: PendingShippingSelection | null = null;
+  @state() private _selectedShippingOptionId: string | null = null;
+
   // Cache product detail for add-on options
   private _productDetailCache: Map<string, ProductRootDetailDto> = new Map();
 
-  // Region validation cache
-  private _regionCache: WarehouseRegionCache = {
-    destinations: new Map(),
-    regions: new Map(),
-  };
-
   private _searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private _addonPreviewDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Addon price preview (from backend API - single source of truth)
+  @state() private _addonPricePreview: { basePrice: number; addonsTotal: number; totalPrice: number } | null = null;
+  @state() private _isLoadingAddonPreview = false;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -61,6 +65,9 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     super.disconnectedCallback();
     if (this._searchDebounceTimer) {
       clearTimeout(this._searchDebounceTimer);
+    }
+    if (this._addonPreviewDebounceTimer) {
+      clearTimeout(this._addonPreviewDebounceTimer);
     }
   }
 
@@ -138,6 +145,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       minPrice: item.minPrice,
       maxPrice: item.maxPrice,
       totalStock: item.totalStock,
+      stockStatus: item.stockStatus,
       isDigitalProduct: item.isDigitalProduct,
       isExpanded: false,
       variantsLoaded: false,
@@ -175,56 +183,48 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     variant: ProductRootDetailDto["variants"][0],
     root: ProductRootDetailDto
   ): Promise<PickerVariant> {
-    // Calculate available stock
-    const availableStock = variant.warehouseStock.reduce((sum, ws) => {
-      if (!ws.trackStock) return sum + 999999; // Treat as unlimited
-      return sum + Math.max(0, ws.stock);
-    }, 0);
+    // Use backend-calculated available stock (Stock - ReservedStock)
+    // For untracked stock, availableStock will still be the raw stock value
+    const availableStock = variant.warehouseStock.reduce((sum, ws) => sum + ws.availableStock, 0);
 
     // Check if any warehouse tracks stock
     const trackStock = variant.warehouseStock.some((ws) => ws.trackStock);
 
-    // Region validation
-    let canShipToRegion = true;
-    let regionMessage: string | null = null;
-    let fulfillingWarehouseId: string | null = null;
-    let fulfillingWarehouseName: string | null = null;
-
-    if (this._config?.shippingAddress && !root.isDigitalProduct) {
-      const regionResult = await this._checkRegionEligibility(variant.warehouseStock);
-      canShipToRegion = regionResult.canShip;
-      regionMessage = regionResult.message;
-      fulfillingWarehouseId = regionResult.warehouseId;
-      fulfillingWarehouseName = regionResult.warehouseName;
-    } else if (variant.warehouseStock.length > 0) {
-      // No address = use first warehouse with stock
-      const firstWithStock = variant.warehouseStock.find((ws) => !ws.trackStock || ws.stock > 0);
-      if (firstWithStock) {
-        fulfillingWarehouseId = firstWithStock.warehouseId;
-        fulfillingWarehouseName = firstWithStock.warehouseName;
-      }
-    }
-
-    // Determine if can select
+    // Get eligibility from backend API - this is the single source of truth
+    // Backend consolidates: region eligibility, stock availability, availableForPurchase flag, aggregate stock status
     let canSelect = true;
     let blockedReason: string | null = null;
+    let canShipToRegion = true;
+    let fulfillingWarehouseId: string | null = null;
+    let fulfillingWarehouseName: string | null = null;
+    let aggregateStockStatus = "InStock";
 
-    // Check stock
-    if (trackStock && availableStock <= 0) {
-      canSelect = false;
-      blockedReason = "Out of stock";
+    if (this._config?.shippingAddress && !root.isDigitalProduct) {
+      // Use centralized backend API to determine fulfillment options with region check
+      const fulfillmentResult = await this._getFulfillmentOptions(variant.id);
+      canSelect = fulfillmentResult.canAddToOrder;
+      blockedReason = fulfillmentResult.blockedReason;
+      canShipToRegion = fulfillmentResult.canAddToOrder; // If can add to order, region is valid
+      fulfillingWarehouseId = fulfillmentResult.warehouseId;
+      fulfillingWarehouseName = fulfillmentResult.warehouseName;
+      aggregateStockStatus = fulfillmentResult.aggregateStockStatus;
+    } else if (!root.isDigitalProduct && variant.warehouseStock.length > 0) {
+      // No address = use backend API to get highest-priority warehouse with stock
+      const defaultWarehouse = await this._getDefaultFulfillingWarehouse(variant.id);
+      canSelect = defaultWarehouse.canAddToOrder;
+      blockedReason = defaultWarehouse.blockedReason;
+      fulfillingWarehouseId = defaultWarehouse.warehouseId;
+      fulfillingWarehouseName = defaultWarehouse.warehouseName;
+      aggregateStockStatus = defaultWarehouse.aggregateStockStatus;
     }
 
-    // Check region
-    if (canSelect && !canShipToRegion) {
-      canSelect = false;
-      blockedReason = "Cannot ship to region";
-    }
-
-    // Check availability
-    if (canSelect && !variant.availableForPurchase) {
-      canSelect = false;
-      blockedReason = "Not available for purchase";
+    // Use fulfilling warehouse's stock status if available, otherwise use backend-provided aggregate status
+    let stockStatus: PickerVariant["stockStatus"] = aggregateStockStatus as PickerVariant["stockStatus"];
+    if (fulfillingWarehouseId) {
+      const fulfilling = variant.warehouseStock.find((ws) => ws.warehouseId === fulfillingWarehouseId);
+      if (fulfilling) {
+        stockStatus = fulfilling.stockStatus;
+      }
     }
 
     return {
@@ -239,9 +239,10 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       canSelect,
       blockedReason,
       availableStock,
+      stockStatus,
       trackStock,
       canShipToRegion,
-      regionMessage,
+      regionMessage: blockedReason, // Use blockedReason for any message (region or other)
       fulfillingWarehouseId,
       fulfillingWarehouseName,
       warehouseStock: variant.warehouseStock,
@@ -249,84 +250,76 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
   }
 
   // ============================================
-  // Region Validation
+  // Fulfillment Options (centralized backend API)
   // ============================================
 
-  private async _checkRegionEligibility(
-    warehouseStock: { warehouseId: string; warehouseName: string | null; stock: number; trackStock: boolean }[]
-  ): Promise<{ canShip: boolean; warehouseId: string | null; warehouseName: string | null; message: string | null }> {
+  /**
+   * Get fulfillment options for a product variant using the centralized backend API.
+   * This is a single API call that determines the best warehouse for fulfillment
+   * based on priority, region eligibility, and stock availability.
+   */
+  private async _getFulfillmentOptions(
+    variantId: string
+  ): Promise<{ canAddToOrder: boolean; warehouseId: string | null; warehouseName: string | null; blockedReason: string | null; aggregateStockStatus: string }> {
     const address = this._config?.shippingAddress;
     if (!address) {
-      return { canShip: true, warehouseId: null, warehouseName: null, message: null };
+      return { canAddToOrder: true, warehouseId: null, warehouseName: null, blockedReason: null, aggregateStockStatus: "InStock" };
     }
 
-    // Check each warehouse that has stock
-    for (const ws of warehouseStock) {
-      // Skip warehouses with no stock (if tracking)
-      if (ws.trackStock && ws.stock <= 0) continue;
+    try {
+      const { data, error } = await MerchelloApi.getProductFulfillmentOptions(
+        variantId,
+        address.countryCode,
+        address.stateCode
+      );
 
-      const canServe = await this._canWarehouseServeRegion(ws.warehouseId, address.countryCode, address.stateCode);
-      if (canServe) {
-        return { canShip: true, warehouseId: ws.warehouseId, warehouseName: ws.warehouseName, message: null };
+      if (error) {
+        console.error("Failed to get fulfillment options:", error);
+        return { canAddToOrder: false, warehouseId: null, warehouseName: null, blockedReason: "Unable to check fulfillment", aggregateStockStatus: "OutOfStock" };
       }
-    }
 
-    return {
-      canShip: false,
-      warehouseId: null,
-      warehouseName: null,
-      message: `Cannot ship to ${address.countryCode}`,
-    };
+      // Use backend-provided values - this is the single source of truth
+      // Backend consolidates: region eligibility, stock availability, availableForPurchase flag, aggregate stock status
+      return {
+        canAddToOrder: data?.canAddToOrder ?? false,
+        warehouseId: data?.fulfillingWarehouse?.id ?? null,
+        warehouseName: data?.fulfillingWarehouse?.name ?? null,
+        blockedReason: data?.blockedReason ?? null,
+        aggregateStockStatus: data?.aggregateStockStatus ?? "InStock",
+      };
+    } catch (err) {
+      console.error("Unexpected error getting fulfillment options:", err);
+      return { canAddToOrder: false, warehouseId: null, warehouseName: null, blockedReason: "Unable to check fulfillment", aggregateStockStatus: "OutOfStock" };
+    }
   }
 
-  private async _canWarehouseServeRegion(
-    warehouseId: string,
-    countryCode: string,
-    stateCode?: string
-  ): Promise<boolean> {
-    // Check cache first
-    if (!this._regionCache.destinations.has(warehouseId)) {
-      // Load destinations for this warehouse
-      const { data } = await MerchelloApi.getAvailableDestinationsForWarehouse(warehouseId);
-      if (data) {
-        this._regionCache.destinations.set(warehouseId, new Set(data.map((d) => d.code)));
-      } else {
-        this._regionCache.destinations.set(warehouseId, new Set());
+  /**
+   * Get the default fulfilling warehouse for a product variant when no shipping address is known.
+   * Uses the centralized backend API to select based on warehouse priority and stock availability.
+   */
+  private async _getDefaultFulfillingWarehouse(
+    variantId: string
+  ): Promise<{ canAddToOrder: boolean; warehouseId: string | null; warehouseName: string | null; blockedReason: string | null; aggregateStockStatus: string }> {
+    try {
+      const { data, error } = await MerchelloApi.getDefaultFulfillingWarehouse(variantId);
+
+      if (error) {
+        console.error("Failed to get default warehouse:", error);
+        return { canAddToOrder: false, warehouseId: null, warehouseName: null, blockedReason: "Unable to check fulfillment", aggregateStockStatus: "OutOfStock" };
       }
+
+      // Use backend-provided values - this is the single source of truth
+      return {
+        canAddToOrder: data?.canAddToOrder ?? false,
+        warehouseId: data?.fulfillingWarehouse?.id ?? null,
+        warehouseName: data?.fulfillingWarehouse?.name ?? null,
+        blockedReason: data?.blockedReason ?? null,
+        aggregateStockStatus: data?.aggregateStockStatus ?? "InStock",
+      };
+    } catch (err) {
+      console.error("Unexpected error getting default warehouse:", err);
+      return { canAddToOrder: false, warehouseId: null, warehouseName: null, blockedReason: "Unable to check fulfillment", aggregateStockStatus: "OutOfStock" };
     }
-
-    const destinations = this._regionCache.destinations.get(warehouseId)!;
-
-    // Check country
-    if (!destinations.has(countryCode)) {
-      return false;
-    }
-
-    // If no state specified, country match is enough
-    if (!stateCode) {
-      return true;
-    }
-
-    // Check state/region
-    const regionCacheKey = `${warehouseId}:${countryCode}`;
-    if (!this._regionCache.regions.has(regionCacheKey)) {
-      const { data } = await MerchelloApi.getAvailableRegionsForWarehouse(warehouseId, countryCode);
-      if (data && data.length > 0) {
-        this._regionCache.regions.set(regionCacheKey, new Set(data.map((r) => r.regionCode)));
-      } else {
-        // Empty regions = all regions allowed
-        this._regionCache.regions.set(regionCacheKey, null);
-      }
-    }
-
-    const regions = this._regionCache.regions.get(regionCacheKey);
-
-    // null or undefined means all regions allowed
-    if (regions === null || regions === undefined) {
-      return true;
-    }
-
-    return regions.has(stateCode);
   }
 
   // ============================================
@@ -387,14 +380,21 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
             rootName: variant.rootName,
           };
           this._selectedAddons = new Map();
+          // Initialize addon price preview with base price
+          this._addonPricePreview = {
+            basePrice: variant.price,
+            addonsTotal: 0,
+            totalPrice: variant.price,
+          };
+          this._isLoadingAddonPreview = false;
           this._viewState = "addon-selection";
           return;
         }
       }
     }
 
-    // No add-ons or showAddons disabled - add directly
-    this._addSelectionWithAddons(variant, []);
+    // No add-ons or showAddons disabled - go to shipping selection
+    this._transitionToShippingSelection(variant, []);
   }
 
   private _getAddonOptions(productDetail: ProductRootDetailDto): PickerAddonOption[] {
@@ -416,28 +416,6 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       }));
   }
 
-  private _addSelectionWithAddons(variant: PickerVariant, addons: SelectedAddon[]): void {
-    const selection: ProductPickerSelection = {
-      productId: variant.id,
-      productRootId: variant.productRootId,
-      name: variant.optionValuesDisplay
-        ? `${variant.rootName} - ${variant.optionValuesDisplay}`
-        : variant.rootName,
-      sku: variant.sku,
-      price: variant.price,
-      imageUrl: variant.imageUrl,
-      warehouseId: variant.fulfillingWarehouseId ?? "",
-      warehouseName: variant.fulfillingWarehouseName ?? "",
-      selectedAddons: addons.length > 0 ? addons : undefined,
-    };
-
-    // Toggle selection (if already selected without addons, replace with new selection)
-    this._selections.set(variant.id, selection);
-
-    // Trigger reactivity
-    this._selections = new Map(this._selections);
-  }
-
   // ============================================
   // Add-on Selection Handlers
   // ============================================
@@ -454,24 +432,90 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     };
     this._selectedAddons.set(optionId, addon);
     this._selectedAddons = new Map(this._selectedAddons);
+    this._fetchAddonPricePreviewDebounced();
   }
 
   private _handleAddonClear(optionId: string): void {
     this._selectedAddons.delete(optionId);
     this._selectedAddons = new Map(this._selectedAddons);
+    this._fetchAddonPricePreviewDebounced();
+  }
+
+  /**
+   * Fetch addon price preview from backend API with debouncing.
+   * This is the single source of truth for addon pricing calculations.
+   */
+  private _fetchAddonPricePreviewDebounced(): void {
+    if (this._addonPreviewDebounceTimer) {
+      clearTimeout(this._addonPreviewDebounceTimer);
+    }
+    this._addonPreviewDebounceTimer = setTimeout(() => {
+      void this._fetchAddonPricePreview();
+    }, 150);
+  }
+
+  private async _fetchAddonPricePreview(): Promise<void> {
+    const pending = this._pendingAddonSelection;
+    if (!pending) return;
+
+    // If no addons selected, just use the base price
+    if (this._selectedAddons.size === 0) {
+      this._addonPricePreview = {
+        basePrice: pending.variant.price,
+        addonsTotal: 0,
+        totalPrice: pending.variant.price,
+      };
+      this._isLoadingAddonPreview = false;
+      return;
+    }
+
+    this._isLoadingAddonPreview = true;
+
+    const request = {
+      selectedAddons: Array.from(this._selectedAddons.values()).map((addon) => ({
+        optionId: addon.optionId,
+        valueId: addon.valueId,
+      })),
+    };
+
+    const { data, error } = await MerchelloApi.previewAddonPrice(pending.variant.id, request);
+
+    if (error) {
+      console.error("Failed to fetch addon price preview:", error);
+      // Fallback to local calculation on error
+      const addonsTotal = Array.from(this._selectedAddons.values()).reduce(
+        (sum, addon) => sum + addon.priceAdjustment,
+        0
+      );
+      this._addonPricePreview = {
+        basePrice: pending.variant.price,
+        addonsTotal,
+        totalPrice: pending.variant.price + addonsTotal,
+      };
+    } else if (data) {
+      this._addonPricePreview = {
+        basePrice: data.basePrice,
+        addonsTotal: data.addonsTotal,
+        totalPrice: data.totalPrice,
+      };
+    }
+
+    this._isLoadingAddonPreview = false;
   }
 
   private _handleBackToProducts(): void {
     this._viewState = "product-selection";
     this._pendingAddonSelection = null;
     this._selectedAddons = new Map();
+    this._addonPricePreview = null;
+    this._isLoadingAddonPreview = false;
   }
 
   private _handleSkipAddons(): void {
     if (!this._pendingAddonSelection) return;
 
-    this._addSelectionWithAddons(this._pendingAddonSelection.variant, []);
-    this._viewState = "product-selection";
+    // Transition to shipping selection with no add-ons
+    this._transitionToShippingSelection(this._pendingAddonSelection.variant, []);
     this._pendingAddonSelection = null;
     this._selectedAddons = new Map();
   }
@@ -480,10 +524,131 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     if (!this._pendingAddonSelection) return;
 
     const addons = Array.from(this._selectedAddons.values());
-    this._addSelectionWithAddons(this._pendingAddonSelection.variant, addons);
-    this._viewState = "product-selection";
+    // Transition to shipping selection with selected add-ons
+    this._transitionToShippingSelection(this._pendingAddonSelection.variant, addons);
     this._pendingAddonSelection = null;
     this._selectedAddons = new Map();
+  }
+
+  // ============================================
+  // Shipping Selection Handlers
+  // ============================================
+
+  private async _transitionToShippingSelection(variant: PickerVariant, addons: SelectedAddon[]): Promise<void> {
+    const warehouseId = variant.fulfillingWarehouseId;
+    const warehouseName = variant.fulfillingWarehouseName;
+
+    if (!warehouseId || !warehouseName) {
+      // No warehouse - this shouldn't happen for selectable variants
+      console.error("No warehouse for variant", variant);
+      return;
+    }
+
+    // Set up pending shipping selection with loading state
+    this._pendingShippingSelection = {
+      variant,
+      addons,
+      warehouseId,
+      warehouseName,
+      isLoadingOptions: true,
+      shippingOptions: [],
+    };
+    this._selectedShippingOptionId = null;
+    this._viewState = "shipping-selection";
+
+    // Load shipping options from API
+    const address = this._config?.shippingAddress;
+    if (!address) {
+      // No shipping address - shouldn't happen in order editing context
+      this._pendingShippingSelection = {
+        ...this._pendingShippingSelection,
+        isLoadingOptions: false,
+      };
+      return;
+    }
+
+    const { data, error } = await MerchelloApi.getShippingOptionsForWarehouse(
+      warehouseId,
+      address.countryCode,
+      address.stateCode
+    );
+
+    if (error || !data) {
+      console.error("Failed to load shipping options:", error);
+      this._pendingShippingSelection = {
+        ...this._pendingShippingSelection,
+        isLoadingOptions: false,
+      };
+      return;
+    }
+
+    // Map API response to picker format
+    const shippingOptions: ShippingOptionForPicker[] = data.availableOptions.map((opt) => ({
+      id: opt.id,
+      name: opt.name,
+      deliveryTimeDescription: opt.deliveryTimeDescription,
+      estimatedCost: opt.estimatedCost ?? null,
+      isEstimate: opt.isEstimate,
+      isNextDay: opt.isNextDay,
+    }));
+
+    this._pendingShippingSelection = {
+      ...this._pendingShippingSelection,
+      isLoadingOptions: false,
+      shippingOptions,
+    };
+
+    // Auto-select first option if only one available
+    if (shippingOptions.length === 1) {
+      this._selectedShippingOptionId = shippingOptions[0].id;
+    }
+  }
+
+  private _handleShippingOptionSelect(optionId: string): void {
+    this._selectedShippingOptionId = optionId;
+  }
+
+  private _handleBackFromShipping(): void {
+    // If we came from add-ons, we'd need to go back there - but for simplicity just go to product list
+    this._viewState = "product-selection";
+    this._pendingShippingSelection = null;
+    this._selectedShippingOptionId = null;
+  }
+
+  private _handleConfirmWithShipping(): void {
+    if (!this._pendingShippingSelection || !this._selectedShippingOptionId) return;
+
+    const selectedOption = this._pendingShippingSelection.shippingOptions.find(
+      (opt) => opt.id === this._selectedShippingOptionId
+    );
+    if (!selectedOption) return;
+
+    const { variant, addons, warehouseId, warehouseName } = this._pendingShippingSelection;
+
+    // Add selection with shipping info
+    const selection: ProductPickerSelection = {
+      productId: variant.id,
+      productRootId: variant.productRootId,
+      name: variant.optionValuesDisplay
+        ? `${variant.rootName} - ${variant.optionValuesDisplay}`
+        : variant.rootName,
+      sku: variant.sku,
+      price: variant.price,
+      imageUrl: variant.imageUrl,
+      warehouseId,
+      warehouseName,
+      selectedAddons: addons.length > 0 ? addons : undefined,
+      shippingOptionId: selectedOption.id,
+      shippingOptionName: selectedOption.name,
+    };
+
+    this._selections.set(variant.id, selection);
+    this._selections = new Map(this._selections);
+
+    // Reset and return to product list
+    this._viewState = "product-selection";
+    this._pendingShippingSelection = null;
+    this._selectedShippingOptionId = null;
   }
 
   private _handleAdd(): void {
@@ -600,12 +765,11 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       ? `${variant.rootName} - ${variant.optionValuesDisplay}`
       : variant.rootName;
 
-    // Calculate total with add-ons
-    const addonsTotal = Array.from(this._selectedAddons.values()).reduce(
-      (sum, addon) => sum + addon.priceAdjustment,
-      0
-    );
-    const totalPrice = variant.price + addonsTotal;
+    // Use backend-calculated addon pricing (single source of truth)
+    const preview = this._addonPricePreview;
+    const basePrice = preview?.basePrice ?? variant.price;
+    const addonsTotal = preview?.addonsTotal ?? 0;
+    const totalPrice = preview?.totalPrice ?? variant.price;
 
     return html`
       <umb-body-layout headline="Select Add-ons (Optional)">
@@ -615,8 +779,8 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
               <strong>${variantName}</strong>
               ${variant.sku ? html`<span class="sku">${variant.sku}</span>` : nothing}
             </div>
-            <div class="product-pricing">
-              <span class="base-price">${formatPrice(variant.price, this._currencySymbol)}</span>
+            <div class="product-pricing ${this._isLoadingAddonPreview ? "loading" : ""}">
+              <span class="base-price">${formatPrice(basePrice, this._currencySymbol)}</span>
               ${addonsTotal !== 0
                 ? html`
                     <span class="addon-total">
@@ -625,6 +789,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
                     <span class="total-price">= ${formatPrice(totalPrice, this._currencySymbol)}</span>
                   `
                 : nothing}
+              ${this._isLoadingAddonPreview ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
             </div>
           </div>
 
@@ -642,7 +807,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
             Skip Add-ons
           </uui-button>
           <uui-button look="primary" color="positive" @click=${this._handleConfirmWithAddons}>
-            Add to Order
+            Continue
           </uui-button>
         </div>
       </umb-body-layout>
@@ -692,13 +857,104 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
   }
 
   // ============================================
+  // Shipping Selection View
+  // ============================================
+
+  private _renderShippingSelectionView() {
+    const pending = this._pendingShippingSelection;
+    if (!pending) return nothing;
+
+    const variant = pending.variant;
+    const variantName = variant.optionValuesDisplay
+      ? `${variant.rootName} - ${variant.optionValuesDisplay}`
+      : variant.rootName;
+
+    // Calculate total with add-ons
+    const addonsTotal = pending.addons.reduce((sum, addon) => sum + addon.priceAdjustment, 0);
+    const totalPrice = variant.price + addonsTotal;
+
+    return html`
+      <umb-body-layout headline="Select Shipping">
+        <div id="main">
+          <div class="shipping-product-summary">
+            <div class="product-info">
+              <strong>${variantName}</strong>
+              ${variant.sku ? html`<span class="sku">${variant.sku}</span>` : nothing}
+              <div class="warehouse-info">
+                <uui-icon name="icon-home"></uui-icon>
+                ${pending.warehouseName}
+              </div>
+            </div>
+            <div class="product-pricing">
+              <span class="total-price">${formatPrice(totalPrice, this._currencySymbol)}</span>
+            </div>
+          </div>
+
+          ${pending.isLoadingOptions
+            ? html`<div class="loading"><uui-loader></uui-loader></div>`
+            : pending.shippingOptions.length === 0
+              ? html`<div class="no-options">No shipping options available for this destination.</div>`
+              : html`
+                  <div class="shipping-options">
+                    ${pending.shippingOptions.map((option) => this._renderShippingOption(option))}
+                  </div>
+                `}
+        </div>
+
+        <div slot="actions">
+          <uui-button look="secondary" @click=${this._handleBackFromShipping}>
+            <uui-icon name="icon-arrow-left"></uui-icon>
+            Back
+          </uui-button>
+          <uui-button
+            look="primary"
+            color="positive"
+            ?disabled=${!this._selectedShippingOptionId || pending.isLoadingOptions}
+            @click=${this._handleConfirmWithShipping}
+          >
+            Add to Order
+          </uui-button>
+        </div>
+      </umb-body-layout>
+    `;
+  }
+
+  private _renderShippingOption(option: ShippingOptionForPicker) {
+    const isSelected = this._selectedShippingOptionId === option.id;
+
+    return html`
+      <button
+        type="button"
+        class="shipping-option-button ${isSelected ? "selected" : ""}"
+        @click=${() => this._handleShippingOptionSelect(option.id)}
+      >
+        <div class="shipping-option-info">
+          <span class="shipping-option-name">${option.name}</span>
+          <span class="shipping-option-delivery">${option.deliveryTimeDescription}</span>
+        </div>
+        <div class="shipping-option-cost">
+          ${option.estimatedCost !== null
+            ? html`
+                <span class="cost">${formatPrice(option.estimatedCost, this._currencySymbol)}</span>
+                ${option.isEstimate ? html`<span class="estimate-label">est.</span>` : nothing}
+              `
+            : html`<span class="cost-at-checkout">Calculated at checkout</span>`}
+        </div>
+      </button>
+    `;
+  }
+
+  // ============================================
   // Main Render
   // ============================================
 
   override render() {
-    // Switch between product selection and add-on selection views
+    // Switch between views
     if (this._viewState === "addon-selection") {
       return this._renderAddonSelectionView();
+    }
+    if (this._viewState === "shipping-selection") {
+      return this._renderShippingSelectionView();
     }
 
     return html`
@@ -855,6 +1111,14 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       color: var(--uui-color-current);
     }
 
+    .addon-product-summary .product-pricing.loading {
+      opacity: 0.6;
+    }
+
+    .addon-product-summary .product-pricing uui-loader-circle {
+      font-size: 0.75rem;
+    }
+
     .addon-options {
       display: flex;
       flex-direction: column;
@@ -927,6 +1191,121 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
 
     .addon-value-button .value-price.negative {
       color: var(--uui-color-danger);
+    }
+
+    /* Shipping Selection View Styles */
+    .shipping-product-summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--uui-size-space-4);
+      background: var(--uui-color-surface-alt);
+      border-radius: var(--uui-border-radius);
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .shipping-product-summary .product-info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-1);
+    }
+
+    .shipping-product-summary .sku {
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .shipping-product-summary .warehouse-info {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-1);
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+      margin-top: var(--uui-size-space-1);
+    }
+
+    .shipping-product-summary .warehouse-info uui-icon {
+      font-size: 0.875rem;
+    }
+
+    .shipping-product-summary .product-pricing .total-price {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .shipping-options {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-3);
+    }
+
+    .shipping-option-button {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--uui-size-space-4);
+      background: var(--uui-color-surface);
+      border: 2px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      width: 100%;
+      text-align: left;
+    }
+
+    .shipping-option-button:hover {
+      border-color: var(--uui-color-selected);
+      background: var(--uui-color-surface-emphasis);
+    }
+
+    .shipping-option-button.selected {
+      border-color: var(--uui-color-positive);
+      background: var(--uui-color-positive-surface);
+    }
+
+    .shipping-option-info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-1);
+    }
+
+    .shipping-option-name {
+      font-weight: 600;
+    }
+
+    .shipping-option-delivery {
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .shipping-option-cost {
+      display: flex;
+      align-items: baseline;
+      gap: var(--uui-size-space-1);
+    }
+
+    .shipping-option-cost .cost {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .shipping-option-cost .estimate-label {
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .shipping-option-cost .cost-at-checkout {
+      font-size: 0.875rem;
+      color: var(--uui-color-text-alt);
+      font-style: italic;
+    }
+
+    .no-options {
+      padding: var(--uui-size-space-4);
+      text-align: center;
+      color: var(--uui-color-text-alt);
+      background: var(--uui-color-surface-alt);
+      border-radius: var(--uui-border-radius);
     }
   `;
 }

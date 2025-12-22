@@ -34,4 +34,18 @@ public class PaymentStatusDto
     /// Source of the maximum risk score.
     /// </summary>
     public string? MaxRiskScoreSource { get; set; }
+
+    /// <summary>
+    /// Risk level classification based on MaxRiskScore.
+    /// Values: "high" (>=75), "medium" (>=50), "low" (>=25), "minimal" (&lt;25), null (no risk score).
+    /// Calculated by backend to ensure consistency - frontend should use this instead of local threshold logic.
+    /// </summary>
+    public string? RiskLevel { get; set; }
+
+    /// <summary>
+    /// Balance status classification based on BalanceDue.
+    /// Values: "Balanced" (balance = 0), "Underpaid" (balance > 0), "Overpaid" (balance &lt; 0).
+    /// Calculated by backend to ensure consistency - frontend should use this instead of local amount comparisons.
+    /// </summary>
+    public string BalanceStatus { get; set; } = "Balanced";
 }

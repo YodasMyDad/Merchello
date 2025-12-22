@@ -46,6 +46,14 @@ public class ProductVariantDto
 
     // Stock (aggregated from ProductWarehouses)
     public int TotalStock { get; set; }
+
+    /// <summary>
+    /// Overall stock status for the variant across all warehouses.
+    /// Calculated by backend to ensure consistency - frontend should use this
+    /// instead of comparing totalStock to threshold locally.
+    /// </summary>
+    public StockStatus StockStatus { get; set; }
+
     public List<VariantWarehouseStockDto> WarehouseStock { get; set; } = [];
 
     /// <summary>

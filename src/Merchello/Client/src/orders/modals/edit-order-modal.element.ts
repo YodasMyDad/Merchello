@@ -46,6 +46,14 @@ interface EditableOrder extends OrderForEditDto {
 
 interface PendingCustomItem extends AddCustomItemDto {
   tempId: string;
+  /** Warehouse ID for physical items */
+  warehouseId?: string;
+  /** Warehouse name for display */
+  warehouseName?: string;
+  /** Shipping option ID for physical items */
+  shippingOptionId?: string;
+  /** Shipping option name for display */
+  shippingOptionName?: string;
 }
 
 interface PendingOrderDiscount {
@@ -67,6 +75,10 @@ interface PendingProduct {
   imageUrl: string | null;
   warehouseId: string;
   warehouseName: string;
+  /** Shipping option ID for this product */
+  shippingOptionId: string;
+  /** Shipping option name for display */
+  shippingOptionName: string;
   /** Selected add-ons for this product */
   addons: SelectedAddon[];
 }
@@ -178,10 +190,13 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
             newQuantity: li.quantity,
             discount: existingDiscount,
             hadOriginalDiscount: hasExistingDiscount,
-            calculatedTotal: this._getOptimisticLineItemTotal(li.amount, li.quantity, existingDiscount),
+            // Initial value - will be populated by preview API
+            calculatedTotal: 0,
           };
         })
       );
+      // Trigger initial preview to get calculated values from backend
+      this._refreshPreview();
     }
 
     this._isLoading = false;
@@ -190,11 +205,10 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
   private _updateQuantity(lineItemId: string, quantity: number): void {
     this._lineItems = this._lineItems.map((li) => {
       if (li.id === lineItemId) {
-        const newQty = Math.max(1, quantity);
         return {
           ...li,
-          newQuantity: newQty,
-          calculatedTotal: this._getOptimisticLineItemTotal(li.amount, newQty, li.discount),
+          newQuantity: Math.max(1, quantity),
+          // calculatedTotal will be updated by preview API
         };
       }
       return li;
@@ -293,6 +307,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     const modal = this.#modalManager.open(this, MERCHELLO_ADD_DISCOUNT_MODAL, {
       data: {
         currencySymbol: this._invoice.currencySymbol,
+        currencyCode: this._invoice.currencyCode,
         isOrderDiscount: false,
         lineItemName: lineItem.name ?? undefined,
         lineItemPrice: lineItem.amount,
@@ -308,7 +323,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
           return {
             ...li,
             discount: result.discount!,
-            calculatedTotal: this._getOptimisticLineItemTotal(li.amount, li.newQuantity, result.discount!),
+            // calculatedTotal will be updated by preview API
           };
         }
         return li;
@@ -323,6 +338,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     const modal = this.#modalManager.open(this, MERCHELLO_ADD_DISCOUNT_MODAL, {
       data: {
         currencySymbol: this._invoice.currencySymbol,
+        currencyCode: this._invoice.currencyCode,
         isOrderDiscount: true,
       },
     });
@@ -349,7 +365,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         return {
           ...li,
           discount: null,
-          calculatedTotal: li.amount * li.newQuantity,
+          // calculatedTotal will be updated by preview API
         };
       }
       return li;
@@ -358,34 +374,25 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
   }
 
   /**
-   * Calculate line item total for OPTIMISTIC UI display only.
-   * The authoritative value comes from the backend via _refreshPreview().
-   * This is replaced by PreviewEditResultDto.lineItems[].calculatedTotal when available.
+   * Get calculated total for a line item from the preview result.
+   * Returns null if preview is not yet available (triggers loading state in UI).
+   * Backend is the ONLY source of truth for all calculations.
    */
-  private _getOptimisticLineItemTotal(amount: number, quantity: number, discount: LineItemDiscountDto | null): number {
-    const baseTotal = amount * quantity;
-    if (!discount || discount.value <= 0) return baseTotal;
-
-    if (discount.type === DiscountValueType.FixedAmount) {
-      return Math.max(0, baseTotal - discount.value * quantity);
-    } else {
-      return baseTotal * (1 - discount.value / 100);
-    }
+  private _getLineItemCalculatedTotal(lineItemId: string): number | null {
+    if (!this._previewResult) return null;
+    const preview = this._previewResult.lineItems.find(li => li.id === lineItemId);
+    return preview?.calculatedTotal ?? null;
   }
 
   /**
-   * Calculate the discounted unit price for display.
+   * Get discounted unit price from preview result.
+   * Returns null if preview is not yet available (triggers loading state in UI).
+   * Backend is the ONLY source of truth for all calculations.
    */
-  private _getDiscountedUnitPrice(lineItem: EditableLineItem): number {
-    if (!lineItem.discount || lineItem.discount.value <= 0) {
-      return lineItem.amount;
-    }
-
-    if (lineItem.discount.type === DiscountValueType.FixedAmount) {
-      return Math.max(0, lineItem.amount - lineItem.discount.value);
-    } else {
-      return lineItem.amount * (1 - lineItem.discount.value / 100);
-    }
+  private _getDiscountedUnitPriceFromPreview(lineItemId: string): number | null {
+    if (!this._previewResult) return null;
+    const preview = this._previewResult.lineItems.find(li => li.id === lineItemId);
+    return preview?.discountedUnitPrice ?? null;
   }
 
   private async _openAddCustomItemModal(): Promise<void> {
@@ -395,6 +402,12 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       data: {
         currencySymbol: this._invoice.currencySymbol,
         taxGroups: this._taxGroups,
+        shippingDestination: this._invoice.shippingCountryCode
+          ? {
+              countryCode: this._invoice.shippingCountryCode,
+              stateCode: this._invoice.shippingRegion ?? undefined,
+            }
+          : null,
       },
     });
 
@@ -405,6 +418,10 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         {
           ...result.item,
           tempId: `custom-${Date.now()}`,
+          warehouseId: result.item.warehouseId,
+          warehouseName: result.item.warehouseName,
+          shippingOptionId: result.item.shippingOptionId,
+          shippingOptionName: result.item.shippingOptionName,
         },
       ];
       this._refreshPreview();
@@ -456,6 +473,8 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         imageUrl: selection.imageUrl,
         warehouseId: selection.warehouseId,
         warehouseName: selection.warehouseName,
+        shippingOptionId: selection.shippingOptionId,
+        shippingOptionName: selection.shippingOptionName,
         addons: selection.selectedAddons ?? [],
       }));
 
@@ -571,11 +590,14 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         quantity: item.quantity,
         taxGroupId: item.taxGroupId,
         isPhysicalProduct: item.isPhysicalProduct,
+        warehouseId: item.warehouseId ?? null,
+        shippingOptionId: item.shippingOptionId ?? null,
       })),
       productsToAdd: this._pendingProducts.map((product) => ({
         productId: product.productId,
         quantity: product.quantity,
         warehouseId: product.warehouseId,
+        shippingOptionId: product.shippingOptionId,
         addons: product.addons.map((addon) => ({
           optionId: addon.optionId,
           optionValueId: addon.valueId,
@@ -604,6 +626,9 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
   private _refreshPreview(): void {
     if (!this._invoice) return;
 
+    // Capture invoice ID before timeout to avoid race condition
+    const invoiceId = this._invoice.id;
+
     // Clear existing debounce timer
     if (this._previewDebounceTimer) {
       clearTimeout(this._previewDebounceTimer);
@@ -614,7 +639,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       this._previewLoading = true;
 
       const request = this._buildPreviewRequest();
-      const { data, error } = await MerchelloApi.previewInvoiceEdit(this._invoice!.id, request);
+      const { data, error } = await MerchelloApi.previewInvoiceEdit(invoiceId, request);
 
       this._previewLoading = false;
 
@@ -754,19 +779,15 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
     const currencySymbol = this._invoice?.currencySymbol ?? "£";
     const hasDiscount = lineItem.discount !== null;
+
+    // Get backend-provided validation flags from preview result
+    // These are the single source of truth - no local calculation needed
+    const previewLineItem = this._previewResult?.lineItems.find(li => li.id === lineItem.id);
+    const hasInsufficientStock = previewLineItem?.hasInsufficientStock ?? false;
+    const canModifyDiscount = previewLineItem?.canAddDiscount ?? true;
+
+    // Check if quantity was decreased (for return to stock option)
     const qtyDecreased = lineItem.newQuantity < lineItem.quantity;
-    const qtyIncreased = lineItem.newQuantity > lineItem.quantity;
-    const qtyIncrease = lineItem.newQuantity - lineItem.quantity;
-
-    // Check if stock is insufficient for quantity increase
-    const hasInsufficientStock = qtyIncreased &&
-      lineItem.isStockTracked &&
-      lineItem.availableStock !== null &&
-      lineItem.availableStock < qtyIncrease;
-
-    // Block adding new discount if item had original discount but it was removed
-    // (user can only remove original discounts, not replace them with new ones)
-    const canModifyDiscount = !lineItem.hadOriginalDiscount || hasDiscount;
 
     // Get child add-on line items from the DTO
     const childAddons = lineItem.childLineItems ?? [];
@@ -797,10 +818,18 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
         <div class="line-item-price">
           <div class="price-display">
-            ${hasDiscount ? html`
-              <span class="original-price">${currencySymbol}${formatNumber(lineItem.amount, 2)}</span>
-              <span class="discounted-price">${currencySymbol}${formatNumber(this._getDiscountedUnitPrice(lineItem), 2)}</span>
-            ` : html`
+            ${hasDiscount ? (() => {
+              const discountedPrice = this._getDiscountedUnitPriceFromPreview(lineItem.id);
+              return discountedPrice !== null
+                ? html`
+                    <span class="original-price">${currencySymbol}${formatNumber(lineItem.amount, 2)}</span>
+                    <span class="discounted-price">${currencySymbol}${formatNumber(discountedPrice, 2)}</span>
+                  `
+                : html`
+                    <span class="original-price">${currencySymbol}${formatNumber(lineItem.amount, 2)}</span>
+                    <span class="discounted-price calculating">...</span>
+                  `;
+            })() : html`
               <span class="price">${currencySymbol}${formatNumber(lineItem.amount, 2)}</span>
             `}
             ${canModifyDiscount ? html`
@@ -834,7 +863,12 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         </div>
 
         <div class="line-item-total">
-          ${currencySymbol}${formatNumber(lineItem.calculatedTotal, 2)}
+          ${(() => {
+            const calculatedTotal = this._getLineItemCalculatedTotal(lineItem.id);
+            return calculatedTotal !== null
+              ? html`${currencySymbol}${formatNumber(calculatedTotal, 2)}`
+              : html`<span class="calculating">...</span>`;
+          })()}
         </div>
 
         <div class="line-item-actions">
@@ -863,7 +897,8 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
   }
 
   private _renderAddonLineItem(addon: LineItemForEditDto, parentQuantity: number, currencySymbol: string) {
-    const addonTotal = addon.amount * parentQuantity;
+    // Get calculated total from preview (backend is source of truth)
+    const addonTotal = this._getLineItemCalculatedTotal(addon.id);
 
     return html`
       <div class="line-item child-item addon-item">
@@ -887,7 +922,9 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         </div>
 
         <div class="line-item-total">
-          +${currencySymbol}${formatNumber(addonTotal, 2)}
+          ${addonTotal !== null
+            ? html`+${currencySymbol}${formatNumber(addonTotal, 2)}`
+            : html`<span class="calculating">...</span>`}
         </div>
 
         <div class="line-item-actions">
@@ -899,13 +936,16 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
   private _renderRemovedItem(lineItem: EditableLineItem) {
     const currencySymbol = this._invoice?.currencySymbol ?? "£";
+    // For removed items, use the original calculated total (stored on the item)
+    // This was calculated by backend when the invoice was created
+    const originalTotal = lineItem.calculatedTotal;
 
     return html`
       <div class="removed-item">
         <div class="removed-item-info">
           <span class="removed-item-name">${lineItem.name}</span>
           <span class="removed-item-qty">× ${lineItem.quantity}</span>
-          <span class="removed-item-price">${currencySymbol}${formatNumber(lineItem.amount * lineItem.quantity, 2)}</span>
+          <span class="removed-item-price">${currencySymbol}${formatNumber(originalTotal, 2)}</span>
         </div>
         <div class="removed-item-options">
           ${lineItem.productId && lineItem.isStockTracked ? html`
@@ -1016,6 +1056,16 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
           <div class="line-item-details">
             <div class="line-item-name">${item.name}</div>
             <div class="line-item-sku">${item.sku ?? 'Custom item'} · ${taxInfo}</div>
+            ${item.isPhysicalProduct && item.warehouseName ? html`
+              <div class="warehouse-info">
+                <uui-icon name="icon-home"></uui-icon>
+                ${item.warehouseName}
+              </div>
+              <div class="shipping-info">
+                <uui-icon name="icon-truck"></uui-icon>
+                ${item.shippingOptionName || "Standard"}
+              </div>
+            ` : nothing}
           </div>
         </div>
 
@@ -1028,7 +1078,8 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         </div>
 
         <div class="line-item-total">
-          ${currencySymbol}${formatNumber(item.price * item.quantity, 2)}
+          <!-- Pending items: total included in preview summary, no per-line calculation -->
+          <span class="pending-total">Included</span>
         </div>
 
         <div class="line-item-actions">
@@ -1047,9 +1098,6 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
   private _renderPendingProduct(product: PendingProduct) {
     const currencySymbol = this._invoice?.currencySymbol ?? "£";
-    // Calculate total including add-ons
-    const addonTotal = product.addons.reduce((sum, addon) => sum + addon.priceAdjustment, 0);
-    const lineTotal = (product.price + addonTotal) * product.quantity;
 
     return html`
       <div class="line-item pending-product">
@@ -1069,6 +1117,10 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
               <uui-icon name="icon-home"></uui-icon>
               ${product.warehouseName || "Default warehouse"}
             </div>
+            <div class="shipping-info">
+              <uui-icon name="icon-truck"></uui-icon>
+              ${product.shippingOptionName || "Standard"}
+            </div>
           </div>
         </div>
 
@@ -1087,7 +1139,8 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         </div>
 
         <div class="line-item-total">
-          ${currencySymbol}${formatNumber(lineTotal, 2)}
+          <!-- Pending items: total included in preview summary, no per-line calculation -->
+          <span class="pending-total">Included</span>
         </div>
 
         <div class="line-item-actions">
@@ -1130,7 +1183,8 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         </div>
 
         <div class="line-item-total">
-          ${currencySymbol}${formatNumber(addon.priceAdjustment * quantity, 2)}
+          <!-- Pending items: total included in preview summary -->
+          <span class="pending-total">—</span>
         </div>
 
         <div class="line-item-actions">
@@ -1653,6 +1707,19 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       font-weight: 500;
     }
 
+    .line-item-total .calculating,
+    .discounted-price.calculating {
+      opacity: 0.6;
+      font-style: italic;
+      color: var(--uui-color-text-alt);
+    }
+
+    .line-item-total .pending-total {
+      opacity: 0.6;
+      font-size: 0.875rem;
+      color: var(--uui-color-text-alt);
+    }
+
     .line-item-actions {
       display: flex;
       justify-content: flex-end;
@@ -1853,7 +1920,8 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       color: var(--uui-color-text-alt);
     }
 
-    .warehouse-info {
+    .warehouse-info,
+    .shipping-info {
       display: flex;
       align-items: center;
       gap: 4px;
@@ -1862,8 +1930,13 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       margin-top: 2px;
     }
 
-    .warehouse-info uui-icon {
+    .warehouse-info uui-icon,
+    .shipping-info uui-icon {
       font-size: 0.75rem;
+    }
+
+    .shipping-info {
+      color: var(--uui-color-current);
     }
 
     /* Payment Section */

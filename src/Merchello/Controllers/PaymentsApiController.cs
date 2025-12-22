@@ -92,6 +92,14 @@ public class PaymentsApiController(
             invoice.TotalInStoreCurrency,
             invoice.StoreCurrencyCode);
 
+        // Calculate balance status (backend-provided to avoid frontend logic duplication)
+        var balanceStatus = details.BalanceDue switch
+        {
+            > 0 => "Underpaid",
+            < 0 => "Overpaid",
+            _ => "Balanced"
+        };
+
         return Ok(new PaymentStatusDto
         {
             InvoiceId = invoiceId,
@@ -111,8 +119,10 @@ public class PaymentsApiController(
             NetPaymentInStoreCurrency = details.NetPaymentInStoreCurrency,
             BalanceDue = details.BalanceDue,
             BalanceDueInStoreCurrency = details.BalanceDueInStoreCurrency,
+            BalanceStatus = balanceStatus,
             MaxRiskScore = details.MaxRiskScore,
-            MaxRiskScoreSource = details.MaxRiskScoreSource
+            MaxRiskScoreSource = details.MaxRiskScoreSource,
+            RiskLevel = details.RiskLevel
         });
     }
 
@@ -260,6 +270,7 @@ public class PaymentsApiController(
             DateCreated = payment.DateCreated,
             RiskScore = payment.RiskScore,
             RiskScoreSource = payment.RiskScoreSource,
+            RiskLevel = PaymentStatusDetails.GetRiskLevel(payment.RiskScore),
             RefundableAmount = Math.Max(0, refundableAmount),
             Refunds = payment.Refunds?
                 .OrderBy(r => r.DateCreated)

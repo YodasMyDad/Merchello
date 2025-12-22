@@ -55,6 +55,12 @@ public class OrderGroupingContext
     public Dictionary<Guid, Guid> SelectedShippingOptions { get; init; } = [];
 
     /// <summary>
+    /// Per-line-item shipping selections. Used when adding products with specific shipping options.
+    /// Key: LineItemId (or ProductId for pending items), Value: (WarehouseId, ShippingOptionId)
+    /// </summary>
+    public Dictionary<Guid, (Guid WarehouseId, Guid ShippingOptionId)> LineItemShippingSelections { get; init; } = [];
+
+    /// <summary>
     /// Extended data for custom strategy implementations.
     /// Can be used to pass additional context-specific data.
     /// </summary>

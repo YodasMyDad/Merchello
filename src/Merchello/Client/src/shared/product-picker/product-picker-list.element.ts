@@ -61,17 +61,22 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
     return formatPriceRange(root.minPrice, root.maxPrice, this.currencySymbol);
   }
 
+  /**
+   * Renders stock status badge using backend-provided stockStatus.
+   * Backend is the single source of truth for stock status classification.
+   */
   private _renderStockBadge(root: PickerProductRoot) {
-    if (root.isDigitalProduct) {
-      return html`<span class="badge digital">Digital</span>`;
+    switch (root.stockStatus) {
+      case "Untracked":
+        return html`<span class="badge digital">Digital</span>`;
+      case "OutOfStock":
+        return html`<span class="badge out-of-stock">Out of stock</span>`;
+      case "LowStock":
+        return html`<span class="badge low-stock">Low: ${root.totalStock}</span>`;
+      case "InStock":
+      default:
+        return html`<span class="badge in-stock">${root.totalStock} in stock</span>`;
     }
-    if (root.totalStock <= 0) {
-      return html`<span class="badge out-of-stock">Out of stock</span>`;
-    }
-    if (root.totalStock <= 5) {
-      return html`<span class="badge low-stock">Low: ${root.totalStock}</span>`;
-    }
-    return html`<span class="badge in-stock">${root.totalStock} in stock</span>`;
   }
 
   private _renderExpandIcon(isExpanded: boolean) {

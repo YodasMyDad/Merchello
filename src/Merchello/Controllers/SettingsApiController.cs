@@ -32,7 +32,8 @@ public class SettingsApiController(
         {
             CurrencyCode = settings.Value.StoreCurrencyCode,
             CurrencySymbol = settings.Value.CurrencySymbol,
-            InvoiceNumberPrefix = settings.Value.InvoiceNumberPrefix
+            InvoiceNumberPrefix = settings.Value.InvoiceNumberPrefix,
+            LowStockThreshold = settings.Value.LowStockThreshold
         });
     }
 

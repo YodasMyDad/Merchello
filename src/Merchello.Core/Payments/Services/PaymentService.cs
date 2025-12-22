@@ -579,7 +579,8 @@ public class PaymentService(
             NetPayment = netPayment,
             BalanceDue = balanceDue,
             MaxRiskScore = maxRiskPayment?.RiskScore,
-            MaxRiskScoreSource = maxRiskPayment?.RiskScoreSource
+            MaxRiskScoreSource = maxRiskPayment?.RiskScoreSource,
+            RiskLevel = PaymentStatusDetails.GetRiskLevel(maxRiskPayment?.RiskScore)
         };
     }
 
@@ -671,7 +672,8 @@ public class PaymentService(
             NetPaymentInStoreCurrency = storeNetPayment,
             BalanceDueInStoreCurrency = storeBalanceDue,
             MaxRiskScore = maxRiskPayment?.RiskScore,
-            MaxRiskScoreSource = maxRiskPayment?.RiskScoreSource
+            MaxRiskScoreSource = maxRiskPayment?.RiskScoreSource,
+            RiskLevel = PaymentStatusDetails.GetRiskLevel(maxRiskPayment?.RiskScore)
         };
     }
 

@@ -38,6 +38,13 @@ public class PaymentDto
     public string? RiskScoreSource { get; set; }
 
     /// <summary>
+    /// Risk level classification based on RiskScore.
+    /// Values: "high" (>=75), "medium" (>=50), "low" (>=25), "minimal" (&lt;25), null (no risk score).
+    /// Calculated by backend to ensure consistency - frontend should use this instead of local threshold logic.
+    /// </summary>
+    public string? RiskLevel { get; set; }
+
+    /// <summary>
     /// Child refund payments (if any)
     /// </summary>
     public List<PaymentDto>? Refunds { get; set; }

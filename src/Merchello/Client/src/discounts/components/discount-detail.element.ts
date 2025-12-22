@@ -241,9 +241,14 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
     this._eligibilityRules = e.detail.rules;
   }
 
+  /**
+   * UX validation only - checks for required fields to provide immediate feedback.
+   * Business rule validation (value ranges, percentages) is handled by backend.
+   */
   private _validate(): boolean {
     this._validationErrors.clear();
 
+    // UX: Required field indicators
     if (!this._discount?.name?.trim()) {
       this._validationErrors.set("name", "Name is required");
     }
@@ -252,17 +257,8 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
       this._validationErrors.set("code", "Code is required for code-based discounts");
     }
 
-    if (this._discount?.value === undefined || this._discount.value <= 0) {
-      this._validationErrors.set("value", "Value must be greater than 0");
-    }
-
-    if (this._discount?.valueType === DiscountValueType.Percentage && this._discount.value > 100) {
-      this._validationErrors.set("value", "Percentage cannot exceed 100%");
-    }
-
-    if (this._discount?.requirementType !== DiscountRequirementType.None && !this._discount?.requirementValue) {
-      this._validationErrors.set("requirementValue", "Requirement value is required");
-    }
+    // Note: Business rules like value > 0, percentage <= 100, requirementValue are
+    // validated by backend and errors returned in API response
 
     this.requestUpdate();
     return this._validationErrors.size === 0;

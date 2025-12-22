@@ -162,6 +162,8 @@ import type {
   EditInvoiceDto,
   EditInvoiceResultDto,
   PreviewEditResultDto,
+  PreviewDiscountRequestDto,
+  PreviewDiscountResultDto,
   TaxGroupDto,
   CreateDraftOrderDto,
   CreateDraftOrderResultDto,
@@ -235,6 +237,8 @@ import type {
   CreateServiceRegionDto,
   CountryInfo,
   SubdivisionInfo,
+  WarehouseShippingOptionsResultDto,
+  ProductFulfillmentOptionsDto,
 } from '@warehouses/types/warehouses.types.js';
 
 // Import supplier types
@@ -280,6 +284,8 @@ import type {
 import type {
   CreateTaxGroupDto,
   UpdateTaxGroupDto,
+  PreviewCustomItemTaxRequestDto,
+  PreviewCustomItemTaxResultDto,
 } from '@tax/types/tax.types.js';
 
 // Import exchange rate provider types
@@ -319,6 +325,22 @@ interface ApplyDiscountResultDto {
   newTotal?: number | null;
 }
 
+// Addon price preview types (for product picker modal)
+interface AddonPricePreviewRequest {
+  selectedAddons: SelectedAddonDto[];
+}
+
+interface SelectedAddonDto {
+  optionId: string;
+  valueId: string;
+}
+
+interface AddonPricePreviewDto {
+  basePrice: number;
+  addonsTotal: number;
+  totalPrice: number;
+}
+
 // Helper to build query string from params
 function buildQueryString(params?: Record<string, unknown>): string {
   if (!params) return '';
@@ -336,6 +358,7 @@ export interface StoreSettingsDto {
   currencyCode: string;
   currencySymbol: string;
   invoiceNumberPrefix: string;
+  lowStockThreshold: number;
 }
 
 // Country type for dropdowns
@@ -372,6 +395,13 @@ export const MerchelloApi = {
 
   /** Delete a tax group */
   deleteTaxGroup: (id: string) => apiDelete(`tax-groups/${id}`),
+
+  /**
+   * Preview tax calculation for a custom item.
+   * Used by add-custom-item modal to show tax preview.
+   */
+  previewCustomItemTax: (request: PreviewCustomItemTaxRequestDto) =>
+    apiPost<PreviewCustomItemTaxResultDto>('tax-groups/preview-custom-item', request),
 
   // Orders API
   getOrders: (params?: OrderListParams) => {
@@ -436,6 +466,12 @@ export const MerchelloApi = {
    * Frontend should call this instead of calculating locally. */
   previewInvoiceEdit: (invoiceId: string, request: EditInvoiceDto) =>
     apiPost<PreviewEditResultDto>(`orders/${invoiceId}/preview-edit`, request),
+
+  /** Preview calculated discount amount for a line item.
+   * This is the single source of truth for discount calculations.
+   * Frontend should call this instead of calculating locally. */
+  previewDiscount: (request: PreviewDiscountRequestDto) =>
+    apiPost<PreviewDiscountResultDto>('orders/preview-discount', request),
 
   // Fulfillment API
   /** Get fulfillment summary for an invoice (used in fulfillment dialog) */
@@ -675,6 +711,34 @@ export const MerchelloApi = {
       excludedShippingOptionIds: excludedIds,
     } as UpdateShippingExclusionsDto),
 
+  /**
+   * Get fulfillment options for a product variant to a destination.
+   * Returns the best warehouse that can fulfill based on priority, region eligibility, and stock.
+   * This is a single API call replacement for frontend warehouse iteration.
+   */
+  getProductFulfillmentOptions: (variantId: string, destinationCountryCode: string, destinationStateCode?: string) => {
+    const params = new URLSearchParams();
+    params.set('destinationCountryCode', destinationCountryCode);
+    if (destinationStateCode) params.set('destinationStateCode', destinationStateCode);
+    return apiGet<ProductFulfillmentOptionsDto>(`products/variants/${variantId}/fulfillment-options?${params.toString()}`);
+  },
+
+  /**
+   * Get the default fulfilling warehouse for a product variant based on priority and stock.
+   * Used when no destination address is known (e.g., browsing products before checkout).
+   * Unlike getProductFulfillmentOptions, this does NOT check region serviceability.
+   */
+  getDefaultFulfillingWarehouse: (variantId: string) =>
+    apiGet<ProductFulfillmentOptionsDto>(`products/variants/${variantId}/default-warehouse`),
+
+  /**
+   * Preview addon price calculation for a variant.
+   * Returns base price, addon total, and combined total calculated by backend.
+   * This is the single source of truth for addon pricing - frontend should use this.
+   */
+  previewAddonPrice: (variantId: string, request: AddonPricePreviewRequest) =>
+    apiPost<AddonPricePreviewDto>(`products/variants/${variantId}/preview-addon-price`, request),
+
   // ============================================
   // Shipping Options API
   // ============================================
@@ -770,6 +834,14 @@ export const MerchelloApi = {
   /** Get regions that a warehouse can service for a given country */
   getAvailableRegionsForWarehouse: (warehouseId: string, countryCode: string) =>
     apiGet<{ regionCode: string; name: string }[]>(`warehouses/${warehouseId}/available-destinations/${countryCode}/regions`),
+
+  /** Get available shipping options for a warehouse and destination */
+  getShippingOptionsForWarehouse: (warehouseId: string, destinationCountryCode: string, destinationStateCode?: string) => {
+    const params = new URLSearchParams();
+    params.set('destinationCountryCode', destinationCountryCode);
+    if (destinationStateCode) params.set('destinationStateCode', destinationStateCode);
+    return apiGet<WarehouseShippingOptionsResultDto>(`warehouses/${warehouseId}/shipping-options?${params.toString()}`);
+  },
 
   // ============================================
   // Suppliers API

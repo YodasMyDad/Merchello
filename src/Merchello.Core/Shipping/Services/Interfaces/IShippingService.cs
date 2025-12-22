@@ -57,5 +57,49 @@ public interface IShippingService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The shipping option or null if not found</returns>
     Task<ShippingOption?> GetShippingOptionByIdAsync(Guid shippingOptionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets available shipping options for a warehouse to a specific destination.
+    /// Used by order create/edit modals to show shipping options after warehouse selection.
+    /// </summary>
+    /// <param name="warehouseId">The warehouse ID</param>
+    /// <param name="destinationCountryCode">Destination country code</param>
+    /// <param name="destinationStateCode">Optional destination state/province code</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Available shipping options with pricing info</returns>
+    Task<WarehouseShippingOptionsResultDto> GetShippingOptionsForWarehouseAsync(
+        Guid warehouseId,
+        string destinationCountryCode,
+        string? destinationStateCode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the best fulfilling warehouse for a product variant based on destination region and stock availability.
+    /// This is a single call replacement for frontend warehouse iteration logic.
+    /// Warehouses are evaluated in priority order (from ProductRootWarehouse.PriorityOrder).
+    /// </summary>
+    /// <param name="productId">The product variant ID</param>
+    /// <param name="destinationCountryCode">Destination country code</param>
+    /// <param name="destinationStateCode">Optional destination state/province code</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Fulfillment options including the best warehouse (if available) and stock info</returns>
+    Task<ProductFulfillmentOptionsDto> GetFulfillmentOptionsForProductAsync(
+        Guid productId,
+        string destinationCountryCode,
+        string? destinationStateCode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the default fulfilling warehouse for a product variant based on priority and stock availability.
+    /// Used when no destination address is known (e.g., browsing products before checkout).
+    /// Warehouses are evaluated in priority order (from ProductRootWarehouse.PriorityOrder).
+    /// Unlike GetFulfillmentOptionsForProductAsync, this does NOT check region serviceability.
+    /// </summary>
+    /// <param name="productId">The product variant ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Fulfillment options including the highest-priority warehouse with stock</returns>
+    Task<ProductFulfillmentOptionsDto> GetDefaultFulfillingWarehouseAsync(
+        Guid productId,
+        CancellationToken cancellationToken = default);
 }
 

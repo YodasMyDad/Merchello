@@ -1,5 +1,7 @@
 using Asp.Versioning;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Shipping.Dtos;
+using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Suppliers.Services.Interfaces;
 using Merchello.Core.Suppliers.Services.Parameters;
 using Merchello.Core.Warehouses.Dtos;
@@ -15,7 +17,8 @@ namespace Merchello.Controllers;
 public class WarehousesApiController(
     IWarehouseService warehouseService,
     ISupplierService supplierService,
-    ILocationsService locationsService) : MerchelloApiControllerBase
+    ILocationsService locationsService,
+    IShippingService shippingService) : MerchelloApiControllerBase
 {
     #region Warehouses
 
@@ -234,6 +237,25 @@ public class WarehousesApiController(
     {
         var regions = await locationsService.GetAvailableRegionsForWarehouseAsync(warehouseId, countryCode, ct);
         return regions.Select(r => new RegionDto { RegionCode = r.RegionCode, Name = r.Name }).ToList();
+    }
+
+    /// <summary>
+    /// Get available shipping options for a warehouse and destination.
+    /// Used by order create/edit modals after warehouse selection.
+    /// </summary>
+    [HttpGet("warehouses/{warehouseId:guid}/shipping-options")]
+    [ProducesResponseType<WarehouseShippingOptionsResultDto>(StatusCodes.Status200OK)]
+    public async Task<WarehouseShippingOptionsResultDto> GetShippingOptionsForWarehouse(
+        Guid warehouseId,
+        [FromQuery] string destinationCountryCode,
+        [FromQuery] string? destinationStateCode = null,
+        CancellationToken ct = default)
+    {
+        return await shippingService.GetShippingOptionsForWarehouseAsync(
+            warehouseId,
+            destinationCountryCode,
+            destinationStateCode,
+            ct);
     }
 
     #endregion

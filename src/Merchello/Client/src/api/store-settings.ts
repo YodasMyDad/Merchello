@@ -9,6 +9,7 @@ const defaultSettings: StoreSettingsDto = {
   currencyCode: 'GBP',
   currencySymbol: '£',
   invoiceNumberPrefix: 'INV-',
+  lowStockThreshold: 10,
 };
 
 /**

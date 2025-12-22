@@ -33,6 +33,36 @@ public class TaxApiController(ITaxService taxService) : MerchelloApiControllerBa
     }
 
     /// <summary>
+    /// Preview tax calculation for a custom item.
+    /// Used by add-custom-item modal to show tax preview before adding item.
+    /// </summary>
+    [HttpPost("tax-groups/preview-custom-item")]
+    [ProducesResponseType<PreviewCustomItemTaxResultDto>(StatusCodes.Status200OK)]
+    public async Task<PreviewCustomItemTaxResultDto> PreviewCustomItemTax(
+        [FromBody] PreviewCustomItemTaxRequestDto request,
+        CancellationToken ct)
+    {
+        var taxRate = 0m;
+
+        if (request.TaxGroupId.HasValue)
+        {
+            var taxGroup = await taxService.GetTaxGroup(request.TaxGroupId.Value, ct);
+            taxRate = taxGroup?.TaxPercentage ?? 0m;
+        }
+
+        var subtotal = request.Price * request.Quantity;
+        var taxAmount = Math.Round(subtotal * (taxRate / 100m), 2);
+
+        return new PreviewCustomItemTaxResultDto
+        {
+            Subtotal = subtotal,
+            TaxRate = taxRate,
+            TaxAmount = taxAmount,
+            Total = subtotal + taxAmount
+        };
+    }
+
+    /// <summary>
     /// Get a single tax group by ID
     /// </summary>
     [HttpGet("tax-groups/{id:guid}")]

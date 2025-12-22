@@ -1,7 +1,7 @@
 // Product Picker Types
 // Reusable product picker modal types for order editing and future property editors
 
-import type { ProductVariantDto, VariantWarehouseStockDto } from "@products/types/product.types.js";
+import type { ProductVariantDto, VariantWarehouseStockDto, StockStatus } from "@products/types/product.types.js";
 import { formatNumber } from "@shared/utils/formatting.js";
 
 /**
@@ -116,7 +116,7 @@ export interface PickerAddonValue {
 /**
  * Current view state for the picker modal
  */
-export type PickerViewState = "product-selection" | "addon-selection";
+export type PickerViewState = "product-selection" | "addon-selection" | "shipping-selection";
 
 /**
  * Pending selection awaiting add-on configuration
@@ -130,6 +130,52 @@ export interface PendingAddonSelection {
 
   /** Root product name for display */
   rootName: string;
+}
+
+/**
+ * Pending selection awaiting shipping option configuration
+ */
+export interface PendingShippingSelection {
+  /** The selected variant */
+  variant: PickerVariant;
+
+  /** Selected add-ons (empty if none selected) */
+  addons: SelectedAddon[];
+
+  /** Warehouse ID for shipping */
+  warehouseId: string;
+
+  /** Warehouse name for display */
+  warehouseName: string;
+
+  /** Whether shipping options are loading */
+  isLoadingOptions: boolean;
+
+  /** Available shipping options */
+  shippingOptions: ShippingOptionForPicker[];
+}
+
+/**
+ * Shipping option available for selection in the picker
+ */
+export interface ShippingOptionForPicker {
+  /** Shipping option ID */
+  id: string;
+
+  /** Display name */
+  name: string;
+
+  /** Delivery time description (e.g., "2-3 business days") */
+  deliveryTimeDescription: string;
+
+  /** Estimated cost (null if requires checkout for rates) */
+  estimatedCost: number | null;
+
+  /** Whether cost is an estimate */
+  isEstimate: boolean;
+
+  /** Whether this is next-day delivery */
+  isNextDay: boolean;
 }
 
 /**
@@ -162,6 +208,12 @@ export interface ProductPickerSelection {
 
   /** Selected add-on options (if any) */
   selectedAddons?: SelectedAddon[];
+
+  /** Selected shipping option ID */
+  shippingOptionId: string;
+
+  /** Selected shipping option name for display */
+  shippingOptionName: string;
 }
 
 /**
@@ -188,6 +240,9 @@ export interface PickerProductRoot {
 
   /** Total stock across all variants and warehouses */
   totalStock: number;
+
+  /** Stock status classification calculated by backend - use this instead of comparing totalStock to threshold locally */
+  stockStatus: StockStatus;
 
   /** Whether this is a digital product (no shipping) */
   isDigitalProduct: boolean;
@@ -239,6 +294,9 @@ export interface PickerVariant {
   /** Calculated available stock (Stock - ReservedStock) */
   availableStock: number;
 
+  /** Stock status classification calculated by backend - use this instead of comparing availableStock to threshold locally */
+  stockStatus: StockStatus;
+
   /** Whether stock is tracked for this variant */
   trackStock: boolean;
 
@@ -266,17 +324,6 @@ export interface VariantEligibility {
   reason: string | null;
   warehouseId: string | null;
   warehouseName: string | null;
-}
-
-/**
- * Cached warehouse region data to reduce API calls
- */
-export interface WarehouseRegionCache {
-  /** Warehouse ID -> Set of country codes that can be served */
-  destinations: Map<string, Set<string>>;
-
-  /** Cache key (warehouseId:countryCode) -> Set of region codes (null = all regions allowed) */
-  regions: Map<string, Set<string> | null>;
 }
 
 /**

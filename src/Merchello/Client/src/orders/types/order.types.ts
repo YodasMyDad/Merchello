@@ -46,6 +46,8 @@ export interface PaymentDto {
   riskScore?: number | null;
   /** Source of the risk score (e.g., "stripe-radar", "signifyd") */
   riskScoreSource?: string | null;
+  /** Risk level classification: "high", "medium", "low", "minimal", or null. Calculated by backend. */
+  riskLevel?: string | null;
   /** Child refund payments (if any) */
   refunds?: PaymentDto[];
   /** Calculated refundable amount (original amount minus existing refunds) */
@@ -75,6 +77,13 @@ export interface PaymentStatusDto {
   maxRiskScore?: number | null;
   /** Source of the maximum risk score. */
   maxRiskScoreSource?: string | null;
+  /** Risk level classification: "high", "medium", "low", "minimal", or null. Calculated by backend. */
+  riskLevel?: string | null;
+  /**
+   * Balance status classification: "Balanced", "Underpaid", "Overpaid".
+   * Calculated by backend to avoid frontend logic duplication from comparing balanceDue values.
+   */
+  balanceStatus: string;
 }
 
 /** Request to record a manual/offline payment */
@@ -163,6 +172,11 @@ export interface OrderDetailDto {
   balanceDue: number;
   amountPaidInStoreCurrency?: number | null;
   balanceDueInStoreCurrency?: number | null;
+  /**
+   * Balance status classification: "Balanced", "Underpaid", "Overpaid".
+   * Calculated by backend to avoid frontend logic duplication from comparing balanceDue values.
+   */
+  balanceStatus: string;
   paymentStatus: InvoicePaymentStatus;
   paymentStatusDisplay: string;
   /** Maximum fraud/risk score across all payments (0-100 scale). */
@@ -209,6 +223,8 @@ export interface LineItemDto {
   amount: number;
   originalAmount: number | null;
   imageUrl: string | null;
+  /** Backend-calculated total for this line item */
+  calculatedTotal: number;
 }
 
 export interface ShipmentDto {
@@ -520,6 +536,8 @@ export interface AddProductToOrderDto {
   quantity: number;
   /** The warehouse that will fulfill this product */
   warehouseId: string;
+  /** The shipping option for this product */
+  shippingOptionId: string;
   /** Selected add-on options (non-variant product options) */
   addons: SelectedAddonDto[];
 }
@@ -581,6 +599,10 @@ export interface AddCustomItemDto {
   /** Tax group ID. If null/undefined, item is not taxable */
   taxGroupId: string | null;
   isPhysicalProduct: boolean;
+  /** Warehouse ID for physical products */
+  warehouseId?: string | null;
+  /** Shipping option ID for physical products */
+  shippingOptionId?: string | null;
 }
 
 /** Tax group data for dropdowns */
@@ -637,10 +659,52 @@ export interface LineItemPreviewDto {
   id: string;
   /** Calculated total for this line item (amount * quantity - discount) */
   calculatedTotal: number;
+  /** Discounted unit price (original price - per-unit discount) */
+  discountedUnitPrice: number;
   /** Calculated discount amount for this line item */
   discountAmount: number;
   /** Tax amount for this line item */
   taxAmount: number;
+  /**
+   * Whether the requested quantity increase exceeds available stock.
+   * Calculated by backend based on current stock levels and tracking settings.
+   * Frontend should use this instead of local stock validation logic.
+   */
+  hasInsufficientStock: boolean;
+  /**
+   * Whether a discount can be added to this line item.
+   * Backend determines this based on business rules (e.g., original discount was removed).
+   * Frontend should use this instead of local canModifyDiscount logic.
+   */
+  canAddDiscount: boolean;
+}
+
+// ============================================
+// Discount Preview Types
+// ============================================
+
+/** Request DTO for previewing discount calculation on a line item */
+export interface PreviewDiscountRequestDto {
+  /** Unit price of the line item */
+  lineItemPrice: number;
+  /** Quantity of items */
+  quantity: number;
+  /** Type of discount (FixedAmount or Percentage) */
+  discountType: DiscountValueType;
+  /** Discount value (amount for fixed, percentage for percentage type) */
+  discountValue: number;
+  /** Currency code for proper rounding (e.g., "GBP", "USD", "JPY"). If not provided, defaults to store currency. */
+  currencyCode?: string;
+}
+
+/** Result DTO for discount preview calculation */
+export interface PreviewDiscountResultDto {
+  /** Line total before discount (price * quantity) */
+  lineTotal: number;
+  /** Calculated discount amount (always positive) */
+  discountAmount: number;
+  /** Total after discount applied */
+  discountedTotal: number;
 }
 
 // ============================================

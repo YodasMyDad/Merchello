@@ -20,23 +20,102 @@ FACTORIES → All object creation, stateless singletons
 
 ### Centralized Logic (NEVER duplicate elsewhere)
 
+#### Line Items & Calculations
 | Operation | Service.Method |
 |-----------|----------------|
 | Basket/Invoice totals | `ILineItemService.CalculateFromLineItems()` |
 | Discount line items | `ILineItemService.AddDiscountLineItem()` |
-| Invoice recalc | `IInvoiceService.RecalculateInvoiceTotals()` |
-| Payment status | `IPaymentService.CalculatePaymentStatus()` |
-| Variants | `IProductService.RegenerateVariants()` |
+
+#### Products
+| Operation | Service.Method |
+|-----------|----------------|
+| Variant generation | `IProductService.RegenerateVariants()` |
+| Stock status | Backend calculates `StockStatus` (InStock/LowStock/OutOfStock/Untracked) - frontend uses DTO property |
+| Addon price preview | `IProductService.PreviewAddonPriceAsync()` |
+
+#### Inventory
+| Operation | Service.Method |
+|-----------|----------------|
 | Stock reserve/allocate/release | `IInventoryService.*Async()` |
-| Order creation | `IInvoiceService.CreateOrderFromBasketAsync()` |
+| Stock adjustment | `IWarehouseService.AdjustStockAsync()` |
+| Stock transfer | `IWarehouseService.TransferStockAsync()` |
+
+#### Shipping & Fulfillment
+| Operation | Service.Method |
+|-----------|----------------|
 | Shipping quotes | `IShippingQuoteService.GetQuotesAsync()` |
+| Shipping for basket | `IShippingService.GetShippingOptionsForBasket()` |
+| Required warehouses | `IShippingService.GetRequiredWarehouses()` |
+| Shipping for warehouse | `IShippingService.GetShippingOptionsForWarehouseAsync()` |
+| Product fulfillment options | `IShippingService.GetFulfillmentOptionsForProductAsync()` |
+| Default fulfilling warehouse | `IShippingService.GetDefaultFulfillingWarehouseAsync()` |
+| Shipping for product | `IShippingService.GetShippingOptionsForProductAsync()` |
+
+#### Locality & Regions
+| Operation | Service.Method |
+|-----------|----------------|
+| Available countries | `ILocationsService.GetAvailableCountriesAsync()` |
+| Available regions | `ILocationsService.GetAvailableRegionsAsync()` |
+| Countries for warehouse | `ILocationsService.GetAvailableCountriesForWarehouseAsync()` |
+| Regions for warehouse | `ILocationsService.GetAvailableRegionsForWarehouseAsync()` |
+
+#### Checkout
+| Operation | Service.Method |
+|-----------|----------------|
+| Calculate basket | `ICheckoutService.CalculateBasketAsync()` |
+| Apply discount code | `ICheckoutService.ApplyDiscountCodeAsync()` |
+| Refresh auto discounts | `ICheckoutService.RefreshAutomaticDiscountsAsync()` |
+
+#### Invoice & Order
+| Operation | Service.Method |
+|-----------|----------------|
+| Invoice recalc | `IInvoiceService.RecalculateInvoiceTotals()` |
+| Order creation | `IInvoiceService.CreateOrderFromBasketAsync()` |
+| Preview invoice edit | `IInvoiceService.PreviewInvoiceEditAsync()` |
+| Edit invoice | `IInvoiceService.EditInvoiceAsync()` |
+| Create draft order | `IInvoiceService.CreateDraftOrderAsync()` |
+| Cancel invoice | `IInvoiceService.CancelInvoiceAsync()` |
+
+#### Customer & Segments
+| Operation | Service.Method |
+|-----------|----------------|
 | Customer get/create | `ICustomerService.GetOrCreateByEmailAsync()` |
 | Segment membership | `ICustomerSegmentService.IsCustomerInSegmentAsync()` |
+
+#### Discounts
+| Operation | Service.Method |
+|-----------|----------------|
 | Discount calculation | `IDiscountEngine.CalculateAsync()` |
 | Discount validation | `IDiscountEngine.ValidateCodeAsync()` |
 | Discount application | `IDiscountEngine.ApplyDiscountsAsync()` |
 | Discount usage | `IDiscountService.RecordUsageAsync()` |
 | BOGO calculation | `IBuyXGetYCalculator.Calculate()` |
+| Preview line item discount | `IInvoiceService.PreviewDiscountAsync()` |
+
+#### Payment
+| Operation | Service.Method |
+|-----------|----------------|
+| Payment status | `IPaymentService.CalculatePaymentStatus()` |
+| Risk level | Backend calculates `RiskLevel` (high/medium/low/minimal) - frontend uses DTO property |
+| Create payment session | `IPaymentService.CreatePaymentSessionAsync()` |
+| Process payment | `IPaymentService.ProcessPaymentAsync()` |
+| Record payment | `IPaymentService.RecordPaymentAsync()` |
+| Process refund | `IPaymentService.ProcessRefundAsync()` |
+| Record manual payment | `IPaymentService.RecordManualPaymentAsync()` |
+
+#### Tax
+| Operation | Service.Method |
+|-----------|----------------|
+| Tax groups | `ITaxService.GetTaxGroups()` |
+| Tax preview (custom items) | `ITaxService` via `TaxApiController.PreviewCustomItemTax()` |
+
+#### Currency
+| Operation | Service.Method |
+|-----------|----------------|
+| Currency rounding | `ICurrencyService.Round()` |
+| To minor units | `ICurrencyService.ToMinorUnits()` |
+| From minor units | `ICurrencyService.FromMinorUnits()` |
+| Exchange rate | `IExchangeRateCache.GetRateAsync()` |
 
 ### Factories
 

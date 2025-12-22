@@ -68,6 +68,28 @@ public record PaymentStatusDetails
     public string? MaxRiskScoreSource { get; init; }
 
     /// <summary>
+    /// Risk level classification based on MaxRiskScore.
+    /// Values: "high" (>=75), "medium" (>=50), "low" (>=25), "minimal" (&lt;25), null (no risk score).
+    /// Calculated by backend to ensure consistency - frontend should use this instead of local threshold logic.
+    /// </summary>
+    public string? RiskLevel { get; init; }
+
+    /// <summary>
+    /// Gets the risk level classification for a risk score.
+    /// </summary>
+    public static string? GetRiskLevel(decimal? riskScore)
+    {
+        if (riskScore == null) return null;
+        return riskScore.Value switch
+        {
+            >= 75 => "high",
+            >= 50 => "medium",
+            >= 25 => "low",
+            _ => "minimal"
+        };
+    }
+
+    /// <summary>
     /// Gets the display text for a payment status.
     /// </summary>
     public static string GetStatusDisplay(InvoicePaymentStatus status) => status switch

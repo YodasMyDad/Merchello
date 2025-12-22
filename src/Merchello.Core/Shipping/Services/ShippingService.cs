@@ -5,11 +5,13 @@ using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.OrderGrouping;
+using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Shipping.Services;
@@ -18,8 +20,33 @@ public class ShippingService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IOrderGroupingStrategyResolver strategyResolver,
     IMerchelloNotificationPublisher notificationPublisher,
+    IOptions<MerchelloSettings> settings,
     ILogger<ShippingService> logger) : IShippingService
 {
+    /// <summary>
+    /// Calculates the aggregate stock status string based on available stock, track stock setting, and threshold.
+    /// Returns string values matching StockStatus enum: "InStock", "LowStock", "OutOfStock", "Untracked".
+    /// </summary>
+    private static string CalculateAggregateStockStatus(int totalAvailableStock, bool hasAnyTrackingWarehouse, int lowStockThreshold)
+    {
+        if (!hasAnyTrackingWarehouse)
+        {
+            return "Untracked";
+        }
+
+        if (totalAvailableStock <= 0)
+        {
+            return "OutOfStock";
+        }
+
+        if (totalAvailableStock <= lowStockThreshold)
+        {
+            return "LowStock";
+        }
+
+        return "InStock";
+    }
+
     /// <summary>
     /// Gets shipping options for a basket, grouping products by warehouse and shipping option availability.
     /// Delegates to the configured order grouping strategy for custom grouping logic.
@@ -440,6 +467,415 @@ public class ShippingService(
             await db.ShippingOptions
                 .Include(so => so.Warehouse)
                 .FirstOrDefaultAsync(so => so.Id == shippingOptionId, cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<WarehouseShippingOptionsResultDto> GetShippingOptionsForWarehouseAsync(
+        Guid warehouseId,
+        string destinationCountryCode,
+        string? destinationStateCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(destinationCountryCode))
+        {
+            return new WarehouseShippingOptionsResultDto
+            {
+                CanShipToDestination = false,
+                Message = "Destination country code is required"
+            };
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            // Load warehouse with shipping options and service regions
+            var warehouse = await db.Warehouses
+                .AsNoTracking()
+                .Include(w => w.ShippingOptions.Where(so => so.IsEnabled))
+                    .ThenInclude(so => so.ShippingCosts)
+                .Include(w => w.ServiceRegions)
+                .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken);
+
+            if (warehouse == null)
+            {
+                return new WarehouseShippingOptionsResultDto
+                {
+                    CanShipToDestination = false,
+                    Message = "Warehouse not found"
+                };
+            }
+
+            // Check if warehouse can serve this region
+            if (!CanWarehouseServiceLocation(warehouse, destinationCountryCode, destinationStateCode))
+            {
+                return new WarehouseShippingOptionsResultDto
+                {
+                    CanShipToDestination = false,
+                    Message = "This warehouse cannot ship to the selected destination"
+                };
+            }
+
+            // Filter enabled shipping options that can ship to the destination
+            List<WarehouseShippingOptionDto> availableOptions = [];
+
+            foreach (var shippingOption in warehouse.ShippingOptions)
+            {
+                var cost = GetShippingCostForDestination(shippingOption, destinationCountryCode, destinationStateCode);
+
+                // For flat-rate, skip if no cost configured for destination
+                // For external providers, they're available if warehouse can serve the region
+                var isExternalProvider = shippingOption.ProviderKey != "flat-rate";
+                if (!isExternalProvider && cost == null && shippingOption.FixedCost == null)
+                {
+                    continue;
+                }
+
+                var deliveryTime = shippingOption.IsNextDay
+                    ? "Next Day Delivery"
+                    : shippingOption.DaysFrom > 0 && shippingOption.DaysTo > 0
+                        ? $"{shippingOption.DaysFrom}-{shippingOption.DaysTo} business days"
+                        : "Standard Delivery";
+
+                availableOptions.Add(new WarehouseShippingOptionDto
+                {
+                    Id = shippingOption.Id,
+                    Name = shippingOption.Name ?? "Standard Shipping",
+                    ProviderKey = shippingOption.ProviderKey,
+                    ServiceType = shippingOption.ServiceType,
+                    DaysFrom = shippingOption.DaysFrom,
+                    DaysTo = shippingOption.DaysTo,
+                    IsNextDay = shippingOption.IsNextDay,
+                    EstimatedCost = isExternalProvider ? null : (cost ?? shippingOption.FixedCost),
+                    IsEstimate = isExternalProvider,
+                    DeliveryTimeDescription = deliveryTime
+                });
+            }
+
+            return new WarehouseShippingOptionsResultDto
+            {
+                CanShipToDestination = availableOptions.Count > 0,
+                AvailableOptions = availableOptions,
+                Message = availableOptions.Count == 0 ? "No shipping options available for this destination" : null
+            };
+        });
+
+        scope.Complete();
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<ProductFulfillmentOptionsDto> GetFulfillmentOptionsForProductAsync(
+        Guid productId,
+        string destinationCountryCode,
+        string? destinationStateCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(destinationCountryCode))
+        {
+            return new ProductFulfillmentOptionsDto
+            {
+                CanAddToOrder = false,
+                BlockedReason = "Destination country code is required"
+            };
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            // Load the product with warehouse associations (ordered by priority)
+            var product = await db.Products
+                .AsNoTracking()
+                .Include(p => p.ProductRoot)
+                    .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
+                        .ThenInclude(prw => prw.Warehouse)
+                            .ThenInclude(w => w!.ServiceRegions)
+                .Include(p => p.ProductWarehouses)
+                    .ThenInclude(pw => pw.Warehouse)
+                .AsSplitQuery()
+                .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken);
+
+            if (product == null)
+            {
+                return new ProductFulfillmentOptionsDto
+                {
+                    CanAddToOrder = false,
+                    BlockedReason = "Product not found"
+                };
+            }
+
+            // Get warehouse stock info for this product
+            var warehouseStock = product.ProductWarehouses?
+                .Where(pw => pw.Warehouse != null)
+                .ToDictionary(
+                    pw => pw.WarehouseId,
+                    pw => new
+                    {
+                        pw.Stock,
+                        pw.ReservedStock,
+                        pw.TrackStock,
+                        AvailableStock = pw.Stock - pw.ReservedStock
+                    }) ?? [];
+
+            // Get warehouses from ProductRoot in priority order
+            var productRootWarehouses = product.ProductRoot?.ProductRootWarehouses?
+                .OrderBy(prw => prw.PriorityOrder)
+                .Where(prw => prw.Warehouse != null)
+                .ToList() ?? [];
+
+            // Calculate total available stock across all warehouses
+            var totalAvailableStock = 0;
+            var hasAnyStock = false;
+            var hasAnyTrackingWarehouse = false;
+
+            FulfillmentWarehouseDto? fulfillingWarehouse = null;
+
+            foreach (var prw in productRootWarehouses)
+            {
+                var warehouse = prw.Warehouse!;
+
+                // Get stock info for this warehouse
+                var stockInfo = warehouseStock.GetValueOrDefault(warehouse.Id);
+                var trackStock = stockInfo?.TrackStock ?? true;
+                var availableStock = stockInfo?.AvailableStock ?? 0;
+
+                // Accumulate total available stock
+                if (trackStock)
+                {
+                    hasAnyTrackingWarehouse = true;
+                    totalAvailableStock += Math.Max(0, availableStock);
+                    if (availableStock > 0)
+                    {
+                        hasAnyStock = true;
+                    }
+                }
+                else
+                {
+                    // Non-tracked stock is always available
+                    hasAnyStock = true;
+                }
+
+                // Skip if we already found a fulfilling warehouse
+                if (fulfillingWarehouse != null)
+                {
+                    continue;
+                }
+
+                // Check stock availability first (if tracking)
+                if (trackStock && availableStock <= 0)
+                {
+                    continue;
+                }
+
+                // Check if warehouse can serve the destination region
+                if (!CanWarehouseServiceLocation(warehouse, destinationCountryCode, destinationStateCode))
+                {
+                    continue;
+                }
+
+                // This warehouse can fulfill the order
+                fulfillingWarehouse = new FulfillmentWarehouseDto
+                {
+                    Id = warehouse.Id,
+                    Name = warehouse.Name ?? string.Empty,
+                    AvailableStock = trackStock ? availableStock : int.MaxValue
+                };
+            }
+
+            // Check product availability (backend-controlled flag)
+            var isAvailableForPurchase = product.AvailableForPurchase;
+
+            // Determine blocked reason (priority order)
+            string? blockedReason = null;
+            if (!isAvailableForPurchase)
+            {
+                blockedReason = "Not available for purchase";
+            }
+            else if (!hasAnyStock)
+            {
+                blockedReason = "Out of stock";
+            }
+            else if (fulfillingWarehouse == null)
+            {
+                blockedReason = $"Cannot ship to {destinationCountryCode}";
+            }
+
+            // CanAddToOrder is the consolidated backend decision
+            var canAddToOrder = isAvailableForPurchase && hasAnyStock && fulfillingWarehouse != null;
+
+            // Calculate aggregate stock status using backend settings
+            var aggregateStockStatus = CalculateAggregateStockStatus(
+                totalAvailableStock,
+                hasAnyTrackingWarehouse,
+                settings.Value.LowStockThreshold);
+
+            return new ProductFulfillmentOptionsDto
+            {
+                CanAddToOrder = canAddToOrder,
+                FulfillingWarehouse = fulfillingWarehouse,
+                BlockedReason = blockedReason,
+                HasAvailableStock = hasAnyStock,
+                AvailableStock = totalAvailableStock,
+                AggregateStockStatus = aggregateStockStatus
+            };
+        });
+
+        scope.Complete();
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<ProductFulfillmentOptionsDto> GetDefaultFulfillingWarehouseAsync(
+        Guid productId,
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            // Load the product with warehouse associations (ordered by priority)
+            var product = await db.Products
+                .AsNoTracking()
+                .Include(p => p.ProductRoot)
+                    .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
+                        .ThenInclude(prw => prw.Warehouse)
+                .Include(p => p.ProductWarehouses)
+                    .ThenInclude(pw => pw.Warehouse)
+                .AsSplitQuery()
+                .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken);
+
+            if (product == null)
+            {
+                return new ProductFulfillmentOptionsDto
+                {
+                    CanAddToOrder = false,
+                    BlockedReason = "Product not found"
+                };
+            }
+
+            // Get warehouse stock info for this product
+            var warehouseStock = product.ProductWarehouses?
+                .Where(pw => pw.Warehouse != null)
+                .ToDictionary(
+                    pw => pw.WarehouseId,
+                    pw => new
+                    {
+                        pw.Stock,
+                        pw.ReservedStock,
+                        pw.TrackStock,
+                        AvailableStock = pw.Stock - pw.ReservedStock
+                    }) ?? [];
+
+            // Get warehouses from ProductRoot in priority order
+            var productRootWarehouses = product.ProductRoot?.ProductRootWarehouses?
+                .OrderBy(prw => prw.PriorityOrder)
+                .Where(prw => prw.Warehouse != null)
+                .ToList() ?? [];
+
+            // Calculate total available stock across all warehouses
+            var totalAvailableStock = 0;
+            var hasAnyStock = false;
+            var hasAnyTrackingWarehouse = false;
+
+            FulfillmentWarehouseDto? fulfillingWarehouse = null;
+
+            foreach (var prw in productRootWarehouses)
+            {
+                var warehouse = prw.Warehouse!;
+
+                // Get stock info for this warehouse
+                var stockInfo = warehouseStock.GetValueOrDefault(warehouse.Id);
+                var trackStock = stockInfo?.TrackStock ?? true;
+                var availableStock = stockInfo?.AvailableStock ?? 0;
+
+                // Accumulate total available stock
+                if (trackStock)
+                {
+                    hasAnyTrackingWarehouse = true;
+                    totalAvailableStock += Math.Max(0, availableStock);
+                    if (availableStock > 0)
+                    {
+                        hasAnyStock = true;
+                    }
+                }
+                else
+                {
+                    // Non-tracked stock is always available
+                    hasAnyStock = true;
+                }
+
+                // Skip if we already found a fulfilling warehouse
+                if (fulfillingWarehouse != null)
+                {
+                    continue;
+                }
+
+                // Check stock availability (if tracking)
+                // Note: Unlike GetFulfillmentOptionsForProductAsync, we do NOT check region serviceability
+                if (trackStock && availableStock <= 0)
+                {
+                    continue;
+                }
+
+                // This is the highest-priority warehouse with available stock
+                fulfillingWarehouse = new FulfillmentWarehouseDto
+                {
+                    Id = warehouse.Id,
+                    Name = warehouse.Name ?? string.Empty,
+                    AvailableStock = trackStock ? availableStock : int.MaxValue
+                };
+            }
+
+            // If no warehouse with stock found, return the first warehouse anyway (for display purposes)
+            if (fulfillingWarehouse == null && productRootWarehouses.Count > 0)
+            {
+                var firstWarehouse = productRootWarehouses[0].Warehouse!;
+                fulfillingWarehouse = new FulfillmentWarehouseDto
+                {
+                    Id = firstWarehouse.Id,
+                    Name = firstWarehouse.Name ?? string.Empty,
+                    AvailableStock = 0
+                };
+            }
+
+            // Check product availability (backend-controlled flag)
+            var isAvailableForPurchase = product.AvailableForPurchase;
+
+            // Determine blocked reason (no region check in this method - used when no destination)
+            string? blockedReason = null;
+            if (!isAvailableForPurchase)
+            {
+                blockedReason = "Not available for purchase";
+            }
+            else if (!hasAnyStock)
+            {
+                blockedReason = "Out of stock";
+            }
+
+            // CanAddToOrder: available for purchase AND has stock
+            // (no region check since this is used when destination is unknown)
+            var canAddToOrder = isAvailableForPurchase && hasAnyStock;
+
+            // Calculate aggregate stock status using backend settings
+            var aggregateStockStatus = CalculateAggregateStockStatus(
+                totalAvailableStock,
+                hasAnyTrackingWarehouse,
+                settings.Value.LowStockThreshold);
+
+            return new ProductFulfillmentOptionsDto
+            {
+                CanAddToOrder = canAddToOrder,
+                FulfillingWarehouse = fulfillingWarehouse,
+                BlockedReason = blockedReason,
+                HasAvailableStock = hasAnyStock,
+                AvailableStock = totalAvailableStock,
+                AggregateStockStatus = aggregateStockStatus
+            };
+        });
+
         scope.Complete();
         return result;
     }
