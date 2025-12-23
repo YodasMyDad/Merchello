@@ -68,11 +68,21 @@ function Ensure-NugetSourceFolder {
 
 # Main script logic
 try {
-    # Ensure we're in the repository root
+    # Get the repository root (parent of the scripts folder where this script lives)
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $repoRoot = Split-Path -Parent $scriptDir
+
+    # Change to repo root
+    Push-Location $repoRoot
+
+    # Verify we're in the right place
     if (!(Test-Path "src/Merchello.sln")) {
-        Write-Error "Please run this script from the repository root directory (where src/Merchello.sln exists)"
+        Pop-Location
+        Write-Error "Could not find src/Merchello.sln from repository root: $repoRoot"
         exit 1
     }
+
+    Write-Host "Working from: $repoRoot"
 
     # List of projects to update
     $projectsToUpdate = @(
@@ -133,8 +143,11 @@ try {
     Write-Host ""
     Write-Host "To publish to NuGet.org:" -ForegroundColor Yellow
     Write-Host "  dotnet nuget push NugetSource/*.nupkg --api-key YOUR_API_KEY --source https://api.nuget.org/v3/index.json" -ForegroundColor White
+
+    Pop-Location
 }
 catch {
+    Pop-Location
     Write-Error "An error occurred: $_"
     exit 1
 }

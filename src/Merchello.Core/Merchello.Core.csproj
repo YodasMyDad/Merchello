@@ -6,7 +6,7 @@
         <Nullable>enable</Nullable>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <PackageId>Merchello.Core</PackageId>
-        <Version>1.0.0-alpha1</Version>
+        <Version>1.0.0-alpha2</Version>
         <Authors>Lee Messenger</Authors>
         <Description>Merchello ecommerce core library for Umbraco - enterprise ecommerce made simple</Description>
         <PackageTags>umbraco;ecommerce;merchello</PackageTags>
@@ -50,3 +50,4 @@
 
 
 </Project>
+

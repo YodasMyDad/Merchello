@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Merchello.Core.Sqlite</PackageId>
-    <Version>1.0.0-alpha1</Version>
+    <Version>1.0.0-alpha2</Version>
     <Authors>Lee Messenger</Authors>
     <Description>Merchello ecommerce SQLite database provider for Umbraco</Description>
     <PackageTags>umbraco;ecommerce;merchello;sqlite</PackageTags>
@@ -43,3 +43,4 @@
   </ItemGroup>
 
 </Project>
+

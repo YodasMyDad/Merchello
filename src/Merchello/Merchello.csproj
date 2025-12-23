@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Razor">
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -7,14 +7,14 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <Product>Umbraco.Community.Merchello</Product>
-    <PackageId>Umbraco.Community.Merchello</PackageId>
-    <Version>1.0.0-alpha1</Version>
+    <Product>Merchello</Product>
+    <PackageId>Merchello</PackageId>
+    <Version>1.0.0-alpha2</Version>
     <Title>Merchello</Title>
     <Description>Enterprise ecommerce for Umbraco - making enterprise ecommerce simple</Description>
     <PackageTags>umbraco;umbraco-marketplace;ecommerce;merchello</PackageTags>
     <Authors>Lee Messenger</Authors>
-    <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) © Lee Messenger</Copyright>
+    <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) Â© Lee Messenger</Copyright>
     <PackageProjectUrl>https://github.com/YodasMyDad/Merchello</PackageProjectUrl>
     <RepositoryUrl>https://github.com/YodasMyDad/Merchello</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
