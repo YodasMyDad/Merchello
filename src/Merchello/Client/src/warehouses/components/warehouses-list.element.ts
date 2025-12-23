@@ -262,7 +262,7 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
     `;
   }
 
-  static styles = [
+  static override readonly styles = [
     badgeStyles,
     css`
       :host {

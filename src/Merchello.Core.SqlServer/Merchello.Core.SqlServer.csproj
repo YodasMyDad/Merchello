@@ -4,7 +4,26 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>Merchello.Core.SqlServer</PackageId>
+    <Version>1.0.0-alpha1</Version>
+    <Authors>Lee Messenger</Authors>
+    <Description>Merchello ecommerce SQL Server database provider for Umbraco</Description>
+    <PackageTags>umbraco;ecommerce;merchello;sqlserver</PackageTags>
+    <PackageProjectUrl>https://github.com/YodasMyDad/Merchello</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/YodasMyDad/Merchello</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <LocalNugetSource>$(MSBuildProjectDirectory)/../../NugetSource</LocalNugetSource>
   </PropertyGroup>
+
+  <Target Name="CopyNuGetPackage" AfterTargets="Pack">
+    <PropertyGroup>
+      <PackageOutputDir>$(OutputPath)..\</PackageOutputDir>
+      <GeneratedPackage>$(PackageOutputDir)\$(PackageId).$(Version).nupkg</GeneratedPackage>
+    </PropertyGroup>
+    <Copy SourceFiles="$(GeneratedPackage)" DestinationFolder="$(LocalNugetSource)" />
+  </Target>
 
   <ItemGroup>
     <ProjectReference Include="..\Merchello.Core\Merchello.Core.csproj" />

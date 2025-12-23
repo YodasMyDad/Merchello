@@ -2,10 +2,12 @@
 
 Guide for third-party developers creating custom shipping providers.
 
+> **Note:** Merchello includes built-in providers for Flat Rate, FedEx, and UPS. The examples in this guide use FedEx/UPS patterns to demonstrate how to build similar integrations for other carriers (DHL, USPS, Royal Mail, etc.).
+
 ## Quick Start
 
 1. Create .NET Class Library project
-2. Reference `Merchello.Core`
+2. Reference `Merchello.Core` NuGet package
 3. Implement `IShippingProvider` or extend `ShippingProviderBase`
 4. Package as NuGet
 5. Install - Merchello auto-discovers via assembly scanning

@@ -340,7 +340,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
     }

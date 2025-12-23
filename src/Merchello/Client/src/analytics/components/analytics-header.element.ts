@@ -277,5 +277,3 @@ declare global {
     "merchello-analytics-header": MerchelloAnalyticsHeader;
   }
 }
-
-export default MerchelloAnalyticsHeader;

@@ -288,7 +288,7 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
     `;
   }
 
-  static styles = [
+  static override readonly styles = [
     css`
       :host {
         display: block;
@@ -373,8 +373,6 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
     `,
   ];
 }
-
-export default MerchelloSegmentCriteriaBuilderElement;
 
 declare global {
   interface HTMLElementTagNameMap {

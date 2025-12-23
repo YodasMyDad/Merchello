@@ -254,7 +254,7 @@ export class MerchelloSegmentPreviewElement extends UmbElementMixin(LitElement) 
     `;
   }
 
-  static styles = [
+  static override readonly styles = [
     css`
       :host {
         display: block;
@@ -353,8 +353,6 @@ export class MerchelloSegmentPreviewElement extends UmbElementMixin(LitElement) 
     `,
   ];
 }
-
-export default MerchelloSegmentPreviewElement;
 
 declare global {
   interface HTMLElementTagNameMap {

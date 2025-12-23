@@ -25,7 +25,7 @@ public class AddonPricePreviewDto
 /// <summary>
 /// Request for addon price preview
 /// </summary>
-public class AddonPricePreviewRequest
+public class AddonPricePreviewRequestDto
 {
     /// <summary>
     /// Selected add-on values

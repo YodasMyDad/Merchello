@@ -1,10 +1,9 @@
 using Merchello.Core.Payments.Models;
-using Merchello.Core.Payments.Providers;
 using Merchello.Core.Shared.Services.Interfaces;
 using Stripe;
 using Stripe.Checkout;
 
-namespace Merchello.PaymentProviders.Stripe;
+namespace Merchello.Core.Payments.Providers.Stripe;
 
 /// <summary>
 /// Stripe payment provider using Stripe Checkout (redirect flow).

@@ -308,5 +308,3 @@ declare global {
     "merchello-analytics-line-chart": MerchelloAnalyticsLineChart;
   }
 }
-
-export default MerchelloAnalyticsLineChart;

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Pluggable payment provider system allowing third-party providers (Stripe, PayPal, Braintree, etc.) as NuGet packages, auto-discovered and configurable via backoffice.
+Pluggable payment provider system with built-in providers (Manual Payment, Stripe) and support for third-party providers (PayPal, Braintree, etc.) as NuGet packages. All providers are auto-discovered and configurable via backoffice.
 
 **Key Concept: Provider → Methods**
 
@@ -159,6 +159,8 @@ src/Merchello.Core/Payments/
 ├── Providers/
 │   ├── BuiltIn/
 │   │   └── ManualPaymentProvider.cs      # Built-in, auto-enabled on startup
+│   ├── Stripe/
+│   │   └── StripePaymentProvider.cs      # Built-in Stripe provider
 │   ├── IPaymentProvider.cs
 │   ├── PaymentProviderBase.cs
 │   ├── PaymentProviderMetadata.cs

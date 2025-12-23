@@ -2,7 +2,7 @@
 
 ## Overview
 
-Pluggable shipping provider system allowing third-party carriers (FedEx, UPS, DHL, etc.) as NuGet packages, auto-discovered and configurable via backoffice.
+Pluggable shipping provider system with built-in carriers (Flat Rate, FedEx, UPS) and support for third-party providers as NuGet packages. All providers are auto-discovered and configurable via backoffice.
 
 ## Architecture
 
@@ -288,6 +288,14 @@ src/Merchello.Core/Shipping/
 ├── Providers/
 │   ├── BuiltIn/
 │   │   └── FlatRateShippingProvider.cs
+│   ├── FedEx/                              # Built-in FedEx provider
+│   │   ├── FedExShippingProvider.cs
+│   │   ├── FedExApiClient.cs
+│   │   └── Models/
+│   ├── UPS/                                # Built-in UPS provider
+│   │   ├── UpsShippingProvider.cs
+│   │   ├── UpsApiClient.cs
+│   │   └── Models/
 │   ├── IShippingProvider.cs
 │   ├── IShippingProviderManager.cs
 │   ├── ShippingProviderBase.cs

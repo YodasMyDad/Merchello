@@ -373,7 +373,7 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
       height: 100%;

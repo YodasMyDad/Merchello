@@ -3,8 +3,6 @@ using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Models;
-using Merchello.Core.Shipping.Models;
-using Merchello.Core.Warehouses.Models;
 using Umbraco.Cms.Core.Models;
 
 namespace Merchello.Core.Products.Services.Interfaces;
@@ -12,7 +10,7 @@ namespace Merchello.Core.Products.Services.Interfaces;
 public interface IProductService
 {
     Task<CrudResult<ProductRoot>> Update(ProductRoot productRoot);
-    Task<CrudResult<ProductRoot>> Create(string name, TaxGroup taxGroup, ProductType productType, Warehouse warehouse, List<ShippingOption> shippingOptions, decimal price, decimal costOfGoods, string gtin, string sku, List<ProductOption> productOptions);
+    Task<CrudResult<ProductRoot>> Create(string name, TaxGroup taxGroup, ProductType productType, decimal price, decimal costOfGoods, string gtin, string sku, List<ProductOption> productOptions);
     Task<CrudResult<Product>> Update(Product product);
     Task<CrudResult<ProductRoot>> Delete(ProductRoot productRoot);
     Task<List<ProductFilterGroup>> GetFilterGroups(CancellationToken cancellationToken = default);
@@ -130,7 +128,7 @@ public interface IProductService
     /// <param name="request">The selected add-ons</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Price preview with base price, addons total, and total price</returns>
-    Task<AddonPricePreviewDto?> PreviewAddonPriceAsync(Guid variantId, AddonPricePreviewRequest request, CancellationToken cancellationToken = default);
+    Task<AddonPricePreviewDto?> PreviewAddonPriceAsync(Guid variantId, AddonPricePreviewRequestDto request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

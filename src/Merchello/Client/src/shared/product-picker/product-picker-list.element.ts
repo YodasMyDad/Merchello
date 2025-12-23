@@ -302,8 +302,6 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
   `;
 }
 
-export default MerchelloProductPickerListElement;
-
 declare global {
   interface HTMLElementTagNameMap {
     "merchello-product-picker-list": MerchelloProductPickerListElement;

@@ -430,7 +430,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
     }

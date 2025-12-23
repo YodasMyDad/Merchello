@@ -310,7 +310,7 @@ export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitE
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
     }

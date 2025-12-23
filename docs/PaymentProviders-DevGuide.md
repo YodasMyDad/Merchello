@@ -2,10 +2,12 @@
 
 Guide for third-party developers creating custom payment providers.
 
+> **Note:** Merchello includes built-in providers for Manual Payment and Stripe. The examples in this guide use Stripe/Braintree patterns to demonstrate how to build similar integrations for other gateways (PayPal, Square, Adyen, etc.).
+
 ## Quick Start
 
 1. Create .NET Class Library project
-2. Reference `Merchello.Core`
+2. Reference `Merchello.Core` NuGet package
 3. Implement `IPaymentProvider` or extend `PaymentProviderBase`
 4. Define payment methods via `GetAvailablePaymentMethods()`
 5. Package as NuGet

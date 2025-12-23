@@ -326,7 +326,7 @@ interface ApplyDiscountResultDto {
 }
 
 // Addon price preview types (for product picker modal)
-interface AddonPricePreviewRequest {
+interface AddonPricePreviewRequestDto {
   selectedAddons: SelectedAddonDto[];
 }
 
@@ -736,7 +736,7 @@ export const MerchelloApi = {
    * Returns base price, addon total, and combined total calculated by backend.
    * This is the single source of truth for addon pricing - frontend should use this.
    */
-  previewAddonPrice: (variantId: string, request: AddonPricePreviewRequest) =>
+  previewAddonPrice: (variantId: string, request: AddonPricePreviewRequestDto) =>
     apiPost<AddonPricePreviewDto>(`products/variants/${variantId}/preview-addon-price`, request),
 
   // ============================================

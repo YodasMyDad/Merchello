@@ -127,7 +127,7 @@ export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElem
     `;
   }
 
-  static styles = [
+  static override readonly styles = [
     css`
       :host {
         display: contents;

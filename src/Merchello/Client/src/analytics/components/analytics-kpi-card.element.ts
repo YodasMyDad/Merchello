@@ -218,5 +218,3 @@ declare global {
     "merchello-analytics-kpi-card": MerchelloAnalyticsKpiCard;
   }
 }
-
-export default MerchelloAnalyticsKpiCard;

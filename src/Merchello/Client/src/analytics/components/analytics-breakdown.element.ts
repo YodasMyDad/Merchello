@@ -177,5 +177,3 @@ declare global {
     "merchello-analytics-breakdown": MerchelloAnalyticsBreakdown;
   }
 }
-
-export default MerchelloAnalyticsBreakdown;

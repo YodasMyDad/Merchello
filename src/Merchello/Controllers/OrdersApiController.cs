@@ -738,7 +738,8 @@ public class OrdersApiController(
             return error.Contains("not found") ? NotFound(error) : BadRequest(error);
         }
 
-        return Ok(MapToShipmentDetail(result.ResultObject));
+        var productImages = await GetProductImagesForShipment(result.ResultObject);
+        return Ok(MapToShipmentDetail(result.ResultObject, productImages));
     }
 
     /// <summary>
@@ -765,7 +766,8 @@ public class OrdersApiController(
             return NotFound();
         }
 
-        return Ok(MapToShipmentDetail(result.ResultObject));
+        var productImages = await GetProductImagesForShipment(result.ResultObject);
+        return Ok(MapToShipmentDetail(result.ResultObject, productImages));
     }
 
     /// <summary>
@@ -934,7 +936,23 @@ public class OrdersApiController(
         });
     }
 
-    private static ShipmentDetailDto MapToShipmentDetail(Shipment shipment)
+    private async Task<Dictionary<Guid, string?>> GetProductImagesForShipment(Shipment shipment)
+    {
+        var productIds = shipment.LineItems
+            .Where(li => li.ProductId.HasValue)
+            .Select(li => li.ProductId!.Value)
+            .Distinct()
+            .ToList();
+
+        if (productIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await productService.GetProductImagesAsync(productIds);
+    }
+
+    private static ShipmentDetailDto MapToShipmentDetail(Shipment shipment, Dictionary<Guid, string?> productImages)
     {
         return new ShipmentDetailDto
         {
@@ -952,7 +970,7 @@ public class OrdersApiController(
                 Sku = li.Sku,
                 Name = li.Name,
                 Quantity = li.Quantity,
-                ImageUrl = null // TODO: lookup from product
+                ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var imageUrl) ? imageUrl : null
             }).ToList() ?? []
         };
     }

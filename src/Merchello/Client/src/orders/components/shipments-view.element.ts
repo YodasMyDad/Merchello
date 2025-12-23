@@ -287,7 +287,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
       padding: var(--uui-size-layout-1);

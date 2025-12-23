@@ -407,7 +407,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
       height: 100%;

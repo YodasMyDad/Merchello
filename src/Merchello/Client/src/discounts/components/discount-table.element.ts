@@ -225,7 +225,7 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  static styles = [
+  static override readonly styles = [
     badgeStyles,
     css`
       :host {
@@ -285,8 +285,6 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
     `,
   ];
 }
-
-export default MerchelloDiscountTableElement;
 
 declare global {
   interface HTMLElementTagNameMap {

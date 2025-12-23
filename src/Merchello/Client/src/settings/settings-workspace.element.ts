@@ -55,7 +55,7 @@ export class MerchelloSettingsWorkspaceElement extends UmbElementMixin(LitElemen
     `;
   }
 
-  static styles = [
+  static override readonly styles = [
     css`
       :host {
         display: block;

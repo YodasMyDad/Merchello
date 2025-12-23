@@ -10,8 +10,6 @@ using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Mapping;
-using Merchello.Core.Shipping.Models;
-using Merchello.Core.Warehouses.Models;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.Razor.Compilation;
@@ -223,7 +221,7 @@ public class ProductService(
     /// Creates a new product & product root
     /// </summary>
     public async Task<CrudResult<ProductRoot>> Create(string name, TaxGroup taxGroup, ProductType productType,
-        Warehouse warehouse, List<ShippingOption> shippingOptions, decimal price, decimal costOfGoods, string gtin, string sku, List<ProductOption> productOptions)
+        decimal price, decimal costOfGoods, string gtin, string sku, List<ProductOption> productOptions)
     {
         var result = new CrudResult<ProductRoot>();
         ProductRoot? productRoot = null;
@@ -232,7 +230,7 @@ public class ProductService(
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             // Create the product root
-            productRoot = productRootFactory.Create(name, taxGroup, productType, warehouse, shippingOptions, productOptions);
+            productRoot = productRootFactory.Create(name, taxGroup, productType, productOptions);
             db.RootProducts.Add(productRoot);
 
             // Are there product options? If so we are creating variants, if not we are creating a single default product
@@ -2956,7 +2954,7 @@ public class ProductService(
     /// <inheritdoc />
     public async Task<AddonPricePreviewDto?> PreviewAddonPriceAsync(
         Guid variantId,
-        AddonPricePreviewRequest request,
+        AddonPricePreviewRequestDto request,
         CancellationToken cancellationToken = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();

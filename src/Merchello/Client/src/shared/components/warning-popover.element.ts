@@ -96,7 +96,7 @@ export class MerchelloWarningPopoverElement extends UmbElementMixin(LitElement) 
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: inline-block;
       position: relative;

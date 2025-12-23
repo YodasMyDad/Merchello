@@ -354,7 +354,7 @@ export class MerchelloExchangeRateProvidersListElement extends UmbElementMixin(L
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
       height: 100%;

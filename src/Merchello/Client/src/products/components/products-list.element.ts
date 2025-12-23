@@ -283,7 +283,7 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host { display: block; height: 100%; background: var(--uui-color-background); }
     .products-container { max-width: 100%; padding: var(--uui-size-layout-1); }
     .header-actions { display: flex; gap: var(--uui-size-space-2); align-items: center; justify-content: flex-end; margin-bottom: var(--uui-size-space-4); }
