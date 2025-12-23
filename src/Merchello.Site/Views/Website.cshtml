@@ -1,0 +1,26 @@
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = null;
+}
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <base href="/"/>
+    <link href="~/css/styles.css" rel="stylesheet"/>
+    @await RenderSectionAsync("Head", required: false)
+</head>
+<body>
+
+@*@(await Component.InvokeAsync("Header", Model))*@
+
+@RenderBody()
+
+<script type="text/javascript" src="/scripts/site.js"></script>
+@await RenderSectionAsync("Scripts", required: false)
+<script src="//instant.page/5.2.0" type="module" integrity="sha384-jnZyxPjiipYXnSU0ygqeac2q7CVYMbh84q0uHVRRxEtvFPiQYbXWUorga2aqZJ0z"></script>
+</body>
+
+</html>
