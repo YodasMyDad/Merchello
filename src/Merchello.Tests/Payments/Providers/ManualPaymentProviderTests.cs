@@ -1,5 +1,5 @@
 using Merchello.Core.Payments.Models;
-using Merchello.Core.Payments.Providers;
+using Merchello.Core.Payments.Providers.BuiltIn;
 using Shouldly;
 using Xunit;
 

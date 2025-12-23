@@ -938,6 +938,9 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<Guid>("PaymentProviderSettingId")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool?>("ShowInCheckout")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("SortOrder")
                         .HasColumnType("INTEGER");
 

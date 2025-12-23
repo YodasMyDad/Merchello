@@ -414,7 +414,8 @@ public class PaymentProviderManager(
                     Description = methodDef.Description,
                     IntegrationType = methodDef.IntegrationType,
                     IsExpressCheckout = methodDef.IsExpressCheckout,
-                    SortOrder = methodSetting?.SortOrder ?? methodDef.DefaultSortOrder
+                    SortOrder = methodSetting?.SortOrder ?? methodDef.DefaultSortOrder,
+                    ShowInCheckout = methodSetting?.ShowInCheckout ?? methodDef.ShowInCheckoutByDefault
                 });
             }
         }
@@ -431,6 +432,14 @@ public class PaymentProviderManager(
     {
         var allMethods = await GetEnabledPaymentMethodsAsync(cancellationToken);
         return allMethods.Where(m => m.IsExpressCheckout).ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyCollection<PaymentMethodDto>> GetCheckoutPaymentMethodsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var allMethods = await GetEnabledPaymentMethodsAsync(cancellationToken);
+        return allMethods.Where(m => m.ShowInCheckout).ToList();
     }
 
     /// <inheritdoc />
@@ -577,6 +586,48 @@ public class PaymentProviderManager(
 
         RefreshCache();
         return result;
+    }
+
+    /// <inheritdoc />
+    public async Task EnsureBuiltInProvidersAsync(CancellationToken cancellationToken = default)
+    {
+        // Built-in provider aliases that should always exist
+        const string manualProviderAlias = "manual";
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            // Check if Manual Payment provider setting exists
+            var manualExists = await db.PaymentProviderSettings
+                .AnyAsync(s => s.ProviderAlias == manualProviderAlias, cancellationToken);
+
+            if (!manualExists)
+            {
+                // Create the Manual Payment provider setting
+                var manualSetting = new PaymentProviderSetting
+                {
+                    Id = GuidExtensions.NewSequentialGuid,
+                    ProviderAlias = manualProviderAlias,
+                    DisplayName = "Manual Payment",
+                    IsEnabled = true,
+                    IsTestMode = false,  // Not applicable for manual payments
+                    SortOrder = 100,     // Show last
+                    DateCreated = DateTime.UtcNow,
+                    DateUpdated = DateTime.UtcNow
+                };
+
+                db.PaymentProviderSettings.Add(manualSetting);
+                await db.SaveChangesAsync(cancellationToken);
+
+                logger.LogInformation(
+                    "Created built-in payment provider '{ProviderAlias}'.",
+                    manualProviderAlias);
+            }
+        });
+        scope.Complete();
+
+        // Refresh cache to pick up the new provider
+        RefreshCache();
     }
 
     /// <summary>

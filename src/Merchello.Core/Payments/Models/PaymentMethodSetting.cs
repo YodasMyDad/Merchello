@@ -38,6 +38,12 @@ public class PaymentMethodSetting
     public int SortOrder { get; set; }
 
     /// <summary>
+    /// Whether this payment method appears in customer checkout.
+    /// If null, uses the provider's ShowInCheckoutByDefault value.
+    /// </summary>
+    public bool? ShowInCheckout { get; set; }
+
+    /// <summary>
     /// When this setting was created.
     /// </summary>
     public DateTime DateCreated { get; set; }

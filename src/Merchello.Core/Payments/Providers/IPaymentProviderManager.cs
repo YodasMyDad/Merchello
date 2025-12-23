@@ -168,5 +168,22 @@ public interface IPaymentProviderManager
         Guid providerSettingId,
         IEnumerable<string> orderedMethodAliases,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get payment methods that should be shown in customer checkout.
+    /// Filters out methods where ShowInCheckout is false (e.g., Manual Payment).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Payment methods visible in checkout, ordered by sort order.</returns>
+    Task<IReadOnlyCollection<PaymentMethodDto>> GetCheckoutPaymentMethodsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ensures built-in payment providers exist and are enabled.
+    /// Creates provider settings for built-in providers (e.g., Manual Payment) if they don't exist.
+    /// Called on application startup.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task EnsureBuiltInProvidersAsync(CancellationToken cancellationToken = default);
 }
 

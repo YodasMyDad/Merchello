@@ -24,8 +24,6 @@ public class DefaultOrderGroupingStrategy(
     ILogger<DefaultOrderGroupingStrategy> logger) : IOrderGroupingStrategy
 {
     private readonly MerchelloSettings _settings = settings.Value;
-    private readonly ICurrencyService _currencyService = currencyService;
-    private readonly IExchangeRateCache _exchangeRateCache = exchangeRateCache;
 
     /// <inheritdoc />
     public OrderGroupingStrategyMetadata Metadata => new(
@@ -52,7 +50,7 @@ public class DefaultOrderGroupingStrategy(
         decimal? storeToBasketRate = null;
         if (!string.Equals(storeCurrency, basketCurrency, StringComparison.OrdinalIgnoreCase))
         {
-            storeToBasketRate = await _exchangeRateCache.GetRateAsync(storeCurrency, basketCurrency, cancellationToken);
+            storeToBasketRate = await exchangeRateCache.GetRateAsync(storeCurrency, basketCurrency, cancellationToken);
             if (!storeToBasketRate.HasValue || storeToBasketRate.Value <= 0m)
             {
                 logger.LogWarning(
@@ -242,49 +240,78 @@ public class DefaultOrderGroupingStrategy(
         }
         else
         {
-            // Standard grouping: by warehouse + available shipping options (for checkout flow)
-            var allowedShippingOptionIds = allowedShippingOptions.Select(so => so.Id).OrderBy(id => id).ToList();
+            // Check if there's a selected shipping option for this warehouse that this product supports
+            var warehouseSelectedOption = context.SelectedShippingOptions.GetValueOrDefault(warehouseId);
+            var productSupportsSelected = warehouseSelectedOption != Guid.Empty &&
+                allowedShippingOptions.Any(so => so.Id == warehouseSelectedOption);
 
-            group = orderGroups.FirstOrDefault(g =>
-                g.WarehouseId == warehouseId &&
-                !g.SelectedShippingOptionId.HasValue && // Only match groups without pre-selected shipping
-                g.AvailableShippingOptions.Select(so => so.ShippingOptionId).OrderBy(id => id).SequenceEqual(allowedShippingOptionIds));
-
-            if (group == null)
+            if (productSupportsSelected)
             {
-                group = new OrderGroup
+                // POST-SELECTION: Group by warehouse + selected shipping option
+                // This consolidates items once user has made shipping choice
+                group = orderGroups.FirstOrDefault(g =>
+                    g.WarehouseId == warehouseId &&
+                    g.SelectedShippingOptionId == warehouseSelectedOption);
+
+                if (group == null)
                 {
-                    GroupId = GenerateDeterministicGroupId(warehouseId, allowedShippingOptionIds),
-                    GroupName = $"Shipment from {warehouseName}",
-                    WarehouseId = warehouseId,
-                    AvailableShippingOptions = allowedShippingOptions.Select(so => new ShippingOptionInfo
+                    var selectedOption = allowedShippingOptions.First(so => so.Id == warehouseSelectedOption);
+                    group = new OrderGroup
                     {
-                        ShippingOptionId = so.Id,
-                        Name = so.Name ?? string.Empty,
-                        DaysFrom = so.DaysFrom,
-                        DaysTo = so.DaysTo,
-                        IsNextDay = so.IsNextDay,
-                        Cost = ConvertShippingCostToBasketCurrency(
-                            ResolveShippingCostForDestination(so, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode),
-                            basketCurrency,
-                            storeToBasketRate),
-                        ProviderKey = so.ProviderKey
-                    }).ToList()
-                };
-
-                // Set selected option if provided via SelectedShippingOptions
-                var groupSelectedOptionId = context.SelectedShippingOptions.GetValueOrDefault(group.GroupId);
-                if (groupSelectedOptionId == Guid.Empty)
-                {
-                    groupSelectedOptionId = context.SelectedShippingOptions.GetValueOrDefault(warehouseId);
+                        GroupId = GenerateDeterministicGroupId(warehouseId, [warehouseSelectedOption]),
+                        GroupName = $"Shipment from {warehouseName}",
+                        WarehouseId = warehouseId,
+                        SelectedShippingOptionId = warehouseSelectedOption,
+                        AvailableShippingOptions = [new ShippingOptionInfo
+                        {
+                            ShippingOptionId = selectedOption.Id,
+                            Name = selectedOption.Name ?? string.Empty,
+                            DaysFrom = selectedOption.DaysFrom,
+                            DaysTo = selectedOption.DaysTo,
+                            IsNextDay = selectedOption.IsNextDay,
+                            Cost = ConvertShippingCostToBasketCurrency(
+                                ResolveShippingCostForDestination(selectedOption, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode),
+                                basketCurrency,
+                                storeToBasketRate),
+                            ProviderKey = selectedOption.ProviderKey
+                        }]
+                    };
+                    orderGroups.Add(group);
                 }
+            }
+            else
+            {
+                // PRE-SELECTION: Group by warehouse + available options (for UI to show choices)
+                var allowedShippingOptionIds = allowedShippingOptions.Select(so => so.Id).OrderBy(id => id).ToList();
 
-                if (groupSelectedOptionId != Guid.Empty)
+                group = orderGroups.FirstOrDefault(g =>
+                    g.WarehouseId == warehouseId &&
+                    !g.SelectedShippingOptionId.HasValue &&
+                    g.AvailableShippingOptions.Select(so => so.ShippingOptionId).OrderBy(id => id).SequenceEqual(allowedShippingOptionIds));
+
+                if (group == null)
                 {
-                    group.SelectedShippingOptionId = groupSelectedOptionId;
+                    group = new OrderGroup
+                    {
+                        GroupId = GenerateDeterministicGroupId(warehouseId, allowedShippingOptionIds),
+                        GroupName = $"Shipment from {warehouseName}",
+                        WarehouseId = warehouseId,
+                        AvailableShippingOptions = allowedShippingOptions.Select(so => new ShippingOptionInfo
+                        {
+                            ShippingOptionId = so.Id,
+                            Name = so.Name ?? string.Empty,
+                            DaysFrom = so.DaysFrom,
+                            DaysTo = so.DaysTo,
+                            IsNextDay = so.IsNextDay,
+                            Cost = ConvertShippingCostToBasketCurrency(
+                                ResolveShippingCostForDestination(so, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode),
+                                basketCurrency,
+                                storeToBasketRate),
+                            ProviderKey = so.ProviderKey
+                        }).ToList()
+                    };
+                    orderGroups.Add(group);
                 }
-
-                orderGroups.Add(group);
             }
         }
 
@@ -308,7 +335,7 @@ public class DefaultOrderGroupingStrategy(
     {
         if (storeToBasketRate.HasValue)
         {
-            return Math.Max(0, _currencyService.Round(storeCost * storeToBasketRate.Value, basketCurrency));
+            return Math.Max(0, currencyService.Round(storeCost * storeToBasketRate.Value, basketCurrency));
         }
 
         return Math.Max(0, storeCost);

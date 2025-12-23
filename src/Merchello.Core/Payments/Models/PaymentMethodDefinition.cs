@@ -42,4 +42,10 @@ public class PaymentMethodDefinition
     /// Lower numbers appear first. Express checkout methods typically have lower sort orders.
     /// </summary>
     public int DefaultSortOrder { get; init; }
+
+    /// <summary>
+    /// Whether this method should be shown in customer checkout by default.
+    /// False for backoffice-only methods like Manual Payment.
+    /// </summary>
+    public bool ShowInCheckoutByDefault { get; init; } = true;
 }

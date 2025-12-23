@@ -28,6 +28,9 @@ public class PaymentMethodSettingDbMapping : IEntityTypeConfiguration<PaymentMet
         builder.Property(x => x.DateUpdated)
             .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
+        // Nullable bool - null means use provider's default
+        builder.Property(x => x.ShowInCheckout);
+
         // Foreign key relationship to PaymentProviderSetting
         builder.HasOne(x => x.ProviderSetting)
             .WithMany(x => x.MethodSettings)

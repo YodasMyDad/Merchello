@@ -48,4 +48,9 @@ public class PaymentMethodDto
     /// Sort order for display in checkout.
     /// </summary>
     public int SortOrder { get; set; }
+
+    /// <summary>
+    /// Whether this payment method should be shown in customer checkout.
+    /// </summary>
+    public bool ShowInCheckout { get; set; }
 }

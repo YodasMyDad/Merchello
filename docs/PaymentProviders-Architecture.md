@@ -70,6 +70,12 @@ PaymentProvider (Stripe)
 - Methods declared via `GetAvailablePaymentMethods()`
 - Auto-discovered - no manual DI registration
 
+### Built-in Providers
+- **Manual Payment** (`Providers/BuiltIn/ManualPaymentProvider.cs`) - records offline payments
+- Auto-enabled on every startup via `EnsureBuiltInPaymentProvidersHandler`
+- Hidden from checkout by default (`ShowInCheckoutByDefault = false`)
+- Follows same pattern as Flat Rate Shipping Provider
+
 ### Method Settings
 - Created on-demand when enabling/disabling methods
 - If no setting exists, method is enabled by default
@@ -139,8 +145,9 @@ PaymentProvider (Stripe)
 - `Id` (Guid), `ProviderAlias`, `DisplayName`, `IsEnabled`, `IsTestMode`, `Configuration` (JSON), `SortOrder`, timestamps
 
 **merchelloPaymentMethods**
-- `Id` (Guid), `PaymentProviderSettingId` (FK), `MethodAlias`, `DisplayNameOverride`, `IsEnabled`, `SortOrder`, timestamps
+- `Id` (Guid), `PaymentProviderSettingId` (FK), `MethodAlias`, `DisplayNameOverride`, `IsEnabled`, `ShowInCheckout` (bool?), `SortOrder`, timestamps
 - Unique index on `(PaymentProviderSettingId, MethodAlias)`
+- `ShowInCheckout`: If null, uses provider's `ShowInCheckoutByDefault` value. False for backoffice-only methods like Manual Payment.
 
 **merchelloPayments** (additions)
 - `PaymentProviderAlias`, `PaymentMethodAlias`, `PaymentType` (enum), `RefundReason`, `ParentPaymentId` (Guid?)
@@ -150,6 +157,8 @@ PaymentProvider (Stripe)
 ```
 src/Merchello.Core/Payments/
 ├── Providers/
+│   ├── BuiltIn/
+│   │   └── ManualPaymentProvider.cs      # Built-in, auto-enabled on startup
 │   ├── IPaymentProvider.cs
 │   ├── PaymentProviderBase.cs
 │   ├── PaymentProviderMetadata.cs
@@ -157,8 +166,7 @@ src/Merchello.Core/Payments/
 │   ├── PaymentProviderConfiguration.cs
 │   ├── IPaymentProviderManager.cs
 │   ├── PaymentProviderManager.cs
-│   ├── RegisteredPaymentProvider.cs
-│   └── ManualPaymentProvider.cs
+│   └── RegisteredPaymentProvider.cs
 ├── Models/
 │   ├── PaymentMethodDefinition.cs          # NEW
 │   ├── PaymentMethodSetting.cs             # NEW
@@ -181,6 +189,8 @@ src/Merchello.Core/Payments/
 ├── Services/
 │   ├── Interfaces/IPaymentService.cs
 │   └── PaymentService.cs
+├── Handlers/
+│   └── EnsureBuiltInPaymentProvidersHandler.cs  # Startup handler
 ├── Dtos/
 │   └── PaymentMethodDto.cs
 └── Mapping/
