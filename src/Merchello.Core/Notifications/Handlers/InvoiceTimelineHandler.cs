@@ -39,7 +39,9 @@ internal class InvoiceTimelineHandler(
     public async Task HandleAsync(ShipmentCreatedNotification notification, CancellationToken cancellationToken)
     {
         var shipment = notification.Shipment;
-        var itemCount = shipment.LineItems?.Sum(li => li.Quantity) ?? 0;
+        var itemCount = shipment.LineItems?
+            .Where(li => li.LineItemType != LineItemType.Discount)
+            .Sum(li => li.Quantity) ?? 0;
 
         var description = $"Shipment created with {itemCount} item(s)";
 
