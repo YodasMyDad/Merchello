@@ -136,12 +136,12 @@ public class DbSeeder(
         // 11. Load products with TaxGroup for proper line item creation (via service)
         var products = await productService.GetAllProductsWithTaxGroupAsync(cancellationToken);
 
-        // 12. Seed random invoices (148 instead of 150 to leave room for explicit test cases)
+        // 12. Seed explicit multi-warehouse test invoices FIRST to guarantee stock availability
+        await SeedMultiWarehouseTestInvoicesAsync(products, cancellationToken);
+
+        // 13. Seed random invoices (148 instead of 150 to leave room for explicit test cases)
         // Discounts will be auto-applied during invoice creation
         await SeedInvoicesViaServicesAsync(products, 148, cancellationToken);
-
-        // 13. Seed explicit multi-warehouse test invoices for UX testing
-        await SeedMultiWarehouseTestInvoicesAsync(products, cancellationToken);
 
         // 14. Get counts via services for final log
         var invoiceCount = await invoiceService.GetInvoiceCountAsync(cancellationToken);
@@ -729,12 +729,14 @@ public class DbSeeder(
 
         // ============ MUGS (2 products) - fragile items ============
 
-        // Ceramic Mug - UK, US-West (priority), US-East
+        // Ceramic Mug - UK, US warehouses LOW STOCK for multi-warehouse split testing
+        // US-East has priority 3, US-West has priority 4, so US-East is checked first
+        // Both US warehouses need low stock to force split (neither can fulfill 5 alone)
         await CreateProductAsync("Ceramic Mug (11oz)",
             "Classic 11oz ceramic mug, dishwasher and microwave safe.",
             12.99m, taxGroup, productTypes["mug"], [collections["drinkware"]],
             0.35m, ["White", "Black", "Navy", "Red", "Pink", "Sky Blue", "Grey", "Forest Green"], null,
-            warehouses, [(0, 60, 100, true), (3, 40, 70, true), (2, 45, 80, true)]);
+            warehouses, [(0, 60, 100, true), (3, 2, 3, true), (2, 3, 4, true)]);
 
         // Travel Mug - UK and US-East
         await CreateProductAsync("Insulated Travel Mug",
@@ -879,7 +881,7 @@ public class DbSeeder(
                 products,
                 usWestCustomer,
                 new[] { "Ceramic Mug (11oz)", "Performance Polo", "Classic Cotton Tee" },
-                "US West Coast customer (potential US-East + US-West split)",
+                "US West Coast customer (US-East + US-West stock split)",
                 cancellationToken);
             successCount++;
         }
@@ -922,9 +924,11 @@ public class DbSeeder(
         var basket = checkoutService.CreateBasket();
 
         // 3. Add line items via checkout service
+        // For US West test case, order 5 of each to trigger stock-based multi-warehouse split
+        var quantity = testCaseDescription.Contains("US West") ? 5 : 1;
         foreach (var product in selectedProducts)
         {
-            var lineItem = checkoutService.CreateLineItem(product, 1);
+            var lineItem = checkoutService.CreateLineItem(product, quantity);
             await checkoutService.AddToBasketAsync(basket, lineItem, countryCode, cancellationToken);
         }
 

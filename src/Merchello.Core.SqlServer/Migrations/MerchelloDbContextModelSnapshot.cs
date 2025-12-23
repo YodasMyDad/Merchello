@@ -943,6 +943,9 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<Guid>("PaymentProviderSettingId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool?>("ShowInCheckout")
+                        .HasColumnType("bit");
+
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
 

@@ -24,13 +24,14 @@ public class CheckoutPaymentsApiController(
     ILogger<CheckoutPaymentsApiController> logger) : ControllerBase
 {
     /// <summary>
-    /// Get available payment methods for checkout
+    /// Get available payment methods for checkout.
+    /// Only returns methods where ShowInCheckout is true (excludes backoffice-only methods like Manual Payment).
     /// </summary>
     [HttpGet("payment-methods")]
     [ProducesResponseType<IReadOnlyCollection<PaymentMethodDto>>(StatusCodes.Status200OK)]
     public async Task<IReadOnlyCollection<PaymentMethodDto>> GetPaymentMethods(CancellationToken cancellationToken = default)
     {
-        return await providerManager.GetEnabledPaymentMethodsAsync(cancellationToken);
+        return await providerManager.GetCheckoutPaymentMethodsAsync(cancellationToken);
     }
 
     /// <summary>

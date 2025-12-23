@@ -414,6 +414,221 @@ public class LineItemCalculationTests
 
     #endregion
 
+    #region Mixed Discounts Tests
+
+    [Fact]
+    public void CalculateFromLineItems_WithMixedDiscounts_AppliesInCorrectOrder()
+    {
+        // Arrange: Product with both percentage and fixed discounts
+        var lineItems = new List<LineItem>
+        {
+            CreateProductLineItem("SKU1", 100m, 1, taxRate: 20)
+        };
+        // Add percentage discount first, then fixed
+        _lineItemService.AddDiscountLineItem(lineItems, 10m, DiscountValueType.Percentage, _currencyCode, name: "10% off");
+        _lineItemService.AddDiscountLineItem(lineItems, 5m, DiscountValueType.FixedAmount, _currencyCode, name: "£5 off");
+
+        // Act
+        var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
+            _lineItemService.CalculateFromLineItems(lineItems, 0, 20, _currencyCode);
+
+        // Assert - Both discounts applied
+        subTotal.ShouldBe(100m);
+        discount.ShouldBe(15m); // 10% + £5 = £10 + £5
+        adjustedSubTotal.ShouldBe(85m);
+        tax.ShouldBe(17m); // 20% of 85
+        total.ShouldBe(102m);
+    }
+
+    [Fact]
+    public void CalculateFromLineItems_WithProductAndOrderDiscounts_CalculatesCorrectly()
+    {
+        // Arrange: Two products with product-level and order-level discounts
+        var lineItems = new List<LineItem>
+        {
+            CreateProductLineItem("SKU1", 60m, 1, taxRate: 20),
+            CreateProductLineItem("SKU2", 40m, 1, taxRate: 20)
+        };
+        // Product-linked discount on SKU1
+        _lineItemService.AddDiscountLineItem(lineItems, 10m, DiscountValueType.FixedAmount, _currencyCode, linkedSku: "SKU1", name: "Product discount");
+        // Order-level discount (not linked to any SKU)
+        _lineItemService.AddDiscountLineItem(lineItems, 5m, DiscountValueType.FixedAmount, _currencyCode, name: "Order discount");
+
+        // Act
+        var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
+            _lineItemService.CalculateFromLineItems(lineItems, 0, 20, _currencyCode);
+
+        // Assert
+        subTotal.ShouldBe(100m);
+        discount.ShouldBe(15m); // £10 product + £5 order
+        adjustedSubTotal.ShouldBe(85m);
+        tax.ShouldBe(17m); // 20% of 85
+        total.ShouldBe(102m);
+    }
+
+    #endregion
+
+    #region Multiple Tax Groups Tests
+
+    [Fact]
+    public void CalculateFromLineItems_WithMultipleTaxGroups_AppliesTaxCorrectly()
+    {
+        // Arrange: Items with different tax rates
+        var lineItems = new List<LineItem>
+        {
+            CreateProductLineItem("SKU1", 50m, 1, taxRate: 20), // Standard rate
+            CreateProductLineItem("SKU2", 30m, 1, taxRate: 5),   // Reduced rate
+            CreateProductLineItem("SKU3", 20m, 1, taxRate: 0)    // Zero rate
+        };
+
+        // Act
+        var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
+            _lineItemService.CalculateFromLineItems(lineItems, 0, 0, _currencyCode);
+
+        // Assert
+        subTotal.ShouldBe(100m);
+        // Tax: (50 * 0.20) + (30 * 0.05) + (20 * 0) = 10 + 1.5 + 0 = 11.5
+        tax.ShouldBe(11.5m);
+        total.ShouldBe(111.5m);
+    }
+
+    [Fact]
+    public void CalculateFromLineItems_WithDiscountOnMixedTaxItems_ProRatesTax()
+    {
+        // Arrange: Two items with different tax rates, order discount pro-rated
+        var lineItems = new List<LineItem>
+        {
+            CreateProductLineItem("SKU1", 60m, 1, taxRate: 20), // 60% of subtotal
+            CreateProductLineItem("SKU2", 40m, 1, taxRate: 10)  // 40% of subtotal
+        };
+        // £10 order discount, pro-rated: £6 off SKU1, £4 off SKU2
+        _lineItemService.AddDiscountLineItem(lineItems, 10m, DiscountValueType.FixedAmount, _currencyCode, name: "Order discount");
+
+        // Act
+        var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
+            _lineItemService.CalculateFromLineItems(lineItems, 0, 0, _currencyCode);
+
+        // Assert
+        subTotal.ShouldBe(100m);
+        discount.ShouldBe(10m);
+        adjustedSubTotal.ShouldBe(90m);
+        // Tax after discount: (54 * 0.20) + (36 * 0.10) = 10.8 + 3.6 = 14.4
+        tax.ShouldBe(14.4m);
+        total.ShouldBe(104.4m);
+    }
+
+    #endregion
+
+    #region Shipping and Discount Interaction Tests
+
+    [Fact]
+    public void CalculateFromLineItems_WithShippingAndDiscount_ShippingUnaffectedByDiscount()
+    {
+        // Arrange
+        var lineItems = new List<LineItem>
+        {
+            CreateProductLineItem("SKU1", 100m, 1, taxRate: 20)
+        };
+        _lineItemService.AddDiscountLineItem(lineItems, 20m, DiscountValueType.FixedAmount, _currencyCode, name: "£20 off");
+
+        // Act - £15 shipping, taxable
+        var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
+            _lineItemService.CalculateFromLineItems(lineItems, 15m, 20, _currencyCode, isShippingTaxable: true);
+
+        // Assert
+        subTotal.ShouldBe(100m);
+        discount.ShouldBe(20m);
+        adjustedSubTotal.ShouldBe(80m);
+        shipping.ShouldBe(15m);
+        // Tax: 80 * 0.20 + 15 * 0.20 = 16 + 3 = 19
+        tax.ShouldBe(19m);
+        total.ShouldBe(114m); // 80 + 19 + 15
+    }
+
+    #endregion
+
+    #region Additional Edge Cases
+
+    [Fact]
+    public void CalculateFromLineItems_WithZeroQuantity_HandlesGracefully()
+    {
+        // Arrange: Item with zero quantity shouldn't contribute to totals
+        var lineItems = new List<LineItem>
+        {
+            CreateProductLineItem("SKU1", 100m, 0, taxRate: 20), // Zero quantity
+            CreateProductLineItem("SKU2", 50m, 1, taxRate: 20)
+        };
+
+        // Act
+        var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
+            _lineItemService.CalculateFromLineItems(lineItems, 0, 20, _currencyCode);
+
+        // Assert
+        subTotal.ShouldBe(50m); // Only SKU2 counts
+        tax.ShouldBe(10m);
+        total.ShouldBe(60m);
+    }
+
+    [Fact]
+    public void CalculateFromLineItems_WithMixedTaxableAndNonTaxable_CalculatesCorrectly()
+    {
+        // Arrange
+        var lineItems = new List<LineItem>
+        {
+            CreateProductLineItem("SKU1", 80m, 1, taxRate: 20, isTaxable: true),
+            CreateProductLineItem("SKU2", 20m, 1, taxRate: 20, isTaxable: false) // Gift card
+        };
+
+        // Act
+        var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
+            _lineItemService.CalculateFromLineItems(lineItems, 0, 20, _currencyCode);
+
+        // Assert
+        subTotal.ShouldBe(100m);
+        tax.ShouldBe(16m); // Only 80 is taxable at 20%
+        total.ShouldBe(116m);
+    }
+
+    [Fact]
+    public void CalculateFromLineItems_WithVerySmallAmounts_RoundsCorrectly()
+    {
+        // Arrange: Test currency rounding
+        var lineItems = new List<LineItem>
+        {
+            CreateProductLineItem("SKU1", 0.01m, 1, taxRate: 20)
+        };
+
+        // Act
+        var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
+            _lineItemService.CalculateFromLineItems(lineItems, 0, 20, _currencyCode);
+
+        // Assert - Should round properly
+        subTotal.ShouldBe(0.01m);
+        tax.ShouldBe(0m); // 0.01 * 0.20 = 0.002, rounds to 0
+        total.ShouldBe(0.01m);
+    }
+
+    [Fact]
+    public void CalculateFromLineItems_WithLargeQuantity_CalculatesCorrectly()
+    {
+        // Arrange
+        var lineItems = new List<LineItem>
+        {
+            CreateProductLineItem("SKU1", 9.99m, 100, taxRate: 20)
+        };
+
+        // Act
+        var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
+            _lineItemService.CalculateFromLineItems(lineItems, 0, 20, _currencyCode);
+
+        // Assert
+        subTotal.ShouldBe(999m); // 9.99 * 100
+        tax.ShouldBe(199.8m); // 999 * 0.20
+        total.ShouldBe(1198.8m);
+    }
+
+    #endregion
+
     #region RemoveDiscountLineItem Tests
 
     [Fact]

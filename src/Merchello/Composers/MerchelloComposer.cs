@@ -3,6 +3,7 @@ using Merchello.Core;
 using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Data;
 using Merchello.Core.Data.Handlers;
+using Merchello.Core.Payments.Handlers;
 using Merchello.Factories;
 using Merchello.Routing;
 using Merchello.Services;
@@ -36,6 +37,9 @@ namespace Merchello.Composers
 
             // Register seed data handler (runs after migrations, only seeds if no data exists)
             builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, SeedDataNotificationHandler>();
+
+            // Ensure built-in payment providers (like Manual Payment) exist and are enabled
+            builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, EnsureBuiltInPaymentProvidersHandler>();
 
             // Register DataType initializer (ensures Product Description TipTap DataType exists)
             builder.Services.AddSingleton<MerchelloDataTypeInitializer>();
