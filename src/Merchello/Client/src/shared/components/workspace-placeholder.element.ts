@@ -52,7 +52,7 @@ export class MerchelloWorkspacePlaceholderElement extends UmbElementMixin(LitEle
     `;
   }
 
-  static styles = [
+  static override readonly styles = [
     css`
       :host {
         display: block;

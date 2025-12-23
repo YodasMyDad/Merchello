@@ -1,16 +1,16 @@
-import { LitElement as C, nothing as n, html as o, css as S, property as w, state as c, customElement as O } from "@umbraco-cms/backoffice/external/lit";
-import { UmbElementMixin as E } from "@umbraco-cms/backoffice/element-api";
+import { LitElement as C, nothing as n, html as o, css as S, property as w, state as c, customElement as E } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as O } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT as U } from "@umbraco-cms/backoffice/workspace";
 import { UmbModalToken as N, UMB_MODAL_MANAGER_CONTEXT as R, UMB_CONFIRM_MODAL as P } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT as j } from "@umbraco-cms/backoffice/notification";
 import { M as g } from "./merchello-api-CasfpHxB.js";
 import "@umbraco-cms/backoffice/property";
-import { b as L } from "./badge.styles-DUcdl6GY.js";
-import { c as B, d as W } from "./navigation-m-G5wLvz.js";
+import { b as B } from "./badge.styles-DUcdl6GY.js";
+import { c as L, d as W } from "./navigation-m-G5wLvz.js";
 import { a as I } from "./formatting-DZcj68CA.js";
-import { UmbChangeEvent as H } from "@umbraco-cms/backoffice/event";
+import { UmbChangeEvent as K } from "@umbraco-cms/backoffice/event";
 import "./product-shipping-exclusions.element-C9wmmLsg.js";
-import { h as K, a as q, f as Y, g as J, b as X, c as Q } from "./variant-helpers-BWMAK-La.js";
+import { h as H, a as q, f as Y, g as X, b as J, c as Q } from "./variant-helpers-BWMAK-La.js";
 import { UmbDataTypeDetailRepository as Z } from "@umbraco-cms/backoffice/data-type";
 import { UmbPropertyEditorConfigCollection as F } from "@umbraco-cms/backoffice/property-editor";
 import "@umbraco-cms/backoffice/tiptap";
@@ -19,7 +19,7 @@ var tt = Object.defineProperty, et = Object.getOwnPropertyDescriptor, T = (t, e,
     (u = t[l]) && (r = (a ? u(e, i, r) : u(r)) || r);
   return a && r && tt(e, i, r), r;
 };
-let _ = class extends E(C) {
+let _ = class extends O(C) {
   constructor() {
     super(...arguments), this.values = {}, this._datasetValue = [];
   }
@@ -142,7 +142,7 @@ T([
   c()
 ], _.prototype, "_datasetValue", 2);
 _ = T([
-  O("merchello-product-element-properties")
+  E("merchello-product-element-properties")
 ], _);
 const V = new N(
   "Merchello.OptionEditor.Modal",
@@ -158,7 +158,7 @@ var it = Object.defineProperty, at = Object.getOwnPropertyDescriptor, y = (t, e,
     (u = t[l]) && (r = (a ? u(e, i, r) : u(r)) || r);
   return a && r && it(e, i, r), r;
 };
-let b = class extends E(C) {
+let b = class extends O(C) {
   constructor() {
     super(...arguments), this.items = [], this.placeholder = "Add item...", this.readonly = !1, this._newItemValue = "", this._editingIndex = null, this._editingValue = "";
   }
@@ -233,7 +233,7 @@ let b = class extends E(C) {
    * Dispatches a change event with the new items array.
    */
   _dispatchChange(t) {
-    this.items = t, this.dispatchEvent(new H());
+    this.items = t, this.dispatchEvent(new K());
   }
   render() {
     return o`
@@ -445,7 +445,7 @@ y([
   c()
 ], b.prototype, "_editingValue", 2);
 b = y([
-  O("merchello-editable-text-list")
+  E("merchello-editable-text-list")
 ], b);
 function rt(t, e = {}) {
   const i = {};
@@ -474,7 +474,7 @@ var nt = Object.defineProperty, lt = Object.getOwnPropertyDescriptor, A = (t) =>
     (u = t[l]) && (r = (a ? u(e, i, r) : u(r)) || r);
   return a && r && nt(e, i, r), r;
 }, z = (t, e, i) => e.has(t) || A("Cannot " + i), s = (t, e, i) => (z(t, e, "read from private field"), e.get(t)), $ = (t, e, i) => e.has(t) ? A("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(t) : e.set(t, i), D = (t, e, i, a) => (z(t, e, "write to private field"), e.set(t, i), i), k, h, f, m, v;
-let d = class extends E(C) {
+let d = class extends O(C) {
   constructor() {
     super(), this._product = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._validationAttempted = !1, this._fieldErrors = {}, this._routes = [], this._activePath = "", this._formData = {}, this._variantFormData = {}, this._variantFieldErrors = {}, this._taxGroups = [], this._productTypes = [], this._warehouses = [], this._productViews = [], this._optionSettings = null, this._filterGroups = [], this._assignedFilterIds = [], this._originalAssignedFilterIds = [], this._shippingOptions = [], this._elementType = null, this._elementPropertyValues = {}, this._descriptionEditorConfig = void 0, this._descriptionBlocks = null, $(this, k, new Z(this)), $(this, h), $(this, f), $(this, m), $(this, v, !1), this.consumeContext(U, (t) => {
       D(this, h, t), s(this, h) && (this.observe(s(this, h).product, (e) => {
@@ -537,23 +537,20 @@ let d = class extends E(C) {
    */
   async _loadDataTypeConfig(t) {
     try {
-      console.log("[Merchello] Loading DataType config for:", t);
-      const { data: e, error: i } = await s(this, k).requestByUnique(t);
-      if (i) {
-        console.error("[Merchello] Error requesting DataType:", i), this._setFallbackEditorConfig();
+      const { error: e } = await s(this, k).requestByUnique(t);
+      if (e) {
+        console.error("[Merchello] Error requesting DataType:", e), this._setFallbackEditorConfig();
         return;
       }
-      console.log("[Merchello] DataType request result:", e), this.observe(
+      this.observe(
         await s(this, k).byUnique(t),
-        (a) => {
-          if (console.log("[Merchello] DataType observed:", a), !s(this, v)) return;
-          if (!a) {
+        (i) => {
+          if (!s(this, v)) return;
+          if (!i) {
             console.warn("[Merchello] DataType not found, using fallback config"), this._setFallbackEditorConfig();
             return;
           }
-          console.log("[Merchello] DataType values:", a.values), console.log("[Merchello] DataType values detail:", JSON.stringify(a.values, null, 2));
-          const r = a.values?.some((u) => u.alias === "extensions"), l = a.values?.some((u) => u.alias === "toolbar");
-          console.log("[Merchello] Has extensions:", r, "Has toolbar:", l), r || console.warn("[Merchello] DataType is missing 'extensions' config. Delete it in Settings > Data Types and restart to recreate."), this._descriptionEditorConfig = new F(a.values);
+          i.values?.some((r) => r.alias === "extensions") || console.warn("[Merchello] DataType is missing 'extensions' config. Delete it in Settings > Data Types and restart to recreate."), this._descriptionEditorConfig = new F(i.values);
         },
         "_observeDescriptionDataType"
       );
@@ -565,7 +562,7 @@ let d = class extends E(C) {
    * Sets a fallback editor configuration if the DataType cannot be loaded.
    */
   _setFallbackEditorConfig() {
-    console.log("[Merchello] Using fallback TipTap configuration"), this._descriptionEditorConfig = new F([
+    this._descriptionEditorConfig = new F([
       {
         alias: "toolbar",
         value: [
@@ -898,7 +895,7 @@ let d = class extends E(C) {
    * Uses utility function from variant-helpers.
    */
   _hasVariantWarnings() {
-    return this._product?.variants ? K(this._product.variants) : !1;
+    return this._product?.variants ? H(this._product.variants) : !1;
   }
   /**
    * Checks if there are warnings for options tab.
@@ -1463,7 +1460,7 @@ let d = class extends E(C) {
     `;
   }
   _renderVariantRow(t) {
-    const e = this._product ? B(this._product.id, t.id) : "", i = this._getVariantOptionDescription(t);
+    const e = this._product ? L(this._product.id, t.id) : "", i = this._getVariantOptionDescription(t);
     return o`
       <uui-table-row>
         <uui-table-cell>
@@ -1484,7 +1481,7 @@ let d = class extends E(C) {
         <uui-table-cell>${t.sku || "—"}</uui-table-cell>
         <uui-table-cell>${I(t.price)}</uui-table-cell>
         <uui-table-cell>
-          <span class="badge ${J(t.stockStatus)}">${t.totalStock}</span>
+          <span class="badge ${X(t.stockStatus)}">${t.totalStock}</span>
         </uui-table-cell>
         <uui-table-cell>
           <span class="badge ${t.availableForPurchase ? "badge-positive" : "badge-danger"}">
@@ -1500,20 +1497,18 @@ let d = class extends E(C) {
    * Uses utility function from variant-helpers.
    */
   _getVariantOptionDescription(t) {
-    return this._product ? X(t, this._product.productOptions) : null;
+    return this._product ? J(t, this._product.productOptions) : null;
   }
   async _handleSetDefaultVariant(t) {
     if (!this._product || this._product.variants.find((r) => r.id === t)?.default) return;
-    const i = this._product.id;
-    console.log("Setting default variant:", { productRootId: i, variantId: t });
-    const a = this._product.variants.map((r) => ({
+    const i = this._product.id, a = this._product.variants.map((r) => ({
       ...r,
       default: r.id === t
     }));
     this._product = { ...this._product, variants: a };
     try {
       const { error: r } = await g.setDefaultVariant(i, t);
-      console.log("API response:", { error: r }), r ? (console.error("Failed to set default variant:", r), s(this, m)?.peek("danger", { data: { headline: "Failed to set default variant", message: r.message } }), await s(this, h)?.reload()) : (s(this, m)?.peek("positive", { data: { headline: "Default variant updated", message: "" } }), await s(this, h)?.reload(), console.log("After reload, variants:", this._product?.variants.map((l) => ({ id: l.id, name: l.name, default: l.default }))));
+      r ? (console.error("Failed to set default variant:", r), s(this, m)?.peek("danger", { data: { headline: "Failed to set default variant", message: r.message } }), await s(this, h)?.reload()) : (s(this, m)?.peek("positive", { data: { headline: "Default variant updated", message: "" } }), await s(this, h)?.reload());
     } catch (r) {
       console.error("Failed to set default variant:", r), s(this, m)?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } }), await s(this, h)?.reload();
     }
@@ -1907,7 +1902,7 @@ f = /* @__PURE__ */ new WeakMap();
 m = /* @__PURE__ */ new WeakMap();
 v = /* @__PURE__ */ new WeakMap();
 d.styles = [
-  L,
+  B,
   S`
       :host {
         display: block;
@@ -2485,11 +2480,11 @@ p([
   c()
 ], d.prototype, "_descriptionBlocks", 2);
 d = p([
-  O("merchello-product-detail")
+  E("merchello-product-detail")
 ], d);
 const Tt = d;
 export {
   d as MerchelloProductDetailElement,
   Tt as default
 };
-//# sourceMappingURL=product-detail.element-l83C30Tn.js.map
+//# sourceMappingURL=product-detail.element-BWDdClOT.js.map

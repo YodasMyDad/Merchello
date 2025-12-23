@@ -76,7 +76,7 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: contents;
     }
@@ -91,6 +91,8 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
     }
   `;
 }
+
+export default MerchelloVariantFeedSettingsElement;
 
 declare global {
   interface HTMLElementTagNameMap {

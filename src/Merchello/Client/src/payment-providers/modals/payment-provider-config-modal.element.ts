@@ -372,7 +372,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
     }

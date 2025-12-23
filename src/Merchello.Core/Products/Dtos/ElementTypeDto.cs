@@ -9,14 +9,14 @@ public class ElementTypeDto
     public Guid Id { get; set; }
     public string Alias { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
-    public IEnumerable<ElementTypeContainer> Containers { get; set; } = [];
-    public IEnumerable<ElementTypeProperty> Properties { get; set; } = [];
+    public IEnumerable<ElementTypeContainerDto> Containers { get; set; } = [];
+    public IEnumerable<ElementTypePropertyDto> Properties { get; set; } = [];
 }
 
 /// <summary>
 /// Represents a tab or group container within an Element Type.
 /// </summary>
-public class ElementTypeContainer
+public class ElementTypeContainerDto
 {
     public Guid Id { get; set; }
     public Guid? ParentId { get; set; }
@@ -31,7 +31,7 @@ public class ElementTypeContainer
 /// <summary>
 /// Represents a property within an Element Type.
 /// </summary>
-public class ElementTypeProperty
+public class ElementTypePropertyDto
 {
     public Guid Id { get; set; }
     public Guid? ContainerId { get; set; }

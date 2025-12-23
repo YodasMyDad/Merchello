@@ -44,7 +44,7 @@ export class MerchelloEmptyStateElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
     }

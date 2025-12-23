@@ -291,7 +291,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static styles = [
+  static override readonly styles = [
     badgeStyles,
     css`
       :host {

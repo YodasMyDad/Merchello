@@ -3,9 +3,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using Merchello.ShippingProviders.UPS.Models;
+using Merchello.Core.Shipping.Providers.UPS.Models;
 
-namespace Merchello.ShippingProviders.UPS;
+namespace Merchello.Core.Shipping.Providers.UPS;
 
 /// <summary>
 /// HTTP client for UPS REST API with OAuth2 authentication.

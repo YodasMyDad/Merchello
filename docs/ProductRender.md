@@ -1103,11 +1103,11 @@ public class ElementTypeResponseModel
     public Guid Id { get; set; }
     public string Alias { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
-    public IEnumerable<ElementTypeContainer> Containers { get; set; } = [];
-    public IEnumerable<ElementTypeProperty> Properties { get; set; } = [];
+    public IEnumerable<ElementTypeContainerDto> Containers { get; set; } = [];
+    public IEnumerable<ElementTypePropertyDto> Properties { get; set; } = [];
 }
 
-public class ElementTypeContainer
+public class ElementTypeContainerDto
 {
     public Guid Id { get; set; }
     public Guid? ParentId { get; set; }
@@ -1116,7 +1116,7 @@ public class ElementTypeContainer
     public int SortOrder { get; set; }
 }
 
-public class ElementTypeProperty
+public class ElementTypePropertyDto
 {
     public Guid Id { get; set; }
     public Guid? ContainerId { get; set; }
@@ -1164,7 +1164,7 @@ public async Task<IActionResult> GetProductElementType()
 private ElementTypeResponseModel MapToElementTypeResponse(IContentType contentType)
 {
     var containers = contentType.PropertyGroups
-        .Select(g => new ElementTypeContainer
+        .Select(g => new ElementTypeContainerDto
         {
             Id = g.Key,
             ParentId = null,
@@ -1188,11 +1188,11 @@ private ElementTypeResponseModel MapToElementTypeResponse(IContentType contentTy
     };
 }
 
-private ElementTypeProperty MapPropertyType(IPropertyType prop, IContentType contentType)
+private ElementTypePropertyDto MapPropertyType(IPropertyType prop, IContentType contentType)
 {
     var dataType = _dataTypeService.GetAsync(prop.DataTypeKey).Result;
 
-    return new ElementTypeProperty
+    return new ElementTypePropertyDto
     {
         Id = prop.Key,
         ContainerId = prop.PropertyGroupId.HasValue
@@ -1272,11 +1272,11 @@ export interface ElementTypeResponseModel {
   id: string;
   alias: string;
   name: string;
-  containers: ElementTypeContainer[];
-  properties: ElementTypeProperty[];
+  containers: ElementTypeContainerDto[];
+  properties: ElementTypePropertyDto[];
 }
 
-export interface ElementTypeContainer {
+export interface ElementTypeContainerDto {
   id: string;
   parentId: string | null;
   name: string | null;
@@ -1284,7 +1284,7 @@ export interface ElementTypeContainer {
   sortOrder: number;
 }
 
-export interface ElementTypeProperty {
+export interface ElementTypePropertyDto {
   id: string;
   containerId: string | null;
   alias: string;
@@ -1454,7 +1454,7 @@ private _renderTabs(): unknown {
   `;
 }
 
-private _getElementTypeTabs(): ElementTypeContainer[] {
+private _getElementTypeTabs(): ElementTypeContainerDto[] {
   if (!this._elementType) return [];
   return this._elementType.containers
     .filter(c => c.type === "Tab" && !c.parentId)
@@ -1501,8 +1501,8 @@ import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external
 import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
 import type {
   ElementTypeResponseModel,
-  ElementTypeProperty,
-  ElementTypeContainer
+  ElementTypePropertyDto,
+  ElementTypeContainerDto
 } from "../types/element-type.types.js";
 import "@umbraco-cms/backoffice/property";
 
@@ -1517,13 +1517,13 @@ export class MerchelloProductElementPropertiesElement extends LitElement {
   @property({ type: String })
   activeTabId?: string;
 
-  private _getPropertiesForContainer(containerId: string | null): ElementTypeProperty[] {
+  private _getPropertiesForContainer(containerId: string | null): ElementTypePropertyDto[] {
     return this.elementType?.properties
       .filter(p => p.containerId === containerId)
       .sort((a, b) => a.sortOrder - b.sortOrder) ?? [];
   }
 
-  private _getGroupsInContainer(containerId: string): ElementTypeContainer[] {
+  private _getGroupsInContainer(containerId: string): ElementTypeContainerDto[] {
     return this.elementType?.containers
       .filter(c => c.type === "Group" && c.parentId === containerId)
       .sort((a, b) => a.sortOrder - b.sortOrder) ?? [];
@@ -1564,7 +1564,7 @@ export class MerchelloProductElementPropertiesElement extends LitElement {
     `;
   }
 
-  private _renderProperties(properties: ElementTypeProperty[]) {
+  private _renderProperties(properties: ElementTypePropertyDto[]) {
     if (properties.length === 0) return nothing;
 
     return html`
@@ -1590,7 +1590,7 @@ export class MerchelloProductElementPropertiesElement extends LitElement {
     `;
   }
 
-  private _getDatasetValue(properties: ElementTypeProperty[]) {
+  private _getDatasetValue(properties: ElementTypePropertyDto[]) {
     return properties.map(p => ({
       alias: p.alias,
       value: this.values[p.alias],
@@ -1618,7 +1618,7 @@ Update `product-detail.element.ts`:
 ```typescript
 // Add import
 import "./product-element-properties.element.js";
-import type { ElementTypeResponseModel, ElementTypeContainer } from "../types/element-type.types.js";
+import type { ElementTypeResponseModel, ElementTypeContainerDto } from "../types/element-type.types.js";
 
 // Add to state
 @state() private _elementType: ElementTypeResponseModel | null = null;

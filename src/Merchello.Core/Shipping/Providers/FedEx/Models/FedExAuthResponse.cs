@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Merchello.ShippingProviders.FedEx.Models;
+namespace Merchello.Core.Shipping.Providers.FedEx.Models;
 
 /// <summary>
 /// Response from FedEx OAuth token endpoint.

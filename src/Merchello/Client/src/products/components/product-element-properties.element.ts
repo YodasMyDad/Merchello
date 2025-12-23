@@ -3,8 +3,8 @@ import { customElement, property, state } from "@umbraco-cms/backoffice/external
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import type {
   ElementTypeDto,
-  ElementTypeProperty,
-  ElementTypeContainer,
+  ElementTypePropertyDto,
+  ElementTypeContainerDto,
 } from "@products/types/element-type.types.js";
 import "@umbraco-cms/backoffice/property";
 import type { UmbPropertyDatasetElement, UmbPropertyValueData } from "@umbraco-cms/backoffice/property";
@@ -49,19 +49,19 @@ export class MerchelloProductElementPropertiesElement extends UmbElementMixin(Li
     }));
   }
 
-  private _getPropertiesForContainer(containerId: string | null): ElementTypeProperty[] {
+  private _getPropertiesForContainer(containerId: string | null): ElementTypePropertyDto[] {
     return this.elementType?.properties
       .filter(p => p.containerId === containerId)
       .sort((a, b) => a.sortOrder - b.sortOrder) ?? [];
   }
 
-  private _getGroupsInContainer(containerId: string): ElementTypeContainer[] {
+  private _getGroupsInContainer(containerId: string): ElementTypeContainerDto[] {
     return this.elementType?.containers
       .filter(c => c.type === "Group" && c.parentId === containerId)
       .sort((a, b) => a.sortOrder - b.sortOrder) ?? [];
   }
 
-  private _getAllPropertiesForCurrentTab(): ElementTypeProperty[] {
+  private _getAllPropertiesForCurrentTab(): ElementTypePropertyDto[] {
     if (!this.elementType) return [];
 
     const containerId = this.activeTabId ?? null;
@@ -128,7 +128,7 @@ export class MerchelloProductElementPropertiesElement extends UmbElementMixin(Li
     `;
   }
 
-  private _renderProperties(properties: ElementTypeProperty[]) {
+  private _renderProperties(properties: ElementTypePropertyDto[]) {
     if (properties.length === 0) return nothing;
 
     return properties.map(prop => html`
@@ -147,7 +147,7 @@ export class MerchelloProductElementPropertiesElement extends UmbElementMixin(Li
     `);
   }
 
-  private _getPropertyConfig(prop: ElementTypeProperty): unknown {
+  private _getPropertyConfig(prop: ElementTypePropertyDto): unknown {
     // The dataTypeConfiguration from the API contains the property editor config
     // This needs to be in the format expected by the property editor
     if (prop.dataTypeConfiguration && typeof prop.dataTypeConfiguration === "object") {
@@ -156,7 +156,7 @@ export class MerchelloProductElementPropertiesElement extends UmbElementMixin(Li
     return undefined;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
     }
@@ -182,6 +182,8 @@ export class MerchelloProductElementPropertiesElement extends UmbElementMixin(Li
     }
   `;
 }
+
+export default MerchelloProductElementPropertiesElement;
 
 declare global {
   interface HTMLElementTagNameMap {

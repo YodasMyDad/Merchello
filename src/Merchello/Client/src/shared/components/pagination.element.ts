@@ -91,7 +91,7 @@ export class MerchelloPaginationElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
     }
@@ -153,6 +153,8 @@ export class MerchelloPaginationElement extends UmbElementMixin(LitElement) {
     }
   `;
 }
+
+export default MerchelloPaginationElement;
 
 declare global {
   interface HTMLElementTagNameMap {

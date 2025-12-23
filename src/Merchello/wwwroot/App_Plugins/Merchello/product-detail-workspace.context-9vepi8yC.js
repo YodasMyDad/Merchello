@@ -7,7 +7,7 @@ class y extends n {
     super(t, o.toString()), this.workspaceAlias = "Merchello.Product.Detail.Workspace", this.#t = !1, this.#s = new a(void 0), this.product = this.#s.asObservable(), this.#a = new p(void 0), this.variantId = this.#a.asObservable(), this.#l = new a(null), this.elementType = this.#l.asObservable(), this.#e = new a({}), this.elementPropertyValues = this.#e.asObservable(), this.#i = new h([], (e) => e.id), this.filterGroups = this.#i.asObservable(), this.#o = !1, this.routes = new u(t), this.provideContext(o, this), this.routes.setRoutes([
       {
         path: "create",
-        component: () => import("./product-detail.element-l83C30Tn.js"),
+        component: () => import("./product-detail.element-BWDdClOT.js"),
         setup: () => {
           this.#t = !0, this.#r = void 0, this.#a.setValue(void 0), this.#s.setValue(this._createEmptyProduct());
         }
@@ -23,7 +23,7 @@ class y extends n {
       },
       {
         path: "edit/:id",
-        component: () => import("./product-detail.element-l83C30Tn.js"),
+        component: () => import("./product-detail.element-BWDdClOT.js"),
         setup: (e, r) => {
           this.#t = !1, this.#a.setValue(void 0);
           const s = r.match.params.id;
@@ -133,4 +133,4 @@ export {
   y as MerchelloProductDetailWorkspaceContext,
   y as api
 };
-//# sourceMappingURL=product-detail-workspace.context-JeO2uZlo.js.map
+//# sourceMappingURL=product-detail-workspace.context-9vepi8yC.js.map

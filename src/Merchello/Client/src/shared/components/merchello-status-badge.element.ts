@@ -57,7 +57,7 @@ export class MerchelloStatusBadgeElement extends UmbElementMixin(LitElement) {
     return html`<span class="badge ${this._getBadgeClass()}">${this.label}</span>`;
   }
 
-  static styles = [badgeStyles];
+  static override readonly styles = [badgeStyles];
 }
 
 export default MerchelloStatusBadgeElement;

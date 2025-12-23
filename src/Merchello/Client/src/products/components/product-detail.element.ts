@@ -25,7 +25,7 @@ import type {
 import type { TaxGroupDto } from "@orders/types/order.types.js";
 import type { WarehouseDto } from "@shipping/types/shipping.types.js";
 import type { ProductFilterGroupDto } from "@filters/types/filters.types.js";
-import type { ElementTypeDto, ElementTypeContainer } from "@products/types/element-type.types.js";
+import type { ElementTypeDto, ElementTypeContainerDto } from "@products/types/element-type.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import "./product-element-properties.element.js";
 import type { ElementPropertiesChangeDetail } from "./product-element-properties.element.js";
@@ -299,24 +299,19 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
    */
   private async _loadDataTypeConfig(dataTypeKey: string): Promise<void> {
     try {
-      console.log("[Merchello] Loading DataType config for:", dataTypeKey);
-      
       // Request the DataType through Umbraco's repository (handles auth)
-      const { data, error } = await this.#dataTypeRepository.requestByUnique(dataTypeKey);
-      
+      const { error } = await this.#dataTypeRepository.requestByUnique(dataTypeKey);
+
       if (error) {
         console.error("[Merchello] Error requesting DataType:", error);
         this._setFallbackEditorConfig();
         return;
       }
 
-      console.log("[Merchello] DataType request result:", data);
-      
       // Observe the DataType to get its configuration
       this.observe(
         await this.#dataTypeRepository.byUnique(dataTypeKey),
         (dataType) => {
-          console.log("[Merchello] DataType observed:", dataType);
           if (!this.#isConnected) return;
           
           if (!dataType) {
@@ -324,16 +319,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             this._setFallbackEditorConfig();
             return;
           }
-          
-          // Create the config collection from the DataType's values
-          console.log("[Merchello] DataType values:", dataType.values);
-          console.log("[Merchello] DataType values detail:", JSON.stringify(dataType.values, null, 2));
-          
+
           // Check if extensions config exists
           const hasExtensions = dataType.values?.some((v: { alias: string }) => v.alias === 'extensions');
-          const hasToolbar = dataType.values?.some((v: { alias: string }) => v.alias === 'toolbar');
-          console.log("[Merchello] Has extensions:", hasExtensions, "Has toolbar:", hasToolbar);
-          
+
           if (!hasExtensions) {
             console.warn("[Merchello] DataType is missing 'extensions' config. Delete it in Settings > Data Types and restart to recreate.");
           }
@@ -352,7 +341,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
    * Sets a fallback editor configuration if the DataType cannot be loaded.
    */
   private _setFallbackEditorConfig(): void {
-    console.log("[Merchello] Using fallback TipTap configuration");
     this._descriptionEditorConfig = new UmbPropertyEditorConfigCollection([
       {
         alias: "toolbar",
@@ -471,7 +459,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   /**
    * Gets Element Type tabs (containers of type "Tab" at the root level)
    */
-  private _getElementTypeTabs(): ElementTypeContainer[] {
+  private _getElementTypeTabs(): ElementTypeContainerDto[] {
     if (!this._elementType) return [];
     return this._elementType.containers
       .filter(c => c.type === "Tab" && !c.parentId)
@@ -1528,7 +1516,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     if (clickedVariant?.default) return;
 
     const productRootId = this._product.id;
-    console.log("Setting default variant:", { productRootId, variantId });
 
     // Optimistic UI update - immediately show new default
     const updatedVariants = this._product.variants.map(v => ({
@@ -1539,13 +1526,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
     try {
       const { error } = await MerchelloApi.setDefaultVariant(productRootId, variantId);
-      console.log("API response:", { error });
-      
+
       if (!error) {
         this.#notificationContext?.peek("positive", { data: { headline: "Default variant updated", message: "" } });
         // Reload to sync with server state
         await this.#workspaceContext?.reload();
-        console.log("After reload, variants:", this._product?.variants.map(v => ({ id: v.id, name: v.name, default: v.default })));
       } else {
         console.error("Failed to set default variant:", error);
         this.#notificationContext?.peek("danger", { data: { headline: "Failed to set default variant", message: error.message } });
@@ -2067,7 +2052,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  static styles = [
+  static override readonly styles = [
     badgeStyles,
     css`
       :host {

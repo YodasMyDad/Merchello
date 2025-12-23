@@ -271,8 +271,6 @@ export class MerchelloProductPickerVariantRowElement extends UmbElementMixin(Lit
   `;
 }
 
-export default MerchelloProductPickerVariantRowElement;
-
 declare global {
   interface HTMLElementTagNameMap {
     "merchello-product-picker-variant-row": MerchelloProductPickerVariantRowElement;

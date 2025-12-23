@@ -9,18 +9,27 @@
   <PropertyGroup>
     <Product>Umbraco.Community.Merchello</Product>
     <PackageId>Umbraco.Community.Merchello</PackageId>
-    <Title>Merchello </Title>
-    <Description>...</Description>
-    <PackageTags>umbraco;umbraco-marketplace</PackageTags>
+    <Version>1.0.0-alpha1</Version>
+    <Title>Merchello</Title>
+    <Description>Enterprise ecommerce for Umbraco - making enterprise ecommerce simple</Description>
+    <PackageTags>umbraco;umbraco-marketplace;ecommerce;merchello</PackageTags>
     <Authors>Lee Messenger</Authors>
     <Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) © Lee Messenger</Copyright>
-    <PackageProjectUrl>https://github.com/GITHUB_USERNAME/GITHUB_REPOSITORY</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/GITHUB_USERNAME/GITHUB_REPOSITORY</RepositoryUrl>
-    <PackageReadmeFile>README_nuget.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/YodasMyDad/Merchello</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/YodasMyDad/Merchello</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageIcon></PackageIcon>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <LocalNugetSource>$(MSBuildProjectDirectory)/../../NugetSource</LocalNugetSource>
   </PropertyGroup>
+
+  <Target Name="CopyNuGetPackage" AfterTargets="Pack">
+    <PropertyGroup>
+      <PackageOutputDir>$(OutputPath)..\</PackageOutputDir>
+      <GeneratedPackage>$(PackageOutputDir)\$(PackageId).$(Version).nupkg</GeneratedPackage>
+    </PropertyGroup>
+    <Copy SourceFiles="$(GeneratedPackage)" DestinationFolder="$(LocalNugetSource)" />
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="Umbraco.Cms.Web.Website" Version="*" />

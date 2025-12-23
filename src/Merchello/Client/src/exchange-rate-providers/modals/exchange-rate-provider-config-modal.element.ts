@@ -268,7 +268,7 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
     }

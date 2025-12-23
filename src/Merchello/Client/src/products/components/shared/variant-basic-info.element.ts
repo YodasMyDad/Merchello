@@ -140,7 +140,7 @@ export class MerchelloVariantBasicInfoElement extends UmbElementMixin(LitElement
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: contents;
     }
@@ -159,6 +159,8 @@ export class MerchelloVariantBasicInfoElement extends UmbElementMixin(LitElement
     }
   `;
 }
+
+export default MerchelloVariantBasicInfoElement;
 
 declare global {
   interface HTMLElementTagNameMap {

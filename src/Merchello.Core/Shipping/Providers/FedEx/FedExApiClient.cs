@@ -2,9 +2,9 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Merchello.ShippingProviders.FedEx.Models;
+using Merchello.Core.Shipping.Providers.FedEx.Models;
 
-namespace Merchello.ShippingProviders.FedEx;
+namespace Merchello.Core.Shipping.Providers.FedEx;
 
 /// <summary>
 /// HTTP client for FedEx REST API with OAuth2 authentication.

@@ -4,11 +4,11 @@ export interface ElementTypeDto {
   id: string;
   alias: string;
   name: string;
-  containers: ElementTypeContainer[];
-  properties: ElementTypeProperty[];
+  containers: ElementTypeContainerDto[];
+  properties: ElementTypePropertyDto[];
 }
 
-export interface ElementTypeContainer {
+export interface ElementTypeContainerDto {
   id: string;
   parentId: string | null;
   name: string | null;
@@ -16,7 +16,7 @@ export interface ElementTypeContainer {
   sortOrder: number;
 }
 
-export interface ElementTypeProperty {
+export interface ElementTypePropertyDto {
   id: string;
   containerId: string | null;
   alias: string;

@@ -312,7 +312,7 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
     `;
   }
 
-  static styles = [
+  static override readonly styles = [
     css`
       :host {
         display: block;
@@ -371,8 +371,6 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
     `,
   ];
 }
-
-export default MerchelloSegmentMembersTableElement;
 
 declare global {
   interface HTMLElementTagNameMap {

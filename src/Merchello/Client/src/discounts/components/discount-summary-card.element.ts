@@ -154,7 +154,7 @@ export class MerchelloDiscountSummaryCardElement extends UmbElementMixin(LitElem
     `;
   }
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
     }

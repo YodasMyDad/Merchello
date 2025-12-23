@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Merchello.ShippingProviders.UPS.Models;
+namespace Merchello.Core.Shipping.Providers.UPS.Models;
 
 /// <summary>
 /// Response from UPS OAuth token endpoint.

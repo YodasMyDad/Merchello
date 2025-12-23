@@ -388,7 +388,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  static styles = [
+  static override readonly styles = [
     css`
       :host {
         display: block;

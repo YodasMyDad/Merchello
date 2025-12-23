@@ -1,20 +1,18 @@
 using System.Globalization;
 using System.Text.Json;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
-using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
-using Merchello.Core.Shipping.Providers;
-using Merchello.ShippingProviders.UPS.Models;
+using Merchello.Core.Shipping.Providers.FedEx.Models;
 using Microsoft.Extensions.Options;
 
-namespace Merchello.ShippingProviders.UPS;
+namespace Merchello.Core.Shipping.Providers.FedEx;
 
 /// <summary>
-/// UPS shipping provider with real-time rate quotes via UPS REST API.
+/// FedEx shipping provider with real-time rate quotes via FedEx REST API.
 /// </summary>
-public class UpsShippingProvider(
+public class FedExShippingProvider(
     IOptions<MerchelloSettings> settings,
     IExchangeRateCache exchangeRateCache,
     ICurrencyService currencyService) : ShippingProviderBase, IDisposable
@@ -23,16 +21,16 @@ public class UpsShippingProvider(
     private readonly IExchangeRateCache _exchangeRateCache = exchangeRateCache;
     private readonly ICurrencyService _currencyService = currencyService;
 
-    private UpsApiClient? _apiClient;
+    private FedExApiClient? _apiClient;
     private bool _disposed;
 
     /// <inheritdoc />
     public override ShippingProviderMetadata Metadata => new()
     {
-        Key = "ups",
-        DisplayName = "UPS",
+        Key = "fedex",
+        DisplayName = "FedEx",
         Icon = "icon-truck",
-        Description = "Real-time UPS shipping rates via UPS REST API",
+        Description = "Real-time FedEx shipping rates via FedEx REST API",
         SupportsRealTimeRates = true,
         SupportsTracking = true,
         SupportsLabelGeneration = false,
@@ -40,42 +38,48 @@ public class UpsShippingProvider(
         SupportsInternational = true,
         RequiresFullAddress = true,
         SetupInstructions = """
-            ## UPS API Setup Instructions
+            ## FedEx API Setup Instructions
 
-            ### 1. Create a UPS Developer Account
+            ### 1. Create a FedEx Developer Account
 
-            1. Go to [developer.ups.com](https://developer.ups.com)
-            2. Click "Get Started" and create an account
-            3. Link your UPS account (or create a new one)
+            1. Go to [developer.fedex.com](https://developer.fedex.com)
+            2. Click "Sign Up" and create an account
+            3. Verify your email address
 
-            ### 2. Create an Application
+            ### 2. Create an API Project
 
-            1. Log into the UPS Developer Portal
-            2. Go to "Apps" and click "Add Apps"
+            1. Log into the FedEx Developer Portal
+            2. Go to "My Projects" → "Create a Project"
             3. Select the APIs you need:
-               - **OAuth** (required for authentication)
-               - **Rating** (required for shipping quotes)
-               - **Tracking** (optional)
-            4. Complete the application setup
+               - **Rate API** (required for shipping quotes)
+               - **Track API** (optional, for tracking)
+            4. Complete the project setup
 
             ### 3. Get Your Credentials
 
-            After application approval, you'll receive:
-            - **Client ID**
-            - **Client Secret**
-            - **Account Number** (your UPS shipper number)
+            After project approval, you'll receive:
+            - **API Key** (Client ID)
+            - **Secret Key** (Client Secret)
+            - **Account Number** (from your FedEx account)
 
             ### 4. Testing
 
             Use the Sandbox environment for testing:
-            - Your Client ID and Secret work for both environments
-            - Test addresses before going live
-            - Sandbox returns simulated rates
+            - Use your own **API Key** and **Secret Key** from the Developer Portal
+            - Use the FedEx test account number for sandbox requests:
+              - **Test Account Number:** `740561073`
+              - **Test Meter Number:** `118794267`
+            - Test with sample addresses before going live
+
+            > **Note:** Do not use your production account number in sandbox mode.
+            > The test account number above is provided by FedEx for sandbox testing.
 
             ### 5. Going Live
 
-            1. Switch to "Production" environment in settings
-            2. Your production rates will reflect your negotiated pricing
+            1. Complete FedEx production access requirements
+            2. Switch to "Production" environment in settings
+            3. Update credentials with production API keys
+            4. Replace the test account number with your actual FedEx account number
             """,
         ConfigCapabilities = new ProviderConfigCapabilities
         {
@@ -87,26 +91,19 @@ public class UpsShippingProvider(
     };
 
     /// <summary>
-    /// Static list of UPS service types. Defined once and reused for both
+    /// Static list of FedEx service types. Defined once and reused for both
     /// GetSupportedServiceTypesAsync and rate response mapping.
     /// </summary>
     private static readonly IReadOnlyList<ShippingServiceType> SupportedServiceTypes =
     [
-        // Domestic US Services
-        new ShippingServiceType { Code = "14", DisplayName = "UPS Next Day Air Early", ProviderKey = "ups" },
-        new ShippingServiceType { Code = "01", DisplayName = "UPS Next Day Air", ProviderKey = "ups" },
-        new ShippingServiceType { Code = "13", DisplayName = "UPS Next Day Air Saver", ProviderKey = "ups" },
-        new ShippingServiceType { Code = "59", DisplayName = "UPS 2nd Day Air A.M.", ProviderKey = "ups" },
-        new ShippingServiceType { Code = "02", DisplayName = "UPS 2nd Day Air", ProviderKey = "ups" },
-        new ShippingServiceType { Code = "12", DisplayName = "UPS 3 Day Select", ProviderKey = "ups" },
-        new ShippingServiceType { Code = "03", DisplayName = "UPS Ground", ProviderKey = "ups" },
-        // International Services
-        new ShippingServiceType { Code = "07", DisplayName = "UPS Worldwide Express", ProviderKey = "ups" },
-        new ShippingServiceType { Code = "54", DisplayName = "UPS Worldwide Express Plus", ProviderKey = "ups" },
-        new ShippingServiceType { Code = "08", DisplayName = "UPS Worldwide Expedited", ProviderKey = "ups" },
-        new ShippingServiceType { Code = "65", DisplayName = "UPS Worldwide Saver", ProviderKey = "ups" },
-        new ShippingServiceType { Code = "11", DisplayName = "UPS Standard", ProviderKey = "ups" },
-        new ShippingServiceType { Code = "96", DisplayName = "UPS Worldwide Express Freight", ProviderKey = "ups" }
+        new ShippingServiceType { Code = "FEDEX_GROUND", DisplayName = "FedEx Ground", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "FEDEX_2_DAY", DisplayName = "FedEx 2Day", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "FEDEX_2_DAY_AM", DisplayName = "FedEx 2Day A.M.", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "STANDARD_OVERNIGHT", DisplayName = "FedEx Standard Overnight", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "PRIORITY_OVERNIGHT", DisplayName = "FedEx Priority Overnight", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "FIRST_OVERNIGHT", DisplayName = "FedEx First Overnight", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "INTERNATIONAL_ECONOMY", DisplayName = "FedEx International Economy", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "INTERNATIONAL_PRIORITY", DisplayName = "FedEx International Priority", ProviderKey = "fedex" }
     ];
 
     /// <summary>
@@ -131,17 +128,17 @@ public class UpsShippingProvider(
             new ShippingProviderConfigurationField
             {
                 Key = "clientId",
-                Label = "Client ID",
-                Description = "Your UPS API Client ID from the Developer Portal",
+                Label = "API Key (Client ID)",
+                Description = "Your FedEx API Key from the Developer Portal",
                 FieldType = ConfigurationFieldType.Text,
                 IsRequired = true,
-                Placeholder = "Your Client ID"
+                Placeholder = "l7xx..."
             },
             new ShippingProviderConfigurationField
             {
                 Key = "clientSecret",
-                Label = "Client Secret",
-                Description = "Your UPS API Client Secret from the Developer Portal",
+                Label = "Secret Key",
+                Description = "Your FedEx Secret Key from the Developer Portal",
                 FieldType = ConfigurationFieldType.Password,
                 IsSensitive = true,
                 IsRequired = true
@@ -150,10 +147,10 @@ public class UpsShippingProvider(
             {
                 Key = "accountNumber",
                 Label = "Account Number",
-                Description = "Your UPS Account/Shipper Number (6 digits)",
+                Description = "Your FedEx Account Number",
                 FieldType = ConfigurationFieldType.Text,
                 IsRequired = true,
-                Placeholder = "123456"
+                Placeholder = "123456789"
             },
             new ShippingProviderConfigurationField
             {
@@ -168,15 +165,6 @@ public class UpsShippingProvider(
                     new SelectOption { Value = "sandbox", Label = "Sandbox (Testing)" },
                     new SelectOption { Value = "production", Label = "Production (Live)" }
                 ]
-            },
-            new ShippingProviderConfigurationField
-            {
-                Key = "useNegotiatedRates",
-                Label = "Use Negotiated Rates",
-                Description = "Enable to use your negotiated/contract rates (requires valid account)",
-                FieldType = ConfigurationFieldType.Checkbox,
-                IsRequired = false,
-                DefaultValue = "false"
             }
         ]);
     }
@@ -198,13 +186,13 @@ public class UpsShippingProvider(
                 Description = "Display name shown to customers (optional, defaults to service type name)",
                 FieldType = ConfigurationFieldType.Text,
                 IsRequired = false,
-                Placeholder = "e.g., UPS Ground"
+                Placeholder = "e.g., FedEx Ground"
             },
             new ShippingProviderConfigurationField
             {
                 Key = "markup",
                 Label = "Markup %",
-                Description = "Percentage to add to UPS rates (e.g., 10 for 10%)",
+                Description = "Percentage to add to FedEx rates (e.g., 10 for 10%)",
                 FieldType = ConfigurationFieldType.Percentage,
                 IsRequired = false,
                 DefaultValue = "0"
@@ -239,7 +227,6 @@ public class UpsShippingProvider(
             var clientSecret = settings.GetValueOrDefault("clientSecret");
             var accountNumber = settings.GetValueOrDefault("accountNumber");
             var environment = settings.GetValueOrDefault("environment") ?? "sandbox";
-            var useNegotiatedRates = settings.GetValueOrDefault("useNegotiatedRates")?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
 
             if (string.IsNullOrEmpty(clientId) ||
                 string.IsNullOrEmpty(clientSecret) ||
@@ -250,13 +237,13 @@ public class UpsShippingProvider(
 
             var useSandbox = environment.Equals("sandbox", StringComparison.OrdinalIgnoreCase);
 
-            // Create API client
-            _apiClient = new UpsApiClient(
+            // Create API client with its own HttpClient configured for gzip decompression
+            // (FedEx API returns gzip-compressed responses)
+            _apiClient = new FedExApiClient(
                 clientId,
                 clientSecret,
                 accountNumber,
-                useSandbox,
-                useNegotiatedRates);
+                useSandbox);
         }
         catch (JsonException)
         {
@@ -274,7 +261,7 @@ public class UpsShippingProvider(
     /// <inheritdoc />
     public override bool IsAvailableFor(ShippingQuoteRequest request)
     {
-        // UPS requires full address for accurate rates
+        // FedEx requires full address for accurate rates
         if (request.IsEstimateMode)
             return false;
 
@@ -301,7 +288,7 @@ public class UpsShippingProvider(
                 ProviderKey = Metadata.Key,
                 ProviderName = Metadata.DisplayName,
                 ServiceLevels = [],
-                Errors = ["UPS provider is not configured. Please add API credentials."]
+                Errors = ["FedEx provider is not configured. Please add API credentials."]
             };
         }
 
@@ -312,124 +299,126 @@ public class UpsShippingProvider(
             List<string> errors = [];
 
             // Build origin address from warehouse
-            var origin = BuildUpsAddress(request.OriginAddress);
+            var origin = new FedExAddress
+            {
+                StreetLines = request.OriginAddress?.AddressOne != null
+                    ? [request.OriginAddress.AddressOne, request.OriginAddress.AddressTwo ?? ""]
+                    : null,
+                City = request.OriginAddress?.TownCity,
+                StateOrProvinceCode = request.OriginAddress?.CountyState?.RegionCode,
+                PostalCode = request.OriginAddress?.PostalCode ?? "",
+                CountryCode = request.OriginAddress?.CountryCode ?? "US"
+            };
 
             // Build destination address
-            var destination = BuildUpsAddress(request.DestinationAddress, request);
+            var destination = new FedExAddress
+            {
+                StreetLines = request.DestinationAddress?.AddressOne != null
+                    ? [request.DestinationAddress.AddressOne, request.DestinationAddress.AddressTwo ?? ""]
+                    : null,
+                City = request.DestinationAddress?.TownCity ?? request.City,
+                StateOrProvinceCode = request.DestinationAddress?.CountyState?.RegionCode ?? request.StateOrProvinceCode,
+                PostalCode = request.DestinationAddress?.PostalCode ?? request.PostalCode ?? "",
+                CountryCode = request.DestinationAddress?.CountryCode ?? request.CountryCode
+            };
 
             // Build packages from request
             var packages = BuildPackages(request);
 
-            // Request rates for all services
+            // Request rates for all services (no serviceType filter)
             var rateRequest = _apiClient.BuildRateRequest(origin, destination, packages);
             var response = await _apiClient.GetRatesAsync(rateRequest, cancellationToken);
 
-            // Check for errors in response
-            if (response.RateResponse?.Response?.ResponseStatus?.Code != "1")
+            // Check for errors
+            if (response.Errors?.Count > 0)
             {
-                var alerts = response.RateResponse?.Response?.Alert;
-                if (alerts?.Count > 0)
+                return new ShippingRateQuote
                 {
-                    return new ShippingRateQuote
-                    {
-                        ProviderKey = Metadata.Key,
-                        ProviderName = Metadata.DisplayName,
-                        ServiceLevels = [],
-                        Errors = alerts.Select(a => $"{a.Code}: {a.Description}").ToList()
-                    };
-                }
+                    ProviderKey = Metadata.Key,
+                    ProviderName = Metadata.DisplayName,
+                    ServiceLevels = [],
+                    Errors = response.Errors.Select(FormatFedExError).ToList()
+                };
             }
 
             // Build service levels from response
             List<ShippingServiceLevel> serviceLevels = [];
 
-            if (response.RateResponse?.RatedShipment != null)
+            if (response.Output?.RateReplyDetails != null)
             {
-                // Determine UPS response currency (from first rated shipment)
-                var firstRated = response.RateResponse.RatedShipment.FirstOrDefault();
-                var upsCurrency = firstRated?.TotalCharges?.CurrencyCode ?? "USD";
+                // Determine FedEx response currency (same for all rates in response)
+                var firstRatedDetail = response.Output.RateReplyDetails
+                    .SelectMany(d => d.RatedShipmentDetails ?? [])
+                    .FirstOrDefault();
+                var fedexCurrency = firstRatedDetail?.Currency
+                    ?? firstRatedDetail?.ShipmentRateDetail?.Currency
+                    ?? "USD";
 
-                // Get exchange rate if UPS currency differs from request currency
-                decimal? upsToRequestRate = null;
-                if (!string.Equals(upsCurrency, requestCurrency, StringComparison.OrdinalIgnoreCase))
+                // Get exchange rate if FedEx currency differs from request currency
+                decimal? fedexToRequestRate = null;
+                if (!string.Equals(fedexCurrency, requestCurrency, StringComparison.OrdinalIgnoreCase))
                 {
-                    upsToRequestRate = await _exchangeRateCache.GetRateAsync(upsCurrency, requestCurrency, cancellationToken);
-                    if (!upsToRequestRate.HasValue || upsToRequestRate.Value <= 0m)
+                    fedexToRequestRate = await _exchangeRateCache.GetRateAsync(fedexCurrency, requestCurrency, cancellationToken);
+                    if (!fedexToRequestRate.HasValue || fedexToRequestRate.Value <= 0m)
                     {
-                        errors.Add($"No exchange rate available to convert UPS rates from {upsCurrency} to {requestCurrency}.");
+                        errors.Add($"No exchange rate available to convert FedEx rates from {fedexCurrency} to {requestCurrency}.");
                     }
                 }
 
-                foreach (var rated in response.RateResponse.RatedShipment)
+                foreach (var detail in response.Output.RateReplyDetails)
                 {
-                    var serviceCode = rated.Service?.Code;
-                    if (serviceCode == null) continue;
+                    var ratedDetail = detail.RatedShipmentDetails?
+                        .FirstOrDefault(r => r.RateType == "ACCOUNT")
+                        ?? detail.RatedShipmentDetails?.FirstOrDefault();
 
-                    // Get charges (prefer negotiated rates if available)
-                    var charges = rated.NegotiatedRateCharges?.TotalCharge ?? rated.TotalCharges;
-                    if (charges?.MonetaryValue == null) continue;
-
-                    if (!decimal.TryParse(charges.MonetaryValue, NumberStyles.Number, CultureInfo.InvariantCulture, out var totalCost))
+                    if (ratedDetail == null)
+                    {
                         continue;
+                    }
 
-                    var rateCurrency = charges.CurrencyCode ?? upsCurrency;
+                    var totalCost = ratedDetail.TotalNetCharge
+                        ?? ratedDetail.ShipmentRateDetail?.TotalNetCharge
+                        ?? 0;
 
                     // Convert to request currency if needed
                     var displayCurrency = requestCurrency;
-                    if (upsToRequestRate.HasValue)
+                    if (fedexToRequestRate.HasValue)
                     {
-                        totalCost = _currencyService.Round(totalCost * upsToRequestRate.Value, requestCurrency);
+                        totalCost = _currencyService.Round(totalCost * fedexToRequestRate.Value, requestCurrency);
                     }
-                    else if (!string.Equals(rateCurrency, requestCurrency, StringComparison.OrdinalIgnoreCase))
+                    else if (!string.Equals(fedexCurrency, requestCurrency, StringComparison.OrdinalIgnoreCase))
                     {
-                        // No exchange rate available - use UPS currency as-is
-                        displayCurrency = rateCurrency;
+                        // No exchange rate available - use FedEx currency as-is
+                        displayCurrency = fedexCurrency;
                     }
 
                     // Parse transit days
                     TimeSpan? transitTime = null;
-                    DateTime? estimatedDelivery = null;
-
-                    if (rated.GuaranteedDelivery?.BusinessDaysInTransit != null &&
-                        int.TryParse(rated.GuaranteedDelivery.BusinessDaysInTransit, out var days))
+                    if (int.TryParse(detail.Commit?.TransitDays, out var days))
                     {
                         transitTime = TimeSpan.FromDays(days);
                     }
 
-                    if (rated.TimeInTransit?.ServiceSummary?.EstimatedArrival?.Arrival?.Date != null)
-                    {
-                        if (DateTime.TryParseExact(
-                            rated.TimeInTransit.ServiceSummary.EstimatedArrival.Arrival.Date,
-                            "yyyyMMdd",
-                            null,
-                            System.Globalization.DateTimeStyles.None,
-                            out var arrivalDate))
-                        {
-                            estimatedDelivery = arrivalDate;
-                        }
-                    }
-
                     // Resolve the concrete service type from our defined list
-                    var serviceType = ServiceTypeLookup.GetValueOrDefault(serviceCode);
+                    var serviceType = ServiceTypeLookup.GetValueOrDefault(detail.ServiceType);
 
                     serviceLevels.Add(new ShippingServiceLevel
                     {
-                        ServiceCode = $"ups-{serviceCode}",
-                        ServiceName = serviceType?.DisplayName ?? rated.Service?.Description ?? serviceCode,
+                        ServiceCode = $"fedex-{detail.ServiceType.ToLowerInvariant()}",
+                        ServiceName = serviceType?.DisplayName ?? detail.ServiceName ?? detail.ServiceType,
                         TotalCost = totalCost,
                         CurrencyCode = displayCurrency,
                         TransitTime = transitTime,
-                        EstimatedDeliveryDate = estimatedDelivery,
-                        Description = BuildTransitDescription(rated),
+                        Description = BuildTransitDescription(detail),
                         ServiceType = serviceType ?? new ShippingServiceType
                         {
-                            Code = serviceCode,
-                            DisplayName = rated.Service?.Description ?? serviceCode,
+                            Code = detail.ServiceType,
+                            DisplayName = detail.ServiceName ?? detail.ServiceType,
                             ProviderKey = Metadata.Key
                         },
                         ExtendedProperties = new Dictionary<string, string>
                         {
-                            ["trackingUrlTemplate"] = "https://www.ups.com/track?tracknum={trackingNumber}"
+                            ["trackingUrlTemplate"] = "https://www.fedex.com/fedextrack/?trknbr={trackingNumber}"
                         }
                     });
                 }
@@ -453,7 +442,7 @@ public class UpsShippingProvider(
                 ProviderKey = Metadata.Key,
                 ProviderName = Metadata.DisplayName,
                 ServiceLevels = [],
-                Errors = [$"UPS API error: {ex.Message}"]
+                Errors = [$"FedEx API error: {ex.Message}"]
             };
         }
         catch (Exception ex)
@@ -463,14 +452,14 @@ public class UpsShippingProvider(
                 ProviderKey = Metadata.Key,
                 ProviderName = Metadata.DisplayName,
                 ServiceLevels = [],
-                Errors = [$"Error getting UPS rates: {ex.Message}"]
+                Errors = [$"Error getting FedEx rates: {ex.Message}"]
             };
         }
     }
 
     /// <inheritdoc />
     /// <remarks>
-    /// Overrides the base implementation to filter UPS results by service type
+    /// Overrides the base implementation to filter FedEx results by service type
     /// and apply per-method markup from ProviderSettings.
     /// </remarks>
     public override async Task<ShippingRateQuote?> GetRatesForServicesAsync(
@@ -479,7 +468,7 @@ public class UpsShippingProvider(
         IReadOnlyList<ShippingOptionSnapshot> shippingOptions,
         CancellationToken cancellationToken = default)
     {
-        // Get all UPS rates
+        // Get all FedEx rates
         var quote = await GetRatesAsync(request, cancellationToken);
         if (quote == null)
             return null;
@@ -495,9 +484,9 @@ public class UpsShippingProvider(
 
         foreach (var sl in quote.ServiceLevels)
         {
-            // Get the UPS service type from the concrete ServiceType property
-            var upsType = sl.ServiceType?.Code;
-            if (upsType is null || !serviceTypeSet.Contains(upsType))
+            // Get the FedEx service type from the concrete ServiceType property
+            var fedexType = sl.ServiceType?.Code;
+            if (fedexType is null || !serviceTypeSet.Contains(fedexType))
                 continue;
 
             var totalCost = sl.TotalCost;
@@ -507,7 +496,7 @@ public class UpsShippingProvider(
                 : new Dictionary<string, string>();
 
             // Apply markup if configured for this service type
-            if (optionsByServiceType.TryGetValue(upsType, out var option))
+            if (optionsByServiceType.TryGetValue(fedexType, out var option))
             {
                 var markup = GetMarkupFromSettings(option.ProviderSettings);
                 if (markup > 0)
@@ -575,62 +564,26 @@ public class UpsShippingProvider(
         return 0;
     }
 
-    private static UpsAddress BuildUpsAddress(Address? address, ShippingQuoteRequest? request = null)
-    {
-        if (address != null)
-        {
-            List<string> addressLines = [];
-            if (!string.IsNullOrEmpty(address.AddressOne))
-                addressLines.Add(address.AddressOne);
-            if (!string.IsNullOrEmpty(address.AddressTwo))
-                addressLines.Add(address.AddressTwo);
-
-            return new UpsAddress
-            {
-                AddressLine = addressLines.Count > 0 ? addressLines : null,
-                City = address.TownCity,
-                StateProvinceCode = address.CountyState?.RegionCode,
-                PostalCode = address.PostalCode,
-                CountryCode = address.CountryCode ?? "US"
-            };
-        }
-
-        // Fallback to request properties for destination
-        if (request != null)
-        {
-            return new UpsAddress
-            {
-                City = request.City,
-                StateProvinceCode = request.StateOrProvinceCode,
-                PostalCode = request.PostalCode,
-                CountryCode = request.CountryCode
-            };
-        }
-
-        return new UpsAddress { CountryCode = "US" };
-    }
-
-    private static List<UpsPackage> BuildPackages(ShippingQuoteRequest request)
+    private static List<FedExPackageLineItem> BuildPackages(ShippingQuoteRequest request)
     {
         // If pre-built packages exist, use them
         if (request.Packages.Count > 0)
         {
-            return request.Packages.Select(p => new UpsPackage
+            return request.Packages.Select(p => new FedExPackageLineItem
             {
-                PackagingType = new UpsPackagingType { Code = "02" },
-                PackageWeight = new UpsPackageWeight
+                Weight = new FedExWeight
                 {
-                    UnitOfMeasurement = new UpsUnitOfMeasurement { Code = "KGS" },
-                    Weight = p.WeightKg.ToString("F2")
+                    Units = "KG",
+                    Value = p.WeightKg
                 },
                 Dimensions = p.LengthCm.HasValue && p.WidthCm.HasValue && p.HeightCm.HasValue
                              && p.LengthCm.Value > 0 && p.WidthCm.Value > 0 && p.HeightCm.Value > 0
-                    ? new UpsDimensions
+                    ? new FedExDimensions
                     {
-                        UnitOfMeasurement = new UpsUnitOfMeasurement { Code = "CM" },
-                        Length = Math.Ceiling(p.LengthCm.Value).ToString(),
-                        Width = Math.Ceiling(p.WidthCm.Value).ToString(),
-                        Height = Math.Ceiling(p.HeightCm.Value).ToString()
+                        Length = (int)Math.Ceiling(p.LengthCm.Value),
+                        Width = (int)Math.Ceiling(p.WidthCm.Value),
+                        Height = (int)Math.Ceiling(p.HeightCm.Value),
+                        Units = "CM"
                     }
                     : null
             }).ToList();
@@ -646,31 +599,50 @@ public class UpsShippingProvider(
 
         return
         [
-            new UpsPackage
+            new FedExPackageLineItem
             {
-                PackagingType = new UpsPackagingType { Code = "02" },
-                PackageWeight = new UpsPackageWeight
+                Weight = new FedExWeight
                 {
-                    UnitOfMeasurement = new UpsUnitOfMeasurement { Code = "KGS" },
-                    Weight = totalWeight.ToString("F2")
+                    Units = "KG",
+                    Value = totalWeight
                 }
             }
         ];
     }
 
-    private static string? BuildTransitDescription(UpsRatedShipment rated)
+    private static string? BuildTransitDescription(FedExRateReplyDetail detail)
     {
-        if (rated.GuaranteedDelivery?.BusinessDaysInTransit != null)
+        if (detail.Commit?.TransitDays != null)
         {
-            var time = rated.GuaranteedDelivery.DeliveryByTime;
-            if (!string.IsNullOrEmpty(time))
-            {
-                return $"Estimated {rated.GuaranteedDelivery.BusinessDaysInTransit} business day(s), by {time}";
-            }
-            return $"Estimated {rated.GuaranteedDelivery.BusinessDaysInTransit} business day(s)";
+            return $"Estimated {detail.Commit.TransitDays} business day(s)";
+        }
+
+        if (detail.Commit?.DateDetail?.DayCxsFormat != null)
+        {
+            return $"Delivery by {detail.Commit.DateDetail.DayCxsFormat}";
         }
 
         return null;
+    }
+
+    private static string FormatFedExError(FedExError error)
+    {
+        var message = error.Message ?? error.Code ?? "Unknown error";
+
+        // Include parameter details if available (helps debugging)
+        if (error.ParameterList?.Count > 0)
+        {
+            var parameters = string.Join(", ", error.ParameterList
+                .Where(p => !string.IsNullOrEmpty(p.Key))
+                .Select(p => $"{p.Key}: {p.Value}"));
+
+            if (!string.IsNullOrEmpty(parameters))
+            {
+                message += $" ({parameters})";
+            }
+        }
+
+        return message;
     }
 
     /// <summary>

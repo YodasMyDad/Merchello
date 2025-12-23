@@ -264,7 +264,7 @@ public class ProductsApiController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> PreviewAddonPrice(
         Guid variantId,
-        [FromBody] AddonPricePreviewRequest request,
+        [FromBody] AddonPricePreviewRequestDto request,
         CancellationToken cancellationToken = default)
     {
         var result = await productService.PreviewAddonPriceAsync(variantId, request, cancellationToken);
@@ -653,7 +653,7 @@ public class ProductsApiController(
         }
 
         var containers = contentType.PropertyGroups
-            .Select(g => new ElementTypeContainer
+            .Select(g => new ElementTypeContainerDto
             {
                 Id = g.Key,
                 ParentId = GetParentKey(g),
@@ -668,7 +668,7 @@ public class ProductsApiController(
                 .Select(propertyType => new { propertyType.Key, GroupKey = group.Key }))
             .ToDictionary(map => map.Key, map => map.GroupKey);
 
-        List<ElementTypeProperty> properties = [];
+        List<ElementTypePropertyDto> properties = [];
         foreach (var prop in contentType.PropertyTypes)
         {
             var containerId = containerKeyByPropertyKey.TryGetValue(prop.Key, out var groupKey) ? groupKey : (Guid?)null;
@@ -686,14 +686,14 @@ public class ProductsApiController(
         };
     }
 
-    private async Task<ElementTypeProperty> MapPropertyType(IPropertyType prop, Guid? containerId)
+    private async Task<ElementTypePropertyDto> MapPropertyType(IPropertyType prop, Guid? containerId)
     {
         var dataType = await dataTypeService.GetAsync(prop.DataTypeKey);
         var configuration = dataType?.ConfigurationData
             .Select(kvp => new { alias = kvp.Key, value = kvp.Value })
             .ToArray() ?? Array.Empty<object>();
 
-        return new ElementTypeProperty
+        return new ElementTypePropertyDto
         {
             Id = prop.Key,
             ContainerId = containerId,

@@ -162,7 +162,7 @@ export class MerchelloProductShippingExclusionsElement extends UmbElementMixin(L
   // Styles
   // ============================================
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
     }
@@ -274,6 +274,8 @@ export class MerchelloProductShippingExclusionsElement extends UmbElementMixin(L
     }
   `;
 }
+
+export default MerchelloProductShippingExclusionsElement;
 
 // ============================================
 // Type Declarations

@@ -240,7 +240,7 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  static styles = [
+  static override readonly styles = [
     badgeStyles,
     css`
       :host {
@@ -307,8 +307,6 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
     `,
   ];
 }
-
-export default MerchelloOrderTableElement;
 
 declare global {
   interface HTMLElementTagNameMap {

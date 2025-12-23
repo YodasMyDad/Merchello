@@ -4,7 +4,26 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <PackageId>Merchello.Core</PackageId>
+        <Version>1.0.0-alpha1</Version>
+        <Authors>Lee Messenger</Authors>
+        <Description>Merchello ecommerce core library for Umbraco - enterprise ecommerce made simple</Description>
+        <PackageTags>umbraco;ecommerce;merchello</PackageTags>
+        <PackageProjectUrl>https://github.com/YodasMyDad/Merchello</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/YodasMyDad/Merchello</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <LocalNugetSource>$(MSBuildProjectDirectory)/../../NugetSource</LocalNugetSource>
     </PropertyGroup>
+
+    <Target Name="CopyNuGetPackage" AfterTargets="Pack">
+        <PropertyGroup>
+            <PackageOutputDir>$(OutputPath)..\</PackageOutputDir>
+            <GeneratedPackage>$(PackageOutputDir)\$(PackageId).$(Version).nupkg</GeneratedPackage>
+        </PropertyGroup>
+        <Copy SourceFiles="$(GeneratedPackage)" DestinationFolder="$(LocalNugetSource)" />
+    </Target>
 
 
   <ItemGroup>
@@ -23,6 +42,10 @@
     <PackageReference Include="HtmlSanitizer" Version="9.0.886" />
     <PackageReference Include="FluentValidation" Version="12.0.0" />
     <PackageReference Include="Humanizer" Version="2.14.1" />
+
+    <!-- Provider dependencies -->
+    <PackageReference Include="Stripe.net" Version="50.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
   </ItemGroup>
 
 

@@ -220,7 +220,7 @@ export class MerchelloProductPackagesElement extends UmbElementMixin(LitElement)
   // Styles
   // ============================================
 
-  static styles = css`
+  static override readonly styles = css`
     :host {
       display: block;
     }
@@ -364,6 +364,8 @@ export class MerchelloProductPackagesElement extends UmbElementMixin(LitElement)
     }
   `;
 }
+
+export default MerchelloProductPackagesElement;
 
 // ============================================
 // Type Declarations
