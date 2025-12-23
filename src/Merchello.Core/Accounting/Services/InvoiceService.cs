@@ -578,12 +578,18 @@ public class InvoiceService(
                 }
             }
 
-            // Update order status based on shipment completion
-            var totalOrderQuantity = order.LineItems?.Sum(li => li.Quantity) ?? 0;
+            // Update order status based on shipment completion (exclude discount line items)
+            var totalOrderQuantity = order.LineItems?
+                .Where(li => li.LineItemType != LineItemType.Discount)
+                .Sum(li => li.Quantity) ?? 0;
             var previouslyShippedQuantity = order.Shipments?
                 .SelectMany(s => s.LineItems ?? [])
+                .Where(li => li.LineItemType != LineItemType.Discount)
                 .Sum(li => li.Quantity) ?? 0;
-            var nowShippedQuantity = newShipments.SelectMany(s => s.LineItems ?? []).Sum(li => li.Quantity);
+            var nowShippedQuantity = newShipments
+                .SelectMany(s => s.LineItems ?? [])
+                .Where(li => li.LineItemType != LineItemType.Discount)
+                .Sum(li => li.Quantity);
             var totalShippedQuantity = previouslyShippedQuantity + nowShippedQuantity;
 
             OrderStatus newStatus;
@@ -1683,11 +1689,16 @@ public class InvoiceService(
                 }
             }
 
-            // Create shipment line items
+            // Create shipment line items (skip discount line items - they shouldn't be shipped)
             List<LineItem> shipmentLineItems = [];
             foreach (var (lineItemId, quantity) in parameters.LineItems)
             {
                 var sourceLineItem = order.LineItems!.First(li => li.Id == lineItemId);
+
+                // Skip discount line items - they shouldn't be shipped
+                if (sourceLineItem.LineItemType == LineItemType.Discount)
+                    continue;
+
                 shipmentLineItems.Add(new LineItem
                 {
                     Id = sourceLineItem.Id,
@@ -1723,10 +1734,15 @@ public class InvoiceService(
 
             db.Shipments.Add(shipment);
 
-            // Update order status
-            var totalOrdered = order.LineItems?.Sum(li => li.Quantity) ?? 0;
-            var totalShipped = (order.Shipments?.SelectMany(s => s.LineItems ?? []).Sum(li => li.Quantity) ?? 0)
-                             + shipmentLineItems.Sum(li => li.Quantity);
+            // Update order status (exclude discount line items from calculations)
+            var totalOrdered = order.LineItems?
+                .Where(li => li.LineItemType != LineItemType.Discount)
+                .Sum(li => li.Quantity) ?? 0;
+            var totalShipped = (order.Shipments?
+                .SelectMany(s => s.LineItems ?? [])
+                .Where(li => li.LineItemType != LineItemType.Discount)
+                .Sum(li => li.Quantity) ?? 0)
+                + shipmentLineItems.Sum(li => li.Quantity);
 
             if (totalShipped >= totalOrdered)
             {
@@ -1817,10 +1833,15 @@ public class InvoiceService(
             var order = shipment.Order;
             db.Shipments.Remove(shipment);
 
-            // Recalculate order status
+            // Recalculate order status (exclude discount line items)
             var remainingShipments = order.Shipments?.Where(s => s.Id != shipmentId).ToList() ?? [];
-            var totalOrdered = order.LineItems?.Sum(li => li.Quantity) ?? 0;
-            var totalShipped = remainingShipments.SelectMany(s => s.LineItems ?? []).Sum(li => li.Quantity);
+            var totalOrdered = order.LineItems?
+                .Where(li => li.LineItemType != LineItemType.Discount)
+                .Sum(li => li.Quantity) ?? 0;
+            var totalShipped = remainingShipments
+                .SelectMany(s => s.LineItems ?? [])
+                .Where(li => li.LineItemType != LineItemType.Discount)
+                .Sum(li => li.Quantity);
 
             if (totalShipped >= totalOrdered)
             {
@@ -1916,15 +1937,17 @@ public class InvoiceService(
             TrackingUrl = shipment.TrackingUrl,
             DateCreated = shipment.DateCreated,
             ActualDeliveryDate = shipment.ActualDeliveryDate,
-            LineItems = shipment.LineItems?.Select(li => new ShipmentLineItemDto
-            {
-                Id = Guid.NewGuid(),
-                LineItemId = li.Id,
-                Sku = li.Sku,
-                Name = li.Name,
-                Quantity = li.Quantity,
-                ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null
-            }).ToList() ?? []
+            LineItems = shipment.LineItems?
+                .Where(li => li.LineItemType != LineItemType.Discount)
+                .Select(li => new ShipmentLineItemDto
+                {
+                    Id = Guid.NewGuid(),
+                    LineItemId = li.Id,
+                    Sku = li.Sku,
+                    Name = li.Name,
+                    Quantity = li.Quantity,
+                    ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null
+                }).ToList() ?? []
         };
     }
 

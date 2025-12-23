@@ -486,7 +486,10 @@ public class OrdersApiController(
         // Use centralized payment status calculation from PaymentService
         var paymentDetails = paymentService.CalculatePaymentStatus(payments, invoice.Total, invoice.CurrencyCode);
 
-        var itemCount = orders.SelectMany(o => o.LineItems ?? []).Sum(li => li.Quantity);
+        var itemCount = orders
+            .SelectMany(o => o.LineItems ?? [])
+            .Where(li => li.LineItemType != LineItemType.Discount)
+            .Sum(li => li.Quantity);
 
         var fulfillmentStatus = GetFulfillmentStatus(orders);
         var deliveryStatus = GetDeliveryStatus(orders);
