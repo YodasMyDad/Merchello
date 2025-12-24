@@ -15,6 +15,7 @@ public interface IProductService
     Task<CrudResult<ProductRoot>> Delete(ProductRoot productRoot);
     Task<List<ProductFilterGroup>> GetFilterGroups(CancellationToken cancellationToken = default);
     Task<ProductCollection?> GetCollection(Guid collectionId, CancellationToken cancellationToken = default);
+    Task<List<ProductCollection>> GetCollectionsByIds(IEnumerable<Guid> collectionIds, CancellationToken cancellationToken = default);
     Task<Product?> GetProduct(GetProductParameters parameters, CancellationToken cancellationToken = default);
     Task<PaginatedList<Product>> QueryProducts(ProductQueryParameters parameters, CancellationToken cancellationToken = default);
     Task<PaginatedList<ProductRoot>> QueryProductRoots(ProductRootQueryParameters parameters, CancellationToken cancellationToken = default);
@@ -45,6 +46,7 @@ public interface IProductService
     Task<CrudResult<ProductCollection>> UpdateProductCollection(Guid id, string name, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> DeleteProductCollection(Guid id, CancellationToken cancellationToken = default);
     Task<List<ProductType>> GetProductTypes(CancellationToken cancellationToken = default);
+    Task<List<ProductType>> GetProductTypesByIds(IEnumerable<Guid> productTypeIds, CancellationToken cancellationToken = default);
     Task<List<ProductCollection>> GetProductCollections(CancellationToken cancellationToken = default);
     Task<List<ProductCollectionDto>> GetProductCollectionsWithCounts(CancellationToken cancellationToken = default);
     Task<ProductRoot?> GetProductRoot(Guid productRootId, bool includeProducts = false, bool includeWarehouses = false, CancellationToken cancellationToken = default);
@@ -75,6 +77,22 @@ public interface IProductService
     Task<CrudResult<bool>> ReorderFilters(Guid filterGroupId, List<Guid> orderedIds, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> AssignFiltersToProduct(Guid productId, List<Guid> filterIds, CancellationToken cancellationToken = default);
     Task<List<ProductFilter>> GetFiltersForProduct(Guid productId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets filter groups by their IDs for batch loading (used by value converters).
+    /// </summary>
+    Task<List<ProductFilterGroup>> GetFilterGroupsByIds(IEnumerable<Guid> filterGroupIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets filters by their IDs for batch loading (used by value converters).
+    /// </summary>
+    Task<List<ProductFilter>> GetFiltersByIds(IEnumerable<Guid> filterIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets product variants by their IDs for batch loading (used by property editors).
+    /// Returns the Product entities with ProductRoot included.
+    /// </summary>
+    Task<List<Product>> GetVariantsByIds(IEnumerable<Guid> variantIds, CancellationToken cancellationToken = default);
 
     // Query/count operations for seeding
     Task<bool> AnyProductsExistAsync(CancellationToken cancellationToken = default);

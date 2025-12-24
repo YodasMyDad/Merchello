@@ -12,6 +12,7 @@ export class MerchelloProductTypePickerModalElement extends UmbModalBaseElement<
 > {
   @state() private _selectedIds: string[] = [];
   @state() private _selectedNames: string[] = [];
+  @state() private _selectedAliases: (string | null)[] = [];
   @state() private _productTypes: ProductTypeDto[] = [];
   @state() private _isLoading = true;
   @state() private _errorMessage: string | null = null;
@@ -52,17 +53,20 @@ export class MerchelloProductTypePickerModalElement extends UmbModalBaseElement<
     const multiSelect = this.data?.multiSelect !== false;
 
     if (this._selectedIds.includes(productType.id)) {
-      // Remove from selection - find the index and remove from both arrays
+      // Remove from selection - find the index and remove from all arrays
       const index = this._selectedIds.indexOf(productType.id);
       this._selectedIds = this._selectedIds.filter((_, i) => i !== index);
       this._selectedNames = this._selectedNames.filter((_, i) => i !== index);
+      this._selectedAliases = this._selectedAliases.filter((_, i) => i !== index);
     } else {
       if (multiSelect) {
         this._selectedIds = [...this._selectedIds, productType.id];
         this._selectedNames = [...this._selectedNames, productType.name];
+        this._selectedAliases = [...this._selectedAliases, productType.alias];
       } else {
         this._selectedIds = [productType.id];
         this._selectedNames = [productType.name];
+        this._selectedAliases = [productType.alias];
       }
     }
   }
@@ -71,6 +75,7 @@ export class MerchelloProductTypePickerModalElement extends UmbModalBaseElement<
     this.value = {
       selectedIds: this._selectedIds,
       selectedNames: this._selectedNames,
+      selectedAliases: this._selectedAliases,
     };
     this.modalContext?.submit();
   }

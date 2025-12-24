@@ -12,6 +12,7 @@ export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
 > {
   @state() private _selectedIds: string[] = [];
   @state() private _selectedNames: string[] = [];
+  @state() private _selectedCounts: number[] = [];
   @state() private _collections: ProductCollectionDto[] = [];
   @state() private _isLoading = true;
   @state() private _errorMessage: string | null = null;
@@ -53,17 +54,20 @@ export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
     const multiSelect = this.data?.multiSelect !== false; // default to true
 
     if (this._selectedIds.includes(collection.id)) {
-      // Remove from selection - find the index and remove from both arrays
+      // Remove from selection - find the index and remove from all arrays
       const index = this._selectedIds.indexOf(collection.id);
       this._selectedIds = this._selectedIds.filter((_, i) => i !== index);
       this._selectedNames = this._selectedNames.filter((_, i) => i !== index);
+      this._selectedCounts = this._selectedCounts.filter((_, i) => i !== index);
     } else {
       if (multiSelect) {
         this._selectedIds = [...this._selectedIds, collection.id];
         this._selectedNames = [...this._selectedNames, collection.name];
+        this._selectedCounts = [...this._selectedCounts, collection.productCount];
       } else {
         this._selectedIds = [collection.id];
         this._selectedNames = [collection.name];
+        this._selectedCounts = [collection.productCount];
       }
     }
   }
@@ -72,6 +76,7 @@ export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
     this.value = {
       selectedIds: this._selectedIds,
       selectedNames: this._selectedNames,
+      selectedCounts: this._selectedCounts,
     };
     this.modalContext?.submit();
   }

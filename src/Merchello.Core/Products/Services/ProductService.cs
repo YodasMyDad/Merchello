@@ -1339,6 +1339,48 @@ public class ProductService(
     }
 
     /// <summary>
+    /// Get multiple product collections by their IDs
+    /// </summary>
+    public async Task<List<ProductCollection>> GetCollectionsByIds(IEnumerable<Guid> collectionIds, CancellationToken cancellationToken = default)
+    {
+        var idList = collectionIds.ToList();
+        if (idList.Count == 0)
+        {
+            return [];
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.ProductCollections
+                .AsNoTracking()
+                .Where(c => idList.Contains(c.Id))
+                .ToListAsync(cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Get multiple product types by their IDs
+    /// </summary>
+    public async Task<List<ProductType>> GetProductTypesByIds(IEnumerable<Guid> productTypeIds, CancellationToken cancellationToken = default)
+    {
+        var idList = productTypeIds.ToList();
+        if (idList.Count == 0)
+        {
+            return [];
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.ProductTypes
+                .AsNoTracking()
+                .Where(t => idList.Contains(t.Id))
+                .ToListAsync(cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
     /// Get a single product by ID with configurable includes
     /// </summary>
     public async Task<Product?> GetProduct(GetProductParameters parameters, CancellationToken cancellationToken = default)
@@ -2869,6 +2911,61 @@ public class ProductService(
 
             return product?.Filters.ToList() ?? [];
         });
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Gets filter groups by their IDs for batch loading (used by value converters).
+    /// </summary>
+    public async Task<List<ProductFilterGroup>> GetFilterGroupsByIds(IEnumerable<Guid> filterGroupIds, CancellationToken cancellationToken = default)
+    {
+        var idList = filterGroupIds.ToList();
+        if (idList.Count == 0) return [];
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.ProductFilterGroups
+                .Include(g => g.Filters)
+                .Where(g => idList.Contains(g.Id))
+                .ToListAsync(cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Gets filters by their IDs for batch loading (used by value converters).
+    /// </summary>
+    public async Task<List<ProductFilter>> GetFiltersByIds(IEnumerable<Guid> filterIds, CancellationToken cancellationToken = default)
+    {
+        var idList = filterIds.ToList();
+        if (idList.Count == 0) return [];
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.ProductFilters
+                .Include(f => f.ParentGroup)
+                .Where(f => idList.Contains(f.Id))
+                .ToListAsync(cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Gets product variants by their IDs for batch loading (used by property editors).
+    /// Returns the Product entities with ProductRoot included.
+    /// </summary>
+    public async Task<List<Product>> GetVariantsByIds(IEnumerable<Guid> variantIds, CancellationToken cancellationToken = default)
+    {
+        var idList = variantIds.ToList();
+        if (idList.Count == 0) return [];
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.Products
+                .Include(p => p.ProductRoot)
+                .Where(p => idList.Contains(p.Id))
+                .ToListAsync(cancellationToken));
         scope.Complete();
         return result;
     }

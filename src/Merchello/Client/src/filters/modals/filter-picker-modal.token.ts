@@ -5,6 +5,8 @@ export interface FilterPickerModalData {
   excludeFilterIds?: string[];
   /** Allow selecting multiple filters (default: true) */
   multiSelect?: boolean;
+  /** Optional: Restrict to filters from this group only */
+  filterGroupId?: string;
 }
 
 export interface FilterPickerModalValue {

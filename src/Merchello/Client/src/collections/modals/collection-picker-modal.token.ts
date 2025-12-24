@@ -12,6 +12,8 @@ export interface CollectionPickerModalValue {
   selectedIds: string[];
   /** The selected collection names for display */
   selectedNames: string[];
+  /** The selected collection product counts for display */
+  selectedCounts: number[];
 }
 
 export const MERCHELLO_COLLECTION_PICKER_MODAL = new UmbModalToken<

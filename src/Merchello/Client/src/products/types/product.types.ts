@@ -67,6 +67,29 @@ export interface ProductDetailDto {
   price: number;
 }
 
+/**
+ * Result of looking up a product variant by ID.
+ * Used by property editors to detect deleted products.
+ */
+export interface VariantLookupDto {
+  /** The requested variant ID */
+  id: string;
+  /** Whether the variant was found in the database */
+  found: boolean;
+  /** The product root ID (if found) */
+  productRootId?: string;
+  /** The product root name (if found) */
+  rootName?: string;
+  /** The variant name (if found). May contain option values like "Red / Large" */
+  name?: string;
+  /** The variant SKU (if found) */
+  sku?: string;
+  /** The variant price (if found) */
+  price?: number;
+  /** The first image URL for the variant (if found). Falls back to root images */
+  imageUrl?: string;
+}
+
 export interface ProductListItemDto {
   id: string;
   productRootId: string;

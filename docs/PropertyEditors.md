@@ -1122,3 +1122,227 @@ export const manifests = [
 6. **Store IDs, not full objects** - resolve on read via value converter
 7. **Provide meaningful error states** - loading, empty, error
 8. **Use Merchello API layer** - don't fetch directly in components
+
+---
+
+## Critical Patterns
+
+### Race Condition Handling in Async Value Loading
+
+When the `value` setter triggers async operations, rapid value changes can cause stale data. Use a request ID pattern:
+
+```typescript
+#loadingRequestId = 0; // Track request ID
+
+async #loadSelectionFromValue(val: string | undefined): Promise<void> {
+  // Increment to track this request
+  const requestId = ++this.#loadingRequestId;
+
+  if (!val) {
+    this._selection = [];
+    return;
+  }
+
+  // Async operation
+  const { data } = await MerchelloApi.getItems();
+
+  // Check if this is still the latest request AND component is still connected
+  if (!this.#isConnected || requestId !== this.#loadingRequestId) return;
+
+  // Safe to update state
+  this._selection = data ?? [];
+}
+```
+
+### Component Lifecycle Guard
+
+Always track connection state to prevent updates after unmount:
+
+```typescript
+#isConnected = false;
+
+override connectedCallback(): void {
+  super.connectedCallback();
+  this.#isConnected = true;
+}
+
+override disconnectedCallback(): void {
+  super.disconnectedCallback();
+  this.#isConnected = false;
+}
+
+async #loadData() {
+  const { data } = await SomeApi.getData();
+
+  // Guard against updating unmounted component
+  if (!this.#isConnected) return;
+
+  this._items = data ?? [];
+}
+```
+
+### Value Converter: Singleton Service Resolution
+
+**Critical:** Value converters are registered as singletons but often need scoped services (like `IProductService`). Direct injection causes runtime errors.
+
+```csharp
+// ❌ WRONG - Will throw "Cannot consume scoped service from singleton"
+public class MyValueConverter(IProductService productService) : PropertyValueConverterBase
+{
+    // productService is scoped, but value converter is singleton!
+}
+
+// ✅ CORRECT - Use IServiceScopeFactory
+public class MyValueConverter(IServiceScopeFactory serviceScopeFactory) : PropertyValueConverterBase
+{
+    public override object? ConvertIntermediateToObject(...)
+    {
+        // Create scope to resolve scoped services
+        using var scope = serviceScopeFactory.CreateScope();
+        var productService = scope.ServiceProvider.GetRequiredService<IProductService>();
+
+        // Use Task.Run to avoid sync-over-async deadlocks in ASP.NET
+        var items = Task.Run(() => productService.GetItemsByIds(ids))
+            .GetAwaiter().GetResult();
+
+        return items;
+    }
+}
+```
+
+### Batch Loading to Avoid N+1 Queries
+
+When converting multiple IDs, use batch methods instead of individual lookups:
+
+```csharp
+// ❌ WRONG - N+1 queries
+foreach (var id in ids)
+{
+    var item = await productService.GetById(id); // One query per ID!
+    items.Add(item);
+}
+
+// ✅ CORRECT - Single batch query
+var items = await productService.GetByIds(ids); // One query for all
+
+// Preserve original order
+var ordered = ids
+    .Select(id => items.FirstOrDefault(i => i.Id == id))
+    .Where(i => i != null)
+    .ToList();
+```
+
+### EditorUiAlias for Property Editor UIs
+
+In Umbraco v17, use `EditorUiAlias` (not `EditorAlias`) when checking property types:
+
+```csharp
+// ❌ WRONG for propertyEditorUi manifests
+public override bool IsConverter(IPublishedPropertyType propertyType)
+    => propertyType.EditorAlias == "My.PropertyEditor"; // This is for schema alias
+
+// ✅ CORRECT for propertyEditorUi manifests
+public override bool IsConverter(IPublishedPropertyType propertyType)
+    => "My.PropertyEditorUi.Picker".Equals(
+        propertyType.EditorUiAlias,
+        StringComparison.OrdinalIgnoreCase);
+```
+
+---
+
+## Merchello Available Pickers
+
+Merchello includes these reusable picker modals that can be consumed by property editors:
+
+| Modal Token | Location | Returns |
+|-------------|----------|---------|
+| `MERCHELLO_COLLECTION_PICKER_MODAL` | `@collections/modals/collection-picker-modal.token.js` | `selectedIds`, `selectedNames`, `selectedCounts` |
+| `MERCHELLO_PRODUCT_TYPE_PICKER_MODAL` | `@product-types/modals/product-type-picker-modal.token.js` | `selectedIds`, `selectedNames`, `selectedAliases` |
+| `MERCHELLO_FILTER_PICKER_MODAL` | `@filters/modals/filter-picker-modal.token.js` | `selectedFilterIds`, `selectedFilterNames` |
+| `MERCHELLO_FILTER_GROUP_PICKER_MODAL` | `@filters/modals/filter-group-picker-modal.token.js` | `selectedIds`, `selectedNames` |
+| `MERCHELLO_PRODUCT_PICKER_MODAL` | `@shared/product-picker/product-picker-modal.token.js` | Selected product variants |
+
+The Product Picker modal supports property editor mode via `propertyEditorMode: true` for simplified selection without shipping configuration.
+
+Example usage:
+```typescript
+import { MERCHELLO_COLLECTION_PICKER_MODAL } from "@collections/modals/collection-picker-modal.token.js";
+
+const result = await this.#modalManager
+  .open(this, MERCHELLO_COLLECTION_PICKER_MODAL, {
+    data: {
+      excludeIds: currentlySelectedIds,
+      multiSelect: this._maxItems !== 1,
+    },
+  })
+  .onSubmit()
+  .catch(() => undefined);
+
+if (result) {
+  // result.selectedIds, result.selectedNames, result.selectedCounts
+}
+```
+
+---
+
+## Existing Property Editors
+
+| Editor | Alias | Value Format | Template Type |
+|--------|-------|--------------|---------------|
+| Collection Picker | `Merchello.PropertyEditorUi.CollectionPicker` | Comma-separated GUIDs | `IEnumerable<ProductCollection>` |
+| Product Type Picker | `Merchello.PropertyEditorUi.ProductTypePicker` | Comma-separated GUIDs | `IEnumerable<ProductType>` |
+| Filter Group Picker | `Merchello.PropertyEditorUi.FilterGroupPicker` | Comma-separated GUIDs | `IEnumerable<ProductFilterGroup>` |
+| Filter Value Picker | `Merchello.PropertyEditorUi.FilterValuePicker` | Comma-separated GUIDs | `IEnumerable<ProductFilter>` |
+| Product Picker | `Merchello.PropertyEditorUi.ProductPicker` | Comma-separated GUIDs | `IEnumerable<Product>` |
+
+### Product Picker Configuration
+
+The Product Picker supports the following configuration options:
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `minItems` | Minimum number of products required | 0 |
+| `maxItems` | Maximum number of products allowed (0 = unlimited) | 0 |
+| `collectionIds` | Restrict products to specific collections | None |
+| `productTypeIds` | Restrict products to specific product types | None |
+| `filterValueIds` | Restrict products with specific filter values | None |
+
+Template usage:
+```csharp
+// Always returns IEnumerable - use FirstOrDefault() for single-select
+var collections = Model.Value<IEnumerable<ProductCollection>>("featuredCollections");
+var collection = collections?.FirstOrDefault();
+
+var productTypes = Model.Value<IEnumerable<ProductType>>("productTypes");
+var productType = productTypes?.FirstOrDefault();
+
+// Filter groups (e.g., "Colour", "Size")
+var filterGroups = Model.Value<IEnumerable<ProductFilterGroup>>("filterGroups");
+var filterGroup = filterGroups?.FirstOrDefault();
+
+// Filter values (e.g., "Red", "Blue", "Large")
+var filters = Model.Value<IEnumerable<ProductFilter>>("filters");
+foreach (var filter in filters ?? [])
+{
+    <span style="background:@filter.HexColour">@filter.Name</span>
+}
+
+// Products (returns individual product variants)
+var products = Model.Value<IEnumerable<Product>>("featuredProducts");
+foreach (var product in products ?? [])
+{
+    <div>
+        <img src="@product.ImageUrl" alt="@product.Name" />
+        <h3>@product.ProductRoot?.Name - @product.Name</h3>
+        <p>SKU: @product.Sku</p>
+        <p>Price: @product.Price</p>
+    </div>
+}
+```
+
+### Deleted Item Handling
+
+All Merchello pickers display a warning badge when a selected item no longer exists (e.g., deleted collection, product type, or product). The saved value (GUID) is preserved to allow content editors to select a replacement. Warning badges show:
+- Alert icon instead of the normal item icon
+- "Item not found" message
+- The original ID for reference

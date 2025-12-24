@@ -27,11 +27,20 @@ export interface ProductPickerConfig {
   /** Product IDs to exclude from the picker (e.g., already in order) */
   excludeProductIds?: string[];
 
-  /** Filter by product type ID */
+  /** Filter by product type ID (single) */
   productTypeId?: string;
 
-  /** Filter by collection ID */
+  /** Filter by multiple product type IDs (for property editor restrictions) */
+  productTypeIds?: string[];
+
+  /** Filter by collection ID (single) */
   collectionId?: string;
+
+  /** Filter by multiple collection IDs (for property editor restrictions) */
+  collectionIds?: string[];
+
+  /** Filter by filter value IDs - products must have these filter values assigned */
+  filterValueIds?: string[];
 
   /**
    * Whether to show add-on selection step after variant selection.
@@ -45,6 +54,23 @@ export interface ProductPickerConfig {
    * Default: true. Set to false for a more compact/minimal picker.
    */
   showImages?: boolean;
+
+  /**
+   * Property editor mode - simplified selection flow.
+   * When true:
+   * - Skips shipping selection entirely
+   * - Returns simplified selection (just variant ID, name, sku, imageUrl)
+   * - Does not require warehouse/shipping configuration
+   * Default: false
+   */
+  propertyEditorMode?: boolean;
+
+  /**
+   * Maximum number of items that can be selected.
+   * Used in property editor mode to control multi-select behavior.
+   * Default: Infinity (unlimited)
+   */
+  maxItems?: number;
 }
 
 /**
@@ -200,20 +226,20 @@ export interface ProductPickerSelection {
   /** Image URL for display */
   imageUrl: string | null;
 
-  /** The warehouse ID that will fulfill this product */
-  warehouseId: string;
+  /** The warehouse ID that will fulfill this product (optional in property editor mode) */
+  warehouseId?: string;
 
-  /** The warehouse name for display */
-  warehouseName: string;
+  /** The warehouse name for display (optional in property editor mode) */
+  warehouseName?: string;
 
   /** Selected add-on options (if any) */
   selectedAddons?: SelectedAddon[];
 
-  /** Selected shipping option ID */
-  shippingOptionId: string;
+  /** Selected shipping option ID (optional in property editor mode) */
+  shippingOptionId?: string;
 
-  /** Selected shipping option name for display */
-  shippingOptionName: string;
+  /** Selected shipping option name for display (optional in property editor mode) */
+  shippingOptionName?: string;
 }
 
 /**

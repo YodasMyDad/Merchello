@@ -462,6 +462,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     const result = await modal.onSubmit().catch(() => undefined);
     if (result?.selections?.length) {
       // Add selected products to pending products
+      // Note: warehouseId/shippingOptionId are always present when using shipping address (order editing mode)
       const newProducts: PendingProduct[] = result.selections.map((selection) => ({
         tempId: `product-${Date.now()}-${selection.productId}`,
         productId: selection.productId,
@@ -471,10 +472,10 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         price: selection.price,
         quantity: 1, // Always add as qty 1
         imageUrl: selection.imageUrl,
-        warehouseId: selection.warehouseId,
-        warehouseName: selection.warehouseName,
-        shippingOptionId: selection.shippingOptionId,
-        shippingOptionName: selection.shippingOptionName,
+        warehouseId: selection.warehouseId!,
+        warehouseName: selection.warehouseName!,
+        shippingOptionId: selection.shippingOptionId!,
+        shippingOptionName: selection.shippingOptionName!,
         addons: selection.selectedAddons ?? [],
       }));
 

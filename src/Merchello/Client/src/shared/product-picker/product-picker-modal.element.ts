@@ -91,6 +91,14 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     return this._config?.showImages !== false; // Default true
   }
 
+  private get _isPropertyEditorMode(): boolean {
+    return this._config?.propertyEditorMode === true;
+  }
+
+  private get _maxItems(): number {
+    return this._config?.maxItems ?? Infinity;
+  }
+
   // ============================================
   // Data Loading
   // ============================================
@@ -199,23 +207,27 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     let fulfillingWarehouseName: string | null = null;
     let aggregateStockStatus = "InStock";
 
-    if (this._config?.shippingAddress && !root.isDigitalProduct) {
-      // Use centralized backend API to determine fulfillment options with region check
-      const fulfillmentResult = await this._getFulfillmentOptions(variant.id);
-      canSelect = fulfillmentResult.canAddToOrder;
-      blockedReason = fulfillmentResult.blockedReason;
-      canShipToRegion = fulfillmentResult.canAddToOrder; // If can add to order, region is valid
-      fulfillingWarehouseId = fulfillmentResult.warehouseId;
-      fulfillingWarehouseName = fulfillmentResult.warehouseName;
-      aggregateStockStatus = fulfillmentResult.aggregateStockStatus;
-    } else if (!root.isDigitalProduct && variant.warehouseStock.length > 0) {
-      // No address = use backend API to get highest-priority warehouse with stock
-      const defaultWarehouse = await this._getDefaultFulfillingWarehouse(variant.id);
-      canSelect = defaultWarehouse.canAddToOrder;
-      blockedReason = defaultWarehouse.blockedReason;
-      fulfillingWarehouseId = defaultWarehouse.warehouseId;
-      fulfillingWarehouseName = defaultWarehouse.warehouseName;
-      aggregateStockStatus = defaultWarehouse.aggregateStockStatus;
+    // In property editor mode, skip warehouse/shipping eligibility checks
+    // All variants are selectable for content editing purposes
+    if (!this._isPropertyEditorMode) {
+      if (this._config?.shippingAddress && !root.isDigitalProduct) {
+        // Use centralized backend API to determine fulfillment options with region check
+        const fulfillmentResult = await this._getFulfillmentOptions(variant.id);
+        canSelect = fulfillmentResult.canAddToOrder;
+        blockedReason = fulfillmentResult.blockedReason;
+        canShipToRegion = fulfillmentResult.canAddToOrder; // If can add to order, region is valid
+        fulfillingWarehouseId = fulfillmentResult.warehouseId;
+        fulfillingWarehouseName = fulfillmentResult.warehouseName;
+        aggregateStockStatus = fulfillmentResult.aggregateStockStatus;
+      } else if (!root.isDigitalProduct && variant.warehouseStock.length > 0) {
+        // No address = use backend API to get highest-priority warehouse with stock
+        const defaultWarehouse = await this._getDefaultFulfillingWarehouse(variant.id);
+        canSelect = defaultWarehouse.canAddToOrder;
+        blockedReason = defaultWarehouse.blockedReason;
+        fulfillingWarehouseId = defaultWarehouse.warehouseId;
+        fulfillingWarehouseName = defaultWarehouse.warehouseName;
+        aggregateStockStatus = defaultWarehouse.aggregateStockStatus;
+      }
     }
 
     // Use fulfilling warehouse's stock status if available, otherwise use backend-provided aggregate status
@@ -366,6 +378,43 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
 
   private _handleVariantSelect(variant: PickerVariant): void {
     if (!variant.canSelect) return;
+
+    // Property editor mode - simplified selection (no addons, no shipping)
+    if (this._isPropertyEditorMode) {
+      // Toggle selection if already selected
+      if (this._selections.has(variant.id)) {
+        this._selections.delete(variant.id);
+        this._selections = new Map(this._selections);
+        return;
+      }
+
+      // Check if we've reached max items
+      if (this._selections.size >= this._maxItems) {
+        // At max - if single-select (max=1), replace selection
+        if (this._maxItems === 1) {
+          this._selections.clear();
+        } else {
+          // Already at max, can't add more
+          return;
+        }
+      }
+
+      // Add simplified selection (no warehouse/shipping info)
+      const selection: ProductPickerSelection = {
+        productId: variant.id,
+        productRootId: variant.productRootId,
+        name: variant.optionValuesDisplay
+          ? `${variant.rootName} - ${variant.optionValuesDisplay}`
+          : variant.rootName,
+        sku: variant.sku,
+        price: variant.price,
+        imageUrl: variant.imageUrl,
+      };
+
+      this._selections.set(variant.id, selection);
+      this._selections = new Map(this._selections);
+      return;
+    }
 
     // Check if product has add-on options and showAddons is enabled
     if (this._showAddons) {

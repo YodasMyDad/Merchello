@@ -160,6 +160,54 @@ public class ProductsApiController(
         return NoContent();
     }
 
+    /// <summary>
+    /// Gets product variants by their IDs. Used by property editors to verify existence
+    /// and load display data for selected products. Returns lookup results with a 'found' flag
+    /// to detect deleted products.
+    /// </summary>
+    [HttpPost("products/variants/by-ids")]
+    [ProducesResponseType<List<VariantLookupDto>>(StatusCodes.Status200OK)]
+    public async Task<List<VariantLookupDto>> GetVariantsByIds([FromBody] List<Guid> variantIds)
+    {
+        var variants = await productService.GetVariantsByIds(variantIds);
+
+        // Build results for all requested IDs, marking missing ones as not found
+        var results = new List<VariantLookupDto>();
+        foreach (var requestedId in variantIds)
+        {
+            var variant = variants.FirstOrDefault(v => v.Id == requestedId);
+            if (variant != null)
+            {
+                // Get the first image URL, falling back to root images
+                var imageUrl = variant.Images.FirstOrDefault()
+                    ?? variant.ProductRoot?.RootImages.FirstOrDefault();
+
+                results.Add(new VariantLookupDto
+                {
+                    Id = variant.Id,
+                    Found = true,
+                    ProductRootId = variant.ProductRootId,
+                    RootName = variant.ProductRoot?.RootName,
+                    Name = variant.Name,
+                    Sku = variant.Sku,
+                    Price = variant.Price,
+                    ImageUrl = imageUrl
+                });
+            }
+            else
+            {
+                // Not found - mark as such
+                results.Add(new VariantLookupDto
+                {
+                    Id = requestedId,
+                    Found = false
+                });
+            }
+        }
+
+        return results;
+    }
+
     #endregion
 
     #region Shipping Exclusions Endpoints

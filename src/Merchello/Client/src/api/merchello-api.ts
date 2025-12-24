@@ -222,6 +222,7 @@ import type {
   ProductViewDto,
   ShippingOptionExclusionDto,
   UpdateShippingExclusionsDto,
+  VariantLookupDto,
 } from '@products/types/product.types.js';
 
 // Import element type types
@@ -686,8 +687,15 @@ export const MerchelloApi = {
     apiPut<ProductVariantDto>(`products/${productRootId}/variants/${variantId}`, request),
 
   /** Set a variant as the default */
-  setDefaultVariant: (productRootId: string, variantId: string) => 
+  setDefaultVariant: (productRootId: string, variantId: string) =>
     apiPut(`products/${productRootId}/variants/${variantId}/set-default`),
+
+  /**
+   * Get product variants by their IDs for property editors.
+   * Returns lookup results with a 'found' flag to detect deleted products.
+   */
+  getVariantsByIds: (variantIds: string[]) =>
+    apiPost<VariantLookupDto[]>('products/variants/by-ids', variantIds),
 
   // Options operations
   /** Save all product options (replaces existing). Variants are automatically regenerated. */

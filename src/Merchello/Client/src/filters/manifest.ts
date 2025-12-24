@@ -55,4 +55,12 @@ export const manifests: Array<UmbExtensionManifest> = [
     name: "Filter Picker Modal",
     js: () => import("./modals/filter-picker-modal.element.js"),
   },
+
+  // Filter group picker modal (for property editor)
+  {
+    type: "modal",
+    alias: "Merchello.FilterGroupPicker.Modal",
+    name: "Filter Group Picker Modal",
+    js: () => import("./modals/filter-group-picker-modal.element.js"),
+  },
 ];

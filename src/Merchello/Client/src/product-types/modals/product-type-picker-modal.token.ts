@@ -12,6 +12,8 @@ export interface ProductTypePickerModalValue {
   selectedIds: string[];
   /** The selected product type names for display */
   selectedNames: string[];
+  /** The selected product type aliases for display */
+  selectedAliases: (string | null)[];
 }
 
 export const MERCHELLO_PRODUCT_TYPE_PICKER_MODAL = new UmbModalToken<

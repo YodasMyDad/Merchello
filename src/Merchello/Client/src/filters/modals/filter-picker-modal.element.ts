@@ -45,9 +45,16 @@ export class MerchelloFilterPickerModalElement extends UmbModalBaseElement<
     }
 
     const excludeFilterIds = this.data?.excludeFilterIds ?? [];
+    const filterGroupId = this.data?.filterGroupId;
+
+    // Filter to specific group if specified, then exclude already-selected filter IDs
+    let groups = data ?? [];
+    if (filterGroupId) {
+      groups = groups.filter((g) => g.id === filterGroupId);
+    }
 
     // Filter out excluded filter IDs from each group's filters
-    this._filterGroups = (data ?? [])
+    this._filterGroups = groups
       .map((group) => ({
         ...group,
         filters: group.filters.filter((f) => !excludeFilterIds.includes(f.id)),
