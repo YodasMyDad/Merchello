@@ -1,0 +1,45 @@
+@model Merchello.Site.Shared.Components.ProductBox.ProductBoxViewModel
+
+<div class="card h-100 product-box shadow-sm">
+    <a href="@Model.ProductUrl" class="text-decoration-none">
+        @if (!string.IsNullOrEmpty(Model.ImageUrl))
+        {
+            <img src="@Model.ImageUrl"
+                 class="card-img-top"
+                 alt="@Model.Name"
+                 loading="lazy"
+                 style="aspect-ratio: 1; object-fit: cover;" />
+        }
+        else
+        {
+            <div class="card-img-top bg-secondary bg-opacity-10 d-flex flex-column align-items-center justify-content-center"
+                 style="aspect-ratio: 1;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="text-secondary opacity-50 mb-2" viewBox="0 0 16 16">
+                    <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0"/>
+                    <path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1z"/>
+                </svg>
+                <span class="text-secondary small">No image</span>
+            </div>
+        }
+    </a>
+    <div class="card-body">
+        <h5 class="card-title mb-2">
+            <a href="@Model.ProductUrl" class="text-decoration-none text-dark stretched-link">
+                @Model.Name
+            </a>
+        </h5>
+        <p class="card-text mb-0">
+            @if (Model.OnSale && Model.PreviousPrice.HasValue)
+            {
+                <span class="text-muted text-decoration-line-through me-2">
+                    @Model.PreviousPrice.Value.ToString("C")
+                </span>
+                <span class="text-danger fw-bold">@Model.Price.ToString("C")</span>
+            }
+            else
+            {
+                <span class="fw-bold">@Model.Price.ToString("C")</span>
+            }
+        </p>
+    </div>
+</div>

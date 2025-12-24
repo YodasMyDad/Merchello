@@ -1,6 +1,7 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Payments.Models;
+using Merchello.Core.Products.Models;
 using Merchello.Core.Reporting.Dtos;
 using Merchello.Core.Reporting.Models;
 using Merchello.Core.Reporting.Services.Interfaces;
@@ -281,6 +282,78 @@ public class ReportingService(
                 TotalSales: currentBreakdown.TotalSales,
                 TotalSalesChange: CalculatePercentChange(currentBreakdown.TotalSales, comparisonBreakdown.TotalSales)
             );
+        });
+    }
+
+    public async Task<List<Product>> GetBestSellersAsync(
+        int take = 8,
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        return await scope.ExecuteWithContextAsync(async db =>
+        {
+            // Get order IDs for confirmed sales (Processing through Completed, excluding Cancelled/OnHold)
+            var ordersQuery = db.Orders
+                .Where(o => o.Status >= OrderStatus.Processing
+                         && o.Status != OrderStatus.Cancelled
+                         && o.Status != OrderStatus.OnHold);
+
+            if (fromDate.HasValue)
+            {
+                ordersQuery = ordersQuery.Where(o => o.DateCreated >= fromDate.Value);
+            }
+
+            if (toDate.HasValue)
+            {
+                ordersQuery = ordersQuery.Where(o => o.DateCreated <= toDate.Value);
+            }
+
+            var validOrderIds = await ordersQuery
+                .Select(o => o.Id)
+                .ToListAsync(cancellationToken);
+
+            if (validOrderIds.Count == 0)
+            {
+                return [];
+            }
+
+            // Fetch line items from valid orders (SQLite doesn't support GroupBy in SQL)
+            var lineItems = await db.LineItems
+                .Where(li => li.LineItemType == LineItemType.Product
+                          && li.ProductId != null
+                          && li.OrderId != null
+                          && validOrderIds.Contains(li.OrderId.Value))
+                .Select(li => new { li.ProductId, li.Quantity })
+                .ToListAsync(cancellationToken);
+
+            if (lineItems.Count == 0)
+            {
+                return [];
+            }
+
+            // Aggregate in memory for SQLite compatibility
+            var productSales = lineItems
+                .GroupBy(li => li.ProductId!.Value)
+                .Select(g => new { ProductId = g.Key, TotalQuantity = g.Sum(li => li.Quantity) })
+                .OrderByDescending(x => x.TotalQuantity)
+                .Take(take)
+                .ToList();
+
+            // Get full product details with ProductRoot
+            var productIds = productSales.Select(x => x.ProductId).ToList();
+            var products = await db.Products
+                .Include(p => p.ProductRoot)
+                .Where(p => productIds.Contains(p.Id))
+                .ToListAsync(cancellationToken);
+
+            // Preserve sales order
+            return productSales
+                .Select(ps => products.FirstOrDefault(p => p.Id == ps.ProductId))
+                .Where(p => p != null)
+                .Cast<Product>()
+                .ToList();
         });
     }
 

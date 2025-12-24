@@ -3,4 +3,24 @@
     Layout = "Website.cshtml";
 }
 
-<h1>Home</h1>
+<section class="mb-5">
+    <h2 class="mb-4">Best Sellers</h2>
+
+    @if (Model.BestSellers?.Any() == true)
+    {
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4">
+            @foreach (var product in Model.BestSellers)
+            {
+                <div class="col">
+                    @await Component.InvokeAsync("ProductBox", new { product = product })
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info">
+            <p class="mb-0">No best sellers available yet. Check back soon!</p>
+        </div>
+    }
+</section>

@@ -40,6 +40,18 @@ public class ProductQueryParameters
     /// This should typically come from MerchelloSettings.LowStockThreshold.
     /// </summary>
     public int LowStockThreshold { get; set; } = 10;
+
+    /// <summary>
+    /// Start date for popularity calculation. Only completed orders on or after this date are included.
+    /// Used when OrderBy is set to Popularity.
+    /// </summary>
+    public DateTime? PopularityFromDate { get; set; }
+
+    /// <summary>
+    /// End date for popularity calculation. Only completed orders on or before this date are included.
+    /// Used when OrderBy is set to Popularity.
+    /// </summary>
+    public DateTime? PopularityToDate { get; set; }
 }
 
 /// <summary>

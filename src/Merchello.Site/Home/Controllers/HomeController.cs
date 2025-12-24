@@ -1,4 +1,5 @@
-﻿using Merchello.Core.Shared.Models;
+﻿using Merchello.Core.Reporting.Services.Interfaces;
+using Merchello.Core.Shared.Models;
 using Merchello.Site.Shared.Controllers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -18,12 +19,16 @@ public class HomeController(
     ServiceContext services,
     AppCaches appCaches,
     IProfilingLogger profilingLogger,
-    IPublishedUrlProvider publishedUrlProvider)
+    IPublishedUrlProvider publishedUrlProvider,
+    IReportingService reportingService)
     : BaseController(options, umbracoContextAccessor, databaseFactory, services, appCaches, profilingLogger,
         publishedUrlProvider)
 {
-    public IActionResult Home(Umbraco.Cms.Web.Common.PublishedModels.Home model)
+    public async Task<IActionResult> Home(Umbraco.Cms.Web.Common.PublishedModels.Home model)
     {
+        // Query best sellers - all time, top 8 products
+        model.BestSellers = await reportingService.GetBestSellersAsync(take: 8);
+
         return CurrentTemplate(model);
     }
 }

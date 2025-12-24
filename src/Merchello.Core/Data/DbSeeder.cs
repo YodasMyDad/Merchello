@@ -1559,7 +1559,7 @@ public class DbSeeder(
             if (!result.Successful)
             {
                 // Log but don't fail - seeding should be resilient
-                logger.LogDebug("Could not transition order {OrderId} to {Status}: {Message}",
+                logger.LogWarning("Could not transition order {OrderId} to {Status}: {Message}",
                     orderId, status, result.Messages.FirstOrDefault()?.Message);
                 break;
             }

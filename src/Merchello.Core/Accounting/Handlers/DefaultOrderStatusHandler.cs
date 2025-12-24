@@ -22,7 +22,8 @@ public class DefaultOrderStatusHandler(ILogger<DefaultOrderStatusHandler> logger
             // Can't do anything with a cancelled order except view it
             (OrderStatus.Cancelled, _) => false,
 
-            // Can't do anything with a completed order
+            // Completed orders can only revert to Shipped (if delivery status changes)
+            (OrderStatus.Completed, OrderStatus.Shipped) => true,
             (OrderStatus.Completed, _) => false,
 
             // Can't cancel an order that's already shipped or completed
@@ -71,7 +72,8 @@ public class DefaultOrderStatusHandler(ILogger<DefaultOrderStatusHandler> logger
                 break;
 
             case OrderStatus.Shipped:
-                order.ShippedDate = DateTime.UtcNow;
+                // Only set if not already shipped (preserve original date when reverting from Completed)
+                order.ShippedDate ??= DateTime.UtcNow;
                 break;
 
             case OrderStatus.Completed:
@@ -81,6 +83,12 @@ public class DefaultOrderStatusHandler(ILogger<DefaultOrderStatusHandler> logger
             case OrderStatus.Cancelled:
                 order.CancelledDate = DateTime.UtcNow;
                 break;
+        }
+
+        // Clear CompletedDate when transitioning out of Completed status
+        if (oldStatus == OrderStatus.Completed && newStatus != OrderStatus.Completed)
+        {
+            order.CompletedDate = null;
         }
 
         order.DateUpdated = DateTime.UtcNow;

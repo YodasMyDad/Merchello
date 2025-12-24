@@ -1157,7 +1157,8 @@ public class ProductService(
     }
 
     /// <summary>
-    /// Applies ordering to product query based on OrderBy parameter
+    /// Applies ordering to product query based on OrderBy parameter.
+    /// Note: Popularity ordering is handled separately in QueryProducts.
     /// </summary>
     private static IQueryable<Product> ApplyOrdering(IQueryable<Product> query, ProductOrderBy orderBy)
     {
@@ -1169,8 +1170,93 @@ public class ProductService(
             ProductOrderBy.DateCreated => query.OrderByDescending(p => p.DateCreated),
             ProductOrderBy.DateUpdated => query.OrderByDescending(p => p.DateUpdated),
             ProductOrderBy.ProductRoot => query.OrderBy(p => p.ProductRoot.RootName),
+            // Popularity is handled in QueryProducts, fallback to DateCreated for non-popularity paths
+            ProductOrderBy.Popularity => query.OrderByDescending(p => p.DateCreated),
             _ => query.OrderBy(p => p.Name)
         };
+    }
+
+    /// <summary>
+    /// Gets product IDs ordered by popularity (total quantity sold) for a given date range.
+    /// </summary>
+    /// <param name="db">Database context</param>
+    /// <param name="validProductIds">Query of valid product IDs to filter by</param>
+    /// <param name="fromDate">Start date for sales aggregation (inclusive)</param>
+    /// <param name="toDate">End date for sales aggregation (inclusive)</param>
+    /// <param name="skip">Number of items to skip for pagination</param>
+    /// <param name="take">Number of items to take for pagination</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of product IDs ordered by popularity (most sold first)</returns>
+    private static async Task<List<Guid>> GetProductIdsByPopularityAsync(
+        MerchelloDbContext db,
+        IQueryable<Guid> validProductIds,
+        DateTime? fromDate,
+        DateTime? toDate,
+        int skip,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        // Build line items query for completed orders with product line items
+        var lineItemsQuery = db.LineItems
+            .Where(li => li.LineItemType == LineItemType.Product)
+            .Where(li => li.ProductId != null)
+            .Where(li => validProductIds.Contains(li.ProductId!.Value))
+            .Where(li => li.Order != null && li.Order.Status == OrderStatus.Completed);
+
+        // Apply date range filter on order creation date (when sale was made)
+        // Using DateCreated rather than CompletedDate as it's always set and represents when the sale occurred
+        if (fromDate.HasValue)
+        {
+            lineItemsQuery = lineItemsQuery.Where(li => li.Order!.DateCreated >= fromDate.Value);
+        }
+        if (toDate.HasValue)
+        {
+            lineItemsQuery = lineItemsQuery.Where(li => li.Order!.DateCreated <= toDate.Value);
+        }
+
+        // Aggregate sales by ProductId and order by total quantity descending
+        var popularProductIds = await lineItemsQuery
+            .GroupBy(li => li.ProductId!.Value)
+            .Select(g => new { ProductId = g.Key, TotalQuantity = g.Sum(li => li.Quantity) })
+            .OrderByDescending(x => x.TotalQuantity)
+            .Skip(skip)
+            .Take(take)
+            .Select(x => x.ProductId)
+            .ToListAsync(cancellationToken);
+
+        return popularProductIds;
+    }
+
+    /// <summary>
+    /// Gets the total count of products that have sales data.
+    /// </summary>
+    private static async Task<int> GetPopularProductsCountAsync(
+        MerchelloDbContext db,
+        IQueryable<Guid> validProductIds,
+        DateTime? fromDate,
+        DateTime? toDate,
+        CancellationToken cancellationToken)
+    {
+        var lineItemsQuery = db.LineItems
+            .Where(li => li.LineItemType == LineItemType.Product)
+            .Where(li => li.ProductId != null)
+            .Where(li => validProductIds.Contains(li.ProductId!.Value))
+            .Where(li => li.Order != null && li.Order.Status == OrderStatus.Completed);
+
+        // Using DateCreated for consistency with GetProductIdsByPopularityAsync
+        if (fromDate.HasValue)
+        {
+            lineItemsQuery = lineItemsQuery.Where(li => li.Order!.DateCreated >= fromDate.Value);
+        }
+        if (toDate.HasValue)
+        {
+            lineItemsQuery = lineItemsQuery.Where(li => li.Order!.DateCreated <= toDate.Value);
+        }
+
+        return await lineItemsQuery
+            .Select(li => li.ProductId)
+            .Distinct()
+            .CountAsync(cancellationToken);
     }
 
     /// <summary>
@@ -1402,16 +1488,50 @@ public class ProductService(
             var pageIndex = parameters.CurrentPage - 1;
             var pageSize = parameters.AmountPerPage;
 
-            // Count before paging
-            var totalCount = await resultQuery.Select(x => x.Id).CountAsync(cancellationToken: cancellationToken);
+            List<Guid> orderedIds;
+            int totalCount;
 
-            // Order for consistent paging window
-            var orderedQuery = ApplyOrdering(resultQuery, parameters.OrderBy);
-            var orderedIds = await orderedQuery
-                .Skip(pageIndex * pageSize)
-                .Take(pageSize)
-                .Select(x => x.Id)
-                .ToListAsync(cancellationToken: cancellationToken);
+            // Handle Popularity ordering specially - requires aggregating sales data
+            if (parameters.OrderBy == ProductOrderBy.Popularity)
+            {
+                var validProductIds = resultQuery.Select(x => x.Id);
+
+                // Get count of products with sales
+                totalCount = await GetPopularProductsCountAsync(
+                    db,
+                    validProductIds,
+                    parameters.PopularityFromDate,
+                    parameters.PopularityToDate,
+                    cancellationToken);
+
+                // Get popular product IDs ordered by sales
+                orderedIds = await GetProductIdsByPopularityAsync(
+                    db,
+                    validProductIds,
+                    parameters.PopularityFromDate,
+                    parameters.PopularityToDate,
+                    pageIndex * pageSize,
+                    pageSize,
+                    cancellationToken);
+            }
+            else
+            {
+                // Standard ordering - count and paginate normally
+                totalCount = await resultQuery.Select(x => x.Id).CountAsync(cancellationToken: cancellationToken);
+
+                var orderedQuery = ApplyOrdering(resultQuery, parameters.OrderBy);
+                orderedIds = await orderedQuery
+                    .Skip(pageIndex * pageSize)
+                    .Take(pageSize)
+                    .Select(x => x.Id)
+                    .ToListAsync(cancellationToken: cancellationToken);
+            }
+
+            // If no results, return empty
+            if (orderedIds.Count == 0)
+            {
+                return new PaginatedList<Product>([], totalCount, parameters.CurrentPage, parameters.AmountPerPage);
+            }
 
             // Materialize items with requested Includes
             IQueryable<Product> itemsQuery = db.Products
@@ -1451,9 +1571,14 @@ public class ProductService(
                 itemsQuery = itemsQuery.AsNoTracking();
             }
 
-            // Ensure deterministic ordering of the final result set
-            var items = await ApplyOrdering(itemsQuery, parameters.OrderBy)
-                .ToListAsync(cancellationToken: cancellationToken);
+            var materializedItems = await itemsQuery.ToListAsync(cancellationToken: cancellationToken);
+
+            // Preserve the ordering from orderedIds (important for Popularity ordering)
+            var items = orderedIds
+                .Select(id => materializedItems.FirstOrDefault(p => p.Id == id))
+                .Where(p => p != null)
+                .Cast<Product>()
+                .ToList();
 
             return new PaginatedList<Product>(items, totalCount, parameters.CurrentPage, parameters.AmountPerPage);
         });

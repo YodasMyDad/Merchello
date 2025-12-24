@@ -1,3 +1,4 @@
+using Merchello.Core.Products.Models;
 using Merchello.Core.Reporting.Dtos;
 
 namespace Merchello.Core.Reporting.Services.Interfaces;
@@ -37,5 +38,19 @@ public interface IReportingService
     Task<SalesBreakdownDto> GetSalesBreakdownAsync(
         DateTime startDate,
         DateTime endDate,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the best-selling products based on order line item quantities.
+    /// </summary>
+    /// <param name="take">Maximum number of products to return.</param>
+    /// <param name="fromDate">Optional start date for sales calculation.</param>
+    /// <param name="toDate">Optional end date for sales calculation.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>List of products ordered by total quantity sold (descending).</returns>
+    Task<List<Product>> GetBestSellersAsync(
+        int take = 8,
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
         CancellationToken cancellationToken = default);
 }

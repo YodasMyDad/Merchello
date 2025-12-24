@@ -1786,7 +1786,12 @@ public class InvoiceService(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
-            var shipment = await db.Shipments.FirstOrDefaultAsync(s => s.Id == parameters.ShipmentId, cancellationToken);
+            // Load shipment with order and all sibling shipments for delivery status check
+            var shipment = await db.Shipments
+                .Include(s => s.Order)
+                    .ThenInclude(o => o!.Shipments)
+                .FirstOrDefaultAsync(s => s.Id == parameters.ShipmentId, cancellationToken);
+
             if (shipment == null)
             {
                 result.Messages.Add(new ResultMessage
@@ -1803,6 +1808,37 @@ public class InvoiceService(
             if (parameters.ActualDeliveryDate != null) shipment.ActualDeliveryDate = parameters.ActualDeliveryDate;
 
             await db.SaveChangesAsync(cancellationToken);
+
+            // Auto-complete/uncomplete order based on delivery status
+            var order = shipment.Order;
+            if (order != null && order.Shipments?.Any() == true)
+            {
+                var allDelivered = order.Shipments.All(s => s.ActualDeliveryDate.HasValue);
+
+                if (allDelivered && order.Status == OrderStatus.Shipped)
+                {
+                    // All shipments delivered - transition to Completed
+                    var oldStatus = order.Status;
+                    await statusHandler.OnStatusChangingAsync(order, oldStatus, OrderStatus.Completed, cancellationToken);
+                    order.Status = OrderStatus.Completed;
+                    await db.SaveChangesAsync(cancellationToken);
+                    await statusHandler.OnStatusChangedAsync(order, oldStatus, OrderStatus.Completed, cancellationToken);
+
+                    logger.LogInformation("Order {OrderId} auto-completed: all shipments delivered", order.Id);
+                }
+                else if (!allDelivered && order.Status == OrderStatus.Completed)
+                {
+                    // Delivery status changed - revert to Shipped
+                    var oldStatus = order.Status;
+                    await statusHandler.OnStatusChangingAsync(order, oldStatus, OrderStatus.Shipped, cancellationToken);
+                    order.Status = OrderStatus.Shipped;
+                    await db.SaveChangesAsync(cancellationToken);
+                    await statusHandler.OnStatusChangedAsync(order, oldStatus, OrderStatus.Shipped, cancellationToken);
+
+                    logger.LogInformation("Order {OrderId} reverted to Shipped: shipment delivery status changed", order.Id);
+                }
+            }
+
             result.ResultObject = shipment;
         });
         scope.Complete();
@@ -1831,6 +1867,7 @@ public class InvoiceService(
             }
 
             var order = shipment.Order;
+            var wasCompleted = order.Status == OrderStatus.Completed;
             db.Shipments.Remove(shipment);
 
             // Recalculate order status (exclude discount line items)
@@ -1855,6 +1892,12 @@ public class InvoiceService(
             {
                 order.Status = OrderStatus.ReadyToFulfill;
                 order.ShippedDate = null;
+            }
+
+            // Clear CompletedDate if order was Completed and is now reverting
+            if (wasCompleted && order.Status != OrderStatus.Completed)
+            {
+                order.CompletedDate = null;
             }
 
             order.DateUpdated = DateTime.UtcNow;
