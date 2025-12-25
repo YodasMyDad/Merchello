@@ -10,6 +10,9 @@ using Merchello.Core.Data;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services;
 using Merchello.Core.Discounts.Services.Interfaces;
+using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.BasketNotifications;
+using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
@@ -28,6 +31,7 @@ public class CheckoutService(
     IShippingQuoteService shippingQuoteService,
     BasketFactory basketFactory,
     LineItemFactory lineItemFactory,
+    IMerchelloNotificationPublisher notificationPublisher,
     IOptions<MerchelloSettings> settings,
     IDiscountEngine? discountEngine = null,
     IDiscountService? discountService = null,
@@ -572,6 +576,18 @@ public class CheckoutService(
 
         var discount = validationResult.Discount!;
 
+        // Publish "Before" notification - handlers can cancel
+        var applyingNotification = new DiscountCodeApplyingNotification(basket, code);
+        if (await notificationPublisher.PublishCancelableAsync(applyingNotification, cancellationToken))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = applyingNotification.CancelReason ?? "Discount code application cancelled.",
+                ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+            });
+            return result;
+        }
+
         // Calculate the discount
         var calculationResult = await discountEngine.CalculateAsync(discount, context, cancellationToken);
         if (!calculationResult.Success || calculationResult.TotalDiscountAmount <= 0)
@@ -615,6 +631,9 @@ public class CheckoutService(
 
         await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
         basket.DateUpdated = DateTime.UtcNow;
+
+        // Publish "After" notification
+        await notificationPublisher.PublishAsync(new DiscountCodeAppliedNotification(basket, discount), cancellationToken);
 
         result.ResultObject = basket;
         return result;

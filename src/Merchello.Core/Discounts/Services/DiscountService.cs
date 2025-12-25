@@ -4,6 +4,8 @@ using Merchello.Core.Discounts.Factories;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Discounts.Services.Parameters;
+using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.DiscountNotifications;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +20,7 @@ namespace Merchello.Core.Discounts.Services;
 public class DiscountService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     DiscountFactory discountFactory,
+    IMerchelloNotificationPublisher notificationPublisher,
     ILogger<DiscountService> logger) : IDiscountService
 {
     private const string CodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -198,10 +201,18 @@ public class DiscountService(
             return result;
         }
 
-        using var scope = efCoreScopeProvider.CreateScope();
-
         // Create discount
         var discount = discountFactory.Create(parameters);
+
+        // Publish "Before" notification - handlers can modify or cancel
+        var creatingNotification = new DiscountCreatingNotification(discount);
+        if (await notificationPublisher.PublishCancelableAsync(creatingNotification, ct))
+        {
+            result.AddErrorMessage(creatingNotification.CancelReason ?? "Discount creation cancelled.");
+            return result;
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -246,6 +257,9 @@ public class DiscountService(
 
         scope.Complete();
 
+        // Publish "After" notification
+        await notificationPublisher.PublishAsync(new DiscountCreatedNotification(discount), ct);
+
         result.ResultObject = discount;
         result.AddSuccessMessage($"Discount '{discount.Name}' created successfully.");
         logger.LogInformation("Created discount {DiscountId} - {DiscountName}", discount.Id, discount.Name);
@@ -284,6 +298,15 @@ public class DiscountService(
                 scope.Complete();
                 return result;
             }
+        }
+
+        // Publish "Before" notification - handlers can modify or cancel
+        var savingNotification = new DiscountSavingNotification(discount);
+        if (await notificationPublisher.PublishCancelableAsync(savingNotification, ct))
+        {
+            result.AddErrorMessage(savingNotification.CancelReason ?? "Discount update cancelled.");
+            scope.Complete();
+            return result;
         }
 
         // Update basic properties
@@ -410,6 +433,9 @@ public class DiscountService(
         await scope.ExecuteWithContextAsync<Task>(async db => await db.SaveChangesAsync(ct));
         scope.Complete();
 
+        // Publish "After" notification
+        await notificationPublisher.PublishAsync(new DiscountSavedNotification(discount), ct);
+
         result.ResultObject = discount;
         result.AddSuccessMessage($"Discount '{discount.Name}' updated successfully.");
         logger.LogInformation("Updated discount {DiscountId} - {DiscountName}", discount.Id, discount.Name);
@@ -433,12 +459,24 @@ public class DiscountService(
             return result;
         }
 
+        // Publish "Before" notification - handlers can cancel
+        var deletingNotification = new DiscountDeletingNotification(discount);
+        if (await notificationPublisher.PublishCancelableAsync(deletingNotification, ct))
+        {
+            result.AddErrorMessage(deletingNotification.CancelReason ?? "Discount deletion cancelled.");
+            scope.Complete();
+            return result;
+        }
+
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             db.Discounts.Remove(discount);
             await db.SaveChangesAsync(ct);
         });
         scope.Complete();
+
+        // Publish "After" notification
+        await notificationPublisher.PublishAsync(new DiscountDeletedNotification(discount), ct);
 
         result.ResultObject = true;
         result.AddSuccessMessage($"Discount '{discount.Name}' deleted successfully.");
@@ -511,11 +549,26 @@ public class DiscountService(
             return result;
         }
 
-        discount.Status = DiscountStatus.Active;
+        var oldStatus = discount.Status;
+        var newStatus = DiscountStatus.Active;
+
+        // Publish "Before" notification - handlers can cancel
+        var statusChangingNotification = new DiscountStatusChangingNotification(discount, oldStatus, newStatus);
+        if (await notificationPublisher.PublishCancelableAsync(statusChangingNotification, ct))
+        {
+            result.AddErrorMessage(statusChangingNotification.CancelReason ?? "Discount activation cancelled.");
+            scope.Complete();
+            return result;
+        }
+
+        discount.Status = newStatus;
         discount.DateUpdated = DateTime.UtcNow;
 
         await scope.ExecuteWithContextAsync<Task>(async db => await db.SaveChangesAsync(ct));
         scope.Complete();
+
+        // Publish "After" notification
+        await notificationPublisher.PublishAsync(new DiscountStatusChangedNotification(discount, oldStatus, newStatus), ct);
 
         result.ResultObject = discount;
         result.AddSuccessMessage($"Discount '{discount.Name}' activated.");
@@ -540,11 +593,26 @@ public class DiscountService(
             return result;
         }
 
-        discount.Status = DiscountStatus.Disabled;
+        var oldStatus = discount.Status;
+        var newStatus = DiscountStatus.Disabled;
+
+        // Publish "Before" notification - handlers can cancel
+        var statusChangingNotification = new DiscountStatusChangingNotification(discount, oldStatus, newStatus);
+        if (await notificationPublisher.PublishCancelableAsync(statusChangingNotification, ct))
+        {
+            result.AddErrorMessage(statusChangingNotification.CancelReason ?? "Discount deactivation cancelled.");
+            scope.Complete();
+            return result;
+        }
+
+        discount.Status = newStatus;
         discount.DateUpdated = DateTime.UtcNow;
 
         await scope.ExecuteWithContextAsync<Task>(async db => await db.SaveChangesAsync(ct));
         scope.Complete();
+
+        // Publish "After" notification
+        await notificationPublisher.PublishAsync(new DiscountStatusChangedNotification(discount, oldStatus, newStatus), ct);
 
         result.ResultObject = discount;
         result.AddSuccessMessage($"Discount '{discount.Name}' deactivated.");

@@ -1,5 +1,6 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
+using Merchello.Core.Notifications;
 using Merchello.Core.Payments.Factories;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
@@ -24,6 +25,7 @@ public class PaymentServiceTests
     private readonly Mock<IEFCoreScopeProvider<MerchelloDbContext>> _scopeProviderMock;
     private readonly Mock<IOptions<MerchelloSettings>> _settingsMock;
     private readonly Mock<ILogger<PaymentService>> _loggerMock;
+    private readonly Mock<IMerchelloNotificationPublisher> _notificationPublisherMock;
     private readonly CurrencyService _currencyService;
     private readonly PaymentFactory _paymentFactory;
 
@@ -34,12 +36,13 @@ public class PaymentServiceTests
         _settingsMock = new Mock<IOptions<MerchelloSettings>>();
         _settingsMock.Setup(s => s.Value).Returns(new MerchelloSettings());
         _loggerMock = new Mock<ILogger<PaymentService>>();
+        _notificationPublisherMock = new Mock<IMerchelloNotificationPublisher>();
         _currencyService = new CurrencyService(_settingsMock.Object);
         _paymentFactory = new PaymentFactory(_currencyService);
     }
 
     private PaymentService CreateService() =>
-        new(_providerManagerMock.Object, _scopeProviderMock.Object, _paymentFactory, _currencyService, _settingsMock.Object, _loggerMock.Object);
+        new(_providerManagerMock.Object, _scopeProviderMock.Object, _paymentFactory, _currencyService, _notificationPublisherMock.Object, _settingsMock.Object, _loggerMock.Object);
 
     #region ProcessRefundAsync Tests
 

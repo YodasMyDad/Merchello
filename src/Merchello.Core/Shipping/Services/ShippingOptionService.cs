@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Merchello.Core.Data;
+using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.ShippingOptionNotifications;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Dtos;
@@ -15,6 +17,7 @@ namespace Merchello.Core.Shipping.Services;
 public class ShippingOptionService(
     IEFCoreScopeProvider<MerchelloDbContext> scopeProvider,
     IShippingProviderManager providerManager,
+    IMerchelloNotificationPublisher notificationPublisher,
     ILogger<ShippingOptionService> logger) : IShippingOptionService
 {
     #region Shipping Options
@@ -192,6 +195,18 @@ public class ShippingOptionService(
             IsDeliveryDateGuaranteed = dto.IsDeliveryDateGuaranteed
         };
 
+        // Publish "Before" notification - handlers can modify or cancel
+        var creatingNotification = new ShippingOptionCreatingNotification(option);
+        if (await notificationPublisher.PublishCancelableAsync(creatingNotification, ct))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = creatingNotification.CancelReason ?? "Shipping option creation cancelled",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
         using var scope = scopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -200,6 +215,9 @@ public class ShippingOptionService(
             result.ResultObject = option;
         });
         scope.Complete();
+
+        // Publish "After" notification
+        await notificationPublisher.PublishAsync(new ShippingOptionCreatedNotification(option), ct);
 
         logger.LogInformation("Created shipping option {Name} ({Id}) with provider {Provider}", option.Name, option.Id, option.ProviderKey);
         return result;
@@ -216,19 +234,42 @@ public class ShippingOptionService(
             providerSettingsJson = JsonSerializer.Serialize(dto.ProviderSettings);
         }
 
+        // First fetch the option to validate and publish notification
+        ShippingOption? existingOption;
+        using (var readScope = scopeProvider.CreateScope())
+        {
+            existingOption = await readScope.ExecuteWithContextAsync(async db =>
+                await db.ShippingOptions.FindAsync([id], ct));
+            readScope.Complete();
+        }
+
+        if (existingOption == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Shipping option not found",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        // Publish "Before" notification - handlers can modify or cancel
+        var savingNotification = new ShippingOptionSavingNotification(existingOption);
+        if (await notificationPublisher.PublishCancelableAsync(savingNotification, ct))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = savingNotification.CancelReason ?? "Shipping option update cancelled",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
         using var scope = scopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var option = await db.ShippingOptions.FindAsync([id], ct);
-            if (option == null)
-            {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Shipping option not found",
-                    ResultMessageType = ResultMessageType.Error
-                });
-                return;
-            }
+            if (option == null) return;
 
             option.Name = dto.Name;
             option.WarehouseId = dto.WarehouseId;
@@ -253,9 +294,11 @@ public class ShippingOptionService(
         });
         scope.Complete();
 
-        if (result.Successful)
+        if (result.Successful && result.ResultObject != null)
         {
-            logger.LogInformation("Updated shipping option {Name} ({Id})", result.ResultObject?.Name, id);
+            // Publish "After" notification
+            await notificationPublisher.PublishAsync(new ShippingOptionSavedNotification(result.ResultObject), ct);
+            logger.LogInformation("Updated shipping option {Name} ({Id})", result.ResultObject.Name, id);
         }
         return result;
     }
@@ -264,32 +307,56 @@ public class ShippingOptionService(
     {
         var result = new CrudResult<bool>();
 
+        // First fetch the option to validate and publish notification
+        ShippingOption? optionToDelete;
+        int productCount;
+        using (var readScope = scopeProvider.CreateScope())
+        {
+            optionToDelete = await readScope.ExecuteWithContextAsync(async db =>
+                await db.ShippingOptions
+                    .Include(o => o.Products)
+                    .FirstOrDefaultAsync(o => o.Id == id, ct));
+            readScope.Complete();
+        }
+
+        if (optionToDelete == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Shipping option not found",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        productCount = optionToDelete.Products.Count;
+        if (productCount > 0)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Cannot delete: {productCount} product(s) are using this shipping option",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        // Publish "Before" notification - handlers can cancel
+        var deletingNotification = new ShippingOptionDeletingNotification(optionToDelete);
+        if (await notificationPublisher.PublishCancelableAsync(deletingNotification, ct))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = deletingNotification.CancelReason ?? "Shipping option deletion cancelled",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
         using var scope = scopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
-            var option = await db.ShippingOptions
-                .Include(o => o.Products)
-                .FirstOrDefaultAsync(o => o.Id == id, ct);
-
-            if (option == null)
-            {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Shipping option not found",
-                    ResultMessageType = ResultMessageType.Error
-                });
-                return;
-            }
-
-            if (option.Products.Count > 0)
-            {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = $"Cannot delete: {option.Products.Count} product(s) are using this shipping option",
-                    ResultMessageType = ResultMessageType.Error
-                });
-                return;
-            }
+            var option = await db.ShippingOptions.FindAsync([id], ct);
+            if (option == null) return;
 
             db.ShippingOptions.Remove(option);
             await db.SaveChangesAsync(ct);
@@ -298,6 +365,12 @@ public class ShippingOptionService(
             logger.LogInformation("Deleted shipping option {Name} ({Id})", option.Name, id);
         });
         scope.Complete();
+
+        // Publish "After" notification
+        if (result.ResultObject)
+        {
+            await notificationPublisher.PublishAsync(new ShippingOptionDeletedNotification(optionToDelete), ct);
+        }
 
         return result;
     }

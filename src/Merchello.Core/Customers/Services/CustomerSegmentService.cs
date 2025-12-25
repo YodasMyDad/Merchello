@@ -5,6 +5,8 @@ using Merchello.Core.Customers.Models;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Customers.Services.Parameters;
 using Merchello.Core.Data;
+using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.CustomerSegmentNotifications;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +22,7 @@ public class CustomerSegmentService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     CustomerSegmentFactory segmentFactory,
     ISegmentCriteriaEvaluator criteriaEvaluator,
+    IMerchelloNotificationPublisher notificationPublisher,
     ILogger<CustomerSegmentService> logger) : ICustomerSegmentService
 {
     #region CRUD Operations
@@ -96,12 +99,24 @@ public class CustomerSegmentService(
         // Create segment
         var segment = segmentFactory.Create(parameters);
 
+        // Publish "Before" notification - handlers can modify or cancel
+        var creatingNotification = new CustomerSegmentCreatingNotification(segment);
+        if (await notificationPublisher.PublishCancelableAsync(creatingNotification, ct))
+        {
+            result.AddErrorMessage(creatingNotification.CancelReason ?? "Segment creation cancelled.");
+            scope.Complete();
+            return result;
+        }
+
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             db.CustomerSegments.Add(segment);
             await db.SaveChangesAsync(ct);
         });
         scope.Complete();
+
+        // Publish "After" notification
+        await notificationPublisher.PublishAsync(new CustomerSegmentCreatedNotification(segment), ct);
 
         result.ResultObject = segment;
         result.AddSuccessMessage($"Segment '{segment.Name}' created successfully.");
@@ -148,6 +163,15 @@ public class CustomerSegmentService(
             }
         }
 
+        // Publish "Before" notification - handlers can modify or cancel
+        var savingNotification = new CustomerSegmentSavingNotification(segment);
+        if (await notificationPublisher.PublishCancelableAsync(savingNotification, ct))
+        {
+            result.AddErrorMessage(savingNotification.CancelReason ?? "Segment update cancelled.");
+            scope.Complete();
+            return result;
+        }
+
         // Update fields
         if (!string.IsNullOrWhiteSpace(parameters.Name))
         {
@@ -182,6 +206,9 @@ public class CustomerSegmentService(
         await scope.ExecuteWithContextAsync<Task>(async db => await db.SaveChangesAsync(ct));
         scope.Complete();
 
+        // Publish "After" notification
+        await notificationPublisher.PublishAsync(new CustomerSegmentSavedNotification(segment), ct);
+
         result.ResultObject = segment;
         result.AddSuccessMessage($"Segment '{segment.Name}' updated successfully.");
         logger.LogInformation("Updated customer segment {SegmentId} - {SegmentName}", segment.Id, segment.Name);
@@ -212,6 +239,15 @@ public class CustomerSegmentService(
             return result;
         }
 
+        // Publish "Before" notification - handlers can cancel
+        var deletingNotification = new CustomerSegmentDeletingNotification(segment);
+        if (await notificationPublisher.PublishCancelableAsync(deletingNotification, ct))
+        {
+            result.AddErrorMessage(deletingNotification.CancelReason ?? "Segment deletion cancelled.");
+            scope.Complete();
+            return result;
+        }
+
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             // Members will be cascade deleted
@@ -219,6 +255,9 @@ public class CustomerSegmentService(
             await db.SaveChangesAsync(ct);
         });
         scope.Complete();
+
+        // Publish "After" notification
+        await notificationPublisher.PublishAsync(new CustomerSegmentDeletedNotification(segment), ct);
 
         result.ResultObject = true;
         result.AddSuccessMessage($"Segment '{segment.Name}' deleted successfully.");

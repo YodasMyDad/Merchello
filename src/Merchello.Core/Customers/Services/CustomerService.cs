@@ -5,6 +5,8 @@ using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Customers.Services.Parameters;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.CustomerNotifications;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +21,7 @@ namespace Merchello.Core.Customers.Services;
 public class CustomerService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     CustomerFactory customerFactory,
+    IMerchelloNotificationPublisher notificationPublisher,
     ILogger<CustomerService> logger) : ICustomerService
 {
     /// <inheritdoc />
@@ -99,15 +102,33 @@ public class CustomerService(
             return result;
         }
 
+        // Create customer object
+        var newCustomer = customerFactory.Create(parameters);
+
+        // Publish "Before" notification - handlers can modify or cancel
+        var creatingNotification = new CustomerCreatingNotification(newCustomer);
+        if (await notificationPublisher.PublishCancelableAsync(creatingNotification, ct))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = creatingNotification.CancelReason ?? "Customer creation cancelled",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
         using var scope = efCoreScopeProvider.CreateScope();
         var customer = await scope.ExecuteWithContextAsync(async db =>
         {
-            var newCustomer = customerFactory.Create(parameters);
             db.Customers.Add(newCustomer);
             await db.SaveChangesAsync(ct);
             return newCustomer;
         });
         scope.Complete();
+
+        // Publish "After" notification
+        await notificationPublisher.PublishAsync(
+            new CustomerCreatedNotification(customer), ct);
 
         result.ResultObject = customer;
         result.Messages.Add(new ResultMessage
@@ -172,25 +193,48 @@ public class CustomerService(
     {
         var result = new CrudResult<Customer>();
 
+        // First, fetch the customer to validate and publish notification
+        Customer? existing;
+        using (var readScope = efCoreScopeProvider.CreateScope())
+        {
+            existing = await readScope.ExecuteWithContextAsync(async db =>
+                await db.Customers.FirstOrDefaultAsync(c => c.Id == parameters.Id, ct));
+            readScope.Complete();
+        }
+
+        if (existing == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Customer not found",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        // Publish "Before" notification - handlers can modify or cancel
+        var savingNotification = new CustomerSavingNotification(existing);
+        if (await notificationPublisher.PublishCancelableAsync(savingNotification, ct))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = savingNotification.CancelReason ?? "Customer update cancelled",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
         using var scope = efCoreScopeProvider.CreateScope();
         var customer = await scope.ExecuteWithContextAsync(async db =>
         {
-            var existing = await db.Customers.FirstOrDefaultAsync(c => c.Id == parameters.Id, ct);
-            if (existing == null)
-            {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Customer not found",
-                    ResultMessageType = ResultMessageType.Error
-                });
-                return null;
-            }
+            var toUpdate = await db.Customers.FirstOrDefaultAsync(c => c.Id == parameters.Id, ct);
+            if (toUpdate == null) return null;
 
             // Handle email update with uniqueness check
             if (!string.IsNullOrWhiteSpace(parameters.Email))
             {
                 var normalizedEmail = parameters.Email.Trim().ToLowerInvariant();
-                if (normalizedEmail != existing.Email)
+                if (normalizedEmail != toUpdate.Email)
                 {
                     // Check if email is already used by another customer
                     var emailExists = await db.Customers.AnyAsync(
@@ -204,25 +248,25 @@ public class CustomerService(
                         });
                         return null;
                     }
-                    existing.Email = normalizedEmail;
+                    toUpdate.Email = normalizedEmail;
                 }
             }
 
             // Update fields if provided
-            if (parameters.FirstName != null) existing.FirstName = parameters.FirstName;
-            if (parameters.LastName != null) existing.LastName = parameters.LastName;
+            if (parameters.FirstName != null) toUpdate.FirstName = parameters.FirstName;
+            if (parameters.LastName != null) toUpdate.LastName = parameters.LastName;
 
             // Handle MemberKey: can set to a value or clear it
             if (parameters.ClearMemberKey)
             {
-                existing.MemberKey = null;
+                toUpdate.MemberKey = null;
             }
             else if (parameters.MemberKey.HasValue)
             {
-                existing.MemberKey = parameters.MemberKey;
+                toUpdate.MemberKey = parameters.MemberKey;
             }
 
-            existing.DateUpdated = DateTime.UtcNow;
+            toUpdate.DateUpdated = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
 
             // Handle tags if provided
@@ -247,13 +291,16 @@ public class CustomerService(
                 await db.SaveChangesAsync(ct);
             }
 
-            return existing;
+            return toUpdate;
         });
 
         scope.Complete();
 
         if (customer != null)
         {
+            // Publish "After" notification
+            await notificationPublisher.PublishAsync(new CustomerSavedNotification(customer), ct);
+
             result.ResultObject = customer;
             result.Messages.Add(new ResultMessage
             {

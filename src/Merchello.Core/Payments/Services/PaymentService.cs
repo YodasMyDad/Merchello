@@ -1,5 +1,7 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
+using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.Payment;
 using Merchello.Core.Payments.Factories;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
@@ -24,6 +26,7 @@ public class PaymentService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     PaymentFactory paymentFactory,
     ICurrencyService currencyService,
+    IMerchelloNotificationPublisher notificationPublisher,
     IOptions<MerchelloSettings> settings,
     ILogger<PaymentService> logger) : IPaymentService
 {
@@ -321,6 +324,19 @@ public class PaymentService(
             result.Messages.Add(new ResultMessage
             {
                 Message = "Payment has no provider alias. Use RecordManualRefundAsync instead.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            scope.Complete();
+            return result;
+        }
+
+        // Publish "Before" notification - handlers can cancel
+        var refundingNotification = new PaymentRefundingNotification(originalPayment, refundAmount, reason);
+        if (await notificationPublisher.PublishCancelableAsync(refundingNotification, cancellationToken))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = refundingNotification.CancelReason ?? "Refund cancelled",
                 ResultMessageType = ResultMessageType.Error
             });
             scope.Complete();

@@ -1,5 +1,6 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
+using Merchello.Core.Notifications;
 using Merchello.Core.Payments.Factories;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
@@ -35,6 +36,7 @@ public class PaymentStatusCalculationTests
             StoreCurrencyCode = "USD"
         });
         var loggerMock = new Mock<ILogger<PaymentService>>();
+        var notificationPublisherMock = new Mock<IMerchelloNotificationPublisher>();
         var currencyService = new CurrencyService(settings);
         var paymentFactory = new PaymentFactory(currencyService);
 
@@ -43,6 +45,7 @@ public class PaymentStatusCalculationTests
             scopeProviderMock.Object,
             paymentFactory,
             currencyService,
+            notificationPublisherMock.Object,
             settings,
             loggerMock.Object);
     }
