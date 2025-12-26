@@ -1,0 +1,116 @@
+@model Merchello.Site.Shared.Components.Pagination.PaginationViewModel
+
+@if (Model.TotalPages > 1)
+{
+    var prevPage = Model.CurrentPage - 1;
+    var nextPage = Model.CurrentPage + 1;
+    var startPage = Math.Max(1, Model.CurrentPage - 2);
+    var endPage = Math.Min(Model.TotalPages, Model.CurrentPage + 2);
+
+    // Adjust if we're near the start
+    if (Model.CurrentPage <= 3)
+    {
+        endPage = Math.Min(5, Model.TotalPages);
+    }
+
+    // Adjust if we're near the end
+    if (Model.CurrentPage > Model.TotalPages - 3)
+    {
+        startPage = Math.Max(1, Model.TotalPages - 4);
+    }
+
+    <nav aria-label="Product pagination" class="mt-4">
+        <ul class="pagination justify-content-center mb-0">
+            @* Previous button *@
+            @if (Model.HasPreviousPage)
+            {
+                <li class="page-item">
+                    <a class="page-link" href="#" @@click.prevent="goToPage(@prevPage)">
+                        <span aria-hidden="true">&laquo;</span>
+                        <span class="visually-hidden">Previous</span>
+                    </a>
+                </li>
+            }
+            else
+            {
+                <li class="page-item disabled">
+                    <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                        <span aria-hidden="true">&laquo;</span>
+                        <span class="visually-hidden">Previous</span>
+                    </a>
+                </li>
+            }
+
+            @* First page and ellipsis *@
+            @if (startPage > 1)
+            {
+                <li class="page-item">
+                    <a class="page-link" href="#" @@click.prevent="goToPage(1)">1</a>
+                </li>
+                @if (startPage > 2)
+                {
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                }
+            }
+
+            @* Page numbers *@
+            @for (var i = startPage; i <= endPage; i++)
+            {
+                var pageNum = i;
+                var isActive = pageNum == Model.CurrentPage;
+                if (isActive)
+                {
+                    <li class="page-item active">
+                        <a class="page-link" href="#" @@click.prevent="goToPage(@pageNum)" aria-current="page">@pageNum</a>
+                    </li>
+                }
+                else
+                {
+                    <li class="page-item">
+                        <a class="page-link" href="#" @@click.prevent="goToPage(@pageNum)">@pageNum</a>
+                    </li>
+                }
+            }
+
+            @* Last page and ellipsis *@
+            @if (endPage < Model.TotalPages)
+            {
+                @if (endPage < Model.TotalPages - 1)
+                {
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                }
+                <li class="page-item">
+                    <a class="page-link" href="#" @@click.prevent="goToPage(@Model.TotalPages)">@Model.TotalPages</a>
+                </li>
+            }
+
+            @* Next button *@
+            @if (Model.HasNextPage)
+            {
+                <li class="page-item">
+                    <a class="page-link" href="#" @@click.prevent="goToPage(@nextPage)">
+                        <span aria-hidden="true">&raquo;</span>
+                        <span class="visually-hidden">Next</span>
+                    </a>
+                </li>
+            }
+            else
+            {
+                <li class="page-item disabled">
+                    <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                        <span aria-hidden="true">&raquo;</span>
+                        <span class="visually-hidden">Next</span>
+                    </a>
+                </li>
+            }
+        </ul>
+    </nav>
+
+    <p class="text-center text-muted small mt-2 mb-0">
+        Showing page @Model.CurrentPage of @Model.TotalPages (@Model.TotalItems items)
+    </p>
+}

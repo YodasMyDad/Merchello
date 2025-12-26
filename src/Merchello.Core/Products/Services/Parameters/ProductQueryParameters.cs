@@ -42,6 +42,16 @@ public class ProductQueryParameters
     public int LowStockThreshold { get; set; } = 10;
 
     /// <summary>
+    /// Minimum price filter. Products with price below this value will be excluded.
+    /// </summary>
+    public decimal? MinPrice { get; set; }
+
+    /// <summary>
+    /// Maximum price filter. Products with price above this value will be excluded.
+    /// </summary>
+    public decimal? MaxPrice { get; set; }
+
+    /// <summary>
     /// Start date for popularity calculation. Only completed orders on or after this date are included.
     /// Used when OrderBy is set to Popularity.
     /// </summary>

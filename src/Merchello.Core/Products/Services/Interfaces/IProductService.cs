@@ -14,11 +14,24 @@ public interface IProductService
     Task<CrudResult<Product>> Update(Product product);
     Task<CrudResult<ProductRoot>> Delete(ProductRoot productRoot);
     Task<List<ProductFilterGroup>> GetFilterGroups(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets filter groups containing only filters that have products in the specified collection.
+    /// Empty groups (with no relevant filters) are excluded.
+    /// </summary>
+    Task<List<ProductFilterGroup>> GetFilterGroupsForCollection(Guid collectionId, CancellationToken cancellationToken = default);
+
     Task<ProductCollection?> GetCollection(Guid collectionId, CancellationToken cancellationToken = default);
     Task<List<ProductCollection>> GetCollectionsByIds(IEnumerable<Guid> collectionIds, CancellationToken cancellationToken = default);
     Task<Product?> GetProduct(GetProductParameters parameters, CancellationToken cancellationToken = default);
     Task<PaginatedList<Product>> QueryProducts(ProductQueryParameters parameters, CancellationToken cancellationToken = default);
     Task<PaginatedList<ProductRoot>> QueryProductRoots(ProductRootQueryParameters parameters, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the min and max price for products in a collection using SQL aggregation.
+    /// More efficient than loading all products into memory.
+    /// </summary>
+    Task<(decimal MinPrice, decimal MaxPrice)> GetPriceRangeForCollection(Guid collectionId, CancellationToken cancellationToken = default);
 
     // Wizard creation methods
     Task<CrudResult<ProductRoot>> CreateProductRootOnly(string name, decimal price, decimal costOfGoods, decimal weight, Guid taxGroupId, Guid productTypeId, List<Guid> collectionIds, string? description = null, CancellationToken cancellationToken = default);
