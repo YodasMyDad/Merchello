@@ -1,4 +1,196 @@
 ﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Category>
+@using Merchello.Core.Products.Models
+@using System.Text.Json
 @{
     Layout = "Website.cshtml";
+    var vm = Model.ViewModel;
+
+    // Create config object and serialize with proper settings
+    var config = new {
+        selectedFilters = vm.SelectedFilterKeys.Select(g => g.ToString()).ToList(),
+        priceMin = vm.MinPrice ?? vm.PriceRangeMin,
+        priceMax = vm.MaxPrice ?? vm.PriceRangeMax,
+        sortBy = (int)vm.OrderBy,
+        currentPage = vm.CurrentPage,
+        rangeMin = vm.PriceRangeMin,
+        rangeMax = vm.PriceRangeMax
+    };
+    var configJson = JsonSerializer.Serialize(config, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+}
+
+<div x-data='categoryPage(@Html.Raw(configJson))'>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">@(vm.CollectionName ?? Model.Name)</h1>
+        <span class="text-muted">@vm.Products.TotalItems products</span>
+    </div>
+
+    <div class="row">
+        <!-- Sidebar Filters -->
+        <div class="col-lg-3 col-md-4 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    @await Component.InvokeAsync("PriceRangeSlider", new {
+                        rangeMin = vm.PriceRangeMin,
+                        rangeMax = vm.PriceRangeMax,
+                        selectedMin = vm.MinPrice,
+                        selectedMax = vm.MaxPrice
+                    })
+
+                    <hr />
+
+                    @await Component.InvokeAsync("ProductFilters", new {
+                        filterGroups = vm.FilterGroups,
+                        selectedFilterKeys = vm.SelectedFilterKeys
+                    })
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Grid -->
+        <div class="col-lg-9 col-md-8">
+            <!-- Sort and Results Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                @{
+                    int startItem = (vm.CurrentPage - 1) * vm.PageSize + 1;
+                    int endItem = Math.Min(vm.CurrentPage * vm.PageSize, vm.Products.TotalItems);
+                }
+                <p class="mb-0 text-muted">
+                    Showing @startItem-@endItem of @vm.Products.TotalItems
+                </p>
+                @await Component.InvokeAsync("SortDropdown", new { selectedOrderBy = vm.OrderBy })
+            </div>
+
+            @if (vm.Products.Items.Any())
+            {
+                <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-4">
+                    @foreach (var product in vm.Products.Items)
+                    {
+                        <div class="col">
+                            @await Component.InvokeAsync("ProductBox", new { product = product })
+                        </div>
+                    }
+                </div>
+
+                @await Component.InvokeAsync("Pagination", new {
+                    currentPage = vm.Products.PageIndex,
+                    totalPages = vm.Products.TotalPages,
+                    totalItems = vm.Products.TotalItems
+                })
+            }
+            else
+            {
+                <div class="alert alert-info">
+                    <h5 class="alert-heading">No products found</h5>
+                    <p class="mb-0">Try adjusting your filters or browse our other categories.</p>
+                    <button type="button" class="btn btn-outline-primary mt-3" @@click="clearAllFilters()">
+                        Clear all filters
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('categoryPage', (config) => ({
+                selectedFilters: config.selectedFilters || [],
+                priceMin: config.priceMin,
+                priceMax: config.priceMax,
+                sortBy: config.sortBy,
+                currentPage: config.currentPage,
+                rangeMin: config.rangeMin,
+                rangeMax: config.rangeMax,
+                debounceTimer: null,
+
+                formatPrice(value) {
+                    return new Intl.NumberFormat('en-GB', {
+                        style: 'currency',
+                        currency: 'GBP'
+                    }).format(value);
+                },
+
+                toggleFilter(filterId) {
+                    const index = this.selectedFilters.indexOf(filterId);
+                    if (index > -1) {
+                        this.selectedFilters.splice(index, 1);
+                    } else {
+                        this.selectedFilters.push(filterId);
+                    }
+                    this.currentPage = 1;
+                    this.applyFilters();
+                },
+
+                clearFilters() {
+                    this.selectedFilters = [];
+                    this.currentPage = 1;
+                    this.applyFilters();
+                },
+
+                onPriceChange() {
+                    // Ensure min doesn't exceed max
+                    if (this.priceMin > this.priceMax) {
+                        [this.priceMin, this.priceMax] = [this.priceMax, this.priceMin];
+                    }
+                    this.currentPage = 1;
+                    this.debouncedApply();
+                },
+
+                debouncedApply() {
+                    clearTimeout(this.debounceTimer);
+                    this.debounceTimer = setTimeout(() => {
+                        this.applyFilters();
+                    }, 500);
+                },
+
+                goToPage(page) {
+                    this.currentPage = page;
+                    this.applyFilters();
+                },
+
+                clearAllFilters() {
+                    this.selectedFilters = [];
+                    this.priceMin = this.rangeMin;
+                    this.priceMax = this.rangeMax;
+                    this.sortBy = 0;
+                    this.currentPage = 1;
+                    this.applyFilters();
+                },
+
+                applyFilters() {
+                    const params = new URLSearchParams();
+
+                    // Add filter keys
+                    this.selectedFilters.forEach(id => {
+                        params.append('filterKeys', id);
+                    });
+
+                    // Add price range (only if different from defaults)
+                    if (this.priceMin > this.rangeMin) {
+                        params.set('minPrice', this.priceMin);
+                    }
+                    if (this.priceMax < this.rangeMax) {
+                        params.set('maxPrice', this.priceMax);
+                    }
+
+                    // Add sort
+                    if (this.sortBy !== 0) {
+                        params.set('orderBy', this.sortBy);
+                    }
+
+                    // Add page
+                    if (this.currentPage > 1) {
+                        params.set('page', this.currentPage);
+                    }
+
+                    // Navigate
+                    const queryString = params.toString();
+                    const newUrl = window.location.pathname + (queryString ? '?' + queryString : '');
+                    window.location.href = newUrl;
+                }
+            }));
+        });
+    </script>
 }

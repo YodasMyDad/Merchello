@@ -1,6 +1,6 @@
 # Merchello Architecture
 
-Enterprise ecommerce NuGet for Umbraco. **Ethos: making enterprise ecommerce simple.**
+Opinionated enterprise ecommerce plugin for Umbraco v17+, which will be installed via Nuget (Merchello.Site will use the Nuget package when complete) **Ethos: making enterprise ecommerce simple.**
 
 ## Design Principles
 - **Modular** - `ExtensionManager` for pluggable providers (Shipping, Payment, OrderGrouping)

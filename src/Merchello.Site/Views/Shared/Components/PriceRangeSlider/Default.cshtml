@@ -1,0 +1,67 @@
+@model Merchello.Site.Shared.Components.PriceRangeSlider.PriceRangeSliderViewModel
+
+@{
+    var min = Model.RangeMin;
+    var max = Model.RangeMax;
+    var selectedMin = Model.SelectedMin ?? min;
+    var selectedMax = Model.SelectedMax ?? max;
+    // Prevent division by zero - if range is 0, use 1 as step
+    var range = max - min;
+    var step = range > 0 ? Math.Max(1, Math.Floor(range / 100)) : 1;
+    // For CSS calculation, prevent division by zero
+    var rangeForCalc = range > 0 ? range : 1;
+}
+
+@if (range > 0)
+{
+    <div class="price-range-slider mb-4">
+        <h6 class="fw-bold mb-3">Price Range</h6>
+
+        <div class="d-flex justify-content-between mb-2">
+            <span class="price-label" x-text="formatPrice(priceMin)">@selectedMin.ToString("C")</span>
+            <span class="price-label" x-text="formatPrice(priceMax)">@selectedMax.ToString("C")</span>
+        </div>
+
+        <div class="range-slider-container">
+            <div class="range-track"></div>
+            <div class="range-selected"
+                 :style="`left: ${((priceMin - @min) / @rangeForCalc) * 100}%; right: ${100 - ((priceMax - @min) / @rangeForCalc) * 100}%`"></div>
+            <input type="range"
+                   class="range-input range-min"
+                   min="@min"
+                   max="@max"
+                   step="@step"
+                   x-model.number="priceMin"
+                   @@input="onPriceChange()">
+            <input type="range"
+                   class="range-input range-max"
+                   min="@min"
+                   max="@max"
+                   step="@step"
+                   x-model.number="priceMax"
+                   @@input="onPriceChange()">
+        </div>
+
+        <div class="d-flex gap-2 mt-3">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text">£</span>
+                <input type="number"
+                       class="form-control"
+                       x-model.number="priceMin"
+                       @@change="onPriceChange()"
+                       min="@min"
+                       max="@max">
+            </div>
+            <span class="align-self-center">-</span>
+            <div class="input-group input-group-sm">
+                <span class="input-group-text">£</span>
+                <input type="number"
+                       class="form-control"
+                       x-model.number="priceMax"
+                       @@change="onPriceChange()"
+                       min="@min"
+                       max="@max">
+            </div>
+        </div>
+    </div>
+}

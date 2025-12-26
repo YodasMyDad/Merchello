@@ -1,0 +1,82 @@
+@model Merchello.Site.Shared.Components.ProductFilters.ProductFiltersViewModel
+@using Merchello.Core.Products.Models
+
+@{
+    // Check if all filters in a group have a HexColour - if so, it's a color group
+    bool IsColorGroup(ProductFilterGroup group) =>
+        group.Filters.Any() && group.Filters.All(f => !string.IsNullOrEmpty(f.HexColour));
+}
+
+@if (Model.FilterGroups.Any())
+{
+    <div class="product-filters">
+        <h5 class="mb-3">Filters</h5>
+
+        @foreach (var group in Model.FilterGroups.OrderBy(g => g.SortOrder))
+        {
+            <div class="filter-group mb-4">
+                <h6 class="fw-bold mb-2">@group.Name</h6>
+
+                @if (IsColorGroup(group))
+                {
+                    <!-- Color swatch grid -->
+                    <div class="color-swatch-grid">
+                        @foreach (var filter in group.Filters.OrderBy(f => f.SortOrder))
+                        {
+                            var isSelected = Model.SelectedFilterKeys.Contains(filter.Id);
+                            <label class="color-swatch-item @(isSelected ? "selected" : "")"
+                                   title="@filter.Name">
+                                <input type="checkbox"
+                                       class="visually-hidden"
+                                       id="filter-@filter.Id"
+                                       value="@filter.Id"
+                                       @(isSelected ? "checked" : "")
+                                       @@change="toggleFilter('@filter.Id')">
+                                <span class="color-swatch" style="background-color: @filter.HexColour;"></span>
+                            </label>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <!-- Standard checkbox list -->
+                    <div class="filter-options">
+                        @foreach (var filter in group.Filters.OrderBy(f => f.SortOrder))
+                        {
+                            var isSelected = Model.SelectedFilterKeys.Contains(filter.Id);
+                            <div class="form-check mb-2">
+                                @if (isSelected)
+                                {
+                                    <input class="form-check-input filter-checkbox"
+                                           type="checkbox"
+                                           id="filter-@filter.Id"
+                                           value="@filter.Id"
+                                           checked
+                                           @@change="toggleFilter('@filter.Id')">
+                                }
+                                else
+                                {
+                                    <input class="form-check-input filter-checkbox"
+                                           type="checkbox"
+                                           id="filter-@filter.Id"
+                                           value="@filter.Id"
+                                           @@change="toggleFilter('@filter.Id')">
+                                }
+                                <label class="form-check-label" for="filter-@filter.Id">
+                                    @filter.Name
+                                </label>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        <button type="button"
+                class="btn btn-outline-secondary btn-sm w-100"
+                @@click="clearFilters()"
+                x-show="selectedFilters.length > 0">
+            Clear All Filters
+        </button>
+    </div>
+}

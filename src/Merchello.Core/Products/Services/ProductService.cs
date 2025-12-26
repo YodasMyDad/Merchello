@@ -1325,6 +1325,78 @@ public class ProductService(
     }
 
     /// <summary>
+    /// Gets filter groups containing only filters that have products in the specified collection.
+    /// Empty groups (with no relevant filters) are excluded.
+    /// </summary>
+    public async Task<List<ProductFilterGroup>> GetFilterGroupsForCollection(Guid collectionId, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            // Get all filter IDs that have products in this collection
+            var relevantFilterIds = await db.Products
+                .Where(p => p.ProductRoot.Collections.Any(c => c.Id == collectionId))
+                .Where(p => p.AvailableForPurchase && p.CanPurchase)
+                .SelectMany(p => p.Filters)
+                .Select(f => f.Id)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            if (relevantFilterIds.Count == 0)
+                return new List<ProductFilterGroup>();
+
+            // Get filter groups with their filters
+            var groups = await db.ProductFilterGroups
+                .Include(g => g.Filters)
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+
+            // Filter to only include relevant filters and remove empty groups
+            foreach (var group in groups)
+            {
+                group.Filters = group.Filters
+                    .Where(f => relevantFilterIds.Contains(f.Id))
+                    .OrderBy(f => f.SortOrder)
+                    .ToList();
+            }
+
+            return groups
+                .Where(g => g.Filters.Any())
+                .OrderBy(g => g.SortOrder)
+                .ToList();
+        });
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Gets the min and max price for products in a collection using SQL aggregation.
+    /// More efficient than loading all products into memory.
+    /// </summary>
+    public async Task<(decimal MinPrice, decimal MaxPrice)> GetPriceRangeForCollection(Guid collectionId, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var prices = await db.Products
+                .Where(p => p.ProductRoot.Collections.Any(c => c.Id == collectionId))
+                .Where(p => p.AvailableForPurchase && p.CanPurchase)
+                .Where(p => p.Default) // Only default variants for consistency
+                .Select(p => p.Price)
+                .ToListAsync(cancellationToken);
+
+            if (prices.Count == 0)
+            {
+                return (0m, 1000m); // Default range if no products
+            }
+
+            return (prices.Min(), prices.Max());
+        });
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
     /// Get a product collection by ID
     /// </summary>
     public async Task<ProductCollection?> GetCollection(Guid collectionId, CancellationToken cancellationToken = default)
@@ -1503,6 +1575,17 @@ public class ProductService(
                         x.ProductWarehouses.Sum(pw => pw.Stock) <= 0),
                     _ => baseQuery
                 };
+            }
+
+            // Price range filter - applied at DB level
+            if (parameters.MinPrice.HasValue)
+            {
+                baseQuery = baseQuery.Where(x => x.Price >= parameters.MinPrice.Value);
+            }
+
+            if (parameters.MaxPrice.HasValue)
+            {
+                baseQuery = baseQuery.Where(x => x.Price <= parameters.MaxPrice.Value);
             }
 
             // Build the result query (collapsed to one variant per root when filters are applied)

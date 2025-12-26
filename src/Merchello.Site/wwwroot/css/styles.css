@@ -1,0 +1,184 @@
+/* ==========================================================================
+   Category Page - Price Range Slider
+   ========================================================================== */
+
+.price-range-slider {
+    padding: 0.5rem 0;
+}
+
+.range-slider-container {
+    position: relative;
+    height: 40px;
+}
+
+.range-track {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 100%;
+    height: 6px;
+    background: #dee2e6;
+    border-radius: 3px;
+}
+
+.range-selected {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 6px;
+    background: #0d6efd;
+    border-radius: 3px;
+}
+
+.range-input {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 100%;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    pointer-events: none;
+    margin: 0;
+}
+
+.range-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: #0d6efd;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.range-input::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+.range-input::-webkit-slider-thumb:active {
+    transform: scale(1.15);
+}
+
+.range-input::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: #0d6efd;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.range-input::-moz-range-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Ensure min slider thumb appears above max on overlap */
+.range-min {
+    z-index: 2;
+}
+
+.range-max {
+    z-index: 1;
+}
+
+/* ==========================================================================
+   Category Page - Filter Styles
+   ========================================================================== */
+
+.product-filters .filter-group {
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 1rem;
+}
+
+.product-filters .filter-group:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.product-filters .form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.product-filters .form-check-label {
+    cursor: pointer;
+    user-select: none;
+}
+
+.product-filters .color-swatch {
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+/* Color Swatch Grid */
+.color-swatch-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.color-swatch-item {
+    cursor: pointer;
+}
+
+.color-swatch-item .color-swatch {
+    display: block;
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    border: 2px solid #dee2e6;
+    transition: all 0.15s ease;
+}
+
+.color-swatch-item:hover .color-swatch {
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.color-swatch-item.selected .color-swatch {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 2px #0d6efd;
+}
+
+/* ==========================================================================
+   Product Box Enhancements
+   ========================================================================== */
+
+.product-box {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.product-box:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* ==========================================================================
+   Responsive Adjustments
+   ========================================================================== */
+
+@media (max-width: 767.98px) {
+    .range-input::-webkit-slider-thumb {
+        width: 24px;
+        height: 24px;
+    }
+
+    .range-input::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+    }
+
+    .price-range-slider .input-group {
+        flex: 1;
+    }
+}
