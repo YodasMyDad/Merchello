@@ -318,6 +318,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               description="Categorize this option (e.g., colour, size, material)">
               <uui-select
                 slot="editor"
+                .value=${this._formData.optionTypeAlias || ""}
                 .options=${this._getOptionTypeOptions()}
                 @change=${(e: Event) => (this._formData = { ...this._formData, optionTypeAlias: (e.target as HTMLSelectElement).value })}>
               </uui-select>
@@ -328,6 +329,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               description="How customers select this option on your storefront">
               <uui-select
                 slot="editor"
+                .value=${this._formData.optionUiAlias || "dropdown"}
                 .options=${this._getOptionUiOptions()}
                 @change=${(e: Event) => (this._formData = { ...this._formData, optionUiAlias: (e.target as HTMLSelectElement).value })}>
               </uui-select>

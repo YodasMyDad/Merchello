@@ -17,7 +17,14 @@
           integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
           crossorigin="anonymous">
 
+    <!-- Swiper CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
+
     <link href="~/css/styles.css" rel="stylesheet"/>
+
+    <!-- Alpine cloak style -->
+    <style>[x-cloak] { display: none !important; }</style>
+
     @await RenderSectionAsync("Head", required: false)
 </head>
 <body class="d-flex flex-column min-vh-100">
@@ -39,12 +46,16 @@
                                 <a class="nav-link text-white" href="@category.Url()">@category.Name</a>
                             </li>
                         }
-                        <li class="nav-item">
-                            <a class="nav-link text-white" href="/basket">
+                        <li class="nav-item" x-data>
+                            <a class="nav-link text-white position-relative" href="/basket">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-cart" viewBox="0 0 16 16">
                                     <path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .491.592l-1.5 8A.5.5 0 0 1 13 12H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5M3.102 4l1.313 7h8.17l1.313-7zM5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4m7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4m-7 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2m7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/>
                                 </svg>
                                 Basket
+                                <span x-show="$store.basket.count > 0"
+                                      x-text="$store.basket.count"
+                                      class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary"
+                                      x-cloak></span>
                             </a>
                         </li>
                     </ul>
@@ -84,6 +95,12 @@
         </div>
     </footer>
 
+    <!-- Swiper JS -->
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+
+    <!-- Site JS (must load before Alpine for store registration) -->
+    <script type="text/javascript" src="/scripts/site.js"></script>
+
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
 
@@ -92,8 +109,29 @@
             integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
             crossorigin="anonymous"></script>
 
-    <script type="text/javascript" src="/scripts/site.js"></script>
     @await RenderSectionAsync("Scripts", required: false)
+
+    <!-- Toast Notifications Container -->
+    <div x-data="toastContainer()"
+         class="toast-container position-fixed bottom-0 end-0 p-3"
+         style="z-index: 1100;">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div class="toast show align-items-center border-0"
+                 :class="'text-bg-' + toast.type"
+                 role="alert"
+                 aria-live="assertive"
+                 aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body" x-text="toast.message"></div>
+                    <button type="button"
+                            class="btn-close btn-close-white me-2 m-auto"
+                            @@click="removeToast(toast.id)"
+                            aria-label="Close"></button>
+                </div>
+            </div>
+        </template>
+    </div>
+
     <script src="//instant.page/5.2.0" type="module" integrity="sha384-jnZyxPjiipYXnSU0ygqeac2q7CVYMbh84q0uHVRRxEtvFPiQYbXWUorga2aqZJ0z"></script>
 </body>
 </html>

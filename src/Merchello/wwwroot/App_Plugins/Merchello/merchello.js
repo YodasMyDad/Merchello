@@ -250,7 +250,7 @@ const e = [
     type: "modal",
     alias: "Merchello.OptionEditor.Modal",
     name: "Merchello Option Editor Modal",
-    js: () => import("./option-editor-modal.element-D2Yhvkyh.js")
+    js: () => import("./option-editor-modal.element-Rrq09XgU.js")
   },
   // Workspace for products list (when clicking "Products" in tree)
   {

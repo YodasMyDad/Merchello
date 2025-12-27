@@ -1,0 +1,166 @@
+@model Merchello.Site.Shared.Components.ProductAddonSelector.ProductAddonSelectorViewModel
+
+<div class="addon-group mb-3">
+    <label class="form-label fw-semibold">@Model.Name</label>
+
+    @if (Model.UiType == "checkbox")
+    {
+        @foreach (var value in Model.Values)
+        {
+            <div class="form-check addon-item">
+                <input type="checkbox"
+                       class="form-check-input"
+                       id="addon-@value.Id"
+                       :checked="isAddonSelected('@Model.OptionId', '@value.Id')"
+                       @@change="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, $event.target.checked)" />
+                <label class="form-check-label" for="addon-@value.Id">
+                    @value.Name
+                    @if (value.PriceAdjustment != 0)
+                    {
+                        <span class="addon-price @(value.PriceAdjustment > 0 ? "text-success" : "text-danger")">
+                            (@(value.PriceAdjustment > 0 ? "+" : "")@Model.CurrencySymbol@value.PriceAdjustment.ToString("N2"))
+                        </span>
+                    }
+                </label>
+            </div>
+        }
+    }
+    else if (Model.UiType == "colour")
+    {
+        @if (Model.UseSwiper)
+        {
+            <div class="option-swiper swiper">
+                <div class="swiper-wrapper">
+                    @foreach (var value in Model.Values)
+                    {
+                        var priceLabel = value.GetPriceLabel(Model.CurrencySymbol);
+                        <div class="swiper-slide" style="width: auto;">
+                            <button type="button"
+                                    class="color-swatch"
+                                    :class="{ 'selected': isAddonSelected('@Model.OptionId', '@value.Id') }"
+                                    style="background-color: @(value.HexValue ?? "#ccc");"
+                                    title="@value.Name@priceLabel"
+                                    @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
+                            </button>
+                        </div>
+                    }
+                </div>
+                <div class="swiper-button-prev swiper-button-sm"></div>
+                <div class="swiper-button-next swiper-button-sm"></div>
+            </div>
+        }
+        else
+        {
+            <div class="color-swatch-grid">
+                @foreach (var value in Model.Values)
+                {
+                    var priceLabel = value.GetPriceLabel(Model.CurrencySymbol);
+                    <button type="button"
+                            class="color-swatch"
+                            :class="{ 'selected': isAddonSelected('@Model.OptionId', '@value.Id') }"
+                            style="background-color: @(value.HexValue ?? "#ccc");"
+                            title="@value.Name@priceLabel"
+                            @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
+                    </button>
+                }
+            </div>
+        }
+    }
+    else if (Model.UiType == "image")
+    {
+        @if (Model.UseSwiper)
+        {
+            <div class="option-swiper swiper">
+                <div class="swiper-wrapper">
+                    @foreach (var value in Model.Values)
+                    {
+                        var priceLabel = value.GetPriceLabel(Model.CurrencySymbol);
+                        <div class="swiper-slide" style="width: auto;">
+                            <button type="button"
+                                    class="image-swatch"
+                                    :class="{ 'selected': isAddonSelected('@Model.OptionId', '@value.Id') }"
+                                    title="@value.Name@priceLabel"
+                                    @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
+                                @if (!string.IsNullOrEmpty(value.MediaUrl))
+                                {
+                                    <img src="@value.MediaUrl" alt="@value.Name" />
+                                }
+                                else
+                                {
+                                    <span>@value.Name</span>
+                                }
+                            </button>
+                        </div>
+                    }
+                </div>
+                <div class="swiper-button-prev swiper-button-sm"></div>
+                <div class="swiper-button-next swiper-button-sm"></div>
+            </div>
+        }
+        else
+        {
+            <div class="image-swatch-grid">
+                @foreach (var value in Model.Values)
+                {
+                    var priceLabel = value.GetPriceLabel(Model.CurrencySymbol);
+                    <button type="button"
+                            class="image-swatch"
+                            :class="{ 'selected': isAddonSelected('@Model.OptionId', '@value.Id') }"
+                            title="@value.Name@priceLabel"
+                            @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
+                        @if (!string.IsNullOrEmpty(value.MediaUrl))
+                        {
+                            <img src="@value.MediaUrl" alt="@value.Name" />
+                        }
+                        else
+                        {
+                            <span>@value.Name</span>
+                        }
+                    </button>
+                }
+            </div>
+        }
+    }
+    else if (Model.UiType == "radiobutton")
+    {
+        <div class="btn-group flex-wrap" role="group">
+            @foreach (var value in Model.Values)
+            {
+                <input type="radio"
+                       class="btn-check"
+                       name="addon-@Model.OptionId"
+                       id="addon-@Model.OptionId-@value.Id"
+                       value="@value.Id"
+                       :checked="isAddonSelected('@Model.OptionId', '@value.Id')"
+                       @@change="selectAddonRadio('@Model.OptionId', '@value.Id', @value.PriceAdjustment)" />
+                <label class="btn btn-outline-secondary" for="addon-@Model.OptionId-@value.Id">
+                    @value.Name
+                    @if (value.PriceAdjustment != 0)
+                    {
+                        <span class="addon-price-inline @(value.PriceAdjustment > 0 ? "text-success" : "text-danger")">
+                            (@(value.PriceAdjustment > 0 ? "+" : "")@Model.CurrencySymbol@value.PriceAdjustment.ToString("N2"))
+                        </span>
+                    }
+                </label>
+            }
+        </div>
+    }
+    else
+    {
+        @* Default: dropdown *@
+        <select class="form-select"
+                @@change="selectAddonRadio('@Model.OptionId', $event.target.value, parseFloat($event.target.options[$event.target.selectedIndex].dataset.price || 0))">
+            <option value="" data-price="0">-- Select --</option>
+            @foreach (var value in Model.Values)
+            {
+                <option value="@value.Id" data-price="@value.PriceAdjustment">
+                    @value.Name
+                    @if (value.PriceAdjustment != 0)
+                    {
+                        @:(@(value.PriceAdjustment > 0 ? "+" : "")@Model.CurrencySymbol@value.PriceAdjustment.ToString("N2"))
+                    }
+                </option>
+            }
+        </select>
+    }
+</div>

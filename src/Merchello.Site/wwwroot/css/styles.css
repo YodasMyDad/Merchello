@@ -182,3 +182,387 @@
         flex: 1;
     }
 }
+
+/* ==========================================================================
+   Product Detail Page
+   ========================================================================== */
+
+.product-detail {
+    padding-bottom: 2rem;
+}
+
+/* Product Gallery */
+.product-gallery-main {
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.product-gallery-main img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    object-fit: cover;
+}
+
+.product-gallery-main .swiper-button-prev,
+.product-gallery-main .swiper-button-next {
+    color: #fff;
+    background: rgba(0, 0, 0, 0.5);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+}
+
+.product-gallery-main .swiper-button-prev::after,
+.product-gallery-main .swiper-button-next::after {
+    font-size: 16px;
+}
+
+.product-gallery-thumbs {
+    margin-top: 0.5rem;
+}
+
+.product-gallery-thumbs .swiper-slide {
+    width: 80px;
+    height: 80px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+    border-radius: 0.375rem;
+    overflow: hidden;
+}
+
+.product-gallery-thumbs .swiper-slide:hover {
+    opacity: 0.8;
+}
+
+.product-gallery-thumbs .swiper-slide-thumb-active {
+    opacity: 1;
+    outline: 2px solid #0d6efd;
+    outline-offset: 2px;
+}
+
+.product-gallery-thumbs img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Placeholder Image */
+.product-placeholder {
+    background: #f8f9fa;
+    min-height: 400px;
+}
+
+/* ==========================================================================
+   Color & Image Swatches (Product Options)
+   ========================================================================== */
+
+/* Color Swatch Button */
+.color-swatch {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 3px solid #dee2e6;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+    padding: 0;
+}
+
+.color-swatch:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.color-swatch.selected {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25), inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+/* Image Swatch Button */
+.image-swatch {
+    width: 70px;
+    height: 70px;
+    border-radius: 0.5rem;
+    border: 2px solid #dee2e6;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 0;
+    overflow: hidden;
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.image-swatch img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.image-swatch span {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-align: center;
+    padding: 0.25rem;
+}
+
+.image-swatch:hover {
+    border-color: #adb5bd;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.image-swatch.selected {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
+}
+
+/* Swatch Grids */
+.image-swatch-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+/* Option Swiper (for many values) */
+.option-swiper {
+    position: relative;
+    padding: 0 30px;
+}
+
+.option-swiper .swiper-slide {
+    width: auto !important;
+}
+
+.option-swiper .swiper-button-prev,
+.option-swiper .swiper-button-next {
+    width: 24px;
+    height: 24px;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 50%;
+    color: #212529;
+}
+
+.option-swiper .swiper-button-prev::after,
+.option-swiper .swiper-button-next::after {
+    font-size: 10px;
+    font-weight: bold;
+}
+
+.option-swiper .swiper-button-prev {
+    left: 0;
+}
+
+.option-swiper .swiper-button-next {
+    right: 0;
+}
+
+.swiper-button-sm {
+    width: 28px !important;
+    height: 28px !important;
+}
+
+.swiper-button-sm::after {
+    font-size: 12px !important;
+}
+
+/* ==========================================================================
+   Add-on Options
+   ========================================================================== */
+
+.addon-options {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+
+.addon-item {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.addon-item:last-child {
+    border-bottom: none;
+}
+
+.addon-price {
+    font-weight: 500;
+    margin-left: 0.25rem;
+}
+
+/* ==========================================================================
+   Quantity Selector
+   ========================================================================== */
+
+.quantity-selector {
+    width: fit-content;
+}
+
+.quantity-selector .btn {
+    padding: 0.375rem 0.75rem;
+}
+
+.quantity-selector input[type="number"] {
+    -moz-appearance: textfield;
+}
+
+.quantity-selector input[type="number"]::-webkit-outer-spin-button,
+.quantity-selector input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* ==========================================================================
+   Toast Notifications
+   ========================================================================== */
+
+.toast-container .toast {
+    min-width: 280px;
+    margin-bottom: 0.5rem;
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.toast.text-bg-success {
+    background-color: #198754 !important;
+}
+
+.toast.text-bg-danger {
+    background-color: #dc3545 !important;
+}
+
+.toast.text-bg-warning {
+    background-color: #ffc107 !important;
+    color: #212529 !important;
+}
+
+.toast.text-bg-info {
+    background-color: #0dcaf0 !important;
+    color: #212529 !important;
+}
+
+/* ==========================================================================
+   Product Description Content
+   ========================================================================== */
+
+.product-description-content {
+    line-height: 1.7;
+}
+
+.product-description-content p {
+    margin-bottom: 1rem;
+}
+
+.product-description-content ul,
+.product-description-content ol {
+    margin-bottom: 1rem;
+    padding-left: 1.5rem;
+}
+
+.product-description-content li {
+    margin-bottom: 0.5rem;
+}
+
+/* ==========================================================================
+   Product Page - Mobile Responsive
+   ========================================================================== */
+
+@media (max-width: 991.98px) {
+    .product-gallery-thumbs .swiper-slide {
+        width: 60px;
+        height: 60px;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .product-detail .row > .col-lg-6:first-child {
+        margin-bottom: 1.5rem;
+    }
+
+    .option-swiper {
+        margin-left: -1rem;
+        margin-right: -1rem;
+        padding-left: 2.5rem;
+        padding-right: 2.5rem;
+    }
+
+    .color-swatch {
+        width: 40px;
+        height: 40px;
+    }
+
+    .image-swatch {
+        width: 60px;
+        height: 60px;
+    }
+
+    .add-to-cart-section .row {
+        flex-direction: column;
+    }
+
+    .add-to-cart-section .col-auto {
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+
+    .quantity-selector {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .quantity-selector input[type="number"] {
+        flex: 1;
+        max-width: 100px;
+    }
+
+    /* Hide navigation arrows on mobile - use swipe instead */
+    .product-gallery-main .swiper-button-prev,
+    .product-gallery-main .swiper-button-next {
+        display: none;
+    }
+}
+
+/* ==========================================================================
+   Touch-Friendly Improvements
+   ========================================================================== */
+
+/* Ensure swipers are touch-friendly */
+.option-swiper {
+    touch-action: pan-y pinch-zoom;
+}
+
+/* Minimum touch target sizes (44x44 per accessibility guidelines) */
+.color-swatch,
+.image-swatch {
+    min-width: 44px;
+    min-height: 44px;
+}
+
+/* Add-on swatch price indicator */
+.addon-price-inline {
+    font-size: 0.85em;
+    margin-left: 0.25rem;
+}
+
+/* Low stock warning style */
+.stock-status .text-warning {
+    font-weight: 500;
+}
+
+/* Out of stock button styling */
+.add-to-cart-section .btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}

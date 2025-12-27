@@ -1,0 +1,139 @@
+@model Merchello.Site.Shared.Components.ProductOptionSelector.ProductOptionSelectorViewModel
+
+<div class="option-group mb-3">
+    <label class="form-label fw-semibold">@Model.Name</label>
+
+    @if (Model.UiType == "dropdown")
+    {
+        <select class="form-select"
+                x-model="selectedOptions['@Model.OptionAlias']"
+                @@change="selectOption('@Model.OptionAlias', $event.target.value)">
+            @foreach (var value in Model.Values)
+            {
+                <option value="@value.Id">@value.Name</option>
+            }
+        </select>
+    }
+    else if (Model.UiType == "colour")
+    {
+        @if (Model.UseSwiper)
+        {
+            <div class="option-swiper swiper">
+                <div class="swiper-wrapper">
+                    @foreach (var value in Model.Values)
+                    {
+                        <div class="swiper-slide" style="width: auto;">
+                            <button type="button"
+                                    class="color-swatch"
+                                    :class="{ 'selected': selectedOptions['@Model.OptionAlias'] === '@value.Id' }"
+                                    style="background-color: @(value.HexValue ?? "#ccc");"
+                                    title="@value.Name"
+                                    @@click="selectOption('@Model.OptionAlias', '@value.Id')">
+                            </button>
+                        </div>
+                    }
+                </div>
+                <div class="swiper-button-prev swiper-button-sm"></div>
+                <div class="swiper-button-next swiper-button-sm"></div>
+            </div>
+        }
+        else
+        {
+            <div class="color-swatch-grid">
+                @foreach (var value in Model.Values)
+                {
+                    <button type="button"
+                            class="color-swatch"
+                            :class="{ 'selected': selectedOptions['@Model.OptionAlias'] === '@value.Id' }"
+                            style="background-color: @(value.HexValue ?? "#ccc");"
+                            title="@value.Name"
+                            @@click="selectOption('@Model.OptionAlias', '@value.Id')">
+                    </button>
+                }
+            </div>
+        }
+    }
+    else if (Model.UiType == "image")
+    {
+        @if (Model.UseSwiper)
+        {
+            <div class="option-swiper swiper">
+                <div class="swiper-wrapper">
+                    @foreach (var value in Model.Values)
+                    {
+                        <div class="swiper-slide" style="width: auto;">
+                            <button type="button"
+                                    class="image-swatch"
+                                    :class="{ 'selected': selectedOptions['@Model.OptionAlias'] === '@value.Id' }"
+                                    title="@value.Name"
+                                    @@click="selectOption('@Model.OptionAlias', '@value.Id')">
+                                @if (!string.IsNullOrEmpty(value.MediaUrl))
+                                {
+                                    <img src="@value.MediaUrl" alt="@value.Name" />
+                                }
+                                else
+                                {
+                                    <span>@value.Name</span>
+                                }
+                            </button>
+                        </div>
+                    }
+                </div>
+                <div class="swiper-button-prev swiper-button-sm"></div>
+                <div class="swiper-button-next swiper-button-sm"></div>
+            </div>
+        }
+        else
+        {
+            <div class="image-swatch-grid">
+                @foreach (var value in Model.Values)
+                {
+                    <button type="button"
+                            class="image-swatch"
+                            :class="{ 'selected': selectedOptions['@Model.OptionAlias'] === '@value.Id' }"
+                            title="@value.Name"
+                            @@click="selectOption('@Model.OptionAlias', '@value.Id')">
+                        @if (!string.IsNullOrEmpty(value.MediaUrl))
+                        {
+                            <img src="@value.MediaUrl" alt="@value.Name" />
+                        }
+                        else
+                        {
+                            <span>@value.Name</span>
+                        }
+                    </button>
+                }
+            </div>
+        }
+    }
+    else if (Model.UiType == "radiobutton")
+    {
+        <div class="btn-group flex-wrap" role="group">
+            @foreach (var value in Model.Values)
+            {
+                <input type="radio"
+                       class="btn-check"
+                       name="option-@Model.OptionAlias"
+                       id="option-@Model.OptionAlias-@value.Id"
+                       value="@value.Id"
+                       :checked="selectedOptions['@Model.OptionAlias'] === '@value.Id'"
+                       @@change="selectOption('@Model.OptionAlias', '@value.Id')" />
+                <label class="btn btn-outline-secondary" for="option-@Model.OptionAlias-@value.Id">
+                    @value.Name
+                </label>
+            }
+        </div>
+    }
+    else
+    {
+        @* Default: dropdown *@
+        <select class="form-select"
+                x-model="selectedOptions['@Model.OptionAlias']"
+                @@change="selectOption('@Model.OptionAlias', $event.target.value)">
+            @foreach (var value in Model.Values)
+            {
+                <option value="@value.Id">@value.Name</option>
+            }
+        </select>
+    }
+</div>

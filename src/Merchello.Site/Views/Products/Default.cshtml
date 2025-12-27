@@ -2,10 +2,15 @@
 @using Umbraco.Cms.Core.Models
 @using Umbraco.Cms.Core.Strings
 @using Merchello.Extensions
+@using System.Text.Json
 @inject Umbraco.Cms.Core.PublishedCache.IPublishedMediaCache MediaCache
+@inject Microsoft.Extensions.Options.IOptions<Merchello.Core.Shared.Models.MerchelloSettings> Settings
+@inject Merchello.Services.IRichTextRenderer RichTextRenderer
 @inherits UmbracoViewPage<MerchelloProductViewModel>
 @{
-    Layout = null;
+    Layout = "~/Views/Website.cshtml";
+
+    var settings = Settings.Value;
 
     // Element Type properties (if configured)
     var heroImage = Model.Content.Value<MediaWithCrops>("heroImage");
@@ -17,13 +22,109 @@
 
     // Resolve Merchello images from GUIDs
     var resolvedImages = Model.Images.ToMedia(MediaCache).ToList();
+
+    // Get first image URL for social meta
+    var firstImageUrl = heroImage?.GetCropUrl(width: 1200)
+        ?? resolvedImages.FirstOrDefault()?.GetCropUrl(width: 1200)
+        ?? "";
+
+    // SSR stock calculation for search engines
+    var ssrTrackStock = Model.SelectedVariant.ProductWarehouses.Any(pw => pw.TrackStock);
+    var ssrTotalStock = Model.SelectedVariant.ProductWarehouses
+        .Where(pw => pw.TrackStock)
+        .Sum(pw => Math.Max(0, pw.Stock - pw.ReservedStock));
+    var ssrIsLowStock = ssrTrackStock && ssrTotalStock > 0 && ssrTotalStock <= settings.LowStockThreshold;
+    var ssrInStock = Model.AvailableForPurchase;
+
+    // Build selected options from current variant's VariantOptionsKey
+    // The key contains value GUIDs joined by hyphens (sorted alphabetically)
+    // Note: Can't split by '-' because GUIDs themselves contain hyphens
+    var selectedOptions = new Dictionary<string, string>();
+    if (!string.IsNullOrEmpty(Model.SelectedVariant.VariantOptionsKey))
+    {
+        var variantKey = Model.SelectedVariant.VariantOptionsKey;
+
+        foreach (var option in Model.VariantOptions)
+        {
+            // Find which value's ID appears in the variant key
+            var matchingValue = option.ProductOptionValues
+                .FirstOrDefault(v => variantKey.Contains(v.Id.ToString(), StringComparison.OrdinalIgnoreCase));
+            if (matchingValue != null)
+            {
+                selectedOptions[option.Alias ?? ""] = matchingValue.Id.ToString();
+            }
+        }
+    }
+
+    // Build config for Alpine.js
+    var config = new
+    {
+        selectedVariantId = Model.SelectedVariant.Id.ToString(),
+        selectedOptions = selectedOptions,
+        productUrl = Model.ProductUrl,
+        currencySymbol = settings.CurrencySymbol,
+        lowStockThreshold = settings.LowStockThreshold,
+        variants = Model.AllVariants.Select(v => new
+        {
+            id = v.Id.ToString(),
+            name = v.Name,
+            price = v.Price,
+            previousPrice = v.PreviousPrice,
+            onSale = v.OnSale,
+            availableForPurchase = v.AvailableForPurchase,
+            trackStock = v.ProductWarehouses.Any(pw => pw.TrackStock),
+            totalStock = v.ProductWarehouses
+                .Where(pw => pw.TrackStock)
+                .Sum(pw => Math.Max(0, pw.Stock - pw.ReservedStock)),
+            sku = v.Sku,
+            variantOptionsKey = v.VariantOptionsKey,
+            url = Model.GetVariantUrl(v),
+            images = v.ExcludeRootProductImages
+                ? v.Images.ToMedia(MediaCache).Select(m => m.GetCropUrl(width: 800)).ToList()
+                : v.Images.ToMedia(MediaCache).Select(m => m.GetCropUrl(width: 800))
+                    .Concat(Model.ProductRoot.RootImages.ToMedia(MediaCache).Select(m => m.GetCropUrl(width: 800)))
+                    .ToList()
+        }).ToList(),
+        variantOptions = Model.VariantOptions.Select(o => new
+        {
+            id = o.Id.ToString(),
+            name = o.Name,
+            alias = o.Alias,
+            sortOrder = o.SortOrder,
+            uiType = o.OptionUiAlias ?? "dropdown",
+            values = o.ProductOptionValues.Select(v => new
+            {
+                id = v.Id.ToString(),
+                name = v.Name,
+                hexValue = v.HexValue,
+                mediaUrl = v.MediaKey.HasValue
+                    ? MediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 80)
+                    : null
+            }).ToList()
+        }).ToList(),
+        addonOptions = Model.AddOnOptions.Select(o => new
+        {
+            id = o.Id.ToString(),
+            name = o.Name,
+            alias = o.Alias,
+            uiType = o.OptionUiAlias ?? "checkbox",
+            values = o.ProductOptionValues.Select(v => new
+            {
+                id = v.Id.ToString(),
+                name = v.Name,
+                priceAdjustment = v.PriceAdjustment,
+                hexValue = v.HexValue,
+                mediaUrl = v.MediaKey.HasValue
+                    ? MediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 80)
+                    : null
+            }).ToList()
+        }).ToList()
+    };
+    var configJson = JsonSerializer.Serialize(config, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 }
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@Model.MetaTitle</title>
+
+@section Head {
+    <!-- SEO Meta -->
     @if (!string.IsNullOrEmpty(Model.MetaDescription))
     {
         <meta name="description" content="@Model.MetaDescription" />
@@ -32,235 +133,338 @@
     {
         <link rel="canonical" href="@Model.CanonicalUrl" />
     }
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .product-page { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
-        @@media (max-width: 768px) { .product-page { grid-template-columns: 1fr; } }
 
-        /* Hero & Images */
-        .product-hero img { width: 100%; height: auto; border-radius: 8px; }
-        .product-gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
-        .product-gallery img { width: 100%; height: 100px; object-fit: cover; border-radius: 4px; cursor: pointer; }
+    <!-- OpenGraph -->
+    <meta property="og:title" content="@Model.MetaTitle" />
+    <meta property="og:description" content="@(Model.MetaDescription ?? "")" />
+    <meta property="og:image" content="@firstImageUrl" />
+    <meta property="og:url" content="@Model.CanonicalUrl" />
+    <meta property="og:type" content="product" />
+    <meta property="product:price:amount" content="@Model.Price" />
+    <meta property="product:price:currency" content="@settings.StoreCurrencyCode" />
+    @if (Model.AvailableForPurchase)
+    {
+        <meta property="product:availability" content="in stock" />
+    }
+    else
+    {
+        <meta property="product:availability" content="out of stock" />
+    }
 
-        /* Product Info */
-        .product-info h1 { font-size: 2rem; margin-bottom: 10px; }
-        .subtitle { color: #666; font-size: 1.1rem; margin-bottom: 10px; }
-        .tagline { font-style: italic; color: #888; margin-bottom: 20px; }
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="@Model.MetaTitle" />
+    <meta name="twitter:description" content="@(Model.MetaDescription ?? "")" />
+    <meta name="twitter:image" content="@firstImageUrl" />
 
-        /* Pricing */
-        .pricing { margin: 20px 0; }
-        .price { font-size: 2rem; font-weight: bold; color: #2d3748; }
-        .was-price { text-decoration: line-through; color: #999; margin-left: 10px; }
-        .sale-badge { background: #e53e3e; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin-left: 10px; }
+    <title>@Model.MetaTitle</title>
 
-        /* Stock */
-        .stock-info { margin: 15px 0; }
-        .in-stock { color: #38a169; }
-        .out-of-stock { color: #e53e3e; }
+    <!-- JSON-LD Product Schema -->
+    @{
+        var schemaAvailability = ssrInStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock";
+        var schemaCondition = "https://schema.org/NewCondition";
+        var productSchema = new Dictionary<string, object>
+        {
+            ["@context"] = "https://schema.org",
+            ["@type"] = "Product",
+            ["name"] = Model.ProductRoot.RootName ?? "",
+            ["description"] = Model.MetaDescription ?? "",
+            ["sku"] = Model.SelectedVariant.Sku ?? "",
+            ["image"] = !string.IsNullOrEmpty(firstImageUrl) ? new[] { firstImageUrl } : Array.Empty<string>(),
+            ["offers"] = new Dictionary<string, object>
+            {
+                ["@type"] = "Offer",
+                ["url"] = Model.CanonicalUrl ?? "",
+                ["priceCurrency"] = settings.StoreCurrencyCode,
+                ["price"] = Model.Price,
+                ["availability"] = schemaAvailability,
+                ["itemCondition"] = schemaCondition
+            }
+        };
+        var schemaJson = JsonSerializer.Serialize(productSchema, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = null, // Keep property names as-is
+            WriteIndented = false
+        });
+    }
+    <script type="application/ld+json">@Html.Raw(schemaJson)</script>
+}
 
-        /* Variant Picker */
-        .variant-picker { margin: 20px 0; }
-        .option-group { margin-bottom: 15px; }
-        .option-group label { display: block; font-weight: 600; margin-bottom: 5px; }
-        .option-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; }
+<div x-data='productPage(@Html.Raw(configJson))' class="product-detail">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/">Home</a></li>
+            <li class="breadcrumb-item active" aria-current="page">@Model.ProductRoot.RootName</li>
+        </ol>
+    </nav>
 
-        /* Add-ons */
-        .add-ons { background: #f7fafc; padding: 20px; border-radius: 8px; margin: 20px 0; }
-        .add-ons h3 { margin-bottom: 15px; }
-        .add-on-choice { display: block; padding: 8px 0; }
-        .add-on-choice input { margin-right: 10px; }
-        .price-adjustment { color: #38a169; font-size: 0.9rem; }
-
-        /* Buttons */
-        .add-to-cart { background: #3182ce; color: white; padding: 15px 30px; border: none; border-radius: 4px; font-size: 1.1rem; cursor: pointer; width: 100%; margin-top: 20px; }
-        .add-to-cart:hover { background: #2c5282; }
-        .add-to-cart:disabled { background: #cbd5e0; cursor: not-allowed; }
-
-        /* Description & Features */
-        .description { margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; grid-column: 1 / -1; }
-        .description h2 { margin-bottom: 15px; }
-        .features { margin-top: 30px; grid-column: 1 / -1; }
-        .features h2 { margin-bottom: 15px; }
-
-        /* Variant Links */
-        .variant-links { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
-        .variant-links a { padding: 8px 16px; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; }
-        .variant-links a:hover { border-color: #3182ce; }
-        .variant-links a.selected { background: #3182ce; color: white; border-color: #3182ce; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <article class="product-page">
-            <!-- Product Images -->
-            <div class="product-media">
-                @if (heroImage != null)
-                {
-                    <div class="product-hero">
-                        <img src="@heroImage.GetCropUrl(width: 800)" alt="@Model.ProductRoot.RootName" />
+    <div class="row">
+        <!-- Product Images -->
+        <div class="col-lg-6 mb-4">
+            <!-- Dynamic Image Gallery (Alpine.js) -->
+            <template x-if="images.length > 0">
+                <div>
+                    <!-- Main Image Swiper -->
+                    <div class="swiper product-gallery-main mb-3" x-ref="galleryMain">
+                        <div class="swiper-wrapper">
+                            <template x-for="(image, index) in images" :key="index">
+                                <div class="swiper-slide">
+                                    <img :src="image" alt="@Model.ProductRoot.RootName" class="img-fluid rounded" />
+                                </div>
+                            </template>
+                        </div>
+                        <div class="swiper-button-prev"></div>
+                        <div class="swiper-button-next"></div>
                     </div>
-                }
-                else if (resolvedImages.Any())
-                {
-                    <div class="product-hero">
-                        <img src="@resolvedImages.First().GetCropUrl(width: 800)" alt="@Model.ProductRoot.RootName" />
-                    </div>
-                }
 
-                @if (resolvedImages.Count > 1)
-                {
-                    <div class="product-gallery">
-                        @foreach (var image in resolvedImages.Skip(heroImage != null ? 0 : 1))
-                        {
-                            <img src="@image.GetCropUrl(width: 200)" alt="@Model.ProductRoot.RootName" loading="lazy" />
-                        }
-                    </div>
-                }
+                    <!-- Thumbnail Swiper -->
+                    <template x-if="images.length > 1">
+                        <div class="swiper product-gallery-thumbs" x-ref="galleryThumbs">
+                            <div class="swiper-wrapper">
+                                <template x-for="(image, index) in images" :key="'thumb-' + index">
+                                    <div class="swiper-slide">
+                                        <img :src="image" alt="@Model.ProductRoot.RootName" class="img-fluid rounded" />
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </template>
+
+            <!-- Placeholder when no images -->
+            <template x-if="images.length === 0">
+                <div class="product-placeholder bg-light d-flex align-items-center justify-content-center rounded" style="aspect-ratio: 1;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="text-muted" viewBox="0 0 16 16">
+                        <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0"/>
+                        <path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1z"/>
+                    </svg>
+                </div>
+            </template>
+        </div>
+
+        <!-- Product Info -->
+        <div class="col-lg-6">
+            <h1 class="h2 mb-2">@Model.ProductRoot.RootName</h1>
+
+            @if (!string.IsNullOrEmpty(subtitle))
+            {
+                <p class="text-muted mb-2">@subtitle</p>
+            }
+
+            @if (!string.IsNullOrEmpty(tagline))
+            {
+                <p class="fst-italic text-secondary mb-3">@tagline</p>
+            }
+
+            <!-- SKU -->
+            <p class="text-muted small mb-3">
+                SKU: <span x-text="sku">@Model.SelectedVariant.Sku</span>
+            </p>
+
+            <!-- Pricing -->
+            <div class="pricing mb-3">
+                <span class="h3 text-dark" x-text="formatPrice(totalPrice)">@settings.CurrencySymbol@Model.Price.ToString("N2")</span>
+                @* SSR fallback for sale - x-cloak hides until Alpine loads, then Alpine controls visibility *@
+                <span class="text-decoration-line-through text-muted ms-2"
+                      x-show="onSale && previousPrice"
+                      x-text="formatPrice(previousPrice)"
+                      @(Model.OnSale && Model.PreviousPrice.HasValue ? "" : "x-cloak")>@(Model.OnSale && Model.PreviousPrice.HasValue ? $"{settings.CurrencySymbol}{Model.PreviousPrice.Value:N2}" : "")</span>
+                <span class="badge bg-danger ms-2"
+                      x-show="onSale"
+                      @(Model.OnSale ? "" : "x-cloak")>Sale</span>
             </div>
 
-            <!-- Product Info -->
-            <div class="product-info">
-                <h1>@Model.ProductRoot.RootName</h1>
-
-                @if (!string.IsNullOrEmpty(subtitle))
-                {
-                    <p class="subtitle">@subtitle</p>
-                }
-
-                @if (!string.IsNullOrEmpty(tagline))
-                {
-                    <p class="tagline">@tagline</p>
-                }
-
-                <!-- Pricing -->
-                <div class="pricing">
-                    <span class="price">@Model.Price.ToString("C")</span>
-                    @if (Model.OnSale && Model.PreviousPrice.HasValue)
+            <!-- Stock Status - SSR fallback shown until Alpine takes over -->
+            <div class="stock-status mb-4">
+                @* SSR fallback for initial page load (visible to search engines) *@
+                <noscript>
+                    @if (ssrInStock && ssrIsLowStock)
                     {
-                        <span class="was-price">@Model.PreviousPrice.Value.ToString("C")</span>
-                        <span class="sale-badge">Sale</span>
+                        <span class="text-warning">Low Stock - Only @ssrTotalStock left!</span>
                     }
-                </div>
-
-                <!-- Stock Info -->
-                <div class="stock-info">
-                    @if (Model.AvailableForPurchase)
+                    else if (ssrInStock && ssrTrackStock)
                     {
-                        <span class="in-stock">
-                            @if (Model.TrackStock)
-                            {
-                                @:In Stock (@Model.TotalStock available)
-                            }
-                            else
-                            {
-                                @:In Stock
-                            }
-                        </span>
+                        <span class="text-success">In Stock (@ssrTotalStock available)</span>
+                    }
+                    else if (ssrInStock)
+                    {
+                        <span class="text-success">In Stock</span>
                     }
                     else
                     {
-                        <span class="out-of-stock">Out of Stock</span>
+                        <span class="text-danger">Out of Stock</span>
                     }
-                </div>
+                </noscript>
 
-                <!-- Variant Picker (dropdown style) -->
-                @if (Model.AllVariants.Count > 1 && Model.VariantOptions.Any())
-                {
-                    <div class="variant-picker">
-                        @foreach (var option in Model.VariantOptions)
-                        {
-                            <div class="option-group">
-                                <label>@option.Name</label>
-                                <select name="option-@option.Alias">
-                                    @foreach (var value in option.ProductOptionValues)
-                                    {
-                                        <option value="@value.Id">
-                                            @value.Name
-                                        </option>
-                                    }
-                                </select>
-                            </div>
-                        }
-                    </div>
-                }
+                @* Low Stock *@
+                <span class="text-warning"
+                      x-show="inStock && trackStock && stockCount <= lowStockThreshold"
+                      @(ssrInStock && ssrIsLowStock ? "" : "x-cloak")>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-exclamation-triangle me-1" viewBox="0 0 16 16">
+                        <path d="M7.938 2.016A.13.13 0 0 1 8.002 2a.13.13 0 0 1 .063.016.15.15 0 0 1 .054.057l6.857 11.667c.036.06.035.124.002.183a.2.2 0 0 1-.054.06.1.1 0 0 1-.066.017H1.146a.1.1 0 0 1-.066-.017.2.2 0 0 1-.054-.06.18.18 0 0 1 .002-.183L7.884 2.073a.15.15 0 0 1 .054-.057m1.044-.45a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767z"/>
+                        <path d="M7.002 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0M7.1 5.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0z"/>
+                    </svg>
+                    Low Stock - Only <span x-text="stockCount">@ssrTotalStock</span> left!
+                </span>
 
-                <!-- Variant Links (alternative style) -->
-                @if (Model.AllVariants.Count > 1)
-                {
-                    <div class="variant-links">
-                        @foreach (var variant in Model.AllVariants)
-                        {
-                            var isSelected = Model.IsVariantSelected(variant);
-                            <a href="@Model.GetVariantUrl(variant)" class="@(isSelected ? "selected" : "")">
-                                @(variant.Name ?? "Default") - @variant.Price.ToString("C")
-                            </a>
-                        }
-                    </div>
-                }
+                @* In Stock with count *@
+                <span class="text-success"
+                      x-show="inStock && trackStock && stockCount > lowStockThreshold"
+                      @(ssrInStock && ssrTrackStock && !ssrIsLowStock ? "" : "x-cloak")>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-circle me-1" viewBox="0 0 16 16">
+                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                        <path d="m10.97 4.97-.02.022-3.473 4.425-2.093-2.094a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05"/>
+                    </svg>
+                    In Stock (<span x-text="stockCount">@ssrTotalStock</span> available)
+                </span>
 
-                <!-- Add-on Options -->
-                @if (Model.AddOnOptions.Any())
-                {
-                    <div class="add-ons">
-                        <h3>Customization Options</h3>
-                        @foreach (var option in Model.AddOnOptions)
-                        {
-                            <div class="add-on-group">
-                                <label>@option.Name</label>
-                                @foreach (var value in option.ProductOptionValues)
-                                {
-                                    <label class="add-on-choice">
-                                        <input type="checkbox"
-                                               name="addon-@option.Alias"
-                                               value="@value.Id"
-                                               data-price-adjustment="@value.PriceAdjustment" />
-                                        @value.Name
-                                        @if (value.PriceAdjustment > 0)
-                                        {
-                                            <span class="price-adjustment">+@value.PriceAdjustment.ToString("C")</span>
-                                        }
-                                    </label>
-                                }
-                            </div>
-                        }
-                    </div>
-                }
+                @* In Stock (untracked) *@
+                <span class="text-success"
+                      x-show="inStock && !trackStock"
+                      @(ssrInStock && !ssrTrackStock ? "" : "x-cloak")>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-circle me-1" viewBox="0 0 16 16">
+                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                        <path d="m10.97 4.97-.02.022-3.473 4.425-2.093-2.094a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05"/>
+                    </svg>
+                    In Stock
+                </span>
 
-                <!-- Add to Cart -->
-                @if (Model.AvailableForPurchase)
-                {
-                    <button class="add-to-cart" data-product-id="@Model.SelectedVariant.Id">
-                        Add to Basket
-                    </button>
-                }
-                else
-                {
-                    <button class="add-to-cart" disabled>
-                        Out of Stock
-                    </button>
-                }
+                @* Out of Stock *@
+                <span class="text-danger"
+                      x-show="!inStock"
+                      @(!ssrInStock ? "" : "x-cloak")>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle me-1" viewBox="0 0 16 16">
+                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                        <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708"/>
+                    </svg>
+                    Out of Stock
+                </span>
             </div>
 
-            <!-- Description from Element Type -->
-            @if (description != null)
+            <!-- Variant Options -->
+            @if (Model.AllVariants.Count > 1 && Model.VariantOptions.Any())
             {
-                <section class="description">
-                    <h2>Description</h2>
-                    @description
-                </section>
+                <div class="variant-options mb-4">
+                    @foreach (var option in Model.VariantOptions.OrderBy(o => o.SortOrder))
+                    {
+                        @await Component.InvokeAsync("ProductOptionSelector", new { option = option })
+                    }
+                </div>
             }
 
-            <!-- Features from Element Type (Block List) -->
-            @if (features?.Any() == true)
+            <!-- Add-on Options -->
+            @if (Model.AddOnOptions.Any())
             {
-                <section class="features">
-                    <h2>Features</h2>
-                    @await Html.GetBlockListHtmlAsync(features)
-                </section>
+                <div class="addon-options card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">Customization Options</h5>
+
+                        @foreach (var option in Model.AddOnOptions.OrderBy(o => o.SortOrder))
+                        {
+                            @await Component.InvokeAsync("ProductAddonSelector", new { option = option })
+                        }
+                    </div>
+                </div>
             }
-        </article>
+
+            <!-- Quantity & Add to Cart -->
+            <div class="add-to-cart-section">
+                <div class="row g-3 align-items-end">
+                    <div class="col-auto">
+                        <label class="form-label">Quantity</label>
+                        <div class="input-group quantity-selector">
+                            <button type="button"
+                                    class="btn btn-outline-secondary"
+                                    @@click="decrementQuantity()"
+                                    :disabled="quantity <= 1">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M4 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 4 8"/>
+                                </svg>
+                            </button>
+                            <input type="number"
+                                   class="form-control text-center"
+                                   x-model.number="quantity"
+                                   min="1"
+                                   :max="maxQuantity"
+                                   style="width: 60px;" />
+                            <button type="button"
+                                    class="btn btn-outline-secondary"
+                                    @@click="incrementQuantity()"
+                                    :disabled="quantity >= maxQuantity">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <button type="button"
+                                class="btn btn-lg w-100"
+                                :class="inStock ? 'btn-primary' : 'btn-secondary'"
+                                :disabled="!inStock || isLoading"
+                                @@click="addToCart()">
+                            <template x-if="!isLoading && inStock">
+                                <span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="me-2" viewBox="0 0 16 16">
+                                        <path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .491.592l-1.5 8A.5.5 0 0 1 13 12H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5M3.102 4l1.313 7h8.17l1.313-7zM5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4m7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4m-7 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2m7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/>
+                                    </svg>
+                                    Add to Basket
+                                </span>
+                            </template>
+                            <template x-if="!isLoading && !inStock">
+                                <span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="me-2" viewBox="0 0 16 16">
+                                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                                        <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708"/>
+                                    </svg>
+                                    Out of Stock
+                                </span>
+                            </template>
+                            <template x-if="isLoading">
+                                <span>
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Adding...
+                                </span>
+                            </template>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-</body>
-</html>
+
+    <!-- Product Description -->
+    @{
+        // Element type description (already rendered by Umbraco)
+        var hasElementDescription = description != null;
+        // ProductRoot description (stored as TipTap JSON, needs rendering)
+        var hasRootDescription = !string.IsNullOrEmpty(Model.ProductRoot.Description);
+    }
+    @if (hasElementDescription || hasRootDescription)
+    {
+        <section class="product-description mt-5 pt-4 border-top">
+            <h2 class="h4 mb-3">Description</h2>
+            <div class="product-description-content">
+                @if (hasElementDescription)
+                {
+                    @description
+                }
+                @if (hasRootDescription)
+                {
+                    @Model.ProductRoot.Description.ToTipTapHtml(RichTextRenderer)
+                }
+            </div>
+        </section>
+    }
+
+    <!-- Features -->
+    @if (features?.Any() == true)
+    {
+        <section class="product-features mt-5 pt-4 border-top">
+            <h2 class="h4 mb-3">Features</h2>
+            @await Html.GetBlockListHtmlAsync(features)
+        </section>
+    }
+</div>

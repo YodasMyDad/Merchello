@@ -1,13 +1,13 @@
 import { nothing as n, html as s, css as y, state as m, customElement as D } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement as x, UMB_MODAL_MANAGER_CONTEXT as V, UMB_CONFIRM_MODAL as $ } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT as A } from "@umbraco-cms/backoffice/notification";
-var O = Object.defineProperty, w = Object.getOwnPropertyDescriptor, _ = (e) => {
-  throw TypeError(e);
-}, d = (e, a, i, o) => {
-  for (var t = o > 1 ? void 0 : o ? w(a, i) : a, l = e.length - 1, v; l >= 0; l--)
-    (v = e[l]) && (t = (o ? v(a, i, t) : v(t)) || t);
-  return o && t && O(a, i, t), t;
-}, b = (e, a, i) => a.has(e) || _("Cannot " + i), f = (e, a, i) => (b(e, a, "read from private field"), a.get(e)), g = (e, a, i) => a.has(e) ? _("Cannot add the same private member more than once") : a instanceof WeakSet ? a.add(e) : a.set(e, i), p = (e, a, i, o) => (b(e, a, "write to private field"), a.set(e, i), i), c, h, u;
+var w = Object.defineProperty, O = Object.getOwnPropertyDescriptor, _ = (t) => {
+  throw TypeError(t);
+}, d = (t, a, i, o) => {
+  for (var e = o > 1 ? void 0 : o ? O(a, i) : a, l = t.length - 1, v; l >= 0; l--)
+    (v = t[l]) && (e = (o ? v(a, i, e) : v(e)) || e);
+  return o && e && w(a, i, e), e;
+}, b = (t, a, i) => a.has(t) || _("Cannot " + i), f = (t, a, i) => (b(t, a, "read from private field"), a.get(t)), g = (t, a, i) => a.has(t) ? _("Cannot add the same private member more than once") : a instanceof WeakSet ? a.add(t) : a.set(t, i), p = (t, a, i, o) => (b(t, a, "write to private field"), a.set(t, i), i), c, h, u;
 let r = class extends x {
   constructor() {
     super(), this._formData = {
@@ -18,10 +18,10 @@ let r = class extends x {
       optionUiAlias: "dropdown",
       isVariant: !1,
       values: []
-    }, this._isSaving = !1, this._errorMessage = null, this._originalIsVariant = !1, g(this, c), g(this, h), g(this, u, !1), this.consumeContext(A, (e) => {
-      p(this, c, e);
-    }), this.consumeContext(V, (e) => {
-      p(this, h, e);
+    }, this._isSaving = !1, this._errorMessage = null, this._originalIsVariant = !1, g(this, c), g(this, h), g(this, u, !1), this.consumeContext(A, (t) => {
+      p(this, c, t);
+    }), this.consumeContext(V, (t) => {
+      p(this, h, t);
     });
   }
   connectedCallback() {
@@ -31,10 +31,10 @@ let r = class extends x {
     super.disconnectedCallback(), p(this, u, !1);
   }
   _getOptionTypeOptions() {
-    const e = this.data?.settings?.optionTypeAliases ?? [];
+    const t = this.data?.settings?.optionTypeAliases ?? [];
     return [
       { name: "Select type...", value: "", selected: !this._formData.optionTypeAlias },
-      ...e.map((a) => ({
+      ...t.map((a) => ({
         name: a.charAt(0).toUpperCase() + a.slice(1),
         value: a,
         selected: a === this._formData.optionTypeAlias
@@ -51,11 +51,11 @@ let r = class extends x {
   async _handleSave() {
     if (this._validateForm()) {
       if (this.data?.option && this._originalIsVariant !== this._formData.isVariant) {
-        const e = this._formData.isVariant ? "Enabling 'Generates Variants' will create new product variants. You'll need to regenerate variants for this to take effect." : "Disabling 'Generates Variants' will not delete existing variants, but they won't be regenerated.";
+        const t = this._formData.isVariant ? "Enabling 'Generates Variants' will create new product variants. You'll need to regenerate variants for this to take effect." : "Disabling 'Generates Variants' will not delete existing variants, but they won't be regenerated.";
         if (!await f(this, h)?.open(this, $, {
           data: {
             headline: "Change Variant Option",
-            content: e,
+            content: t,
             confirmLabel: "Continue",
             color: "warning"
           }
@@ -87,45 +87,45 @@ let r = class extends x {
     return this._formData.name ? !this._formData.values || this._formData.values.length === 0 ? (this._errorMessage = "At least one value is required", !1) : !0 : (this._errorMessage = "Option name is required", !1);
   }
   _addValue() {
-    const e = [...this._formData.values || []];
-    e.push({
+    const t = [...this._formData.values || []];
+    t.push({
       id: crypto.randomUUID(),
       name: "",
       fullName: null,
-      sortOrder: e.length,
+      sortOrder: t.length,
       hexValue: null,
       mediaKey: null,
       priceAdjustment: 0,
       costAdjustment: 0,
       skuSuffix: null
-    }), this._formData = { ...this._formData, values: e };
+    }), this._formData = { ...this._formData, values: t };
   }
-  _removeValue(e) {
+  _removeValue(t) {
     const a = [...this._formData.values || []];
-    a.splice(e, 1), a.forEach((i, o) => i.sortOrder = o), this._formData = { ...this._formData, values: a };
+    a.splice(t, 1), a.forEach((i, o) => i.sortOrder = o), this._formData = { ...this._formData, values: a };
   }
-  _updateValue(e, a, i) {
+  _updateValue(t, a, i) {
     const o = [...this._formData.values || []];
-    o[e] = { ...o[e], [a]: i }, this._formData = { ...this._formData, values: o };
+    o[t] = { ...o[t], [a]: i }, this._formData = { ...this._formData, values: o };
   }
-  _renderValueEditor(e, a) {
+  _renderValueEditor(t, a) {
     const i = this._formData.optionUiAlias, o = !this._formData.isVariant;
     return s`
       <div class="value-row ${o ? "is-addon" : ""}">
         <div class="value-content">
           <div class="value-name-row">
             <uui-input
-              .value=${e.name}
+              .value=${t.name}
               placeholder="Value name"
-              @input=${(t) => this._updateValue(a, "name", t.target.value)}>
+              @input=${(e) => this._updateValue(a, "name", e.target.value)}>
             </uui-input>
 
             ${i === "colour" ? s`
                   <uui-input
                     type="color"
                     class="color-input"
-                    .value=${e.hexValue || "#000000"}
-                    @input=${(t) => this._updateValue(a, "hexValue", t.target.value)}>
+                    .value=${t.hexValue || "#000000"}
+                    @input=${(e) => this._updateValue(a, "hexValue", e.target.value)}>
                   </uui-input>
                 ` : n}
           </div>
@@ -137,9 +137,9 @@ let r = class extends x {
                     <uui-input
                       type="number"
                       step="0.01"
-                      .value=${String(e.priceAdjustment)}
+                      .value=${String(t.priceAdjustment)}
                       placeholder="0.00"
-                      @input=${(t) => this._updateValue(a, "priceAdjustment", parseFloat(t.target.value) || 0)}>
+                      @input=${(e) => this._updateValue(a, "priceAdjustment", parseFloat(e.target.value) || 0)}>
                     </uui-input>
                   </div>
 
@@ -148,18 +148,18 @@ let r = class extends x {
                     <uui-input
                       type="number"
                       step="0.01"
-                      .value=${String(e.costAdjustment)}
+                      .value=${String(t.costAdjustment)}
                       placeholder="0.00"
-                      @input=${(t) => this._updateValue(a, "costAdjustment", parseFloat(t.target.value) || 0)}>
+                      @input=${(e) => this._updateValue(a, "costAdjustment", parseFloat(e.target.value) || 0)}>
                     </uui-input>
                   </div>
 
                   <div class="addon-field sku-field">
                     <label class="field-label">SKU Suffix</label>
                     <uui-input
-                      .value=${e.skuSuffix || ""}
+                      .value=${t.skuSuffix || ""}
                       placeholder="e.g., -GW"
-                      @input=${(t) => this._updateValue(a, "skuSuffix", t.target.value)}>
+                      @input=${(e) => this._updateValue(a, "skuSuffix", e.target.value)}>
                     </uui-input>
                   </div>
                 </div>
@@ -179,9 +179,9 @@ let r = class extends x {
     return (this._formData.values?.length ?? 0) >= this._getMaxValues();
   }
   render() {
-    const e = !this.data?.option, a = this._formData.values?.length || 0, i = this._getMaxValues(), o = this._formData.isVariant && a > 0 ? `Will create ${a} variants` : "";
+    const t = !this.data?.option, a = this._formData.values?.length || 0, i = this._getMaxValues(), o = this._formData.isVariant && a > 0 ? `Will create ${a} variants` : "";
     return s`
-      <umb-body-layout headline="${e ? "Add Option" : `Edit Option: ${this._formData.name}`}">
+      <umb-body-layout headline="${t ? "Add Option" : `Edit Option: ${this._formData.name}`}">
         <div class="modal-content">
           ${this._errorMessage ? s`
                 <div class="error-banner">
@@ -219,7 +219,7 @@ let r = class extends x {
                 slot="editor"
                 .value=${this._formData.name || ""}
                 placeholder="e.g., Size, Color, Material"
-                @input=${(t) => this._formData = { ...this._formData, name: t.target.value }}
+                @input=${(e) => this._formData = { ...this._formData, name: e.target.value }}
                 aria-required="true">
               </uui-input>
             </umb-property-layout>
@@ -231,7 +231,7 @@ let r = class extends x {
                 slot="editor"
                 .value=${this._formData.alias || ""}
                 placeholder="Optional: machine-readable name"
-                @input=${(t) => this._formData = { ...this._formData, alias: t.target.value }}>
+                @input=${(e) => this._formData = { ...this._formData, alias: e.target.value }}>
               </uui-input>
             </umb-property-layout>
 
@@ -240,8 +240,9 @@ let r = class extends x {
               description="Categorize this option (e.g., colour, size, material)">
               <uui-select
                 slot="editor"
+                .value=${this._formData.optionTypeAlias || ""}
                 .options=${this._getOptionTypeOptions()}
-                @change=${(t) => this._formData = { ...this._formData, optionTypeAlias: t.target.value }}>
+                @change=${(e) => this._formData = { ...this._formData, optionTypeAlias: e.target.value }}>
               </uui-select>
             </umb-property-layout>
 
@@ -250,8 +251,9 @@ let r = class extends x {
               description="How customers select this option on your storefront">
               <uui-select
                 slot="editor"
+                .value=${this._formData.optionUiAlias || "dropdown"}
                 .options=${this._getOptionUiOptions()}
-                @change=${(t) => this._formData = { ...this._formData, optionUiAlias: t.target.value }}>
+                @change=${(e) => this._formData = { ...this._formData, optionUiAlias: e.target.value }}>
               </uui-select>
             </umb-property-layout>
 
@@ -261,7 +263,7 @@ let r = class extends x {
               <uui-toggle
                 slot="editor"
                 .checked=${this._formData.isVariant ?? !1}
-                @change=${(t) => this._formData = { ...this._formData, isVariant: t.target.checked }}>
+                @change=${(e) => this._formData = { ...this._formData, isVariant: e.target.checked }}>
               </uui-toggle>
             </umb-property-layout>
           </uui-box>
@@ -286,7 +288,7 @@ let r = class extends x {
 
             ${this._formData.values && this._formData.values.length > 0 ? s`
                   <div class="values-list">
-                    ${this._formData.values.map((t, l) => this._renderValueEditor(t, l))}
+                    ${this._formData.values.map((e, l) => this._renderValueEditor(e, l))}
                   </div>
                 ` : s`
                   <div class="empty-state">
@@ -300,7 +302,7 @@ let r = class extends x {
 
         <div slot="actions">
           <uui-button look="secondary" @click=${() => this.modalContext?.reject()}> Cancel </uui-button>
-          ${e ? n : s`
+          ${t ? n : s`
                 <uui-button look="primary" color="danger" @click=${this._handleDelete} label="Delete Option">
                   <uui-icon name="icon-trash"></uui-icon>
                   Delete Option
@@ -518,4 +520,4 @@ export {
   r as MerchelloOptionEditorModalElement,
   M as default
 };
-//# sourceMappingURL=option-editor-modal.element-D2Yhvkyh.js.map
+//# sourceMappingURL=option-editor-modal.element-Rrq09XgU.js.map
