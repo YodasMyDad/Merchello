@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Factories;
+using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies;
@@ -83,6 +84,7 @@ public static class Startup
 #pragma warning restore CS0618
 
         builder.Services.Configure<MerchelloSettings>(builder.Config.GetSection("Merchello"));
+        builder.Services.Configure<CheckoutSettings>(builder.Config.GetSection("Merchello:Checkout"));
         builder.Services.Configure<CacheOptions>(builder.Config.GetSection("Merchello:Cache"));
         builder.Services.Configure<ExchangeRateOptions>(builder.Config.GetSection("Merchello:ExchangeRates"));
 
@@ -142,6 +144,7 @@ public static class Startup
 
         // Checkout & Orders
         builder.Services.AddScoped<ICheckoutService, CheckoutService>();
+        builder.Services.AddScoped<ICheckoutSessionService, CheckoutSessionService>();
         builder.Services.AddScoped<IInvoiceService, InvoiceService>();
         builder.Services.AddScoped<ILineItemService, LineItemService>();
         builder.Services.AddScoped<IOrderStatusHandler, DefaultOrderStatusHandler>();

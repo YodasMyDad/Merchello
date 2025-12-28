@@ -2,10 +2,13 @@ using System.Text.Json;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Strategies;
+using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services;
@@ -13,6 +16,7 @@ using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.BasketNotifications;
 using Merchello.Core.Notifications.CheckoutNotifications;
+using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
@@ -33,6 +37,10 @@ public class CheckoutService(
     LineItemFactory lineItemFactory,
     IMerchelloNotificationPublisher notificationPublisher,
     IOptions<MerchelloSettings> settings,
+    IOrderGroupingStrategyResolver orderGroupingStrategyResolver,
+    IProductService productService,
+    IWarehouseService warehouseService,
+    IInvoiceService invoiceService,
     IDiscountEngine? discountEngine = null,
     IDiscountService? discountService = null,
     ILocationsService? locationsService = null) : ICheckoutService
@@ -877,6 +885,241 @@ public class CheckoutService(
         }
 
         return context;
+    }
+
+    // Order Grouping Methods
+
+    /// <inheritdoc />
+    public async Task<OrderGroupingResult> GetOrderGroupsAsync(
+        Basket basket,
+        CheckoutSession session,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(session.ShippingAddress.CountryCode))
+        {
+            return OrderGroupingResult.Fail("Shipping address must have a valid country code");
+        }
+
+        // Get all product IDs from basket line items
+        var productIds = basket.LineItems
+            .Where(li => li.ProductId.HasValue)
+            .Select(li => li.ProductId!.Value)
+            .Distinct()
+            .ToList();
+
+        // Load products with their shipping options
+        var products = await productService.GetVariantsByIds(productIds, cancellationToken);
+        var productDict = products.ToDictionary(p => p.Id);
+
+        // Load all warehouses
+        var warehouses = await warehouseService.GetWarehouses(cancellationToken);
+        var warehouseDict = warehouses.ToDictionary(w => w.Id);
+
+        // Build the context for the grouping strategy
+        var context = new OrderGroupingContext
+        {
+            Basket = basket,
+            BillingAddress = session.BillingAddress,
+            ShippingAddress = session.ShippingAddress,
+            CustomerId = basket.CustomerId,
+            CustomerEmail = session.BillingAddress.Email,
+            Products = productDict,
+            Warehouses = warehouseDict,
+            SelectedShippingOptions = session.SelectedShippingOptions
+        };
+
+        // Get the configured strategy and execute grouping
+        var strategy = orderGroupingStrategyResolver.GetStrategy();
+        return await strategy.GroupItemsAsync(context, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<Basket> SaveShippingSelectionsAsync(
+        Basket basket,
+        CheckoutSession session,
+        Dictionary<Guid, Guid> selections,
+        Dictionary<Guid, DateTime>? deliveryDates = null,
+        CancellationToken cancellationToken = default)
+    {
+        // Update session with selections
+        session.SelectedShippingOptions = selections;
+        if (deliveryDates != null)
+        {
+            session.SelectedDeliveryDates = deliveryDates;
+        }
+
+        // Get order groups with the new selections to calculate shipping costs
+        var groupingResult = await GetOrderGroupsAsync(basket, session, cancellationToken);
+
+        if (!groupingResult.Success)
+        {
+            return basket;
+        }
+
+        // Calculate total shipping cost from selected options
+        decimal totalShipping = 0;
+        foreach (var group in groupingResult.Groups)
+        {
+            if (group.SelectedShippingOptionId.HasValue)
+            {
+                var selectedOption = group.AvailableShippingOptions
+                    .FirstOrDefault(o => o.ShippingOptionId == group.SelectedShippingOptionId.Value);
+
+                if (selectedOption != null)
+                {
+                    totalShipping += selectedOption.Cost;
+                }
+            }
+        }
+
+        // Update basket shipping cost
+        basket.Shipping = totalShipping;
+        basket.DateUpdated = DateTime.UtcNow;
+
+        // Recalculate totals
+        await CalculateBasketAsync(
+            basket,
+            session.ShippingAddress.CountryCode,
+            cancellationToken: cancellationToken);
+
+        return basket;
+    }
+
+    // Order Confirmation Methods
+
+    /// <inheritdoc />
+    public async Task<OrderConfirmationDto?> GetOrderConfirmationAsync(
+        Guid invoiceId,
+        CancellationToken cancellationToken = default)
+    {
+        // Load invoice with all related data
+        var invoice = await invoiceService.GetInvoiceAsync(invoiceId, cancellationToken);
+
+        if (invoice == null)
+        {
+            return null;
+        }
+
+        // Get currency symbol
+        var currencySymbol = invoice.CurrencySymbol ?? _settings.CurrencySymbol;
+
+        // Flatten line items from all orders (product items only)
+        var lineItems = new List<CheckoutLineItemDto>();
+        decimal totalShipping = 0;
+
+        if (invoice.Orders != null)
+        {
+            foreach (var order in invoice.Orders)
+            {
+                totalShipping += order.ShippingCost;
+
+                if (order.LineItems == null) continue;
+
+                foreach (var li in order.LineItems.Where(l => l.LineItemType == LineItemType.Product))
+                {
+                    lineItems.Add(new CheckoutLineItemDto
+                    {
+                        Id = li.Id,
+                        Sku = li.Sku ?? "",
+                        Name = li.Name ?? "",
+                        Quantity = li.Quantity,
+                        UnitPrice = li.Amount,
+                        LineTotal = li.Quantity * li.Amount,
+                        FormattedUnitPrice = FormatPrice(li.Amount, currencySymbol),
+                        FormattedLineTotal = FormatPrice(li.Quantity * li.Amount, currencySymbol),
+                        LineItemType = li.LineItemType
+                    });
+                }
+            }
+        }
+
+        // Get shipping method names
+        var shippingOptionIds = invoice.Orders?
+            .Where(o => o.ShippingOptionId != Guid.Empty)
+            .Select(o => o.ShippingOptionId)
+            .Distinct()
+            .ToList() ?? [];
+
+        var shippingOptionNames = shippingOptionIds.Count > 0
+            ? await invoiceService.GetShippingOptionNamesAsync(shippingOptionIds, cancellationToken)
+            : new Dictionary<Guid, string>();
+
+        // Build shipment summaries
+        var shipments = new List<ShipmentSummaryDto>();
+        if (invoice.Orders != null)
+        {
+            foreach (var order in invoice.Orders)
+            {
+                var methodName = shippingOptionNames.TryGetValue(order.ShippingOptionId, out var name)
+                    ? name
+                    : "Shipping";
+
+                shipments.Add(new ShipmentSummaryDto
+                {
+                    ShippingMethodName = methodName,
+                    Cost = order.ShippingCost,
+                    FormattedCost = FormatPrice(order.ShippingCost, currencySymbol)
+                });
+            }
+        }
+
+        // Get payment method info from first successful payment
+        string? paymentMethod = null;
+        if (invoice.Payments != null)
+        {
+            var successfulPayment = invoice.Payments.FirstOrDefault(p => p.PaymentSuccess);
+            if (successfulPayment != null)
+            {
+                paymentMethod = successfulPayment.PaymentMethod ?? successfulPayment.PaymentProviderAlias;
+            }
+        }
+
+        return new OrderConfirmationDto
+        {
+            InvoiceId = invoice.Id,
+            InvoiceNumber = invoice.InvoiceNumber,
+            OrderDate = invoice.DateCreated,
+            CustomerEmail = invoice.BillingAddress.Email ?? "",
+            BillingAddress = MapAddress(invoice.BillingAddress),
+            ShippingAddress = MapAddress(invoice.ShippingAddress),
+            LineItems = lineItems,
+            SubTotal = invoice.SubTotal,
+            FormattedSubTotal = FormatPrice(invoice.SubTotal, currencySymbol),
+            Discount = invoice.Discount,
+            FormattedDiscount = FormatPrice(invoice.Discount, currencySymbol),
+            Shipping = totalShipping,
+            FormattedShipping = FormatPrice(totalShipping, currencySymbol),
+            Tax = invoice.Tax,
+            FormattedTax = FormatPrice(invoice.Tax, currencySymbol),
+            Total = invoice.Total,
+            FormattedTotal = FormatPrice(invoice.Total, currencySymbol),
+            CurrencySymbol = currencySymbol,
+            Shipments = shipments,
+            PaymentMethod = paymentMethod
+        };
+    }
+
+    private static string FormatPrice(decimal price, string currencySymbol)
+    {
+        return $"{currencySymbol}{price:N2}";
+    }
+
+    private static CheckoutAddressDto MapAddress(Locality.Models.Address address)
+    {
+        return new CheckoutAddressDto
+        {
+            Name = address.Name,
+            Company = address.Company,
+            Address1 = address.AddressOne,
+            Address2 = address.AddressTwo,
+            City = address.TownCity,
+            State = address.CountyState.Name,
+            StateCode = address.CountyState.RegionCode,
+            PostalCode = address.PostalCode,
+            Country = address.Country,
+            CountryCode = address.CountryCode,
+            Phone = address.Phone
+        };
     }
 
     private sealed class NoopLocationsService : ILocationsService

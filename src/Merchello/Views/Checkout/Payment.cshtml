@@ -1,0 +1,426 @@
+@model CheckoutViewModel
+@{
+    Layout = "~/Views/Checkout/_Layout.cshtml";
+    var session = Model.Session;
+    var basket = Model.Basket;
+    var billingAddress = session?.BillingAddress;
+    var shippingAddress = session?.ShippingSameAsBilling == true ? billingAddress : session?.ShippingAddress;
+    var currencySymbol = basket?.CurrencySymbol ?? "£";
+}
+
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8" x-data="checkoutPayment()">
+    <!-- Left Column: Payment -->
+    <div class="lg:col-span-7">
+        <h1 class="font-heading text-2xl font-semibold mb-6">Payment</h1>
+
+        <!-- Address & Shipping Summary -->
+        <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500">Contact</p>
+                    <p class="text-sm font-medium text-gray-900">@(billingAddress?.Email ?? "Not provided")</p>
+                </div>
+                <a href="/checkout/information" class="text-sm text-accent hover:underline">Change</a>
+            </div>
+            <div class="border-t border-gray-200 pt-3 flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500">Ship to</p>
+                    <p class="text-sm font-medium text-gray-900">
+                        @if (shippingAddress != null)
+                        {
+                            @($"{shippingAddress.AddressOne}, {shippingAddress.TownCity}, {shippingAddress.PostalCode}")
+                        }
+                        else
+                        {
+                            <text>Not provided</text>
+                        }
+                    </p>
+                </div>
+                <a href="/checkout/information" class="text-sm text-accent hover:underline">Change</a>
+            </div>
+            <div class="border-t border-gray-200 pt-3 flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500">Shipping</p>
+                    <p class="text-sm font-medium text-gray-900">
+                        @if (basket?.Shipping > 0)
+                        {
+                            @($"{currencySymbol}{basket.Shipping:N2}")
+                        }
+                        else
+                        {
+                            <text>Free shipping</text>
+                        }
+                    </p>
+                </div>
+                <a href="/checkout/shipping" class="text-sm text-accent hover:underline">Change</a>
+            </div>
+        </div>
+
+        <!-- Payment Methods Section -->
+        <div class="mb-6">
+            <h2 class="font-heading text-lg font-semibold mb-4">Payment Method</h2>
+
+            <!-- Loading State -->
+            <div x-show="isLoading" class="flex items-center justify-center py-8">
+                <svg class="animate-spin h-8 w-8 text-accent" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="ml-2 text-gray-600">Loading payment methods...</span>
+            </div>
+
+            <!-- Error State -->
+            <div x-show="loadError" x-cloak class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+                <p class="font-medium">Failed to load payment methods</p>
+                <p class="text-sm mt-1" x-text="loadError"></p>
+                <button type="button" @@click="loadPaymentMethods()" class="mt-2 text-sm underline">Try again</button>
+            </div>
+
+            <!-- No Methods Available -->
+            <div x-show="!isLoading && !loadError && paymentMethods.length === 0" x-cloak class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700">
+                <p>No payment methods are currently available. Please contact support.</p>
+            </div>
+
+            <!-- Payment Method List -->
+            <div x-show="!isLoading && !loadError && paymentMethods.length > 0" x-cloak class="space-y-3">
+                <template x-for="method in paymentMethods" :key="method.providerAlias + '-' + method.methodAlias">
+                    <label class="flex items-center gap-4 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
+                           :class="{ 'border-accent bg-accent/5': selectedMethod?.providerAlias === method.providerAlias && selectedMethod?.methodAlias === method.methodAlias }">
+                        <input type="radio"
+                               name="payment"
+                               :value="method.providerAlias + ':' + method.methodAlias"
+                               @@change="selectMethod(method)"
+                               :checked="selectedMethod?.providerAlias === method.providerAlias && selectedMethod?.methodAlias === method.methodAlias"
+                               class="w-5 h-5 text-accent focus:ring-accent" />
+                        <div class="flex-1">
+                            <p class="font-medium text-gray-900" x-text="method.displayName"></p>
+                            <p class="text-sm text-gray-500" x-text="method.description || getMethodDescription(method)"></p>
+                        </div>
+                        <div x-html="getMethodIcon(method)"></div>
+                    </label>
+                </template>
+            </div>
+        </div>
+
+        <!-- HostedFields Container (for inline card entry) -->
+        <div id="hosted-fields-container" x-show="selectedMethod && selectedMethod.integrationType === 10" x-cloak x-transition class="mb-6">
+            <div class="p-4 border border-gray-200 rounded-lg space-y-4">
+                <!-- Placeholder for provider SDK to render fields -->
+                <div id="payment-form-fields">
+                    <div x-show="!hostedFieldsReady" class="text-center py-4 text-gray-500">
+                        <svg class="animate-spin h-6 w-6 mx-auto mb-2" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Loading card fields...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Widget Container (for Apple Pay, Google Pay, PayPal buttons) -->
+        <div id="widget-container" x-show="selectedMethod && selectedMethod.integrationType === 20" x-cloak x-transition class="mb-6">
+            <div class="p-4 border border-gray-200 rounded-lg">
+                <!-- Placeholder for provider widget -->
+                <div id="payment-widget">
+                    <div x-show="!widgetReady" class="text-center py-4 text-gray-500">
+                        Loading payment widget...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DirectForm Container (for manual payment fields) -->
+        <div id="direct-form-container" x-show="selectedMethod && selectedMethod.integrationType === 30" x-cloak x-transition class="mb-6">
+            <div class="p-4 border border-gray-200 rounded-lg">
+                <!-- Dynamic form fields will be rendered here -->
+                <div id="direct-form-fields"></div>
+            </div>
+        </div>
+
+        <!-- Payment Error Message -->
+        <div x-show="paymentError" x-cloak class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            <p class="font-medium">Payment failed</p>
+            <p class="text-sm mt-1" x-text="paymentError"></p>
+        </div>
+
+        <!-- Billing Address Toggle -->
+        <div class="mb-6">
+            <label class="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox"
+                       x-model="billingSameAsShipping"
+                       class="w-5 h-5 rounded border-gray-300 text-accent focus:ring-accent" />
+                <span class="text-sm text-gray-700">Billing address same as shipping</span>
+            </label>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="mt-8 flex items-center justify-between">
+            <a href="/checkout/shipping" class="text-accent hover:underline flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+                Return to shipping
+            </a>
+
+            <button type="button"
+                    @@click="submitPayment"
+                    :disabled="!selectedMethod || isSubmitting"
+                    class="px-8 py-3 bg-primary text-white font-medium rounded-lg hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                <span x-show="!isSubmitting">
+                    <template x-if="selectedMethod && selectedMethod.integrationType === 0">
+                        <span>Continue to Payment</span>
+                    </template>
+                    <template x-if="!selectedMethod || selectedMethod.integrationType !== 0">
+                        <span>Pay Now</span>
+                    </template>
+                </span>
+                <span x-show="isSubmitting" x-cloak class="flex items-center gap-2">
+                    <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                </span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Right Column: Order Summary -->
+    <div class="lg:col-span-5">
+        <div class="sticky top-8">
+            @await Html.PartialAsync("_OrderSummary")
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="/js/checkout/payment.js"></script>
+    <script>
+        function checkoutPayment() {
+            return {
+                // State
+                paymentMethods: [],
+                selectedMethod: null,
+                billingSameAsShipping: true,
+                isLoading: true,
+                isSubmitting: false,
+                loadError: null,
+                paymentError: null,
+                hostedFieldsReady: false,
+                widgetReady: false,
+                currentSession: null,
+
+                // Integration type constants
+                IntegrationType: {
+                    Redirect: 0,
+                    HostedFields: 10,
+                    Widget: 20,
+                    DirectForm: 30
+                },
+
+                // Lifecycle
+                async init() {
+                    await this.loadPaymentMethods();
+                },
+
+                // Load payment methods from API
+                async loadPaymentMethods() {
+                    this.isLoading = true;
+                    this.loadError = null;
+
+                    try {
+                        this.paymentMethods = await MerchelloPayment.getPaymentMethods();
+
+                        // Auto-select first method if only one
+                        if (this.paymentMethods.length === 1) {
+                            this.selectMethod(this.paymentMethods[0]);
+                        }
+                    } catch (error) {
+                        console.error('Failed to load payment methods:', error);
+                        this.loadError = error.message || 'Failed to load payment methods';
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+
+                // Select a payment method
+                async selectMethod(method) {
+                    this.selectedMethod = method;
+                    this.paymentError = null;
+                    this.hostedFieldsReady = false;
+                    this.widgetReady = false;
+
+                    // Clear any previous SDK containers
+                    const hostedFieldsContainer = document.getElementById('payment-form-fields');
+                    const widgetContainer = document.getElementById('payment-widget');
+                    const directFormContainer = document.getElementById('direct-form-fields');
+
+                    if (hostedFieldsContainer) hostedFieldsContainer.innerHTML = '';
+                    if (widgetContainer) widgetContainer.innerHTML = '';
+                    if (directFormContainer) directFormContainer.innerHTML = '';
+                },
+
+                // Get method description based on type
+                getMethodDescription(method) {
+                    switch (method.integrationType) {
+                        case this.IntegrationType.Redirect:
+                            return 'You will be redirected to complete payment';
+                        case this.IntegrationType.HostedFields:
+                            return 'Enter your card details securely';
+                        case this.IntegrationType.Widget:
+                            return 'Quick and easy payment';
+                        case this.IntegrationType.DirectForm:
+                            return 'Complete payment details';
+                        default:
+                            return '';
+                    }
+                },
+
+                // Get method icon HTML
+                getMethodIcon(method) {
+                    return MerchelloPayment.getMethodIcon(method);
+                },
+
+                // Submit payment
+                async submitPayment() {
+                    if (!this.selectedMethod || this.isSubmitting) return;
+
+                    this.isSubmitting = true;
+                    this.paymentError = null;
+
+                    try {
+                        const returnUrl = window.location.origin + '/checkout/return';
+                        const cancelUrl = window.location.origin + '/checkout/cancel';
+
+                        // Initiate payment - creates invoice and payment session
+                        const session = await MerchelloPayment.initiatePayment(
+                            this.selectedMethod.providerAlias,
+                            this.selectedMethod.methodAlias,
+                            returnUrl,
+                            cancelUrl
+                        );
+
+                        this.currentSession = session;
+
+                        // Handle the payment flow based on integration type
+                        await this.handlePaymentFlow(session);
+
+                    } catch (error) {
+                        console.error('Payment failed:', error);
+                        this.paymentError = error.message || 'Payment failed. Please try again.';
+                    } finally {
+                        this.isSubmitting = false;
+                    }
+                },
+
+                // Handle payment flow based on integration type
+                async handlePaymentFlow(session) {
+                    switch (session.integrationType) {
+                        case this.IntegrationType.Redirect:
+                            // Redirect to external payment page
+                            if (session.redirectUrl) {
+                                window.location.href = session.redirectUrl;
+                            } else {
+                                throw new Error('No redirect URL provided');
+                            }
+                            break;
+
+                        case this.IntegrationType.HostedFields:
+                            // Load SDK and render inline card fields
+                            await this.setupHostedFields(session);
+                            break;
+
+                        case this.IntegrationType.Widget:
+                            // Load SDK and render provider widget
+                            await this.setupWidget(session);
+                            break;
+
+                        case this.IntegrationType.DirectForm:
+                            // Render form fields
+                            await this.setupDirectForm(session);
+                            break;
+
+                        default:
+                            throw new Error(`Unknown integration type: ${session.integrationType}`);
+                    }
+                },
+
+                // Setup hosted fields (inline card entry)
+                async setupHostedFields(session) {
+                    const container = document.getElementById('payment-form-fields');
+                    if (!container) return;
+
+                    try {
+                        // Load provider SDK if needed
+                        if (session.javaScriptSdkUrl) {
+                            await MerchelloPayment.loadSdk(session.javaScriptSdkUrl);
+                        }
+
+                        // Initialize hosted fields
+                        await MerchelloPayment.initializeHostedFields(session, container);
+                        this.hostedFieldsReady = true;
+                    } catch (error) {
+                        console.error('Failed to setup hosted fields:', error);
+                        this.paymentError = 'Failed to load card entry form. Please try again.';
+                    }
+                },
+
+                // Setup widget (Apple Pay, Google Pay, etc.)
+                async setupWidget(session) {
+                    const container = document.getElementById('payment-widget');
+                    if (!container) return;
+
+                    try {
+                        // Load provider SDK if needed
+                        if (session.javaScriptSdkUrl) {
+                            await MerchelloPayment.loadSdk(session.javaScriptSdkUrl);
+                        }
+
+                        // Initialize widget
+                        await MerchelloPayment.initializeWidget(session, container);
+                        this.widgetReady = true;
+                    } catch (error) {
+                        console.error('Failed to setup widget:', error);
+                        this.paymentError = 'Failed to load payment widget. Please try again.';
+                    }
+                },
+
+                // Setup direct form (manual payment fields)
+                async setupDirectForm(session) {
+                    const container = document.getElementById('direct-form-fields');
+                    if (!container) return;
+
+                    if (session.formFields && session.formFields.length > 0) {
+                        container.innerHTML = MerchelloPayment.renderFormFields(session.formFields);
+                    }
+                },
+
+                // Handle hosted fields submission
+                async submitHostedFields() {
+                    // This will be called by the SDK when card fields are submitted
+                    // Implementation depends on the specific provider SDK
+                },
+
+                // Handle direct form submission
+                async submitDirectForm() {
+                    const session = this.currentSession;
+                    if (!session || !session.formFields) return;
+
+                    // Validate form data
+                    const validation = MerchelloPayment.validateFormData(session.formFields);
+                    if (!validation.isValid) {
+                        MerchelloPayment.displayErrors(validation.errors);
+                        return;
+                    }
+
+                    // Collect form data
+                    const formData = MerchelloPayment.collectFormData(session.formFields);
+
+                    // Submit to backend
+                    // This would need an additional API endpoint to process direct form submissions
+                }
+            }
+        }
+    </script>
+}

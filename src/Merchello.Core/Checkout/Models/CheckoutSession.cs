@@ -41,6 +41,6 @@ public class CheckoutSession
     /// <summary>
     /// Current step in checkout process
     /// </summary>
-    public CheckoutStep CurrentStep { get; set; } = CheckoutStep.Addresses;
+    public CheckoutStep CurrentStep { get; set; } = CheckoutStep.Information;
 }
 

@@ -13,6 +13,11 @@ public class PaymentSessionResultDto
     public bool Success { get; set; }
 
     /// <summary>
+    /// The invoice ID the payment is for
+    /// </summary>
+    public Guid? InvoiceId { get; set; }
+
+    /// <summary>
     /// Session identifier
     /// </summary>
     public string? SessionId { get; set; }

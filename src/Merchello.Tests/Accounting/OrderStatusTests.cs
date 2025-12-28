@@ -121,16 +121,25 @@ public class OrderStatusTests
     }
 
     [Fact]
-    public async Task CanTransition_FromCompletedToAnyStatus_ReturnsFalse()
+    public async Task CanTransition_FromCompletedToShipped_ReturnsTrue()
+    {
+        // Arrange - Completed orders can revert to Shipped (if delivery status changes)
+        var order = new Order { Status = OrderStatus.Completed };
+
+        // Act & Assert
+        (await _statusHandler.CanTransitionAsync(order, OrderStatus.Shipped)).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task CanTransition_FromCompletedToOtherStatuses_ReturnsFalse()
     {
         // Arrange
         var order = new Order { Status = OrderStatus.Completed };
 
-        // Act & Assert
+        // Act & Assert - Can only revert to Shipped, not other statuses
         (await _statusHandler.CanTransitionAsync(order, OrderStatus.Pending)).ShouldBeFalse();
         (await _statusHandler.CanTransitionAsync(order, OrderStatus.ReadyToFulfill)).ShouldBeFalse();
         (await _statusHandler.CanTransitionAsync(order, OrderStatus.Processing)).ShouldBeFalse();
-        (await _statusHandler.CanTransitionAsync(order, OrderStatus.Shipped)).ShouldBeFalse();
         (await _statusHandler.CanTransitionAsync(order, OrderStatus.Cancelled)).ShouldBeFalse();
     }
 

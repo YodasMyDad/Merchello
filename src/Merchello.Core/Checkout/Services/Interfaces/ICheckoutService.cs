@@ -1,6 +1,8 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services;
 using Merchello.Core.Shared.Models;
@@ -176,5 +178,48 @@ public interface ICheckoutService
         Basket basket,
         Guid discountId,
         string? countryCode = null,
+        CancellationToken cancellationToken = default);
+
+    // Order grouping methods
+
+    /// <summary>
+    /// Gets order groups for a basket, grouping items by warehouse and shipping options.
+    /// Uses the configured IOrderGroupingStrategy to determine grouping logic.
+    /// </summary>
+    /// <param name="basket">The basket to group.</param>
+    /// <param name="session">The checkout session with addresses and any existing selections.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Order grouping result with groups and any errors.</returns>
+    Task<OrderGroupingResult> GetOrderGroupsAsync(
+        Basket basket,
+        CheckoutSession session,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Saves shipping selections to the checkout session and updates basket totals.
+    /// </summary>
+    /// <param name="basket">The basket to update.</param>
+    /// <param name="session">The checkout session to update.</param>
+    /// <param name="selections">Shipping selections per group (GroupId -> ShippingOptionId).</param>
+    /// <param name="deliveryDates">Optional delivery date selections per group.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Updated basket with shipping costs applied.</returns>
+    Task<Basket> SaveShippingSelectionsAsync(
+        Basket basket,
+        CheckoutSession session,
+        Dictionary<Guid, Guid> selections,
+        Dictionary<Guid, DateTime>? deliveryDates = null,
+        CancellationToken cancellationToken = default);
+
+    // Order confirmation methods
+
+    /// <summary>
+    /// Gets order confirmation data for displaying after successful payment.
+    /// </summary>
+    /// <param name="invoiceId">The invoice ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Order confirmation DTO, or null if invoice not found.</returns>
+    Task<OrderConfirmationDto?> GetOrderConfirmationAsync(
+        Guid invoiceId,
         CancellationToken cancellationToken = default);
 }

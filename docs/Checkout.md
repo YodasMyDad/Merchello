@@ -97,6 +97,133 @@ Express checkout **skips the checkout form entirely** and goes straight to confi
 - Use `IPaymentService` for payment session creation and processing
 - Use `IDiscountEngine` and `IDiscountService` for discount code validation and automatic discounts (see `@docs/Discounts.md`)
 
+### Page Rendering Pattern
+
+The checkout uses Umbraco's route hijacking pattern but differs from product pages in a key way: **checkout views are shipped in the Merchello RCL and are not customizable**.
+
+#### Checkout vs Product Page Rendering
+
+| Aspect | Product Page | Checkout |
+|--------|--------------|----------|
+| Views location | User's site (`Views/Products/`) | Merchello RCL (shipped with NuGet) |
+| Customizable | Yes - per product `ViewAlias` | No - fixed views |
+| User control | Full template control | Limited branding via `CheckoutSettings` |
+
+#### Rendering Flow
+
+```
+1. CheckoutContentFinder intercepts /checkout/* URLs
+2. Creates virtual MerchelloCheckoutPage (implements IPublishedContent)
+3. Sets content type alias to "MerchelloCheckout" for route hijacking
+4. CheckoutController (extends RenderController) handles the request
+5. Views served from RCL at Views/Checkout/ (embedded in NuGet package)
+```
+
+#### What Users CAN Customize (via `CheckoutSettings`)
+- Logo, colors, fonts (branding)
+- Header/banner image
+- Company info (name, support email/phone)
+- Terms/Privacy URLs
+- Express checkout toggle
+- Confirmation redirect URL
+
+#### What Users CANNOT Customize
+- View templates/layout
+- Checkout flow/steps
+- Form fields structure
+- Order summary layout
+
+This Shopify-style approach ensures a consistent, tested checkout experience across all Merchello stores while still allowing brand personalization.
+
+#### RCL View Resolution
+Views are embedded in the `Merchello` assembly as a Razor Class Library. The Razor view engine is configured to locate views in the RCL automatically. There is no override mechanism - this ensures consistent UX and reduces support complexity.
+
+### Basket Data for Checkout
+
+When entering checkout, the following data is available from the basket system.
+
+#### Basket Model
+**Location:** `Merchello.Core/Checkout/Models/Basket.cs`
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id` | `Guid` | Basket identifier |
+| `CustomerId` | `Guid?` | Customer ID if logged in |
+| `LineItems` | `List<LineItem>` | All cart items (products, discounts, custom) |
+| `Currency` | `string` | ISO 4217 currency code |
+| `CurrencySymbol` | `string` | Display symbol (£, $, etc.) |
+| `SubTotal` | `decimal` | Before discounts |
+| `Discount` | `decimal` | Total discount amount |
+| `AdjustedSubTotal` | `decimal` | After discounts, before tax |
+| `Tax` | `decimal` | Total tax amount |
+| `Shipping` | `decimal` | Shipping cost |
+| `Total` | `decimal` | Final total |
+| `BillingAddress` | `Address` | Customer billing address |
+| `ShippingAddress` | `Address` | Customer shipping address |
+| `AvailableShippingQuotes` | `List<ShippingRateQuote>` | Shipping options from providers |
+| `Errors` | `List<BasketError>` | Validation/calculation errors |
+
+#### LineItem Model
+**Location:** `Merchello.Core/Accounting/Models/LineItem.cs`
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id` | `Guid` | Line item identifier |
+| `ProductId` | `Guid?` | Product reference |
+| `Sku` | `string` | Product SKU |
+| `Name` | `string` | Display name |
+| `LineItemType` | `LineItemType` | Product, Discount, or Custom |
+| `Quantity` | `int` | Item quantity |
+| `Amount` | `decimal` | Unit price |
+| `OriginalAmount` | `decimal?` | Original price if modified |
+| `IsTaxable` | `bool` | Whether tax applies |
+| `TaxRate` | `decimal` | Tax rate percentage |
+| `ExtendedData` | `Dictionary<string, object>` | Discount metadata, product refs |
+
+#### CheckoutSession Model
+**Location:** `Merchello.Core/Checkout/Models/CheckoutSession.cs`
+
+Tracks checkout progress across steps:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `BasketId` | `Guid` | Associated basket |
+| `BillingAddress` | `Address` | Entered billing address |
+| `ShippingAddress` | `Address` | Entered shipping address |
+| `ShippingSameAsBilling` | `bool` | Address toggle state |
+| `SelectedShippingOptions` | `Dictionary<Guid, Guid>` | Shipping selections per warehouse group |
+| `CurrentStep` | `CheckoutStep` | Addresses, Shipping, Review, or Complete |
+
+#### Address Model
+**Location:** `Merchello.Core/Locality/Models/Address.cs`
+
+| Property | Description |
+|----------|-------------|
+| `Name` | Contact name |
+| `Company` | Company name |
+| `AddressOne`, `AddressTwo` | Street address lines |
+| `TownCity` | City/town |
+| `CountyState` | State/province/county |
+| `PostalCode` | Postal/ZIP code |
+| `Country`, `CountryCode` | Country name and ISO code |
+| `Email`, `Phone` | Contact details |
+
+#### Data Flow
+
+```
+ICheckoutService.GetBasket()
+        ↓
+    Basket (line items, totals, addresses)
+        ↓
+    CheckoutSession (step state, selections)
+        ↓
+    CheckoutController prepares CheckoutViewModel
+        ↓
+    Razor Views in RCL render checkout UI
+```
+
+The `ICheckoutService.CalculateBasketAsync()` method recalculates totals, applies tax, and fetches shipping quotes based on the destination address.
+
 ### Discount System Integration
 The checkout integrates with the existing discount system (`@docs/Discounts.md`):
 

@@ -1,0 +1,177 @@
+@model CheckoutViewModel
+@{
+    Layout = null;
+    var settings = Model.Settings;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(settings.CompanyName ?? "Checkout") - @Model.Step</title>
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '@settings.PrimaryColor',
+                        accent: '@settings.AccentColor',
+                        error: '@settings.ErrorColor',
+                    },
+                    fontFamily: {
+                        heading: ['@settings.HeadingFontFamily', 'system-ui', 'sans-serif'],
+                        body: ['@settings.BodyFontFamily', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Alpine.js via CDN -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <style>
+        [x-cloak] { display: none !important; }
+
+        body {
+            background-color: @settings.BackgroundColor;
+            color: @settings.TextColor;
+        }
+
+        .checkout-header {
+            @if (!string.IsNullOrEmpty(settings.HeaderBackgroundImageUrl))
+            {
+                <text>background-image: url('@settings.HeaderBackgroundImageUrl');</text>
+                <text>background-size: cover;</text>
+                <text>background-position: center;</text>
+            }
+            else if (!string.IsNullOrEmpty(settings.HeaderBackgroundColor))
+            {
+                <text>background-color: @settings.HeaderBackgroundColor;</text>
+            }
+        }
+    </style>
+</head>
+<body class="font-body antialiased min-h-screen flex flex-col">
+    <!-- Header with Logo -->
+    <header class="checkout-header border-b border-gray-200">
+        <div class="max-w-6xl mx-auto px-4 py-4">
+            <div class="flex items-center @Model.LogoPositionClass">
+                @if (!string.IsNullOrEmpty(settings.LogoUrl))
+                {
+                    <a href="/" class="block">
+                        <img src="@settings.LogoUrl"
+                             alt="@(settings.CompanyName ?? "Store")"
+                             style="max-width: @(settings.LogoMaxWidth)px;"
+                             class="h-auto" />
+                    </a>
+                }
+                else if (!string.IsNullOrEmpty(settings.CompanyName))
+                {
+                    <a href="/" class="font-heading text-xl font-semibold text-gray-900 hover:text-gray-700">
+                        @settings.CompanyName
+                    </a>
+                }
+            </div>
+        </div>
+    </header>
+
+    <!-- Breadcrumb Navigation -->
+    <nav class="bg-gray-50 border-b border-gray-200">
+        <div class="max-w-6xl mx-auto px-4 py-3">
+            <ol class="flex items-center space-x-2 text-sm">
+                @{
+                    var steps = new[] {
+                        (Step: CheckoutStep.Information, Label: "Information", Url: "/checkout/information"),
+                        (Step: CheckoutStep.Shipping, Label: "Shipping", Url: "/checkout/shipping"),
+                        (Step: CheckoutStep.Payment, Label: "Payment", Url: "/checkout/payment")
+                    };
+
+                    for (var i = 0; i < steps.Length; i++)
+                    {
+                        var step = steps[i];
+                        var isCurrentOrPast = Model.Step >= step.Step;
+                        var isCurrent = Model.Step == step.Step;
+
+                        if (i > 0)
+                        {
+                            <li class="text-gray-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                            </li>
+                        }
+
+                        <li>
+                            @if (isCurrent)
+                            {
+                                <span class="font-medium text-primary">@step.Label</span>
+                            }
+                            else if (isCurrentOrPast)
+                            {
+                                <a href="@step.Url" class="text-accent hover:underline">@step.Label</a>
+                            }
+                            else
+                            {
+                                <span class="text-gray-400">@step.Label</span>
+                            }
+                        </li>
+                    }
+                }
+            </ol>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-1">
+        <div class="max-w-6xl mx-auto px-4 py-8">
+            @RenderBody()
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-gray-200 bg-gray-50">
+        <div class="max-w-6xl mx-auto px-4 py-6">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 text-sm text-gray-600">
+                <div class="flex flex-wrap items-center gap-4">
+                    @if (!string.IsNullOrEmpty(settings.TermsUrl))
+                    {
+                        <a href="@settings.TermsUrl" class="hover:text-gray-900 hover:underline">Terms & Conditions</a>
+                    }
+                    @if (!string.IsNullOrEmpty(settings.PrivacyUrl))
+                    {
+                        <a href="@settings.PrivacyUrl" class="hover:text-gray-900 hover:underline">Privacy Policy</a>
+                    }
+                </div>
+                <div class="flex flex-wrap items-center gap-4">
+                    @if (!string.IsNullOrEmpty(settings.SupportEmail))
+                    {
+                        <a href="mailto:@settings.SupportEmail" class="hover:text-gray-900">
+                            <span class="sr-only">Email:</span>
+                            @settings.SupportEmail
+                        </a>
+                    }
+                    @if (!string.IsNullOrEmpty(settings.SupportPhone))
+                    {
+                        <a href="tel:@settings.SupportPhone" class="hover:text-gray-900">
+                            <span class="sr-only">Phone:</span>
+                            @settings.SupportPhone
+                        </a>
+                    }
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(settings.CompanyName))
+            {
+                <p class="mt-4 text-xs text-gray-500">
+                    &copy; @DateTime.Now.Year @settings.CompanyName. All rights reserved.
+                </p>
+            }
+        </div>
+    </footer>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

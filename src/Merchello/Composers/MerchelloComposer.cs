@@ -55,6 +55,9 @@ namespace Merchello.Composers
             // Register ProductContentFinder for front-end product URL routing
             builder.ContentFinders().InsertAfter<ContentFinderByUrlNew, ProductContentFinder>();
 
+            // Register CheckoutContentFinder for checkout URL routing
+            builder.ContentFinders().InsertAfter<ProductContentFinder, CheckoutContentFinder>();
+
             // Configure Razor to find views in standard MVC locations
             builder.Services.Configure<RazorViewEngineOptions>(options =>
             {

@@ -46,10 +46,39 @@ public class PaymentWebhookController(
             return NotFound($"Provider '{providerAlias}' not found.");
         }
 
-        // Read the raw body
+        // Extract headers first (needed for both form and raw body handling)
+        var headers = Request.Headers
+            .ToDictionary(
+                h => h.Key,
+                h => h.Value.ToString(),
+                StringComparer.OrdinalIgnoreCase);
+
+        // Read the payload - handle form data for Braintree, raw body for others
         string payload;
-        using (var reader = new StreamReader(Request.Body))
+        if (Request.ContentType?.Contains("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase) == true)
         {
+            // Braintree sends webhooks as form data with bt_signature and bt_payload fields
+            // See: https://developer.paypal.com/braintree/docs/guides/webhooks/parse/dotnet/
+            var btSignature = Request.Form["bt_signature"].ToString();
+            var btPayload = Request.Form["bt_payload"].ToString();
+
+            if (string.IsNullOrEmpty(btSignature) || string.IsNullOrEmpty(btPayload))
+            {
+                logger.LogWarning("Missing bt_signature or bt_payload in form data for provider: {Provider}", providerAlias);
+                return BadRequest("Missing bt_signature or bt_payload.");
+            }
+
+            // Pass bt_signature via headers dict so the provider can access it
+            headers["bt_signature"] = btSignature;
+            payload = btPayload;
+
+            logger.LogDebug("Extracted Braintree webhook form data: signature length={SignatureLength}, payload length={PayloadLength}",
+                btSignature.Length, btPayload.Length);
+        }
+        else
+        {
+            // Standard JSON/raw body for other providers (Stripe, PayPal, etc.)
+            using var reader = new StreamReader(Request.Body);
             payload = await reader.ReadToEndAsync(cancellationToken);
         }
 
@@ -58,13 +87,6 @@ public class PaymentWebhookController(
             logger.LogWarning("Empty webhook payload received for provider: {Provider}", providerAlias);
             return BadRequest("Empty payload.");
         }
-
-        // Extract headers
-        var headers = Request.Headers
-            .ToDictionary(
-                h => h.Key,
-                h => h.Value.ToString(),
-                StringComparer.OrdinalIgnoreCase);
 
         // Validate webhook signature
         bool isValid;

@@ -1,0 +1,226 @@
+@using Merchello.Core.Accounting.Models
+@{
+    var model = ViewData.Model as CheckoutViewModel;
+    var basket = model?.Basket;
+    var hasItems = model?.HasItems ?? false;
+    var currencySymbol = basket?.CurrencySymbol ?? "£";
+
+    // Get discount line items
+    var discountLineItems = basket?.LineItems?
+        .Where(li => li.LineItemType == LineItemType.Discount)
+        .ToList() ?? [];
+}
+
+<div class="bg-gray-50 rounded-lg border border-gray-200 p-6" x-data="orderSummary()">
+    <h2 class="font-heading text-lg font-semibold mb-4">Order Summary</h2>
+
+    @if (!hasItems)
+    {
+        <!-- Empty cart message -->
+        <div class="text-center py-8">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+            </svg>
+            <p class="mt-2 text-sm text-gray-500">Your cart is empty</p>
+            <a href="/" class="mt-4 inline-block text-accent hover:underline text-sm">Continue shopping</a>
+        </div>
+    }
+    else
+    {
+        <!-- Line Items -->
+        <div class="space-y-4 mb-6">
+            @if (basket?.LineItems != null)
+            {
+                @foreach (var item in basket.LineItems.Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom))
+                {
+                    <div class="flex gap-4">
+                        <!-- Product Image Placeholder -->
+                        <div class="w-16 h-16 bg-gray-200 rounded flex-shrink-0 flex items-center justify-center">
+                            <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 truncate">@item.Name</p>
+                            <p class="text-sm text-gray-500">Qty: @item.Quantity</p>
+                        </div>
+                        <div class="text-sm font-medium text-gray-900">
+                            @currencySymbol@((item.Amount * item.Quantity).ToString("N2"))
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+        <!-- Applied Discounts -->
+        @if (discountLineItems.Count > 0)
+        {
+            <div class="border-t border-gray-200 pt-4 mb-4 space-y-2">
+                @foreach (var discount in discountLineItems)
+                {
+                    var discountId = discount.ExtendedData?.TryGetValue("DiscountId", out var idObj) == true ? idObj?.ToString() : discount.Id.ToString();
+                    var discountCode = discount.ExtendedData?.TryGetValue("DiscountCode", out var codeObj) == true ? codeObj?.ToString() : null;
+                    <div class="flex items-center justify-between text-sm">
+                        <div class="flex items-center gap-2">
+                            <span class="text-green-600">@discount.Name</span>
+                            @if (!string.IsNullOrEmpty(discountCode))
+                            {
+                                <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">@discountCode</span>
+                            }
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-green-600">-@currencySymbol@(Math.Abs(discount.Amount * discount.Quantity).ToString("N2"))</span>
+                            <button type="button"
+                                    @@click="removeDiscount('@discountId')"
+                                    :disabled="removingDiscount === '@discountId'"
+                                    class="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                                    title="Remove discount">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Discount Code Input -->
+        <div class="border-t border-gray-200 pt-4 mb-4">
+            <div class="space-y-2">
+                <div class="flex gap-2">
+                    <input type="text"
+                           x-model="discountCode"
+                           placeholder="Discount code"
+                           @@keydown.enter.prevent="applyDiscount()"
+                           :disabled="applyingDiscount"
+                           class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-accent focus:border-accent transition-colors disabled:bg-gray-100" />
+                    <button type="button"
+                            @@click="applyDiscount()"
+                            :disabled="!discountCode.trim() || applyingDiscount"
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 focus:ring-2 focus:ring-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span x-show="!applyingDiscount">Apply</span>
+                        <span x-show="applyingDiscount" x-cloak class="flex items-center gap-1">
+                            <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </span>
+                    </button>
+                </div>
+                <p x-show="discountError" x-cloak x-text="discountError" class="text-sm text-red-600"></p>
+                <p x-show="discountSuccess" x-cloak x-text="discountSuccess" class="text-sm text-green-600"></p>
+            </div>
+        </div>
+
+        <!-- Totals -->
+        <div class="border-t border-gray-200 pt-4 space-y-2">
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Subtotal</span>
+                <span class="text-gray-900">@(basket != null ? $"{currencySymbol}{basket.SubTotal:N2}" : "--")</span>
+            </div>
+
+            @if (basket?.Discount > 0)
+            {
+                <div class="flex justify-between text-sm text-green-600">
+                    <span>Discount</span>
+                    <span>-@currencySymbol@basket.Discount.ToString("N2")</span>
+                </div>
+            }
+
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Shipping</span>
+                <span class="text-gray-900">
+                    @if (basket?.Shipping > 0)
+                    {
+                        @($"{currencySymbol}{basket.Shipping:N2}")
+                    }
+                    else
+                    {
+                        <text>Calculated at next step</text>
+                    }
+                </span>
+            </div>
+
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Tax</span>
+                <span class="text-gray-900">@(basket != null ? $"{currencySymbol}{basket.Tax:N2}" : "--")</span>
+            </div>
+
+            <div class="flex justify-between text-base font-semibold pt-2 border-t border-gray-200">
+                <span>Total</span>
+                <span>@(basket != null ? $"{currencySymbol}{basket.Total:N2}" : "--")</span>
+            </div>
+        </div>
+    }
+</div>
+
+<script>
+    function orderSummary() {
+        return {
+            discountCode: '',
+            applyingDiscount: false,
+            removingDiscount: null,
+            discountError: '',
+            discountSuccess: '',
+
+            async applyDiscount() {
+                if (!this.discountCode.trim()) return;
+
+                this.applyingDiscount = true;
+                this.discountError = '';
+                this.discountSuccess = '';
+
+                try {
+                    const response = await fetch('/api/merchello/checkout/discount/apply', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code: this.discountCode.trim() })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.discountSuccess = 'Discount applied successfully!';
+                        this.discountCode = '';
+                        // Reload page to show updated totals
+                        setTimeout(() => window.location.reload(), 500);
+                    } else {
+                        this.discountError = data.message || 'Failed to apply discount code.';
+                    }
+                } catch (error) {
+                    console.error('Failed to apply discount:', error);
+                    this.discountError = 'An unexpected error occurred.';
+                } finally {
+                    this.applyingDiscount = false;
+                }
+            },
+
+            async removeDiscount(discountId) {
+                this.removingDiscount = discountId;
+                this.discountError = '';
+                this.discountSuccess = '';
+
+                try {
+                    const response = await fetch(`/api/merchello/checkout/discount/${discountId}`, {
+                        method: 'DELETE'
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // Reload page to show updated totals
+                        window.location.reload();
+                    } else {
+                        this.discountError = data.message || 'Failed to remove discount.';
+                    }
+                } catch (error) {
+                    console.error('Failed to remove discount:', error);
+                    this.discountError = 'An unexpected error occurred.';
+                } finally {
+                    this.removingDiscount = null;
+                }
+            }
+        }
+    }
+</script>

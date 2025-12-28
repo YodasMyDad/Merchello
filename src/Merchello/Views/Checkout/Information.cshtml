@@ -1,0 +1,257 @@
+@model CheckoutViewModel
+@{
+    Layout = "~/Views/Checkout/_Layout.cshtml";
+}
+
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8" x-data="checkoutInformation()">
+    <!-- Left Column: Form -->
+    <div class="lg:col-span-7">
+        <h1 class="font-heading text-2xl font-semibold mb-6">Contact Information</h1>
+
+        @if (Model.Settings.ShowExpressCheckout)
+        {
+            <!-- Express Checkout Placeholder (Phase 9) -->
+            <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
+                <p class="text-sm text-gray-600 text-center mb-4">Express checkout</p>
+                <div class="flex flex-wrap justify-center gap-3">
+                    <!-- Placeholder buttons - will be replaced with actual express checkout buttons in Phase 9 -->
+                    <div class="h-12 w-32 bg-gray-200 rounded animate-pulse"></div>
+                    <div class="h-12 w-32 bg-gray-200 rounded animate-pulse"></div>
+                    <div class="h-12 w-32 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+                <div class="relative my-6">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-4 bg-gray-50 text-gray-500">Or continue below</span>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Contact Form -->
+        <form x-on:submit.prevent="submitForm" class="space-y-6">
+            <!-- Email -->
+            <div>
+                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
+                    Email address
+                </label>
+                <input type="email"
+                       id="email"
+                       name="email"
+                       x-model="form.email"
+                       required
+                       autocomplete="email"
+                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
+                       placeholder="you@example.com" />
+            </div>
+
+            <!-- Billing Address Section -->
+            <div class="mt-8">
+                <h2 class="font-heading text-xl font-semibold mb-4">Billing Address</h2>
+                @{ ViewData["Prefix"] = "billing"; }
+                @await Html.PartialAsync("_AddressForm")
+            </div>
+
+            <!-- Shipping Address Section -->
+            <div class="mt-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="font-heading text-xl font-semibold">Shipping Address</h2>
+                </div>
+
+                <label class="flex items-center gap-3 mb-4 cursor-pointer">
+                    <input type="checkbox"
+                           x-model="sameAsBilling"
+                           class="w-5 h-5 rounded border-gray-300 text-accent focus:ring-accent" />
+                    <span class="text-sm text-gray-700">Same as billing address</span>
+                </label>
+
+                <div x-show="!sameAsBilling" x-cloak x-transition>
+                    @{ ViewData["Prefix"] = "shipping"; }
+                    @await Html.PartialAsync("_AddressForm")
+                </div>
+            </div>
+
+            <!-- Continue Button -->
+            <div class="mt-8 flex justify-end">
+                <button type="submit"
+                        class="px-8 py-3 bg-primary text-white font-medium rounded-lg hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        :disabled="isSubmitting">
+                    <span x-show="!isSubmitting">Continue to Shipping</span>
+                    <span x-show="isSubmitting" x-cloak class="flex items-center gap-2">
+                        <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Processing...
+                    </span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Right Column: Order Summary -->
+    <div class="lg:col-span-5">
+        <div class="sticky top-8">
+            @await Html.PartialAsync("_OrderSummary")
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function checkoutInformation() {
+            return {
+                form: {
+                    email: '@(Model.Basket?.BillingAddress?.Email ?? "")',
+                    billing: {
+                        name: '@(Model.Basket?.BillingAddress?.Name ?? "")',
+                        company: '@(Model.Basket?.BillingAddress?.Company ?? "")',
+                        address1: '@(Model.Basket?.BillingAddress?.AddressOne ?? "")',
+                        address2: '@(Model.Basket?.BillingAddress?.AddressTwo ?? "")',
+                        city: '@(Model.Basket?.BillingAddress?.TownCity ?? "")',
+                        state: '@(Model.Basket?.BillingAddress?.CountyState?.Name ?? "")',
+                        stateCode: '@(Model.Basket?.BillingAddress?.CountyState?.RegionCode ?? "")',
+                        postalCode: '@(Model.Basket?.BillingAddress?.PostalCode ?? "")',
+                        country: '@(Model.Basket?.BillingAddress?.Country ?? "")',
+                        countryCode: '@(Model.Basket?.BillingAddress?.CountryCode ?? "")',
+                        phone: '@(Model.Basket?.BillingAddress?.Phone ?? "")'
+                    },
+                    shipping: {
+                        name: '@(Model.Basket?.ShippingAddress?.Name ?? "")',
+                        company: '@(Model.Basket?.ShippingAddress?.Company ?? "")',
+                        address1: '@(Model.Basket?.ShippingAddress?.AddressOne ?? "")',
+                        address2: '@(Model.Basket?.ShippingAddress?.AddressTwo ?? "")',
+                        city: '@(Model.Basket?.ShippingAddress?.TownCity ?? "")',
+                        state: '@(Model.Basket?.ShippingAddress?.CountyState?.Name ?? "")',
+                        stateCode: '@(Model.Basket?.ShippingAddress?.CountyState?.RegionCode ?? "")',
+                        postalCode: '@(Model.Basket?.ShippingAddress?.PostalCode ?? "")',
+                        country: '@(Model.Basket?.ShippingAddress?.Country ?? "")',
+                        countryCode: '@(Model.Basket?.ShippingAddress?.CountryCode ?? "")',
+                        phone: '@(Model.Basket?.ShippingAddress?.Phone ?? "")'
+                    }
+                },
+                sameAsBilling: @(Model.Session?.ShippingSameAsBilling.ToString().ToLower() ?? "true"),
+                isSubmitting: false,
+                errors: {},
+                generalError: '',
+                billingRegions: [],
+                shippingRegions: [],
+
+                async init() {
+                    // Load regions for pre-selected countries
+                    if (this.form.billing.countryCode) {
+                        await this.loadRegions('billing', this.form.billing.countryCode);
+                    }
+                    if (this.form.shipping.countryCode) {
+                        await this.loadRegions('shipping', this.form.shipping.countryCode);
+                    }
+                },
+
+                async loadRegions(addressType, countryCode) {
+                    if (!countryCode) {
+                        if (addressType === 'billing') {
+                            this.billingRegions = [];
+                        } else {
+                            this.shippingRegions = [];
+                        }
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`/api/merchello/checkout/regions/${countryCode}`);
+                        const regions = await response.json();
+                        if (addressType === 'billing') {
+                            this.billingRegions = regions;
+                        } else {
+                            this.shippingRegions = regions;
+                        }
+                    } catch (error) {
+                        console.error('Failed to load regions:', error);
+                    }
+                },
+
+                async onCountryChangeBilling() {
+                    this.form.billing.state = '';
+                    this.form.billing.stateCode = '';
+                    await this.loadRegions('billing', this.form.billing.countryCode);
+                },
+
+                async onCountryChangeShipping() {
+                    this.form.shipping.state = '';
+                    this.form.shipping.stateCode = '';
+                    await this.loadRegions('shipping', this.form.shipping.countryCode);
+                },
+
+                validate() {
+                    this.errors = {};
+                    this.generalError = '';
+
+                    // Email validation
+                    if (!this.form.email) {
+                        this.errors.email = 'Email is required.';
+                    } else if (!/^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/.test(this.form.email)) {
+                        this.errors.email = 'Please enter a valid email address.';
+                    }
+
+                    // Billing address validation
+                    if (!this.form.billing.name) this.errors['billing.name'] = 'Name is required.';
+                    if (!this.form.billing.address1) this.errors['billing.address1'] = 'Address is required.';
+                    if (!this.form.billing.city) this.errors['billing.city'] = 'City is required.';
+                    if (!this.form.billing.countryCode) this.errors['billing.countryCode'] = 'Country is required.';
+                    if (!this.form.billing.postalCode) this.errors['billing.postalCode'] = 'Postal code is required.';
+
+                    // Shipping address validation (if not same as billing)
+                    if (!this.sameAsBilling) {
+                        if (!this.form.shipping.name) this.errors['shipping.name'] = 'Name is required.';
+                        if (!this.form.shipping.address1) this.errors['shipping.address1'] = 'Address is required.';
+                        if (!this.form.shipping.city) this.errors['shipping.city'] = 'City is required.';
+                        if (!this.form.shipping.countryCode) this.errors['shipping.countryCode'] = 'Country is required.';
+                        if (!this.form.shipping.postalCode) this.errors['shipping.postalCode'] = 'Postal code is required.';
+                    }
+
+                    return Object.keys(this.errors).length === 0;
+                },
+
+                async submitForm() {
+                    if (!this.validate()) {
+                        return;
+                    }
+
+                    this.isSubmitting = true;
+                    this.generalError = '';
+
+                    try {
+                        const response = await fetch('/api/merchello/checkout/addresses', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                email: this.form.email,
+                                billingAddress: this.form.billing,
+                                shippingAddress: this.sameAsBilling ? null : this.form.shipping,
+                                shippingSameAsBilling: this.sameAsBilling
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            window.location.href = '/checkout/shipping';
+                        } else {
+                            if (data.errors) {
+                                this.errors = data.errors;
+                            }
+                            this.generalError = data.message || 'Failed to save addresses. Please try again.';
+                        }
+                    } catch (error) {
+                        console.error('Submission failed:', error);
+                        this.generalError = 'An unexpected error occurred. Please try again.';
+                    } finally {
+                        this.isSubmitting = false;
+                    }
+                }
+            }
+        }
+    </script>
+}
