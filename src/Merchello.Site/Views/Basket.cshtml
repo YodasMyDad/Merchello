@@ -1,4 +1,158 @@
-﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Basket>
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Basket>
+@using System.Text.Json
+@using Merchello.Site.Storefront.Models
 @{
     Layout = "Website.cshtml";
+    var basketData = (FullBasketResponse)ViewBag.BasketData;
+    var configJson = JsonSerializer.Serialize(basketData, new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    });
 }
+
+<div x-data='basketPage(@Html.Raw(configJson))' class="basket-page">
+    <!-- Empty Basket State - always rendered, visibility controlled by Alpine -->
+    <div class="text-center py-5" x-show="isEmpty" x-cloak>
+        <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" fill="currentColor" class="bi bi-cart-x text-muted mb-4" viewBox="0 0 16 16">
+            <path d="M7.354 5.646a.5.5 0 1 0-.708.708L7.793 7.5 6.646 8.646a.5.5 0 1 0 .708.708L8.5 8.207l1.146 1.147a.5.5 0 0 0 .708-.708L9.207 7.5l1.147-1.146a.5.5 0 0 0-.708-.708L8.5 6.793z"/>
+            <path d="M.5 1a.5.5 0 0 0 0 1h1.11l.401 1.607 1.498 7.985A.5.5 0 0 0 4 12h1a2 2 0 1 0 0 4 2 2 0 0 0 0-4h7a2 2 0 1 0 0 4 2 2 0 0 0 0-4h1a.5.5 0 0 0 .491-.408l1.5-8A.5.5 0 0 0 14.5 3H2.89l-.405-1.621A.5.5 0 0 0 2 1zm3.915 10L3.102 4h10.796l-1.313 7zM6 14a1 1 0 1 1-2 0 1 1 0 0 1 2 0m7 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/>
+        </svg>
+        <h2 class="h4 mb-3">Your basket is empty</h2>
+        <p class="text-muted mb-4">Looks like you haven't added any items to your basket yet.</p>
+        <a href="/" class="btn btn-primary btn-lg">
+            Continue Shopping
+        </a>
+    </div>
+
+    <!-- Basket With Items - always rendered, visibility controlled by Alpine -->
+    <div x-show="!isEmpty" x-cloak>
+            <h1 class="h3 mb-4">Your Basket <span class="text-muted fs-6" x-text="'(' + itemCount + ' ' + (itemCount === 1 ? 'item' : 'items') + ')'"></span></h1>
+
+            <div class="row">
+                <!-- Basket Items -->
+                <div class="col-lg-8">
+                    <div class="card mb-4">
+                        <ul class="list-group list-group-flush">
+                            <template x-for="item in productItems" :key="item.id">
+                                <li class="list-group-item py-3">
+                                    <div class="row align-items-center">
+                                        <!-- Product Info -->
+                                        <div class="col-12 col-md-6 mb-3 mb-md-0">
+                                            <h5 class="mb-1" x-text="item.name"></h5>
+                                            <small class="text-muted" x-text="'SKU: ' + item.sku"></small>
+
+                                            <!-- Add-ons for this product -->
+                                            <template x-for="addon in getAddonsForProduct(item.sku)" :key="addon.id">
+                                                <div class="mt-2 ps-3 border-start border-2 border-primary">
+                                                    <small class="text-muted">
+                                                        <span x-text="addon.name"></span>
+                                                        <span class="ms-2" x-text="addon.formattedUnitPrice"></span>
+                                                    </small>
+                                                </div>
+                                            </template>
+                                        </div>
+
+                                        <!-- Quantity Controls -->
+                                        <div class="col-6 col-md-3">
+                                            <div class="input-group input-group-sm quantity-selector">
+                                                <button type="button"
+                                                        class="btn btn-outline-secondary"
+                                                        :disabled="updatingItemId === item.id"
+                                                        @@click="decrementQuantity(item)">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                                        <path d="M4 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 4 8"/>
+                                                    </svg>
+                                                </button>
+                                                <input type="number"
+                                                       class="form-control text-center"
+                                                       :value="item.quantity"
+                                                       min="1"
+                                                       :disabled="updatingItemId === item.id"
+                                                       @@change="updateQuantity(item.id, parseInt($event.target.value) || 1)"
+                                                       style="max-width: 60px;" />
+                                                <button type="button"
+                                                        class="btn btn-outline-secondary"
+                                                        :disabled="updatingItemId === item.id"
+                                                        @@click="incrementQuantity(item)">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                            <!-- Loading indicator -->
+                                            <div x-show="updatingItemId === item.id" class="text-center mt-1">
+                                                <span class="spinner-border spinner-border-sm text-primary"></span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Price & Remove -->
+                                        <div class="col-6 col-md-3 text-end">
+                                            <div class="fw-bold" x-text="item.formattedLineTotal"></div>
+                                            <small class="text-muted" x-show="item.quantity > 1" x-text="item.formattedUnitPrice + ' each'"></small>
+                                            <div class="mt-2">
+                                                <button type="button"
+                                                        class="btn btn-link btn-sm text-danger p-0"
+                                                        :disabled="removingItemId === item.id"
+                                                        @@click="removeItem(item.id)">
+                                                    <template x-if="removingItemId !== item.id">
+                                                        <span>Remove</span>
+                                                    </template>
+                                                    <template x-if="removingItemId === item.id">
+                                                        <span class="spinner-border spinner-border-sm"></span>
+                                                    </template>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+
+                    <!-- Continue Shopping Link -->
+                    <a href="/" class="btn btn-outline-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-left me-2" viewBox="0 0 16 16">
+                            <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8"/>
+                        </svg>
+                        Continue Shopping
+                    </a>
+                </div>
+
+                <!-- Order Summary -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header bg-dark text-white">
+                            <h5 class="mb-0">Order Summary</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Subtotal</span>
+                                <span x-text="formattedSubTotal"></span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2" x-show="discount > 0">
+                                <span class="text-success">Discount</span>
+                                <span class="text-success" x-text="'-' + formattedDiscount"></span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Tax</span>
+                                <span x-text="formattedTax"></span>
+                            </div>
+                            <hr>
+                            <div class="d-flex justify-content-between mb-3">
+                                <strong>Total</strong>
+                                <strong class="fs-5" x-text="formattedTotal"></strong>
+                            </div>
+
+                            <!-- Checkout Button -->
+                            <button type="button" class="btn btn-primary btn-lg w-100" disabled>
+                                Proceed to Checkout
+                            </button>
+                            <p class="text-muted text-center mt-2 mb-0">
+                                <small>Checkout coming soon</small>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+</div>

@@ -120,6 +120,54 @@ public class StorefrontApiController(
     }
 
     /// <summary>
+    /// Get full basket with all line items
+    /// </summary>
+    [HttpGet("basket")]
+    public async Task<IActionResult> GetBasket(CancellationToken ct)
+    {
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
+
+        if (basket == null || basket.LineItems.Count == 0)
+        {
+            return Ok(new FullBasketResponse
+            {
+                IsEmpty = true,
+                CurrencySymbol = _settings.CurrencySymbol
+            });
+        }
+
+        var items = basket.LineItems.Select(li => new BasketLineItemDto
+        {
+            Id = li.Id,
+            Sku = li.Sku ?? "",
+            Name = li.Name ?? "",
+            Quantity = li.Quantity,
+            UnitPrice = li.Amount,
+            LineTotal = li.Amount * li.Quantity,
+            FormattedUnitPrice = FormatPrice(li.Amount),
+            FormattedLineTotal = FormatPrice(li.Amount * li.Quantity),
+            LineItemType = li.LineItemType.ToString(),
+            DependantLineItemSku = li.DependantLineItemSku
+        }).ToList();
+
+        return Ok(new FullBasketResponse
+        {
+            Items = items,
+            SubTotal = basket.SubTotal,
+            Discount = basket.Discount,
+            Tax = basket.Tax,
+            Total = basket.Total,
+            FormattedSubTotal = FormatPrice(basket.SubTotal),
+            FormattedDiscount = FormatPrice(basket.Discount),
+            FormattedTax = FormatPrice(basket.Tax),
+            FormattedTotal = FormatPrice(basket.Total),
+            CurrencySymbol = _settings.CurrencySymbol,
+            ItemCount = basket.LineItems.Sum(li => li.Quantity),
+            IsEmpty = false
+        });
+    }
+
+    /// <summary>
     /// Get basket item count
     /// </summary>
     [HttpGet("basket/count")]

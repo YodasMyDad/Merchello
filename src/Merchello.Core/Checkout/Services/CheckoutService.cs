@@ -292,7 +292,7 @@ public class CheckoutService(
         // If we retrieved a basket, cache it in the session for subsequent requests
         if (basket != null)
         {
-            httpContext?.Session.SetString(Constants.Cookies.BasketId, JsonSerializer.Serialize(basket));
+            httpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
         }
 
         return basket;
@@ -325,6 +325,11 @@ public class CheckoutService(
                         _settings.CurrencySymbol);
                     db.Baskets.Add(basket);
                 }
+                else
+                {
+                    // Attach existing basket for update tracking
+                    db.Baskets.Update(basket);
+                }
 
                 // 2. Use CheckoutService to add the new item to the basket
                 var fallbackCountryCode = _settings.AllowedCountries?.FirstOrDefault() ?? "GB";
@@ -342,7 +347,16 @@ public class CheckoutService(
             // 4. If it's a new basket and for a guest user, update the cookie
             if (isNewBasket && !parameters.CustomerId.HasValue && basket != null)
             {
-                httpContextAccessor.HttpContext?.Response.Cookies.Append(Constants.Cookies.BasketId, basket.Id.ToString());
+                httpContextAccessor.HttpContext?.Response.Cookies.Append(
+                    Constants.Cookies.BasketId,
+                    basket.Id.ToString(),
+                    new CookieOptions
+                    {
+                        Expires = DateTimeOffset.UtcNow.AddDays(30),
+                        HttpOnly = true,
+                        Secure = true,
+                        SameSite = SameSiteMode.Lax
+                    });
             }
 
             // 5. Update the basket stored in the session for immediate reflection on the UI
@@ -366,14 +380,19 @@ public class CheckoutService(
             if (lineItem != null)
             {
                 lineItem.Quantity = quantity;
+                basket.DateUpdated = DateTime.UtcNow;
                 await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
 
                 using var scope = efCoreScopeProvider.CreateScope();
                 await scope.ExecuteWithContextAsync<Task>(async db =>
                 {
+                    db.Baskets.Update(basket);
                     await db.SaveChangesAsync(cancellationToken);
                 });
                 scope.Complete();
+
+                // Update session with modified basket
+                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
             }
         }
     }
@@ -388,13 +407,18 @@ public class CheckoutService(
         if (basket != null)
         {
             await RemoveFromBasketAsync(basket, lineItemId, countryCode, cancellationToken);
+            basket.DateUpdated = DateTime.UtcNow;
 
             using var scope = efCoreScopeProvider.CreateScope();
             await scope.ExecuteWithContextAsync<Task>(async db =>
             {
+                db.Baskets.Update(basket);
                 await db.SaveChangesAsync(cancellationToken);
             });
             scope.Complete();
+
+            // Update session with modified basket
+            httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
         }
     }
 

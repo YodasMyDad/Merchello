@@ -347,4 +347,138 @@ document.addEventListener('alpine:init', () => {
         }
     }));
 
+    /**
+     * Basket Page Component
+     * Receives initial data from server via config, uses API for updates
+     */
+    Alpine.data('basketPage', (config) => ({
+        // State - initialized from server-provided config
+        items: config.items || [],
+        subTotal: config.subTotal || 0,
+        discount: config.discount || 0,
+        tax: config.tax || 0,
+        total: config.total || 0,
+        formattedSubTotal: config.formattedSubTotal || '',
+        formattedDiscount: config.formattedDiscount || '',
+        formattedTax: config.formattedTax || '',
+        formattedTotal: config.formattedTotal || '',
+        currencySymbol: config.currencySymbol || '£',
+        itemCount: config.itemCount || 0,
+        isEmpty: config.isEmpty ?? true,
+        updatingItemId: null,
+        removingItemId: null,
+
+        // Computed
+        get productItems() {
+            return this.items.filter(item => item.lineItemType === 'Product');
+        },
+
+        getAddonsForProduct(productSku) {
+            return this.items.filter(item =>
+                item.lineItemType === 'Custom' && item.dependantLineItemSku === productSku
+            );
+        },
+
+        // Methods
+        init() {
+            // Update global basket store with initial data
+            Alpine.store('basket').update(this.itemCount, this.total, this.formattedTotal);
+        },
+
+        async refreshBasket() {
+            try {
+                const response = await fetch('/api/storefront/basket');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.updateFromResponse(data);
+                }
+            } catch (error) {
+                console.error('Failed to refresh basket:', error);
+            }
+        },
+
+        updateFromResponse(data) {
+            this.items = data.items || [];
+            this.subTotal = data.subTotal;
+            this.discount = data.discount;
+            this.tax = data.tax;
+            this.total = data.total;
+            this.formattedSubTotal = data.formattedSubTotal;
+            this.formattedDiscount = data.formattedDiscount;
+            this.formattedTax = data.formattedTax;
+            this.formattedTotal = data.formattedTotal;
+            this.currencySymbol = data.currencySymbol || this.currencySymbol;
+            this.itemCount = data.itemCount;
+            this.isEmpty = data.isEmpty;
+
+            // Update global basket store
+            Alpine.store('basket').update(data.itemCount, data.total, data.formattedTotal);
+        },
+
+        async updateQuantity(itemId, newQuantity) {
+            if (newQuantity < 1) {
+                await this.removeItem(itemId);
+                return;
+            }
+
+            this.updatingItemId = itemId;
+            try {
+                const response = await fetch('/api/storefront/basket/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lineItemId: itemId, quantity: newQuantity })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    await this.refreshBasket();
+                    Alpine.store('toast').show('Quantity updated', 'success');
+                } else {
+                    Alpine.store('toast').show(data.message || 'Failed to update quantity', 'danger');
+                }
+            } catch (error) {
+                console.error('Update quantity error:', error);
+                Alpine.store('toast').show('An error occurred', 'danger');
+            } finally {
+                this.updatingItemId = null;
+            }
+        },
+
+        async removeItem(itemId) {
+            this.removingItemId = itemId;
+            try {
+                const response = await fetch(`/api/storefront/basket/${itemId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    await this.refreshBasket();
+                    Alpine.store('toast').show('Item removed', 'success');
+                } else {
+                    Alpine.store('toast').show(data.message || 'Failed to remove item', 'danger');
+                }
+            } catch (error) {
+                console.error('Remove item error:', error);
+                Alpine.store('toast').show('An error occurred', 'danger');
+            } finally {
+                this.removingItemId = null;
+            }
+        },
+
+        incrementQuantity(item) {
+            this.updateQuantity(item.id, item.quantity + 1);
+        },
+
+        decrementQuantity(item) {
+            this.updateQuantity(item.id, item.quantity - 1);
+        },
+
+        formatPrice(value) {
+            return this.currencySymbol + value.toFixed(2);
+        }
+    }));
+
 });
