@@ -1,0 +1,379 @@
+@*
+    Express Checkout Partial - Dynamically displays express checkout buttons.
+
+    This partial is fully dynamic - when a payment provider supports express checkout
+    and is enabled, its buttons will automatically appear without any code changes.
+
+    The /api/merchello/checkout/express-config endpoint returns:
+    - Available express checkout methods
+    - SDK URLs and configuration for each method
+    - Provider-specific settings
+
+    The JavaScript handles:
+    - Loading provider SDKs dynamically
+    - Rendering buttons using provider adapters
+    - Processing express checkout payments
+*@
+
+<div id="express-checkout-container"
+     class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200"
+     x-data="expressCheckout()"
+     x-init="init()"
+     x-show="hasExpressMethods"
+     x-cloak>
+
+    <!-- Loading State -->
+    <div x-show="isLoading" class="flex items-center justify-center py-4">
+        <svg class="animate-spin h-6 w-6 text-accent" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span class="ml-2 text-sm text-gray-600">Loading express checkout...</span>
+    </div>
+
+    <!-- Express Checkout Content -->
+    <div x-show="!isLoading && hasExpressMethods" x-cloak>
+        <p class="text-sm text-gray-600 text-center mb-4">Express checkout</p>
+
+        <!-- Dynamic Express Checkout Buttons Container -->
+        <div id="express-buttons-container" class="flex flex-wrap justify-center gap-3">
+            <!-- Buttons are rendered dynamically by JavaScript based on API response -->
+        </div>
+
+        <!-- Divider -->
+        <div class="relative my-6">
+            <div class="absolute inset-0 flex items-center">
+                <div class="w-full border-t border-gray-300"></div>
+            </div>
+            <div class="relative flex justify-center text-sm">
+                <span class="px-4 bg-gray-50 text-gray-500">Or continue below</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Message -->
+    <div x-show="error" x-cloak class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-4">
+        <p x-text="error"></p>
+    </div>
+
+    <!-- Processing Overlay -->
+    <div x-show="isProcessing" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl flex items-center gap-4">
+            <svg class="animate-spin h-8 w-8 text-accent" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-lg font-medium text-gray-900">Processing payment...</span>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Express button wrapper - consistent sizing for all buttons */
+    .express-button-wrapper {
+        min-width: 160px;
+        min-height: 48px;
+    }
+
+    /* Apple Pay button styling (native) */
+    .apple-pay-button {
+        -webkit-appearance: -apple-pay-button;
+        -apple-pay-button-type: plain;
+        cursor: pointer;
+        height: 48px;
+        width: 160px;
+        border-radius: 8px;
+    }
+
+    .apple-pay-button-black {
+        -apple-pay-button-style: black;
+    }
+
+    /* Generic express button base styles */
+    .express-button {
+        height: 48px;
+        width: 160px;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-weight: 500;
+        transition: opacity 0.2s, background-color 0.2s;
+    }
+
+    .express-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Google Pay specific */
+    .express-button-googlepay {
+        background: white;
+        border: 1px solid #dadce0;
+        color: #3c4043;
+    }
+
+    .express-button-googlepay:hover:not(:disabled) {
+        background: #f8f9fa;
+    }
+
+    /* PayPal specific */
+    .express-button-paypal {
+        background: #ffc439;
+        border: none;
+        color: #111;
+    }
+
+    .express-button-paypal:hover:not(:disabled) {
+        background: #f0b429;
+    }
+
+    /* Stripe Link specific */
+    .express-button-link {
+        background: #00d632;
+        border: none;
+        color: white;
+    }
+
+    .express-button-link:hover:not(:disabled) {
+        background: #00c02b;
+    }
+
+    /* Generic fallback */
+    .express-button-default {
+        background: #6366f1;
+        border: none;
+        color: white;
+    }
+
+    .express-button-default:hover:not(:disabled) {
+        background: #4f46e5;
+    }
+</style>
+
+<script>
+    /**
+     * Express Checkout Alpine.js Component
+     *
+     * This component dynamically loads and renders express checkout buttons
+     * based on what payment providers are enabled and support express checkout.
+     *
+     * The system is fully pluggable - when a new payment provider is added
+     * that supports express checkout, its buttons will automatically appear
+     * without any code changes to this file.
+     */
+    function expressCheckout() {
+        return {
+            isLoading: true,
+            isProcessing: false,
+            hasExpressMethods: false,
+            error: null,
+            config: null,
+            loadedSdks: new Set(),
+            adapters: {},
+
+            async init() {
+                try {
+                    // Fetch express checkout configuration from API
+                    const response = await fetch('/api/merchello/checkout/express-config');
+
+                    if (!response.ok) {
+                        throw new Error('Failed to load express checkout configuration');
+                    }
+
+                    this.config = await response.json();
+                    this.hasExpressMethods = this.config.methods && this.config.methods.length > 0;
+
+                    if (this.hasExpressMethods) {
+                        await this.initializeExpressCheckout();
+                    }
+                } catch (err) {
+                    console.error('Express checkout initialization failed:', err);
+                    this.error = 'Failed to load express checkout options.';
+                    this.hasExpressMethods = false;
+                } finally {
+                    this.isLoading = false;
+                }
+            },
+
+            /**
+             * Initialize all express checkout methods
+             */
+            async initializeExpressCheckout() {
+                const container = document.getElementById('express-buttons-container');
+                if (!container) return;
+
+                // Clear existing buttons
+                container.innerHTML = '';
+
+                // Process each method
+                for (const method of this.config.methods) {
+                    try {
+                        await this.initializeMethod(method, container);
+                    } catch (err) {
+                        console.error(`Failed to initialize ${method.methodAlias}:`, err);
+                    }
+                }
+            },
+
+            /**
+             * Initialize a single express checkout method
+             */
+            async initializeMethod(method, container) {
+                // Load adapter script first if provided (contains provider-specific handling)
+                if (method.adapterUrl && !this.loadedSdks.has(method.adapterUrl)) {
+                    await this.loadScript(method.adapterUrl);
+                    this.loadedSdks.add(method.adapterUrl);
+                }
+
+                // Load SDK if provided (e.g., Stripe.js, PayPal SDK)
+                if (method.sdkUrl && !this.loadedSdks.has(method.sdkUrl)) {
+                    await this.loadScript(method.sdkUrl);
+                    this.loadedSdks.add(method.sdkUrl);
+                }
+
+                // Create wrapper for this button
+                const wrapper = document.createElement('div');
+                wrapper.id = 'express-' + method.providerAlias + '-' + method.methodAlias + '-container';
+                wrapper.className = 'express-button-wrapper';
+                container.appendChild(wrapper);
+
+                // Get or create adapter for this method type
+                const adapter = this.getAdapter(method);
+
+                if (adapter) {
+                    await adapter.render(wrapper, method, this.config, this);
+                } else {
+                    // Fallback: render a generic button
+                    this.renderGenericButton(wrapper, method);
+                }
+            },
+
+            /**
+             * Get the appropriate adapter for a method type
+             */
+            getAdapter(method) {
+                // First check for provider-specific adapter
+                const providerKey = `${method.providerAlias}:${method.methodAlias}`;
+                if (window.MerchelloExpressAdapters && window.MerchelloExpressAdapters[providerKey]) {
+                    return window.MerchelloExpressAdapters[providerKey];
+                }
+
+                // Then check for method type adapter (e.g., all Apple Pay implementations)
+                if (method.methodType && window.MerchelloExpressAdapters && window.MerchelloExpressAdapters[method.methodType]) {
+                    return window.MerchelloExpressAdapters[method.methodType];
+                }
+
+                // Then check for provider adapter (handles all methods for a provider)
+                if (window.MerchelloExpressAdapters && window.MerchelloExpressAdapters[method.providerAlias]) {
+                    return window.MerchelloExpressAdapters[method.providerAlias];
+                }
+
+                return null;
+            },
+
+            /**
+             * Render a generic express checkout button for providers without custom adapters
+             */
+            renderGenericButton(container, method) {
+                const buttonClass = this.getButtonClass(method);
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = `express-button ${buttonClass}`;
+                button.innerHTML = `<span>${method.displayName}</span>`;
+                button.disabled = this.isProcessing;
+
+                button.addEventListener('click', () => {
+                    this.handleGenericExpressCheckout(method);
+                });
+
+                container.appendChild(button);
+            },
+
+            /**
+             * Get CSS class for a method type
+             */
+            getButtonClass(method) {
+                const typeMap = {
+                    'ApplePay': 'express-button-applepay',
+                    'GooglePay': 'express-button-googlepay',
+                    'PayPal': 'express-button-paypal',
+                    'StripeLink': 'express-button-link'
+                };
+                return typeMap[method.methodType] || 'express-button-default';
+            },
+
+            /**
+             * Handle generic express checkout (for providers without custom adapters)
+             */
+            async handleGenericExpressCheckout(method) {
+                this.error = `${method.displayName} requires provider-specific integration.`;
+            },
+
+            /**
+             * Process express checkout payment
+             * Called by adapters after receiving payment token from provider
+             */
+            async processExpressCheckout(providerAlias, methodAlias, paymentToken, customerData, providerData) {
+                this.isProcessing = true;
+                this.error = null;
+
+                try {
+                    const response = await fetch('/api/merchello/checkout/express', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            providerAlias: providerAlias,
+                            methodAlias: methodAlias,
+                            paymentToken: paymentToken,
+                            customerData: customerData,
+                            providerData: providerData
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        // Redirect to confirmation page
+                        window.location.href = result.redirectUrl || `/checkout/confirmation/${result.invoiceId}`;
+                    } else {
+                        this.error = result.errorMessage || 'Payment failed. Please try again.';
+                    }
+                } catch (err) {
+                    console.error('Express checkout failed:', err);
+                    this.error = 'An error occurred processing your payment.';
+                } finally {
+                    this.isProcessing = false;
+                }
+            },
+
+            /**
+             * Load an external script dynamically
+             */
+            loadScript(src) {
+                return new Promise((resolve, reject) => {
+                    // Check if already loaded
+                    if (document.querySelector(`script[src="${src}"]`)) {
+                        resolve();
+                        return;
+                    }
+
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.async = true;
+                    script.onload = resolve;
+                    script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+                    document.head.appendChild(script);
+                });
+            }
+        };
+    }
+
+    // Global registry for express checkout adapters
+    // Provider adapters are loaded dynamically via the adapterUrl field
+    window.MerchelloExpressAdapters = window.MerchelloExpressAdapters || {};
+</script>

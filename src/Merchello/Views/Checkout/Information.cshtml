@@ -3,39 +3,30 @@
     Layout = "~/Views/Checkout/_Layout.cshtml";
 }
 
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-8" x-data="checkoutInformation()">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-0" x-data="checkoutInformation()">
+    <!-- Screen reader announcements -->
+    <div aria-live="polite" aria-atomic="true" class="sr-only" x-text="announcement"></div>
+
     <!-- Left Column: Form -->
-    <div class="lg:col-span-7">
-        <h1 class="font-heading text-2xl font-semibold mb-6">Contact Information</h1>
+    <div class="pt-8 lg:pr-12 pb-24 lg:pb-8">
+        <h1 class="font-heading text-xl font-normal mb-6">Contact</h1>
 
         @if (Model.Settings.ShowExpressCheckout)
         {
-            <!-- Express Checkout Placeholder (Phase 9) -->
-            <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-                <p class="text-sm text-gray-600 text-center mb-4">Express checkout</p>
-                <div class="flex flex-wrap justify-center gap-3">
-                    <!-- Placeholder buttons - will be replaced with actual express checkout buttons in Phase 9 -->
-                    <div class="h-12 w-32 bg-gray-200 rounded animate-pulse"></div>
-                    <div class="h-12 w-32 bg-gray-200 rounded animate-pulse"></div>
-                    <div class="h-12 w-32 bg-gray-200 rounded animate-pulse"></div>
-                </div>
-                <div class="relative my-6">
-                    <div class="absolute inset-0 flex items-center">
-                        <div class="w-full border-t border-gray-300"></div>
-                    </div>
-                    <div class="relative flex justify-center text-sm">
-                        <span class="px-4 bg-gray-50 text-gray-500">Or continue below</span>
-                    </div>
-                </div>
-            </div>
+            @await Html.PartialAsync("~/Views/Checkout/_ExpressCheckout.cshtml")
         }
 
         <!-- Contact Form -->
-        <form x-on:submit.prevent="submitForm" class="space-y-6">
+        <form x-on:submit.prevent="submitForm" class="space-y-6" :aria-busy="isSubmitting">
+            <!-- General Error Message -->
+            <div x-show="generalError" x-cloak role="alert" class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+                <p x-text="generalError"></p>
+            </div>
+
             <!-- Email -->
             <div>
                 <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
-                    Email address
+                    Email address <span class="text-red-500" aria-hidden="true">*</span>
                 </label>
                 <input type="email"
                        id="email"
@@ -43,48 +34,55 @@
                        x-model="form.email"
                        required
                        autocomplete="email"
-                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
+                       :aria-invalid="errors.email ? 'true' : 'false'"
+                       :aria-describedby="errors.email ? 'email-error' : null"
+                       :class="errors.email ? 'border-error focus:ring-error focus:border-error' : 'border-gray-300 focus:ring-accent focus:border-accent'"
+                       class="w-full px-4 py-3 border rounded-lg focus:ring-2 transition-colors focus-visible:outline-none"
                        placeholder="you@example.com" />
+                <p x-show="errors.email" x-cloak id="email-error" role="alert" class="text-error text-sm mt-1" x-text="errors.email"></p>
             </div>
 
             <!-- Billing Address Section -->
-            <div class="mt-8">
-                <h2 class="font-heading text-xl font-semibold mb-4">Billing Address</h2>
+            <div class="mt-8 pt-8 border-t border-gray-200">
+                <h2 class="font-heading text-xl font-normal mb-4">Billing address</h2>
                 @{ ViewData["Prefix"] = "billing"; }
-                @await Html.PartialAsync("_AddressForm")
+                @await Html.PartialAsync("~/Views/Checkout/_AddressForm.cshtml")
             </div>
 
             <!-- Shipping Address Section -->
-            <div class="mt-8">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="font-heading text-xl font-semibold">Shipping Address</h2>
-                </div>
+            <div class="mt-8 pt-8 border-t border-gray-200">
+                <h2 class="font-heading text-xl font-normal mb-4">Shipping address</h2>
 
-                <label class="flex items-center gap-3 mb-4 cursor-pointer">
-                    <input type="checkbox"
-                           x-model="sameAsBilling"
-                           class="w-5 h-5 rounded border-gray-300 text-accent focus:ring-accent" />
+                <label class="inline-flex items-center gap-3 mb-4 cursor-pointer checkout-touch-target">
+                    <span class="checkout-checkbox-wrapper">
+                        <input type="checkbox"
+                               id="same-as-billing"
+                               x-model="sameAsBilling"
+                               @((Model.Session?.ShippingSameAsBilling ?? true) ? "checked" : "")
+                               class="w-5 h-5 rounded border-gray-300 text-accent focus:ring-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2" />
+                    </span>
                     <span class="text-sm text-gray-700">Same as billing address</span>
                 </label>
 
                 <div x-show="!sameAsBilling" x-cloak x-transition>
                     @{ ViewData["Prefix"] = "shipping"; }
-                    @await Html.PartialAsync("_AddressForm")
+                    @await Html.PartialAsync("~/Views/Checkout/_AddressForm.cshtml")
                 </div>
             </div>
 
-            <!-- Continue Button -->
-            <div class="mt-8 flex justify-end">
+            <!-- Continue Button (Desktop) -->
+            <div class="mt-8 hidden lg:flex justify-end">
                 <button type="submit"
-                        class="px-8 py-3 bg-primary text-white font-medium rounded-lg hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        :disabled="isSubmitting">
+                        class="checkout-button-primary"
+                        :disabled="isSubmitting"
+                        :aria-busy="isSubmitting">
                     <span x-show="!isSubmitting">Continue to Shipping</span>
                     <span x-show="isSubmitting" x-cloak class="flex items-center gap-2">
-                        <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <svg class="animate-spin h-5 w-5" aria-hidden="true" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        Processing...
+                        <span>Processing...</span>
                     </span>
                 </button>
             </div>
@@ -92,10 +90,30 @@
     </div>
 
     <!-- Right Column: Order Summary -->
-    <div class="lg:col-span-5">
-        <div class="sticky top-8">
-            @await Html.PartialAsync("_OrderSummary")
+    <div class="relative lg:border-l lg:border-gray-200">
+        <!-- Background extending to viewport edge -->
+        <div class="hidden lg:block absolute inset-y-0 left-0 w-[200vw] bg-[#fafafa] -z-10"></div>
+        <div class="lg:pl-8 lg:pt-8 lg:pr-8">
+            @await Html.PartialAsync("~/Views/Checkout/_OrderSummary.cshtml")
         </div>
+    </div>
+
+    <!-- Mobile Sticky Action Bar -->
+    <div class="checkout-sticky-actions lg:hidden">
+        <button type="button"
+                @@click="submitForm"
+                class="w-full checkout-button-primary"
+                :disabled="isSubmitting"
+                :aria-busy="isSubmitting">
+            <span x-show="!isSubmitting">Continue to Shipping</span>
+            <span x-show="isSubmitting" x-cloak class="flex items-center justify-center gap-2">
+                <svg class="animate-spin h-5 w-5" aria-hidden="true" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Processing...</span>
+            </span>
+        </button>
     </div>
 </div>
 
@@ -132,12 +150,14 @@
                         phone: '@(Model.Basket?.ShippingAddress?.Phone ?? "")'
                     }
                 },
-                sameAsBilling: @(Model.Session?.ShippingSameAsBilling.ToString().ToLower() ?? "true"),
+                sameAsBilling: @((Model.Session?.ShippingSameAsBilling ?? true).ToString().ToLower()),
                 isSubmitting: false,
                 errors: {},
                 generalError: '',
                 billingRegions: [],
                 shippingRegions: [],
+                announcement: '',
+                _debounceTimers: {},
 
                 async init() {
                     // Load regions for pre-selected countries
@@ -147,6 +167,23 @@
                     if (this.form.shipping.countryCode) {
                         await this.loadRegions('shipping', this.form.shipping.countryCode);
                     }
+                },
+
+                // Debounce helper to prevent rapid API calls
+                debounce(key, fn, delay = 300) {
+                    if (this._debounceTimers[key]) {
+                        clearTimeout(this._debounceTimers[key]);
+                    }
+                    this._debounceTimers[key] = setTimeout(fn, delay);
+                },
+
+                // Announce message to screen readers
+                announce(message) {
+                    this.announcement = '';
+                    // Small delay to ensure screen reader picks up change
+                    setTimeout(() => {
+                        this.announcement = message;
+                    }, 100);
                 },
 
                 async loadRegions(addressType, countryCode) {
@@ -161,6 +198,9 @@
 
                     try {
                         const response = await fetch(`/api/merchello/checkout/regions/${countryCode}`);
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
                         const regions = await response.json();
                         if (addressType === 'billing') {
                             this.billingRegions = regions;
@@ -172,16 +212,22 @@
                     }
                 },
 
-                async onCountryChangeBilling() {
+                onCountryChangeBilling() {
                     this.form.billing.state = '';
                     this.form.billing.stateCode = '';
-                    await this.loadRegions('billing', this.form.billing.countryCode);
+                    // Debounce region loading to prevent rapid API calls
+                    this.debounce('billing-regions', () => {
+                        this.loadRegions('billing', this.form.billing.countryCode);
+                    });
                 },
 
-                async onCountryChangeShipping() {
+                onCountryChangeShipping() {
                     this.form.shipping.state = '';
                     this.form.shipping.stateCode = '';
-                    await this.loadRegions('shipping', this.form.shipping.countryCode);
+                    // Debounce region loading to prevent rapid API calls
+                    this.debounce('shipping-regions', () => {
+                        this.loadRegions('shipping', this.form.shipping.countryCode);
+                    });
                 },
 
                 validate() {
@@ -216,11 +262,20 @@
 
                 async submitForm() {
                     if (!this.validate()) {
+                        const errorCount = Object.keys(this.errors).length;
+                        this.announce(`Form has ${errorCount} error${errorCount !== 1 ? 's' : ''}. Please correct and try again.`);
+                        // Focus first error field
+                        const firstErrorKey = Object.keys(this.errors)[0];
+                        const firstErrorField = document.getElementById(firstErrorKey.replace('.', '-'));
+                        if (firstErrorField) {
+                            firstErrorField.focus();
+                        }
                         return;
                     }
 
                     this.isSubmitting = true;
                     this.generalError = '';
+                    this.announce('Saving your information...');
 
                     try {
                         const response = await fetch('/api/merchello/checkout/addresses', {
@@ -234,19 +289,32 @@
                             })
                         });
 
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+
                         const data = await response.json();
 
                         if (data.success) {
+                            // Emit analytics event for contact completion
+                            if (window.MerchelloCheckout) {
+                                window.MerchelloCheckout.emit('checkout:contact_complete', {
+                                    email: this.form.email
+                                });
+                            }
+                            this.announce('Information saved. Redirecting to shipping.');
                             window.location.href = '/checkout/shipping';
                         } else {
                             if (data.errors) {
                                 this.errors = data.errors;
                             }
                             this.generalError = data.message || 'Failed to save addresses. Please try again.';
+                            this.announce(this.generalError);
                         }
                     } catch (error) {
                         console.error('Submission failed:', error);
                         this.generalError = 'An unexpected error occurred. Please try again.';
+                        this.announce(this.generalError);
                     } finally {
                         this.isSubmitting = false;
                     }

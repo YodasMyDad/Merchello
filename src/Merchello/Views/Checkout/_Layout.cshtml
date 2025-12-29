@@ -7,7 +7,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>@(settings.CompanyName ?? "Checkout") - @Model.Step</title>
 
     <!-- Tailwind CSS via CDN -->
@@ -30,8 +30,13 @@
         }
     </script>
 
+    <!-- Alpine.js Collapse plugin (must load before Alpine core) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@@alpinejs/collapse@@3.x.x/dist/cdn.min.js"></script>
     <!-- Alpine.js via CDN -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Checkout component styles (built from Styles/checkout.css) -->
+    <link rel="stylesheet" href="/_content/Merchello/css/checkout.css" />
 
     <style>
         [x-cloak] { display: none !important; }
@@ -126,8 +131,8 @@
     </nav>
 
     <!-- Main Content -->
-    <main class="flex-1">
-        <div class="max-w-6xl mx-auto px-4 py-8">
+    <main class="flex-1 overflow-x-hidden">
+        <div class="max-w-6xl mx-auto px-4 lg:px-8">
             @RenderBody()
         </div>
     </main>
@@ -171,6 +176,53 @@
             }
         </div>
     </footer>
+
+    <!-- Merchello Checkout Analytics (event emitter with helper methods) -->
+    <script src="/_content/Merchello/js/checkout/analytics.js"></script>
+
+    <!-- Checkout data for analytics -->
+    @if (Model.Basket != null)
+    {
+        <script>
+            window.merchelloCheckoutData = {
+                currency: '@Model.Basket.Currency',
+                value: @Model.Basket.Total,
+                subtotal: @Model.Basket.SubTotal,
+                tax: @Model.Basket.Tax,
+                shipping: @Model.Basket.Shipping,
+                discount: @Model.Basket.Discount,
+                item_count: @(Model.Basket.LineItems?.Count(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Product) ?? 0),
+                coupon: '@(Model.Basket.LineItems?.FirstOrDefault(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Discount)?.ExtendedData?.GetValueOrDefault("DiscountCode")?.ToString() ?? "")',
+                items: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                    Model.Basket.LineItems?
+                        .Where(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Product)
+                        .Select(li => new {
+                            item_id = li.Sku ?? li.Id.ToString(),
+                            item_name = li.Name,
+                            price = li.Amount,
+                            quantity = li.Quantity,
+                            discount = li.OriginalAmount.HasValue ? li.OriginalAmount.Value - li.Amount : 0
+                        }) ?? Enumerable.Empty<object>()
+                ))
+            };
+
+            // Emit checkout:begin on page load (only on first checkout step)
+            document.addEventListener('DOMContentLoaded', function() {
+                if (window.MerchelloCheckout && window.merchelloCheckoutData) {
+                    @if (Model.Step == CheckoutStep.Information)
+                    {
+                        <text>window.MerchelloCheckout.emit('checkout:begin', window.merchelloCheckoutData);</text>
+                    }
+                }
+            });
+        </script>
+    }
+
+    @if (!string.IsNullOrEmpty(settings.CustomScriptUrl))
+    {
+        <!-- Custom analytics/tracking script -->
+        <script src="@settings.CustomScriptUrl"></script>
+    }
 
     @await RenderSectionAsync("Scripts", required: false)
 </body>

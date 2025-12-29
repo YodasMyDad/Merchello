@@ -203,3 +203,32 @@ else
         </div>
     </div>
 }
+
+@section Scripts {
+    @if (confirmation != null)
+    {
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                if (window.MerchelloCheckout) {
+                    window.MerchelloCheckout.emit('checkout:purchase', {
+                        transaction_id: '@confirmation.InvoiceNumber',
+                        currency_symbol: '@confirmation.CurrencySymbol',
+                        value: @confirmation.Total,
+                        subtotal: @confirmation.SubTotal,
+                        tax: @confirmation.Tax,
+                        shipping: @confirmation.Shipping,
+                        discount: @confirmation.Discount,
+                        items: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                            confirmation.LineItems.Select(li => new {
+                                item_id = string.IsNullOrEmpty(li.Sku) ? li.Id.ToString() : li.Sku,
+                                item_name = li.Name,
+                                price = li.UnitPrice,
+                                quantity = li.Quantity
+                            })
+                        ))
+                    });
+                }
+            });
+        </script>
+    }
+}

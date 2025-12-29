@@ -144,6 +144,7 @@ public static class Startup
 
         // Checkout & Orders
         builder.Services.AddScoped<ICheckoutService, CheckoutService>();
+        builder.Services.AddScoped(sp => new Lazy<ICheckoutService>(() => sp.GetRequiredService<ICheckoutService>()));
         builder.Services.AddScoped<ICheckoutSessionService, CheckoutSessionService>();
         builder.Services.AddScoped<IInvoiceService, InvoiceService>();
         builder.Services.AddScoped<ILineItemService, LineItemService>();

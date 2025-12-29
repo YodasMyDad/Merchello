@@ -10,6 +10,7 @@ using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -26,6 +27,7 @@ public class PaymentServiceTests
     private readonly Mock<IOptions<MerchelloSettings>> _settingsMock;
     private readonly Mock<ILogger<PaymentService>> _loggerMock;
     private readonly Mock<IMerchelloNotificationPublisher> _notificationPublisherMock;
+    private readonly IMemoryCache _memoryCache;
     private readonly CurrencyService _currencyService;
     private readonly PaymentFactory _paymentFactory;
 
@@ -37,12 +39,13 @@ public class PaymentServiceTests
         _settingsMock.Setup(s => s.Value).Returns(new MerchelloSettings());
         _loggerMock = new Mock<ILogger<PaymentService>>();
         _notificationPublisherMock = new Mock<IMerchelloNotificationPublisher>();
+        _memoryCache = new MemoryCache(new MemoryCacheOptions());
         _currencyService = new CurrencyService(_settingsMock.Object);
         _paymentFactory = new PaymentFactory(_currencyService);
     }
 
     private PaymentService CreateService() =>
-        new(_providerManagerMock.Object, _scopeProviderMock.Object, _paymentFactory, _currencyService, _notificationPublisherMock.Object, _settingsMock.Object, _loggerMock.Object);
+        new(_providerManagerMock.Object, _scopeProviderMock.Object, _paymentFactory, _currencyService, _notificationPublisherMock.Object, _memoryCache, _settingsMock.Object, _loggerMock.Object);
 
     #region ProcessRefundAsync Tests
 

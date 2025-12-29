@@ -8,6 +8,7 @@ using Merchello.Core.Payments.Services;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -40,12 +41,15 @@ public class PaymentStatusCalculationTests
         var currencyService = new CurrencyService(settings);
         var paymentFactory = new PaymentFactory(currencyService);
 
+        var memoryCacheMock = new Mock<IMemoryCache>();
+
         _paymentService = new PaymentService(
             providerManagerMock.Object,
             scopeProviderMock.Object,
             paymentFactory,
             currencyService,
             notificationPublisherMock.Object,
+            memoryCacheMock.Object,
             settings,
             loggerMock.Object);
     }

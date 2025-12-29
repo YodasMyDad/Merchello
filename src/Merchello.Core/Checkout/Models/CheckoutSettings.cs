@@ -118,6 +118,24 @@ public class CheckoutSettings
     /// URL to privacy policy page.
     /// </summary>
     public string? PrivacyUrl { get; set; }
+
+    // === Custom Scripts ===
+
+    /// <summary>
+    /// URL to a custom JavaScript file loaded in the checkout.
+    /// Use this to add analytics tracking (GTM, Facebook Pixel, etc.), A/B testing, or other custom scripts.
+    /// The script can listen to checkout events via window.MerchelloCheckout.on('event', callback).
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// "Merchello": {
+    ///   "Checkout": {
+    ///     "CustomScriptUrl": "/js/checkout-analytics.js"
+    ///   }
+    /// }
+    /// </code>
+    /// </example>
+    public string? CustomScriptUrl { get; set; }
 }
 
 /// <summary>

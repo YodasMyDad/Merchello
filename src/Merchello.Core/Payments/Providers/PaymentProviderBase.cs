@@ -57,6 +57,17 @@ public abstract class PaymentProviderBase : IPaymentProvider
     // =====================================================
 
     /// <inheritdoc />
+    public virtual Task<ExpressCheckoutClientConfig?> GetExpressCheckoutClientConfigAsync(
+        string methodAlias,
+        decimal amount,
+        string currency,
+        CancellationToken cancellationToken = default)
+    {
+        // Default implementation returns null - providers should override for express checkout support
+        return Task.FromResult<ExpressCheckoutClientConfig?>(null);
+    }
+
+    /// <inheritdoc />
     public virtual Task<ExpressCheckoutResult> ProcessExpressCheckoutAsync(
         ExpressCheckoutRequest request,
         CancellationToken cancellationToken = default)

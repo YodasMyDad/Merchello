@@ -1,7 +1,13 @@
 /**
  * Merchello Checkout Payment Module
  * Handles payment method selection and processing for different integration types.
+ *
+ * Uses a pluggable adapter pattern - all provider-specific code is loaded dynamically
+ * from adapter scripts. The checkout knows nothing about individual providers.
  */
+
+// Global adapter registry - providers register their adapters here
+window.MerchelloPaymentAdapters = window.MerchelloPaymentAdapters || {};
 
 const MerchelloPayment = {
     // Integration type constants matching PaymentIntegrationType enum
@@ -12,11 +18,65 @@ const MerchelloPayment = {
         DirectForm: 30
     },
 
-    // Store for loaded SDK instances
-    loadedSdks: {},
+    // Default timeout for API requests (30 seconds)
+    defaultTimeout: 30000,
+
+    /**
+     * Escapes HTML special characters to prevent XSS
+     * @param {string} str - String to escape
+     * @returns {string} Escaped string safe for HTML attribute insertion
+     */
+    escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        })[char]);
+    },
+
+    /**
+     * Fetch wrapper with timeout support for older browsers
+     * @param {string} url - URL to fetch
+     * @param {Object} options - Fetch options
+     * @param {number} timeout - Timeout in milliseconds (default 30000)
+     * @returns {Promise<Response>} Fetch response
+     */
+    async fetchWithTimeout(url, options = {}, timeout = this.defaultTimeout) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+        try {
+            const response = await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+            }
+
+            return response;
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                throw new Error('Request timed out. Please check your connection and try again.');
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    },
+
+    // Store for loaded SDK/adapter scripts
+    loadedScripts: {},
 
     // Store for current payment session
     currentSession: null,
+
+    // Current active adapter instance
+    currentAdapter: null,
 
     /**
      * Fetches available payment methods from the API
@@ -24,10 +84,7 @@ const MerchelloPayment = {
      */
     async getPaymentMethods() {
         try {
-            const response = await fetch('/api/merchello/checkout/payment-methods');
-            if (!response.ok) {
-                throw new Error(`Failed to fetch payment methods: ${response.statusText}`);
-            }
+            const response = await this.fetchWithTimeout('/api/merchello/checkout/payment-methods');
             return await response.json();
         } catch (error) {
             console.error('Error fetching payment methods:', error);
@@ -61,7 +118,10 @@ const MerchelloPayment = {
      */
     async initiatePayment(providerAlias, methodAlias, returnUrl, cancelUrl) {
         try {
-            const response = await fetch('/api/merchello/checkout/pay', {
+            // Teardown any existing adapter
+            await this.teardownCurrentAdapter();
+
+            const response = await this.fetchWithTimeout('/api/merchello/checkout/pay', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -76,7 +136,7 @@ const MerchelloPayment = {
 
             const result = await response.json();
 
-            if (!response.ok || !result.success) {
+            if (!result.success) {
                 throw new Error(result.errorMessage || 'Payment initiation failed');
             }
 
@@ -101,11 +161,8 @@ const MerchelloPayment = {
                 break;
 
             case this.IntegrationType.HostedFields:
-                await this.handleHostedFieldsFlow(session, options);
-                break;
-
             case this.IntegrationType.Widget:
-                await this.handleWidgetFlow(session, options);
+                await this.handleAdapterFlow(session, options);
                 break;
 
             case this.IntegrationType.DirectForm:
@@ -129,38 +186,61 @@ const MerchelloPayment = {
     },
 
     /**
-     * Handles hosted fields flow - loads SDK and renders inline card fields
+     * Handles adapter-based flow for HostedFields and Widget integration types
+     * Dynamically loads the provider's adapter script and delegates to it
      * @param {Object} session - Payment session
      * @param {Object} options - Options including container element ID
      */
-    async handleHostedFieldsFlow(session, options) {
-        const { containerId = 'hosted-fields-container', onReady, onError } = options;
+    async handleAdapterFlow(session, options) {
+        const { containerId, onReady, onError } = options;
+        const typeName = session.integrationType === this.IntegrationType.HostedFields ? 'hosted-fields' : 'widget';
+        const defaultContainerId = `${typeName}-container`;
 
         try {
-            // Load the provider's SDK
-            if (session.javaScriptSdkUrl) {
-                await this.loadSdk(session.javaScriptSdkUrl);
-            }
-
-            // Get the container element
-            const container = document.getElementById(containerId);
+            const container = document.getElementById(containerId || defaultContainerId);
             if (!container) {
-                throw new Error(`Container element '${containerId}' not found`);
+                throw new Error(`Container element '${containerId || defaultContainerId}' not found`);
             }
 
             // Show the container
             container.style.display = 'block';
 
-            // Initialize hosted fields based on SDK configuration
-            if (session.sdkConfiguration) {
-                await this.initializeHostedFields(session, container);
+            // Check if adapter URL is provided
+            if (!session.adapterUrl) {
+                throw new Error(`Payment method requires an adapter but none was provided. Provider: ${session.providerAlias || 'unknown'}`);
             }
+
+            // Load the provider's SDK if specified
+            if (session.javaScriptSdkUrl) {
+                await this.loadScript(session.javaScriptSdkUrl);
+            }
+
+            // Load the adapter script
+            await this.loadScript(session.adapterUrl);
+
+            // Get the adapter from the registry
+            const adapterKey = session.providerAlias;
+            const adapter = window.MerchelloPaymentAdapters[adapterKey];
+
+            if (!adapter) {
+                throw new Error(`Payment adapter not found for provider: ${adapterKey}. Ensure the adapter registers with window.MerchelloPaymentAdapters['${adapterKey}']`);
+            }
+
+            if (typeof adapter.render !== 'function') {
+                throw new Error(`Payment adapter for '${adapterKey}' does not implement required 'render' method`);
+            }
+
+            // Store the current adapter
+            this.currentAdapter = adapter;
+
+            // Call the adapter's render method
+            await adapter.render(container, session, this);
 
             if (onReady) {
                 onReady(session);
             }
         } catch (error) {
-            console.error('Error setting up hosted fields:', error);
+            console.error('Error setting up payment adapter:', error);
             if (onError) {
                 onError(error);
             }
@@ -169,43 +249,36 @@ const MerchelloPayment = {
     },
 
     /**
-     * Handles widget flow - loads SDK and renders provider widget
-     * @param {Object} session - Payment session
-     * @param {Object} options - Options including container element ID
+     * Submits the current payment using the active adapter
+     * @param {string} invoiceId - The invoice ID to pay
+     * @param {Object} options - Additional options
+     * @returns {Promise<Object>} Payment result
      */
-    async handleWidgetFlow(session, options) {
-        const { containerId = 'widget-container', onReady, onError } = options;
-
-        try {
-            // Load the provider's SDK
-            if (session.javaScriptSdkUrl) {
-                await this.loadSdk(session.javaScriptSdkUrl);
-            }
-
-            // Get the container element
-            const container = document.getElementById(containerId);
-            if (!container) {
-                throw new Error(`Container element '${containerId}' not found`);
-            }
-
-            // Show the container
-            container.style.display = 'block';
-
-            // Initialize widget based on SDK configuration
-            if (session.sdkConfiguration) {
-                await this.initializeWidget(session, container);
-            }
-
-            if (onReady) {
-                onReady(session);
-            }
-        } catch (error) {
-            console.error('Error setting up widget:', error);
-            if (onError) {
-                onError(error);
-            }
-            throw error;
+    async submitPayment(invoiceId, options = {}) {
+        if (!this.currentAdapter) {
+            throw new Error('No payment adapter is active. Call handlePaymentFlow first.');
         }
+
+        if (typeof this.currentAdapter.submit !== 'function') {
+            throw new Error('Current payment adapter does not implement required \'submit\' method');
+        }
+
+        return await this.currentAdapter.submit(invoiceId, options);
+    },
+
+    /**
+     * Tears down the current adapter if one is active
+     */
+    async teardownCurrentAdapter() {
+        if (this.currentAdapter && typeof this.currentAdapter.teardown === 'function') {
+            try {
+                await this.currentAdapter.teardown();
+            } catch (error) {
+                console.warn('Error tearing down payment adapter:', error);
+            }
+        }
+        this.currentAdapter = null;
+        this.currentSession = null;
     },
 
     /**
@@ -214,7 +287,7 @@ const MerchelloPayment = {
      * @param {Object} options - Options including container element ID
      */
     async handleDirectFormFlow(session, options) {
-        const { containerId = 'direct-form-container', onReady, onSubmit, onError } = options;
+        const { containerId = 'direct-form-container', onReady, onError } = options;
 
         try {
             const container = document.getElementById(containerId);
@@ -243,14 +316,14 @@ const MerchelloPayment = {
     },
 
     /**
-     * Loads a JavaScript SDK dynamically
-     * @param {string} url - URL of the SDK to load
+     * Loads a JavaScript script dynamically
+     * @param {string} url - URL of the script to load
      * @returns {Promise<void>}
      */
-    loadSdk(url) {
+    loadScript(url) {
         return new Promise((resolve, reject) => {
             // Check if already loaded
-            if (this.loadedSdks[url]) {
+            if (this.loadedScripts[url]) {
                 resolve();
                 return;
             }
@@ -258,7 +331,7 @@ const MerchelloPayment = {
             // Check if script tag already exists
             const existingScript = document.querySelector(`script[src="${url}"]`);
             if (existingScript) {
-                this.loadedSdks[url] = true;
+                this.loadedScripts[url] = true;
                 resolve();
                 return;
             }
@@ -268,241 +341,16 @@ const MerchelloPayment = {
             script.async = true;
 
             script.onload = () => {
-                this.loadedSdks[url] = true;
+                this.loadedScripts[url] = true;
                 resolve();
             };
 
             script.onerror = () => {
-                reject(new Error(`Failed to load SDK: ${url}`));
+                reject(new Error(`Failed to load script: ${url}`));
             };
 
             document.head.appendChild(script);
         });
-    },
-
-    /**
-     * Initializes hosted fields based on the provider SDK
-     * @param {Object} session - Payment session
-     * @param {HTMLElement} container - Container element
-     */
-    async initializeHostedFields(session, container) {
-        const config = session.sdkConfiguration;
-
-        // Provider-specific initialization
-        // This will be extended for each provider (Stripe Elements, Braintree, etc.)
-        if (config.provider === 'stripe') {
-            await this.initializeStripeElements(session, container);
-        } else if (config.provider === 'braintree') {
-            await this.initializeBraintreeHostedFields(session, container);
-        }
-        // Add more providers as needed
-    },
-
-    /**
-     * Initializes Stripe Elements for card payment
-     * @param {Object} session - Payment session
-     * @param {HTMLElement} container - Container element
-     */
-    async initializeStripeElements(session, container) {
-        // This will be implemented when Stripe Elements is added
-        // For now, show a placeholder
-        container.innerHTML = `
-            <div class="stripe-elements-container">
-                <div id="card-element" class="p-4 border border-gray-300 rounded-lg"></div>
-                <div id="card-errors" class="text-red-600 text-sm mt-2"></div>
-            </div>
-        `;
-    },
-
-    /**
-     * Initializes Braintree Drop-in UI for card payments
-     * @param {Object} session - Payment session containing clientToken and sdkConfiguration
-     * @param {HTMLElement} container - Container element for the Drop-in UI
-     */
-    async initializeBraintreeHostedFields(session, container) {
-        const config = session.sdkConfiguration || {};
-
-        // Create container structure for Drop-in UI
-        container.innerHTML = `
-            <div class="braintree-dropin-wrapper">
-                <div id="dropin-container"></div>
-                <div id="dropin-errors" class="text-red-600 text-sm mt-2 hidden"></div>
-            </div>
-        `;
-
-        try {
-            // Wait for Braintree Drop-in SDK to be available
-            if (typeof braintree === 'undefined' || typeof braintree.dropin === 'undefined') {
-                throw new Error('Braintree Drop-in SDK not loaded. Ensure the SDK script is included.');
-            }
-
-            // Initialize Braintree Drop-in with client token
-            const dropinOptions = {
-                authorization: session.clientToken,
-                container: '#dropin-container',
-                card: config.dropIn?.card || {
-                    vault: {
-                        vaultCard: false
-                    }
-                }
-            };
-
-            // Create the Drop-in instance
-            const dropinInstance = await braintree.dropin.create(dropinOptions);
-
-            // Store instance for later use during payment submission
-            this.braintreeDropin = dropinInstance;
-            this.braintreeSession = session;
-
-            console.log('Braintree Drop-in initialized successfully');
-        } catch (error) {
-            console.error('Failed to initialize Braintree Drop-in:', error);
-            const errorContainer = document.getElementById('dropin-errors');
-            if (errorContainer) {
-                errorContainer.textContent = 'Failed to load payment form. Please refresh and try again.';
-                errorContainer.classList.remove('hidden');
-            }
-            throw error;
-        }
-    },
-
-    /**
-     * Requests a payment method nonce from Braintree Drop-in
-     * Call this when the user submits the payment form
-     * @returns {Promise<{nonce: string, deviceData?: string}>} Payment nonce and optional device data
-     */
-    async getBraintreePaymentNonce() {
-        if (!this.braintreeDropin) {
-            throw new Error('Braintree Drop-in not initialized. Call initializeBraintreeHostedFields first.');
-        }
-
-        try {
-            const payload = await this.braintreeDropin.requestPaymentMethod();
-            return {
-                nonce: payload.nonce,
-                deviceData: payload.deviceData,
-                type: payload.type, // 'CreditCard', 'PayPalAccount', etc.
-                details: payload.details // Card last four, card type, etc.
-            };
-        } catch (error) {
-            // User may have cancelled or validation failed
-            if (error.message === 'No payment method is available.') {
-                throw new Error('Please enter your payment details.');
-            }
-            throw error;
-        }
-    },
-
-    /**
-     * Submits a Braintree payment to the server for processing
-     * @param {Guid} invoiceId - The invoice ID to pay
-     * @param {Object} options - Additional options
-     * @returns {Promise<Object>} Payment result
-     */
-    async submitBraintreePayment(invoiceId, options = {}) {
-        // Get the payment nonce from Drop-in
-        const paymentData = await this.getBraintreePaymentNonce();
-
-        // Submit to server for processing
-        const response = await fetch('/api/merchello/checkout/process-payment', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                invoiceId: invoiceId,
-                providerAlias: 'braintree',
-                methodAlias: 'cards',
-                paymentMethodToken: paymentData.nonce,
-                formData: {
-                    deviceData: paymentData.deviceData || ''
-                }
-            })
-        });
-
-        const result = await response.json();
-
-        if (!response.ok || !result.success) {
-            throw new Error(result.errorMessage || 'Payment processing failed');
-        }
-
-        return result;
-    },
-
-    /**
-     * Tears down the Braintree Drop-in instance
-     * Call this when navigating away or reinitializing
-     */
-    async teardownBraintree() {
-        if (this.braintreeDropin) {
-            try {
-                await this.braintreeDropin.teardown();
-            } catch (error) {
-                console.warn('Error tearing down Braintree Drop-in:', error);
-            }
-            this.braintreeDropin = null;
-            this.braintreeSession = null;
-        }
-    },
-
-    /**
-     * Initializes a provider widget
-     * @param {Object} session - Payment session
-     * @param {HTMLElement} container - Container element
-     */
-    async initializeWidget(session, container) {
-        const config = session.sdkConfiguration;
-
-        // Provider-specific widget initialization
-        if (config.provider === 'paypal') {
-            await this.initializePayPalWidget(session, container);
-        } else if (config.provider === 'applepay') {
-            await this.initializeApplePayWidget(session, container);
-        } else if (config.provider === 'googlepay') {
-            await this.initializeGooglePayWidget(session, container);
-        }
-    },
-
-    /**
-     * Initializes PayPal widget
-     * @param {Object} session - Payment session
-     * @param {HTMLElement} container - Container element
-     */
-    async initializePayPalWidget(session, container) {
-        container.innerHTML = `
-            <div id="paypal-button-container"></div>
-        `;
-        // PayPal SDK initialization would go here
-    },
-
-    /**
-     * Initializes Apple Pay widget
-     * @param {Object} session - Payment session
-     * @param {HTMLElement} container - Container element
-     */
-    async initializeApplePayWidget(session, container) {
-        // Check if Apple Pay is available
-        if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
-            container.innerHTML = `
-                <button type="button" id="apple-pay-button" class="apple-pay-button apple-pay-button-black"></button>
-            `;
-        } else {
-            container.innerHTML = `
-                <p class="text-gray-500 text-sm">Apple Pay is not available on this device.</p>
-            `;
-        }
-    },
-
-    /**
-     * Initializes Google Pay widget
-     * @param {Object} session - Payment session
-     * @param {HTMLElement} container - Container element
-     */
-    async initializeGooglePayWidget(session, container) {
-        container.innerHTML = `
-            <div id="google-pay-button-container"></div>
-        `;
-        // Google Pay SDK initialization would go here
     },
 
     /**
@@ -511,9 +359,17 @@ const MerchelloPayment = {
      * @returns {string} HTML string for the form fields
      */
     renderFormFields(fields) {
+        const esc = this.escapeHtml.bind(this);
+
         return fields.map(field => {
             const isRequired = field.isRequired ? 'required' : '';
             const requiredAsterisk = field.isRequired ? '<span class="text-red-500">*</span>' : '';
+            const key = esc(field.key);
+            const label = esc(field.label);
+            const defaultValue = esc(field.defaultValue);
+            const placeholder = esc(field.placeholder);
+            const description = esc(field.description);
+            const pattern = esc(field.validationPattern);
 
             switch (field.fieldType.toLowerCase()) {
                 case 'text':
@@ -521,87 +377,87 @@ const MerchelloPayment = {
                 case 'phone':
                     return `
                         <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-1" for="${field.key}">
-                                ${field.label} ${requiredAsterisk}
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="${key}">
+                                ${label} ${requiredAsterisk}
                             </label>
-                            <input type="${field.fieldType.toLowerCase()}"
-                                   id="${field.key}"
-                                   name="${field.key}"
-                                   value="${field.defaultValue || ''}"
-                                   placeholder="${field.placeholder || ''}"
-                                   ${field.validationPattern ? `pattern="${field.validationPattern}"` : ''}
+                            <input type="${esc(field.fieldType.toLowerCase())}"
+                                   id="${key}"
+                                   name="${key}"
+                                   value="${defaultValue}"
+                                   placeholder="${placeholder}"
+                                   ${pattern ? `pattern="${pattern}"` : ''}
                                    ${isRequired}
                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent" />
-                            ${field.description ? `<p class="text-sm text-gray-500 mt-1">${field.description}</p>` : ''}
+                            ${description ? `<p class="text-sm text-gray-500 mt-1">${description}</p>` : ''}
                         </div>
                     `;
 
                 case 'textarea':
                     return `
                         <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-1" for="${field.key}">
-                                ${field.label} ${requiredAsterisk}
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="${key}">
+                                ${label} ${requiredAsterisk}
                             </label>
-                            <textarea id="${field.key}"
-                                      name="${field.key}"
-                                      placeholder="${field.placeholder || ''}"
+                            <textarea id="${key}"
+                                      name="${key}"
+                                      placeholder="${placeholder}"
                                       ${isRequired}
                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent"
-                                      rows="3">${field.defaultValue || ''}</textarea>
-                            ${field.description ? `<p class="text-sm text-gray-500 mt-1">${field.description}</p>` : ''}
+                                      rows="3">${defaultValue}</textarea>
+                            ${description ? `<p class="text-sm text-gray-500 mt-1">${description}</p>` : ''}
                         </div>
                     `;
 
                 case 'select':
                     const options = (field.options || [])
-                        .map(opt => `<option value="${opt.value}" ${opt.value === field.defaultValue ? 'selected' : ''}>${opt.label}</option>`)
+                        .map(opt => `<option value="${esc(opt.value)}" ${opt.value === field.defaultValue ? 'selected' : ''}>${esc(opt.label)}</option>`)
                         .join('');
                     return `
                         <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-1" for="${field.key}">
-                                ${field.label} ${requiredAsterisk}
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="${key}">
+                                ${label} ${requiredAsterisk}
                             </label>
-                            <select id="${field.key}"
-                                    name="${field.key}"
+                            <select id="${key}"
+                                    name="${key}"
                                     ${isRequired}
                                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent">
                                 <option value="">-- Select --</option>
                                 ${options}
                             </select>
-                            ${field.description ? `<p class="text-sm text-gray-500 mt-1">${field.description}</p>` : ''}
+                            ${description ? `<p class="text-sm text-gray-500 mt-1">${description}</p>` : ''}
                         </div>
                     `;
 
                 case 'date':
                     return `
                         <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-1" for="${field.key}">
-                                ${field.label} ${requiredAsterisk}
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="${key}">
+                                ${label} ${requiredAsterisk}
                             </label>
                             <input type="date"
-                                   id="${field.key}"
-                                   name="${field.key}"
-                                   value="${field.defaultValue || ''}"
+                                   id="${key}"
+                                   name="${key}"
+                                   value="${defaultValue}"
                                    ${isRequired}
                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent" />
-                            ${field.description ? `<p class="text-sm text-gray-500 mt-1">${field.description}</p>` : ''}
+                            ${description ? `<p class="text-sm text-gray-500 mt-1">${description}</p>` : ''}
                         </div>
                     `;
 
                 default:
                     return `
                         <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-1" for="${field.key}">
-                                ${field.label} ${requiredAsterisk}
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="${key}">
+                                ${label} ${requiredAsterisk}
                             </label>
                             <input type="text"
-                                   id="${field.key}"
-                                   name="${field.key}"
-                                   value="${field.defaultValue || ''}"
-                                   placeholder="${field.placeholder || ''}"
+                                   id="${key}"
+                                   name="${key}"
+                                   value="${defaultValue}"
+                                   placeholder="${placeholder}"
                                    ${isRequired}
                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent" />
-                            ${field.description ? `<p class="text-sm text-gray-500 mt-1">${field.description}</p>` : ''}
+                            ${description ? `<p class="text-sm text-gray-500 mt-1">${description}</p>` : ''}
                         </div>
                     `;
             }
@@ -691,34 +547,57 @@ const MerchelloPayment = {
 
     /**
      * Gets the payment icon for a method
+     * Prefers iconHtml from API, falls back to icon URL, then default icons
      * @param {Object} method - Payment method object
      * @returns {string} HTML for the payment icon
      */
     getMethodIcon(method) {
-        // Common payment method icons (using placeholder divs for now)
-        const icons = {
-            'cards': `<div class="flex gap-1">
-                <div class="w-8 h-5 bg-blue-600 rounded text-white text-xs flex items-center justify-center">VISA</div>
-                <div class="w-8 h-5 bg-red-500 rounded text-white text-xs flex items-center justify-center">MC</div>
-            </div>`,
-            'paypal': `<div class="w-12 h-5 bg-blue-800 rounded text-white text-xs flex items-center justify-center">PayPal</div>`,
-            'applepay': `<div class="w-10 h-5 bg-black rounded text-white text-xs flex items-center justify-center">Pay</div>`,
-            'googlepay': `<div class="w-10 h-5 bg-white border rounded text-xs flex items-center justify-center">G Pay</div>`
-        };
+        // Prefer iconHtml from the provider (allows full control)
+        if (method.iconHtml) {
+            return method.iconHtml;
+        }
 
+        // If icon is a URL, return an img tag
         if (method.icon) {
-            // If icon is a URL, return an img tag
             if (method.icon.startsWith('http') || method.icon.startsWith('/')) {
                 return `<img src="${method.icon}" alt="${method.displayName}" class="h-6 w-auto" />`;
             }
-            // If icon is a key, look it up
-            if (icons[method.icon]) {
-                return icons[method.icon];
-            }
         }
 
-        // Default to method alias icon
-        return icons[method.methodAlias] || '';
+        // Fallback: generic icons based on method type
+        const typeIcons = {
+            0: `<svg class="w-8 h-5" viewBox="0 0 32 20" fill="currentColor"><rect x="1" y="1" width="30" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="5" width="30" height="4" fill="currentColor" opacity="0.3"/></svg>`, // Cards
+            10: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85a.637.637 0 00-.83.22l-1.88 3.24a11.463 11.463 0 00-8.94 0L5.65 5.67a.643.643 0 00-1.09.63L6.4 9.48A10.78 10.78 0 001 18h22a10.78 10.78 0 00-5.4-8.52zM7 15.25a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm10 0a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z"/></svg>`, // ApplePay
+            20: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>`, // GooglePay
+            30: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>` // PayPal / Other
+        };
+
+        // Return icon based on method type if available
+        if (method.methodType !== undefined && method.methodType !== null && typeIcons[method.methodType]) {
+            return typeIcons[method.methodType];
+        }
+
+        // Default card icon
+        return typeIcons[0];
+    },
+
+    /**
+     * Processes a payment result and handles success/failure
+     * @param {Object} result - Payment processing result
+     * @param {Object} callbacks - Success/failure callbacks
+     */
+    handlePaymentResult(result, callbacks = {}) {
+        const { onSuccess, onFailure, onPending } = callbacks;
+
+        if (result.success) {
+            if (result.status === 'pending' && onPending) {
+                onPending(result);
+            } else if (onSuccess) {
+                onSuccess(result);
+            }
+        } else if (onFailure) {
+            onFailure(result);
+        }
     }
 };
 

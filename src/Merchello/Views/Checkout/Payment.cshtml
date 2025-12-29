@@ -8,24 +8,25 @@
     var currencySymbol = basket?.CurrencySymbol ?? "£";
 }
 
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-8" x-data="checkoutPayment()">
-    <!-- Left Column: Payment -->
-    <div class="lg:col-span-7">
-        <h1 class="font-heading text-2xl font-semibold mb-6">Payment</h1>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-0" x-data="checkoutPayment()">
+    <!-- Screen reader announcements -->
+    <div aria-live="polite" aria-atomic="true" class="sr-only" x-text="announcement"></div>
 
-        <!-- Address & Shipping Summary -->
-        <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-500">Contact</p>
-                    <p class="text-sm font-medium text-gray-900">@(billingAddress?.Email ?? "Not provided")</p>
+    <!-- Left Column: Payment -->
+    <div class="pt-8 lg:pr-12 pb-24 lg:pb-8">
+        <!-- Contact, Ship to & Shipping Summary (Shopify style) -->
+        <div class="mb-6 border border-gray-200 rounded-lg divide-y divide-gray-200">
+            <div class="flex items-center justify-between p-4">
+                <div class="flex items-start gap-4 flex-1">
+                    <span class="text-sm text-gray-500 w-16 flex-shrink-0">Contact</span>
+                    <p class="text-sm text-gray-900">@(billingAddress?.Email ?? "Not provided")</p>
                 </div>
                 <a href="/checkout/information" class="text-sm text-accent hover:underline">Change</a>
             </div>
-            <div class="border-t border-gray-200 pt-3 flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-500">Ship to</p>
-                    <p class="text-sm font-medium text-gray-900">
+            <div class="flex items-center justify-between p-4">
+                <div class="flex items-start gap-4 flex-1">
+                    <span class="text-sm text-gray-500 w-16 flex-shrink-0">Ship to</span>
+                    <p class="text-sm text-gray-900">
                         @if (shippingAddress != null)
                         {
                             @($"{shippingAddress.AddressOne}, {shippingAddress.TownCity}, {shippingAddress.PostalCode}")
@@ -38,10 +39,10 @@
                 </div>
                 <a href="/checkout/information" class="text-sm text-accent hover:underline">Change</a>
             </div>
-            <div class="border-t border-gray-200 pt-3 flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-500">Shipping</p>
-                    <p class="text-sm font-medium text-gray-900">
+            <div class="flex items-center justify-between p-4">
+                <div class="flex items-start gap-4 flex-1">
+                    <span class="text-sm text-gray-500 w-16 flex-shrink-0">Method</span>
+                    <p class="text-sm text-gray-900">
                         @if (basket?.Shipping > 0)
                         {
                             @($"{currencySymbol}{basket.Shipping:N2}")
@@ -58,22 +59,38 @@
 
         <!-- Payment Methods Section -->
         <div class="mb-6">
-            <h2 class="font-heading text-lg font-semibold mb-4">Payment Method</h2>
+            <h2 class="font-heading text-xl font-normal mb-4">Payment</h2>
 
-            <!-- Loading State -->
-            <div x-show="isLoading" class="flex items-center justify-center py-8">
-                <svg class="animate-spin h-8 w-8 text-accent" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span class="ml-2 text-gray-600">Loading payment methods...</span>
+            <!-- Loading State (Skeleton) -->
+            <div x-show="isLoading" class="space-y-3" role="status" aria-label="Loading payment methods" :aria-busy="isLoading">
+                <div class="p-4 border border-gray-200 rounded-lg">
+                    <div class="flex items-center gap-4">
+                        <div class="w-5 h-5 rounded-full checkout-skeleton"></div>
+                        <div class="flex-1 space-y-2">
+                            <div class="h-4 w-32 checkout-skeleton"></div>
+                            <div class="h-3 w-48 checkout-skeleton"></div>
+                        </div>
+                        <div class="w-10 h-6 checkout-skeleton"></div>
+                    </div>
+                </div>
+                <div class="p-4 border border-gray-200 rounded-lg">
+                    <div class="flex items-center gap-4">
+                        <div class="w-5 h-5 rounded-full checkout-skeleton"></div>
+                        <div class="flex-1 space-y-2">
+                            <div class="h-4 w-28 checkout-skeleton"></div>
+                            <div class="h-3 w-40 checkout-skeleton"></div>
+                        </div>
+                        <div class="w-10 h-6 checkout-skeleton"></div>
+                    </div>
+                </div>
+                <span class="sr-only">Loading payment methods...</span>
             </div>
 
             <!-- Error State -->
-            <div x-show="loadError" x-cloak class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            <div x-show="loadError" x-cloak role="alert" class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
                 <p class="font-medium">Failed to load payment methods</p>
                 <p class="text-sm mt-1" x-text="loadError"></p>
-                <button type="button" @@click="loadPaymentMethods()" class="mt-2 text-sm underline">Try again</button>
+                <button type="button" @@click="loadPaymentMethods()" class="mt-2 text-sm underline checkout-link">Try again</button>
             </div>
 
             <!-- No Methods Available -->
@@ -82,21 +99,24 @@
             </div>
 
             <!-- Payment Method List -->
-            <div x-show="!isLoading && !loadError && paymentMethods.length > 0" x-cloak class="space-y-3">
+            <div x-show="!isLoading && !loadError && paymentMethods.length > 0" x-cloak class="space-y-3" role="radiogroup" aria-label="Payment methods">
                 <template x-for="method in paymentMethods" :key="method.providerAlias + '-' + method.methodAlias">
-                    <label class="flex items-center gap-4 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
+                    <label class="flex items-center gap-4 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors checkout-touch-target"
                            :class="{ 'border-accent bg-accent/5': selectedMethod?.providerAlias === method.providerAlias && selectedMethod?.methodAlias === method.methodAlias }">
-                        <input type="radio"
-                               name="payment"
-                               :value="method.providerAlias + ':' + method.methodAlias"
-                               @@change="selectMethod(method)"
-                               :checked="selectedMethod?.providerAlias === method.providerAlias && selectedMethod?.methodAlias === method.methodAlias"
-                               class="w-5 h-5 text-accent focus:ring-accent" />
+                        <span class="checkout-checkbox-wrapper">
+                            <input type="radio"
+                                   name="payment"
+                                   :id="'payment-' + method.providerAlias + '-' + method.methodAlias"
+                                   :value="method.providerAlias + ':' + method.methodAlias"
+                                   @@change="selectMethod(method)"
+                                   :checked="selectedMethod?.providerAlias === method.providerAlias && selectedMethod?.methodAlias === method.methodAlias"
+                                   class="w-5 h-5 text-accent focus:ring-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2" />
+                        </span>
                         <div class="flex-1">
                             <p class="font-medium text-gray-900" x-text="method.displayName"></p>
                             <p class="text-sm text-gray-500" x-text="method.description || getMethodDescription(method)"></p>
                         </div>
-                        <div x-html="getMethodIcon(method)"></div>
+                        <div x-html="getMethodIcon(method)" aria-hidden="true"></div>
                     </label>
                 </template>
             </div>
@@ -139,25 +159,28 @@
         </div>
 
         <!-- Payment Error Message -->
-        <div x-show="paymentError" x-cloak class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        <div x-show="paymentError" x-cloak role="alert" class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
             <p class="font-medium">Payment failed</p>
             <p class="text-sm mt-1" x-text="paymentError"></p>
         </div>
 
         <!-- Billing Address Toggle -->
         <div class="mb-6">
-            <label class="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox"
-                       x-model="billingSameAsShipping"
-                       class="w-5 h-5 rounded border-gray-300 text-accent focus:ring-accent" />
+            <label class="inline-flex items-center gap-3 cursor-pointer checkout-touch-target">
+                <span class="checkout-checkbox-wrapper">
+                    <input type="checkbox"
+                           id="billing-same-as-shipping"
+                           x-model="billingSameAsShipping"
+                           class="w-5 h-5 rounded border-gray-300 text-accent focus:ring-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2" />
+                </span>
                 <span class="text-sm text-gray-700">Billing address same as shipping</span>
             </label>
         </div>
 
-        <!-- Navigation Buttons -->
-        <div class="mt-8 flex items-center justify-between">
-            <a href="/checkout/shipping" class="text-accent hover:underline flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <!-- Navigation Buttons (Desktop) -->
+        <div class="mt-8 hidden lg:flex items-center justify-between">
+            <a href="/checkout/shipping" class="checkout-link flex items-center gap-2">
+                <svg class="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                 </svg>
                 Return to shipping
@@ -166,7 +189,8 @@
             <button type="button"
                     @@click="submitPayment"
                     :disabled="!selectedMethod || isSubmitting"
-                    class="px-8 py-3 bg-primary text-white font-medium rounded-lg hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    :aria-busy="isSubmitting"
+                    class="checkout-button-primary">
                 <span x-show="!isSubmitting">
                     <template x-if="selectedMethod && selectedMethod.integrationType === 0">
                         <span>Continue to Payment</span>
@@ -176,26 +200,58 @@
                     </template>
                 </span>
                 <span x-show="isSubmitting" x-cloak class="flex items-center gap-2">
-                    <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <svg class="animate-spin h-5 w-5" aria-hidden="true" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Processing...
+                    <span>Processing...</span>
                 </span>
             </button>
         </div>
     </div>
 
     <!-- Right Column: Order Summary -->
-    <div class="lg:col-span-5">
-        <div class="sticky top-8">
-            @await Html.PartialAsync("_OrderSummary")
+    <div class="relative lg:border-l lg:border-gray-200">
+        <!-- Background extending to viewport edge -->
+        <div class="hidden lg:block absolute inset-y-0 left-0 w-[200vw] bg-[#fafafa] -z-10"></div>
+        <div class="lg:pl-8 lg:pt-8 lg:pr-8">
+            @await Html.PartialAsync("~/Views/Checkout/_OrderSummary.cshtml")
+        </div>
+    </div>
+
+    <!-- Mobile Sticky Action Bar -->
+    <div class="checkout-sticky-actions lg:hidden">
+        <div class="flex flex-col gap-3">
+            <button type="button"
+                    @@click="submitPayment"
+                    :disabled="!selectedMethod || isSubmitting"
+                    :aria-busy="isSubmitting"
+                    class="w-full checkout-button-primary">
+                <span x-show="!isSubmitting">
+                    <template x-if="selectedMethod && selectedMethod.integrationType === 0">
+                        <span>Continue to Payment</span>
+                    </template>
+                    <template x-if="!selectedMethod || selectedMethod.integrationType !== 0">
+                        <span>Pay Now</span>
+                    </template>
+                </span>
+                <span x-show="isSubmitting" x-cloak class="flex items-center justify-center gap-2">
+                    <svg class="animate-spin h-5 w-5" aria-hidden="true" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Processing...</span>
+                </span>
+            </button>
+            <a href="/checkout/shipping" class="text-center checkout-link text-sm">
+                Return to shipping
+            </a>
         </div>
     </div>
 </div>
 
 @section Scripts {
-    <script src="/js/checkout/payment.js"></script>
+    <script src="/_content/Merchello/js/checkout/payment.js"></script>
     <script>
         function checkoutPayment() {
             return {
@@ -210,6 +266,7 @@
                 hostedFieldsReady: false,
                 widgetReady: false,
                 currentSession: null,
+                announcement: '',
 
                 // Integration type constants
                 IntegrationType: {
@@ -222,6 +279,22 @@
                 // Lifecycle
                 async init() {
                     await this.loadPaymentMethods();
+
+                    // Emit analytics event for payment step
+                    if (window.MerchelloCheckout && window.merchelloCheckoutData) {
+                        window.MerchelloCheckout.emit('checkout:payment_initiated', {
+                            ...window.merchelloCheckoutData,
+                            payment_methods_count: this.paymentMethods.length
+                        });
+                    }
+                },
+
+                // Announce message to screen readers
+                announce(message) {
+                    this.announcement = '';
+                    setTimeout(() => {
+                        this.announcement = message;
+                    }, 100);
                 },
 
                 // Load payment methods from API
@@ -250,6 +323,9 @@
                     this.paymentError = null;
                     this.hostedFieldsReady = false;
                     this.widgetReady = false;
+
+                    // Announce selection to screen readers
+                    this.announce(`Selected ${method.displayName} payment method`);
 
                     // Clear any previous SDK containers
                     const hostedFieldsContainer = document.getElementById('payment-form-fields');
@@ -288,6 +364,7 @@
 
                     this.isSubmitting = true;
                     this.paymentError = null;
+                    this.announce('Processing payment...');
 
                     try {
                         const returnUrl = window.location.origin + '/checkout/return';
@@ -309,6 +386,7 @@
                     } catch (error) {
                         console.error('Payment failed:', error);
                         this.paymentError = error.message || 'Payment failed. Please try again.';
+                        this.announce(this.paymentError);
                     } finally {
                         this.isSubmitting = false;
                     }

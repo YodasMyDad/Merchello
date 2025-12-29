@@ -1,34 +1,46 @@
+/*
+ * Merchello Checkout Styles
+ *
+ * Source file for Tailwind CSS processing.
+ * Build command: npm run build:checkout (from Client folder)
+ * Output: wwwroot/css/checkout.css
+ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Custom checkout styles */
+/* Alpine.js cloak - hide elements until Alpine initializes */
 [x-cloak] {
   display: none !important;
 }
 
-/* Form input focus states */
+/* Custom checkout component classes */
 @layer components {
   .checkout-input {
     @apply w-full px-4 py-3 border border-gray-300 rounded-lg
            focus:ring-2 focus:ring-accent focus:border-accent
+           focus-visible:outline-none
            transition-colors;
   }
 
   .checkout-button-primary {
     @apply px-8 py-3 bg-primary text-white font-medium rounded-lg
            hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:ring-primary
+           focus-visible:outline-none
            transition-all disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .checkout-button-secondary {
     @apply px-8 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg
            hover:bg-gray-50 focus:ring-2 focus:ring-offset-2 focus:ring-gray-300
+           focus-visible:outline-none
            transition-all;
   }
 
   .checkout-link {
-    @apply text-accent hover:underline;
+    @apply text-accent hover:underline focus-visible:outline-none
+           focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2;
   }
 
   .checkout-card {
@@ -43,4 +55,102 @@
   .checkout-radio-card-selected {
     @apply border-accent bg-accent/5;
   }
+
+  /* Touch target - ensures minimum 44x44px touch area (WCAG 2.1 AAA) */
+  .checkout-touch-target {
+    @apply relative;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Checkbox/Radio wrapper for larger touch targets */
+  .checkout-checkbox-wrapper {
+    @apply relative flex items-center justify-center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .checkout-checkbox-wrapper input[type="checkbox"],
+  .checkout-checkbox-wrapper input[type="radio"] {
+    @apply w-5 h-5 cursor-pointer;
+  }
+
+  /* Icon button with accessible touch target */
+  .checkout-icon-button {
+    @apply inline-flex items-center justify-center rounded-lg
+           hover:bg-gray-100 focus-visible:outline-none
+           focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2
+           transition-colors;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Mobile sticky action bar */
+  .checkout-sticky-actions {
+    @apply fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200
+           p-4 shadow-lg z-50;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Loading skeleton animation */
+  .checkout-skeleton {
+    @apply animate-pulse bg-gray-200 rounded;
+  }
+
+  .checkout-skeleton-text {
+    @apply h-4 bg-gray-200 rounded animate-pulse;
+  }
+
+  .checkout-skeleton-button {
+    @apply h-12 bg-gray-200 rounded-lg animate-pulse;
+  }
+
+  /* Screen reader only - visually hidden but accessible */
+  .checkout-sr-only {
+    @apply sr-only;
+  }
+
+  /* Focus visible indicator for custom elements */
+  .checkout-focusable:focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2;
+  }
+}
+
+/* iOS Safari safe area support */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .checkout-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .checkout-safe-top {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+}
+
+/* iOS Safari 100vh fix - use dynamic viewport height */
+@supports (height: 100dvh) {
+  .checkout-full-height {
+    min-height: 100dvh;
+  }
+}
+
+@supports not (height: 100dvh) {
+  .checkout-full-height {
+    min-height: 100vh;
+  }
+}
+
+/* Announcement region for screen readers */
+.checkout-announcements {
+  @apply sr-only;
+}
+
+/* Error message styling with role="alert" */
+.checkout-error {
+  @apply text-error text-sm mt-1;
+}
+
+/* Form field with error state */
+.checkout-input-error {
+  @apply border-error focus:ring-error focus:border-error;
 }

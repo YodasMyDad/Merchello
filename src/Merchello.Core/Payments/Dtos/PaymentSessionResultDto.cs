@@ -53,6 +53,22 @@ public class PaymentSessionResultDto
     public Dictionary<string, object>? SdkConfiguration { get; set; }
 
     /// <summary>
+    /// URL to the payment adapter JavaScript file.
+    /// Required for HostedFields and Widget integration types.
+    /// </summary>
+    public string? AdapterUrl { get; set; }
+
+    /// <summary>
+    /// The provider alias for adapter registration (e.g., "stripe", "braintree").
+    /// </summary>
+    public string? ProviderAlias { get; set; }
+
+    /// <summary>
+    /// The method alias within the provider (e.g., "cards", "applepay").
+    /// </summary>
+    public string? MethodAlias { get; set; }
+
+    /// <summary>
     /// Form fields for DirectForm type
     /// </summary>
     public List<CheckoutFormFieldDto>? FormFields { get; set; }
@@ -61,4 +77,10 @@ public class PaymentSessionResultDto
     /// Error message if not successful
     /// </summary>
     public string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// Correlation ID for error tracking and support troubleshooting.
+    /// Populated when Success is false.
+    /// </summary>
+    public string? CorrelationId { get; set; }
 }

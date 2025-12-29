@@ -5,10 +5,15 @@
   "type": "module",
   "scripts": {
     "watch": "tsc && vite build --watch",
-    "build": "tsc && vite build"
+    "build": "npm run build:backoffice && npm run build:checkout",
+    "build:backoffice": "tsc && vite build",
+    "build:checkout": "npx tailwindcss -c ../Styles/tailwind.config.js -i ../Styles/checkout.css -o ../wwwroot/css/checkout.css --minify"
   },
   "devDependencies": {
     "@umbraco-cms/backoffice": "^17.0.0",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.4",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5.9.3",
     "vite": "^7.1.9"
   },

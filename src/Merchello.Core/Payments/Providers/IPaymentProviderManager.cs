@@ -179,6 +179,16 @@ public interface IPaymentProviderManager
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Get a preview of payment methods as they will appear at checkout.
+    /// Shows which methods are active vs hidden due to deduplication when
+    /// multiple providers offer the same method type.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Preview with active, standard, and hidden methods.</returns>
+    Task<CheckoutPaymentPreviewDto> GetCheckoutPreviewAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Ensures built-in payment providers exist and are enabled.
     /// Creates provider settings for built-in providers (e.g., Manual Payment) if they don't exist.
     /// Called on application startup.

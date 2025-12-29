@@ -61,7 +61,8 @@ public class ManualPaymentProvider : PaymentProviderBase
             IntegrationType = PaymentIntegrationType.DirectForm,
             IsExpressCheckout = false,
             DefaultSortOrder = 100,
-            ShowInCheckoutByDefault = false  // Hidden from customer checkout
+            ShowInCheckoutByDefault = false,  // Hidden from customer checkout
+            MethodType = PaymentMethodType.Manual
         }
     ];
 

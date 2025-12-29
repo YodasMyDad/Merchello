@@ -9,6 +9,44 @@ namespace Merchello.Core.Payments.Providers;
 /// Contract that payment provider plugins must implement.
 /// Providers can offer multiple payment methods, each with its own integration type.
 /// </summary>
+/// <remarks>
+/// <para><b>Implementation Guide</b></para>
+/// <para>
+/// Extend <see cref="PaymentProviderBase"/> instead of implementing this interface directly.
+/// The base class provides sensible defaults for optional features.
+/// </para>
+///
+/// <para><b>Required (4 methods)</b> - Must be implemented:</para>
+/// <list type="bullet">
+///   <item><see cref="Metadata"/> - Provider name, alias, and capabilities</item>
+///   <item><see cref="GetAvailablePaymentMethods"/> - Declare supported payment methods</item>
+///   <item><see cref="CreatePaymentSessionAsync"/> - Create payment session with SDK config</item>
+///   <item><see cref="ProcessPaymentAsync"/> - Process the payment result</item>
+/// </list>
+///
+/// <para><b>Optional</b> - Have working defaults in PaymentProviderBase:</para>
+/// <list type="bullet">
+///   <item><see cref="GetConfigurationFieldsAsync"/> - Returns empty (no config needed)</item>
+///   <item><see cref="ConfigureAsync"/> - Stores configuration automatically</item>
+///   <item><see cref="GetExpressCheckoutClientConfigAsync"/> - Returns null (no express checkout)</item>
+///   <item><see cref="ProcessExpressCheckoutAsync"/> - Returns "not supported"</item>
+///   <item><see cref="CapturePaymentAsync"/> - Returns "not supported"</item>
+///   <item><see cref="RefundPaymentAsync"/> - Returns "not supported"</item>
+///   <item><see cref="ValidateWebhookAsync"/> - Returns false</item>
+///   <item><see cref="ProcessWebhookAsync"/> - Returns "not supported"</item>
+/// </list>
+///
+/// <para><b>Example - Minimal provider (like ManualPaymentProvider):</b></para>
+/// <code>
+/// public class MyProvider : PaymentProviderBase
+/// {
+///     public override PaymentProviderMetadata Metadata => new() { Alias = "myprovider", Name = "My Provider" };
+///     public override IReadOnlyList&lt;PaymentMethodDefinition&gt; GetAvailablePaymentMethods() => [...];
+///     public override Task&lt;PaymentSessionResult&gt; CreatePaymentSessionAsync(...) => ...;
+///     public override Task&lt;PaymentResult&gt; ProcessPaymentAsync(...) => ...;
+/// }
+/// </code>
+/// </remarks>
 public interface IPaymentProvider
 {
     /// <summary>
@@ -73,6 +111,21 @@ public interface IPaymentProvider
     // =====================================================
     // Express Checkout
     // =====================================================
+
+    /// <summary>
+    /// Get client-side SDK configuration for an express checkout method.
+    /// This returns the information needed to initialize the express checkout button on the frontend.
+    /// </summary>
+    /// <param name="methodAlias">The method alias (e.g., "applepay", "googlepay", "paypal").</param>
+    /// <param name="amount">The payment amount.</param>
+    /// <param name="currency">The currency code (e.g., "GBP", "USD").</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>SDK configuration for client-side initialization, or null if not supported.</returns>
+    Task<ExpressCheckoutClientConfig?> GetExpressCheckoutClientConfigAsync(
+        string methodAlias,
+        decimal amount,
+        string currency,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Process an express checkout payment (Apple Pay, Google Pay, PayPal).

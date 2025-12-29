@@ -39,6 +39,42 @@ Methods with `IsExpressCheckout = true`:
 - Skip checkout form, go straight to confirmation
 - Examples: Apple Pay, Google Pay, PayPal Express
 
+### Method Types & Deduplication
+
+When multiple providers offer the same payment method (e.g., Stripe and Braintree both offer Apple Pay), Merchello automatically deduplicates at checkout - only one button appears.
+
+**Set `MethodType` on each method:**
+```csharp
+new PaymentMethodDefinition
+{
+    Alias = "applepay",
+    DisplayName = "Apple Pay",
+    MethodType = PaymentMethodType.ApplePay,  // Required for deduplication
+    IntegrationType = PaymentIntegrationType.Widget,
+    IsExpressCheckout = true,
+    DefaultSortOrder = 0
+}
+```
+
+**Available Method Types:**
+| Type | Value | Use For |
+|------|-------|---------|
+| `Cards` | 0 | Credit/Debit card entry |
+| `ApplePay` | 10 | Apple Pay |
+| `GooglePay` | 20 | Google Pay |
+| `PayPal` | 30 | PayPal |
+| `Link` | 40 | Stripe Link |
+| `BuyNowPayLater` | 50 | Klarna, Afterpay, etc. |
+| `BankTransfer` | 60 | Direct bank transfer |
+| `Manual` | 100 | Offline/manual payment |
+| `Custom` | 999 | Not deduplicated |
+
+**Deduplication Rules:**
+- Methods grouped by `MethodType`
+- Only method with **lowest SortOrder** shown per type
+- Methods with `null` or `Custom` type are NOT deduplicated
+- Admin controls priority via sort order in backoffice
+
 ---
 
 ## Example 1: Stripe (Multiple Methods)
@@ -70,6 +106,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             DisplayName = "Credit/Debit Card",
             Icon = "icon-credit-card",
             Description = "Pay with Visa, Mastercard, American Express",
+            MethodType = PaymentMethodType.Cards,
             IntegrationType = PaymentIntegrationType.Redirect,
             IsExpressCheckout = false,
             DefaultSortOrder = 10
@@ -80,6 +117,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             DisplayName = "Apple Pay",
             Icon = "icon-apple",
             Description = "Fast, secure checkout with Apple Pay",
+            MethodType = PaymentMethodType.ApplePay,
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 0
@@ -90,6 +128,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             DisplayName = "Google Pay",
             Icon = "icon-google",
             Description = "Fast, secure checkout with Google Pay",
+            MethodType = PaymentMethodType.GooglePay,
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 1
@@ -208,6 +247,7 @@ public class BraintreePaymentProvider : PaymentProviderBase
             DisplayName = "Credit/Debit Card",
             Icon = "icon-credit-card",
             Description = "Pay with credit or debit card",
+            MethodType = PaymentMethodType.Cards,
             IntegrationType = PaymentIntegrationType.HostedFields,
             IsExpressCheckout = false,
             DefaultSortOrder = 10
@@ -218,6 +258,7 @@ public class BraintreePaymentProvider : PaymentProviderBase
             DisplayName = "PayPal",
             Icon = "icon-paypal",
             Description = "Pay with your PayPal account",
+            MethodType = PaymentMethodType.PayPal,
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 0
@@ -230,7 +271,9 @@ public class BraintreePaymentProvider : PaymentProviderBase
         var clientToken = await _gateway!.ClientToken.GenerateAsync();
 
         return PaymentSessionResult.HostedFields(
-            clientToken: clientToken,
+            providerAlias: "braintree",
+            methodAlias: request.MethodAlias ?? "cards",
+            adapterUrl: "/_content/Merchello/js/checkout/adapters/braintree-payment-adapter.js",
             jsSdkUrl: "https://js.braintreegateway.com/web/3.x/js/client.min.js",
             sdkConfig: new Dictionary<string, object>
             {
@@ -242,6 +285,7 @@ public class BraintreePaymentProvider : PaymentProviderBase
                     expirationDate = new { selector = "#expiry", placeholder = "MM/YY" }
                 }
             },
+            clientToken: clientToken,
             sessionId: Guid.NewGuid().ToString());
     }
 
@@ -288,6 +332,7 @@ public class ManualPaymentProvider : PaymentProviderBase
             DisplayName = "Manual Payment",
             Icon = "icon-wallet",
             Description = "Record cash, check, or bank transfer payments",
+            MethodType = PaymentMethodType.Manual,
             IntegrationType = PaymentIntegrationType.DirectForm,
             IsExpressCheckout = false,
             DefaultSortOrder = 100
@@ -441,6 +486,225 @@ return WebhookProcessingResult.Successful(
 
 ---
 
+## Creating Payment Adapters
+
+When your payment method uses `HostedFields` or `Widget` integration types, you must provide a JavaScript adapter that handles SDK initialization and payment flow.
+
+### Project Type: Razor Class Library (RCL)
+
+**Important:** Third-party payment providers that include JavaScript adapters **must be created as Razor Class Libraries (RCL)**, not plain class libraries. This is because:
+
+1. Plain class libraries cannot serve static files
+2. RCLs serve static files from `/_content/{AssemblyName}/` path
+3. The adapter URL must point to a valid, servable JavaScript file
+
+**Create an RCL project:**
+```bash
+dotnet new razorclasslib -n MyCompany.Merchello.MyProvider
+```
+
+### Adapter Location
+
+Place adapters in your RCL's `wwwroot/` folder:
+
+```
+MyCompany.Merchello.MyProvider/
+├── wwwroot/
+│   └── adapters/
+│       └── myprovider-payment-adapter.js
+└── MyProviderPaymentProvider.cs
+```
+
+Reference using the `/_content/{AssemblyName}/` pattern:
+
+```csharp
+// The assembly name determines the URL path
+private const string MyProviderAdapterUrl = "/_content/MyCompany.Merchello.MyProvider/adapters/myprovider-payment-adapter.js";
+```
+
+**Built-in providers** (Stripe, Braintree, PayPal) ship their adapters in the main `Merchello` RCL:
+```csharp
+// Built-in adapter URLs
+"/_content/Merchello/js/checkout/adapters/stripe-payment-adapter.js"
+"/_content/Merchello/js/checkout/adapters/braintree-payment-adapter.js"
+"/_content/Merchello/js/checkout/adapters/paypal-payment-adapter.js"
+```
+
+### Adapter Structure
+
+```javascript
+/**
+ * MyProvider Payment Adapter
+ */
+(function() {
+    'use strict';
+
+    let currentSession = null;
+
+    const myProviderAdapter = {
+        /**
+         * Render the payment UI
+         * @param {HTMLElement} container - Container to render into
+         * @param {Object} session - PaymentSessionResult from server
+         * @param {Object} checkout - MerchelloPayment instance
+         */
+        async render(container, session, checkout) {
+            currentSession = session;
+            const config = session.sdkConfiguration || {};
+
+            // Wait for SDK to be available (loaded via session.jsSdkUrl)
+            if (typeof MyProviderSDK === 'undefined') {
+                throw new Error('MyProvider SDK not loaded');
+            }
+
+            // Create container structure
+            container.innerHTML = `
+                <div class="myprovider-wrapper">
+                    <div id="myprovider-element"></div>
+                    <div id="myprovider-errors" class="text-red-600 text-sm mt-2 hidden"></div>
+                </div>
+            `;
+
+            // Initialize SDK and render payment element
+            await MyProviderSDK.init(config.publicKey);
+            await MyProviderSDK.mount('#myprovider-element');
+        },
+
+        /**
+         * Submit the payment
+         * @param {string} invoiceId - Invoice being paid
+         * @param {Object} options - Additional options
+         * @returns {Promise<Object>} Payment result
+         */
+        async submit(invoiceId, options = {}) {
+            try {
+                // Get payment token from SDK
+                const token = await MyProviderSDK.createToken();
+
+                // Submit to server
+                const response = await fetch('/api/merchello/checkout/process-payment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        invoiceId,
+                        providerAlias: currentSession.providerAlias,
+                        methodAlias: currentSession.methodAlias,
+                        paymentMethodToken: token
+                    })
+                });
+
+                return await response.json();
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        },
+
+        /**
+         * Clean up when switching methods
+         */
+        teardown() {
+            MyProviderSDK?.unmount();
+            currentSession = null;
+        },
+
+        /**
+         * Show error in container
+         */
+        showError(container, message) {
+            container.innerHTML = `
+                <div class="text-red-600 p-4 bg-red-50 rounded-lg">
+                    <p class="font-medium">Payment Setup Error</p>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+    };
+
+    // Register the adapter
+    window.MerchelloPaymentAdapters = window.MerchelloPaymentAdapters || {};
+    window.MerchelloPaymentAdapters['myprovider'] = myProviderAdapter;
+})();
+```
+
+### Provider Session Creation
+
+Return adapter configuration from `CreatePaymentSessionAsync()`:
+
+```csharp
+public override async Task<PaymentSessionResult> CreatePaymentSessionAsync(
+    PaymentRequest request, CancellationToken ct = default)
+{
+    // Create session with your payment gateway
+    var gatewaySession = await _client.CreateSessionAsync(...);
+
+    // Return session with adapter URL (using RCL path pattern)
+    return PaymentSessionResult.HostedFields(
+        providerAlias: Metadata.Alias,
+        methodAlias: request.MethodAlias ?? "cards",
+        adapterUrl: "/_content/MyCompany.Merchello.MyProvider/adapters/myprovider-payment-adapter.js",
+        jsSdkUrl: "https://cdn.myprovider.com/sdk.js",
+        sdkConfig: new Dictionary<string, object>
+        {
+            ["publicKey"] = _publicKey,
+            ["sessionId"] = gatewaySession.Id
+        },
+        clientToken: gatewaySession.ClientToken,
+        sessionId: gatewaySession.Id);
+}
+```
+
+### Method Icons
+
+Provide SVG icons for your payment methods:
+
+```csharp
+private const string CardIconSvg = """<svg class="w-8 h-5" viewBox="0 0 32 20"...>...</svg>""";
+
+public override IReadOnlyList<PaymentMethodDefinition> GetAvailablePaymentMethods() =>
+[
+    new PaymentMethodDefinition
+    {
+        Alias = "cards",
+        DisplayName = "Credit/Debit Card",
+        IconHtml = CardIconSvg,  // Provider-controlled icon
+        MethodType = PaymentMethodType.Cards,
+        IntegrationType = PaymentIntegrationType.HostedFields,
+        // ...
+    }
+];
+```
+
+### Widget Adapters (PayPal-style)
+
+For Widget integration types where the provider button handles the entire flow:
+
+```javascript
+const paypalAdapter = {
+    async render(container, session, checkout) {
+        // PayPal buttons handle their own submission
+        await paypal.Buttons({
+            createOrder: async () => { /* create order */ },
+            onApprove: async (data) => {
+                // Capture and redirect
+                const result = await captureOrder(data.orderID);
+                if (result.redirectUrl) {
+                    window.location.href = result.redirectUrl;
+                }
+            }
+        }).render(container);
+    },
+
+    async submit(invoiceId, options) {
+        // Widget handles submission via button click
+        return { success: false, error: 'Use PayPal button to complete payment' };
+    },
+
+    teardown() { /* cleanup */ }
+};
+```
+
+---
+
 ## Notes
 
 - Sensitive config values (API keys) should be encrypted at rest
@@ -450,3 +714,4 @@ return WebhookProcessingResult.Successful(
 - Providers auto-discovered via assembly scanning - no DI registration needed
 - Express checkout methods collect customer data from the provider
 - Risk scores are nullable - many payments won't have fraud data
+- Adapters are loaded dynamically - no checkout code changes needed for new providers

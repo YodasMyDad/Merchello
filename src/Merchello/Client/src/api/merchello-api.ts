@@ -179,6 +179,7 @@ import type {
   UpdatePaymentProviderDto,
   TestPaymentProviderDto,
   TestPaymentProviderResultDto,
+  CheckoutPaymentPreviewDto,
 } from '@payment-providers/types/payment-providers.types.js';
 
 // Import shipping provider types
@@ -534,6 +535,10 @@ export const MerchelloApi = {
   /** Test a payment provider configuration */
   testPaymentProvider: (settingId: string, request: TestPaymentProviderDto) =>
     apiPost<TestPaymentProviderResultDto>(`payment-providers/${settingId}/test`, request),
+
+  /** Get checkout preview showing which payment methods will appear and their deduplication status */
+  getCheckoutPaymentPreview: () =>
+    apiGet<CheckoutPaymentPreviewDto>('payment-providers/checkout-preview'),
 
   // ============================================
   // Payments API

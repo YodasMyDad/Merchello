@@ -65,4 +65,10 @@ public class ProcessPaymentResultDto
     /// URL to redirect to after successful payment (e.g., confirmation page)
     /// </summary>
     public string? RedirectUrl { get; set; }
+
+    /// <summary>
+    /// Correlation ID for error tracking and support troubleshooting.
+    /// Populated when Success is false.
+    /// </summary>
+    public string? CorrelationId { get; set; }
 }

@@ -1,6 +1,7 @@
 @model CheckoutViewModel
 @using Merchello.Core.Checkout.Dtos
 @using System.Text.Json
+@using System.Text.Encodings.Web
 @{
     Layout = "~/Views/Checkout/_Layout.cshtml";
     var shippingAddress = Model.Basket?.ShippingAddress;
@@ -9,6 +10,12 @@
         : "No address provided";
 
     // Serialize shipping groups for Alpine.js
+    // Using JavaScriptEncoder.Default for defense-in-depth XSS protection
+    // This escapes <, >, &, ', " and other characters that could break out of script context
+    var jsonOptions = new JsonSerializerOptions
+    {
+        Encoder = JavaScriptEncoder.Default
+    };
     var groupsJson = JsonSerializer.Serialize(Model.ShippingGroups.Select(g => new {
         groupId = g.GroupId.ToString(),
         groupName = g.GroupName,
@@ -22,24 +29,34 @@
             isNextDay = o.IsNextDay
         }),
         selectedOptionId = g.SelectedShippingOptionId?.ToString()
-    }));
+    }), jsonOptions);
 }
 
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-8" x-data="checkoutShipping()">
-    <!-- Left Column: Shipping Options -->
-    <div class="lg:col-span-7">
-        <h1 class="font-heading text-2xl font-semibold mb-6">Shipping Method</h1>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-0" x-data="checkoutShipping()">
+    <!-- Screen reader announcements -->
+    <div aria-live="polite" aria-atomic="true" class="sr-only" x-text="announcement"></div>
 
-        <!-- Address Summary -->
-        <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-500">Ship to</p>
-                    <p class="text-sm font-medium text-gray-900">@addressSummary</p>
+    <!-- Left Column: Shipping Options -->
+    <div class="pt-8 lg:pr-12 pb-24 lg:pb-8">
+        <!-- Contact & Address Summary (Shopify style) -->
+        <div class="mb-6 border border-gray-200 rounded-lg divide-y divide-gray-200">
+            <div class="flex items-center justify-between p-4">
+                <div class="flex items-start gap-4 flex-1">
+                    <span class="text-sm text-gray-500 w-16 flex-shrink-0">Contact</span>
+                    <p class="text-sm text-gray-900">@(Model.Basket?.BillingAddress?.Email ?? "Not provided")</p>
+                </div>
+                <a href="/checkout/information" class="text-sm text-accent hover:underline">Change</a>
+            </div>
+            <div class="flex items-center justify-between p-4">
+                <div class="flex items-start gap-4 flex-1">
+                    <span class="text-sm text-gray-500 w-16 flex-shrink-0">Ship to</span>
+                    <p class="text-sm text-gray-900">@addressSummary</p>
                 </div>
                 <a href="/checkout/information" class="text-sm text-accent hover:underline">Change</a>
             </div>
         </div>
+
+        <h2 class="font-heading text-xl font-normal mb-4">Shipping method</h2>
 
         @if (Model.ShippingGroups.Count == 0)
         {
@@ -57,15 +74,27 @@
                 {
                     <div class="border border-gray-200 rounded-lg overflow-hidden" x-data="{ expanded: true }">
                         <!-- Group Header -->
-                        <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                        <button type="button"
+                                @@click="expanded = !expanded"
+                                :aria-expanded="expanded"
+                                aria-controls="group-items-@group.GroupId"
+                                class="w-full bg-gray-50 px-4 py-3 border-b border-gray-200 checkout-touch-target">
                             <div class="flex items-center justify-between">
                                 <h2 class="font-medium text-gray-900">@group.GroupName</h2>
-                                <span class="text-sm text-gray-500">@group.LineItems.Count item(s)</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm text-gray-500">@group.LineItems.Count item(s)</span>
+                                    <svg class="w-5 h-5 text-gray-400 transition-transform"
+                                         :class="{ 'rotate-180': expanded }"
+                                         aria-hidden="true"
+                                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </div>
                             </div>
-                        </div>
+                        </button>
 
                         <!-- Group Items (collapsible) -->
-                        <div x-show="expanded" x-collapse class="px-4 py-3 bg-white border-b border-gray-100">
+                        <div x-show="expanded" x-collapse id="group-items-@group.GroupId" class="px-4 py-3 bg-white border-b border-gray-100">
                             <ul class="space-y-2">
                                 @foreach (var item in group.LineItems)
                                 {
@@ -93,13 +122,19 @@
                                 {
                                     var optionId = option.Id.ToString();
                                     var groupId = group.GroupId.ToString();
-                                    <label class="flex items-center gap-4 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
+                                    var radioId = $"shipping-{groupId}-{optionId}";
+                                    <label for="@radioId"
+                                           class="flex items-center gap-4 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors checkout-touch-target"
                                            :class="{ 'border-accent bg-accent/5': selections['@groupId'] === '@optionId' }">
-                                        <input type="radio"
-                                               name="shipping-@groupId"
-                                               value="@optionId"
-                                               x-model="selections['@groupId']"
-                                               class="w-5 h-5 text-accent focus:ring-accent" />
+                                        <span class="checkout-checkbox-wrapper">
+                                            <input type="radio"
+                                                   id="@radioId"
+                                                   name="shipping-@groupId"
+                                                   value="@optionId"
+                                                   x-model="selections['@groupId']"
+                                                   @@change="onShippingChange('@groupId', '@optionId', '@option.Name')"
+                                                   class="w-5 h-5 text-accent focus:ring-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2" />
+                                        </span>
                                         <div class="flex-1">
                                             <p class="font-medium text-gray-900">
                                                 @option.Name
@@ -130,14 +165,14 @@
         }
 
         <!-- Error Message -->
-        <div x-show="errorMessage" x-cloak class="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div x-show="errorMessage" x-cloak role="alert" class="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
             <p class="text-sm text-red-700" x-text="errorMessage"></p>
         </div>
 
-        <!-- Navigation Buttons -->
-        <div class="mt-8 flex items-center justify-between">
-            <a href="/checkout/information" class="text-accent hover:underline flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <!-- Navigation Buttons (Desktop) -->
+        <div class="mt-8 hidden lg:flex items-center justify-between">
+            <a href="/checkout/information" class="checkout-link flex items-center gap-2">
+                <svg class="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                 </svg>
                 Return to information
@@ -146,23 +181,49 @@
             <button type="button"
                     @@click="continueToPayment"
                     :disabled="!allGroupsSelected || isSubmitting"
-                    class="px-8 py-3 bg-primary text-white font-medium rounded-lg hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    :aria-busy="isSubmitting"
+                    class="checkout-button-primary">
                 <span x-show="!isSubmitting">Continue to Payment</span>
                 <span x-show="isSubmitting" x-cloak class="flex items-center gap-2">
-                    <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <svg class="animate-spin h-5 w-5" aria-hidden="true" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Processing...
+                    <span>Processing...</span>
                 </span>
             </button>
         </div>
     </div>
 
     <!-- Right Column: Order Summary -->
-    <div class="lg:col-span-5">
-        <div class="sticky top-8">
-            @await Html.PartialAsync("_OrderSummary")
+    <div class="relative lg:border-l lg:border-gray-200">
+        <!-- Background extending to viewport edge -->
+        <div class="hidden lg:block absolute inset-y-0 left-0 w-[200vw] bg-[#fafafa] -z-10"></div>
+        <div class="lg:pl-8 lg:pt-8 lg:pr-8">
+            @await Html.PartialAsync("~/Views/Checkout/_OrderSummary.cshtml")
+        </div>
+    </div>
+
+    <!-- Mobile Sticky Action Bar -->
+    <div class="checkout-sticky-actions lg:hidden">
+        <div class="flex flex-col gap-3">
+            <button type="button"
+                    @@click="continueToPayment"
+                    :disabled="!allGroupsSelected || isSubmitting"
+                    :aria-busy="isSubmitting"
+                    class="w-full checkout-button-primary">
+                <span x-show="!isSubmitting">Continue to Payment</span>
+                <span x-show="isSubmitting" x-cloak class="flex items-center justify-center gap-2">
+                    <svg class="animate-spin h-5 w-5" aria-hidden="true" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Processing...</span>
+                </span>
+            </button>
+            <a href="/checkout/information" class="text-center checkout-link text-sm">
+                Return to information
+            </a>
         </div>
     </div>
 </div>
@@ -185,6 +246,7 @@
                 selections: initialSelections,
                 isSubmitting: false,
                 errorMessage: '',
+                announcement: '',
 
                 get allGroupsSelected() {
                     return this.groups.every(g =>
@@ -204,14 +266,37 @@
                     return total;
                 },
 
+                // Announce message to screen readers
+                announce(message) {
+                    this.announcement = '';
+                    setTimeout(() => {
+                        this.announcement = message;
+                    }, 100);
+                },
+
+                // Handle shipping option change for analytics/accessibility
+                onShippingChange(groupId, optionId, optionName) {
+                    this.announce(`Selected ${optionName} shipping`);
+                    // Emit analytics event
+                    if (window.MerchelloCheckout) {
+                        window.MerchelloCheckout.emit('checkout:shipping_selected', {
+                            groupId: groupId,
+                            optionId: optionId,
+                            optionName: optionName
+                        });
+                    }
+                },
+
                 async continueToPayment() {
                     if (!this.allGroupsSelected) {
                         this.errorMessage = 'Please select a shipping method for all items.';
+                        this.announce(this.errorMessage);
                         return;
                     }
 
                     this.isSubmitting = true;
                     this.errorMessage = '';
+                    this.announce('Saving shipping selections...');
 
                     try {
                         // Convert string keys back to proper format for API
@@ -230,9 +315,14 @@
                             })
                         });
 
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+
                         const result = await response.json();
 
                         if (result.success) {
+                            this.announce('Shipping saved. Redirecting to payment.');
                             window.location.href = '/checkout/payment';
                         } else {
                             this.errorMessage = result.message || 'Failed to save shipping selections.';
@@ -242,10 +332,12 @@
                                     this.errorMessage = errorMessages;
                                 }
                             }
+                            this.announce(this.errorMessage);
                         }
                     } catch (error) {
                         console.error('Failed to save shipping:', error);
                         this.errorMessage = 'An error occurred. Please try again.';
+                        this.announce(this.errorMessage);
                     } finally {
                         this.isSubmitting = false;
                     }

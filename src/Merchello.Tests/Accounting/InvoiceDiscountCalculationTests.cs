@@ -55,7 +55,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var paymentService = new Mock<IPaymentService>().Object;
         var productService = new Mock<IProductService>().Object;
         var customerService = new Mock<ICustomerService>().Object;
-        var checkoutService = new Mock<ICheckoutService>().Object;
+        var checkoutService = new Lazy<ICheckoutService>(() => new Mock<ICheckoutService>().Object);
         var notificationPublisher = new Mock<IMerchelloNotificationPublisher>().Object;
         var exchangeRateCacheMock = new Mock<IExchangeRateCache>();
         exchangeRateCacheMock.Setup(x => x.GetRateQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))

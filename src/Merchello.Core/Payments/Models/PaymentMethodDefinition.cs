@@ -17,9 +17,16 @@ public class PaymentMethodDefinition
     public required string DisplayName { get; init; }
 
     /// <summary>
-    /// Icon identifier or URL for the payment method.
+    /// Icon identifier or URL for the payment method (legacy).
     /// </summary>
     public string? Icon { get; init; }
+
+    /// <summary>
+    /// Icon HTML/SVG markup for the payment method.
+    /// When provided, this is used instead of Icon for rendering.
+    /// Provider controls the visual appearance of the icon.
+    /// </summary>
+    public string? IconHtml { get; init; }
 
     /// <summary>
     /// Description of the payment method shown to customers.
@@ -48,4 +55,13 @@ public class PaymentMethodDefinition
     /// False for backoffice-only methods like Manual Payment.
     /// </summary>
     public bool ShowInCheckoutByDefault { get; init; } = true;
+
+    /// <summary>
+    /// The type/category of this payment method (e.g., Cards, ApplePay, GooglePay).
+    /// Used for deduplication when multiple providers offer the same method type.
+    /// Methods with the same MethodType are deduplicated at checkout - only the one
+    /// with the lowest SortOrder from an enabled provider is shown.
+    /// Null or Custom types are not deduplicated.
+    /// </summary>
+    public PaymentMethodType? MethodType { get; init; }
 }

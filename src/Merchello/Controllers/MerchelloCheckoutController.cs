@@ -33,7 +33,12 @@ public class MerchelloCheckoutController(
     /// <summary>
     /// Renders the checkout view for the current step.
     /// </summary>
-    public async Task<IActionResult> Index(CancellationToken ct = default)
+    public override IActionResult Index()
+    {
+        return IndexAsync(HttpContext.RequestAborted).GetAwaiter().GetResult();
+    }
+
+    private async Task<IActionResult> IndexAsync(CancellationToken ct)
     {
         if (CurrentPage is not MerchelloCheckoutPage checkoutPage)
         {

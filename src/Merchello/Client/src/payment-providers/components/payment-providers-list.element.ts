@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
-import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
+import { customElement, state, query } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
@@ -10,6 +10,8 @@ import type { PaymentProviderDto, PaymentProviderSettingDto } from '@payment-pro
 import { MERCHELLO_PAYMENT_PROVIDER_CONFIG_MODAL } from "../modals/payment-provider-config-modal.token.js";
 import { MERCHELLO_SETUP_INSTRUCTIONS_MODAL } from "../modals/setup-instructions-modal.token.js";
 import { MERCHELLO_TEST_PAYMENT_PROVIDER_MODAL } from "../modals/test-provider-modal.token.js";
+import type { MerchelloCheckoutPaymentPreviewElement } from "./checkout-payment-preview.element.js";
+import "./checkout-payment-preview.element.js";
 
 @customElement("merchello-payment-providers-list")
 export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitElement) {
@@ -17,6 +19,9 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
   @state() private _configuredProviders: PaymentProviderSettingDto[] = [];
   @state() private _isLoading = true;
   @state() private _errorMessage: string | null = null;
+
+  @query("merchello-checkout-payment-preview")
+  private _previewElement?: MerchelloCheckoutPaymentPreviewElement;
 
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
@@ -77,6 +82,9 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     }
 
     this._isLoading = false;
+
+    // Refresh the checkout preview after providers are loaded/reloaded
+    await this._previewElement?.loadPreview();
   }
 
   private _getUnconfiguredProviders(): PaymentProviderDto[] {
@@ -337,6 +345,7 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     return html`
       <umb-body-layout header-fit-height main-no-padding>
       <div class="content">
+      <merchello-checkout-payment-preview></merchello-checkout-payment-preview>
       <uui-box headline="Configured Payment Providers">
         <p class="section-description">
           These payment providers are installed and configured.

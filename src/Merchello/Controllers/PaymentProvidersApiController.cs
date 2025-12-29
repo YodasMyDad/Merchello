@@ -331,6 +331,18 @@ public class PaymentProvidersApiController(
         return Ok(response);
     }
 
+    /// <summary>
+    /// Get a preview of payment methods as they will appear at checkout.
+    /// Shows which methods are active vs hidden due to deduplication when
+    /// multiple providers offer the same method type.
+    /// </summary>
+    [HttpGet("payment-providers/checkout-preview")]
+    [ProducesResponseType<CheckoutPaymentPreviewDto>(StatusCodes.Status200OK)]
+    public async Task<CheckoutPaymentPreviewDto> GetCheckoutPreview(CancellationToken cancellationToken = default)
+    {
+        return await providerManager.GetCheckoutPreviewAsync(cancellationToken);
+    }
+
     // ============================================
     // Mapping Helpers
     // ============================================

@@ -45,5 +45,11 @@ public class PaymentDbMapping : IEntityTypeConfiguration<Payment>
 
         // Index for efficient payment status calculations in invoice queries
         builder.HasIndex(x => new { x.InvoiceId, x.PaymentSuccess });
+
+        // Unique constraint on TransactionId to prevent duplicate payments from concurrent webhooks
+        // Filter allows NULL values (manual payments may not have TransactionId)
+        builder.HasIndex(x => x.TransactionId)
+            .IsUnique()
+            .HasFilter("[TransactionId] IS NOT NULL");
     }
 }

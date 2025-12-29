@@ -18,6 +18,7 @@ import type {
 } from "@umbraco-cms/backoffice/property-editor";
 import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-picker-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
 import "@shared/components/product-image.element.js";
 
 interface SelectedProduct {
@@ -85,6 +86,7 @@ export class MerchelloPropertyEditorUiProductPickerElement
   override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
+    getStoreSettings();
   }
 
   override disconnectedCallback(): void {
@@ -213,7 +215,7 @@ export class MerchelloPropertyEditorUiProductPickerElement
       .open(this, MERCHELLO_PRODUCT_PICKER_MODAL, {
         data: {
           config: {
-            currencySymbol: "£", // TODO: Get from store settings
+            currencySymbol: getCurrencySymbol(),
             excludeProductIds: currentIds,
             productTypeId: this._productTypeIds.length === 1 ? this._productTypeIds[0] : undefined,
             productTypeIds: this._productTypeIds.length > 1 ? this._productTypeIds : undefined,
@@ -270,7 +272,7 @@ export class MerchelloPropertyEditorUiProductPickerElement
   }
 
   #formatPrice(price: number): string {
-    return `£${price.toFixed(2)}`;
+    return `${getCurrencySymbol()}${price.toFixed(2)}`;
   }
 
   #renderSingleSelect(): unknown {

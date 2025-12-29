@@ -394,6 +394,10 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasIndex("ParentPaymentId");
 
+                    b.HasIndex("TransactionId")
+                        .IsUnique()
+                        .HasFilter("[TransactionId] IS NOT NULL");
+
                     b.HasIndex("InvoiceId", "PaymentSuccess");
 
                     b.ToTable("merchelloPayments", (string)null);

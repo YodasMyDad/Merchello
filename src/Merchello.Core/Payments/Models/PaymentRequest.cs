@@ -13,6 +13,12 @@ public class PaymentRequest
     public required Guid InvoiceId { get; init; }
 
     /// <summary>
+    /// The payment method alias (e.g., "cards", "cards-elements", "applepay").
+    /// Used by providers that support multiple methods to route to the correct flow.
+    /// </summary>
+    public string? MethodAlias { get; init; }
+
+    /// <summary>
     /// The amount to charge.
     /// </summary>
     public required decimal Amount { get; init; }

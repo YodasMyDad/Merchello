@@ -24,9 +24,15 @@ public class PaymentMethodDto
     public required string DisplayName { get; set; }
 
     /// <summary>
-    /// Icon identifier or URL.
+    /// Icon identifier or URL (legacy).
     /// </summary>
     public string? Icon { get; set; }
+
+    /// <summary>
+    /// Icon HTML/SVG markup for the payment method.
+    /// When provided, this is used instead of Icon for rendering.
+    /// </summary>
+    public string? IconHtml { get; set; }
 
     /// <summary>
     /// Description of the payment method.
@@ -53,4 +59,10 @@ public class PaymentMethodDto
     /// Whether this payment method should be shown in customer checkout.
     /// </summary>
     public bool ShowInCheckout { get; set; }
+
+    /// <summary>
+    /// The type/category of this payment method (e.g., Cards, ApplePay, GooglePay).
+    /// Used for deduplication when multiple providers offer the same method type.
+    /// </summary>
+    public PaymentMethodType? MethodType { get; set; }
 }

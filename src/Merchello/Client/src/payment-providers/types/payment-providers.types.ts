@@ -142,3 +142,54 @@ export interface TestCheckoutFormFieldDto {
   /** Whether the field is required */
   isRequired: boolean;
 }
+
+// ============================================
+// Checkout Preview Types
+// ============================================
+
+/** Payment method type for deduplication */
+export enum PaymentMethodType {
+  Cards = 0,
+  ApplePay = 10,
+  GooglePay = 20,
+  PayPal = 30,
+  Link = 40,
+  BuyNowPayLater = 50,
+  BankTransfer = 60,
+  Manual = 100,
+  Custom = 999,
+}
+
+/** Preview of payment methods as they will appear at checkout */
+export interface CheckoutPaymentPreviewDto {
+  /** Express checkout methods that will appear (Apple Pay, Google Pay, etc.) */
+  expressMethods: CheckoutMethodPreviewDto[];
+  /** Standard payment methods that will appear (Cards, PayPal, etc.) */
+  standardMethods: CheckoutMethodPreviewDto[];
+  /** Methods that are enabled but hidden because another provider's method of the same type has a lower sort order */
+  hiddenMethods: CheckoutMethodPreviewDto[];
+}
+
+/** A payment method in the checkout preview with provider context and deduplication status */
+export interface CheckoutMethodPreviewDto {
+  /** The provider alias (e.g., "stripe", "braintree") */
+  providerAlias: string;
+  /** The provider's display name for the UI */
+  providerDisplayName: string;
+  /** The provider setting ID for linking to configuration */
+  providerSettingId: string;
+  /** The method alias within the provider (e.g., "cards", "applepay") */
+  methodAlias: string;
+  /** Display name shown to customers */
+  displayName: string;
+  /** Icon identifier or URL */
+  icon?: string;
+  /** The type/category of this payment method (e.g., Cards, ApplePay) */
+  methodType?: PaymentMethodType;
+  /** Sort order for display in checkout */
+  sortOrder: number;
+  /** True if this method will be shown at checkout (wins for its MethodType) */
+  isActive: boolean;
+  /** If hidden, the display name of the provider that outranks this method */
+  outrankedBy?: string;
+}

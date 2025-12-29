@@ -50,7 +50,7 @@ public class InvoiceService(
     IPaymentService paymentService,
     IProductService productService,
     ICustomerService customerService,
-    ICheckoutService checkoutService,
+    Lazy<ICheckoutService> checkoutService,
     IOrderGroupingStrategyResolver strategyResolver,
     IMerchelloNotificationPublisher notificationPublisher,
     IExchangeRateCache exchangeRateCache,
@@ -88,7 +88,7 @@ public class InvoiceService(
         // This ensures discounts are always applied without requiring manual developer intervention
         basket.CustomerId = customer.Id;
         var countryCode = checkoutSession.ShippingAddress.CountryCode ?? "US";
-        basket = await checkoutService.RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
+        basket = await checkoutService.Value.RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
 
         // Get the warehouse shipping groups using the same logic used during checkout
         var shippingResult = await shippingService.GetShippingOptionsForBasket(

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Pluggable payment provider system with built-in providers (Manual Payment, Stripe) and support for third-party providers (PayPal, Braintree, etc.) as NuGet packages. All providers are auto-discovered and configurable via backoffice.
+Pluggable payment provider system with built-in providers (Manual Payment, Stripe, PayPal, Braintree) and support for third-party providers as NuGet packages. All providers are auto-discovered and configurable via backoffice.
 
 **Key Concept: Provider → Methods**
 
@@ -40,11 +40,93 @@ Methods can be individually enabled/disabled and have different integration type
 |-------|---------|
 | `PaymentMethodDefinition` | Defines a payment method a provider supports |
 | `PaymentMethodSetting` | Persisted method settings (enabled, sort order) |
-| `PaymentSessionResult` | Session creation response (redirect URL, SDK config) |
+| `PaymentMethodType` | Category/type of method for deduplication (Cards, ApplePay, etc.) |
+| `PaymentSessionResult` | Session creation response (redirect URL, adapter URL, SDK config) |
 | `ProcessPaymentRequest` | Standard payment processing request |
 | `ExpressCheckoutRequest` | Express checkout request with customer data |
 | `ExpressCheckoutResult` | Express checkout processing result |
 | `PaymentIntegrationType` | How method integrates with checkout UI |
+
+## Payment Adapter Architecture
+
+The checkout uses a **dynamic adapter pattern** to support any payment provider without hard-coded provider logic. This ensures the checkout is truly pluggable - new providers work automatically without modifying checkout code.
+
+### How It Works
+
+```
+Provider.CreatePaymentSessionAsync()
+    ↓
+PaymentSessionResult (includes adapterUrl, providerAlias, methodAlias)
+    ↓
+payment.js loads adapter dynamically
+    ↓
+window.MerchelloPaymentAdapters[providerAlias].render()
+    ↓
+User completes payment
+    ↓
+adapter.submit() → POST /api/merchello/checkout/process-payment
+```
+
+### PaymentSessionResult Adapter Properties
+
+| Property | Purpose |
+|----------|---------|
+| `AdapterUrl` | URL to the JavaScript adapter file |
+| `ProviderAlias` | Provider identifier for adapter lookup |
+| `MethodAlias` | Method identifier passed to adapter |
+| `JsSdkUrl` | URL to provider's SDK (Stripe.js, Braintree, etc.) |
+| `SdkConfiguration` | Provider-specific SDK configuration |
+| `ClientSecret` or `ClientToken` | Authentication token for SDK |
+
+### Factory Methods
+
+Use these factory methods on `PaymentSessionResult` to create properly configured sessions:
+
+| Method | Integration Type | Use When |
+|--------|-----------------|----------|
+| `Redirect(url, sessionId)` | Redirect | External payment page |
+| `HostedFields(...)` | HostedFields | Inline card fields with adapter |
+| `Widget(...)` | Widget | Embedded provider UI with adapter |
+| `DirectForm(formFields, sessionId)` | DirectForm | Custom form fields |
+
+### Adapter Interface
+
+Adapters register with `window.MerchelloPaymentAdapters` and must implement:
+
+```javascript
+window.MerchelloPaymentAdapters['provider-alias'] = {
+    // Render payment UI into container
+    async render(container, session, checkout) { },
+
+    // Submit payment - called when user clicks Pay
+    // Returns: { success: boolean, error?: string, transactionId?: string }
+    async submit(invoiceId, options) { },
+
+    // Cleanup when switching methods
+    teardown() { }
+};
+```
+
+### Built-in Adapters
+
+| Provider | Adapter URL |
+|----------|-------------|
+| Stripe | `/_content/Merchello/js/checkout/adapters/stripe-payment-adapter.js` |
+| Braintree | `/_content/Merchello/js/checkout/adapters/braintree-payment-adapter.js` |
+| PayPal | `/_content/Merchello/js/checkout/adapters/paypal-payment-adapter.js` |
+
+### RCL Requirement for Third-Party Providers
+
+Third-party payment providers that include JavaScript adapters **must be Razor Class Libraries (RCL)**, not plain class libraries. RCLs serve static files from `/_content/{AssemblyName}/` path.
+
+```csharp
+// Third-party provider adapter URL pattern
+"/_content/MyCompany.Merchello.MyProvider/adapters/myprovider-payment-adapter.js"
+```
+
+### Method Icons
+
+Providers return `IconHtml` in `PaymentMethodDefinition` to provide custom SVG icons for each payment method. The checkout displays these icons without any hard-coded icon mappings.
 
 ## Design Decisions
 
@@ -71,10 +153,38 @@ PaymentProvider (Stripe)
 - Auto-discovered - no manual DI registration
 
 ### Built-in Providers
-- **Manual Payment** (`Providers/BuiltIn/ManualPaymentProvider.cs`) - records offline payments
+
+#### Manual Payment
+- Location: `Providers/BuiltIn/ManualPaymentProvider.cs`
+- Records offline payments (cash, cheque, bank transfer)
 - Auto-enabled on every startup via `EnsureBuiltInPaymentProvidersHandler`
 - Hidden from checkout by default (`ShowInCheckoutByDefault = false`)
-- Follows same pattern as Flat Rate Shipping Provider
+
+#### Stripe
+- Location: `Providers/Stripe/StripePaymentProvider.cs`
+- NuGet: `Stripe.net`
+- Methods: Cards (Redirect or Hosted Fields), Apple Pay, Google Pay, Link
+- Supports refunds, partial refunds, auth-and-capture
+
+#### PayPal
+- Location: `Providers/PayPal/PayPalPaymentProvider.cs`
+- NuGet: `PayPalServerSDK` (v1.1.1+)
+- Methods: PayPal (Widget, Express Checkout), Pay Later (Widget)
+- Configuration: Client ID, Client Secret, Webhook ID, optional Brand Name
+- Webhook endpoint: `/umbraco/merchello/webhooks/payments/paypal`
+- Required webhook events:
+  - `CHECKOUT.ORDER.APPROVED`
+  - `PAYMENT.CAPTURE.COMPLETED`
+  - `PAYMENT.CAPTURE.DENIED`
+  - `PAYMENT.CAPTURE.REFUNDED`
+- Supports refunds, partial refunds, auth-and-capture
+- Pay Later available in US, UK, AU, FR, DE, ES, IT
+
+#### Braintree
+- Location: `Providers/Braintree/BraintreePaymentProvider.cs`
+- NuGet: `Braintree`
+- Methods: Cards (Hosted Fields), PayPal, Apple Pay, Venmo
+- Supports refunds, partial refunds, auth-and-capture
 
 ### Method Settings
 - Created on-demand when enabling/disabling methods
@@ -92,6 +202,40 @@ PaymentProvider (Stripe)
 - Customer clicks → Provider handles auth → Returns payment token + customer data
 - Order created immediately, skip to confirmation
 - Processed via `ProcessExpressCheckoutAsync()`
+
+### Method Type & Deduplication
+
+When multiple providers offer the same payment method (e.g., Stripe and Braintree both offering Apple Pay), only one should appear at checkout to avoid duplicate buttons.
+
+**PaymentMethodType Enum:**
+```csharp
+public enum PaymentMethodType
+{
+    Cards = 0,          // Credit/Debit cards
+    ApplePay = 10,      // Apple Pay
+    GooglePay = 20,     // Google Pay
+    PayPal = 30,        // PayPal
+    Link = 40,          // Stripe Link
+    BuyNowPayLater = 50,// Klarna, Afterpay, etc.
+    BankTransfer = 60,  // Direct bank transfer
+    Manual = 100,       // Offline payment
+    Custom = 999        // Not deduplicated
+}
+```
+
+**Deduplication Rules:**
+- Each `PaymentMethodDefinition` declares its `MethodType`
+- At checkout, methods are grouped by `MethodType`
+- For each type, only the method with the **lowest SortOrder** is shown
+- Methods with `null` or `Custom` type are NOT deduplicated
+
+**Admin Controls Priority:**
+- Enable/disable specific methods per provider
+- Adjust method sort order (lower = higher priority)
+
+**Example:** If both Stripe and Braintree have Apple Pay enabled:
+- Stripe Apple Pay: SortOrder = 5 → **Shown** (lower)
+- Braintree Apple Pay: SortOrder = 10 → Hidden
 
 ### Refunds
 - Stored as `Payment` records with negative `Amount`
@@ -161,6 +305,10 @@ src/Merchello.Core/Payments/
 │   │   └── ManualPaymentProvider.cs      # Built-in, auto-enabled on startup
 │   ├── Stripe/
 │   │   └── StripePaymentProvider.cs      # Built-in Stripe provider
+│   ├── PayPal/
+│   │   └── PayPalPaymentProvider.cs      # Built-in PayPal provider
+│   ├── Braintree/
+│   │   └── BraintreePaymentProvider.cs   # Built-in Braintree provider
 │   ├── IPaymentProvider.cs
 │   ├── PaymentProviderBase.cs
 │   ├── PaymentProviderMetadata.cs
@@ -170,8 +318,9 @@ src/Merchello.Core/Payments/
 │   ├── PaymentProviderManager.cs
 │   └── RegisteredPaymentProvider.cs
 ├── Models/
-│   ├── PaymentMethodDefinition.cs          # NEW
-│   ├── PaymentMethodSetting.cs             # NEW
+│   ├── PaymentMethodDefinition.cs          # Method definition with MethodType
+│   ├── PaymentMethodType.cs                # Enum for deduplication
+│   ├── PaymentMethodSetting.cs             # Persisted method settings
 │   ├── ExpressCheckoutRequest.cs           # NEW
 │   ├── ExpressCheckoutResult.cs            # NEW
 │   ├── ExpressCheckoutCustomerData.cs      # NEW

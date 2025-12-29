@@ -411,11 +411,13 @@ public class PaymentProviderManager(
                     MethodAlias = methodDef.Alias,
                     DisplayName = methodSetting?.DisplayNameOverride ?? methodDef.DisplayName,
                     Icon = methodDef.Icon,
+                    IconHtml = methodDef.IconHtml,
                     Description = methodDef.Description,
                     IntegrationType = methodDef.IntegrationType,
                     IsExpressCheckout = methodDef.IsExpressCheckout,
                     SortOrder = methodSetting?.SortOrder ?? methodDef.DefaultSortOrder,
-                    ShowInCheckout = methodSetting?.ShowInCheckout ?? methodDef.ShowInCheckoutByDefault
+                    ShowInCheckout = methodSetting?.ShowInCheckout ?? methodDef.ShowInCheckoutByDefault,
+                    MethodType = methodDef.MethodType
                 });
             }
         }
@@ -431,7 +433,8 @@ public class PaymentProviderManager(
         CancellationToken cancellationToken = default)
     {
         var allMethods = await GetEnabledPaymentMethodsAsync(cancellationToken);
-        return allMethods.Where(m => m.IsExpressCheckout).ToList();
+        var expressMethods = allMethods.Where(m => m.IsExpressCheckout).ToList();
+        return DeduplicateByMethodType(expressMethods);
     }
 
     /// <inheritdoc />
@@ -439,7 +442,8 @@ public class PaymentProviderManager(
         CancellationToken cancellationToken = default)
     {
         var allMethods = await GetEnabledPaymentMethodsAsync(cancellationToken);
-        return allMethods.Where(m => m.ShowInCheckout).ToList();
+        var checkoutMethods = allMethods.Where(m => m.ShowInCheckout).ToList();
+        return DeduplicateByMethodType(checkoutMethods);
     }
 
     /// <inheritdoc />
@@ -447,7 +451,160 @@ public class PaymentProviderManager(
         CancellationToken cancellationToken = default)
     {
         var allMethods = await GetEnabledPaymentMethodsAsync(cancellationToken);
-        return allMethods.Where(m => !m.IsExpressCheckout).ToList();
+        var standardMethods = allMethods.Where(m => !m.IsExpressCheckout).ToList();
+        return DeduplicateByMethodType(standardMethods);
+    }
+
+    /// <inheritdoc />
+    public async Task<CheckoutPaymentPreviewDto> GetCheckoutPreviewAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var enabledProviders = await GetEnabledProvidersAsync(cancellationToken);
+        var allMethods = new List<CheckoutMethodPreviewDto>();
+
+        // Build list of all enabled methods with provider context
+        foreach (var registered in enabledProviders)
+        {
+            var availableMethods = registered.Provider.GetAvailablePaymentMethods();
+            var methodSettings = registered.Setting?.MethodSettings ?? [];
+
+            foreach (var methodDef in availableMethods)
+            {
+                var methodSetting = methodSettings.FirstOrDefault(ms =>
+                    string.Equals(ms.MethodAlias, methodDef.Alias, StringComparison.OrdinalIgnoreCase));
+
+                // Skip disabled methods
+                if (methodSetting != null && !methodSetting.IsEnabled)
+                {
+                    continue;
+                }
+
+                // Skip methods not shown in checkout
+                var showInCheckout = methodSetting?.ShowInCheckout ?? methodDef.ShowInCheckoutByDefault;
+                if (!showInCheckout)
+                {
+                    continue;
+                }
+
+                allMethods.Add(new CheckoutMethodPreviewDto
+                {
+                    ProviderAlias = registered.Metadata.Alias,
+                    ProviderDisplayName = registered.DisplayName,
+                    ProviderSettingId = registered.Setting?.Id ?? Guid.Empty,
+                    MethodAlias = methodDef.Alias,
+                    DisplayName = methodSetting?.DisplayNameOverride ?? methodDef.DisplayName,
+                    Icon = methodDef.Icon,
+                    MethodType = methodDef.MethodType,
+                    SortOrder = methodSetting?.SortOrder ?? methodDef.DefaultSortOrder,
+                    IsActive = true // Will be updated during deduplication
+                });
+            }
+        }
+
+        // Sort by SortOrder then DisplayName
+        var sortedMethods = allMethods
+            .OrderBy(m => m.SortOrder)
+            .ThenBy(m => m.DisplayName)
+            .ToList();
+
+        // Apply deduplication and track winners/losers
+        var expressMethods = new List<CheckoutMethodPreviewDto>();
+        var standardMethods = new List<CheckoutMethodPreviewDto>();
+        var hiddenMethods = new List<CheckoutMethodPreviewDto>();
+
+        // Track winners per MethodType for express and standard separately
+        var expressWinners = new Dictionary<PaymentMethodType, CheckoutMethodPreviewDto>();
+        var standardWinners = new Dictionary<PaymentMethodType, CheckoutMethodPreviewDto>();
+
+        // First pass: identify winners (methods with lowest sort order per type)
+        foreach (var method in sortedMethods)
+        {
+            // Get the provider's available methods to check if this is express checkout
+            var provider = enabledProviders.FirstOrDefault(p =>
+                string.Equals(p.Metadata.Alias, method.ProviderAlias, StringComparison.OrdinalIgnoreCase));
+            var methodDef = provider?.Provider.GetAvailablePaymentMethods()
+                .FirstOrDefault(m => string.Equals(m.Alias, method.MethodAlias, StringComparison.OrdinalIgnoreCase));
+
+            var isExpress = methodDef?.IsExpressCheckout ?? false;
+
+            if (method.MethodType is null or PaymentMethodType.Custom)
+            {
+                // Not deduplicated - always active
+                if (isExpress)
+                    expressMethods.Add(method);
+                else
+                    standardMethods.Add(method);
+            }
+            else
+            {
+                var winners = isExpress ? expressWinners : standardWinners;
+                var targetList = isExpress ? expressMethods : standardMethods;
+
+                if (!winners.ContainsKey(method.MethodType.Value))
+                {
+                    // First one wins (lowest sort order)
+                    winners[method.MethodType.Value] = method;
+                    targetList.Add(method);
+                }
+                else
+                {
+                    // This one is outranked
+                    var winner = winners[method.MethodType.Value];
+                    method.IsActive = false;
+                    method.OutrankedBy = winner.ProviderDisplayName;
+                    hiddenMethods.Add(method);
+                }
+            }
+        }
+
+        return new CheckoutPaymentPreviewDto
+        {
+            ExpressMethods = expressMethods,
+            StandardMethods = standardMethods,
+            HiddenMethods = hiddenMethods
+        };
+    }
+
+    /// <summary>
+    /// Deduplicates payment methods by MethodType.
+    /// For methods with a defined type (not null/Custom), only the one with lowest SortOrder is kept.
+    /// This prevents duplicate buttons when multiple providers offer the same payment method
+    /// (e.g., both Stripe and Braintree offering Apple Pay).
+    /// </summary>
+    private List<PaymentMethodDto> DeduplicateByMethodType(List<PaymentMethodDto> methods)
+    {
+        var result = new List<PaymentMethodDto>();
+        var seenMethodTypes = new Dictionary<PaymentMethodType, PaymentMethodDto>();
+
+        foreach (var method in methods.OrderBy(m => m.SortOrder).ThenBy(m => m.DisplayName))
+        {
+            // Methods without a MethodType or with Custom type are not deduplicated
+            if (method.MethodType is null or PaymentMethodType.Custom)
+            {
+                result.Add(method);
+                continue;
+            }
+
+            // For typed methods, only include the first one (lowest sort order)
+            if (!seenMethodTypes.TryGetValue(method.MethodType.Value, out var existingMethod))
+            {
+                seenMethodTypes[method.MethodType.Value] = method;
+                result.Add(method);
+            }
+            else
+            {
+                // Log that this method was hidden due to deduplication
+                logger.LogDebug(
+                    "Payment method '{MethodAlias}' from provider '{ProviderAlias}' hidden - " +
+                    "same type ({MethodType}) already provided by '{ExistingProviderAlias}' with lower sort order",
+                    method.MethodAlias,
+                    method.ProviderAlias,
+                    method.MethodType,
+                    existingMethod.ProviderAlias);
+            }
+        }
+
+        return result;
     }
 
     /// <inheritdoc />

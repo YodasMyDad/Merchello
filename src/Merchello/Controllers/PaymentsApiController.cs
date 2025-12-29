@@ -35,7 +35,7 @@ public class PaymentsApiController(
 
         if (!invoiceExists)
         {
-            return NotFound($"Invoice '{invoiceId}' not found.");
+            return NotFound("Invoice not found.");
         }
 
         var payments = await paymentService.GetPaymentsForInvoiceAsync(invoiceId, cancellationToken);
@@ -79,7 +79,7 @@ public class PaymentsApiController(
 
         if (invoice == null)
         {
-            return NotFound($"Invoice '{invoiceId}' not found.");
+            return NotFound("Invoice not found.");
         }
 
         var payments = await paymentService.GetPaymentsForInvoiceAsync(invoiceId, cancellationToken);

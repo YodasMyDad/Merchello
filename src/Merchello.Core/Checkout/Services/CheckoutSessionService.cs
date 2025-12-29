@@ -52,8 +52,20 @@ public class CheckoutSessionService(IHttpContextAccessor httpContextAccessor) : 
     {
         var checkoutSession = await GetSessionAsync(basketId, ct);
 
+        // Determine new shipping address
+        var newShippingAddress = sameAsBilling ? billing : (shipping ?? billing);
+
+        // If shipping country changed, clear shipping selections as they may no longer be valid
+        var oldShippingCountry = checkoutSession.ShippingAddress.CountryCode;
+        var newShippingCountry = newShippingAddress.CountryCode;
+        if (!string.Equals(oldShippingCountry, newShippingCountry, StringComparison.OrdinalIgnoreCase))
+        {
+            checkoutSession.SelectedShippingOptions.Clear();
+            checkoutSession.SelectedDeliveryDates.Clear();
+        }
+
         checkoutSession.BillingAddress = billing;
-        checkoutSession.ShippingAddress = sameAsBilling ? billing : (shipping ?? billing);
+        checkoutSession.ShippingAddress = newShippingAddress;
         checkoutSession.ShippingSameAsBilling = sameAsBilling;
 
         SaveSession(basketId, checkoutSession);

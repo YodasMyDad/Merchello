@@ -12,6 +12,7 @@ using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shared.Services;
 using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
@@ -27,17 +28,42 @@ public class PaymentService(
     PaymentFactory paymentFactory,
     ICurrencyService currencyService,
     IMerchelloNotificationPublisher notificationPublisher,
+    IMemoryCache memoryCache,
     IOptions<MerchelloSettings> settings,
     ILogger<PaymentService> logger) : IPaymentService
 {
     private readonly MerchelloSettings _settings = settings.Value;
     private readonly ICurrencyService _currencyService = currencyService;
 
+    /// <summary>
+    /// Rate limit: max 10 payment session requests per minute per invoice.
+    /// </summary>
+    private const int MaxPaymentSessionsPerMinute = 10;
+
     /// <inheritdoc />
     public async Task<PaymentSessionResult> CreatePaymentSessionAsync(
         CreatePaymentSessionParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        // Rate limit payment session creation per invoice
+        var cacheKey = $"payment_rate_{parameters.InvoiceId}";
+        var count = memoryCache.GetOrCreate(cacheKey, entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1);
+            return 0;
+        });
+
+        if (count >= MaxPaymentSessionsPerMinute)
+        {
+            logger.LogWarning(
+                "Rate limit exceeded for payment sessions on invoice {InvoiceId}. Count: {Count}",
+                parameters.InvoiceId, count);
+            return PaymentSessionResult.Failed(
+                "Too many payment attempts. Please wait a moment before trying again.");
+        }
+
+        memoryCache.Set(cacheKey, count + 1, TimeSpan.FromMinutes(1));
+
         // Get the provider
         var registeredProvider = await providerManager.GetProviderAsync(parameters.ProviderAlias, requireEnabled: true, cancellationToken);
         if (registeredProvider == null)
@@ -56,7 +82,7 @@ public class PaymentService(
 
         if (invoice == null)
         {
-            return PaymentSessionResult.Failed($"Invoice '{(object)parameters.InvoiceId}' not found.");
+            return PaymentSessionResult.Failed("Invoice not found.");
         }
 
         // Create the payment request
@@ -198,7 +224,7 @@ public class PaymentService(
             {
                 result.Messages.Add(new ResultMessage
                 {
-                    Message = $"Invoice '{(object)parameters.InvoiceId}' not found.",
+                    Message = "Invoice not found.",
                     ResultMessageType = ResultMessageType.Error
                 });
                 return;
@@ -241,12 +267,43 @@ public class PaymentService(
                 riskScoreSource: parameters.RiskScoreSource);
 
             db.Payments.Add(payment);
-            await db.SaveChangesAsync(cancellationToken);
 
-            result.ResultObject = payment;
-            logger.LogInformation(
-                "Payment recorded: {PaymentId} for invoice {InvoiceId}, amount {Amount}, transaction {TransactionId}",
-                payment.Id, parameters.InvoiceId, parameters.Amount, parameters.TransactionId);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+
+                result.ResultObject = payment;
+                logger.LogInformation(
+                    "Payment recorded: {PaymentId} for invoice {InvoiceId}, amount {Amount}, transaction {TransactionId}",
+                    payment.Id, parameters.InvoiceId, parameters.Amount, parameters.TransactionId);
+            }
+            catch (DbUpdateException) when (!string.IsNullOrEmpty(parameters.TransactionId))
+            {
+                // Unique constraint violation on TransactionId - concurrent webhook created duplicate
+                // Fetch the existing payment and return it (idempotent behavior)
+                db.ChangeTracker.Clear();
+                var concurrentPayment = await db.Payments
+                    .FirstOrDefaultAsync(p => p.TransactionId == parameters.TransactionId, cancellationToken);
+
+                if (concurrentPayment != null)
+                {
+                    logger.LogWarning(
+                        "Concurrent duplicate payment transaction {TransactionId} for invoice {InvoiceId}. Returning existing payment.",
+                        parameters.TransactionId, parameters.InvoiceId);
+
+                    result.ResultObject = concurrentPayment;
+                    result.Messages.Add(new ResultMessage
+                    {
+                        Message = "Payment already recorded for this transaction.",
+                        ResultMessageType = ResultMessageType.Warning
+                    });
+                }
+                else
+                {
+                    // DbUpdateException for another reason - rethrow
+                    throw;
+                }
+            }
         });
         scope.Complete();
 
@@ -720,7 +777,7 @@ public class PaymentService(
             {
                 result.Messages.Add(new ResultMessage
                 {
-                    Message = $"Invoice '{(object)parameters.InvoiceId}' not found.",
+                    Message = "Invoice not found.",
                     ResultMessageType = ResultMessageType.Error
                 });
                 return;

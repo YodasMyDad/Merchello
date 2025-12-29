@@ -225,6 +225,16 @@ Cover GetShippingOptionsForBasket, per-group shipping selection, and product-lev
 ### 8.6 Checkout Flow
 Document complete flow: Basket → OrderGrouping → ShippingSelection → Payment → Invoice → Orders → Shipments.
 
+### 8.7 Checkout Analytics
+Document the analytics-agnostic event emitter system for checkout funnel tracking:
+- Event emitter API: `window.MerchelloCheckout.on()`, `onAny()`, `off()`
+- Available events: `checkout:begin`, `checkout:contact_complete`, `checkout:coupon_applied`, `checkout:coupon_removed`, `checkout:shipping_selected`, `checkout:payment_initiated`, `checkout:purchase`, `checkout:error`
+- `CustomScriptUrl` setting in `CheckoutSettings` for loading user's analytics script
+- Built-in helper methods: `mapToGA4Item()`, `mapToMetaContents()`, `getContentIds()`, `getTotalQuantity()`
+- GA4 event mapping: `begin_checkout`, `add_shipping_info`, `add_payment_info`, `purchase`
+- Meta Pixel event mapping: `InitiateCheckout`, `AddPaymentInfo`, `Purchase`
+- Example implementation for GTM/GA4 and Facebook Pixel in `Merchello.Site`
+
 ---
 
 ## 9. Invoices & Orders
