@@ -46,6 +46,8 @@ Methods can be individually enabled/disabled and have different integration type
 | `ExpressCheckoutRequest` | Express checkout request with customer data |
 | `ExpressCheckoutResult` | Express checkout processing result |
 | `PaymentIntegrationType` | How method integrates with checkout UI |
+| `WebhookEventTemplate` | Template for simulating webhook events |
+| `TestWebhookParameters` | Parameters for generating test webhook payloads |
 
 ## Payment Adapter Architecture
 
@@ -101,6 +103,10 @@ window.MerchelloPaymentAdapters['provider-alias'] = {
     // Submit payment - called when user clicks Pay
     // Returns: { success: boolean, error?: string, transactionId?: string }
     async submit(invoiceId, options) { },
+
+    // Get payment token without submitting (for backoffice testing)
+    // Returns: { success: boolean, nonce?: string, error?: string, isButtonFlow?: boolean }
+    async tokenize() { },
 
     // Cleanup when switching methods
     teardown() { }
@@ -247,6 +253,13 @@ public enum PaymentMethodType
 - Each provider validates own signatures
 - Idempotency via `TransactionId` uniqueness
 
+### Webhook Testing (Backoffice)
+Providers can implement webhook testing to allow admins to simulate webhook events without external tools:
+- `GetWebhookEventTemplatesAsync()` - Returns available events (payment completed, refunded, dispute, etc.)
+- `GenerateTestWebhookPayloadAsync()` - Generates provider-specific test payloads
+- Built-in providers (Stripe, Braintree, PayPal) include comprehensive templates
+- Test modal in backoffice allows selecting event type and simulating webhook processing
+
 ### Invoice Status
 - `InvoicePaymentStatus`: `Unpaid`, `AwaitingPayment`, `PartiallyPaid`, `Paid`, `Refunded`, `PartiallyRefunded`
 - Calculated from Payment records
@@ -336,7 +349,9 @@ src/Merchello.Core/Payments/
 │   ├── CheckoutFormField.cs
 │   ├── RefundRequest.cs
 │   ├── RefundResult.cs
-│   └── WebhookProcessingResult.cs
+│   ├── WebhookProcessingResult.cs
+│   ├── WebhookEventTemplate.cs            # Webhook test templates
+│   └── TestWebhookParameters.cs           # Test webhook parameters
 ├── Services/
 │   ├── Interfaces/IPaymentService.cs
 │   └── PaymentService.cs
@@ -373,6 +388,15 @@ src/Merchello/Controllers/
 | GET | `/api/v1/payment-providers/{id}/methods` | Methods for a provider |
 | PUT | `/api/v1/payment-providers/{id}/methods/{alias}` | Enable/disable method |
 
+### Backoffice Testing
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/api/v1/payment-providers/{id}/test` | Create test payment session |
+| POST | `/api/v1/payment-providers/{id}/test/process-payment` | Process test payment |
+| GET | `/api/v1/payment-providers/{id}/test/express-config` | Get express checkout config |
+| GET | `/api/v1/payment-providers/{id}/test/webhook-events` | Get available webhook templates |
+| POST | `/api/v1/payment-providers/{id}/test/simulate-webhook` | Simulate webhook event |
+
 ## Testing Checklist
 
 - [x] Provider discovery finds all `IPaymentProvider` implementations
@@ -388,3 +412,6 @@ src/Merchello/Controllers/
 - [x] Manual payment recording works
 - [x] Provider enable/disable/ordering works
 - [ ] Method enable/disable/ordering works
+- [x] Backoffice test modal with 4 tabs (Session, Payment Form, Express, Webhooks)
+- [x] Webhook simulation generates provider-specific payloads
+- [x] Payment adapters support tokenize() for backoffice testing

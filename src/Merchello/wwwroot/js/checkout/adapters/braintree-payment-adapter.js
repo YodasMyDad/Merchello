@@ -12,6 +12,7 @@
     // Store Braintree instances
     let dropinInstance = null;
     let currentSession = null;
+    let currentContainer = null;
 
     /**
      * Braintree Payment Adapter
@@ -27,6 +28,7 @@
         async render(container, session, checkout) {
             try {
                 currentSession = session;
+                currentContainer = container;
                 const config = session.sdkConfiguration || {};
 
                 // Validate required config
@@ -48,15 +50,27 @@
                 `;
 
                 // Build Drop-in options
+                // Note: We pass the actual DOM element instead of a selector string
+                // because the container may be inside Shadow DOM where document.querySelector won't find it
+                const dropinContainer = container.querySelector('#dropin-container');
+                if (!dropinContainer) {
+                    throw new Error('Drop-in container element not found');
+                }
+
                 const dropinOptions = {
                     authorization: session.clientToken,
-                    container: '#dropin-container',
+                    container: dropinContainer,
                     card: config.dropIn?.card || {
                         vault: {
                             vaultCard: false
                         }
                     }
                 };
+
+                // Add 3D Secure if configured
+                if (config.dropIn?.threeDSecure) {
+                    dropinOptions.threeDSecure = true;
+                }
 
                 // Add PayPal if configured
                 if (config.dropIn?.paypal) {
@@ -85,6 +99,73 @@
         },
 
         /**
+         * Get payment method token/nonce without submitting
+         * Used for test mode to get the nonce separately
+         * @returns {Promise<Object>} Payment method payload with nonce
+         */
+        async tokenize() {
+            if (!dropinInstance) {
+                throw new Error('Braintree not initialized. Call render() first.');
+            }
+
+            // Use stored container reference for Shadow DOM compatibility
+            const errorContainer = currentContainer?.querySelector('#dropin-errors');
+            if (errorContainer) {
+                errorContainer.textContent = '';
+                errorContainer.classList.add('hidden');
+            }
+
+            try {
+                const config = currentSession?.sdkConfiguration || {};
+
+                // Build request options for 3D Secure if enabled
+                const requestOptions = {};
+                if (config.dropIn?.threeDSecure && config.amount) {
+                    requestOptions.threeDSecure = {
+                        amount: String(config.amount),
+                        email: 'test@example.com', // For testing
+                        billingAddress: {
+                            givenName: 'Test',
+                            surname: 'User',
+                            phoneNumber: '0000000000',
+                            streetAddress: '123 Test St',
+                            locality: 'Test City',
+                            region: 'TS',
+                            postalCode: '12345',
+                            countryCodeAlpha2: 'US'
+                        }
+                    };
+                }
+
+                const payload = await dropinInstance.requestPaymentMethod(requestOptions);
+                return {
+                    success: true,
+                    nonce: payload.nonce,
+                    type: payload.type,
+                    details: payload.details,
+                    deviceData: payload.deviceData || '',
+                    liabilityShifted: payload.liabilityShifted,
+                    liabilityShiftPossible: payload.liabilityShiftPossible
+                };
+            } catch (error) {
+                let errorMessage = error.message;
+                if (error.message === 'No payment method is available.') {
+                    errorMessage = 'Please enter your payment details.';
+                }
+
+                if (errorContainer) {
+                    errorContainer.textContent = errorMessage;
+                    errorContainer.classList.remove('hidden');
+                }
+
+                return {
+                    success: false,
+                    error: errorMessage
+                };
+            }
+        },
+
+        /**
          * Submit the payment
          * @param {string} invoiceId - The invoice ID being paid
          * @param {Object} options - Additional options
@@ -95,7 +176,8 @@
                 throw new Error('Braintree not initialized. Call render() first.');
             }
 
-            const errorContainer = document.getElementById('dropin-errors');
+            // Use stored container reference for Shadow DOM compatibility
+            const errorContainer = currentContainer?.querySelector('#dropin-errors');
             if (errorContainer) {
                 errorContainer.textContent = '';
                 errorContainer.classList.add('hidden');
@@ -165,6 +247,7 @@
                 dropinInstance = null;
             }
             currentSession = null;
+            currentContainer = null;
         },
 
         /**

@@ -196,5 +196,29 @@ public interface IPaymentProvider
         string payload,
         IDictionary<string, string> headers,
         CancellationToken cancellationToken = default);
+
+    // =====================================================
+    // Webhook Testing (for backoffice simulation)
+    // =====================================================
+
+    /// <summary>
+    /// Get available webhook event templates that can be simulated.
+    /// Used by the backoffice to show which events can be tested.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>List of webhook events that can be simulated.</returns>
+    ValueTask<IReadOnlyList<WebhookEventTemplate>> GetWebhookEventTemplatesAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generate a test webhook payload for simulation.
+    /// The payload should be in the provider's expected format.
+    /// </summary>
+    /// <param name="parameters">Parameters for generating the test payload.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Generated payload and headers for webhook simulation.</returns>
+    ValueTask<(string Payload, IDictionary<string, string> Headers)> GenerateTestWebhookPayloadAsync(
+        TestWebhookParameters parameters,
+        CancellationToken cancellationToken = default);
 }
 

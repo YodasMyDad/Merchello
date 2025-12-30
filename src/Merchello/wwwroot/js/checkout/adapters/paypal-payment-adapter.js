@@ -11,6 +11,7 @@
 
     // Store PayPal instance
     let currentSession = null;
+    let currentContainer = null;
     let paypalButtonRendered = false;
 
     /**
@@ -27,6 +28,7 @@
         async render(container, session, checkout) {
             try {
                 currentSession = session;
+                currentContainer = container;
                 const config = session.sdkConfiguration || {};
 
                 // Wait for PayPal SDK to be available
@@ -104,7 +106,8 @@
                                     window.location.href = result.redirectUrl;
                                 }
                             } else {
-                                const errorContainer = document.getElementById('paypal-errors');
+                                // Use currentContainer for Shadow DOM compatibility
+                                const errorContainer = currentContainer?.querySelector('#paypal-errors');
                                 if (errorContainer) {
                                     errorContainer.textContent = result.errorMessage || 'Payment capture failed';
                                     errorContainer.classList.remove('hidden');
@@ -114,7 +117,8 @@
                             return result;
                         } catch (error) {
                             console.error('Error capturing PayPal order:', error);
-                            const errorContainer = document.getElementById('paypal-errors');
+                            // Use currentContainer for Shadow DOM compatibility
+                            const errorContainer = currentContainer?.querySelector('#paypal-errors');
                             if (errorContainer) {
                                 errorContainer.textContent = error.message || 'Payment failed';
                                 errorContainer.classList.remove('hidden');
@@ -131,13 +135,14 @@
                     // Handle errors
                     onError: function(err) {
                         console.error('PayPal button error:', err);
-                        const errorContainer = document.getElementById('paypal-errors');
+                        // Use currentContainer for Shadow DOM compatibility
+                        const errorContainer = currentContainer?.querySelector('#paypal-errors');
                         if (errorContainer) {
                             errorContainer.textContent = 'PayPal encountered an error. Please try again.';
                             errorContainer.classList.remove('hidden');
                         }
                     }
-                }).render('#paypal-button-container');
+                }).render(container.querySelector('#paypal-button-container'));
 
                 paypalButtonRendered = true;
                 console.log('PayPal button rendered successfully');
@@ -146,6 +151,21 @@
                 this.showError(container, error.message);
                 throw error;
             }
+        },
+
+        /**
+         * Tokenize for PayPal - not applicable
+         * PayPal uses a button-based flow where tokenization and submission are combined.
+         * @returns {Promise<Object>} Result indicating to use the button
+         */
+        async tokenize() {
+            // PayPal doesn't have a separate tokenization step
+            // The button flow handles everything
+            return {
+                success: false,
+                error: 'PayPal uses a button-based flow. Click the PayPal button to complete payment.',
+                isButtonFlow: true
+            };
         },
 
         /**
@@ -173,12 +193,14 @@
         teardown() {
             // PayPal buttons are rendered once and managed by PayPal SDK
             // Clearing the container is sufficient
-            const container = document.getElementById('paypal-button-container');
-            if (container) {
-                container.innerHTML = '';
+            // Use currentContainer for Shadow DOM compatibility
+            const buttonContainer = currentContainer?.querySelector('#paypal-button-container');
+            if (buttonContainer) {
+                buttonContainer.innerHTML = '';
             }
             paypalButtonRendered = false;
             currentSession = null;
+            currentContainer = null;
         },
 
         /**

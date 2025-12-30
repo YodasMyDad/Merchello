@@ -14,6 +14,7 @@
     let elementsInstance = null;
     let paymentElement = null;
     let currentSession = null;
+    let currentContainer = null;
 
     /**
      * Stripe Payment Adapter
@@ -29,6 +30,7 @@
         async render(container, session, checkout) {
             try {
                 currentSession = session;
+                currentContainer = container;
                 const sdkConfig = session.sdkConfiguration || {};
 
                 // Validate required config
@@ -74,11 +76,19 @@
                     layout: 'tabs'
                 });
 
-                paymentElement.mount('#stripe-payment-element');
+                // Mount to actual DOM element for Shadow DOM compatibility
+                const paymentElementContainer = container.querySelector('#stripe-payment-element');
+                if (!paymentElementContainer) {
+                    throw new Error('Payment element container not found');
+                }
+                paymentElement.mount(paymentElementContainer);
 
                 // Handle validation errors
+                // Note: Use currentContainer for Shadow DOM compatibility
                 paymentElement.on('change', function(event) {
-                    const errorContainer = document.getElementById('stripe-payment-errors');
+                    const errorContainer = currentContainer?.querySelector('#stripe-payment-errors');
+                    if (!errorContainer) return;
+
                     if (event.error) {
                         errorContainer.textContent = event.error.message;
                         errorContainer.classList.remove('hidden');
@@ -97,6 +107,73 @@
         },
 
         /**
+         * Validate and confirm the payment element (tokenize equivalent for Stripe)
+         * For Stripe, this actually confirms the PaymentIntent since there's no separate tokenization step
+         * @returns {Promise<Object>} Payment result with paymentIntent details
+         */
+        async tokenize() {
+            if (!stripeInstance || !elementsInstance) {
+                throw new Error('Stripe not initialized. Call render() first.');
+            }
+
+            // Use stored container reference for Shadow DOM compatibility
+            const errorContainer = currentContainer?.querySelector('#stripe-payment-errors');
+            if (errorContainer) {
+                errorContainer.textContent = '';
+                errorContainer.classList.add('hidden');
+            }
+
+            try {
+                const sdkConfig = currentSession?.sdkConfiguration || {};
+
+                // Confirm the payment (Stripe combines validation and confirmation)
+                const { error, paymentIntent } = await stripeInstance.confirmPayment({
+                    elements: elementsInstance,
+                    confirmParams: {
+                        return_url: sdkConfig.returnUrl || window.location.href
+                    },
+                    redirect: 'if_required'
+                });
+
+                if (error) {
+                    if (errorContainer) {
+                        errorContainer.textContent = error.message;
+                        errorContainer.classList.remove('hidden');
+                    }
+                    return {
+                        success: false,
+                        error: error.message,
+                        errorCode: error.code
+                    };
+                }
+
+                if (paymentIntent) {
+                    return {
+                        success: true,
+                        nonce: paymentIntent.id,
+                        paymentIntentId: paymentIntent.id,
+                        status: paymentIntent.status
+                    };
+                }
+
+                return {
+                    success: false,
+                    error: 'Unexpected payment state'
+                };
+            } catch (error) {
+                console.error('Stripe tokenization error:', error);
+                if (errorContainer) {
+                    errorContainer.textContent = error.message || 'Payment validation failed.';
+                    errorContainer.classList.remove('hidden');
+                }
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        },
+
+        /**
          * Submit the payment
          * @param {string} invoiceId - The invoice ID being paid
          * @param {Object} options - Additional options (returnUrl, etc.)
@@ -107,7 +184,8 @@
                 throw new Error('Stripe not initialized. Call render() first.');
             }
 
-            const errorContainer = document.getElementById('stripe-payment-errors');
+            // Use stored container reference for Shadow DOM compatibility
+            const errorContainer = currentContainer?.querySelector('#stripe-payment-errors');
             if (errorContainer) {
                 errorContainer.textContent = '';
                 errorContainer.classList.add('hidden');
@@ -186,6 +264,7 @@
             }
             elementsInstance = null;
             currentSession = null;
+            currentContainer = null;
             // Note: We keep stripeInstance to avoid re-initialization
         },
 

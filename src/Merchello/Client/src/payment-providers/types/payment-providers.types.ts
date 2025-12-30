@@ -120,10 +120,18 @@ export interface TestPaymentProviderResultDto {
   clientSecret?: string;
   /** JavaScript SDK URL for HostedFields/Widget integration types */
   javaScriptSdkUrl?: string;
+  /** URL to the payment adapter JavaScript file */
+  adapterUrl?: string;
+  /** Configuration object to pass to the JavaScript SDK */
+  sdkConfiguration?: Record<string, unknown>;
+  /** The method alias within the provider */
+  methodAlias?: string;
   /** Form fields for DirectForm integration type */
   formFields?: TestCheckoutFormFieldDto[];
   /** Session ID from the provider */
   sessionId?: string;
+  /** Test invoice ID generated for this test session */
+  testInvoiceId?: string;
   /** Error message if the test failed */
   errorMessage?: string;
   /** Error code from the provider */
@@ -229,4 +237,94 @@ export interface PaymentMethodSettingDto {
 export interface UpdatePaymentMethodSettingDto {
   /** Whether the method is enabled */
   isEnabled?: boolean;
+}
+
+// ============================================
+// Interactive Testing Types
+// ============================================
+
+/** Request to process a test payment */
+export interface ProcessTestPaymentDto {
+  /** The payment method alias */
+  methodAlias?: string;
+  /** Session ID from the payment session */
+  sessionId?: string;
+  /** Payment method token from the SDK */
+  paymentMethodToken?: string;
+  /** Form data for DirectForm integration types */
+  formData?: Record<string, string>;
+  /** Amount to charge */
+  amount?: number;
+  /** Test invoice ID from the test session */
+  testInvoiceId?: string;
+}
+
+/** Result from processing a payment */
+export interface PaymentResultDto {
+  /** Whether the payment was successful */
+  success: boolean;
+  /** Transaction ID from the provider */
+  transactionId?: string;
+  /** Amount that was charged */
+  amount?: number;
+  /** Error message if failed */
+  errorMessage?: string;
+  /** Error code from the provider */
+  errorCode?: string;
+}
+
+// ============================================
+// Webhook Testing Types
+// ============================================
+
+/** Webhook event template for simulation */
+export interface WebhookEventTemplateDto {
+  /** The provider-specific event type string */
+  eventType: string;
+  /** Human-readable display name */
+  displayName: string;
+  /** Description of what this event represents */
+  description?: string;
+  /** Category for UI grouping */
+  category: "payment" | "refund" | "dispute" | "other";
+}
+
+/** Request to simulate a webhook event */
+export interface SimulateWebhookDto {
+  /** The provider-specific event type to simulate */
+  eventType: string;
+  /** Optional transaction ID (will be auto-generated if not provided) */
+  transactionId?: string;
+  /** Optional invoice ID for the simulated event */
+  invoiceId?: string;
+  /** Amount for the simulated event */
+  amount?: number;
+  /** Optional custom payload JSON (for advanced testing) */
+  customPayload?: string;
+}
+
+/** Result from webhook simulation */
+export interface WebhookSimulationResultDto {
+  /** Whether the simulation was successful */
+  success: boolean;
+  /** Whether validation was skipped (test mode) */
+  validationSkipped: boolean;
+  /** Whether the webhook signature validation passed */
+  validationPassed: boolean;
+  /** The Merchello event type that was detected */
+  eventTypeDetected?: string;
+  /** The provider-specific event type string */
+  providerEventType?: string;
+  /** List of actions that were performed */
+  actionsPerformed: string[];
+  /** The payload that was sent to the provider */
+  payload?: string;
+  /** Error message if the simulation failed */
+  errorMessage?: string;
+  /** Transaction ID from the webhook result */
+  transactionId?: string;
+  /** Invoice ID from the webhook result */
+  invoiceId?: string;
+  /** Amount from the webhook result */
+  amount?: number;
 }

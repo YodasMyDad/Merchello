@@ -995,6 +995,243 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
     }
 
     // =====================================================
+    // Webhook Testing (Simulation)
+    // =====================================================
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Returns the Stripe webhook events that can be simulated for testing.
+    /// These match the events configured in the Stripe webhook endpoint.
+    /// </remarks>
+    public override ValueTask<IReadOnlyList<WebhookEventTemplate>> GetWebhookEventTemplatesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var templates = new List<WebhookEventTemplate>
+        {
+            new()
+            {
+                EventType = "checkout.session.completed",
+                DisplayName = "Checkout Session Completed",
+                Description = "Fired when a customer completes a Stripe Checkout session. Used for redirect-based payments.",
+                Category = WebhookEventCategory.Payment,
+                MerchelloEventType = WebhookEventType.PaymentCompleted
+            },
+            new()
+            {
+                EventType = "payment_intent.succeeded",
+                DisplayName = "Payment Intent Succeeded",
+                Description = "Fired when a PaymentIntent is successfully confirmed. Used for Payment Element and Express Checkout.",
+                Category = WebhookEventCategory.Payment,
+                MerchelloEventType = WebhookEventType.PaymentCompleted
+            },
+            new()
+            {
+                EventType = "payment_intent.payment_failed",
+                DisplayName = "Payment Intent Failed",
+                Description = "Fired when a payment attempt fails due to card decline, insufficient funds, or other errors.",
+                Category = WebhookEventCategory.Payment,
+                MerchelloEventType = WebhookEventType.PaymentFailed
+            },
+            new()
+            {
+                EventType = "charge.refunded",
+                DisplayName = "Charge Refunded",
+                Description = "Fired when a charge is refunded (full or partial). Contains refund details.",
+                Category = WebhookEventCategory.Refund,
+                MerchelloEventType = WebhookEventType.RefundCompleted
+            },
+            new()
+            {
+                EventType = "charge.dispute.created",
+                DisplayName = "Dispute Created",
+                Description = "Fired when a customer initiates a chargeback/dispute. Requires merchant response.",
+                Category = WebhookEventCategory.Dispute,
+                MerchelloEventType = WebhookEventType.DisputeOpened
+            },
+            new()
+            {
+                EventType = "charge.dispute.closed",
+                DisplayName = "Dispute Closed",
+                Description = "Fired when a dispute is resolved (won, lost, or withdrawn by customer).",
+                Category = WebhookEventCategory.Dispute,
+                MerchelloEventType = WebhookEventType.DisputeResolved
+            }
+        };
+
+        return ValueTask.FromResult<IReadOnlyList<WebhookEventTemplate>>(templates);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Generates a realistic Stripe webhook payload for testing.
+    /// The payload format matches Stripe's actual webhook format.
+    /// See: https://stripe.com/docs/webhooks#webhook-endpoint-def
+    /// </remarks>
+    public override ValueTask<(string Payload, IDictionary<string, string> Headers)> GenerateTestWebhookPayloadAsync(
+        TestWebhookParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        // If custom payload provided, use it directly
+        if (!string.IsNullOrWhiteSpace(parameters.CustomPayload))
+        {
+            return ValueTask.FromResult<(string, IDictionary<string, string>)>((
+                parameters.CustomPayload,
+                new Dictionary<string, string>
+                {
+                    ["Stripe-Signature"] = "test_signature_for_simulation"
+                }));
+        }
+
+        // Generate appropriate payload based on event type
+        var transactionId = parameters.TransactionId ?? $"pi_test_{Guid.NewGuid():N}";
+        var invoiceId = parameters.InvoiceId ?? Guid.NewGuid();
+        var amount = ConvertToStripeAmount(parameters.Amount, parameters.Currency);
+        var currency = parameters.Currency.ToLowerInvariant();
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        var dataObject = parameters.EventType switch
+        {
+            "checkout.session.completed" => GenerateCheckoutSessionPayload(transactionId, invoiceId, amount, currency),
+            "payment_intent.succeeded" => GeneratePaymentIntentPayload(transactionId, invoiceId, amount, currency, "succeeded"),
+            "payment_intent.payment_failed" => GeneratePaymentIntentPayload(transactionId, invoiceId, amount, currency, "requires_payment_method"),
+            "charge.refunded" => GenerateChargeRefundedPayload(transactionId, amount, currency),
+            "charge.dispute.created" => GenerateDisputePayload(transactionId, amount, currency, "needs_response"),
+            "charge.dispute.closed" => GenerateDisputePayload(transactionId, amount, currency, "won"),
+            _ => GeneratePaymentIntentPayload(transactionId, invoiceId, amount, currency, "succeeded")
+        };
+
+        // Build the complete webhook event structure
+        var payload = $$"""
+            {
+                "id": "evt_test_{{Guid.NewGuid():N}}",
+                "object": "event",
+                "api_version": "2024-12-18.acacia",
+                "created": {{timestamp}},
+                "data": {
+                    "object": {{dataObject}}
+                },
+                "livemode": false,
+                "pending_webhooks": 1,
+                "request": {
+                    "id": "req_test_{{Guid.NewGuid():N}}",
+                    "idempotency_key": null
+                },
+                "type": "{{parameters.EventType}}"
+            }
+            """;
+
+        var headers = new Dictionary<string, string>
+        {
+            ["Stripe-Signature"] = $"t={timestamp},v1=test_signature_for_simulation",
+            ["Content-Type"] = "application/json"
+        };
+
+        return ValueTask.FromResult<(string, IDictionary<string, string>)>((payload, headers));
+    }
+
+    private static string GenerateCheckoutSessionPayload(string transactionId, Guid invoiceId, long amount, string currency)
+    {
+        var sessionId = $"cs_test_{Guid.NewGuid():N}";
+        return $$"""
+            {
+                "id": "{{sessionId}}",
+                "object": "checkout.session",
+                "amount_subtotal": {{amount}},
+                "amount_total": {{amount}},
+                "currency": "{{currency}}",
+                "customer_email": "test@example.com",
+                "metadata": {
+                    "invoiceId": "{{invoiceId}}",
+                    "source": "merchello"
+                },
+                "mode": "payment",
+                "payment_intent": "{{transactionId}}",
+                "payment_status": "paid",
+                "status": "complete",
+                "success_url": "https://example.com/success",
+                "cancel_url": "https://example.com/cancel"
+            }
+            """;
+    }
+
+    private static string GeneratePaymentIntentPayload(string transactionId, Guid invoiceId, long amount, string currency, string status)
+    {
+        return $$"""
+            {
+                "id": "{{transactionId}}",
+                "object": "payment_intent",
+                "amount": {{amount}},
+                "amount_received": {{(status == "succeeded" ? amount : 0)}},
+                "currency": "{{currency}}",
+                "description": "Invoice #{{invoiceId}}",
+                "metadata": {
+                    "invoiceId": "{{invoiceId}}",
+                    "source": "merchello"
+                },
+                "payment_method": "pm_test_{{Guid.NewGuid():N}}",
+                "status": "{{status}}",
+                "latest_charge": "ch_test_{{Guid.NewGuid():N}}"
+            }
+            """;
+    }
+
+    private static string GenerateChargeRefundedPayload(string transactionId, long amount, string currency)
+    {
+        var chargeId = $"ch_test_{Guid.NewGuid():N}";
+        var refundId = $"re_test_{Guid.NewGuid():N}";
+        return $$"""
+            {
+                "id": "{{chargeId}}",
+                "object": "charge",
+                "amount": {{amount}},
+                "amount_refunded": {{amount}},
+                "currency": "{{currency}}",
+                "payment_intent": "{{transactionId}}",
+                "refunded": true,
+                "refunds": {
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": "{{refundId}}",
+                            "object": "refund",
+                            "amount": {{amount}},
+                            "currency": "{{currency}}",
+                            "reason": "requested_by_customer",
+                            "status": "succeeded"
+                        }
+                    ],
+                    "has_more": false,
+                    "total_count": 1
+                },
+                "status": "succeeded"
+            }
+            """;
+    }
+
+    private static string GenerateDisputePayload(string transactionId, long amount, string currency, string status)
+    {
+        var disputeId = $"dp_test_{Guid.NewGuid():N}";
+        var chargeId = $"ch_test_{Guid.NewGuid():N}";
+        return $$"""
+            {
+                "id": "{{disputeId}}",
+                "object": "dispute",
+                "amount": {{amount}},
+                "charge": "{{chargeId}}",
+                "currency": "{{currency}}",
+                "payment_intent": "{{transactionId}}",
+                "reason": "fraudulent",
+                "status": "{{status}}",
+                "evidence_details": {
+                    "due_by": {{DateTimeOffset.UtcNow.AddDays(21).ToUnixTimeSeconds()}},
+                    "has_evidence": false,
+                    "submission_count": 0
+                }
+            }
+            """;
+    }
+
+    // =====================================================
     // Helpers
     // =====================================================
 

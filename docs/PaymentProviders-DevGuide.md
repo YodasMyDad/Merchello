@@ -486,6 +486,93 @@ return WebhookProcessingResult.Successful(
 
 ---
 
+## Webhook Testing Templates
+
+Providers can implement webhook testing to allow admins to simulate webhook events from the backoffice without external tools like Stripe CLI or PayPal webhooks simulator.
+
+### Interface Methods
+
+Override these methods in your provider to enable webhook simulation:
+
+```csharp
+// Return available webhook events for this provider
+public override ValueTask<IReadOnlyList<WebhookEventTemplate>> GetWebhookEventTemplatesAsync(
+    CancellationToken cancellationToken = default)
+{
+    var templates = new List<WebhookEventTemplate>
+    {
+        new()
+        {
+            EventType = "payment.completed",           // Provider-specific event type
+            DisplayName = "Payment Completed",          // Shown in UI dropdown
+            Description = "Fired when payment succeeds", // Helpful description
+            Category = WebhookEventCategory.Payment,    // For UI grouping
+            MerchelloEventType = WebhookEventType.PaymentCompleted
+        },
+        new()
+        {
+            EventType = "payment.refunded",
+            DisplayName = "Payment Refunded",
+            Description = "Fired when a refund is processed",
+            Category = WebhookEventCategory.Refund,
+            MerchelloEventType = WebhookEventType.RefundCompleted
+        }
+        // Add more events...
+    };
+
+    return ValueTask.FromResult<IReadOnlyList<WebhookEventTemplate>>(templates);
+}
+
+// Generate realistic test payload for a given event
+public override ValueTask<(string Payload, IDictionary<string, string> Headers)>
+    GenerateTestWebhookPayloadAsync(
+        TestWebhookParameters parameters,
+        CancellationToken cancellationToken = default)
+{
+    // Support custom payload for advanced testing
+    if (!string.IsNullOrWhiteSpace(parameters.CustomPayload))
+    {
+        return ValueTask.FromResult<(string, IDictionary<string, string>)>((
+            parameters.CustomPayload,
+            new Dictionary<string, string> { ["Content-Type"] = "application/json" }));
+    }
+
+    // Generate provider-specific payload based on event type
+    var payload = parameters.EventType switch
+    {
+        "payment.completed" => GeneratePaymentCompletedPayload(parameters),
+        "payment.refunded" => GenerateRefundPayload(parameters),
+        _ => "{}"
+    };
+
+    var headers = new Dictionary<string, string>
+    {
+        ["Content-Type"] = "application/json",
+        ["X-MyProvider-Signature"] = "test_signature"
+    };
+
+    return ValueTask.FromResult<(string, IDictionary<string, string>)>((payload, headers));
+}
+```
+
+### WebhookEventCategory Enum
+
+| Category | Use For |
+|----------|---------|
+| `Payment` | Payment success/failure events |
+| `Refund` | Refund processed events |
+| `Dispute` | Chargeback/dispute events |
+| `Other` | Other event types |
+
+### Best Practices
+
+1. **Match real formats** - Generated payloads should match your provider's actual webhook format
+2. **Include all fields** - Include fields your `ProcessWebhookAsync` method expects
+3. **Use realistic IDs** - Generate realistic-looking transaction IDs
+4. **Document events** - Provide clear descriptions to help admins understand each event
+
+---
+
 ## Creating Payment Adapters
 
 When your payment method uses `HostedFields` or `Widget` integration types, you must provide a JavaScript adapter that handles SDK initialization and payment flow.
@@ -600,6 +687,19 @@ private const string MyProviderAdapterUrl = "/_content/MyCompany.Merchello.MyPro
         },
 
         /**
+         * Get payment token without submitting (for backoffice testing)
+         * @returns {Promise<Object>} Token result
+         */
+        async tokenize() {
+            try {
+                const token = await MyProviderSDK.createToken();
+                return { success: true, nonce: token };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        },
+
+        /**
          * Clean up when switching methods
          */
         teardown() {
@@ -699,6 +799,11 @@ const paypalAdapter = {
         return { success: false, error: 'Use PayPal button to complete payment' };
     },
 
+    async tokenize() {
+        // Widget/button flows don't support standalone tokenization
+        return { success: false, error: 'Use the payment button', isButtonFlow: true };
+    },
+
     teardown() { /* cleanup */ }
 };
 ```
@@ -715,3 +820,6 @@ const paypalAdapter = {
 - Express checkout methods collect customer data from the provider
 - Risk scores are nullable - many payments won't have fraud data
 - Adapters are loaded dynamically - no checkout code changes needed for new providers
+- Backoffice test modal has 4 tabs: Session, Payment Form, Express Checkout, Webhooks
+- Implement `tokenize()` in adapters to enable Payment Form testing in backoffice
+- Implement `GetWebhookEventTemplatesAsync()` and `GenerateTestWebhookPayloadAsync()` for webhook simulation

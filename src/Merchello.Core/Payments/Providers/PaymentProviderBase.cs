@@ -131,5 +131,27 @@ public abstract class PaymentProviderBase : IPaymentProvider
             ErrorMessage = "This payment provider does not support webhooks."
         });
     }
+
+    // =====================================================
+    // Webhook Testing
+    // =====================================================
+
+    /// <inheritdoc />
+    public virtual ValueTask<IReadOnlyList<WebhookEventTemplate>> GetWebhookEventTemplatesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        // Default implementation - returns empty list for providers without webhook testing support
+        return ValueTask.FromResult<IReadOnlyList<WebhookEventTemplate>>([]);
+    }
+
+    /// <inheritdoc />
+    public virtual ValueTask<(string Payload, IDictionary<string, string> Headers)> GenerateTestWebhookPayloadAsync(
+        TestWebhookParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        // Default implementation - providers should override for webhook testing support
+        return ValueTask.FromResult<(string, IDictionary<string, string>)>(
+            ("{}", new Dictionary<string, string>()));
+    }
 }
 

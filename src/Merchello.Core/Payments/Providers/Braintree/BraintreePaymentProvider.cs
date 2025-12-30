@@ -319,13 +319,18 @@ public class BraintreePaymentProvider : PaymentProviderBase
                     ["googlePaySdkUrl"] = "https://js.braintreegateway.com/web/3.106.0/js/google-payment.min.js",
                     ["dataCollectorSdkUrl"] = "https://js.braintreegateway.com/web/3.106.0/js/data-collector.min.js",
 
+                    // 3D Secure SDK URL
+                    ["threeDSecureSdkUrl"] = "https://js.braintreegateway.com/web/3.106.0/js/three-d-secure.min.js",
+
                     // Drop-in UI configuration
                     ["dropIn"] = new Dictionary<string, object>
                     {
                         ["card"] = new Dictionary<string, object>
                         {
-                            ["vault"] = new Dictionary<string, object> { ["vaultCard"] = false }
-                        }
+                            ["vault"] = new Dictionary<string, object> { ["vaultCard"] = false },
+                            ["cardholderName"] = new Dictionary<string, object> { ["required"] = true }
+                        },
+                        ["threeDSecure"] = true
                     },
 
                     // PayPal configuration
@@ -406,12 +411,18 @@ public class BraintreePaymentProvider : PaymentProviderBase
                 Options = new TransactionOptionsRequest
                 {
                     SubmitForSettlement = true // Capture immediately
-                },
-                CustomFields = new Dictionary<string, string>
-                {
-                    ["invoice_id"] = request.InvoiceId.ToString()
                 }
             };
+
+            // Only add custom fields if not in test mode
+            // Custom fields require configuration in the Braintree Control Panel
+            if (!request.IsTestMode)
+            {
+                transactionRequest.CustomFields = new Dictionary<string, string>
+                {
+                    ["invoice_id"] = request.InvoiceId.ToString()
+                };
+            }
 
             // Add merchant account if configured
             if (!string.IsNullOrEmpty(_merchantAccountId))
@@ -943,6 +954,202 @@ public class BraintreePaymentProvider : PaymentProviderBase
             eventType: WebhookEventType.DisputeResolved,
             transactionId: dispute.Id,
             amount: dispute.Amount);
+    }
+
+    // =====================================================
+    // Webhook Testing (Simulation)
+    // =====================================================
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Returns the Braintree webhook events that can be simulated for testing.
+    /// These match the events configured in the Braintree Control Panel.
+    /// </remarks>
+    public override ValueTask<IReadOnlyList<WebhookEventTemplate>> GetWebhookEventTemplatesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var templates = new List<WebhookEventTemplate>
+        {
+            new()
+            {
+                EventType = "transaction_settled",
+                DisplayName = "Transaction Settled",
+                Description = "Fired when a transaction is successfully settled and funds are transferred.",
+                Category = WebhookEventCategory.Payment,
+                MerchelloEventType = WebhookEventType.PaymentCompleted
+            },
+            new()
+            {
+                EventType = "transaction_settlement_declined",
+                DisplayName = "Transaction Settlement Declined",
+                Description = "Fired when a transaction settlement is declined by the processor.",
+                Category = WebhookEventCategory.Payment,
+                MerchelloEventType = WebhookEventType.PaymentFailed
+            },
+            new()
+            {
+                EventType = "dispute_opened",
+                DisplayName = "Dispute Opened",
+                Description = "Fired when a customer initiates a chargeback or dispute.",
+                Category = WebhookEventCategory.Dispute,
+                MerchelloEventType = WebhookEventType.DisputeOpened
+            },
+            new()
+            {
+                EventType = "dispute_won",
+                DisplayName = "Dispute Won",
+                Description = "Fired when a dispute is resolved in the merchant's favor.",
+                Category = WebhookEventCategory.Dispute,
+                MerchelloEventType = WebhookEventType.DisputeResolved
+            },
+            new()
+            {
+                EventType = "dispute_lost",
+                DisplayName = "Dispute Lost",
+                Description = "Fired when a dispute is resolved in the customer's favor (chargeback applied).",
+                Category = WebhookEventCategory.Dispute,
+                MerchelloEventType = WebhookEventType.DisputeResolved
+            }
+        };
+
+        return ValueTask.FromResult<IReadOnlyList<WebhookEventTemplate>>(templates);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Generates a realistic Braintree webhook payload for testing.
+    /// Braintree webhooks use XML format with base64-encoded payload and signature.
+    /// See: https://developer.paypal.com/braintree/docs/guides/webhooks/overview
+    /// </remarks>
+    public override ValueTask<(string Payload, IDictionary<string, string> Headers)> GenerateTestWebhookPayloadAsync(
+        TestWebhookParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        // If custom payload provided, use it directly
+        if (!string.IsNullOrWhiteSpace(parameters.CustomPayload))
+        {
+            return ValueTask.FromResult<(string, IDictionary<string, string>)>((
+                parameters.CustomPayload,
+                new Dictionary<string, string>
+                {
+                    ["bt_signature"] = "test_signature|test_payload",
+                    ["Content-Type"] = "application/x-www-form-urlencoded"
+                }));
+        }
+
+        // Generate appropriate payload based on event type
+        var transactionId = parameters.TransactionId ?? $"bt_test_{Guid.NewGuid():N}"[..20];
+        var invoiceId = parameters.InvoiceId ?? Guid.NewGuid();
+        var amount = parameters.Amount;
+        var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+
+        // Map event type string to Braintree notification kind
+        var webhookKind = parameters.EventType.ToLowerInvariant() switch
+        {
+            "transaction_settled" => "transaction_settled",
+            "transaction_settlement_declined" => "transaction_settlement_declined",
+            "dispute_opened" => "dispute_opened",
+            "dispute_won" => "dispute_won",
+            "dispute_lost" => "dispute_lost",
+            _ => "transaction_settled"
+        };
+
+        // Generate XML payload (simplified version of Braintree's format)
+        var xmlPayload = GenerateBraintreeXmlPayload(webhookKind, transactionId, invoiceId, amount, timestamp);
+
+        // Braintree sends payloads as base64-encoded XML
+        var encodedPayload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(xmlPayload));
+
+        // The actual payload sent to the endpoint
+        var payload = encodedPayload;
+
+        var headers = new Dictionary<string, string>
+        {
+            ["bt_signature"] = $"test_public_key|{GenerateTestSignature(encodedPayload)}",
+            ["bt-signature"] = $"test_public_key|{GenerateTestSignature(encodedPayload)}",
+            ["Content-Type"] = "application/x-www-form-urlencoded"
+        };
+
+        return ValueTask.FromResult<(string, IDictionary<string, string>)>((payload, headers));
+    }
+
+    private static string GenerateBraintreeXmlPayload(string kind, string transactionId, Guid invoiceId, decimal amount, string timestamp)
+    {
+        // Braintree uses XML for webhook payloads
+        return kind switch
+        {
+            "transaction_settled" or "transaction_settlement_declined" => $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <notification>
+                    <kind>{kind}</kind>
+                    <timestamp type="datetime">{timestamp}</timestamp>
+                    <subject>
+                        <transaction>
+                            <id>{transactionId}</id>
+                            <status>{(kind == "transaction_settled" ? "settled" : "settlement_declined")}</status>
+                            <type>sale</type>
+                            <amount>{amount:F2}</amount>
+                            <currency-iso-code>USD</currency-iso-code>
+                            <created-at type="datetime">{timestamp}</created-at>
+                            <updated-at type="datetime">{timestamp}</updated-at>
+                            <custom-fields>
+                                <invoice-id>{invoiceId}</invoice-id>
+                            </custom-fields>
+                            <payment-instrument-type>credit_card</payment-instrument-type>
+                            <credit-card>
+                                <bin>411111</bin>
+                                <last-4>1111</last-4>
+                                <card-type>Visa</card-type>
+                                <expiration-month>12</expiration-month>
+                                <expiration-year>2025</expiration-year>
+                            </credit-card>
+                        </transaction>
+                    </subject>
+                </notification>
+                """,
+            "dispute_opened" or "dispute_won" or "dispute_lost" => $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <notification>
+                    <kind>{kind}</kind>
+                    <timestamp type="datetime">{timestamp}</timestamp>
+                    <subject>
+                        <dispute>
+                            <id>dp_{transactionId}</id>
+                            <amount-disputed>{amount:F2}</amount-disputed>
+                            <amount-won>0.00</amount-won>
+                            <case-number>CB123456</case-number>
+                            <currency-iso-code>USD</currency-iso-code>
+                            <reason>fraud</reason>
+                            <reason-code>83</reason-code>
+                            <status>{(kind == "dispute_opened" ? "open" : kind == "dispute_won" ? "won" : "lost")}</status>
+                            <received-date type="date">{DateTime.UtcNow:yyyy-MM-dd}</received-date>
+                            <reply-by-date type="date">{DateTime.UtcNow.AddDays(21):yyyy-MM-dd}</reply-by-date>
+                            <transaction>
+                                <id>{transactionId}</id>
+                                <amount>{amount:F2}</amount>
+                            </transaction>
+                        </dispute>
+                    </subject>
+                </notification>
+                """,
+            _ => $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <notification>
+                    <kind>{kind}</kind>
+                    <timestamp type="datetime">{timestamp}</timestamp>
+                    <subject></subject>
+                </notification>
+                """
+        };
+    }
+
+    private static string GenerateTestSignature(string payload)
+    {
+        // Generate a mock signature for testing
+        // In production, Braintree signs with HMAC-SHA1
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        var hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(payload + "test_secret"));
+        return Convert.ToBase64String(hash)[..20];
     }
 
     // =====================================================

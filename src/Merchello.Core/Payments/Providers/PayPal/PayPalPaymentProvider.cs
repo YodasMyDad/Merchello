@@ -1069,6 +1069,257 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
             transactionId: refundId ?? webhookEvent.Id ?? "unknown",
             amount: amount);
     }
+
+    // =====================================================
+    // Webhook Testing (Simulation)
+    // =====================================================
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Returns the PayPal webhook events that can be simulated for testing.
+    /// These match the events configured in the PayPal webhook endpoint.
+    /// </remarks>
+    public override ValueTask<IReadOnlyList<WebhookEventTemplate>> GetWebhookEventTemplatesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var templates = new List<WebhookEventTemplate>
+        {
+            new()
+            {
+                EventType = "CHECKOUT.ORDER.APPROVED",
+                DisplayName = "Order Approved",
+                Description = "Fired when a customer approves the PayPal order (before capture).",
+                Category = WebhookEventCategory.Payment,
+                MerchelloEventType = WebhookEventType.PaymentCompleted
+            },
+            new()
+            {
+                EventType = "PAYMENT.CAPTURE.COMPLETED",
+                DisplayName = "Capture Completed",
+                Description = "Fired when payment is successfully captured. This is the primary payment confirmation event.",
+                Category = WebhookEventCategory.Payment,
+                MerchelloEventType = WebhookEventType.PaymentCompleted
+            },
+            new()
+            {
+                EventType = "PAYMENT.CAPTURE.DENIED",
+                DisplayName = "Capture Denied",
+                Description = "Fired when a payment capture is denied by PayPal or the payment processor.",
+                Category = WebhookEventCategory.Payment,
+                MerchelloEventType = WebhookEventType.PaymentFailed
+            },
+            new()
+            {
+                EventType = "PAYMENT.CAPTURE.REFUNDED",
+                DisplayName = "Capture Refunded",
+                Description = "Fired when a captured payment is refunded (full or partial).",
+                Category = WebhookEventCategory.Refund,
+                MerchelloEventType = WebhookEventType.RefundCompleted
+            }
+        };
+
+        return ValueTask.FromResult<IReadOnlyList<WebhookEventTemplate>>(templates);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Generates a realistic PayPal webhook payload for testing.
+    /// The payload format matches PayPal's actual webhook format.
+    /// See: https://developer.paypal.com/docs/api-basics/notifications/webhooks/
+    /// </remarks>
+    public override ValueTask<(string Payload, IDictionary<string, string> Headers)> GenerateTestWebhookPayloadAsync(
+        TestWebhookParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        // If custom payload provided, use it directly
+        if (!string.IsNullOrWhiteSpace(parameters.CustomPayload))
+        {
+            return ValueTask.FromResult<(string, IDictionary<string, string>)>((
+                parameters.CustomPayload,
+                GeneratePayPalTestHeaders()));
+        }
+
+        // Generate appropriate payload based on event type
+        var transactionId = parameters.TransactionId ?? $"PAYID-{Guid.NewGuid():N}"[..20].ToUpperInvariant();
+        var invoiceId = parameters.InvoiceId ?? Guid.NewGuid();
+        var amount = parameters.Amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+        var currency = parameters.Currency.ToUpperInvariant();
+        var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+
+        var payload = parameters.EventType.ToUpperInvariant() switch
+        {
+            "CHECKOUT.ORDER.APPROVED" => GenerateOrderApprovedPayload(transactionId, invoiceId, amount, currency, timestamp),
+            "PAYMENT.CAPTURE.COMPLETED" => GenerateCaptureCompletedPayload(transactionId, invoiceId, amount, currency, timestamp),
+            "PAYMENT.CAPTURE.DENIED" => GenerateCaptureDeniedPayload(transactionId, invoiceId, amount, currency, timestamp),
+            "PAYMENT.CAPTURE.REFUNDED" => GenerateCaptureRefundedPayload(transactionId, amount, currency, timestamp),
+            _ => GenerateCaptureCompletedPayload(transactionId, invoiceId, amount, currency, timestamp)
+        };
+
+        return ValueTask.FromResult<(string, IDictionary<string, string>)>((payload, GeneratePayPalTestHeaders()));
+    }
+
+    private static IDictionary<string, string> GeneratePayPalTestHeaders()
+    {
+        var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+        return new Dictionary<string, string>
+        {
+            ["PAYPAL-TRANSMISSION-ID"] = Guid.NewGuid().ToString(),
+            ["PAYPAL-TRANSMISSION-TIME"] = timestamp,
+            ["PAYPAL-CERT-URL"] = "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-1d93a270",
+            ["PAYPAL-AUTH-ALGO"] = "SHA256withRSA",
+            ["PAYPAL-TRANSMISSION-SIG"] = "test_signature_for_simulation",
+            ["Content-Type"] = "application/json"
+        };
+    }
+
+    private static string GenerateOrderApprovedPayload(string transactionId, Guid invoiceId, string amount, string currency, string timestamp)
+    {
+        var orderId = $"ORDER-{Guid.NewGuid():N}".ToUpperInvariant()[..20];
+        var webhookId = $"WH-{Guid.NewGuid():N}".ToUpperInvariant()[..20];
+        return $$"""
+            {
+                "id": "{{webhookId}}",
+                "event_version": "1.0",
+                "create_time": "{{timestamp}}",
+                "resource_type": "checkout-order",
+                "event_type": "CHECKOUT.ORDER.APPROVED",
+                "summary": "An order has been approved by buyer",
+                "resource": {
+                    "id": "{{orderId}}",
+                    "status": "APPROVED",
+                    "intent": "CAPTURE",
+                    "purchase_units": [
+                        {
+                            "reference_id": "{{invoiceId}}",
+                            "amount": {
+                                "currency_code": "{{currency}}",
+                                "value": "{{amount}}"
+                            }
+                        }
+                    ],
+                    "payer": {
+                        "email_address": "test-buyer@example.com",
+                        "payer_id": "TESTPAYERID123"
+                    },
+                    "create_time": "{{timestamp}}",
+                    "update_time": "{{timestamp}}"
+                }
+            }
+            """;
+    }
+
+    private static string GenerateCaptureCompletedPayload(string transactionId, Guid invoiceId, string amount, string currency, string timestamp)
+    {
+        var webhookId = $"WH-{Guid.NewGuid():N}".ToUpperInvariant()[..20];
+        return $$"""
+            {
+                "id": "{{webhookId}}",
+                "event_version": "1.0",
+                "create_time": "{{timestamp}}",
+                "resource_type": "capture",
+                "event_type": "PAYMENT.CAPTURE.COMPLETED",
+                "summary": "Payment completed for {{currency}} {{amount}}",
+                "resource": {
+                    "id": "{{transactionId}}",
+                    "status": "COMPLETED",
+                    "amount": {
+                        "currency_code": "{{currency}}",
+                        "value": "{{amount}}"
+                    },
+                    "custom_id": "{{invoiceId}}",
+                    "final_capture": true,
+                    "seller_protection": {
+                        "status": "ELIGIBLE",
+                        "dispute_categories": ["ITEM_NOT_RECEIVED", "UNAUTHORIZED_TRANSACTION"]
+                    },
+                    "seller_receivable_breakdown": {
+                        "gross_amount": {
+                            "currency_code": "{{currency}}",
+                            "value": "{{amount}}"
+                        },
+                        "paypal_fee": {
+                            "currency_code": "{{currency}}",
+                            "value": "0.50"
+                        },
+                        "net_amount": {
+                            "currency_code": "{{currency}}",
+                            "value": "{{(decimal.Parse(amount) - 0.50m):F2}}"
+                        }
+                    },
+                    "create_time": "{{timestamp}}",
+                    "update_time": "{{timestamp}}"
+                }
+            }
+            """;
+    }
+
+    private static string GenerateCaptureDeniedPayload(string transactionId, Guid invoiceId, string amount, string currency, string timestamp)
+    {
+        var webhookId = $"WH-{Guid.NewGuid():N}".ToUpperInvariant()[..20];
+        return $$"""
+            {
+                "id": "{{webhookId}}",
+                "event_version": "1.0",
+                "create_time": "{{timestamp}}",
+                "resource_type": "capture",
+                "event_type": "PAYMENT.CAPTURE.DENIED",
+                "summary": "Payment capture denied",
+                "resource": {
+                    "id": "{{transactionId}}",
+                    "status": "DECLINED",
+                    "amount": {
+                        "currency_code": "{{currency}}",
+                        "value": "{{amount}}"
+                    },
+                    "custom_id": "{{invoiceId}}",
+                    "final_capture": true,
+                    "create_time": "{{timestamp}}",
+                    "update_time": "{{timestamp}}"
+                }
+            }
+            """;
+    }
+
+    private static string GenerateCaptureRefundedPayload(string transactionId, string amount, string currency, string timestamp)
+    {
+        var refundId = $"REFUND-{Guid.NewGuid():N}".ToUpperInvariant()[..20];
+        var webhookId = $"WH-{Guid.NewGuid():N}".ToUpperInvariant()[..20];
+        return $$"""
+            {
+                "id": "{{webhookId}}",
+                "event_version": "1.0",
+                "create_time": "{{timestamp}}",
+                "resource_type": "refund",
+                "event_type": "PAYMENT.CAPTURE.REFUNDED",
+                "summary": "Refund completed for {{currency}} {{amount}}",
+                "resource": {
+                    "id": "{{refundId}}",
+                    "status": "COMPLETED",
+                    "amount": {
+                        "currency_code": "{{currency}}",
+                        "value": "{{amount}}"
+                    },
+                    "note_to_payer": "Refund processed",
+                    "seller_payable_breakdown": {
+                        "gross_amount": {
+                            "currency_code": "{{currency}}",
+                            "value": "{{amount}}"
+                        },
+                        "paypal_fee": {
+                            "currency_code": "{{currency}}",
+                            "value": "0.00"
+                        },
+                        "net_amount": {
+                            "currency_code": "{{currency}}",
+                            "value": "{{amount}}"
+                        }
+                    },
+                    "create_time": "{{timestamp}}",
+                    "update_time": "{{timestamp}}"
+                }
+            }
+            """;
+    }
 }
 
 /// <summary>

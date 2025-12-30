@@ -62,5 +62,11 @@ public class PaymentRequest
     /// Additional metadata to pass to the payment provider.
     /// </summary>
     public Dictionary<string, string>? Metadata { get; init; }
+
+    /// <summary>
+    /// Indicates this is a test mode request (from backoffice testing).
+    /// Providers should use this to generate appropriate test session IDs.
+    /// </summary>
+    public bool IsTestMode { get; init; }
 }
 

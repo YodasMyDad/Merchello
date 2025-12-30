@@ -122,4 +122,11 @@ public class ProcessPaymentRequest
     /// Additional metadata.
     /// </summary>
     public Dictionary<string, string>? Metadata { get; init; }
+
+    /// <summary>
+    /// Whether this is a test payment (from backoffice testing).
+    /// When true, providers may skip certain validation or features
+    /// that require production configuration (e.g., custom fields).
+    /// </summary>
+    public bool IsTestMode { get; init; }
 }

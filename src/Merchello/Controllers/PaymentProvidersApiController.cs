@@ -277,15 +277,24 @@ public class PaymentProvidersApiController(
             return NotFound("Provider not found.");
         }
 
-        // 3. Build test payment request
+        // 3. Build test payment request with a generated test ID (not Guid.Empty)
+        var testInvoiceId = Guid.NewGuid();
+
+        // Build return/cancel URLs that point back to the backoffice
+        var httpRequest = HttpContext.Request;
+        var baseUrl = $"{httpRequest.Scheme}://{httpRequest.Host}";
+        var returnUrl = $"{baseUrl}/umbraco#/merchello/payment-providers?test-return=true&sessionId={testInvoiceId}";
+        var cancelUrl = $"{baseUrl}/umbraco#/merchello/payment-providers?test-cancel=true&sessionId={testInvoiceId}";
+
         var paymentRequest = new PaymentRequest
         {
-            InvoiceId = Guid.Empty, // Test mode - no real invoice
+            InvoiceId = testInvoiceId,
             Amount = request.Amount,
             Currency = request.CurrencyCode ?? _settings.StoreCurrencyCode,
-            ReturnUrl = "https://test.example.com/return",
-            CancelUrl = "https://test.example.com/cancel",
-            Description = "Test payment session"
+            ReturnUrl = returnUrl,
+            CancelUrl = cancelUrl,
+            Description = "Test payment session",
+            IsTestMode = true
         };
 
         // 4. Create response
@@ -293,6 +302,7 @@ public class PaymentProvidersApiController(
         {
             ProviderAlias = setting.ProviderAlias,
             ProviderName = setting.DisplayName,
+            TestInvoiceId = testInvoiceId,
             IntegrationType = PaymentIntegrationType.Redirect // Will be updated from session result
         };
 
@@ -307,6 +317,9 @@ public class PaymentProvidersApiController(
             response.ClientToken = sessionResult.ClientToken;
             response.ClientSecret = sessionResult.ClientSecret;
             response.JavaScriptSdkUrl = sessionResult.JavaScriptSdkUrl;
+            response.AdapterUrl = sessionResult.AdapterUrl;
+            response.SdkConfiguration = sessionResult.SdkConfiguration;
+            response.MethodAlias = sessionResult.MethodAlias;
             response.ErrorMessage = sessionResult.ErrorMessage;
             response.ErrorCode = sessionResult.ErrorCode;
 
@@ -325,6 +338,219 @@ public class PaymentProvidersApiController(
         catch (Exception ex)
         {
             response.IsSuccessful = false;
+            response.ErrorMessage = ex.Message;
+        }
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Process a test payment (for hosted fields/widget integration types).
+    /// </summary>
+    [HttpPost("payment-providers/{id:guid}/test/process-payment")]
+    [ProducesResponseType<PaymentResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ProcessTestPayment(
+        Guid id,
+        [FromBody] ProcessTestPaymentDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);
+        if (setting == null)
+        {
+            return NotFound("Provider setting not found.");
+        }
+
+        var provider = await providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            return NotFound("Provider not found.");
+        }
+
+        try
+        {
+            var processRequest = new ProcessPaymentRequest
+            {
+                InvoiceId = request.TestInvoiceId ?? Guid.NewGuid(),
+                ProviderAlias = setting.ProviderAlias,
+                MethodAlias = request.MethodAlias,
+                SessionId = request.SessionId,
+                PaymentMethodToken = request.PaymentMethodToken,
+                FormData = request.FormData,
+                Amount = request.Amount,
+                IsTestMode = true // Skip features requiring production configuration
+            };
+
+            var result = await provider.Provider.ProcessPaymentAsync(processRequest, cancellationToken);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return Ok(PaymentResult.Failed(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Get express checkout client configuration for testing.
+    /// </summary>
+    [HttpGet("payment-providers/{id:guid}/test/express-config")]
+    [ProducesResponseType<ExpressCheckoutClientConfig>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetTestExpressConfig(
+        Guid id,
+        [FromQuery] string methodAlias,
+        [FromQuery] decimal amount = 100m,
+        CancellationToken cancellationToken = default)
+    {
+        var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);
+        if (setting == null)
+        {
+            return NotFound("Provider setting not found.");
+        }
+
+        var provider = await providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            return NotFound("Provider not found.");
+        }
+
+        var config = await provider.Provider.GetExpressCheckoutClientConfigAsync(
+            methodAlias,
+            amount,
+            _settings.StoreCurrencyCode,
+            cancellationToken);
+
+        if (config == null)
+        {
+            return NotFound("Express checkout not supported for this method.");
+        }
+
+        return Ok(config);
+    }
+
+    /// <summary>
+    /// Get available webhook event templates for simulation.
+    /// </summary>
+    [HttpGet("payment-providers/{id:guid}/test/webhook-events")]
+    [ProducesResponseType<List<WebhookEventTemplateDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetWebhookEventTemplates(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);
+        if (setting == null)
+        {
+            return NotFound("Provider setting not found.");
+        }
+
+        var provider = await providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            return NotFound("Provider not found.");
+        }
+
+        var templates = await provider.Provider.GetWebhookEventTemplatesAsync(cancellationToken);
+        var result = templates.Select(t => new WebhookEventTemplateDto
+        {
+            EventType = t.EventType,
+            DisplayName = t.DisplayName,
+            Description = t.Description,
+            Category = t.Category.ToString().ToLowerInvariant()
+        }).ToList();
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Simulate a webhook event for testing.
+    /// Supports both template-based simulation (if provider implements templates)
+    /// and manual payload testing (works for any provider).
+    /// </summary>
+    [HttpPost("payment-providers/{id:guid}/test/simulate-webhook")]
+    [ProducesResponseType<WebhookSimulationResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SimulateWebhook(
+        Guid id,
+        [FromBody] SimulateWebhookDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);
+        if (setting == null)
+        {
+            return NotFound("Provider setting not found.");
+        }
+
+        var provider = await providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            return NotFound("Provider not found.");
+        }
+
+        var response = new WebhookSimulationResultDto();
+
+        try
+        {
+            string payload;
+            IDictionary<string, string> headers;
+
+            // Use custom payload if provided, otherwise generate from template
+            if (!string.IsNullOrEmpty(request.CustomPayload))
+            {
+                payload = request.CustomPayload;
+                headers = new Dictionary<string, string>();
+                response.ValidationSkipped = true; // Custom payloads won't have valid signatures
+            }
+            else
+            {
+                // Try to generate payload from provider template
+                var parameters = new TestWebhookParameters
+                {
+                    EventType = request.EventType,
+                    TransactionId = request.TransactionId ?? $"test_{Guid.NewGuid():N}",
+                    InvoiceId = request.InvoiceId ?? Guid.NewGuid(),
+                    Amount = request.Amount,
+                    Currency = _settings.StoreCurrencyCode
+                };
+
+                (payload, headers) = await provider.Provider.GenerateTestWebhookPayloadAsync(parameters, cancellationToken);
+
+                // If provider returned empty payload, it doesn't support template generation
+                if (string.IsNullOrEmpty(payload) || payload == "{}")
+                {
+                    return Ok(new WebhookSimulationResultDto
+                    {
+                        Success = false,
+                        ErrorMessage = "This provider does not support webhook template generation. Please provide a custom payload."
+                    });
+                }
+            }
+
+            response.Payload = payload;
+
+            // Process the webhook (skip validation for test mode)
+            response.ValidationSkipped = true;
+            var result = await provider.Provider.ProcessWebhookAsync(payload, headers, cancellationToken);
+
+            response.Success = result.Success;
+            response.EventTypeDetected = result.EventType?.ToString();
+            response.TransactionId = result.TransactionId;
+            response.InvoiceId = result.InvoiceId;
+            response.Amount = result.Amount;
+            response.ErrorMessage = result.ErrorMessage;
+
+            if (result.Success && result.EventType.HasValue)
+            {
+                response.ActionsPerformed.Add($"Detected event: {result.EventType}");
+                if (result.TransactionId != null)
+                    response.ActionsPerformed.Add($"Transaction ID: {result.TransactionId}");
+                if (result.Amount.HasValue)
+                    response.ActionsPerformed.Add($"Amount: {result.Amount:C}");
+            }
+        }
+        catch (Exception ex)
+        {
+            response.Success = false;
             response.ErrorMessage = ex.Message;
         }
 

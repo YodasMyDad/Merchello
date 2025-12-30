@@ -182,6 +182,11 @@ import type {
   CheckoutPaymentPreviewDto,
   PaymentMethodSettingDto,
   UpdatePaymentMethodSettingDto,
+  ProcessTestPaymentDto,
+  PaymentResultDto,
+  WebhookEventTemplateDto,
+  SimulateWebhookDto,
+  WebhookSimulationResultDto,
 } from '@payment-providers/types/payment-providers.types.js';
 
 // Import shipping provider types
@@ -537,6 +542,22 @@ export const MerchelloApi = {
   /** Test a payment provider configuration */
   testPaymentProvider: (settingId: string, request: TestPaymentProviderDto) =>
     apiPost<TestPaymentProviderResultDto>(`payment-providers/${settingId}/test`, request),
+
+  /** Process a test payment (for hosted fields/widget integration types) */
+  processTestPayment: (settingId: string, request: ProcessTestPaymentDto) =>
+    apiPost<PaymentResultDto>(`payment-providers/${settingId}/test/process-payment`, request),
+
+  /** Get express checkout client configuration for testing */
+  getTestExpressConfig: (settingId: string, methodAlias: string, amount: number = 100) =>
+    apiGet<unknown>(`payment-providers/${settingId}/test/express-config?methodAlias=${methodAlias}&amount=${amount}`),
+
+  /** Get available webhook event templates for simulation */
+  getWebhookEventTemplates: (settingId: string) =>
+    apiGet<WebhookEventTemplateDto[]>(`payment-providers/${settingId}/test/webhook-events`),
+
+  /** Simulate a webhook event for testing */
+  simulateWebhook: (settingId: string, request: SimulateWebhookDto) =>
+    apiPost<WebhookSimulationResultDto>(`payment-providers/${settingId}/test/simulate-webhook`, request),
 
   /** Get checkout preview showing which payment methods will appear and their deduplication status */
   getCheckoutPaymentPreview: () =>
