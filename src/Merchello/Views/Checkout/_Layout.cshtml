@@ -10,35 +10,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>@(settings.CompanyName ?? "Checkout") - @Model.Step</title>
 
-    <!-- Tailwind CSS via CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '@settings.PrimaryColor',
-                        accent: '@settings.AccentColor',
-                        error: '@settings.ErrorColor',
-                    },
-                    fontFamily: {
-                        heading: ['@settings.HeadingFontFamily', 'system-ui', 'sans-serif'],
-                        body: ['@settings.BodyFontFamily', 'system-ui', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
-
     <!-- Alpine.js Collapse plugin (must load before Alpine core) -->
     <script defer src="https://cdn.jsdelivr.net/npm/@@alpinejs/collapse@@3.x.x/dist/cdn.min.js"></script>
     <!-- Alpine.js via CDN -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@@3.x.x/dist/cdn.min.js"></script>
 
     <!-- Checkout component styles (built from Styles/checkout.css) -->
-    <link rel="stylesheet" href="/_content/Merchello/css/checkout.css" />
+    <link rel="stylesheet" href="/css/checkout.css" />
 
     <style>
+        :root {
+            --color-primary: @settings.PrimaryColor;
+            --color-accent: @settings.AccentColor;
+            --color-error: @settings.ErrorColor;
+            --font-heading: '@settings.HeadingFontFamily', system-ui, sans-serif;
+            --font-body: '@settings.BodyFontFamily', system-ui, sans-serif;
+        }
+
         [x-cloak] { display: none !important; }
 
         body {
@@ -178,7 +166,7 @@
     </footer>
 
     <!-- Merchello Checkout Analytics (event emitter with helper methods) -->
-    <script src="/_content/Merchello/js/checkout/analytics.js"></script>
+    <script src="/js/checkout/analytics.js"></script>
 
     <!-- Checkout data for analytics -->
     @if (Model.Basket != null)

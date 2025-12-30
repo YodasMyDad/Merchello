@@ -14,7 +14,8 @@ public class CheckoutViewModel
         CheckoutSettings settings,
         Basket? basket = null,
         CheckoutSession? session = null,
-        IReadOnlyCollection<CountryDto>? countries = null,
+        IReadOnlyCollection<CountryDto>? billingCountries = null,
+        IReadOnlyCollection<CountryDto>? shippingCountries = null,
         IReadOnlyCollection<ShippingGroupDto>? shippingGroups = null,
         OrderConfirmationDto? confirmation = null)
     {
@@ -22,7 +23,8 @@ public class CheckoutViewModel
         Settings = settings;
         Basket = basket;
         Session = session;
-        Countries = countries ?? [];
+        BillingCountries = billingCountries ?? [];
+        ShippingCountries = shippingCountries ?? [];
         ShippingGroups = shippingGroups ?? [];
         Confirmation = confirmation;
     }
@@ -48,9 +50,14 @@ public class CheckoutViewModel
     public CheckoutSession? Session { get; }
 
     /// <summary>
-    /// Available countries for address selection.
+    /// Available countries for billing address (all countries, no restrictions).
     /// </summary>
-    public IReadOnlyCollection<CountryDto> Countries { get; }
+    public IReadOnlyCollection<CountryDto> BillingCountries { get; }
+
+    /// <summary>
+    /// Available countries for shipping address (only countries we can ship to).
+    /// </summary>
+    public IReadOnlyCollection<CountryDto> ShippingCountries { get; }
 
     /// <summary>
     /// Shipping groups with available options (for Shipping step).

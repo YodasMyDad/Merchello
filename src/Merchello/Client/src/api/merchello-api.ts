@@ -180,6 +180,8 @@ import type {
   TestPaymentProviderDto,
   TestPaymentProviderResultDto,
   CheckoutPaymentPreviewDto,
+  PaymentMethodSettingDto,
+  UpdatePaymentMethodSettingDto,
 } from '@payment-providers/types/payment-providers.types.js';
 
 // Import shipping provider types
@@ -539,6 +541,22 @@ export const MerchelloApi = {
   /** Get checkout preview showing which payment methods will appear and their deduplication status */
   getCheckoutPaymentPreview: () =>
     apiGet<CheckoutPaymentPreviewDto>('payment-providers/checkout-preview'),
+
+  // ============================================
+  // Payment Method Settings API
+  // ============================================
+
+  /** Get all payment methods for a provider with their settings */
+  getPaymentProviderMethods: (providerSettingId: string) =>
+    apiGet<PaymentMethodSettingDto[]>(`payment-providers/${providerSettingId}/methods`),
+
+  /** Update a payment method setting (enable/disable) */
+  updatePaymentMethodSetting: (providerSettingId: string, methodAlias: string, data: UpdatePaymentMethodSettingDto) =>
+    apiPut<PaymentMethodSettingDto[]>(`payment-providers/${providerSettingId}/methods/${methodAlias}`, data),
+
+  /** Reorder payment methods for a provider */
+  reorderPaymentMethods: (providerSettingId: string, orderedMethodAliases: string[]) =>
+    apiPut<void>(`payment-providers/${providerSettingId}/methods/reorder`, orderedMethodAliases),
 
   // ============================================
   // Payments API

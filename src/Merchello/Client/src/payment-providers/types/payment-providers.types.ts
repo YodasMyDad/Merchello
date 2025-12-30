@@ -27,6 +27,7 @@ export interface PaymentProviderDto {
   alias: string;
   displayName: string;
   icon?: string;
+  iconHtml?: string;
   description?: string;
   supportsRefunds: boolean;
   supportsPartialRefunds: boolean;
@@ -184,6 +185,8 @@ export interface CheckoutMethodPreviewDto {
   displayName: string;
   /** Icon identifier or URL */
   icon?: string;
+  /** Icon HTML/SVG markup for the payment method */
+  iconHtml?: string;
   /** The type/category of this payment method (e.g., Cards, ApplePay) */
   methodType?: PaymentMethodType;
   /** Sort order for display in checkout */
@@ -192,4 +195,38 @@ export interface CheckoutMethodPreviewDto {
   isActive: boolean;
   /** If hidden, the display name of the provider that outranks this method */
   outrankedBy?: string;
+}
+
+// ============================================
+// Payment Method Settings Types
+// ============================================
+
+/** Settings for a payment method within a provider */
+export interface PaymentMethodSettingDto {
+  /** Method alias (e.g., "cards", "applepay") */
+  methodAlias: string;
+  /** Current display name */
+  displayName: string;
+  /** Original display name from provider */
+  defaultDisplayName?: string;
+  /** Icon identifier */
+  icon?: string;
+  /** Icon HTML/SVG */
+  iconHtml?: string;
+  /** Method description */
+  description?: string;
+  /** Whether the method is enabled */
+  isEnabled: boolean;
+  /** Sort order for display */
+  sortOrder: number;
+  /** Whether this is an express checkout method */
+  isExpressCheckout: boolean;
+  /** Method type for deduplication */
+  methodType?: PaymentMethodType;
+}
+
+/** Request to update a payment method setting */
+export interface UpdatePaymentMethodSettingDto {
+  /** Whether the method is enabled */
+  isEnabled?: boolean;
 }

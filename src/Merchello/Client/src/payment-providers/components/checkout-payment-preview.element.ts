@@ -6,6 +6,7 @@ import type {
   CheckoutPaymentPreviewDto,
   CheckoutMethodPreviewDto,
 } from "@payment-providers/types/payment-providers.types.js";
+import { getBrandIconSvg } from "../shared/brand-icons.js";
 
 @customElement("merchello-checkout-payment-preview")
 export class MerchelloCheckoutPaymentPreviewElement extends UmbElementMixin(LitElement) {
@@ -60,24 +61,21 @@ export class MerchelloCheckoutPaymentPreviewElement extends UmbElementMixin(LitE
     this._isCollapsed = !this._isCollapsed;
   }
 
-  private _getMethodIcon(method: CheckoutMethodPreviewDto): string {
-    if (method.icon) return method.icon;
-
-    // Default icons based on display name patterns
-    const name = method.displayName.toLowerCase();
-    if (name.includes("apple")) return "icon-apple";
-    if (name.includes("google")) return "icon-google";
-    if (name.includes("paypal")) return "icon-paypal";
-    if (name.includes("card")) return "icon-credit-card";
-    if (name.includes("link")) return "icon-link";
-    return "icon-credit-card";
+  private _renderMethodIcon(method: CheckoutMethodPreviewDto): unknown {
+    // Use brand icons based on method alias
+    const svg = getBrandIconSvg(method.methodAlias);
+    if (svg) {
+      return html`<span class="method-icon-svg" .innerHTML=${svg}></span>`;
+    }
+    // Fallback to UUI icon
+    return html`<uui-icon name="${method.icon ?? 'icon-credit-card'}"></uui-icon>`;
   }
 
   private _renderMethod(method: CheckoutMethodPreviewDto, showOutranked = false): unknown {
     return html`
       <div class="method-row ${showOutranked ? 'outranked' : ''}">
         <div class="method-info">
-          <uui-icon name="${this._getMethodIcon(method)}"></uui-icon>
+          ${this._renderMethodIcon(method)}
           <span class="method-name">${method.displayName}</span>
         </div>
         <div class="method-provider">
@@ -303,6 +301,19 @@ export class MerchelloCheckoutPaymentPreviewElement extends UmbElementMixin(LitE
     .method-info > uui-icon {
       font-size: 1rem;
       color: var(--uui-color-text-alt);
+    }
+
+    .method-icon-svg {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+    }
+
+    .method-icon-svg svg {
+      width: 100%;
+      height: 100%;
     }
 
     .method-name {

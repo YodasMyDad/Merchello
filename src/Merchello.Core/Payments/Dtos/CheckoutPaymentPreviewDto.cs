@@ -61,6 +61,12 @@ public class CheckoutMethodPreviewDto
     public string? Icon { get; set; }
 
     /// <summary>
+    /// Icon HTML/SVG markup for the payment method.
+    /// When provided, this is used instead of Icon for rendering.
+    /// </summary>
+    public string? IconHtml { get; set; }
+
+    /// <summary>
     /// The type/category of this payment method (e.g., Cards, ApplePay).
     /// </summary>
     public PaymentMethodType? MethodType { get; set; }

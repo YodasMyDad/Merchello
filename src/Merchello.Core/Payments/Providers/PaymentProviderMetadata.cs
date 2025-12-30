@@ -23,6 +23,13 @@ public class PaymentProviderMetadata
     public string? Icon { get; init; }
 
     /// <summary>
+    /// Icon HTML/SVG markup for the payment provider.
+    /// When provided, this is used instead of Icon for rendering.
+    /// Provider controls the visual appearance of the icon.
+    /// </summary>
+    public string? IconHtml { get; init; }
+
+    /// <summary>
     /// Description of the provider.
     /// </summary>
     public string? Description { get; init; }

@@ -91,7 +91,8 @@ public class MerchelloCheckoutController(
                 _settings,
                 basket: null,
                 session: null,
-                countries: null,
+                billingCountries: null,
+                shippingCountries: null,
                 shippingGroups: null,
                 confirmation: confirmation);
         }
@@ -106,9 +107,12 @@ public class MerchelloCheckoutController(
             session = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
         }
 
-        // Load available countries
-        var countriesResult = await checkoutService.GetAvailableCountriesAsync(ct);
-        var countries = countriesResult.Select(c => new CountryDto(c.Code, c.Name)).ToList();
+        // Load available countries for billing (all countries) and shipping (restricted by warehouse regions)
+        var billingCountriesResult = await checkoutService.GetAllCountriesAsync(ct);
+        var billingCountries = billingCountriesResult.Select(c => new CountryDto(c.Code, c.Name)).ToList();
+
+        var shippingCountriesResult = await checkoutService.GetAvailableCountriesAsync(ct);
+        var shippingCountries = shippingCountriesResult.Select(c => new CountryDto(c.Code, c.Name)).ToList();
 
         // Load shipping groups if on shipping step
         List<ShippingGroupDto>? shippingGroups = null;
@@ -127,7 +131,8 @@ public class MerchelloCheckoutController(
             _settings,
             basket,
             session,
-            countries,
+            billingCountries,
+            shippingCountries,
             shippingGroups);
     }
 

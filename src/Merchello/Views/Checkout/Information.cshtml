@@ -197,7 +197,10 @@
                     }
 
                     try {
-                        const response = await fetch(`/api/merchello/checkout/regions/${countryCode}`);
+                        const endpoint = addressType === 'billing'
+                            ? `/api/merchello/checkout/billing/regions/${countryCode}`
+                            : `/api/merchello/checkout/shipping/regions/${countryCode}`;
+                        const response = await fetch(endpoint);
                         if (!response.ok) {
                             throw new Error(`HTTP ${response.status}`);
                         }

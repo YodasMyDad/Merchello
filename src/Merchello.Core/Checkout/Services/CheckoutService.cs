@@ -22,6 +22,8 @@ using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Caching.Services.Interfaces;
+using Merchello.Core.Locality.Models;
+using Merchello.Core.Locality.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -43,6 +45,7 @@ public class CheckoutService(
     IWarehouseService warehouseService,
     IInvoiceService invoiceService,
     ICacheService cacheService,
+    ILocalityCatalog localityCatalog,
     IDiscountEngine? discountEngine = null,
     IDiscountService? discountService = null,
     ILocationsService? locationsService = null) : ICheckoutService
@@ -536,6 +539,18 @@ public class CheckoutService(
 
         return filtered;
     }
+
+    /// <summary>
+    /// Gets all countries from the locality catalog (for billing address which has no restrictions).
+    /// </summary>
+    public Task<IReadOnlyCollection<CountryInfo>> GetAllCountriesAsync(CancellationToken cancellationToken = default)
+        => localityCatalog.GetCountriesAsync(cancellationToken);
+
+    /// <summary>
+    /// Gets all regions for a country from the locality catalog (for billing address which has no restrictions).
+    /// </summary>
+    public Task<IReadOnlyCollection<SubdivisionInfo>> GetAllRegionsAsync(string countryCode, CancellationToken cancellationToken = default)
+        => localityCatalog.GetRegionsAsync(countryCode, cancellationToken);
 
     /// <summary>
     /// Creates a new basket with the specified currency

@@ -344,6 +344,119 @@ public class PaymentProvidersApiController(
     }
 
     // ============================================
+    // Payment Method Settings Endpoints
+    // ============================================
+
+    /// <summary>
+    /// Get all payment methods for a provider with their current settings.
+    /// </summary>
+    [HttpGet("payment-providers/{id:guid}/methods")]
+    [ProducesResponseType<List<PaymentMethodSettingDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProviderMethods(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        // 1. Get provider setting
+        var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);
+        if (setting == null)
+        {
+            return NotFound("Provider setting not found.");
+        }
+
+        // 2. Get provider instance
+        var provider = await providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            return NotFound("Provider not found.");
+        }
+
+        // 3. Get method definitions from provider
+        var methodDefinitions = provider.Provider.GetAvailablePaymentMethods();
+
+        // 4. Get persisted method settings
+        var methodSettings = await providerManager.GetMethodSettingsAsync(id, cancellationToken);
+
+        // 5. Map to DTOs, merging definition with settings
+        var result = methodDefinitions.Select(def =>
+        {
+            var persisted = methodSettings.FirstOrDefault(ms =>
+                string.Equals(ms.MethodAlias, def.Alias, StringComparison.OrdinalIgnoreCase));
+
+            return new PaymentMethodSettingDto
+            {
+                MethodAlias = def.Alias,
+                DisplayName = persisted?.DisplayNameOverride ?? def.DisplayName,
+                DefaultDisplayName = def.DisplayName,
+                Icon = def.Icon,
+                IconHtml = def.IconHtml,
+                Description = def.Description,
+                IsEnabled = persisted?.IsEnabled ?? true, // Default enabled if no setting
+                SortOrder = persisted?.SortOrder ?? def.DefaultSortOrder,
+                IsExpressCheckout = def.IsExpressCheckout,
+                MethodType = def.MethodType
+            };
+        })
+        .OrderBy(m => m.SortOrder)
+        .ThenBy(m => m.DisplayName)
+        .ToList();
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Update a payment method setting (enable/disable).
+    /// </summary>
+    [HttpPut("payment-providers/{id:guid}/methods/{alias}")]
+    [ProducesResponseType<List<PaymentMethodSettingDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateMethodSetting(
+        Guid id,
+        string alias,
+        [FromBody] UpdatePaymentMethodSettingDto request,
+        CancellationToken cancellationToken = default)
+    {
+        // Update enabled status if provided
+        if (request.IsEnabled.HasValue)
+        {
+            var result = await providerManager.SetMethodEnabledAsync(id, alias, request.IsEnabled.Value, cancellationToken);
+            if (!result.Successful)
+            {
+                return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to update method.");
+            }
+        }
+
+        // Return the updated method settings list
+        return await GetProviderMethods(id, cancellationToken);
+    }
+
+    /// <summary>
+    /// Reorder payment methods for a provider.
+    /// </summary>
+    [HttpPut("payment-providers/{id:guid}/methods/reorder")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ReorderMethods(
+        Guid id,
+        [FromBody] List<string> orderedMethodAliases,
+        CancellationToken cancellationToken = default)
+    {
+        if (orderedMethodAliases == null || orderedMethodAliases.Count == 0)
+        {
+            return BadRequest("orderedMethodAliases is required.");
+        }
+
+        var result = await providerManager.UpdateMethodSortOrderAsync(id, orderedMethodAliases, cancellationToken);
+        if (!result.Successful)
+        {
+            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to reorder methods.");
+        }
+
+        return Ok();
+    }
+
+    // ============================================
     // Mapping Helpers
     // ============================================
 
@@ -357,6 +470,7 @@ public class PaymentProvidersApiController(
             Alias = meta.Alias,
             DisplayName = registered.DisplayName,
             Icon = meta.Icon,
+            IconHtml = meta.IconHtml,
             Description = meta.Description,
             SupportsRefunds = meta.SupportsRefunds,
             SupportsPartialRefunds = meta.SupportsPartialRefunds,

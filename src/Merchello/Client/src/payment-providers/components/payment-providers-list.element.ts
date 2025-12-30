@@ -8,10 +8,12 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { PaymentProviderDto, PaymentProviderSettingDto } from '@payment-providers/types/payment-providers.types.js';
 import { MERCHELLO_PAYMENT_PROVIDER_CONFIG_MODAL } from "../modals/payment-provider-config-modal.token.js";
+import { MERCHELLO_PAYMENT_METHODS_CONFIG_MODAL } from "../modals/payment-methods-config-modal.token.js";
 import { MERCHELLO_SETUP_INSTRUCTIONS_MODAL } from "../modals/setup-instructions-modal.token.js";
 import { MERCHELLO_TEST_PAYMENT_PROVIDER_MODAL } from "../modals/test-provider-modal.token.js";
 import type { MerchelloCheckoutPaymentPreviewElement } from "./checkout-payment-preview.element.js";
 import "./checkout-payment-preview.element.js";
+import { getProviderIconSvg } from "../shared/brand-icons.js";
 
 @customElement("merchello-payment-providers-list")
 export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitElement) {
@@ -105,6 +107,20 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     }
   }
 
+  private async _openMethodsModal(setting: PaymentProviderSettingDto): Promise<void> {
+    if (!this.#modalManager) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_PAYMENT_METHODS_CONFIG_MODAL, {
+      data: { setting },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.isChanged) {
+      // Refresh the checkout preview when methods are changed
+      await this._previewElement?.loadPreview();
+    }
+  }
+
   private async _toggleProvider(setting: PaymentProviderSettingDto): Promise<void> {
     const { error } = await MerchelloApi.togglePaymentProvider(setting.id, !setting.isEnabled);
 
@@ -180,6 +196,14 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     });
   }
 
+  private _renderProviderIcon(alias: string, fallbackIcon?: string): unknown {
+    const svg = getProviderIconSvg(alias);
+    if (svg) {
+      return html`<span class="provider-icon-svg" .innerHTML=${svg}></span>`;
+    }
+    return html`<uui-icon name="${fallbackIcon ?? 'icon-credit-card'}"></uui-icon>`;
+  }
+
   private _renderConfiguredProvider(setting: PaymentProviderSettingDto): unknown {
     const provider = setting.provider;
 
@@ -187,9 +211,7 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
       <div class="provider-card configured">
         <div class="provider-header">
           <div class="provider-info">
-            ${provider?.icon
-              ? html`<uui-icon name="${provider.icon}"></uui-icon>`
-              : html`<uui-icon name="icon-credit-card"></uui-icon>`}
+            ${this._renderProviderIcon(setting.providerAlias, provider?.icon)}
             <div class="provider-details">
               <span class="provider-name">${setting.displayName}</span>
               <span class="provider-alias">${setting.providerAlias}</span>
@@ -201,6 +223,14 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
               @change=${() => this._toggleProvider(setting)}
               label="${setting.isEnabled ? 'In Checkout' : 'Hide From Checkout'}"
             ></uui-toggle>
+            <uui-button
+              look="secondary"
+              label="Methods"
+              title="Configure payment methods"
+              @click=${() => this._openMethodsModal(setting)}
+            >
+              <uui-icon name="icon-list"></uui-icon>
+            </uui-button>
             <uui-button
               look="secondary"
               label="Test"
@@ -270,9 +300,7 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
       <div class="provider-card available">
         <div class="provider-header">
           <div class="provider-info">
-            ${provider.icon
-              ? html`<uui-icon name="${provider.icon}"></uui-icon>`
-              : html`<uui-icon name="icon-credit-card"></uui-icon>`}
+            ${this._renderProviderIcon(provider.alias, provider.icon)}
             <div class="provider-details">
               <span class="provider-name">${provider.displayName}</span>
               <span class="provider-alias">${provider.alias}</span>
@@ -462,6 +490,19 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     .provider-info > uui-icon {
       font-size: 1.5rem;
       color: var(--uui-color-text-alt);
+    }
+
+    .provider-icon-svg {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+    }
+
+    .provider-icon-svg svg {
+      width: 100%;
+      height: 100%;
     }
 
     .provider-details {

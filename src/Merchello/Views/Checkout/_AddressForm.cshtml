@@ -1,7 +1,9 @@
 @{
     var prefix = ViewData["Prefix"]?.ToString() ?? "address";
     var model = ViewData.Model as CheckoutViewModel;
-    var countries = model?.Countries ?? [];
+    var countries = prefix == "billing"
+        ? (model?.BillingCountries ?? [])
+        : (model?.ShippingCountries ?? []);
     var requirePhone = model?.Settings?.RequirePhone ?? false;
 }
 
@@ -54,9 +56,6 @@
 
     <!-- Address Line 2 (Optional) -->
     <div>
-        <label for="@(prefix)_address2" class="block text-sm font-medium text-gray-700 mb-1">
-            Apartment, suite, etc. <span class="text-gray-400">(optional)</span>
-        </label>
         <input type="text"
                id="@(prefix)_address2"
                name="@(prefix).address2"

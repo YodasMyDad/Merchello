@@ -57,10 +57,10 @@ public partial class CheckoutApiController(
     }
 
     /// <summary>
-    /// Get available countries for checkout.
+    /// Get available countries for shipping (based on warehouse service regions).
     /// </summary>
-    [HttpGet("countries")]
-    public async Task<IActionResult> GetCountries(CancellationToken ct)
+    [HttpGet("shipping/countries")]
+    public async Task<IActionResult> GetShippingCountries(CancellationToken ct)
     {
         var countries = await checkoutService.GetAvailableCountriesAsync(ct);
         var dtos = countries.Select(c => new CountryDto(c.Code, c.Name)).ToList();
@@ -68,10 +68,10 @@ public partial class CheckoutApiController(
     }
 
     /// <summary>
-    /// Get available regions for a country.
+    /// Get available regions for shipping in a country (based on warehouse service regions).
     /// </summary>
-    [HttpGet("regions/{countryCode}")]
-    public async Task<IActionResult> GetRegions(string countryCode, CancellationToken ct)
+    [HttpGet("shipping/regions/{countryCode}")]
+    public async Task<IActionResult> GetShippingRegions(string countryCode, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(countryCode))
         {
@@ -79,6 +79,33 @@ public partial class CheckoutApiController(
         }
 
         var regions = await checkoutService.GetAvailableRegionsAsync(countryCode, ct);
+        var dtos = regions.Select(r => new RegionDto(r.RegionCode, r.Name)).ToList();
+        return Ok(dtos);
+    }
+
+    /// <summary>
+    /// Get all countries for billing (no restrictions).
+    /// </summary>
+    [HttpGet("billing/countries")]
+    public async Task<IActionResult> GetBillingCountries(CancellationToken ct)
+    {
+        var countries = await checkoutService.GetAllCountriesAsync(ct);
+        var dtos = countries.Select(c => new CountryDto(c.Code, c.Name)).ToList();
+        return Ok(dtos);
+    }
+
+    /// <summary>
+    /// Get all regions for billing in a country (no restrictions).
+    /// </summary>
+    [HttpGet("billing/regions/{countryCode}")]
+    public async Task<IActionResult> GetBillingRegions(string countryCode, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(countryCode))
+        {
+            return BadRequest("Country code is required.");
+        }
+
+        var regions = await checkoutService.GetAllRegionsAsync(countryCode, ct);
         var dtos = regions.Select(r => new RegionDto(r.RegionCode, r.Name)).ToList();
         return Ok(dtos);
     }

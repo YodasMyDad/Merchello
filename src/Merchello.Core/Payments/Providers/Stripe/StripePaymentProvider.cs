@@ -36,7 +36,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
     /// <summary>
     /// URL to the Stripe payment adapter script.
     /// </summary>
-    private const string StripePaymentAdapterUrl = "/_content/Merchello/js/checkout/adapters/stripe-payment-adapter.js";
+    private const string StripePaymentAdapterUrl = "/js/checkout/adapters/stripe-payment-adapter.js";
 
     /// <summary>
     /// SVG icon for card payments.

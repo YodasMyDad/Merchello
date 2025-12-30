@@ -10,6 +10,7 @@ public class PaymentProviderDto
     public required string Alias { get; set; }
     public required string DisplayName { get; set; }
     public string? Icon { get; set; }
+    public string? IconHtml { get; set; }
     public string? Description { get; set; }
     public bool SupportsRefunds { get; set; }
     public bool SupportsPartialRefunds { get; set; }

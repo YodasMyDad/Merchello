@@ -39,7 +39,7 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
     /// <summary>
     /// URL to the PayPal payment adapter script.
     /// </summary>
-    private const string PayPalPaymentAdapterUrl = "/_content/Merchello/js/checkout/adapters/paypal-payment-adapter.js";
+    private const string PayPalPaymentAdapterUrl = "/js/checkout/adapters/paypal-payment-adapter.js";
 
     /// <summary>
     /// SVG icon for PayPal.
@@ -57,6 +57,7 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
         Alias = "paypal",
         DisplayName = "PayPal",
         Icon = "icon-paypal",
+        IconHtml = PayPalIconSvg,
         Description = "Accept payments via PayPal. Supports PayPal Checkout and Pay Later options.",
         SupportsRefunds = true,
         SupportsPartialRefunds = true,
@@ -464,7 +465,7 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
     /// <summary>
     /// URL to the PayPal express checkout adapter script.
     /// </summary>
-    private const string PayPalExpressAdapterUrl = "/_content/Merchello/js/checkout/adapters/paypal-express-adapter.js";
+    private const string PayPalExpressAdapterUrl = "/js/checkout/adapters/paypal-express-adapter.js";
 
     /// <inheritdoc />
     /// <remarks>

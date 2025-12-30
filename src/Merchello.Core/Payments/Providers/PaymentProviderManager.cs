@@ -494,6 +494,7 @@ public class PaymentProviderManager(
                     MethodAlias = methodDef.Alias,
                     DisplayName = methodSetting?.DisplayNameOverride ?? methodDef.DisplayName,
                     Icon = methodDef.Icon,
+                    IconHtml = methodDef.IconHtml,
                     MethodType = methodDef.MethodType,
                     SortOrder = methodSetting?.SortOrder ?? methodDef.DefaultSortOrder,
                     IsActive = true // Will be updated during deduplication

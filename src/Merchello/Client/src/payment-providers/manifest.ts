@@ -28,6 +28,14 @@ export const manifests: Array<UmbExtensionManifest> = [
     js: () => import("./modals/payment-provider-config-modal.element.js"),
   },
 
+  // Modal for configuring payment methods within a provider
+  {
+    type: "modal",
+    alias: "Merchello.PaymentMethods.Config.Modal",
+    name: "Payment Methods Configuration Modal",
+    js: () => import("./modals/payment-methods-config-modal.element.js"),
+  },
+
   // Modal for displaying setup instructions
   {
     type: "modal",

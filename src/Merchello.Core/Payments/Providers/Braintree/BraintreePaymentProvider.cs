@@ -27,7 +27,7 @@ public class BraintreePaymentProvider : PaymentProviderBase
     /// <summary>
     /// URL to the Braintree payment adapter script.
     /// </summary>
-    private const string BraintreePaymentAdapterUrl = "/_content/Merchello/js/checkout/adapters/braintree-payment-adapter.js";
+    private const string BraintreePaymentAdapterUrl = "/js/checkout/adapters/braintree-payment-adapter.js";
 
     /// <summary>
     /// SVG icon for card payments.
@@ -486,7 +486,7 @@ public class BraintreePaymentProvider : PaymentProviderBase
     /// <summary>
     /// URL to the Braintree express checkout adapter script.
     /// </summary>
-    private const string BraintreeExpressAdapterUrl = "/_content/Merchello/js/checkout/adapters/braintree-express-adapter.js";
+    private const string BraintreeExpressAdapterUrl = "/js/checkout/adapters/braintree-express-adapter.js";
 
     /// <inheritdoc />
     /// <remarks>

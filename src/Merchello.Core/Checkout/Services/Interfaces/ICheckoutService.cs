@@ -5,6 +5,7 @@ using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services;
+using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Warehouses.Models;
 
@@ -125,8 +126,25 @@ public interface ICheckoutService
     LineItem CreateLineItem(Products.Models.Product product, int quantity = 1);
 
     // Convenience facade methods: location availability (delegates to ILocationsService)
+    /// <summary>
+    /// Gets countries available for shipping (based on warehouse service regions).
+    /// </summary>
     Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets regions available for shipping in a country (based on warehouse service regions).
+    /// </summary>
     Task<IReadOnlyCollection<RegionAvailability>> GetAvailableRegionsAsync(string countryCode, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all countries from the locality catalog (for billing address which has no restrictions).
+    /// </summary>
+    Task<IReadOnlyCollection<CountryInfo>> GetAllCountriesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all regions for a country from the locality catalog (for billing address which has no restrictions).
+    /// </summary>
+    Task<IReadOnlyCollection<SubdivisionInfo>> GetAllRegionsAsync(string countryCode, CancellationToken cancellationToken = default);
 
     // Promotional discount methods
 
