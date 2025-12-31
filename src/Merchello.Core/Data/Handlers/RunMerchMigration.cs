@@ -1,3 +1,4 @@
+using Merchello.Core.Data.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Configuration.Models;

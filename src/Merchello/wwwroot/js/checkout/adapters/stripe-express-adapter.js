@@ -60,7 +60,7 @@
                 // Create a unique element container
                 const elementContainer = document.createElement('div');
                 elementContainer.id = 'stripe-express-' + method.methodAlias;
-                elementContainer.style.minWidth = '160px';
+                elementContainer.style.width = '100%';
                 elementContainer.style.minHeight = '48px';
                 container.appendChild(elementContainer);
 

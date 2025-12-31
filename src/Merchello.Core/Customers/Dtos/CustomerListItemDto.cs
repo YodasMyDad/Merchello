@@ -26,4 +26,14 @@ public class CustomerListItemDto
     /// Tags assigned to this customer
     /// </summary>
     public List<string> Tags { get; set; } = [];
+
+    /// <summary>
+    /// Flag to identify problem customers requiring attention
+    /// </summary>
+    public bool IsFlagged { get; set; }
+
+    /// <summary>
+    /// Whether the customer has opted in to receive marketing communications
+    /// </summary>
+    public bool AcceptsMarketing { get; set; }
 }

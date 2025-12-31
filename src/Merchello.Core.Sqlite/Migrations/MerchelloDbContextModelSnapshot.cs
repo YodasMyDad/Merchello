@@ -73,6 +73,11 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ExtendedData")
+                        .IsRequired()
+                        .HasMaxLength(3000)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("InvoiceNumber")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -501,6 +506,9 @@ namespace Merchello.Core.Sqlite.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("AcceptsMarketing")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("TEXT");
 
@@ -515,6 +523,9 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<string>("FirstName")
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsFlagged")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("LastName")
                         .HasMaxLength(200)

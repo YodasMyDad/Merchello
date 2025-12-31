@@ -1,10 +1,12 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.Payment;
 using Merchello.Core.Payments.Factories;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
+using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
@@ -318,6 +320,17 @@ public class PaymentService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<Payment>();
+
+        // Validate refund reason (required business rule)
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Refund reason is required.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
 
         // Load the original payment
         using var scope = efCoreScopeProvider.CreateScope();
@@ -819,6 +832,17 @@ public class PaymentService(
             result.Messages.Add(new ResultMessage
             {
                 Message = "Refund amount must be greater than zero.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        // Validate refund reason (required business rule)
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Refund reason is required.",
                 ResultMessageType = ResultMessageType.Error
             });
             return result;

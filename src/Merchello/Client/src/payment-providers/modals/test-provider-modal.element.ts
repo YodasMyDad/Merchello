@@ -16,7 +16,7 @@ import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
 
 const STORAGE_KEY = "merchello-test-payment-provider-form";
 
-type TabType = 'session' | 'payment' | 'express' | 'webhooks';
+type TabType = 'session' | 'payment' | 'express' | 'webhooks' | 'paymentlinks';
 
 interface SavedFormValues {
   amount?: number;
@@ -62,6 +62,9 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
   // Express checkout tab state
   @state() private _expressMethods: PaymentMethodSettingDto[] = [];
   @state() private _isLoadingExpressMethods = false;
+  @state() private _loadingExpressMethod?: string;
+  @state() private _expressError?: string;
+  @state() private _expressResult?: { success: boolean; message: string; transactionId?: string };
 
   // Webhook tab state
   @state() private _webhookTemplates: WebhookEventTemplateDto[] = [];
@@ -71,6 +74,11 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
   @state() private _useCustomPayload = false;
   @state() private _isSimulatingWebhook = false;
   @state() private _webhookResult?: WebhookSimulationResultDto;
+
+  // Payment links tab state
+  @state() private _isGeneratingPaymentLink = false;
+  @state() private _paymentLinkResult?: { success: boolean; paymentUrl?: string; errorMessage?: string };
+  @state() private _supportsPaymentLinks = false;
 
   // Common state
   @state() private _errorMessage: string | null = null;
@@ -82,6 +90,12 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     this.#isConnected = true;
     this._restoreSavedValues();
     getStoreSettings();
+    this._checkPaymentLinkSupport();
+  }
+
+  private _checkPaymentLinkSupport(): void {
+    // Check if the provider metadata indicates payment link support
+    this._supportsPaymentLinks = this.data?.setting.provider?.supportsPaymentLinks ?? false;
   }
 
   override disconnectedCallback(): void {
@@ -397,6 +411,119 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     this._isLoadingExpressMethods = false;
   }
 
+  private async _loadExpressButton(method: PaymentMethodSettingDto): Promise<void> {
+    this._loadingExpressMethod = method.methodAlias;
+    this._expressError = undefined;
+
+    const settingId = this.data?.setting.id;
+    if (!settingId) {
+      this._expressError = "Setting ID missing.";
+      this._loadingExpressMethod = undefined;
+      return;
+    }
+
+    try {
+      // Get the express checkout config from the API
+      const { data, error } = await MerchelloApi.getTestExpressConfig(settingId, method.methodAlias, this._amount);
+
+      if (!this.#isConnected) return;
+
+      if (error || !data) {
+        this._expressError = error?.message || "Failed to get express checkout config";
+        this._loadingExpressMethod = undefined;
+        return;
+      }
+
+      // Load the client SDK (from sdkConfig if provider puts it there, e.g., Braintree)
+      const clientSdkUrl = data.sdkConfig?.clientSdkUrl as string | undefined;
+      if (clientSdkUrl) {
+        await this._loadScript(clientSdkUrl);
+      }
+
+      // Load the method-specific SDK
+      if (data.sdkUrl) {
+        await this._loadScript(data.sdkUrl);
+      }
+
+      // Load the custom adapter if provided
+      if (data.customAdapterUrl) {
+        await this._loadScript(data.customAdapterUrl);
+      }
+
+      // Wait for next frame to ensure container is in DOM
+      await new Promise(resolve => requestAnimationFrame(resolve));
+
+      // Find the container for this method
+      const container = this.shadowRoot?.querySelector(`#express-button-${method.methodAlias}`) as HTMLElement;
+      if (!container) {
+        this._expressError = `Container not found for ${method.methodAlias}`;
+        this._loadingExpressMethod = undefined;
+        return;
+      }
+
+      // Get the adapter from global registry
+      const adapters = (window as unknown as { MerchelloExpressAdapters?: Record<string, unknown> }).MerchelloExpressAdapters;
+      if (!adapters) {
+        this._expressError = "Express adapters not found. SDK may not have loaded correctly.";
+        this._loadingExpressMethod = undefined;
+        return;
+      }
+
+      // Try provider-specific adapter first, then generic
+      const providerAlias = this.data?.setting.providerAlias || '';
+      const adapter = (adapters[`${providerAlias}:${method.methodAlias}`] || adapters[providerAlias]) as {
+        render?: (container: HTMLElement, method: unknown, config: unknown, checkout: unknown) => Promise<void>;
+        teardown?: (methodAlias: string) => void;
+      };
+
+      if (!adapter?.render) {
+        this._expressError = `Express adapter for '${providerAlias}' not found or missing render method.`;
+        this._loadingExpressMethod = undefined;
+        return;
+      }
+
+      // Create a mock checkout object for the adapter
+      const mockCheckout = {
+        isProcessing: false,
+        error: null as string | null,
+        processExpressCheckout: async (
+          _providerAlias: string,
+          _methodAlias: string,
+          nonce: string,
+          _customerData: unknown,
+          _providerData: unknown
+        ) => {
+          // For testing, just show success with the nonce
+          this._expressResult = {
+            success: true,
+            message: `Express checkout successful! Nonce: ${nonce.substring(0, 20)}...`,
+            transactionId: nonce,
+          };
+          this._loadingExpressMethod = undefined;
+        },
+      };
+
+      // Prepare method config for the adapter
+      const methodConfig = {
+        methodAlias: method.methodAlias,
+        sdkUrl: data.sdkUrl,
+        sdkConfig: data.sdkConfig,
+      };
+
+      // Prepare checkout config
+      const checkoutConfig = {
+        amount: this._amount,
+        currency: data.sdkConfig?.currency || 'USD',
+      };
+
+      await adapter.render(container, methodConfig, checkoutConfig, mockCheckout);
+    } catch (err) {
+      this._expressError = err instanceof Error ? err.message : "Failed to load express button";
+    }
+
+    this._loadingExpressMethod = undefined;
+  }
+
   // ============================================
   // Webhook Tab
   // ============================================
@@ -455,6 +582,39 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
   }
 
   // ============================================
+  // Payment Links Tab
+  // ============================================
+
+  private async _handleGeneratePaymentLink(): Promise<void> {
+    this._isGeneratingPaymentLink = true;
+    this._paymentLinkResult = undefined;
+
+    const settingId = this.data?.setting.id;
+    const providerAlias = this.data?.setting.providerAlias;
+    if (!settingId || !providerAlias) {
+      this._paymentLinkResult = { success: false, errorMessage: "Provider settings missing." };
+      this._isGeneratingPaymentLink = false;
+      return;
+    }
+
+    const { data, error } = await MerchelloApi.testPaymentLink(settingId, { amount: this._amount });
+
+    if (!this.#isConnected) return;
+
+    if (error) {
+      this._paymentLinkResult = { success: false, errorMessage: error.message };
+    } else if (data) {
+      this._paymentLinkResult = {
+        success: data.success,
+        paymentUrl: data.paymentUrl,
+        errorMessage: data.errorMessage,
+      };
+    }
+
+    this._isGeneratingPaymentLink = false;
+  }
+
+  // ============================================
   // Rendering
   // ============================================
 
@@ -504,6 +664,14 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
         >
           Webhooks
         </button>
+        ${this._supportsPaymentLinks ? html`
+          <button
+            class="tab ${this._activeTab === 'paymentlinks' ? 'active' : ''}"
+            @click=${() => this._handleTabChange('paymentlinks')}
+          >
+            Payment Links
+          </button>
+        ` : nothing}
       </div>
     `;
   }
@@ -715,8 +883,10 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
 
         <div class="warning-box">
           <uui-icon name="icon-alert"></uui-icon>
-          <span>Express checkout buttons may not work in the backoffice due to domain restrictions. Use these tests on your actual checkout page.</span>
+          <span>Some express checkout buttons may not work in the backoffice due to domain restrictions. PayPal typically works in sandbox mode.</span>
         </div>
+
+        ${this._renderAmountInput()}
 
         ${this._isLoadingExpressMethods ? html`
           <uui-loader-bar></uui-loader-bar>
@@ -726,12 +896,39 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
           <p class="empty-state">No express checkout methods enabled for this provider.</p>
         ` : nothing}
 
+        ${this._expressError ? html`
+          <div class="result-errors">
+            <uui-icon name="icon-alert"></uui-icon>
+            <span>${this._expressError}</span>
+          </div>
+        ` : nothing}
+
+        ${this._expressResult ? html`
+          <div class="result-card ${this._expressResult.success ? 'success' : 'error'}">
+            <uui-icon name="${this._expressResult.success ? 'icon-check' : 'icon-alert'}"></uui-icon>
+            <span>${this._expressResult.message}</span>
+          </div>
+        ` : nothing}
+
         ${this._expressMethods.length > 0 ? html`
           <div class="express-methods-list">
             ${this._expressMethods.map(method => html`
-              <div class="express-method-item">
-                <span class="method-name">${method.displayName}</span>
-                <span class="method-alias">${method.methodAlias}</span>
+              <div class="express-method-card">
+                <div class="express-method-header">
+                  <span class="method-name">${method.displayName}</span>
+                  <span class="method-alias">${method.methodAlias}</span>
+                </div>
+                <div id="express-button-${method.methodAlias}" class="express-button-container">
+                  <!-- Button will be rendered here -->
+                </div>
+                <uui-button
+                  look="secondary"
+                  ?disabled=${this._loadingExpressMethod === method.methodAlias}
+                  @click=${() => this._loadExpressButton(method)}
+                >
+                  ${this._loadingExpressMethod === method.methodAlias ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
+                  ${this._loadingExpressMethod === method.methodAlias ? "Loading..." : "Load Button"}
+                </uui-button>
               </div>
             `)}
           </div>
@@ -754,13 +951,10 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
             <div class="form-row">
               <label>Event Type</label>
               <uui-select
+                .options=${this._webhookTemplates.map(t => ({ name: t.displayName, value: t.eventType }))}
                 .value=${this._selectedWebhookEvent || ''}
                 @change=${(e: Event) => this._selectedWebhookEvent = (e.target as HTMLSelectElement).value}
-              >
-                ${this._webhookTemplates.map(t => html`
-                  <uui-select-option value="${t.eventType}">${t.displayName}</uui-select-option>
-                `)}
-              </uui-select>
+              ></uui-select>
             </div>
           ` : nothing}
 
@@ -857,6 +1051,83 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     `;
   }
 
+  private _renderPaymentLinksTab(): unknown {
+    return html`
+      <div class="tab-content">
+        <p class="tab-description">Test payment link generation for this provider.</p>
+
+        ${this._renderAmountInput()}
+
+        <uui-button
+          look="primary"
+          ?disabled=${this._isGeneratingPaymentLink}
+          @click=${this._handleGeneratePaymentLink}
+        >
+          ${this._isGeneratingPaymentLink ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
+          ${this._isGeneratingPaymentLink ? "Generating..." : "Generate Test Payment Link"}
+        </uui-button>
+
+        ${this._paymentLinkResult ? html`
+          <div class="results-section">
+            <div class="result-card ${this._paymentLinkResult.success ? 'success' : 'error'}">
+              <uui-icon name="${this._paymentLinkResult.success ? 'icon-check' : 'icon-alert'}"></uui-icon>
+              <span>${this._paymentLinkResult.success ? "Payment link generated successfully" : "Failed to generate payment link"}</span>
+            </div>
+
+            ${this._paymentLinkResult.errorMessage ? html`
+              <div class="result-errors">
+                <uui-icon name="icon-alert"></uui-icon>
+                <span>${this._paymentLinkResult.errorMessage}</span>
+              </div>
+            ` : nothing}
+
+            ${this._paymentLinkResult.paymentUrl ? html`
+              <div class="result-details">
+                <div class="detail-row">
+                  <span class="detail-label">Payment URL</span>
+                  <a href="${this._paymentLinkResult.paymentUrl}" target="_blank" rel="noopener noreferrer" class="url-link">
+                    ${this._paymentLinkResult.paymentUrl} <uui-icon name="icon-out"></uui-icon>
+                  </a>
+                </div>
+                <div class="payment-link-actions">
+                  <uui-button
+                    look="secondary"
+                    @click=${() => this._copyPaymentLink()}
+                  >
+                    <uui-icon name="icon-documents"></uui-icon> Copy Link
+                  </uui-button>
+                  <uui-button
+                    look="primary"
+                    @click=${() => window.open(this._paymentLinkResult?.paymentUrl, '_blank')}
+                  >
+                    <uui-icon name="icon-out"></uui-icon> Open Link
+                  </uui-button>
+                </div>
+              </div>
+            ` : nothing}
+          </div>
+        ` : nothing}
+      </div>
+    `;
+  }
+
+  private async _copyPaymentLink(): Promise<void> {
+    if (!this._paymentLinkResult?.paymentUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(this._paymentLinkResult.paymentUrl);
+      // Could add a toast notification here
+    } catch {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = this._paymentLinkResult.paymentUrl;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+    }
+  }
+
   override render() {
     const providerName = this.data?.setting.displayName ?? "Provider";
 
@@ -877,6 +1148,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
           ${this._activeTab === 'payment' ? this._renderPaymentFormTab() : nothing}
           ${this._activeTab === 'express' ? this._renderExpressCheckoutTab() : nothing}
           ${this._activeTab === 'webhooks' ? this._renderWebhooksTab() : nothing}
+          ${this._activeTab === 'paymentlinks' ? this._renderPaymentLinksTab() : nothing}
         </div>
 
         <div slot="actions">
@@ -1115,6 +1387,13 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
       text-decoration: underline;
     }
 
+    /* Payment link actions */
+    .payment-link-actions {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      margin-top: var(--uui-size-space-3);
+    }
+
     /* Error banner */
     .error-banner {
       display: flex;
@@ -1179,7 +1458,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     .express-methods-list {
       display: flex;
       flex-direction: column;
-      gap: var(--uui-size-space-2);
+      gap: var(--uui-size-space-3);
     }
 
     .express-method-item {
@@ -1189,6 +1468,40 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
       padding: var(--uui-size-space-3);
       background: var(--uui-color-surface-alt);
       border-radius: var(--uui-border-radius);
+    }
+
+    .express-method-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-3);
+      padding: var(--uui-size-space-4);
+      background: var(--uui-color-surface);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+    }
+
+    .express-method-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .express-button-container {
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .express-button-container:empty {
+      background: var(--uui-color-surface-alt);
+      border-radius: var(--uui-border-radius);
+      color: var(--uui-color-text-alt);
+      font-size: 0.875rem;
+    }
+
+    .express-button-container:empty::before {
+      content: "Click 'Load Button' to render the express checkout button";
     }
 
     .method-name {

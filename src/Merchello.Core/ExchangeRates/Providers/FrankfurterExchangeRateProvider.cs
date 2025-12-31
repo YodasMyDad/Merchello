@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using Merchello.Core.ExchangeRates.Models;
+using Merchello.Core.ExchangeRates.Providers.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace Merchello.Core.ExchangeRates.Providers;

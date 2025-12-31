@@ -1,11 +1,16 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using Merchello.Core.Notifications.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 
 namespace Merchello.Core.Notifications;
+
+// NOTE: The Notifications folder uses a domain-based structure (Invoice/, Order/, Payment/, etc.)
+// rather than the standard feature folder pattern. This is intentional for discoverability of
+// notification types by domain area. See Developer-Guidelines.md for details.
 
 /// <summary>
 /// Priority-aware notification publisher for Merchello.

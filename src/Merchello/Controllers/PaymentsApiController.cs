@@ -138,11 +138,8 @@ public class PaymentsApiController(
         [FromBody] RecordManualPaymentDto request,
         CancellationToken cancellationToken = default)
     {
-        if (request.Amount <= 0)
-        {
-            return BadRequest("Amount must be greater than zero.");
-        }
-
+        // PaymentMethod is required at controller level (basic input validation)
+        // Amount validation is handled by PaymentService (business rule - single source of truth)
         if (string.IsNullOrWhiteSpace(request.PaymentMethod))
         {
             return BadRequest("PaymentMethod is required.");
@@ -183,11 +180,7 @@ public class PaymentsApiController(
         [FromBody] ProcessRefundDto request,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Reason))
-        {
-            return BadRequest("Reason is required.");
-        }
-
+        // Reason validation is handled by PaymentService (business rule - single source of truth)
         Core.Shared.Models.CrudResult<Payment> result;
 
         if (request.IsManualRefund)

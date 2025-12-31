@@ -1,4 +1,5 @@
 using Merchello.Core.ExchangeRates.Models;
+using Merchello.Core.ExchangeRates.Providers.Interfaces;
 
 namespace Merchello.Core.ExchangeRates.Providers;
 

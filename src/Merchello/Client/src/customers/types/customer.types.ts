@@ -8,6 +8,8 @@ export interface CustomerListItemDto {
   dateCreated: string;
   orderCount: number;
   tags: string[];
+  isFlagged: boolean;
+  acceptsMarketing: boolean;
 }
 
 // Paginated response for customer list
@@ -34,4 +36,6 @@ export interface UpdateCustomerDto {
   memberKey?: string | null;
   clearMemberKey?: boolean;
   tags?: string[];
+  isFlagged?: boolean;
+  acceptsMarketing?: boolean;
 }

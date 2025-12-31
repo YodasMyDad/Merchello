@@ -302,66 +302,65 @@ public class BraintreePaymentProvider : PaymentProviderBase
 
             var clientToken = await _gateway.ClientToken.GenerateAsync(clientTokenRequest);
 
-            // Return session with adapter configuration for Braintree Drop-in
-            // SDK versions updated to 3.106.0+ for SSL certificate compatibility (expires June 2025)
+            // Return session with adapter configuration for Braintree Hosted Fields
+            // SDK version 3.134.0 (latest as of 2025)
             return PaymentSessionResult.HostedFields(
                 providerAlias: Metadata.Alias,
                 methodAlias: request.MethodAlias ?? "cards",
                 adapterUrl: BraintreePaymentAdapterUrl,
-                jsSdkUrl: "https://js.braintreegateway.com/web/dropin/1.44.1/js/dropin.min.js",
+                jsSdkUrl: "https://js.braintreegateway.com/web/3.134.0/js/client.min.js",
                 sdkConfig: new Dictionary<string, object>
                 {
-                    // URLs for individual SDK components (v3.106.0 - updated for SSL cert compatibility)
-                    ["clientSdkUrl"] = "https://js.braintreegateway.com/web/3.106.0/js/client.min.js",
-                    ["hostedFieldsSdkUrl"] = "https://js.braintreegateway.com/web/3.106.0/js/hosted-fields.min.js",
-                    ["paypalSdkUrl"] = "https://js.braintreegateway.com/web/3.106.0/js/paypal-checkout.min.js",
-                    ["applePaySdkUrl"] = "https://js.braintreegateway.com/web/3.106.0/js/apple-pay.min.js",
-                    ["googlePaySdkUrl"] = "https://js.braintreegateway.com/web/3.106.0/js/google-payment.min.js",
-                    ["dataCollectorSdkUrl"] = "https://js.braintreegateway.com/web/3.106.0/js/data-collector.min.js",
+                    // SDK component URLs (v3.134.0)
+                    ["hostedFieldsSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/hosted-fields.min.js",
+                    ["threeDSecureSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/three-d-secure.min.js",
+                    ["dataCollectorSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/data-collector.min.js",
 
-                    // 3D Secure SDK URL
-                    ["threeDSecureSdkUrl"] = "https://js.braintreegateway.com/web/3.106.0/js/three-d-secure.min.js",
+                    // Enable 3D Secure
+                    ["threeDSecureEnabled"] = true,
 
-                    // Drop-in UI configuration
-                    ["dropIn"] = new Dictionary<string, object>
+                    // Hosted Fields configuration
+                    ["fields"] = new Dictionary<string, object>
                     {
-                        ["card"] = new Dictionary<string, object>
+                        ["number"] = new Dictionary<string, object> { ["placeholder"] = "Card Number" },
+                        ["cvv"] = new Dictionary<string, object> { ["placeholder"] = "CVV" },
+                        ["expirationDate"] = new Dictionary<string, object> { ["placeholder"] = "MM/YY" },
+                        ["cardholderName"] = new Dictionary<string, object> { ["placeholder"] = "Name on Card" }
+                    },
+
+                    // Default styles for Hosted Fields (customizable)
+                    ["styles"] = new Dictionary<string, object>
+                    {
+                        ["input"] = new Dictionary<string, object>
                         {
-                            ["vault"] = new Dictionary<string, object> { ["vaultCard"] = false },
-                            ["cardholderName"] = new Dictionary<string, object> { ["required"] = true }
+                            ["font-size"] = "16px",
+                            ["font-family"] = "system-ui, -apple-system, sans-serif",
+                            ["color"] = "#1f2937",
+                            ["line-height"] = "1.5"
                         },
-                        ["threeDSecure"] = true
-                    },
-
-                    // PayPal configuration
-                    ["paypal"] = new Dictionary<string, object>
-                    {
-                        ["flow"] = "checkout",
-                        ["intent"] = "capture",
-                        ["enableShippingAddress"] = true,
-                        ["shippingAddressEditable"] = false
-                    },
-
-                    // Apple Pay configuration
-                    ["applePay"] = new Dictionary<string, object>
-                    {
-                        ["displayName"] = request.Description ?? "Payment"
-                    },
-
-                    // Google Pay configuration
-                    ["googlePay"] = new Dictionary<string, object>
-                    {
-                        ["merchantId"] = _merchantId ?? "",
-                        ["transactionInfo"] = new Dictionary<string, object>
+                        ["input:focus"] = new Dictionary<string, object>
                         {
-                            ["totalPriceStatus"] = "FINAL",
-                            ["totalPrice"] = request.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                            ["currencyCode"] = request.Currency
+                            ["color"] = "#111827"
                         },
-                        ["environment"] = IsTestMode ? "TEST" : "PRODUCTION"
+                        [".valid"] = new Dictionary<string, object>
+                        {
+                            ["color"] = "#059669"
+                        },
+                        [".invalid"] = new Dictionary<string, object>
+                        {
+                            ["color"] = "#dc2626"
+                        },
+                        ["::-webkit-input-placeholder"] = new Dictionary<string, object>
+                        {
+                            ["color"] = "#9ca3af"
+                        },
+                        ["::placeholder"] = new Dictionary<string, object>
+                        {
+                            ["color"] = "#9ca3af"
+                        }
                     },
 
-                    // Payment amount info for frontend
+                    // Payment amount info for frontend (needed for 3D Secure)
                     ["amount"] = request.Amount,
                     ["currency"] = request.Currency,
                     ["invoiceId"] = request.InvoiceId.ToString()
@@ -501,8 +500,8 @@ public class BraintreePaymentProvider : PaymentProviderBase
 
     /// <inheritdoc />
     /// <remarks>
-    /// Returns Braintree Drop-in configuration for express checkout methods (PayPal, Apple Pay, Google Pay).
-    /// Each method uses Braintree's unified Drop-in UI for a consistent experience.
+    /// Returns native Braintree SDK configuration for express checkout methods (PayPal, Apple Pay, Google Pay).
+    /// Each method uses its own dedicated SDK for optimal customization and control.
     /// </remarks>
     public override async Task<ExpressCheckoutClientConfig?> GetExpressCheckoutClientConfigAsync(
         string methodAlias,
@@ -534,13 +533,13 @@ public class BraintreePaymentProvider : PaymentProviderBase
 
             var clientToken = await _gateway.ClientToken.GenerateAsync(clientTokenRequest);
 
-            // Map method alias to method type
-            var methodType = normalizedAlias switch
+            // Map method alias to method type and SDK URL
+            var (methodType, sdkUrl) = normalizedAlias switch
             {
-                "paypal" => PaymentMethodType.PayPal,
-                "applepay" => PaymentMethodType.ApplePay,
-                "googlepay" => PaymentMethodType.GooglePay,
-                _ => (PaymentMethodType?)null
+                "paypal" => (PaymentMethodType.PayPal, "https://js.braintreegateway.com/web/3.134.0/js/paypal-checkout.min.js"),
+                "applepay" => (PaymentMethodType.ApplePay, "https://js.braintreegateway.com/web/3.134.0/js/apple-pay.min.js"),
+                "googlepay" => (PaymentMethodType.GooglePay, "https://js.braintreegateway.com/web/3.134.0/js/google-payment.min.js"),
+                _ => ((PaymentMethodType?)null, (string?)null)
             };
 
             return new ExpressCheckoutClientConfig
@@ -548,14 +547,20 @@ public class BraintreePaymentProvider : PaymentProviderBase
                 ProviderAlias = Metadata.Alias,
                 MethodAlias = methodAlias,
                 MethodType = methodType,
-                SdkUrl = "https://js.braintreegateway.com/web/dropin/1.44.1/js/dropin.min.js",
+                SdkUrl = sdkUrl,
                 CustomAdapterUrl = BraintreeExpressAdapterUrl,
                 SdkConfig = new Dictionary<string, object>
                 {
                     ["clientToken"] = clientToken,
+                    ["clientSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/client.min.js",
+                    ["dataCollectorSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/data-collector.min.js",
+                    ["googlePayScriptUrl"] = "https://pay.google.com/gp/p/js/pay.js",
                     ["displayName"] = Configuration?.GetValue("merchantAccountId") ?? "Store",
                     ["googleMerchantId"] = _merchantId ?? "",
-                    ["environment"] = IsTestMode ? "sandbox" : "production"
+                    ["isTestMode"] = IsTestMode,
+                    ["environment"] = IsTestMode ? "TEST" : "PRODUCTION",
+                    ["amount"] = amount,
+                    ["currency"] = currency
                 },
                 IsAvailable = true
             };
@@ -803,6 +808,16 @@ public class BraintreePaymentProvider : PaymentProviderBase
         IDictionary<string, string> headers,
         CancellationToken cancellationToken = default)
     {
+        // Check if this is a test webhook (skip validation requested)
+        var skipValidation = headers
+            .Any(h => string.Equals(h.Key, "X-Merchello-Skip-Validation", StringComparison.OrdinalIgnoreCase) &&
+                      string.Equals(h.Value, "true", StringComparison.OrdinalIgnoreCase));
+
+        if (skipValidation)
+        {
+            return Task.FromResult(ProcessTestWebhook(payload));
+        }
+
         if (_gateway is null)
         {
             return Task.FromResult(WebhookProcessingResult.Failure("Braintree is not configured."));
@@ -833,6 +848,59 @@ public class BraintreePaymentProvider : PaymentProviderBase
         catch (Exception ex)
         {
             return Task.FromResult(WebhookProcessingResult.Failure($"Braintree error: {ex.Message}"));
+        }
+    }
+
+    /// <summary>
+    /// Process a test webhook payload (without signature validation).
+    /// Parses the base64-encoded XML payload directly.
+    /// </summary>
+    private static WebhookProcessingResult ProcessTestWebhook(string payload)
+    {
+        try
+        {
+            // Decode the base64 payload
+            var decodedXml = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+
+            // Parse the XML to extract event type
+            var doc = System.Xml.Linq.XDocument.Parse(decodedXml);
+            var kindElement = doc.Descendants("kind").FirstOrDefault();
+            var eventType = kindElement?.Value;
+
+            if (string.IsNullOrEmpty(eventType))
+            {
+                return WebhookProcessingResult.Failure("Could not parse event type from test payload.");
+            }
+
+            // Extract transaction ID if present
+            var transactionId = doc.Descendants("id").FirstOrDefault()?.Value ?? $"test_{DateTime.UtcNow:yyyyMMddHHmmss}";
+
+            // Extract amount if present
+            decimal? amount = null;
+            var amountElement = doc.Descendants("amount").FirstOrDefault();
+            if (amountElement != null && decimal.TryParse(amountElement.Value, out var parsedAmount))
+            {
+                amount = parsedAmount;
+            }
+
+            // Map Braintree event type to Merchello event type
+            var merchelloEventType = eventType switch
+            {
+                "transaction_settled" => WebhookEventType.PaymentCompleted,
+                "transaction_settlement_declined" => WebhookEventType.PaymentFailed,
+                "dispute_opened" => WebhookEventType.DisputeOpened,
+                "dispute_won" or "dispute_lost" => WebhookEventType.DisputeResolved,
+                _ => WebhookEventType.Unknown
+            };
+
+            return WebhookProcessingResult.Successful(
+                eventType: merchelloEventType,
+                transactionId: transactionId,
+                amount: amount);
+        }
+        catch (Exception ex)
+        {
+            return WebhookProcessingResult.Failure($"Failed to parse test webhook: {ex.Message}");
         }
     }
 

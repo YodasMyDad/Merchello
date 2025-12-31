@@ -1,6 +1,7 @@
 using Merchello.Core.Data;
 using Merchello.Core.Shared.Reflection;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Shipping.Providers.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Persistence.EFCore.Scoping;

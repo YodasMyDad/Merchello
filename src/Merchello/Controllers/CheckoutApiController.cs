@@ -114,13 +114,13 @@ public partial class CheckoutApiController(
     /// Save billing and shipping addresses.
     /// </summary>
     [HttpPost("addresses")]
-    public async Task<IActionResult> SaveAddresses([FromBody] SaveAddressesRequest request, CancellationToken ct)
+    public async Task<IActionResult> SaveAddresses([FromBody] SaveAddressesRequestDto request, CancellationToken ct)
     {
         // Validation
         var errors = ValidateAddressRequest(request);
         if (errors.Count > 0)
         {
-            return BadRequest(new SaveAddressesResponse
+            return BadRequest(new SaveAddressesResponseDto
             {
                 Success = false,
                 Message = "Validation failed.",
@@ -131,7 +131,7 @@ public partial class CheckoutApiController(
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
         if (basket == null)
         {
-            return BadRequest(new SaveAddressesResponse
+            return BadRequest(new SaveAddressesResponseDto
             {
                 Success = false,
                 Message = "No basket found. Please add items to your cart first."
@@ -186,7 +186,7 @@ public partial class CheckoutApiController(
 
         logger.LogInformation("Addresses saved for basket {BasketId}", basket.Id);
 
-        return Ok(new SaveAddressesResponse
+        return Ok(new SaveAddressesResponseDto
         {
             Success = true,
             Message = "Addresses saved successfully.",
@@ -198,11 +198,11 @@ public partial class CheckoutApiController(
     /// Apply a discount code to the basket.
     /// </summary>
     [HttpPost("discount/apply")]
-    public async Task<IActionResult> ApplyDiscount([FromBody] ApplyDiscountRequest request, CancellationToken ct)
+    public async Task<IActionResult> ApplyDiscount([FromBody] ApplyDiscountRequestDto request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Code))
         {
-            return BadRequest(new ApplyDiscountResponse
+            return BadRequest(new ApplyDiscountResponseDto
             {
                 Success = false,
                 Message = "Discount code is required."
@@ -212,7 +212,7 @@ public partial class CheckoutApiController(
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
         if (basket == null)
         {
-            return BadRequest(new ApplyDiscountResponse
+            return BadRequest(new ApplyDiscountResponseDto
             {
                 Success = false,
                 Message = "No basket found."
@@ -231,7 +231,7 @@ public partial class CheckoutApiController(
                 .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
                 ?? "Failed to apply discount code.";
 
-            return Ok(new ApplyDiscountResponse
+            return Ok(new ApplyDiscountResponseDto
             {
                 Success = false,
                 Message = errorMessage
@@ -256,7 +256,7 @@ public partial class CheckoutApiController(
 
         logger.LogInformation("Discount code {Code} applied to basket {BasketId}", request.Code, basket.Id);
 
-        return Ok(new ApplyDiscountResponse
+        return Ok(new ApplyDiscountResponseDto
         {
             Success = true,
             Message = "Discount applied successfully.",
@@ -274,7 +274,7 @@ public partial class CheckoutApiController(
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
         if (basket == null)
         {
-            return BadRequest(new SelectShippingResponse
+            return BadRequest(new SelectShippingResponseDto
             {
                 Success = false,
                 Message = "No basket found."
@@ -286,7 +286,7 @@ public partial class CheckoutApiController(
 
         if (!groupingResult.Success)
         {
-            return Ok(new SelectShippingResponse
+            return Ok(new SelectShippingResponseDto
             {
                 Success = false,
                 Message = "Unable to determine shipping options.",
@@ -299,7 +299,7 @@ public partial class CheckoutApiController(
         var currencySymbol = basket.CurrencySymbol ?? _settings.CurrencySymbol;
         var shippingGroups = MapOrderGroupsToDto(groupingResult, currencySymbol, session.SelectedShippingOptions);
 
-        return Ok(new SelectShippingResponse
+        return Ok(new SelectShippingResponseDto
         {
             Success = true,
             Basket = MapBasketToDto(basket),
@@ -311,11 +311,11 @@ public partial class CheckoutApiController(
     /// Save shipping selections for each group.
     /// </summary>
     [HttpPost("shipping")]
-    public async Task<IActionResult> SaveShippingSelections([FromBody] SelectShippingRequest request, CancellationToken ct)
+    public async Task<IActionResult> SaveShippingSelections([FromBody] SelectShippingRequestDto request, CancellationToken ct)
     {
         if (request.Selections.Count == 0)
         {
-            return BadRequest(new SelectShippingResponse
+            return BadRequest(new SelectShippingResponseDto
             {
                 Success = false,
                 Message = "No shipping selections provided."
@@ -325,7 +325,7 @@ public partial class CheckoutApiController(
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
         if (basket == null)
         {
-            return BadRequest(new SelectShippingResponse
+            return BadRequest(new SelectShippingResponseDto
             {
                 Success = false,
                 Message = "No basket found."
@@ -338,7 +338,7 @@ public partial class CheckoutApiController(
         var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, session, ct);
         if (!groupingResult.Success)
         {
-            return Ok(new SelectShippingResponse
+            return Ok(new SelectShippingResponseDto
             {
                 Success = false,
                 Message = "Unable to validate shipping options.",
@@ -367,7 +367,7 @@ public partial class CheckoutApiController(
 
         if (errors.Count > 0)
         {
-            return Ok(new SelectShippingResponse
+            return Ok(new SelectShippingResponseDto
             {
                 Success = false,
                 Message = "Please select shipping for all items.",
@@ -414,7 +414,7 @@ public partial class CheckoutApiController(
         var updatedGroupingResult = await checkoutService.GetOrderGroupsAsync(basket, updatedSession, ct);
         var currencySymbol = basket.CurrencySymbol ?? _settings.CurrencySymbol;
 
-        return Ok(new SelectShippingResponse
+        return Ok(new SelectShippingResponseDto
         {
             Success = true,
             Message = "Shipping selections saved successfully.",
@@ -432,7 +432,7 @@ public partial class CheckoutApiController(
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
         if (basket == null)
         {
-            return BadRequest(new ApplyDiscountResponse
+            return BadRequest(new ApplyDiscountResponseDto
             {
                 Success = false,
                 Message = "No basket found."
@@ -451,7 +451,7 @@ public partial class CheckoutApiController(
                 .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
                 ?? "Failed to remove discount.";
 
-            return Ok(new ApplyDiscountResponse
+            return Ok(new ApplyDiscountResponseDto
             {
                 Success = false,
                 Message = errorMessage
@@ -476,7 +476,7 @@ public partial class CheckoutApiController(
 
         logger.LogInformation("Discount {DiscountId} removed from basket {BasketId}", discountId, basket.Id);
 
-        return Ok(new ApplyDiscountResponse
+        return Ok(new ApplyDiscountResponseDto
         {
             Success = true,
             Message = "Discount removed successfully.",
@@ -486,7 +486,7 @@ public partial class CheckoutApiController(
 
     #region Private Helpers
 
-    private Dictionary<string, string> ValidateAddressRequest(SaveAddressesRequest request)
+    private Dictionary<string, string> ValidateAddressRequest(SaveAddressesRequestDto request)
     {
         var errors = new Dictionary<string, string>();
 

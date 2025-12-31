@@ -1,4 +1,5 @@
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Shipping.Providers.Interfaces;
 
 namespace Merchello.Core.Shipping.Providers;
 

@@ -38,6 +38,7 @@ public class CategoryController(
         [FromQuery] int page = 1)
     {
         // Get the collection from the Umbraco property
+        //var collections = model.Value<IEnumerable<ProductCollection>>("collection");
         var collections = model.Value<IEnumerable<ProductCollection>>("collection");
         var collection = collections?.FirstOrDefault();
 

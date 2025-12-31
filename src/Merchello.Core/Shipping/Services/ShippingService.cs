@@ -1,9 +1,11 @@
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Strategies;
+using Merchello.Core.Checkout.Strategies.Interfaces;
 using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.OrderGrouping;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Dtos;

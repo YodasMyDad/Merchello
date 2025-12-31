@@ -6,6 +6,7 @@ using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Customers.Services.Parameters;
 using Merchello.Core.Data;
 using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.CustomerSegmentNotifications;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;

@@ -209,6 +209,10 @@ export interface AddressDto {
 export interface FulfillmentOrderDto {
   id: string;
   status: OrderStatus;
+  /** Human-readable status label (e.g., "Pending", "Shipped"). Calculated by backend. */
+  statusLabel: string;
+  /** CSS class for status badge styling. Calculated by backend. */
+  statusCssClass: string;
   lineItems: LineItemDto[];
   shipments: ShipmentDto[];
   deliveryMethod: string;

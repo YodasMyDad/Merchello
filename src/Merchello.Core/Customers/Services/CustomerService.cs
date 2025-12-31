@@ -6,6 +6,7 @@ using Merchello.Core.Customers.Services.Parameters;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.CustomerNotifications;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
@@ -53,7 +54,9 @@ public class CustomerService(
                     MemberKey = c.MemberKey,
                     DateCreated = c.DateCreated,
                     OrderCount = c.Invoices != null ? c.Invoices.Count : 0,
-                    Tags = c.CustomerTags.Select(t => t.Tag).ToList()
+                    Tags = c.CustomerTags.Select(t => t.Tag).ToList(),
+                    IsFlagged = c.IsFlagged,
+                    AcceptsMarketing = c.AcceptsMarketing
                 })
                 .FirstOrDefaultAsync(ct));
         scope.Complete();
@@ -255,6 +258,8 @@ public class CustomerService(
             // Update fields if provided
             if (parameters.FirstName != null) toUpdate.FirstName = parameters.FirstName;
             if (parameters.LastName != null) toUpdate.LastName = parameters.LastName;
+            if (parameters.IsFlagged.HasValue) toUpdate.IsFlagged = parameters.IsFlagged.Value;
+            if (parameters.AcceptsMarketing.HasValue) toUpdate.AcceptsMarketing = parameters.AcceptsMarketing.Value;
 
             // Handle MemberKey: can set to a value or clear it
             if (parameters.ClearMemberKey)
@@ -379,7 +384,9 @@ public class CustomerService(
                     MemberKey = c.MemberKey,
                     DateCreated = c.DateCreated,
                     OrderCount = c.Invoices != null ? c.Invoices.Count : 0,
-                    Tags = c.CustomerTags.Select(t => t.Tag).ToList()
+                    Tags = c.CustomerTags.Select(t => t.Tag).ToList(),
+                    IsFlagged = c.IsFlagged,
+                    AcceptsMarketing = c.AcceptsMarketing
                 })
                 .ToListAsync(ct);
 
@@ -453,7 +460,9 @@ public class CustomerService(
                     MemberKey = c.MemberKey,
                     DateCreated = c.DateCreated,
                     OrderCount = c.Invoices != null ? c.Invoices.Count : 0,
-                    Tags = c.CustomerTags.Select(t => t.Tag).ToList()
+                    Tags = c.CustomerTags.Select(t => t.Tag).ToList(),
+                    IsFlagged = c.IsFlagged,
+                    AcceptsMarketing = c.AcceptsMarketing
                 })
                 .ToListAsync(ct));
         scope.Complete();

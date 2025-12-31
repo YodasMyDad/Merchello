@@ -36,6 +36,8 @@ export interface PaymentProviderDto {
   /** Integration type determining how the payment UI is rendered */
   integrationType: PaymentIntegrationType;
   supportsAuthAndCapture: boolean;
+  /** Whether this provider supports generating payment links */
+  supportsPaymentLinks: boolean;
   webhookPath?: string;
   /** Whether this provider is enabled (has a setting with IsEnabled = true) */
   isEnabled: boolean;
@@ -274,6 +276,30 @@ export interface PaymentResultDto {
 }
 
 // ============================================
+// Express Checkout Types
+// ============================================
+
+/** Express checkout client configuration */
+export interface ExpressCheckoutClientConfigDto {
+  /** The provider alias (e.g., "stripe", "paypal", "braintree") */
+  providerAlias: string;
+  /** The method alias (e.g., "applepay", "googlepay", "paypal") */
+  methodAlias: string;
+  /** URL to load the provider's JavaScript SDK */
+  sdkUrl?: string;
+  /** Provider-specific configuration passed to the SDK initialization */
+  sdkConfig: Record<string, unknown>;
+  /** Optional URL to a custom JavaScript file for this provider's express checkout */
+  customAdapterUrl?: string;
+  /** CSS class(es) to apply to the button container */
+  buttonContainerClass?: string;
+  /** Whether this express checkout method is available in the current context */
+  isAvailable: boolean;
+  /** Message to display if the method is not available */
+  unavailableMessage?: string;
+}
+
+// ============================================
 // Webhook Testing Types
 // ============================================
 
@@ -327,4 +353,44 @@ export interface WebhookSimulationResultDto {
   invoiceId?: string;
   /** Amount from the webhook result */
   amount?: number;
+}
+
+// ============================================
+// Payment Link Types
+// ============================================
+
+/** Request to create a payment link for an invoice */
+export interface CreatePaymentLinkDto {
+  /** The invoice ID to create a payment link for */
+  invoiceId: string;
+  /** The payment provider alias to use (e.g., "stripe", "paypal") */
+  providerAlias: string;
+}
+
+/** Payment link information */
+export interface PaymentLinkInfoDto {
+  /** The shareable payment URL */
+  paymentUrl?: string;
+  /** Provider alias that created this link */
+  providerAlias?: string;
+  /** Display name of the provider */
+  providerDisplayName?: string;
+  /** When the link was created (ISO 8601) */
+  createdAt?: string;
+  /** Username of the staff member who created the link */
+  createdBy?: string;
+  /** Whether the invoice has been paid */
+  isPaid: boolean;
+  /** Whether there is an active (unpaid) payment link */
+  hasActiveLink: boolean;
+}
+
+/** Payment provider that supports payment links */
+export interface PaymentLinkProviderDto {
+  /** Provider alias */
+  alias: string;
+  /** Display name */
+  displayName: string;
+  /** Optional icon HTML/SVG */
+  iconHtml?: string;
 }

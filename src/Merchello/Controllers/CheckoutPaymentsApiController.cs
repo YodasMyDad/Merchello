@@ -5,6 +5,7 @@ using Merchello.Core.Locality.Models;
 using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
+using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Dtos;

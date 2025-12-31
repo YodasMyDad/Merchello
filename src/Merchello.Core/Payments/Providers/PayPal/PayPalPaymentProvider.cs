@@ -63,6 +63,7 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
         SupportsPartialRefunds = true,
         SupportsAuthAndCapture = true,
         RequiresWebhook = true,
+        SupportsPaymentLinks = true,
         SetupInstructions = """
             ## PayPal Setup Instructions
 
@@ -1319,6 +1320,317 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
                 }
             }
             """;
+    }
+
+    // =====================================================
+    // Payment Links (via PayPal Invoicing API)
+    // =====================================================
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Creates a shareable payment link using PayPal's Invoicing API.
+    /// The invoice is created in DRAFT status, then sent (without email) to generate a shareable link.
+    /// </remarks>
+    public override async Task<PaymentLinkResult> CreatePaymentLinkAsync(
+        PaymentLinkRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(_clientId))
+        {
+            return PaymentLinkResult.Failed("PayPal is not configured. Please add your API credentials.");
+        }
+
+        var clientSecret = Configuration?.GetValue("clientSecret");
+        if (string.IsNullOrEmpty(clientSecret))
+        {
+            return PaymentLinkResult.Failed("PayPal client secret is not configured.");
+        }
+
+        try
+        {
+            using var httpClient = _httpClientFactory.CreateClient("PayPal");
+            var baseUrl = IsTestMode
+                ? "https://api-m.sandbox.paypal.com"
+                : "https://api-m.paypal.com";
+
+            // Get OAuth access token
+            var accessToken = await GetAccessTokenAsync(httpClient, baseUrl, _clientId, clientSecret, cancellationToken);
+            if (string.IsNullOrEmpty(accessToken))
+            {
+                return PaymentLinkResult.Failed("Failed to authenticate with PayPal.");
+            }
+
+            // Build the invoice request
+            var brandName = Configuration?.GetValue("brandName");
+            var invoicePayload = BuildInvoicePayload(request, brandName);
+
+            // Create the invoice (draft)
+            using var createRequest = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/v2/invoicing/invoices");
+            createRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            createRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            createRequest.Content = new StringContent(invoicePayload, Encoding.UTF8, "application/json");
+
+            using var createResponse = await httpClient.SendAsync(createRequest, cancellationToken);
+            var createResponseContent = await createResponse.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!createResponse.IsSuccessStatusCode)
+            {
+                return PaymentLinkResult.Failed(
+                    $"Failed to create PayPal invoice: {createResponseContent}",
+                    createResponse.StatusCode.ToString());
+            }
+
+            using var createDoc = JsonDocument.Parse(createResponseContent);
+            var invoiceId = createDoc.RootElement.GetProperty("id").GetString();
+
+            if (string.IsNullOrEmpty(invoiceId))
+            {
+                return PaymentLinkResult.Failed("PayPal returned an invoice without an ID.");
+            }
+
+            // Send the invoice to generate the payment link (without sending email to customer)
+            using var sendRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"{baseUrl}/v2/invoicing/invoices/{invoiceId}/send");
+            sendRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            sendRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            sendRequest.Content = new StringContent(
+                """{"send_to_recipient": false, "send_to_invoicer": false}""",
+                Encoding.UTF8,
+                "application/json");
+
+            using var sendResponse = await httpClient.SendAsync(sendRequest, cancellationToken);
+
+            if (!sendResponse.IsSuccessStatusCode)
+            {
+                var sendError = await sendResponse.Content.ReadAsStringAsync(cancellationToken);
+                return PaymentLinkResult.Failed(
+                    $"Failed to send PayPal invoice: {sendError}",
+                    sendResponse.StatusCode.ToString());
+            }
+
+            // Get the invoice details to extract the payer-view link
+            using var getRequest = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/v2/invoicing/invoices/{invoiceId}");
+            getRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            getRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            using var getResponse = await httpClient.SendAsync(getRequest, cancellationToken);
+            var getResponseContent = await getResponse.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!getResponse.IsSuccessStatusCode)
+            {
+                return PaymentLinkResult.Failed(
+                    $"Failed to retrieve PayPal invoice: {getResponseContent}",
+                    getResponse.StatusCode.ToString());
+            }
+
+            using var getDoc = JsonDocument.Parse(getResponseContent);
+
+            // Extract the payer-view link from HATEOAS links
+            string? payerViewUrl = null;
+            if (getDoc.RootElement.TryGetProperty("links", out var links))
+            {
+                foreach (var link in links.EnumerateArray())
+                {
+                    if (link.TryGetProperty("rel", out var rel) &&
+                        rel.GetString() == "payer-view" &&
+                        link.TryGetProperty("href", out var href))
+                    {
+                        payerViewUrl = href.GetString();
+                        break;
+                    }
+                }
+            }
+
+            if (string.IsNullOrEmpty(payerViewUrl))
+            {
+                return PaymentLinkResult.Failed("PayPal invoice created but no payment link was returned.");
+            }
+
+            return PaymentLinkResult.Created(
+                paymentUrl: payerViewUrl,
+                providerLinkId: invoiceId);
+        }
+        catch (HttpRequestException ex)
+        {
+            return PaymentLinkResult.Failed($"Network error: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            return PaymentLinkResult.Failed($"Invalid response from PayPal: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            return PaymentLinkResult.Failed($"Unexpected error: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Cancels a PayPal invoice to deactivate the payment link.
+    /// </remarks>
+    public override async Task<bool> DeactivatePaymentLinkAsync(
+        string providerLinkId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(_clientId))
+        {
+            return false;
+        }
+
+        var clientSecret = Configuration?.GetValue("clientSecret");
+        if (string.IsNullOrEmpty(clientSecret))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var httpClient = _httpClientFactory.CreateClient("PayPal");
+            var baseUrl = IsTestMode
+                ? "https://api-m.sandbox.paypal.com"
+                : "https://api-m.paypal.com";
+
+            // Get OAuth access token
+            var accessToken = await GetAccessTokenAsync(httpClient, baseUrl, _clientId, clientSecret, cancellationToken);
+            if (string.IsNullOrEmpty(accessToken))
+            {
+                return false;
+            }
+
+            // Cancel the invoice
+            using var cancelRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"{baseUrl}/v2/invoicing/invoices/{providerLinkId}/cancel");
+            cancelRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            cancelRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            cancelRequest.Content = new StringContent(
+                """{"send_to_recipient": false, "send_to_invoicer": false}""",
+                Encoding.UTF8,
+                "application/json");
+
+            using var cancelResponse = await httpClient.SendAsync(cancelRequest, cancellationToken);
+
+            return cancelResponse.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Gets an OAuth access token from PayPal.
+    /// </summary>
+    private async Task<string?> GetAccessTokenAsync(
+        HttpClient httpClient,
+        string baseUrl,
+        string clientId,
+        string clientSecret,
+        CancellationToken cancellationToken)
+    {
+        using var tokenRequest = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/v1/oauth2/token");
+        var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
+        tokenRequest.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+        tokenRequest.Content = new StringContent(
+            "grant_type=client_credentials",
+            Encoding.UTF8,
+            "application/x-www-form-urlencoded");
+
+        using var tokenResponse = await httpClient.SendAsync(tokenRequest, cancellationToken);
+        if (!tokenResponse.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var tokenJson = await tokenResponse.Content.ReadAsStringAsync(cancellationToken);
+        using var tokenDoc = JsonDocument.Parse(tokenJson);
+        return tokenDoc.RootElement.TryGetProperty("access_token", out var accessToken)
+            ? accessToken.GetString()
+            : null;
+    }
+
+    /// <summary>
+    /// Builds the PayPal invoice payload from the payment link request.
+    /// </summary>
+    private static string BuildInvoicePayload(PaymentLinkRequest request, string? brandName)
+    {
+        var items = new List<object>();
+
+        // Use line items if provided, otherwise create a single item
+        if (request.LineItems is { Count: > 0 })
+        {
+            foreach (var lineItem in request.LineItems)
+            {
+                items.Add(new
+                {
+                    name = lineItem.Name,
+                    description = lineItem.Description,
+                    quantity = lineItem.Quantity.ToString(),
+                    unit_amount = new
+                    {
+                        currency_code = request.Currency.ToUpperInvariant(),
+                        value = lineItem.Amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)
+                    }
+                });
+            }
+        }
+        else
+        {
+            // Single item for the total amount
+            items.Add(new
+            {
+                name = request.Description ?? "Invoice Payment",
+                quantity = "1",
+                unit_amount = new
+                {
+                    currency_code = request.Currency.ToUpperInvariant(),
+                    value = request.Amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)
+                }
+            });
+        }
+
+        var invoiceNumber = ("MER-" + request.InvoiceId.ToString("N"))[..20];
+        var invoiceMemo = "Merchello Invoice " + request.InvoiceId;
+
+        var invoice = new
+        {
+            detail = new
+            {
+                invoice_number = invoiceNumber,
+                reference = request.InvoiceId.ToString(),
+                currency_code = request.Currency.ToUpperInvariant(),
+                note = request.Description,
+                memo = invoiceMemo
+            },
+            invoicer = !string.IsNullOrEmpty(brandName)
+                ? new { business_name = brandName }
+                : null,
+            primary_recipients = !string.IsNullOrEmpty(request.CustomerEmail)
+                ? new[]
+                {
+                    new
+                    {
+                        billing_info = new
+                        {
+                            email_address = request.CustomerEmail,
+                            name = !string.IsNullOrEmpty(request.CustomerName)
+                                ? new { full_name = request.CustomerName }
+                                : null
+                        }
+                    }
+                }
+                : null,
+            items
+        };
+
+        var jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        };
+
+        return JsonSerializer.Serialize(invoice, jsonOptions);
     }
 }
 

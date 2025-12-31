@@ -16,6 +16,7 @@ public class PaymentProviderDto
     public bool SupportsPartialRefunds { get; set; }
     public PaymentIntegrationType IntegrationType { get; set; }
     public bool SupportsAuthAndCapture { get; set; }
+    public bool SupportsPaymentLinks { get; set; }
     public bool RequiresWebhook { get; set; }
     public string? WebhookPath { get; set; }
 

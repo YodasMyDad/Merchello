@@ -69,6 +69,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
         SupportsPartialRefunds = true,
         SupportsAuthAndCapture = true,
         RequiresWebhook = true,
+        SupportsPaymentLinks = true,
         SetupInstructions = """
             ## Stripe Setup Instructions
 
@@ -803,6 +804,16 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
         IDictionary<string, string> headers,
         CancellationToken cancellationToken = default)
     {
+        // Check if this is a test webhook (skip validation requested)
+        var skipValidation = headers
+            .Any(h => string.Equals(h.Key, "X-Merchello-Skip-Validation", StringComparison.OrdinalIgnoreCase) &&
+                      string.Equals(h.Value, "true", StringComparison.OrdinalIgnoreCase));
+
+        if (skipValidation)
+        {
+            return ProcessTestWebhook(payload);
+        }
+
         if (string.IsNullOrEmpty(_webhookSecret))
         {
             return WebhookProcessingResult.Failure("Webhook secret not configured.");
@@ -825,6 +836,66 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
         catch (StripeException ex)
         {
             return WebhookProcessingResult.Failure($"Stripe error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Process a test webhook payload (without signature validation).
+    /// Parses the JSON payload directly.
+    /// </summary>
+    private static WebhookProcessingResult ProcessTestWebhook(string payload)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(payload);
+            var root = doc.RootElement;
+
+            // Extract event type
+            var eventType = root.GetProperty("type").GetString();
+            if (string.IsNullOrEmpty(eventType))
+            {
+                return WebhookProcessingResult.Failure("Could not parse event type from test payload.");
+            }
+
+            // Extract transaction/payment intent ID if present
+            string? transactionId = null;
+            decimal? amount = null;
+
+            if (root.TryGetProperty("data", out var data) &&
+                data.TryGetProperty("object", out var obj))
+            {
+                if (obj.TryGetProperty("id", out var idProp))
+                {
+                    transactionId = idProp.GetString();
+                }
+                if (obj.TryGetProperty("amount", out var amountProp))
+                {
+                    // Stripe amounts are in cents
+                    amount = amountProp.GetInt64() / 100m;
+                }
+            }
+
+            transactionId ??= $"test_{DateTime.UtcNow:yyyyMMddHHmmss}";
+
+            // Map Stripe event type to Merchello event type
+            var merchelloEventType = eventType switch
+            {
+                "checkout.session.completed" or "payment_intent.succeeded" => WebhookEventType.PaymentCompleted,
+                "payment_intent.payment_failed" => WebhookEventType.PaymentFailed,
+                "charge.refunded" => WebhookEventType.RefundCompleted,
+                "charge.dispute.created" => WebhookEventType.DisputeOpened,
+                "charge.dispute.closed" => WebhookEventType.DisputeResolved,
+                _ => WebhookEventType.Unknown
+            };
+
+            return WebhookProcessingResult.Successful(
+                eventType: merchelloEventType,
+                transactionId: transactionId,
+                amount: amount);
+        }
+        catch (Exception ex)
+        {
+            return WebhookProcessingResult.Failure($"Failed to parse test webhook: {ex.Message}");
         }
     }
 
@@ -1229,6 +1300,121 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
                 }
             }
             """;
+    }
+
+    // =====================================================
+    // Payment Links
+    // =====================================================
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Creates a Stripe Payment Link that can be shared with customers.
+    /// Uses Stripe's Payment Links API: https://docs.stripe.com/payment-links/api
+    /// </remarks>
+    public override async Task<PaymentLinkResult> CreatePaymentLinkAsync(
+        PaymentLinkRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (_client is null)
+        {
+            return PaymentLinkResult.Failed("Stripe is not configured. Please add your API keys.");
+        }
+
+        try
+        {
+            // First, create a Price for the payment (required for Payment Links)
+            var priceService = new PriceService(_client);
+            var priceOptions = new PriceCreateOptions
+            {
+                Currency = request.Currency.ToLowerInvariant(),
+                UnitAmount = ConvertToStripeAmount(request.Amount, request.Currency),
+                ProductData = new PriceProductDataOptions
+                {
+                    Name = request.Description ?? "Invoice Payment"
+                }
+            };
+
+            var price = await priceService.CreateAsync(priceOptions, cancellationToken: cancellationToken);
+
+            // Create the Payment Link
+            var paymentLinkService = new PaymentLinkService(_client);
+            var linkOptions = new PaymentLinkCreateOptions
+            {
+                LineItems =
+                [
+                    new PaymentLinkLineItemOptions
+                    {
+                        Price = price.Id,
+                        Quantity = 1
+                    }
+                ],
+                Metadata = new Dictionary<string, string>
+                {
+                    ["invoiceId"] = request.InvoiceId.ToString(),
+                    ["source"] = "merchello-payment-link"
+                },
+                AfterCompletion = new PaymentLinkAfterCompletionOptions
+                {
+                    Type = "hosted_confirmation"
+                }
+            };
+
+            // Add customer email if provided (for pre-filling checkout)
+            if (!string.IsNullOrEmpty(request.CustomerEmail))
+            {
+                // Payment Links auto-collect customer info by default
+            }
+
+            // Merge any additional metadata from request
+            if (request.Metadata is not null)
+            {
+                foreach (var kvp in request.Metadata)
+                {
+                    linkOptions.Metadata[kvp.Key] = kvp.Value;
+                }
+            }
+
+            var paymentLink = await paymentLinkService.CreateAsync(
+                linkOptions,
+                cancellationToken: cancellationToken);
+
+            return PaymentLinkResult.Created(
+                paymentUrl: paymentLink.Url,
+                providerLinkId: paymentLink.Id);
+        }
+        catch (StripeException ex)
+        {
+            return PaymentLinkResult.Failed(ex.Message, ex.StripeError?.Code);
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Deactivates a Stripe Payment Link by setting Active = false.
+    /// The link URL will show an expiration message to customers.
+    /// </remarks>
+    public override async Task<bool> DeactivatePaymentLinkAsync(
+        string providerLinkId,
+        CancellationToken cancellationToken = default)
+    {
+        if (_client is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var paymentLinkService = new PaymentLinkService(_client);
+            await paymentLinkService.UpdateAsync(
+                providerLinkId,
+                new PaymentLinkUpdateOptions { Active = false },
+                cancellationToken: cancellationToken);
+            return true;
+        }
+        catch (StripeException)
+        {
+            return false;
+        }
     }
 
     // =====================================================

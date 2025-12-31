@@ -13,7 +13,7 @@ import { MERCHELLO_SETUP_INSTRUCTIONS_MODAL } from "../modals/setup-instructions
 import { MERCHELLO_TEST_PAYMENT_PROVIDER_MODAL } from "../modals/test-provider-modal.token.js";
 import type { MerchelloCheckoutPaymentPreviewElement } from "./checkout-payment-preview.element.js";
 import "./checkout-payment-preview.element.js";
-import { getProviderIconSvg } from "../shared/brand-icons.js";
+import { getProviderIconSvg } from "../utils/brand-icons.js";
 
 @customElement("merchello-payment-providers-list")
 export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitElement) {

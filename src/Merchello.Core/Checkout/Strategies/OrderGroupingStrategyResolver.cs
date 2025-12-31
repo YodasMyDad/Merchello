@@ -1,3 +1,4 @@
+using Merchello.Core.Checkout.Strategies.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Reflection;
 using Microsoft.Extensions.Logging;

@@ -1,6 +1,7 @@
 using Merchello.Core.Data;
 using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;

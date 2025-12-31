@@ -1,5 +1,6 @@
 using Merchello.Core.Data;
 using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.SupplierNotifications;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;

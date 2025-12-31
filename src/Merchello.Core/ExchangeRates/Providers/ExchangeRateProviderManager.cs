@@ -1,5 +1,6 @@
 using Merchello.Core.Data;
 using Merchello.Core.ExchangeRates.Models;
+using Merchello.Core.ExchangeRates.Providers.Interfaces;
 using Merchello.Core.Shared.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;

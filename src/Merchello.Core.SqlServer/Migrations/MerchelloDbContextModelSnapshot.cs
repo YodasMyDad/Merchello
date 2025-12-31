@@ -78,6 +78,11 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<string>("ExtendedData")
+                        .IsRequired()
+                        .HasMaxLength(3000)
+                        .HasColumnType("nvarchar(3000)");
+
                     b.Property<string>("InvoiceNumber")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -506,6 +511,9 @@ namespace Merchello.Core.SqlServer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("AcceptsMarketing")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("datetime2");
 
@@ -520,6 +528,9 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<string>("FirstName")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("IsFlagged")
+                        .HasColumnType("bit");
 
                     b.Property<string>("LastName")
                         .HasMaxLength(200)

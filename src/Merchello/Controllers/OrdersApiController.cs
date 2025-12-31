@@ -642,6 +642,8 @@ public class OrdersApiController(
         {
             Id = order.Id,
             Status = order.Status,
+            StatusLabel = order.Status.ToLabel(),
+            StatusCssClass = order.Status.ToCssClass(),
             DeliveryMethod = deliveryMethod,
             ShippingCost = order.ShippingCost,
             LineItems = order.LineItems?

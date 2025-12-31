@@ -1,4 +1,5 @@
 using Merchello.Core.Data;
+using Merchello.Core.Data.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace Merchello.Core.SqlServer;

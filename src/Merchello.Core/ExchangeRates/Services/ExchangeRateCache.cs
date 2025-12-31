@@ -3,6 +3,7 @@ using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Providers;
+using Merchello.Core.ExchangeRates.Providers.Interfaces;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Microsoft.EntityFrameworkCore;

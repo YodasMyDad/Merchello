@@ -50,13 +50,6 @@ namespace Umbraco.Cms.Web.Common.PublishedModels
 		// properties
 
 		///<summary>
-		/// Best Seller Amount
-		///</summary>
-		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "17.0.2+497c31e")]
-		[ImplementPropertyType("bestSellerAmount")]
-		public virtual int BestSellerAmount => this.Value<int>(_publishedValueFallback, "bestSellerAmount");
-
-		///<summary>
 		/// Meta Description
 		///</summary>
 		[global::System.CodeDom.Compiler.GeneratedCodeAttribute("Umbraco.ModelsBuilder.Embedded", "17.0.2+497c31e")]

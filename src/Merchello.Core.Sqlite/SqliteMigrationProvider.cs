@@ -1,4 +1,5 @@
 using Merchello.Core.Data;
+using Merchello.Core.Data.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Configuration.Models;

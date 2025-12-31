@@ -37,16 +37,16 @@ import type { SelectOption } from "@shared/types/index.js";
 import "@shared/components/editable-text-list.element.js";
 
 // Shared components
-import "@products/components/shared/variant-basic-info.element.js";
-import "@products/components/shared/variant-feed-settings.element.js";
-import "@products/components/shared/variant-stock-display.element.js";
-import "@products/components/shared/product-packages.element.js";
-import "@products/components/shared/product-filters.element.js";
-import "@products/components/shared/product-shipping-exclusions.element.js";
-import type { StockSettingsChangeDetail } from "@products/components/shared/variant-stock-display.element.js";
-import type { PackagesChangeDetail } from "@products/components/shared/product-packages.element.js";
-import type { FiltersChangeDetail } from "@products/components/shared/product-filters.element.js";
-import type { ShippingExclusionsChangeDetail } from "@products/components/shared/product-shipping-exclusions.element.js";
+import "@products/components/variant-basic-info.element.js";
+import "@products/components/variant-feed-settings.element.js";
+import "@products/components/variant-stock-display.element.js";
+import "@products/components/product-packages.element.js";
+import "@products/components/product-filters.element.js";
+import "@products/components/product-shipping-exclusions.element.js";
+import type { StockSettingsChangeDetail } from "@products/components/variant-stock-display.element.js";
+import type { PackagesChangeDetail } from "@products/components/product-packages.element.js";
+import type { FiltersChangeDetail } from "@products/components/product-filters.element.js";
+import type { ShippingExclusionsChangeDetail } from "@products/components/product-shipping-exclusions.element.js";
 
 // Utility functions
 import {

@@ -171,4 +171,10 @@ public class Invoice
     /// Name of the user who cancelled the invoice
     /// </summary>
     public string? CancelledBy { get; set; }
+
+    /// <summary>
+    /// General-purpose extended data for storing additional invoice data.
+    /// Used for payment links, custom metadata, and integration data.
+    /// </summary>
+    public Dictionary<string, object> ExtendedData { get; set; } = [];
 }

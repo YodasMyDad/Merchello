@@ -55,6 +55,11 @@ public class PaymentProviderMetadata
     public bool RequiresWebhook { get; init; } = false;
 
     /// <summary>
+    /// Whether this provider supports payment links (shareable URLs for invoice payment).
+    /// </summary>
+    public bool SupportsPaymentLinks { get; init; } = false;
+
+    /// <summary>
     /// Webhook endpoint path for this provider.
     /// </summary>
     public string WebhookPath => $"/umbraco/merchello/webhooks/payments/{Alias}";

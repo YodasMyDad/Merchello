@@ -21,7 +21,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Tax.Workspace.View",
     name: "Merchello Tax Groups View",
-    js: () => import("./tax-workspace.element.js"),
+    js: () => import("./components/tax-workspace.element.js"),
     weight: 100,
     meta: {
       label: "Tax Groups",

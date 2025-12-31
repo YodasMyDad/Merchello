@@ -8,6 +8,7 @@ using Merchello.Core.Products.Extensions;
 using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
+using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;

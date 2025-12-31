@@ -1,4 +1,5 @@
 using Merchello.Core.Payments.Providers;
+using Merchello.Core.Payments.Providers.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Events;

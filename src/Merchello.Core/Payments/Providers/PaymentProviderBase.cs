@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Providers.Interfaces;
 
 namespace Merchello.Core.Payments.Providers;
 
@@ -152,6 +153,29 @@ public abstract class PaymentProviderBase : IPaymentProvider
         // Default implementation - providers should override for webhook testing support
         return ValueTask.FromResult<(string, IDictionary<string, string>)>(
             ("{}", new Dictionary<string, string>()));
+    }
+
+    // =====================================================
+    // Payment Links
+    // =====================================================
+
+    /// <inheritdoc />
+    public virtual Task<PaymentLinkResult> CreatePaymentLinkAsync(
+        PaymentLinkRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // Default implementation - providers should override to support payment links
+        return Task.FromResult(PaymentLinkResult.Failed(
+            "This payment provider does not support payment links."));
+    }
+
+    /// <inheritdoc />
+    public virtual Task<bool> DeactivatePaymentLinkAsync(
+        string providerLinkId,
+        CancellationToken cancellationToken = default)
+    {
+        // Default implementation - providers should override to support payment links
+        return Task.FromResult(false);
     }
 }
 

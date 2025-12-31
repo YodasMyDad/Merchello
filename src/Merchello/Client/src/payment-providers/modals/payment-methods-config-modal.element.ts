@@ -7,7 +7,7 @@ import type {
   PaymentMethodsConfigModalData,
   PaymentMethodsConfigModalValue,
 } from "./payment-methods-config-modal.token.js";
-import { getBrandIconSvg } from "../shared/brand-icons.js";
+import { getBrandIconSvg } from "../utils/brand-icons.js";
 
 @customElement("merchello-payment-methods-config-modal")
 export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseElement<

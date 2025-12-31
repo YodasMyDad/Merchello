@@ -3,6 +3,7 @@ using Asp.Versioning;
 using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
+using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Dtos;
@@ -529,7 +530,9 @@ public class PaymentProvidersApiController(
             response.Payload = payload;
 
             // Process the webhook (skip validation for test mode)
+            // Add a special header to signal providers should skip signature validation
             response.ValidationSkipped = true;
+            headers["X-Merchello-Skip-Validation"] = "true";
             var result = await provider.Provider.ProcessWebhookAsync(payload, headers, cancellationToken);
 
             response.Success = result.Success;
@@ -555,6 +558,73 @@ public class PaymentProvidersApiController(
         }
 
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Test payment link generation for a provider.
+    /// Creates a test invoice and generates a payment link.
+    /// </summary>
+    [HttpPost("payment-providers/{id:guid}/test/payment-link")]
+    [ProducesResponseType<TestPaymentLinkResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TestPaymentLink(
+        Guid id,
+        [FromBody] TestPaymentLinkRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);
+        if (setting == null)
+        {
+            return NotFound("Provider setting not found.");
+        }
+
+        var provider = await providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            return NotFound("Provider not found.");
+        }
+
+        if (!provider.Metadata.SupportsPaymentLinks)
+        {
+            return BadRequest("This provider does not support payment links.");
+        }
+
+        try
+        {
+            // Create a payment link request with test data
+            var linkRequest = new PaymentLinkRequest
+            {
+                InvoiceId = Guid.NewGuid(), // Dummy invoice ID for testing
+                Amount = request.Amount > 0 ? request.Amount : 100.00m,
+                Currency = _settings.StoreCurrencyCode,
+                CustomerEmail = "test@example.com",
+                CustomerName = "Test Customer",
+                Description = "Test Payment Link",
+                Metadata = new Dictionary<string, string>
+                {
+                    ["test"] = "true",
+                    ["source"] = "admin-test"
+                }
+            };
+
+            var result = await provider.Provider.CreatePaymentLinkAsync(linkRequest, cancellationToken);
+
+            return Ok(new TestPaymentLinkResultDto
+            {
+                Success = result.Success,
+                PaymentUrl = result.PaymentUrl,
+                ErrorMessage = result.ErrorMessage
+            });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new TestPaymentLinkResultDto
+            {
+                Success = false,
+                ErrorMessage = ex.Message
+            });
+        }
     }
 
     /// <summary>
@@ -702,6 +772,7 @@ public class PaymentProvidersApiController(
             SupportsPartialRefunds = meta.SupportsPartialRefunds,
             IntegrationType = firstMethod?.IntegrationType ?? PaymentIntegrationType.Redirect,
             SupportsAuthAndCapture = meta.SupportsAuthAndCapture,
+            SupportsPaymentLinks = meta.SupportsPaymentLinks,
             RequiresWebhook = meta.RequiresWebhook,
             WebhookPath = meta.WebhookPath,
             IsEnabled = registered.IsEnabled,

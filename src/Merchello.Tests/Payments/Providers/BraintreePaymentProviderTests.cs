@@ -217,4 +217,149 @@ public class BraintreePaymentProviderTests
         provider.Metadata.SupportsRefunds.ShouldBeTrue();
         provider.Metadata.SupportsPartialRefunds.ShouldBeTrue();
     }
+
+    [Fact]
+    public void GetAvailablePaymentMethods_CardsMethod_UsesHostedFieldsIntegrationType()
+    {
+        // Arrange
+        var provider = new BraintreePaymentProvider();
+
+        // Act
+        var methods = provider.GetAvailablePaymentMethods().ToList();
+        var cardsMethod = methods.FirstOrDefault(m => m.Alias == "cards");
+
+        // Assert - Verify cards uses HostedFields (not Drop-in)
+        cardsMethod.ShouldNotBeNull();
+        cardsMethod!.IntegrationType.ShouldBe(PaymentIntegrationType.HostedFields);
+        cardsMethod.IsExpressCheckout.ShouldBeFalse();
+        cardsMethod.MethodType.ShouldBe(PaymentMethodType.Cards);
+    }
+
+    [Fact]
+    public void GetAvailablePaymentMethods_ExpressMethods_UseWidgetIntegrationType()
+    {
+        // Arrange
+        var provider = new BraintreePaymentProvider();
+
+        // Act
+        var methods = provider.GetAvailablePaymentMethods().ToList();
+
+        // Assert - PayPal uses Widget and is express checkout
+        var paypal = methods.FirstOrDefault(m => m.Alias == "paypal");
+        paypal.ShouldNotBeNull();
+        paypal!.IntegrationType.ShouldBe(PaymentIntegrationType.Widget);
+        paypal.IsExpressCheckout.ShouldBeTrue();
+        paypal.MethodType.ShouldBe(PaymentMethodType.PayPal);
+
+        // Assert - Apple Pay uses Widget and is express checkout
+        var applePay = methods.FirstOrDefault(m => m.Alias == "applepay");
+        applePay.ShouldNotBeNull();
+        applePay!.IntegrationType.ShouldBe(PaymentIntegrationType.Widget);
+        applePay.IsExpressCheckout.ShouldBeTrue();
+        applePay.MethodType.ShouldBe(PaymentMethodType.ApplePay);
+
+        // Assert - Google Pay uses Widget and is express checkout
+        var googlePay = methods.FirstOrDefault(m => m.Alias == "googlepay");
+        googlePay.ShouldNotBeNull();
+        googlePay!.IntegrationType.ShouldBe(PaymentIntegrationType.Widget);
+        googlePay.IsExpressCheckout.ShouldBeTrue();
+        googlePay.MethodType.ShouldBe(PaymentMethodType.GooglePay);
+    }
+
+    [Theory]
+    [InlineData("paypal")]
+    [InlineData("applepay")]
+    [InlineData("googlepay")]
+    public async Task GetExpressCheckoutClientConfigAsync_WhenNotConfigured_ReturnsNull(string methodAlias)
+    {
+        // Arrange
+        var provider = new BraintreePaymentProvider();
+
+        // Act - Without credentials, should return null
+        var result = await provider.GetExpressCheckoutClientConfigAsync(
+            methodAlias,
+            amount: 100m,
+            currency: "USD");
+
+        // Assert
+        result.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("cards")] // Not an express method
+    [InlineData("unknown")]
+    [InlineData("")]
+    public async Task GetExpressCheckoutClientConfigAsync_ForNonExpressMethods_ReturnsNull(string methodAlias)
+    {
+        // Arrange
+        var provider = new BraintreePaymentProvider();
+
+        // Act
+        var result = await provider.GetExpressCheckoutClientConfigAsync(
+            methodAlias,
+            amount: 100m,
+            currency: "USD");
+
+        // Assert
+        result.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task GetWebhookEventTemplatesAsync_ReturnsExpectedEvents()
+    {
+        // Arrange
+        var provider = new BraintreePaymentProvider();
+
+        // Act
+        var templates = await provider.GetWebhookEventTemplatesAsync();
+
+        // Assert
+        templates.ShouldNotBeNull();
+        templates.Count.ShouldBe(5);
+
+        // Verify transaction events
+        templates.ShouldContain(t => t.EventType == "transaction_settled" &&
+                                     t.MerchelloEventType == WebhookEventType.PaymentCompleted);
+        templates.ShouldContain(t => t.EventType == "transaction_settlement_declined" &&
+                                     t.MerchelloEventType == WebhookEventType.PaymentFailed);
+
+        // Verify dispute events
+        templates.ShouldContain(t => t.EventType == "dispute_opened" &&
+                                     t.MerchelloEventType == WebhookEventType.DisputeOpened);
+        templates.ShouldContain(t => t.EventType == "dispute_won" &&
+                                     t.MerchelloEventType == WebhookEventType.DisputeResolved);
+        templates.ShouldContain(t => t.EventType == "dispute_lost" &&
+                                     t.MerchelloEventType == WebhookEventType.DisputeResolved);
+    }
+
+    [Theory]
+    [InlineData("transaction_settled")]
+    [InlineData("transaction_settlement_declined")]
+    [InlineData("dispute_opened")]
+    public async Task GenerateTestWebhookPayloadAsync_GeneratesValidPayload(string eventType)
+    {
+        // Arrange
+        var provider = new BraintreePaymentProvider();
+        var parameters = new TestWebhookParameters
+        {
+            EventType = eventType,
+            TransactionId = "test_txn_123",
+            InvoiceId = Guid.NewGuid(),
+            Amount = 99.99m
+        };
+
+        // Act
+        var (payload, headers) = await provider.GenerateTestWebhookPayloadAsync(parameters);
+
+        // Assert
+        payload.ShouldNotBeNullOrEmpty();
+        headers.ShouldContainKey("bt_signature");
+        headers.ShouldContainKey("Content-Type");
+        headers["Content-Type"].ShouldBe("application/x-www-form-urlencoded");
+
+        // Payload should be base64 encoded XML
+        var decodedPayload = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+        decodedPayload.ShouldContain("<?xml");
+        decodedPayload.ShouldContain($"<kind>{eventType}</kind>");
+    }
 }

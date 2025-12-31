@@ -1,4 +1,5 @@
 using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Providers.Interfaces;
 
 namespace Merchello.Core.Payments.Providers;
 

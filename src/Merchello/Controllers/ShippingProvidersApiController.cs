@@ -5,6 +5,7 @@ using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
+using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.AspNetCore.Http;

@@ -27,6 +27,9 @@ import "./shipments-view.element.js";
 // Import the payment panel component
 import "./payment-panel.element.js";
 
+// Import the payment link panel component
+import "./payment-link-panel.element.js";
+
 // Import shared components
 import "@shared/components/product-image.element.js";
 
@@ -490,20 +493,16 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
   }
 
   private _renderFulfillmentCard(fulfillmentOrder: FulfillmentOrderDto): unknown {
-    const statusLabel = this._getStatusLabel(fulfillmentOrder.status);
     const isFulfilled = this._order?.fulfillmentStatus === "Fulfilled";
-    // Cancelled = 70, Shipped = 50, Completed = 60
-    const statusClass = fulfillmentOrder.status === 70 ? "cancelled" :
-                        fulfillmentOrder.status >= 50 ? "shipped" : "unfulfilled";
     const currencyCode = this._order?.currencyCode;
     const currencySymbol = this._order?.currencySymbol;
 
     return html`
       <div class="card fulfillment-card">
         <div class="fulfillment-header">
-          <span class="fulfillment-status-badge ${statusClass}">
+          <span class="fulfillment-status-badge ${fulfillmentOrder.statusCssClass}">
             <uui-icon name="icon-box"></uui-icon>
-            ${statusLabel}
+            ${fulfillmentOrder.statusLabel}
           </span>
         </div>
         <div class="fulfillment-shipping-method">
@@ -555,21 +554,6 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
         </div>
       </div>
     `;
-  }
-
-  private _getStatusLabel(status: number): string {
-    const statusMap: Record<number, string> = {
-      0: "Pending",
-      10: "Awaiting Stock",
-      20: "Ready to Fulfill",
-      30: "Processing",
-      40: "Partially Shipped",
-      50: "Shipped",
-      60: "Completed",
-      70: "Cancelled",
-      80: "On Hold",
-    };
-    return statusMap[status] || "Unknown";
   }
 
   private _getDateGroupLabel(date: Date): string {
@@ -731,11 +715,16 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
           ? html`<merchello-shipments-view></merchello-shipments-view>`
           : activeTab === "payments"
           ? html`
-              <merchello-payment-panel
-                invoiceId=${order.id}
-                @payment-recorded=${this._handlePaymentChange}
-                @refund-processed=${this._handlePaymentChange}
-              ></merchello-payment-panel>
+              <div class="payments-content">
+                <merchello-payment-link-panel
+                  invoiceId=${order.id}
+                ></merchello-payment-link-panel>
+                <merchello-payment-panel
+                  invoiceId=${order.id}
+                  @payment-recorded=${this._handlePaymentChange}
+                  @refund-processed=${this._handlePaymentChange}
+                ></merchello-payment-panel>
+              </div>
             `
           : html`
         <!-- Main Content -->
@@ -1119,6 +1108,12 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     /* Tab content */
     .tab-content {
       padding: var(--uui-size-layout-1);
+    }
+
+    .payments-content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-layout-1);
     }
 
     .loading {

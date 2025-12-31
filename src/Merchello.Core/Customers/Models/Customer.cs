@@ -47,6 +47,16 @@ public class Customer
     public DateTime DateUpdated { get; set; } = DateTime.UtcNow;
 
     /// <summary>
+    /// Flag to identify problem customers requiring attention.
+    /// </summary>
+    public bool IsFlagged { get; set; }
+
+    /// <summary>
+    /// Whether the customer has opted in to receive marketing communications.
+    /// </summary>
+    public bool AcceptsMarketing { get; set; }
+
+    /// <summary>
     /// Navigation property: Tags assigned to this customer.
     /// Used for categorization and segment criteria matching.
     /// </summary>

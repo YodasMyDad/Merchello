@@ -1,8 +1,10 @@
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Notifications;
 using Merchello.Core.ExchangeRates.Providers;
+using Merchello.Core.ExchangeRates.Providers.Interfaces;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Shared.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

@@ -18,6 +18,8 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
   @state() private _originalMemberKey: string = "";
   @state() private _tags: string[] = [];
   @state() private _allTags: string[] = [];
+  @state() private _isFlagged: boolean = false;
+  @state() private _acceptsMarketing: boolean = false;
   @state() private _isSaving: boolean = false;
   @state() private _errors: Record<string, string> = {};
 
@@ -31,6 +33,8 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
       this._memberKey = this.data.customer.memberKey ?? "";
       this._originalMemberKey = this.data.customer.memberKey ?? "";
       this._tags = this.data.customer.tags ?? [];
+      this._isFlagged = this.data.customer.isFlagged ?? false;
+      this._acceptsMarketing = this.data.customer.acceptsMarketing ?? false;
     }
     // Load all unique tags for autocomplete
     this._loadAllTags();
@@ -76,6 +80,8 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
       memberKey: memberKeyChanged && this._memberKey ? this._memberKey : undefined,
       clearMemberKey,
       tags: this._tags,
+      isFlagged: this._isFlagged,
+      acceptsMarketing: this._acceptsMarketing,
     });
 
     this._isSaving = false;
@@ -169,6 +175,30 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
             </merchello-tag-input>
             <span class="hint">Tags for segmentation and organization</span>
           </div>
+
+          <div class="form-row toggle-row">
+            <uui-toggle
+              .checked=${this._isFlagged}
+              @change=${(e: Event) => this._isFlagged = (e.target as HTMLInputElement).checked}
+              label="Flagged Customer">
+            </uui-toggle>
+            <div class="toggle-info">
+              <label>Flagged Customer</label>
+              <span class="hint">Mark this customer as requiring attention</span>
+            </div>
+          </div>
+
+          <div class="form-row toggle-row">
+            <uui-toggle
+              .checked=${this._acceptsMarketing}
+              @change=${(e: Event) => this._acceptsMarketing = (e.target as HTMLInputElement).checked}
+              label="Accepts Marketing">
+            </uui-toggle>
+            <div class="toggle-info">
+              <label>Accepts Marketing</label>
+              <span class="hint">Customer has opted in to receive marketing communications</span>
+            </div>
+          </div>
         </div>
 
         <div slot="actions">
@@ -217,6 +247,18 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
     .hint {
       font-size: 0.75rem;
       color: var(--uui-color-text-alt);
+    }
+
+    .toggle-row {
+      flex-direction: row;
+      align-items: flex-start;
+      gap: var(--uui-size-space-3);
+    }
+
+    .toggle-info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-1);
     }
 
     .form-row.has-error uui-input {

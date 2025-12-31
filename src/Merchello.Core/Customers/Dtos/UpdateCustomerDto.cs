@@ -29,4 +29,14 @@ public class UpdateCustomerDto
     /// Tags to assign to this customer. Replaces all existing tags.
     /// </summary>
     public List<string>? Tags { get; set; }
+
+    /// <summary>
+    /// Flag to identify problem customers. Null = unchanged.
+    /// </summary>
+    public bool? IsFlagged { get; set; }
+
+    /// <summary>
+    /// Whether the customer accepts marketing. Null = unchanged.
+    /// </summary>
+    public bool? AcceptsMarketing { get; set; }
 }

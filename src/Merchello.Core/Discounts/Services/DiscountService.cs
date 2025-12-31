@@ -5,6 +5,7 @@ using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Discounts.Services.Parameters;
 using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.DiscountNotifications;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;

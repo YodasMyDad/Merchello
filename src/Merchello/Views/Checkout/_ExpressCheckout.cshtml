@@ -36,7 +36,7 @@
         <p class="text-sm text-gray-600 text-center mb-4">Express checkout</p>
 
         <!-- Dynamic Express Checkout Buttons Container -->
-        <div id="express-buttons-container" class="flex flex-wrap justify-center gap-3">
+        <div id="express-buttons-container" class="flex flex-col sm:flex-row sm:flex-wrap items-center sm:justify-center gap-3">
             <!-- Buttons are rendered dynamically by JavaScript based on API response -->
         </div>
 
@@ -69,10 +69,19 @@
 </div>
 
 <style>
-    /* Express button wrapper - consistent sizing for all buttons */
+    /* Express button wrapper - full width on mobile, fixed on tablet+ */
     .express-button-wrapper {
-        min-width: 160px;
+        width: 100%;
+        max-width: 280px;
         min-height: 48px;
+    }
+
+    @@media (min-width: 640px) {
+        .express-button-wrapper {
+            width: auto;
+            min-width: 160px;
+            max-width: none;
+        }
     }
 
     /* Apple Pay button styling (native) */
@@ -81,8 +90,14 @@
         -apple-pay-button-type: plain;
         cursor: pointer;
         height: 48px;
-        width: 160px;
+        width: 100%;
         border-radius: 8px;
+    }
+
+    @@media (min-width: 640px) {
+        .apple-pay-button {
+            width: 160px;
+        }
     }
 
     .apple-pay-button-black {
@@ -92,7 +107,7 @@
     /* Generic express button base styles */
     .express-button {
         height: 48px;
-        width: 160px;
+        width: 100%;
         border-radius: 8px;
         cursor: pointer;
         display: flex;
@@ -101,6 +116,12 @@
         gap: 8px;
         font-weight: 500;
         transition: opacity 0.2s, background-color 0.2s;
+    }
+
+    @@media (min-width: 640px) {
+        .express-button {
+            width: 160px;
+        }
     }
 
     .express-button:disabled {

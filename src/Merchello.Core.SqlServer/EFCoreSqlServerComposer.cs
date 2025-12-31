@@ -1,4 +1,5 @@
 using Merchello.Core.Data;
+using Merchello.Core.Data.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;

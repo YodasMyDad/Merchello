@@ -184,9 +184,13 @@ import type {
   UpdatePaymentMethodSettingDto,
   ProcessTestPaymentDto,
   PaymentResultDto,
+  ExpressCheckoutClientConfigDto,
   WebhookEventTemplateDto,
   SimulateWebhookDto,
   WebhookSimulationResultDto,
+  CreatePaymentLinkDto,
+  PaymentLinkInfoDto,
+  PaymentLinkProviderDto,
 } from '@payment-providers/types/payment-providers.types.js';
 
 // Import shipping provider types
@@ -549,7 +553,7 @@ export const MerchelloApi = {
 
   /** Get express checkout client configuration for testing */
   getTestExpressConfig: (settingId: string, methodAlias: string, amount: number = 100) =>
-    apiGet<unknown>(`payment-providers/${settingId}/test/express-config?methodAlias=${methodAlias}&amount=${amount}`),
+    apiGet<ExpressCheckoutClientConfigDto>(`payment-providers/${settingId}/test/express-config?methodAlias=${methodAlias}&amount=${amount}`),
 
   /** Get available webhook event templates for simulation */
   getWebhookEventTemplates: (settingId: string) =>
@@ -558,6 +562,10 @@ export const MerchelloApi = {
   /** Simulate a webhook event for testing */
   simulateWebhook: (settingId: string, request: SimulateWebhookDto) =>
     apiPost<WebhookSimulationResultDto>(`payment-providers/${settingId}/test/simulate-webhook`, request),
+
+  /** Test payment link generation for a provider */
+  testPaymentLink: (settingId: string, request: { amount: number }) =>
+    apiPost<{ success: boolean; paymentUrl?: string; errorMessage?: string }>(`payment-providers/${settingId}/test/payment-link`, request),
 
   /** Get checkout preview showing which payment methods will appear and their deduplication status */
   getCheckoutPaymentPreview: () =>
@@ -602,6 +610,26 @@ export const MerchelloApi = {
   /** Process a refund */
   processRefund: (paymentId: string, data: ProcessRefundDto) =>
     apiPost<PaymentDto>(`payments/${paymentId}/refund`, data),
+
+  // ============================================
+  // Payment Links API
+  // ============================================
+
+  /** Get payment providers that support payment links */
+  getPaymentLinkProviders: () =>
+    apiGet<PaymentLinkProviderDto[]>('payment-links/providers'),
+
+  /** Create a payment link for an invoice */
+  createPaymentLink: (data: CreatePaymentLinkDto) =>
+    apiPost<PaymentLinkInfoDto>('payment-links', data),
+
+  /** Get the current payment link for an invoice */
+  getPaymentLink: (invoiceId: string) =>
+    apiGet<PaymentLinkInfoDto>(`invoices/${invoiceId}/payment-link`),
+
+  /** Deactivate the payment link for an invoice */
+  deactivatePaymentLink: (invoiceId: string) =>
+    apiPost<{ success: boolean }>(`invoices/${invoiceId}/payment-link/deactivate`),
 
   // ============================================
   // Shipping Providers API

@@ -6,7 +6,7 @@ import type {
   CheckoutPaymentPreviewDto,
   CheckoutMethodPreviewDto,
 } from "@payment-providers/types/payment-providers.types.js";
-import { getBrandIconSvg } from "../shared/brand-icons.js";
+import { getBrandIconSvg } from "../utils/brand-icons.js";
 
 @customElement("merchello-checkout-payment-preview")
 export class MerchelloCheckoutPaymentPreviewElement extends UmbElementMixin(LitElement) {

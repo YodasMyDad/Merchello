@@ -5,7 +5,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "repository",
     alias: "Merchello.Tree.Repository",
     name: "Merchello Tree Repository",
-    api: () => import("./repository.js"),
+    api: () => import("./services/tree-repository.js"),
   },
 
   // Tree

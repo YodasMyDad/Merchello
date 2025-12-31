@@ -4,6 +4,8 @@ using Merchello.Core.Notifications;
 using Merchello.Core.Payments.Factories;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
+using Merchello.Core.Payments.Providers.Interfaces;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Payments.Services;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Shared.Models;

@@ -1,5 +1,6 @@
 using System.Reflection;
 using Merchello.Core.Accounting.Handlers;
+using Merchello.Core.Accounting.Handlers.Interfaces;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Factories;
@@ -7,6 +8,7 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies;
+using Merchello.Core.Checkout.Strategies.Interfaces;
 using Merchello.Core.Customers.Factories;
 using Merchello.Core.Customers.Services;
 using Merchello.Core.Customers.Services.Interfaces;
@@ -30,19 +32,23 @@ using Merchello.Core.Caching.Services;
 using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Providers;
+using Merchello.Core.ExchangeRates.Providers.Interfaces;
 using Merchello.Core.ExchangeRates.Services;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Providers;
+using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.Handlers;
 using Merchello.Core.Notifications.Order;
 using Merchello.Core.Notifications.Payment;
 using Merchello.Core.Notifications.Shipment;
 using Merchello.Core.Payments.Factories;
 using Merchello.Core.Payments.Providers;
+using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Payments.Services;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Warehouses.Services;
@@ -169,6 +175,7 @@ public static class Startup
         // Payments
         builder.Services.AddScoped<IPaymentProviderManager, PaymentProviderManager>();
         builder.Services.AddScoped<IPaymentService, PaymentService>();
+        builder.Services.AddScoped<IPaymentLinkService, PaymentLinkService>();
 
         // Shipping
         builder.Services.AddScoped<IShippingProviderManager, ShippingProviderManager>();

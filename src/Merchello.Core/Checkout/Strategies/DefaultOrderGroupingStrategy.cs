@@ -1,3 +1,4 @@
+using Merchello.Core.Checkout.Strategies.Interfaces;
 using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Models;

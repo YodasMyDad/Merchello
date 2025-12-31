@@ -38,7 +38,7 @@
                 // Create a unique container for this method
                 const elementContainer = document.createElement('div');
                 elementContainer.id = 'paypal-express-' + method.methodAlias;
-                elementContainer.style.minWidth = '150px';
+                elementContainer.style.width = '100%';
                 container.appendChild(elementContainer);
 
                 // Determine button style based on method
