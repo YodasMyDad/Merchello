@@ -57,32 +57,17 @@
             </div>
         </div>
 
-        <!-- Payment Methods Section -->
+        <!-- Payment Section -->
         <div class="mb-6">
             <h2 class="font-heading text-xl font-normal mb-4">Payment</h2>
 
             <!-- Loading State (Skeleton) -->
-            <div x-show="isLoading" class="space-y-3" role="status" aria-label="Loading payment methods" :aria-busy="isLoading">
-                <div class="p-4 border border-gray-200 rounded-lg">
-                    <div class="flex items-center gap-4">
-                        <div class="w-5 h-5 rounded-full checkout-skeleton"></div>
-                        <div class="flex-1 space-y-2">
-                            <div class="h-4 w-32 checkout-skeleton"></div>
-                            <div class="h-3 w-48 checkout-skeleton"></div>
-                        </div>
-                        <div class="w-10 h-6 checkout-skeleton"></div>
-                    </div>
+            <div x-show="isLoading" class="space-y-4" role="status" aria-label="Loading payment methods" :aria-busy="isLoading">
+                <div class="flex gap-2">
+                    <div class="h-12 flex-1 checkout-skeleton rounded-lg"></div>
+                    <div class="h-12 flex-1 checkout-skeleton rounded-lg"></div>
                 </div>
-                <div class="p-4 border border-gray-200 rounded-lg">
-                    <div class="flex items-center gap-4">
-                        <div class="w-5 h-5 rounded-full checkout-skeleton"></div>
-                        <div class="flex-1 space-y-2">
-                            <div class="h-4 w-28 checkout-skeleton"></div>
-                            <div class="h-3 w-40 checkout-skeleton"></div>
-                        </div>
-                        <div class="w-10 h-6 checkout-skeleton"></div>
-                    </div>
-                </div>
+                <div class="h-40 checkout-skeleton rounded-lg"></div>
                 <span class="sr-only">Loading payment methods...</span>
             </div>
 
@@ -98,27 +83,107 @@
                 <p>No payment methods are currently available. Please contact support.</p>
             </div>
 
-            <!-- Payment Method List -->
-            <div x-show="!isLoading && !loadError && paymentMethods.length > 0" x-cloak class="space-y-3" role="radiogroup" aria-label="Payment methods">
-                <template x-for="method in paymentMethods" :key="method.providerAlias + '-' + method.methodAlias">
-                    <label class="flex items-center gap-4 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors checkout-touch-target"
-                           :class="{ 'border-accent bg-accent/5': selectedMethod?.providerAlias === method.providerAlias && selectedMethod?.methodAlias === method.methodAlias }">
-                        <span class="checkout-checkbox-wrapper">
-                            <input type="radio"
-                                   name="payment"
-                                   :id="'payment-' + method.providerAlias + '-' + method.methodAlias"
-                                   :value="method.providerAlias + ':' + method.methodAlias"
-                                   @@change="selectMethod(method)"
-                                   :checked="selectedMethod?.providerAlias === method.providerAlias && selectedMethod?.methodAlias === method.methodAlias"
-                                   class="w-5 h-5 text-accent focus:ring-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2" />
-                        </span>
-                        <div class="flex-1">
-                            <p class="font-medium text-gray-900" x-text="method.displayName"></p>
-                            <p class="text-sm text-gray-500" x-text="method.description || getMethodDescription(method)"></p>
+            <!-- Payment Methods (Provider-Agnostic Layout) -->
+            <div x-show="!isLoading && !loadError && paymentMethods.length > 0" x-cloak class="space-y-6">
+
+                <!-- Express Checkout Section (Apple Pay, Google Pay, PayPal, Venmo) -->
+                <template x-if="expressMethods.length > 0">
+                    <div class="express-checkout-section">
+                        <div class="flex flex-wrap gap-2 mb-4" id="express-checkout-buttons">
+                            <template x-for="method in expressMethods" :key="method.providerAlias + '-' + method.methodAlias">
+                                <button type="button"
+                                        @@click="initiateExpressCheckout(method)"
+                                        :disabled="isSubmitting"
+                                        class="express-checkout-btn flex-1 min-w-[140px] h-12 px-4 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <span x-html="getMethodIcon(method)" class="w-6 h-6 flex items-center justify-center" aria-hidden="true"></span>
+                                    <span class="font-medium text-sm" x-text="method.displayName"></span>
+                                </button>
+                            </template>
                         </div>
-                        <div x-html="getMethodIcon(method)" aria-hidden="true"></div>
-                    </label>
+                        <div class="relative flex items-center my-4">
+                            <div class="flex-grow border-t border-gray-200"></div>
+                            <span class="flex-shrink mx-4 text-sm text-gray-500">or pay with card</span>
+                            <div class="flex-grow border-t border-gray-200"></div>
+                        </div>
+                    </div>
                 </template>
+
+                <!-- Primary Payment Method (Cards) -->
+                <template x-if="cardMethod">
+                    <div class="primary-payment-section">
+                        <div class="p-4 border border-accent rounded-lg bg-accent/5"
+                             :class="{ 'border-accent': selectedMethod?.methodAlias === cardMethod.methodAlias }">
+                            <div class="flex items-center gap-3 mb-4">
+                                <span x-html="getMethodIcon(cardMethod)" class="w-8 h-5" aria-hidden="true"></span>
+                                <span class="font-medium" x-text="cardMethod.displayName"></span>
+                            </div>
+                            <!-- Card form container - adapter renders here -->
+                            <div id="primary-card-form" class="card-form-container">
+                                <div x-show="!cardFormReady && selectedMethod?.methodAlias === cardMethod.methodAlias" class="py-4 text-center text-gray-500">
+                                    <svg class="animate-spin h-6 w-6 mx-auto mb-2" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Loading secure card form...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Other Payment Methods Section (iDEAL, Bancontact, SEPA, etc.) -->
+                <template x-if="otherMethods.length > 0">
+                    <div class="other-payment-section">
+                        <div class="relative flex items-center my-4">
+                            <div class="flex-grow border-t border-gray-200"></div>
+                            <span class="flex-shrink mx-4 text-sm text-gray-500">other payment methods</span>
+                            <div class="flex-grow border-t border-gray-200"></div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <template x-for="method in otherMethods" :key="method.providerAlias + '-' + method.methodAlias">
+                                <button type="button"
+                                        @@click="initiateOtherPayment(method)"
+                                        :disabled="isSubmitting"
+                                        class="other-payment-btn p-4 flex items-center gap-3 bg-white hover:bg-gray-50 border border-gray-200 hover:border-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-left">
+                                    <span x-html="getMethodIcon(method)" class="w-8 h-6 flex-shrink-0 flex items-center justify-center" aria-hidden="true"></span>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="font-medium text-gray-900 text-sm" x-text="method.displayName"></p>
+                                        <p class="text-xs text-gray-500 truncate" x-text="method.description || getMethodDescription(method)"></p>
+                                    </div>
+                                    <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                    </svg>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Fallback: Show as list if no card method (e.g., only local payments) -->
+                <template x-if="!cardMethod && otherMethods.length === 0 && standardMethods.length > 0">
+                    <div class="fallback-payment-section space-y-3" role="radiogroup" aria-label="Payment methods">
+                        <template x-for="method in standardMethods" :key="method.providerAlias + '-' + method.methodAlias">
+                            <label class="flex items-center gap-4 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors checkout-touch-target"
+                                   :class="{ 'border-accent bg-accent/5': selectedMethod?.providerAlias === method.providerAlias && selectedMethod?.methodAlias === method.methodAlias }">
+                                <span class="checkout-checkbox-wrapper">
+                                    <input type="radio"
+                                           name="payment"
+                                           :id="'payment-' + method.providerAlias + '-' + method.methodAlias"
+                                           :value="method.providerAlias + ':' + method.methodAlias"
+                                           @@change="selectMethod(method)"
+                                           :checked="selectedMethod?.providerAlias === method.providerAlias && selectedMethod?.methodAlias === method.methodAlias"
+                                           class="w-5 h-5 text-accent focus:ring-accent" />
+                                </span>
+                                <div class="flex-1">
+                                    <p class="font-medium text-gray-900" x-text="method.displayName"></p>
+                                    <p class="text-sm text-gray-500" x-text="method.description || getMethodDescription(method)"></p>
+                                </div>
+                                <div x-html="getMethodIcon(method)" aria-hidden="true"></div>
+                            </label>
+                        </template>
+                    </div>
+                </template>
+
             </div>
         </div>
 
@@ -265,8 +330,10 @@
                 paymentError: null,
                 hostedFieldsReady: false,
                 widgetReady: false,
+                cardFormReady: false,
                 currentSession: null,
                 announcement: '',
+                activeOtherMethodContainer: null,
 
                 // Integration type constants
                 IntegrationType: {
@@ -276,9 +343,42 @@
                     DirectForm: 30
                 },
 
+                // Computed: Express checkout methods (Apple Pay, Google Pay, PayPal, Venmo)
+                get expressMethods() {
+                    return this.paymentMethods.filter(m => m.isExpressCheckout);
+                },
+
+                // Computed: Standard (non-express) methods
+                get standardMethods() {
+                    return this.paymentMethods.filter(m => !m.isExpressCheckout);
+                },
+
+                // Computed: Card method (for primary form display)
+                get cardMethod() {
+                    return this.standardMethods.find(m =>
+                        m.methodAlias === 'cards' ||
+                        m.methodAlias === 'card' ||
+                        m.methodType === 0 // PaymentMethodType.Cards
+                    );
+                },
+
+                // Computed: Other standard methods (excluding cards) - iDEAL, Bancontact, SEPA, etc.
+                get otherMethods() {
+                    return this.standardMethods.filter(m =>
+                        m.methodAlias !== 'cards' &&
+                        m.methodAlias !== 'card' &&
+                        m.methodType !== 0
+                    );
+                },
+
                 // Lifecycle
                 async init() {
                     await this.loadPaymentMethods();
+
+                    // Auto-select cards if available
+                    if (this.cardMethod) {
+                        await this.selectMethod(this.cardMethod);
+                    }
 
                     // Emit analytics event for payment step
                     if (window.MerchelloCheckout && window.merchelloCheckoutData) {
@@ -307,7 +407,7 @@
 
                         // Auto-select first method if only one
                         if (this.paymentMethods.length === 1) {
-                            this.selectMethod(this.paymentMethods[0]);
+                            await this.selectMethod(this.paymentMethods[0]);
                         }
                     } catch (error) {
                         console.error('Failed to load payment methods:', error);
@@ -323,6 +423,7 @@
                     this.paymentError = null;
                     this.hostedFieldsReady = false;
                     this.widgetReady = false;
+                    this.cardFormReady = false;
 
                     // Announce selection to screen readers
                     this.announce(`Selected ${method.displayName} payment method`);
@@ -331,10 +432,150 @@
                     const hostedFieldsContainer = document.getElementById('payment-form-fields');
                     const widgetContainer = document.getElementById('payment-widget');
                     const directFormContainer = document.getElementById('direct-form-fields');
+                    const cardFormContainer = document.getElementById('primary-card-form');
 
                     if (hostedFieldsContainer) hostedFieldsContainer.innerHTML = '';
                     if (widgetContainer) widgetContainer.innerHTML = '';
                     if (directFormContainer) directFormContainer.innerHTML = '';
+
+                    // If this is a card method, initialize the card form immediately
+                    if (method.methodAlias === 'cards' || method.methodAlias === 'card' || method.methodType === 0) {
+                        await this.initializeCardForm(method);
+                    }
+                },
+
+                // Initialize the card form for the primary payment method
+                async initializeCardForm(method) {
+                    const container = document.getElementById('primary-card-form');
+                    if (!container) return;
+
+                    this.cardFormReady = false;
+                    this.paymentError = null;
+
+                    try {
+                        const returnUrl = window.location.origin + '/checkout/return';
+                        const cancelUrl = window.location.origin + '/checkout/cancel';
+
+                        // Create payment session
+                        const session = await MerchelloPayment.initiatePayment(
+                            method.providerAlias,
+                            method.methodAlias,
+                            returnUrl,
+                            cancelUrl
+                        );
+
+                        this.currentSession = session;
+
+                        // Handle the payment flow based on integration type
+                        await MerchelloPayment.handlePaymentFlow(session, {
+                            containerId: 'primary-card-form',
+                            onReady: () => {
+                                this.cardFormReady = true;
+                            },
+                            onError: (error) => {
+                                this.paymentError = error.message || 'Failed to load card form';
+                            }
+                        });
+                    } catch (error) {
+                        console.error('Failed to initialize card form:', error);
+                        this.paymentError = error.message || 'Failed to load card form. Please try again.';
+                    }
+                },
+
+                // Initiate express checkout (Apple Pay, Google Pay, PayPal, Venmo)
+                async initiateExpressCheckout(method) {
+                    if (this.isSubmitting) return;
+
+                    this.isSubmitting = true;
+                    this.paymentError = null;
+                    this.announce(`Starting ${method.displayName} payment...`);
+
+                    try {
+                        const returnUrl = window.location.origin + '/checkout/return';
+                        const cancelUrl = window.location.origin + '/checkout/cancel';
+
+                        // Create payment session
+                        const session = await MerchelloPayment.initiatePayment(
+                            method.providerAlias,
+                            method.methodAlias,
+                            returnUrl,
+                            cancelUrl
+                        );
+
+                        this.currentSession = session;
+                        this.selectedMethod = method;
+
+                        // For express checkout, the adapter handles everything
+                        await MerchelloPayment.handlePaymentFlow(session, {
+                            containerId: 'express-checkout-buttons',
+                            onReady: () => {
+                                this.widgetReady = true;
+                            },
+                            onError: (error) => {
+                                this.paymentError = error.message || 'Express checkout failed';
+                            }
+                        });
+                    } catch (error) {
+                        console.error('Express checkout failed:', error);
+                        this.paymentError = error.message || 'Payment failed. Please try again.';
+                        this.announce(this.paymentError);
+                    } finally {
+                        this.isSubmitting = false;
+                    }
+                },
+
+                // Initiate other payment method (iDEAL, Bancontact, SEPA, etc.)
+                async initiateOtherPayment(method) {
+                    if (this.isSubmitting) return;
+
+                    this.isSubmitting = true;
+                    this.paymentError = null;
+                    this.selectedMethod = method;
+                    this.announce(`Starting ${method.displayName} payment...`);
+
+                    try {
+                        const returnUrl = window.location.origin + '/checkout/return';
+                        const cancelUrl = window.location.origin + '/checkout/cancel';
+
+                        // Create payment session
+                        const session = await MerchelloPayment.initiatePayment(
+                            method.providerAlias,
+                            method.methodAlias,
+                            returnUrl,
+                            cancelUrl
+                        );
+
+                        this.currentSession = session;
+
+                        // Handle based on integration type
+                        if (session.integrationType === this.IntegrationType.Redirect) {
+                            // Redirect to external payment page
+                            if (session.redirectUrl) {
+                                window.location.href = session.redirectUrl;
+                            }
+                        } else if (session.integrationType === this.IntegrationType.Widget) {
+                            // Show widget in a modal or expand section
+                            const widgetContainer = document.getElementById('payment-widget');
+                            if (widgetContainer) {
+                                widgetContainer.innerHTML = '';
+                                await MerchelloPayment.handlePaymentFlow(session, {
+                                    containerId: 'payment-widget',
+                                    onReady: () => {
+                                        this.widgetReady = true;
+                                    },
+                                    onError: (error) => {
+                                        this.paymentError = error.message;
+                                    }
+                                });
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Payment failed:', error);
+                        this.paymentError = error.message || 'Payment failed. Please try again.';
+                        this.announce(this.paymentError);
+                    } finally {
+                        this.isSubmitting = false;
+                    }
                 },
 
                 // Get method description based on type

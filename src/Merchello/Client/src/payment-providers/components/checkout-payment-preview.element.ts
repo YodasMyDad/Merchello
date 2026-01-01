@@ -5,8 +5,25 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import type {
   CheckoutPaymentPreviewDto,
   CheckoutMethodPreviewDto,
+  PaymentMethodRegionDto,
 } from "@payment-providers/types/payment-providers.types.js";
 import { getBrandIconSvg } from "../utils/brand-icons.js";
+
+/** Map of country/region codes to flag emojis */
+const REGION_FLAGS: Record<string, string> = {
+  US: "🇺🇸",
+  NL: "🇳🇱",
+  BE: "🇧🇪",
+  AT: "🇦🇹",
+  PL: "🇵🇱",
+  EU: "🇪🇺",
+  DE: "🇩🇪",
+  FR: "🇫🇷",
+  ES: "🇪🇸",
+  IT: "🇮🇹",
+  GB: "🇬🇧",
+  UK: "🇬🇧",
+};
 
 @customElement("merchello-checkout-payment-preview")
 export class MerchelloCheckoutPaymentPreviewElement extends UmbElementMixin(LitElement) {
@@ -62,13 +79,22 @@ export class MerchelloCheckoutPaymentPreviewElement extends UmbElementMixin(LitE
   }
 
   private _renderMethodIcon(method: CheckoutMethodPreviewDto): unknown {
-    // Use brand icons based on method alias
-    const svg = getBrandIconSvg(method.methodAlias);
+    // Prefer provider-defined iconHtml, fall back to hardcoded brand icons
+    const svg = method.iconHtml ?? getBrandIconSvg(method.methodAlias);
     if (svg) {
       return html`<span class="method-icon-svg" .innerHTML=${svg}></span>`;
     }
-    // Fallback to UUI icon
+    // Final fallback to UUI icon
     return html`<uui-icon name="${method.icon ?? 'icon-credit-card'}"></uui-icon>`;
+  }
+
+  private _renderRegionBadges(regions?: PaymentMethodRegionDto[]): unknown {
+    if (!regions || regions.length === 0) return nothing;
+    return html`
+      ${regions.map(
+        (r) => html`<span class="region-badge" title="${r.name}">${REGION_FLAGS[r.code] ?? "🌍"}</span>`
+      )}
+    `;
   }
 
   private _renderMethod(method: CheckoutMethodPreviewDto, showOutranked = false): unknown {
@@ -77,6 +103,7 @@ export class MerchelloCheckoutPaymentPreviewElement extends UmbElementMixin(LitE
         <div class="method-info">
           ${this._renderMethodIcon(method)}
           <span class="method-name">${method.displayName}</span>
+          ${this._renderRegionBadges(method.supportedRegions)}
         </div>
         <div class="method-provider">
           ${showOutranked
@@ -319,6 +346,11 @@ export class MerchelloCheckoutPaymentPreviewElement extends UmbElementMixin(LitE
     .method-name {
       font-size: 0.875rem;
       font-weight: 500;
+    }
+
+    .region-badge {
+      font-size: 0.75rem;
+      margin-left: var(--uui-size-space-1);
     }
 
     .method-provider {

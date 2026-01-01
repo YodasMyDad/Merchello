@@ -220,12 +220,20 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
 
 ---
 
-## Example 2: Braintree (HostedFields + PayPal)
+## Example 2: Braintree (Multiple Integration Types)
+
+This example shows a provider with multiple integration types: Hosted Fields for cards, Widget for express checkout (PayPal, Venmo), and Widget for local payment methods (iDEAL, SEPA).
 
 ```csharp
 public class BraintreePaymentProvider : PaymentProviderBase
 {
     private BraintreeGateway? _gateway;
+
+    // Local payment methods that use the local payment SDK
+    private static readonly HashSet<string> LocalPaymentAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "ideal", "bancontact", "sepa", "eps", "p24"
+    };
 
     public override PaymentProviderMetadata Metadata => new()
     {
@@ -236,57 +244,113 @@ public class BraintreePaymentProvider : PaymentProviderBase
         SupportsRefunds = true,
         SupportsPartialRefunds = true,
         SupportsAuthAndCapture = true,
-        RequiresWebhook = false
+        RequiresWebhook = true  // Required for local payment webhooks
     };
 
     public override IReadOnlyList<PaymentMethodDefinition> GetAvailablePaymentMethods() =>
     [
+        // Cards - Hosted Fields integration
         new PaymentMethodDefinition
         {
             Alias = "cards",
             DisplayName = "Credit/Debit Card",
-            Icon = "icon-credit-card",
-            Description = "Pay with credit or debit card",
             MethodType = PaymentMethodType.Cards,
             IntegrationType = PaymentIntegrationType.HostedFields,
             IsExpressCheckout = false,
             DefaultSortOrder = 10
         },
+        // Express checkout methods - Widget integration
         new PaymentMethodDefinition
         {
             Alias = "paypal",
             DisplayName = "PayPal",
-            Icon = "icon-paypal",
-            Description = "Pay with your PayPal account",
             MethodType = PaymentMethodType.PayPal,
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 0
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "venmo",
+            DisplayName = "Venmo",
+            MethodType = PaymentMethodType.Custom,  // Braintree-exclusive, no deduplication
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = true,
+            DefaultSortOrder = 3
+        },
+        // Local payment methods (EU) - Widget integration with redirect flow
+        // Use MethodType.Custom because they are region-specific and should NOT deduplicate
+        new PaymentMethodDefinition
+        {
+            Alias = "ideal",
+            DisplayName = "iDEAL",
+            Description = "Pay with iDEAL (Netherlands)",
+            MethodType = PaymentMethodType.Custom,  // Region-specific, no deduplication
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 20
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "sepa",
+            DisplayName = "SEPA Direct Debit",
+            Description = "Pay with SEPA Direct Debit (EU)",
+            MethodType = PaymentMethodType.Custom,  // Region-specific, no deduplication
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 22
         }
+        // ... other methods (bancontact, eps, p24)
     ];
 
     public override async Task<PaymentSessionResult> CreatePaymentSessionAsync(
         PaymentRequest request, CancellationToken ct = default)
     {
         var clientToken = await _gateway!.ClientToken.GenerateAsync();
+        var methodAlias = request.MethodAlias ?? "cards";
 
+        // Route to appropriate session type based on method
+        if (LocalPaymentAliases.Contains(methodAlias))
+        {
+            return CreateLocalPaymentSession(clientToken, request, methodAlias);
+        }
+
+        // Default: Cards with Hosted Fields
         return PaymentSessionResult.HostedFields(
             providerAlias: "braintree",
-            methodAlias: request.MethodAlias ?? "cards",
-            adapterUrl: "/_content/Merchello/js/checkout/adapters/braintree-payment-adapter.js",
-            jsSdkUrl: "https://js.braintreegateway.com/web/3.x/js/client.min.js",
+            methodAlias: methodAlias,
+            adapterUrl: "/js/checkout/adapters/braintree-payment-adapter.js",
+            jsSdkUrl: "https://js.braintreegateway.com/web/3.134.0/js/client.min.js",
             sdkConfig: new Dictionary<string, object>
             {
-                ["hostedFieldsUrl"] = "https://js.braintreegateway.com/web/3.x/js/hosted-fields.min.js",
-                ["fields"] = new
-                {
-                    number = new { selector = "#card-number", placeholder = "Card Number" },
-                    cvv = new { selector = "#cvv", placeholder = "CVV" },
-                    expirationDate = new { selector = "#expiry", placeholder = "MM/YY" }
-                }
+                ["hostedFieldsSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/hosted-fields.min.js",
+                ["threeDSecureEnabled"] = true,
+                ["amount"] = request.Amount,
+                ["currency"] = request.Currency
             },
             clientToken: clientToken,
-            sessionId: Guid.NewGuid().ToString());
+            sessionId: request.InvoiceId.ToString());
+    }
+
+    // Separate session for local payment methods
+    private PaymentSessionResult CreateLocalPaymentSession(
+        string clientToken, PaymentRequest request, string methodAlias)
+    {
+        return PaymentSessionResult.Widget(
+            providerAlias: "braintree",
+            methodAlias: methodAlias,
+            adapterUrl: "/js/checkout/adapters/braintree-local-payment-adapter.js",
+            jsSdkUrl: "https://js.braintreegateway.com/web/3.134.0/js/client.min.js",
+            sdkConfig: new Dictionary<string, object>
+            {
+                ["localPaymentSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/local-payment.min.js",
+                ["amount"] = request.Amount,
+                ["currency"] = request.Currency,
+                ["returnUrl"] = request.ReturnUrl,
+                ["cancelUrl"] = request.CancelUrl
+            },
+            clientToken: clientToken,
+            sessionId: request.InvoiceId.ToString());
     }
 
     public override async Task<PaymentResult> ProcessPaymentAsync(
@@ -305,6 +369,14 @@ public class BraintreePaymentProvider : PaymentProviderBase
     }
 }
 ```
+
+**Key Points:**
+- Use `MethodType.Custom` for provider-exclusive methods (Venmo is Braintree-only)
+- Use `MethodType.Custom` for region-specific methods (iDEAL, Bancontact, etc.) - they should NOT deduplicate because each serves different countries
+- Use `MethodType.BankTransfer` only if you want ONE bank transfer option to show (e.g., if you have multiple providers offering generic "bank transfer")
+- Route to different adapters based on method alias in `CreatePaymentSessionAsync`
+- Local payments require `returnUrl` and `cancelUrl` for redirect flows
+- Local payments require webhooks for payment confirmation
 
 ---
 

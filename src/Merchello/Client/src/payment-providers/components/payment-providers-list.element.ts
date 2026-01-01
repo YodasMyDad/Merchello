@@ -3,6 +3,7 @@ import { customElement, state, query } from "@umbraco-cms/backoffice/external/li
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
+import { UmbSorterController } from "@umbraco-cms/backoffice/sorter";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
@@ -28,6 +29,19 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
   #isConnected = false;
+
+  // Sorter for configured payment providers
+  #providerSorter = new UmbSorterController<PaymentProviderSettingDto>(this, {
+    getUniqueOfElement: (element) => element.getAttribute("data-provider-id") ?? "",
+    getUniqueOfModel: (model) => model.id,
+    identifier: "Merchello.PaymentProviders.Sorter",
+    itemSelector: ".provider-card.configured",
+    containerSelector: ".providers-list.configured",
+    onChange: ({ model }) => {
+      this._configuredProviders = model;
+      this._handleProviderReorder(model.map((p) => p.id));
+    },
+  });
 
   constructor() {
     super();
@@ -77,6 +91,7 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
 
       this._availableProviders = availableResult.data ?? [];
       this._configuredProviders = configuredResult.data ?? [];
+      this.#providerSorter.setModel(this._configuredProviders);
     } catch (err) {
       // Prevent state updates if component was disconnected during async operation
       if (!this.#isConnected) return;
@@ -87,6 +102,23 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
 
     // Refresh the checkout preview after providers are loaded/reloaded
     await this._previewElement?.loadPreview();
+  }
+
+  private async _handleProviderReorder(orderedIds: string[]): Promise<void> {
+    const { error } = await MerchelloApi.reorderPaymentProviders(orderedIds);
+
+    if (!this.#isConnected) return;
+
+    if (error) {
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Reorder failed", message: error.message },
+      });
+      // Reload to restore correct order
+      await this._loadProviders();
+    } else {
+      // Refresh checkout preview to reflect new order
+      await this._previewElement?.loadPreview();
+    }
   }
 
   private _getUnconfiguredProviders(): PaymentProviderDto[] {
@@ -196,8 +228,9 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     });
   }
 
-  private _renderProviderIcon(alias: string, fallbackIcon?: string): unknown {
-    const svg = getProviderIconSvg(alias);
+  private _renderProviderIcon(alias: string, iconHtml?: string, fallbackIcon?: string): unknown {
+    // Prefer provider-defined iconHtml, fall back to hardcoded brand icons
+    const svg = iconHtml ?? getProviderIconSvg(alias);
     if (svg) {
       return html`<span class="provider-icon-svg" .innerHTML=${svg}></span>`;
     }
@@ -208,10 +241,13 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     const provider = setting.provider;
 
     return html`
-      <div class="provider-card configured">
+      <div class="provider-card configured" data-provider-id=${setting.id}>
         <div class="provider-header">
+          <div class="provider-drag-handle">
+            <uui-icon name="icon-navigation"></uui-icon>
+          </div>
           <div class="provider-info">
-            ${this._renderProviderIcon(setting.providerAlias, provider?.icon)}
+            ${this._renderProviderIcon(setting.providerAlias, provider?.iconHtml, provider?.icon)}
             <div class="provider-details">
               <span class="provider-name">${setting.displayName}</span>
               <span class="provider-alias">${setting.providerAlias}</span>
@@ -300,7 +336,7 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
       <div class="provider-card available">
         <div class="provider-header">
           <div class="provider-info">
-            ${this._renderProviderIcon(provider.alias, provider.icon)}
+            ${this._renderProviderIcon(provider.alias, provider.iconHtml, provider.icon)}
             <div class="provider-details">
               <span class="provider-name">${provider.displayName}</span>
               <span class="provider-alias">${provider.alias}</span>
@@ -378,11 +414,12 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
         <p class="section-description">
           These payment providers are installed and configured.
           Toggle the switch to show or hide a provider from checkout.
+          Drag to reorder how providers appear.
         </p>
         ${this._configuredProviders.length === 0
           ? html`<p class="no-items">No payment providers configured yet.</p>`
           : html`
-              <div class="providers-list">
+              <div class="providers-list configured">
                 ${this._configuredProviders.map((setting) =>
                   this._renderConfiguredProvider(setting)
                 )}
@@ -472,6 +509,33 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
 
     .provider-card.available {
       border-left: 3px solid var(--uui-color-border-emphasis);
+    }
+
+    .provider-drag-handle {
+      cursor: grab;
+      color: var(--uui-color-text-alt);
+      display: flex;
+      align-items: center;
+      padding-right: var(--uui-size-space-2);
+    }
+
+    .provider-drag-handle:active {
+      cursor: grabbing;
+    }
+
+    .provider-card.--umb-sorter-placeholder {
+      visibility: hidden;
+      position: relative;
+    }
+
+    .provider-card.--umb-sorter-placeholder::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border: 2px dashed var(--uui-color-divider-emphasis);
+      border-radius: var(--uui-border-radius);
+      visibility: visible;
+      background: var(--uui-color-surface-alt);
     }
 
     .provider-header {

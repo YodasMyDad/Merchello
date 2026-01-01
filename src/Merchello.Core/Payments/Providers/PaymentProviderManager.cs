@@ -498,7 +498,12 @@ public class PaymentProviderManager(
                     IconHtml = methodDef.IconHtml,
                     MethodType = methodDef.MethodType,
                     SortOrder = methodSetting?.SortOrder ?? methodDef.DefaultSortOrder,
-                    IsActive = true // Will be updated during deduplication
+                    IsActive = true, // Will be updated during deduplication
+                    SupportedRegions = methodDef.SupportedRegions?.Select(r => new PaymentMethodRegionDto
+                    {
+                        Code = r.Code,
+                        Name = r.Name
+                    }).ToList()
                 });
             }
         }

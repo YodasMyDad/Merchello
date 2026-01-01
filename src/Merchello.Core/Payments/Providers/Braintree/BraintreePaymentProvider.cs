@@ -25,9 +25,22 @@ public class BraintreePaymentProvider : PaymentProviderBase
     private string? _merchantAccountId;
 
     /// <summary>
-    /// URL to the Braintree payment adapter script.
+    /// URL to the Braintree payment adapter script (cards).
     /// </summary>
     private const string BraintreePaymentAdapterUrl = "/js/checkout/adapters/braintree-payment-adapter.js";
+
+    /// <summary>
+    /// URL to the Braintree local payment adapter script.
+    /// </summary>
+    private const string BraintreeLocalPaymentAdapterUrl = "/js/checkout/adapters/braintree-local-payment-adapter.js";
+
+    /// <summary>
+    /// Local payment method aliases that use the local payment SDK.
+    /// </summary>
+    private static readonly HashSet<string> LocalPaymentAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "ideal", "bancontact", "sepa", "eps", "p24"
+    };
 
     /// <summary>
     /// SVG icon for card payments.
@@ -49,13 +62,43 @@ public class BraintreePaymentProvider : PaymentProviderBase
     /// </summary>
     private const string GooglePayIconSvg = """<svg class="w-12 h-5" viewBox="0 0 50 21" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M23.8 10.5V16.3H22V1.5H27C28.4 1.5 29.6 2 30.5 2.9C31.5 3.8 32 4.9 32 6.2C32 7.6 31.5 8.7 30.5 9.6C29.6 10.5 28.4 10.5 27 10.5H23.8ZM23.8 3.2V8.8H27C27.9 8.8 28.6 8.5 29.1 7.9C29.7 7.3 30 6.8 30 6C30 5.3 29.7 4.7 29.1 4.1C28.5 3.5 27.8 3.2 27 3.2H23.8Z" fill="#5F6368"/><path d="M37 6.3C38.5 6.3 39.7 6.7 40.6 7.6C41.5 8.5 42 9.6 42 11V16.3H40.2V14.9H40.1C39.2 16.1 38 16.5 36.7 16.5C35.5 16.5 34.5 16.2 33.7 15.5C32.9 14.8 32.5 13.9 32.5 12.9C32.5 11.8 32.9 10.9 33.8 10.2C34.7 9.5 35.8 9.2 37.2 9.2C38.4 9.2 39.4 9.4 40.1 9.9V9.5C40.1 8.7 39.8 8.1 39.2 7.5C38.6 6.9 37.9 6.6 37.1 6.6C35.9 6.6 35 7.1 34.4 8L32.8 7C33.7 5.9 35.1 6.3 37 6.3ZM34.4 12.9C34.4 13.5 34.7 14 35.2 14.3C35.7 14.7 36.3 14.9 37 14.9C37.9 14.9 38.8 14.5 39.5 13.9C40.2 13.2 40.5 12.5 40.5 11.6C39.9 11.1 39 10.8 37.8 10.8C36.9 10.8 36.1 11 35.5 11.4C34.8 11.8 34.4 12.3 34.4 12.9Z" fill="#5F6368"/><path d="M50 6.5L44.4 19.5H42.5L44.5 15.1L40.5 6.5H42.5L45.4 13.2L48.2 6.5H50Z" fill="#5F6368"/><path d="M16 8.5C16 7.9 16 7.3 15.9 6.8H8.2V10H12.5C12.3 11.1 11.7 12.1 10.8 12.7V15H13.5C15.1 13.5 16 11.2 16 8.5Z" fill="#4285F4"/><path d="M8.2 17C10.6 17 12.6 16.2 13.5 15L10.8 12.7C10 13.2 9.2 13.5 8.2 13.5C5.9 13.5 3.9 11.9 3.2 9.8H0.4V12.2C1.8 14.9 4.8 17 8.2 17Z" fill="#34A853"/><path d="M3.2 9.8C3 9.2 2.9 8.6 2.9 8C2.9 7.4 3 6.8 3.2 6.2V3.8H0.4C-0.2 5.1 -0.5 6.5 -0.5 8C-0.5 9.5 -0.2 10.9 0.4 12.2L3.2 9.8Z" fill="#FBBC05"/><path d="M8.2 2.5C9.4 2.5 10.5 2.9 11.3 3.7L13.6 1.4C12.1 0 10.3 -0.7 8.2 -0.7C4.8 -0.7 1.8 1.4 0.4 3.8L3.2 6.2C3.9 4.1 5.9 2.5 8.2 2.5Z" fill="#EA4335"/></svg>""";
 
+    /// <summary>
+    /// SVG icon for Venmo.
+    /// </summary>
+    private const string VenmoIconSvg = """<svg class="w-16 h-5" viewBox="0 0 64 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10.5 0.5C11.2 1.7 11.5 2.9 11.5 4.5C11.5 8.9 7.7 14.6 4.6 18.5H0L2.3 1L7.3 0.5L6.2 11.5C7.5 9.4 9.1 6 9.1 3.8C9.1 2.5 8.9 1.6 8.5 0.9L10.5 0.5ZM17.5 7.5C18.5 7.5 20.5 7 20.5 5.5C20.5 4.7 20 4.3 19.3 4.3C18.3 4.3 17.6 5.3 17.5 7.5ZM17.3 10C17.3 12.3 18.3 13.2 19.8 13.2C21.2 13.2 22.5 12.8 24.3 11.8L23.8 15.5C22.5 16.3 20.5 17 18.3 17C14.3 17 12.5 14.5 12.5 11C12.5 6 15.5 1.5 20.3 1.5C23.3 1.5 25 3.3 25 5.8C25 9.5 21 10 17.3 10ZM32.5 4.8C33.5 4.8 34.3 5 35.3 5.5L34.5 9.5C33.7 9.1 32.8 8.8 31.8 8.8C30 8.8 29 10.5 29 12.5C29 14 29.7 14.8 30.8 14.8C31.7 14.8 32.5 14.5 33.5 13.8L33 17.5C32 18 30.5 18.5 29 18.5C26 18.5 24 16.3 24 13C24 8 27 1.5 32.5 1.5C34.3 1.5 36 2 37 2.8L35.5 6.5C34.8 6 33.8 5.5 32.8 5.5L32.5 4.8ZM44.5 4.8C43.3 4.8 42.5 6.3 42.5 8C42.5 9.5 43.2 10.3 44.2 10.3C45.4 10.3 46.2 8.8 46.2 7C46.2 5.7 45.5 4.8 44.5 4.8ZM43.5 13.8C42.2 13.8 41.2 13.3 40.5 12.5C40 14.3 39.3 16.3 38.5 18.5H33.5L38 1L42.5 0.5L42.3 2C43.3 1 44.5 0.5 46 0.5C48.8 0.5 51 2.8 51 6.3C51 11 47.8 14.5 43.5 13.8ZM58.5 1C60.5 1 62.5 1.5 64 2.3L63.3 6C61.8 5.3 60.3 4.8 58.8 4.8C57.8 4.8 57.3 5.1 57.3 5.7C57.3 7.3 64 7 64 11.5C64 15 61 17 57 17C55 17 52.8 16.5 51.3 15.5L52 12C53.5 13 55.5 13.5 57.3 13.5C58.5 13.5 59.3 13.1 59.3 12.3C59.3 10.7 52.3 11.1 52.3 6.5C52.3 3.3 55 1 58.5 1Z" fill="#3D95CE"/></svg>""";
+
+    /// <summary>
+    /// SVG icon for iDEAL.
+    /// </summary>
+    private const string IdealIconSvg = """<svg class="w-10 h-5" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="20" rx="2" fill="#CC0066"/><text x="20" y="14" text-anchor="middle" fill="white" font-size="10" font-weight="bold">iDEAL</text></svg>""";
+
+    /// <summary>
+    /// SVG icon for Bancontact.
+    /// </summary>
+    private const string BancontactIconSvg = """<svg class="w-10 h-5" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="20" rx="2" fill="#005498"/><text x="20" y="14" text-anchor="middle" fill="white" font-size="7" font-weight="bold">Bancontact</text></svg>""";
+
+    /// <summary>
+    /// SVG icon for SEPA.
+    /// </summary>
+    private const string SepaIconSvg = """<svg class="w-10 h-5" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="20" rx="2" fill="#2E4A7D"/><text x="20" y="14" text-anchor="middle" fill="white" font-size="10" font-weight="bold">SEPA</text></svg>""";
+
+    /// <summary>
+    /// SVG icon for EPS.
+    /// </summary>
+    private const string EpsIconSvg = """<svg class="w-10 h-5" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="20" rx="2" fill="#9E1B34"/><text x="20" y="14" text-anchor="middle" fill="white" font-size="10" font-weight="bold">eps</text></svg>""";
+
+    /// <summary>
+    /// SVG icon for P24.
+    /// </summary>
+    private const string P24IconSvg = """<svg class="w-10 h-5" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="20" rx="2" fill="#D13239"/><text x="20" y="14" text-anchor="middle" fill="white" font-size="10" font-weight="bold">P24</text></svg>""";
+
     /// <inheritdoc />
     public override PaymentProviderMetadata Metadata => new()
     {
         Alias = "braintree",
         DisplayName = "Braintree",
         Icon = "icon-credit-card",
-        Description = "Accept payments via Braintree. Supports credit cards, PayPal, Apple Pay, and Google Pay.",
+        Description = "Accept payments via Braintree. Supports credit cards, PayPal, Apple Pay, Google Pay, and Venmo.",
         SupportsRefunds = true,
         SupportsPartialRefunds = true,
         SupportsAuthAndCapture = true,
@@ -113,7 +156,23 @@ public class BraintreePaymentProvider : PaymentProviderBase
             2. Enable for sandbox testing (works immediately)
             3. For production, complete Google Pay merchant registration at pay.google.com
 
-            ### 7. Test Card Numbers
+            ### 7. Enable Venmo (US Only, Optional)
+
+            Venmo is available for US merchants only:
+            1. Go to **Settings → Processing → Venmo**
+            2. Enable Venmo in your Braintree Control Panel
+            3. For sandbox, Venmo works with test accounts
+            4. For production, your Braintree account must be approved for Venmo
+
+            ### 8. Enable Local Payment Methods (EU, Optional)
+
+            Local payment methods (iDEAL, Bancontact, SEPA, EPS, P24) require:
+            1. A PayPal business account linked to Braintree
+            2. Go to **Settings → Processing → PayPal** and link your account
+            3. Local payment methods are automatically enabled once PayPal is linked
+            4. Note: These methods require EUR currency support in your merchant account
+
+            ### 9. Test Card Numbers
 
             Use these test cards with any future expiry date and any 3-digit CVV:
 
@@ -125,13 +184,13 @@ public class BraintreePaymentProvider : PaymentProviderBase
             | `5555 5555 5555 4444` | Mastercard success |
             | `378282246310005` | American Express success |
 
-            ### 8. Test PayPal Accounts
+            ### 10. Test PayPal Accounts
 
             Use PayPal sandbox buyer accounts from the PayPal Developer Dashboard:
             - Create sandbox accounts at developer.paypal.com
             - Use the buyer email/password in the PayPal popup
 
-            ### 9. Going Live
+            ### 11. Going Live
 
             1. Complete your Braintree production application
             2. Get production API credentials from the production Control Panel
@@ -191,6 +250,87 @@ public class BraintreePaymentProvider : PaymentProviderBase
             IsExpressCheckout = true,
             DefaultSortOrder = 2,
             MethodType = PaymentMethodType.GooglePay
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "venmo",
+            DisplayName = "Venmo",
+            Icon = "icon-venmo",
+            IconHtml = VenmoIconSvg,
+            Description = "Pay with your Venmo account (US only).",
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = true,
+            DefaultSortOrder = 3,
+            MethodType = PaymentMethodType.Custom,
+            SupportedRegions = [new PaymentMethodRegion { Code = "US", Name = "United States" }]
+        },
+        // Local Payment Methods (EU) - use Widget type as they require Braintree SDK
+        // Each uses MethodType.Custom because they are region-specific and should NOT deduplicate
+        // (a Belgian customer needs Bancontact, a Dutch customer needs iDEAL - both should show)
+        new PaymentMethodDefinition
+        {
+            Alias = "ideal",
+            DisplayName = "iDEAL",
+            Icon = "icon-bank",
+            IconHtml = IdealIconSvg,
+            Description = "Pay with iDEAL (Netherlands).",
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 20,
+            MethodType = PaymentMethodType.Custom,
+            SupportedRegions = [new PaymentMethodRegion { Code = "NL", Name = "Netherlands" }]
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "bancontact",
+            DisplayName = "Bancontact",
+            Icon = "icon-bank",
+            IconHtml = BancontactIconSvg,
+            Description = "Pay with Bancontact (Belgium).",
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 21,
+            MethodType = PaymentMethodType.Custom,
+            SupportedRegions = [new PaymentMethodRegion { Code = "BE", Name = "Belgium" }]
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "sepa",
+            DisplayName = "SEPA Direct Debit",
+            Icon = "icon-bank",
+            IconHtml = SepaIconSvg,
+            Description = "Pay with SEPA Direct Debit (EU).",
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 22,
+            MethodType = PaymentMethodType.Custom,
+            SupportedRegions = [new PaymentMethodRegion { Code = "EU", Name = "European Union" }]
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "eps",
+            DisplayName = "eps",
+            Icon = "icon-bank",
+            IconHtml = EpsIconSvg,
+            Description = "Pay with eps (Austria).",
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 23,
+            MethodType = PaymentMethodType.Custom,
+            SupportedRegions = [new PaymentMethodRegion { Code = "AT", Name = "Austria" }]
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "p24",
+            DisplayName = "Przelewy24",
+            Icon = "icon-bank",
+            IconHtml = P24IconSvg,
+            Description = "Pay with Przelewy24 (Poland).",
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 24,
+            MethodType = PaymentMethodType.Custom,
+            SupportedRegions = [new PaymentMethodRegion { Code = "PL", Name = "Poland" }]
         }
     ];
 
@@ -301,12 +441,19 @@ public class BraintreePaymentProvider : PaymentProviderBase
             }
 
             var clientToken = await _gateway.ClientToken.GenerateAsync(clientTokenRequest);
+            var methodAlias = request.MethodAlias ?? "cards";
 
-            // Return session with adapter configuration for Braintree Hosted Fields
+            // Route to appropriate session type based on method
+            if (LocalPaymentAliases.Contains(methodAlias))
+            {
+                return CreateLocalPaymentSession(clientToken, request, methodAlias);
+            }
+
+            // Default: Return session with adapter configuration for Braintree Hosted Fields (cards)
             // SDK version 3.134.0 (latest as of 2025)
             return PaymentSessionResult.HostedFields(
                 providerAlias: Metadata.Alias,
-                methodAlias: request.MethodAlias ?? "cards",
+                methodAlias: methodAlias,
                 adapterUrl: BraintreePaymentAdapterUrl,
                 jsSdkUrl: "https://js.braintreegateway.com/web/3.134.0/js/client.min.js",
                 sdkConfig: new Dictionary<string, object>
@@ -384,6 +531,38 @@ public class BraintreePaymentProvider : PaymentProviderBase
         {
             return PaymentSessionResult.Failed(ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Creates a payment session for local payment methods (iDEAL, Bancontact, SEPA, EPS, P24).
+    /// </summary>
+    private PaymentSessionResult CreateLocalPaymentSession(string clientToken, PaymentRequest request, string methodAlias)
+    {
+        return PaymentSessionResult.Widget(
+            providerAlias: Metadata.Alias,
+            methodAlias: methodAlias,
+            adapterUrl: BraintreeLocalPaymentAdapterUrl,
+            jsSdkUrl: "https://js.braintreegateway.com/web/3.134.0/js/client.min.js",
+            sdkConfig: new Dictionary<string, object>
+            {
+                // SDK component URLs (v3.134.0)
+                ["localPaymentSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/local-payment.min.js",
+                ["dataCollectorSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/data-collector.min.js",
+
+                // Merchant account for multi-currency
+                ["merchantAccountId"] = _merchantAccountId ?? "",
+
+                // Payment amount info
+                ["amount"] = request.Amount,
+                ["currency"] = request.Currency,
+                ["invoiceId"] = request.InvoiceId.ToString(),
+
+                // Return URLs for redirect flow
+                ["returnUrl"] = request.ReturnUrl ?? "",
+                ["cancelUrl"] = request.CancelUrl ?? ""
+            },
+            clientToken: clientToken,
+            sessionId: request.InvoiceId.ToString());
     }
 
     /// <inheritdoc />
@@ -516,8 +695,10 @@ public class BraintreePaymentProvider : PaymentProviderBase
         }
 
         // Only provide config for express checkout methods
-        var normalizedAlias = methodAlias.ToLowerInvariant();
-        if (normalizedAlias != "paypal" && normalizedAlias != "applepay" && normalizedAlias != "googlepay")
+        var method = GetAvailablePaymentMethods()
+            .FirstOrDefault(m => string.Equals(m.Alias, methodAlias, StringComparison.OrdinalIgnoreCase));
+
+        if (method is not { IsExpressCheckout: true })
         {
             return null;
         }
@@ -533,20 +714,21 @@ public class BraintreePaymentProvider : PaymentProviderBase
 
             var clientToken = await _gateway.ClientToken.GenerateAsync(clientTokenRequest);
 
-            // Map method alias to method type and SDK URL
-            var (methodType, sdkUrl) = normalizedAlias switch
+            // Map method alias to SDK URL
+            var sdkUrl = method.Alias.ToLowerInvariant() switch
             {
-                "paypal" => (PaymentMethodType.PayPal, "https://js.braintreegateway.com/web/3.134.0/js/paypal-checkout.min.js"),
-                "applepay" => (PaymentMethodType.ApplePay, "https://js.braintreegateway.com/web/3.134.0/js/apple-pay.min.js"),
-                "googlepay" => (PaymentMethodType.GooglePay, "https://js.braintreegateway.com/web/3.134.0/js/google-payment.min.js"),
-                _ => ((PaymentMethodType?)null, (string?)null)
+                "paypal" => "https://js.braintreegateway.com/web/3.134.0/js/paypal-checkout.min.js",
+                "applepay" => "https://js.braintreegateway.com/web/3.134.0/js/apple-pay.min.js",
+                "googlepay" => "https://js.braintreegateway.com/web/3.134.0/js/google-payment.min.js",
+                "venmo" => "https://js.braintreegateway.com/web/3.134.0/js/venmo.min.js",
+                _ => null
             };
 
             return new ExpressCheckoutClientConfig
             {
                 ProviderAlias = Metadata.Alias,
                 MethodAlias = methodAlias,
-                MethodType = methodType,
+                MethodType = method.MethodType,
                 SdkUrl = sdkUrl,
                 CustomAdapterUrl = BraintreeExpressAdapterUrl,
                 SdkConfig = new Dictionary<string, object>
@@ -560,7 +742,12 @@ public class BraintreePaymentProvider : PaymentProviderBase
                     ["isTestMode"] = IsTestMode,
                     ["environment"] = IsTestMode ? "TEST" : "PRODUCTION",
                     ["amount"] = amount,
-                    ["currency"] = currency
+                    ["currency"] = currency,
+                    // Venmo-specific options
+                    ["allowDesktop"] = true,
+                    ["allowDesktopWebLogin"] = true,
+                    ["mobileWebFallBack"] = true,
+                    ["paymentMethodUsage"] = "multi_use"
                 },
                 IsAvailable = true
             };
@@ -890,6 +1077,9 @@ public class BraintreePaymentProvider : PaymentProviderBase
                 "transaction_settlement_declined" => WebhookEventType.PaymentFailed,
                 "dispute_opened" => WebhookEventType.DisputeOpened,
                 "dispute_won" or "dispute_lost" => WebhookEventType.DisputeResolved,
+                "local_payment_completed" => WebhookEventType.PaymentCompleted,
+                "local_payment_reversed" => WebhookEventType.RefundCompleted,
+                "local_payment_expired" => WebhookEventType.PaymentFailed,
                 _ => WebhookEventType.Unknown
             };
 
@@ -1077,6 +1267,48 @@ public class BraintreePaymentProvider : PaymentProviderBase
                 Description = "Fired when a dispute is resolved in the customer's favor (chargeback applied).",
                 Category = WebhookEventCategory.Dispute,
                 MerchelloEventType = WebhookEventType.DisputeResolved
+            },
+            // Local Payment Methods webhooks
+            new()
+            {
+                EventType = "local_payment_completed",
+                DisplayName = "Local Payment Completed",
+                Description = "Fired when a local payment method (iDEAL, Bancontact, SEPA, etc.) completes successfully.",
+                Category = WebhookEventCategory.Payment,
+                MerchelloEventType = WebhookEventType.PaymentCompleted
+            },
+            new()
+            {
+                EventType = "local_payment_reversed",
+                DisplayName = "Local Payment Reversed",
+                Description = "Fired when a local payment is reversed (e.g., SEPA direct debit reversal).",
+                Category = WebhookEventCategory.Refund,
+                MerchelloEventType = WebhookEventType.RefundCompleted
+            },
+            new()
+            {
+                EventType = "local_payment_expired",
+                DisplayName = "Local Payment Expired",
+                Description = "Fired when a local payment expires before completion.",
+                Category = WebhookEventCategory.Payment,
+                MerchelloEventType = WebhookEventType.PaymentFailed
+            },
+            // Additional useful Braintree webhooks
+            new()
+            {
+                EventType = "dispute_under_review",
+                DisplayName = "Dispute Under Review",
+                Description = "Fired when dispute evidence has been submitted and is under review.",
+                Category = WebhookEventCategory.Dispute,
+                MerchelloEventType = WebhookEventType.Unknown
+            },
+            new()
+            {
+                EventType = "transaction_disbursed",
+                DisplayName = "Transaction Disbursed",
+                Description = "Fired when funds are disbursed to your bank account (settlement).",
+                Category = WebhookEventCategory.Payment,
+                MerchelloEventType = WebhookEventType.Unknown
             }
         };
 
@@ -1119,6 +1351,9 @@ public class BraintreePaymentProvider : PaymentProviderBase
             "dispute_opened" => "dispute_opened",
             "dispute_won" => "dispute_won",
             "dispute_lost" => "dispute_lost",
+            "local_payment_completed" => "local_payment_completed",
+            "local_payment_reversed" => "local_payment_reversed",
+            "local_payment_expired" => "local_payment_expired",
             _ => "transaction_settled"
         };
 
@@ -1197,6 +1432,28 @@ public class BraintreePaymentProvider : PaymentProviderBase
                                 <amount>{amount:F2}</amount>
                             </transaction>
                         </dispute>
+                    </subject>
+                </notification>
+                """,
+            "local_payment_completed" or "local_payment_reversed" or "local_payment_expired" => $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <notification>
+                    <kind>{kind}</kind>
+                    <timestamp type="datetime">{timestamp}</timestamp>
+                    <subject>
+                        <local-payment>
+                            <payment-id>{transactionId}</payment-id>
+                            <id>{transactionId}</id>
+                            <payer-id>PAYER123</payer-id>
+                            <payment-method-nonce>fake-valid-nonce</payment-method-nonce>
+                            <transaction>
+                                <id>{transactionId}</id>
+                                <status>{(kind == "local_payment_completed" ? "settled" : kind == "local_payment_reversed" ? "voided" : "failed")}</status>
+                                <amount>{amount:F2}</amount>
+                                <currency-iso-code>EUR</currency-iso-code>
+                            </transaction>
+                            <funding-source>ideal</funding-source>
+                        </local-payment>
                     </subject>
                 </notification>
                 """,

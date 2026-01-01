@@ -205,11 +205,21 @@ export interface CheckoutMethodPreviewDto {
   isActive: boolean;
   /** If hidden, the display name of the provider that outranks this method */
   outrankedBy?: string;
+  /** Regions where this method is available (null = global) */
+  supportedRegions?: PaymentMethodRegionDto[];
 }
 
 // ============================================
 // Payment Method Settings Types
 // ============================================
+
+/** Region/country where a payment method is available */
+export interface PaymentMethodRegionDto {
+  /** ISO 3166-1 alpha-2 country code (e.g., "NL", "BE") or region code (e.g., "EU", "US") */
+  code: string;
+  /** Human-readable name of the region (e.g., "Netherlands", "Belgium") */
+  name: string;
+}
 
 /** Settings for a payment method within a provider */
 export interface PaymentMethodSettingDto {
@@ -233,6 +243,8 @@ export interface PaymentMethodSettingDto {
   isExpressCheckout: boolean;
   /** Method type for deduplication */
   methodType?: PaymentMethodType;
+  /** Regions where this method is available (null = global) */
+  supportedRegions?: PaymentMethodRegionDto[];
 }
 
 /** Request to update a payment method setting */
