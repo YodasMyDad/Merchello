@@ -1,4 +1,4 @@
-import { html as s, nothing as l, css as M, state as c, customElement as x } from "@umbraco-cms/backoffice/external/lit";
+import { html as s, nothing as l, css as M, state as h, customElement as x } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement as C } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT as w } from "@umbraco-cms/backoffice/notification";
 import { UmbSorterController as $ } from "@umbraco-cms/backoffice/sorter";
@@ -10,7 +10,7 @@ var S = Object.defineProperty, k = Object.getOwnPropertyDescriptor, b = (e) => {
   for (var o = r > 1 ? void 0 : r ? k(i, t) : i, p = e.length - 1, g; p >= 0; p--)
     (g = e[p]) && (o = (r ? g(i, t, o) : g(o)) || o);
   return r && o && S(i, t, o), o;
-}, y = (e, i, t) => i.has(e) || b("Cannot " + t), h = (e, i, t) => (y(e, i, "read from private field"), i.get(e)), v = (e, i, t) => i.has(e) ? b("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, t), f = (e, i, t, r) => (y(e, i, "write to private field"), i.set(e, t), t), n, u, _;
+}, y = (e, i, t) => i.has(e) || b("Cannot " + t), c = (e, i, t) => (y(e, i, "read from private field"), i.get(e)), v = (e, i, t) => i.has(e) ? b("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, t), f = (e, i, t, r) => (y(e, i, "write to private field"), i.set(e, t), t), n, u, _;
 const z = {
   US: "🇺🇸",
   NL: "🇳🇱",
@@ -54,19 +54,19 @@ let a = class extends C {
       return;
     }
     const { data: i, error: t } = await m.getPaymentProviderMethods(e.id);
-    if (h(this, n)) {
+    if (c(this, n)) {
       if (t) {
         this._errorMessage = t.message, this._isLoading = !1;
         return;
       }
-      this._methods = i ?? [], h(this, _).setModel(this._methods), this._isLoading = !1;
+      this._methods = i ?? [], c(this, _).setModel(this._methods), this._isLoading = !1;
     }
   }
   async _handleMethodReorder(e) {
     const i = this.data?.setting;
     if (!i) return;
     const { error: t } = await m.reorderPaymentMethods(i.id, e);
-    h(this, n) && (t ? (h(this, u)?.peek("danger", {
+    c(this, n) && (t ? (c(this, u)?.peek("danger", {
       data: { headline: "Reorder failed", message: t.message }
     }), await this._loadMethods()) : this._hasChanges = !0);
   }
@@ -79,7 +79,7 @@ let a = class extends C {
       e.methodAlias,
       { isEnabled: !e.isEnabled }
     );
-    if (h(this, n)) {
+    if (c(this, n)) {
       if (r) {
         this._errorMessage = r.message, this._isSaving = !1;
         return;
@@ -91,7 +91,7 @@ let a = class extends C {
     this.value = { isChanged: this._hasChanges }, this.modalContext?.submit();
   }
   _renderMethodIcon(e) {
-    const i = E(e.methodAlias);
+    const i = e.iconHtml ?? E(e.methodAlias);
     return i ? s`<span class="method-icon" .innerHTML=${i}></span>` : s`<uui-icon name="${e.icon ?? "icon-credit-card"}"></uui-icon>`;
   }
   _renderRegionBadges(e) {
@@ -319,19 +319,19 @@ a.styles = M`
     }
   `;
 d([
-  c()
+  h()
 ], a.prototype, "_methods", 2);
 d([
-  c()
+  h()
 ], a.prototype, "_isLoading", 2);
 d([
-  c()
+  h()
 ], a.prototype, "_isSaving", 2);
 d([
-  c()
+  h()
 ], a.prototype, "_errorMessage", 2);
 d([
-  c()
+  h()
 ], a.prototype, "_hasChanges", 2);
 a = d([
   x("merchello-payment-methods-config-modal")
@@ -341,4 +341,4 @@ export {
   a as MerchelloPaymentMethodsConfigModalElement,
   N as default
 };
-//# sourceMappingURL=payment-methods-config-modal.element-BtDgBLsL.js.map
+//# sourceMappingURL=payment-methods-config-modal.element-Bzju4GAt.js.map

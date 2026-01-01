@@ -16,6 +16,20 @@ public class MerchelloSettings
     public string StoreCurrencyCode { get; set; } = "USD";
 
     /// <summary>
+    /// Default shipping country code (ISO 3166-1 alpha-2) for the storefront.
+    /// Used when no customer preference is set. Falls back to "US" if not configured.
+    /// Example: "GB", "US"
+    /// </summary>
+    public string? DefaultShippingCountry { get; set; }
+
+    /// <summary>
+    /// When true, shows stock counts on product pages (e.g., "In Stock (50 available)").
+    /// When false, shows only status (e.g., "In Stock" or "Out of Stock").
+    /// Default: false
+    /// </summary>
+    public bool ShowStockLevels { get; set; }
+
+    /// <summary>
     /// Gets the currency symbol derived from the StoreCurrencyCode.
     /// </summary>
     public string CurrencySymbol => GetCurrencySymbol(StoreCurrencyCode);
@@ -52,22 +66,6 @@ public class MerchelloSettings
     /// </summary>
     public string? OrderGroupingStrategy { get; set; }
 
-    /// <summary>
-    /// List of ISO 3166-1 alpha-2 country codes that this store sells/ships to.
-    /// When set, this restricts country selection throughout the system:
-    /// - Warehouse service regions
-    /// - Shipping costs and weight tiers
-    /// - Checkout country selection
-    ///
-    /// Leave null or empty to allow all countries (no restriction).
-    /// Example: ["GB", "US", "DE", "FR", "ES", "IT"]
-    /// </summary>
-    public string[]? AllowedCountries { get; set; }
-
-    /// <summary>
-    /// Returns true if country restrictions are configured.
-    /// </summary>
-    public bool HasCountryRestrictions => AllowedCountries is { Length: > 0 };
 
     /// <summary>
     /// Available option type aliases for product options.
@@ -124,14 +122,4 @@ public class MerchelloSettings
     /// Default: ["~/Views/Products/"]
     /// </summary>
     public string[] ProductViewLocations { get; set; } = ["~/Views/Products/"];
-
-    /// <summary>
-    /// Check if a country code is allowed by store settings.
-    /// Returns true if no restrictions are configured or if the country is in the allowed list.
-    /// </summary>
-    public bool IsCountryAllowed(string countryCode)
-    {
-        if (!HasCountryRestrictions) return true;
-        return AllowedCountries!.Any(c => c.Equals(countryCode, StringComparison.OrdinalIgnoreCase));
-    }
 }

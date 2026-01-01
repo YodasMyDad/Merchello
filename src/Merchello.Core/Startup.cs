@@ -53,6 +53,7 @@ using Merchello.Core.Payments.Services;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Warehouses.Services;
 using Merchello.Core.Warehouses.Services.Interfaces;
+using Merchello.Core.Storefront.Services;
 using Merchello.Core.Reporting.Services;
 using Merchello.Core.Reporting.Services.Interfaces;
 using Merchello.Core.Suppliers.Factories;
@@ -192,6 +193,9 @@ public static class Startup
 
         // Locality & Locations
         builder.Services.AddScoped<ILocationsService, LocationsService>();
+
+        // Storefront
+        builder.Services.AddScoped<IStorefrontContextService, StorefrontContextService>();
 
         // Exchange Rates
         builder.Services.AddScoped<IExchangeRateProviderManager, ExchangeRateProviderManager>();

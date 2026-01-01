@@ -4,8 +4,8 @@ import { UmbModalToken as x, UMB_MODAL_MANAGER_CONTEXT as O, UMB_CONFIRM_MODAL a
 import { UMB_NOTIFICATION_CONTEXT as D } from "@umbraco-cms/backoffice/notification";
 import { UmbSorterController as U } from "@umbraco-cms/backoffice/sorter";
 import { M as m } from "./merchello-api-B2ha_6NF.js";
-import { M as B } from "./setup-instructions-modal.token-CR5MFRlI.js";
-import { g as F, a as H } from "./brand-icons-AsNEBTKB.js";
+import { M as H } from "./setup-instructions-modal.token-CR5MFRlI.js";
+import { g as B, a as F } from "./brand-icons-AsNEBTKB.js";
 const G = new x("Merchello.PaymentProvider.Config.Modal", {
   modal: {
     type: "sidebar",
@@ -73,7 +73,7 @@ let p = class extends E($) {
     this._isCollapsed = !this._isCollapsed;
   }
   _renderMethodIcon(e) {
-    const i = F(e.methodAlias);
+    const i = e.iconHtml ?? B(e.methodAlias);
     return i ? r`<span class="method-icon-svg" .innerHTML=${i}></span>` : r`<uui-icon name="${e.icon ?? "icon-credit-card"}"></uui-icon>`;
   }
   _renderRegionBadges(e) {
@@ -470,7 +470,7 @@ let u = class extends E($) {
     }
   }
   _openSetupInstructions(e) {
-    !o(this, n) || !e.setupInstructions || o(this, n).open(this, B, {
+    !o(this, n) || !e.setupInstructions || o(this, n).open(this, H, {
       data: {
         providerName: e.displayName,
         instructions: e.setupInstructions
@@ -482,9 +482,9 @@ let u = class extends E($) {
       data: { setting: e }
     });
   }
-  _renderProviderIcon(e, i) {
-    const a = H(e);
-    return a ? r`<span class="provider-icon-svg" .innerHTML=${a}></span>` : r`<uui-icon name="${i ?? "icon-credit-card"}"></uui-icon>`;
+  _renderProviderIcon(e, i, a) {
+    const t = i ?? F(e);
+    return t ? r`<span class="provider-icon-svg" .innerHTML=${t}></span>` : r`<uui-icon name="${a ?? "icon-credit-card"}"></uui-icon>`;
   }
   _renderConfiguredProvider(e) {
     const i = e.provider;
@@ -495,7 +495,7 @@ let u = class extends E($) {
             <uui-icon name="icon-navigation"></uui-icon>
           </div>
           <div class="provider-info">
-            ${this._renderProviderIcon(e.providerAlias, i?.icon)}
+            ${this._renderProviderIcon(e.providerAlias, i?.iconHtml, i?.icon)}
             <div class="provider-details">
               <span class="provider-name">${e.displayName}</span>
               <span class="provider-alias">${e.providerAlias}</span>
@@ -569,7 +569,7 @@ let u = class extends E($) {
       <div class="provider-card available">
         <div class="provider-header">
           <div class="provider-info">
-            ${this._renderProviderIcon(e.alias, e.icon)}
+            ${this._renderProviderIcon(e.alias, e.iconHtml, e.icon)}
             <div class="provider-details">
               <span class="provider-name">${e.displayName}</span>
               <span class="provider-alias">${e.alias}</span>
@@ -903,4 +903,4 @@ export {
   u as MerchelloPaymentProvidersListElement,
   se as default
 };
-//# sourceMappingURL=payment-providers-list.element-Bi1K6D5V.js.map
+//# sourceMappingURL=payment-providers-list.element-C0skbjR0.js.map

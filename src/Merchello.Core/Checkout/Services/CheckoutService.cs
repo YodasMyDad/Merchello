@@ -185,7 +185,7 @@ public class CheckoutService(
     public async Task CalculateBasketAsync(Basket basket, string? countryCode = null, decimal defaultTaxRate = 20, bool isShippingTaxable = true, CancellationToken cancellationToken = default)
     {
         // Resolve country code from settings if not provided
-        var resolvedCountryCode = countryCode ?? _settings.AllowedCountries?.FirstOrDefault() ?? "US";
+        var resolvedCountryCode = countryCode ?? _settings.DefaultShippingCountry ?? "US";
 
         basket.Errors = basket.Errors.Where(error => !error.IsShippingError).ToList();
 
@@ -350,7 +350,7 @@ public class CheckoutService(
                 }
 
                 // 2. Use CheckoutService to add the new item to the basket
-                var fallbackCountryCode = _settings.AllowedCountries?.FirstOrDefault() ?? "GB";
+                var fallbackCountryCode = _settings.DefaultShippingCountry ?? "US";
                 var countryCode = !string.IsNullOrWhiteSpace(basket.ShippingAddress.CountryCode)
                     ? basket.ShippingAddress.CountryCode
                     : fallbackCountryCode;

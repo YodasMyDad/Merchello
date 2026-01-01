@@ -38,9 +38,9 @@ public class SettingsApiController(
     }
 
     /// <summary>
-    /// Get list of countries for address dropdowns.
-    /// Returns only countries allowed by store settings (AllowedCountries).
-    /// If no restrictions are configured, returns all countries.
+    /// Get list of all countries for address dropdowns and admin configuration.
+    /// For storefront country selection (countries warehouses can ship to),
+    /// use the storefront API's shipping/countries endpoint instead.
     /// </summary>
     [HttpGet("countries")]
     [ProducesResponseType<List<CountryDto>>(StatusCodes.Status200OK)]

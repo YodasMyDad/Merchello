@@ -4,6 +4,8 @@ using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Storefront.Services;
+using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Site.Storefront.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -15,6 +17,8 @@ namespace Merchello.Site.Storefront.Controllers;
 public class StorefrontApiController(
     ICheckoutService checkoutService,
     IProductService productService,
+    IStorefrontContextService storefrontContext,
+    ILocationsService locationsService,
     IOptions<MerchelloSettings> settings) : ControllerBase
 {
     private readonly MerchelloSettings _settings = settings.Value;
@@ -233,4 +237,200 @@ public class StorefrontApiController(
     {
         return $"{_settings.CurrencySymbol}{price:N2}";
     }
+
+    #region Shipping Country Endpoints
+
+    /// <summary>
+    /// Get available shipping countries and current selection
+    /// </summary>
+    [HttpGet("shipping/countries")]
+    public async Task<IActionResult> GetShippingCountries(CancellationToken ct)
+    {
+        var countries = await locationsService.GetAvailableCountriesAsync(ct);
+        var current = await storefrontContext.GetShippingLocationAsync(ct);
+
+        return Ok(new ShippingCountriesResponse
+        {
+            Countries = countries.Select(c => new CountryResponse
+            {
+                CountryCode = c.Code,
+                CountryName = c.Name
+            }).ToList(),
+            Current = new CountryResponse
+            {
+                CountryCode = current.CountryCode,
+                CountryName = current.CountryName
+            }
+        });
+    }
+
+    /// <summary>
+    /// Get current shipping country preference
+    /// </summary>
+    [HttpGet("shipping/country")]
+    public async Task<IActionResult> GetCurrentCountry(CancellationToken ct)
+    {
+        var location = await storefrontContext.GetShippingLocationAsync(ct);
+
+        return Ok(new CountryResponse
+        {
+            CountryCode = location.CountryCode,
+            CountryName = location.CountryName
+        });
+    }
+
+    /// <summary>
+    /// Set shipping country preference
+    /// </summary>
+    [HttpPost("shipping/country")]
+    public async Task<IActionResult> SetCurrentCountry([FromBody] SetCountryRequest request, CancellationToken ct)
+    {
+        // Validate the country code
+        var countries = await locationsService.GetAvailableCountriesAsync(ct);
+        var country = countries.FirstOrDefault(c =>
+            c.Code.Equals(request.CountryCode, StringComparison.OrdinalIgnoreCase));
+
+        if (country == null)
+        {
+            return BadRequest(new { message = "Invalid country code" });
+        }
+
+        storefrontContext.SetShippingCountry(request.CountryCode, request.RegionCode);
+
+        return Ok(new CountryResponse
+        {
+            CountryCode = country.Code,
+            CountryName = country.Name
+        });
+    }
+
+    /// <summary>
+    /// Get regions for a country
+    /// </summary>
+    [HttpGet("shipping/countries/{countryCode}/regions")]
+    public async Task<IActionResult> GetRegions(string countryCode, CancellationToken ct)
+    {
+        var regions = await locationsService.GetAvailableRegionsAsync(countryCode, ct);
+
+        return Ok(regions.Select(r => new RegionResponse
+        {
+            RegionCode = r.RegionCode,
+            RegionName = r.Name
+        }).ToList());
+    }
+
+    /// <summary>
+    /// Check product availability for a country/region
+    /// </summary>
+    [HttpGet("products/{productId:guid}/availability")]
+    public async Task<IActionResult> GetProductAvailability(
+        Guid productId,
+        [FromQuery] string? countryCode,
+        [FromQuery] string? regionCode,
+        [FromQuery] int quantity = 1,
+        CancellationToken ct = default)
+    {
+        var product = await productService.GetProduct(new GetProductParameters
+        {
+            ProductId = productId,
+            IncludeProductRoot = true,
+            IncludeProductWarehouses = true,
+            NoTracking = true
+        }, ct);
+
+        if (product == null)
+        {
+            return NotFound(new { message = "Product not found" });
+        }
+
+        var availability = string.IsNullOrWhiteSpace(countryCode)
+            ? await storefrontContext.GetProductAvailabilityAsync(product, quantity, ct)
+            : await storefrontContext.GetProductAvailabilityForLocationAsync(product, countryCode, regionCode, quantity, ct);
+
+        return Ok(new ProductAvailabilityResponse
+        {
+            CanShipToCountry = availability.CanShipToLocation,
+            HasStock = availability.HasStock,
+            AvailableStock = availability.AvailableStock,
+            Message = availability.StatusMessage,
+            ShowStockLevels = availability.ShowStockLevels
+        });
+    }
+
+    /// <summary>
+    /// Check availability for all basket items
+    /// </summary>
+    [HttpGet("basket/availability")]
+    public async Task<IActionResult> GetBasketAvailability(
+        [FromQuery] string? countryCode,
+        [FromQuery] string? regionCode,
+        CancellationToken ct = default)
+    {
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
+
+        if (basket == null || basket.LineItems.Count == 0)
+        {
+            return Ok(new BasketAvailabilityResponse
+            {
+                AllItemsAvailable = true,
+                Items = []
+            });
+        }
+
+        // Get the location to check
+        var location = string.IsNullOrWhiteSpace(countryCode)
+            ? await storefrontContext.GetShippingLocationAsync(ct)
+            : new Core.Storefront.Models.ShippingLocation(countryCode, countryCode, regionCode, null);
+
+        var items = new List<BasketItemAvailability>();
+        var allAvailable = true;
+
+        foreach (var lineItem in basket.LineItems.Where(li => li.ProductId.HasValue))
+        {
+            var product = await productService.GetProduct(new GetProductParameters
+            {
+                ProductId = lineItem.ProductId!.Value,
+                IncludeProductRoot = true,
+                IncludeProductWarehouses = true,
+                NoTracking = true
+            }, ct);
+
+            if (product == null)
+            {
+                items.Add(new BasketItemAvailability
+                {
+                    LineItemId = lineItem.Id,
+                    ProductId = lineItem.ProductId!.Value,
+                    CanShipToCountry = false,
+                    HasStock = false,
+                    Message = "Product not found"
+                });
+                allAvailable = false;
+                continue;
+            }
+
+            var availability = await storefrontContext.GetProductAvailabilityForLocationAsync(
+                product, location.CountryCode, location.RegionCode, lineItem.Quantity, ct);
+
+            var isAvailable = availability.CanShipToLocation && availability.HasStock;
+            if (!isAvailable) allAvailable = false;
+
+            items.Add(new BasketItemAvailability
+            {
+                LineItemId = lineItem.Id,
+                ProductId = lineItem.ProductId!.Value,
+                CanShipToCountry = availability.CanShipToLocation,
+                HasStock = availability.HasStock,
+                Message = availability.StatusMessage
+            });
+        }
+
+        return Ok(new BasketAvailabilityResponse
+        {
+            AllItemsAvailable = allAvailable,
+            Items = items
+        });
+    }
+
+    #endregion
 }
