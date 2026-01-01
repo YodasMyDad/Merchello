@@ -85,4 +85,10 @@ public class CheckoutMethodPreviewDto
     /// If hidden, the display name of the provider that outranks this method.
     /// </summary>
     public string? OutrankedBy { get; set; }
+
+    /// <summary>
+    /// Regions/countries where this payment method is available.
+    /// Empty/null means globally available.
+    /// </summary>
+    public IReadOnlyList<PaymentMethodRegionDto>? SupportedRegions { get; set; }
 }

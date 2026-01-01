@@ -1,13 +1,32 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
+import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
+import { UmbSorterController } from "@umbraco-cms/backoffice/sorter";
+import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { PaymentMethodSettingDto } from '@payment-providers/types/payment-providers.types.js';
+import type { PaymentMethodSettingDto, PaymentMethodRegionDto } from '@payment-providers/types/payment-providers.types.js';
 import type {
   PaymentMethodsConfigModalData,
   PaymentMethodsConfigModalValue,
 } from "./payment-methods-config-modal.token.js";
 import { getBrandIconSvg } from "../utils/brand-icons.js";
+
+/** Map of country/region codes to flag emojis */
+const REGION_FLAGS: Record<string, string> = {
+  US: "🇺🇸",
+  NL: "🇳🇱",
+  BE: "🇧🇪",
+  AT: "🇦🇹",
+  PL: "🇵🇱",
+  EU: "🇪🇺",
+  DE: "🇩🇪",
+  FR: "🇫🇷",
+  ES: "🇪🇸",
+  IT: "🇮🇹",
+  GB: "🇬🇧",
+  UK: "🇬🇧",
+};
 
 @customElement("merchello-payment-methods-config-modal")
 export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseElement<
@@ -21,6 +40,27 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
   @state() private _hasChanges = false;
 
   #isConnected = false;
+  #notificationContext?: UmbNotificationContext;
+
+  // Sorter for payment methods
+  #methodSorter = new UmbSorterController<PaymentMethodSettingDto>(this, {
+    getUniqueOfElement: (element) => element.getAttribute("data-method-alias") ?? "",
+    getUniqueOfModel: (model) => model.methodAlias,
+    identifier: "Merchello.PaymentMethods.Sorter",
+    itemSelector: ".method-row",
+    containerSelector: ".methods-list",
+    onChange: ({ model }) => {
+      this._methods = model;
+      this._handleMethodReorder(model.map((m) => m.methodAlias));
+    },
+  });
+
+  constructor() {
+    super();
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
+      this.#notificationContext = context;
+    });
+  }
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -55,7 +95,27 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
     }
 
     this._methods = data ?? [];
+    this.#methodSorter.setModel(this._methods);
     this._isLoading = false;
+  }
+
+  private async _handleMethodReorder(orderedMethodAliases: string[]): Promise<void> {
+    const setting = this.data?.setting;
+    if (!setting) return;
+
+    const { error } = await MerchelloApi.reorderPaymentMethods(setting.id, orderedMethodAliases);
+
+    if (!this.#isConnected) return;
+
+    if (error) {
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Reorder failed", message: error.message },
+      });
+      // Reload to restore correct order
+      await this._loadMethods();
+    } else {
+      this._hasChanges = true;
+    }
   }
 
   private async _handleToggle(method: PaymentMethodSettingDto): Promise<void> {
@@ -91,17 +151,34 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
   }
 
   private _renderMethodIcon(method: PaymentMethodSettingDto): unknown {
-    const svg = getBrandIconSvg(method.methodAlias);
+    // Prefer provider-defined iconHtml, fall back to hardcoded brand icons
+    const svg = method.iconHtml ?? getBrandIconSvg(method.methodAlias);
     if (svg) {
       return html`<span class="method-icon" .innerHTML=${svg}></span>`;
     }
-    // Fallback to UUI icon if no brand SVG available
+    // Final fallback to UUI icon
     return html`<uui-icon name="${method.icon ?? 'icon-credit-card'}"></uui-icon>`;
+  }
+
+  private _renderRegionBadges(regions?: PaymentMethodRegionDto[]): unknown {
+    if (!regions || regions.length === 0) return nothing;
+    return html`
+      ${regions.map(
+        (r) => html`
+          <span class="region-badge" title="${r.name}">
+            ${REGION_FLAGS[r.code] ?? "🌍"} ${r.code}
+          </span>
+        `
+      )}
+    `;
   }
 
   private _renderMethod(method: PaymentMethodSettingDto): unknown {
     return html`
-      <div class="method-row">
+      <div class="method-row" data-method-alias=${method.methodAlias}>
+        <div class="method-drag-handle">
+          <uui-icon name="icon-navigation"></uui-icon>
+        </div>
         <div class="method-info">
           ${this._renderMethodIcon(method)}
           <div class="method-details">
@@ -109,6 +186,7 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
             ${method.isExpressCheckout
               ? html`<span class="express-badge">Express</span>`
               : nothing}
+            ${this._renderRegionBadges(method.supportedRegions)}
           </div>
         </div>
         <uui-toggle
@@ -147,6 +225,7 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
                 <p class="description">
                   Enable or disable individual payment methods for this provider.
                   Disabled methods will not appear at checkout.
+                  Drag to reorder methods.
                 </p>
 
                 <div class="methods-list">
@@ -220,6 +299,33 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
       border-radius: var(--uui-border-radius);
     }
 
+    .method-drag-handle {
+      cursor: grab;
+      color: var(--uui-color-text-alt);
+      display: flex;
+      align-items: center;
+      padding-right: var(--uui-size-space-2);
+    }
+
+    .method-drag-handle:active {
+      cursor: grabbing;
+    }
+
+    .method-row.--umb-sorter-placeholder {
+      visibility: hidden;
+      position: relative;
+    }
+
+    .method-row.--umb-sorter-placeholder::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border: 2px dashed var(--uui-color-divider-emphasis);
+      border-radius: var(--uui-border-radius);
+      visibility: visible;
+      background: var(--uui-color-surface-alt);
+    }
+
     .method-info {
       display: flex;
       align-items: center;
@@ -263,6 +369,16 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
       font-size: 0.625rem;
       font-weight: 600;
       text-transform: uppercase;
+    }
+
+    .region-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      background: var(--uui-color-surface-alt);
+      color: var(--uui-color-text);
+      border-radius: 10px;
+      font-size: 0.625rem;
+      font-weight: 500;
     }
 
     .no-methods {

@@ -64,4 +64,27 @@ public class PaymentMethodDefinition
     /// Null or Custom types are not deduplicated.
     /// </summary>
     public PaymentMethodType? MethodType { get; init; }
+
+    /// <summary>
+    /// Regions/countries where this payment method is available.
+    /// Uses ISO 3166-1 alpha-2 country codes (e.g., "NL", "BE", "AT") or region codes (e.g., "EU").
+    /// Empty/null means globally available. Used for admin UI display and potential checkout filtering.
+    /// </summary>
+    public IReadOnlyList<PaymentMethodRegion>? SupportedRegions { get; init; }
+}
+
+/// <summary>
+/// Represents a region/country where a payment method is available.
+/// </summary>
+public class PaymentMethodRegion
+{
+    /// <summary>
+    /// ISO 3166-1 alpha-2 country code (e.g., "NL", "BE") or region code (e.g., "EU", "US").
+    /// </summary>
+    public required string Code { get; init; }
+
+    /// <summary>
+    /// Human-readable name of the region (e.g., "Netherlands", "Belgium", "European Union").
+    /// </summary>
+    public required string Name { get; init; }
 }

@@ -444,7 +444,8 @@
                 if (threeDSecureInstance && currentSession?.sdkConfiguration?.threeDSecureEnabled) {
                     const config = currentSession.sdkConfiguration;
                     try {
-                        const threeDSecureResult = await threeDSecureInstance.verifyCard({
+                        // Build 3DS verification request with enhanced data for better auth rates
+                        const threeDSecureRequest = {
                             nonce: tokenizeResult.nonce,
                             bin: tokenizeResult.bin,
                             amount: String(config.amount || '0'),
@@ -460,11 +461,45 @@
                                 postalCode: options.billingAddress.postalCode || '',
                                 countryCodeAlpha2: options.billingAddress.countryCode || ''
                             } : undefined,
+                            // Additional 3DS 2.0 data for improved authorization rates
+                            additionalInformation: {
+                                // Shipping method indicator (best practice)
+                                // 01 = Ship to cardholder's billing address
+                                // 02 = Ship to another verified address
+                                // 03 = Ship to address different than billing
+                                // 04 = Ship to store/pickup
+                                // 05 = Digital goods
+                                // 06 = Travel and event tickets
+                                // 07 = Other
+                                shippingMethod: options.shippingMethod || '03',
+                                // Product code (best practice)
+                                // PHY = Physical goods
+                                // DIG = Digital goods
+                                // SVC = Service
+                                productCode: options.productCode || 'PHY'
+                            },
                             onLookupComplete: (data, next) => {
                                 // Continue with 3D Secure verification
                                 next();
                             }
-                        });
+                        };
+
+                        // Add shipping address if available (improves auth rates)
+                        if (options.shippingAddress) {
+                            threeDSecureRequest.shippingAddress = {
+                                givenName: options.shippingAddress.firstName || '',
+                                surname: options.shippingAddress.lastName || '',
+                                phoneNumber: options.shippingAddress.phone || '',
+                                streetAddress: options.shippingAddress.line1 || '',
+                                extendedAddress: options.shippingAddress.line2 || '',
+                                locality: options.shippingAddress.city || '',
+                                region: options.shippingAddress.region || '',
+                                postalCode: options.shippingAddress.postalCode || '',
+                                countryCodeAlpha2: options.shippingAddress.countryCode || ''
+                            };
+                        }
+
+                        const threeDSecureResult = await threeDSecureInstance.verifyCard(threeDSecureRequest);
 
                         // Use the 3D Secure nonce
                         nonce = threeDSecureResult.nonce;

@@ -219,14 +219,22 @@ const MerchelloPayment = {
             await this.loadScript(session.adapterUrl);
 
             // Get the adapter from the registry
-            const adapterKey = session.providerAlias;
-            const adapter = window.MerchelloPaymentAdapters[adapterKey];
+            // Try provider:method specific adapter first (for local payment methods),
+            // then fall back to provider-level adapter
+            const providerMethodKey = session.methodAlias
+                ? `${session.providerAlias}:${session.methodAlias}`
+                : null;
+            const providerKey = session.providerAlias;
+            const adapter = (providerMethodKey && window.MerchelloPaymentAdapters[providerMethodKey])
+                || window.MerchelloPaymentAdapters[providerKey];
 
             if (!adapter) {
-                throw new Error(`Payment adapter not found for provider: ${adapterKey}. Ensure the adapter registers with window.MerchelloPaymentAdapters['${adapterKey}']`);
+                const tryKey = providerMethodKey || providerKey;
+                throw new Error(`Payment adapter not found for provider: ${tryKey}. Ensure the adapter registers with window.MerchelloPaymentAdapters['${tryKey}']`);
             }
 
             if (typeof adapter.render !== 'function') {
+                const adapterKey = providerMethodKey || providerKey;
                 throw new Error(`Payment adapter for '${adapterKey}' does not implement required 'render' method`);
             }
 

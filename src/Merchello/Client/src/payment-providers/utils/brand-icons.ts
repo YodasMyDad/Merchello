@@ -29,6 +29,21 @@ export const BRAND_ICONS: Record<string, string> = {
 
   // Braintree logo (simplified tree icon)
   braintree: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L4 7v10l8 5 8-5V7l-8-5zm0 2.18L18 8v8l-6 3.75L6 16V8l6-3.82z" fill="#003366"/><path d="M12 6l-4 2.5v5L12 16l4-2.5v-5L12 6zm0 1.55l2.5 1.56v3.12L12 13.8l-2.5-1.56V9.1L12 7.55z" fill="#003366"/></svg>`,
+
+  // iDEAL (Netherlands)
+  ideal: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#CC0066"/><text x="12" y="14" text-anchor="middle" fill="white" font-size="8" font-weight="bold" font-family="Arial, sans-serif">iDEAL</text></svg>`,
+
+  // Bancontact (Belgium)
+  bancontact: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#005498"/><circle cx="9" cy="12" r="4" fill="#FFD800"/><circle cx="15" cy="12" r="4" fill="#FFD800"/></svg>`,
+
+  // SEPA (EU-wide)
+  sepa: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#003399"/><circle cx="12" cy="12" r="5" fill="none" stroke="#FFCC00" stroke-width="1.5"/><path d="M7 12h10" stroke="#FFCC00" stroke-width="1"/></svg>`,
+
+  // EPS (Austria)
+  eps: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#C8202F"/><text x="12" y="14" text-anchor="middle" fill="white" font-size="8" font-weight="bold" font-family="Arial, sans-serif">eps</text></svg>`,
+
+  // Przelewy24 (Poland)
+  p24: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#D13239"/><text x="12" y="14" text-anchor="middle" fill="white" font-size="7" font-weight="bold" font-family="Arial, sans-serif">P24</text></svg>`,
 };
 
 /**
@@ -47,6 +62,12 @@ export function getBrandIconSvg(methodAlias: string): string | null {
   if (alias.includes('manual')) return BRAND_ICONS.manual;
   if (alias.includes('stripe')) return BRAND_ICONS.stripe;
   if (alias.includes('braintree')) return BRAND_ICONS.braintree;
+  // Local payment methods (EU)
+  if (alias === 'ideal') return BRAND_ICONS.ideal;
+  if (alias === 'bancontact') return BRAND_ICONS.bancontact;
+  if (alias === 'sepa') return BRAND_ICONS.sepa;
+  if (alias === 'eps') return BRAND_ICONS.eps;
+  if (alias === 'p24') return BRAND_ICONS.p24;
   return null;
 }
 

@@ -7,8 +7,8 @@ Pluggable payment provider system with built-in providers (Manual Payment, Strip
 **Key Concept: Provider → Methods**
 
 Each payment provider (gateway) can offer multiple payment methods:
-- **Stripe** → Cards, Apple Pay, Google Pay
-- **Braintree** → Cards, PayPal, Apple Pay, Venmo
+- **Stripe** → Cards, Apple Pay, Google Pay, Link
+- **Braintree** → Cards, PayPal, Apple Pay, Google Pay, Venmo, iDEAL, Bancontact, SEPA, EPS, P24
 - **PayPal** → PayPal, Pay Later
 
 Methods can be individually enabled/disabled and have different integration types.
@@ -115,11 +115,15 @@ window.MerchelloPaymentAdapters['provider-alias'] = {
 
 ### Built-in Adapters
 
-| Provider | Adapter URL |
-|----------|-------------|
-| Stripe | `/_content/Merchello/js/checkout/adapters/stripe-payment-adapter.js` |
-| Braintree | `/_content/Merchello/js/checkout/adapters/braintree-payment-adapter.js` |
-| PayPal | `/_content/Merchello/js/checkout/adapters/paypal-payment-adapter.js` |
+| Provider | Adapter URL | Purpose |
+|----------|-------------|---------|
+| Stripe | `/_content/Merchello/js/checkout/adapters/stripe-payment-adapter.js` | Cards (Elements) |
+| Stripe Express | `/_content/Merchello/js/checkout/adapters/stripe-express-adapter.js` | Apple Pay, Google Pay, Link |
+| Braintree | `/_content/Merchello/js/checkout/adapters/braintree-payment-adapter.js` | Cards (Hosted Fields) |
+| Braintree Express | `/_content/Merchello/js/checkout/adapters/braintree-express-adapter.js` | PayPal, Apple Pay, Google Pay, Venmo |
+| Braintree Local | `/_content/Merchello/js/checkout/adapters/braintree-local-payment-adapter.js` | iDEAL, Bancontact, SEPA, EPS, P24 |
+| PayPal | `/_content/Merchello/js/checkout/adapters/paypal-payment-adapter.js` | PayPal, Pay Later |
+| PayPal Express | `/_content/Merchello/js/checkout/adapters/paypal-express-adapter.js` | PayPal Express Checkout |
 
 ### RCL Requirement for Third-Party Providers
 
@@ -188,9 +192,19 @@ PaymentProvider (Stripe)
 
 #### Braintree
 - Location: `Providers/Braintree/BraintreePaymentProvider.cs`
-- NuGet: `Braintree`
-- Methods: Cards (Hosted Fields), PayPal, Apple Pay, Venmo
+- NuGet: `Braintree` (v5.38.0+)
+- Methods:
+  - Cards (Hosted Fields with 3D Secure 2)
+  - PayPal, Apple Pay, Google Pay, Venmo (Express Checkout)
+  - iDEAL, Bancontact, SEPA, EPS, P24 (Local Payment Methods - EU)
+- Configuration: Merchant ID, Public Key, Private Key, Environment, optional Merchant Account ID
+- Webhook endpoint: `/umbraco/merchello/webhooks/payments/braintree`
+- Required webhook events:
+  - `transaction_settled`, `transaction_settlement_declined`
+  - `dispute_opened`, `dispute_won`, `dispute_lost`
+  - `local_payment_completed`, `local_payment_reversed`, `local_payment_expired`
 - Supports refunds, partial refunds, auth-and-capture
+- Local payment methods require PayPal business account linked to Braintree
 
 ### Method Settings
 - Created on-demand when enabling/disabling methods

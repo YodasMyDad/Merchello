@@ -1,4 +1,4 @@
-const t = {
+const e = {
   // Credit card icon
   card: '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2 9h20" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="13" width="5" height="2" rx="0.5" fill="currentColor" opacity="0.5"/></svg>',
   // PayPal "PP" logo
@@ -16,18 +16,28 @@ const t = {
   // Stripe "S" logo
   stripe: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z" fill="#635BFF"/></svg>',
   // Braintree logo (simplified tree icon)
-  braintree: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L4 7v10l8 5 8-5V7l-8-5zm0 2.18L18 8v8l-6 3.75L6 16V8l6-3.82z" fill="#003366"/><path d="M12 6l-4 2.5v5L12 16l4-2.5v-5L12 6zm0 1.55l2.5 1.56v3.12L12 13.8l-2.5-1.56V9.1L12 7.55z" fill="#003366"/></svg>'
+  braintree: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L4 7v10l8 5 8-5V7l-8-5zm0 2.18L18 8v8l-6 3.75L6 16V8l6-3.82z" fill="#003366"/><path d="M12 6l-4 2.5v5L12 16l4-2.5v-5L12 6zm0 1.55l2.5 1.56v3.12L12 13.8l-2.5-1.56V9.1L12 7.55z" fill="#003366"/></svg>',
+  // iDEAL (Netherlands)
+  ideal: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#CC0066"/><text x="12" y="14" text-anchor="middle" fill="white" font-size="8" font-weight="bold" font-family="Arial, sans-serif">iDEAL</text></svg>',
+  // Bancontact (Belgium)
+  bancontact: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#005498"/><circle cx="9" cy="12" r="4" fill="#FFD800"/><circle cx="15" cy="12" r="4" fill="#FFD800"/></svg>',
+  // SEPA (EU-wide)
+  sepa: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#003399"/><circle cx="12" cy="12" r="5" fill="none" stroke="#FFCC00" stroke-width="1.5"/><path d="M7 12h10" stroke="#FFCC00" stroke-width="1"/></svg>',
+  // EPS (Austria)
+  eps: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#C8202F"/><text x="12" y="14" text-anchor="middle" fill="white" font-size="8" font-weight="bold" font-family="Arial, sans-serif">eps</text></svg>',
+  // Przelewy24 (Poland)
+  p24: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#D13239"/><text x="12" y="14" text-anchor="middle" fill="white" font-size="7" font-weight="bold" font-family="Arial, sans-serif">P24</text></svg>'
 };
-function e(r) {
-  const l = r.toLowerCase();
-  return l.includes("card") ? t.card : l.includes("paypal") ? t.paypal : l.includes("apple") ? t.apple : l.includes("google") ? t.google : l.includes("venmo") ? t.venmo : l.includes("link") ? t.link : l.includes("manual") ? t.manual : l.includes("stripe") ? t.stripe : l.includes("braintree") ? t.braintree : null;
+function i(l) {
+  const t = l.toLowerCase();
+  return t.includes("card") ? e.card : t.includes("paypal") ? e.paypal : t.includes("apple") ? e.apple : t.includes("google") ? e.google : t.includes("venmo") ? e.venmo : t.includes("link") ? e.link : t.includes("manual") ? e.manual : t.includes("stripe") ? e.stripe : t.includes("braintree") ? e.braintree : t === "ideal" ? e.ideal : t === "bancontact" ? e.bancontact : t === "sepa" ? e.sepa : t === "eps" ? e.eps : t === "p24" ? e.p24 : null;
 }
-function i(r) {
-  const l = r.toLowerCase();
-  return l === "stripe" ? t.stripe : l === "braintree" ? t.braintree : l === "paypal" ? t.paypal : l === "manual" ? t.manual : null;
+function r(l) {
+  const t = l.toLowerCase();
+  return t === "stripe" ? e.stripe : t === "braintree" ? e.braintree : t === "paypal" ? e.paypal : t === "manual" ? e.manual : null;
 }
 export {
-  i as a,
-  e as g
+  r as a,
+  i as g
 };
-//# sourceMappingURL=brand-icons-Dfynzp_2.js.map
+//# sourceMappingURL=brand-icons-AsNEBTKB.js.map

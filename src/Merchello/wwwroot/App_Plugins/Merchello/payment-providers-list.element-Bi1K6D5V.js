@@ -1,11 +1,12 @@
-import { LitElement as k, html as r, nothing as d, css as C, state as p, property as T, customElement as $, query as S } from "@umbraco-cms/backoffice/external/lit";
-import { UmbElementMixin as z } from "@umbraco-cms/backoffice/element-api";
+import { LitElement as $, html as r, nothing as d, css as C, state as v, property as T, customElement as z, query as R } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as E } from "@umbraco-cms/backoffice/element-api";
 import { UmbModalToken as x, UMB_MODAL_MANAGER_CONTEXT as O, UMB_CONFIRM_MODAL as N } from "@umbraco-cms/backoffice/modal";
-import { UMB_NOTIFICATION_CONTEXT as R } from "@umbraco-cms/backoffice/notification";
-import { M as b } from "./merchello-api-B2ha_6NF.js";
-import { M as D } from "./setup-instructions-modal.token-CR5MFRlI.js";
-import { g as H, a as U } from "./brand-icons-Dfynzp_2.js";
-const F = new x("Merchello.PaymentProvider.Config.Modal", {
+import { UMB_NOTIFICATION_CONTEXT as D } from "@umbraco-cms/backoffice/notification";
+import { UmbSorterController as U } from "@umbraco-cms/backoffice/sorter";
+import { M as m } from "./merchello-api-B2ha_6NF.js";
+import { M as B } from "./setup-instructions-modal.token-CR5MFRlI.js";
+import { g as F, a as H } from "./brand-icons-AsNEBTKB.js";
+const G = new x("Merchello.PaymentProvider.Config.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
@@ -15,41 +16,55 @@ const F = new x("Merchello.PaymentProvider.Config.Modal", {
     type: "sidebar",
     size: "small"
   }
-}), B = new x("Merchello.TestPaymentProvider.Modal", {
+}), j = new x("Merchello.TestPaymentProvider.Modal", {
   modal: {
     type: "sidebar",
     size: "medium"
   }
 });
-var G = Object.defineProperty, j = Object.getOwnPropertyDescriptor, E = (e) => {
+var q = Object.defineProperty, Y = Object.getOwnPropertyDescriptor, L = (e) => {
   throw TypeError(e);
-}, f = (e, i, t, o) => {
-  for (var s = o > 1 ? void 0 : o ? j(i, t) : i, v = e.length - 1, h; v >= 0; v--)
-    (h = e[v]) && (s = (o ? h(i, t, s) : h(s)) || s);
-  return o && s && G(i, t, s), s;
-}, L = (e, i, t) => i.has(e) || E("Cannot " + t), P = (e, i, t) => (L(e, i, "read from private field"), i.get(e)), Y = (e, i, t) => i.has(e) ? E("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, t), M = (e, i, t, o) => (L(e, i, "write to private field"), i.set(e, t), t), m;
-let c = class extends z(k) {
+}, _ = (e, i, a, t) => {
+  for (var s = t > 1 ? void 0 : t ? Y(i, a) : i, h = e.length - 1, g; h >= 0; h--)
+    (g = e[h]) && (s = (t ? g(i, a, s) : g(s)) || s);
+  return t && s && q(i, a, s), s;
+}, S = (e, i, a) => i.has(e) || L("Cannot " + a), M = (e, i, a) => (S(e, i, "read from private field"), i.get(e)), V = (e, i, a) => i.has(e) ? L("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, a), k = (e, i, a, t) => (S(e, i, "write to private field"), i.set(e, a), a), f;
+const X = {
+  US: "🇺🇸",
+  NL: "🇳🇱",
+  BE: "🇧🇪",
+  AT: "🇦🇹",
+  PL: "🇵🇱",
+  EU: "🇪🇺",
+  DE: "🇩🇪",
+  FR: "🇫🇷",
+  ES: "🇪🇸",
+  IT: "🇮🇹",
+  GB: "🇬🇧",
+  UK: "🇬🇧"
+};
+let p = class extends E($) {
   constructor() {
-    super(...arguments), this._preview = null, this._isLoading = !0, this._errorMessage = null, this._isCollapsed = !1, this.autoLoad = !0, Y(this, m, !1);
+    super(...arguments), this._preview = null, this._isLoading = !0, this._errorMessage = null, this._isCollapsed = !1, this.autoLoad = !0, V(this, f, !1);
   }
   connectedCallback() {
-    super.connectedCallback(), M(this, m, !0), this.autoLoad && this.loadPreview();
+    super.connectedCallback(), k(this, f, !0), this.autoLoad && this.loadPreview();
   }
   disconnectedCallback() {
-    super.disconnectedCallback(), M(this, m, !1);
+    super.disconnectedCallback(), k(this, f, !1);
   }
   async loadPreview() {
     this._isLoading = !0, this._errorMessage = null;
     try {
-      const e = await b.getCheckoutPaymentPreview();
-      if (!P(this, m)) return;
+      const e = await m.getCheckoutPaymentPreview();
+      if (!M(this, f)) return;
       if (e.error) {
         this._errorMessage = e.error.message, this._isLoading = !1;
         return;
       }
       this._preview = e.data ?? null;
     } catch (e) {
-      if (!P(this, m)) return;
+      if (!M(this, f)) return;
       this._errorMessage = e instanceof Error ? e.message : "Failed to load preview";
     }
     this._isLoading = !1;
@@ -58,8 +73,15 @@ let c = class extends z(k) {
     this._isCollapsed = !this._isCollapsed;
   }
   _renderMethodIcon(e) {
-    const i = H(e.methodAlias);
+    const i = F(e.methodAlias);
     return i ? r`<span class="method-icon-svg" .innerHTML=${i}></span>` : r`<uui-icon name="${e.icon ?? "icon-credit-card"}"></uui-icon>`;
+  }
+  _renderRegionBadges(e) {
+    return !e || e.length === 0 ? d : r`
+      ${e.map(
+      (i) => r`<span class="region-badge" title="${i.name}">${X[i.code] ?? "🌍"}</span>`
+    )}
+    `;
   }
   _renderMethod(e, i = !1) {
     return r`
@@ -67,6 +89,7 @@ let c = class extends z(k) {
         <div class="method-info">
           ${this._renderMethodIcon(e)}
           <span class="method-name">${e.displayName}</span>
+          ${this._renderRegionBadges(e.supportedRegions)}
         </div>
         <div class="method-provider">
           ${i ? r`<span class="outranked-text">outranked by ${e.outrankedBy}</span>` : r`<span class="via-text">via ${e.providerDisplayName}</span>`}
@@ -74,12 +97,12 @@ let c = class extends z(k) {
       </div>
     `;
   }
-  _renderSection(e, i, t = !1) {
+  _renderSection(e, i, a = !1) {
     return i.length === 0 ? d : r`
       <div class="preview-section">
         <h4 class="section-title">${e}</h4>
         <div class="methods-list">
-          ${i.map((o) => this._renderMethod(o, t))}
+          ${i.map((t) => this._renderMethod(t, a))}
         </div>
       </div>
     `;
@@ -145,8 +168,8 @@ let c = class extends z(k) {
       `;
   }
 };
-m = /* @__PURE__ */ new WeakMap();
-c.styles = C`
+f = /* @__PURE__ */ new WeakMap();
+p.styles = C`
     :host {
       display: block;
     }
@@ -283,6 +306,11 @@ c.styles = C`
       font-weight: 500;
     }
 
+    .region-badge {
+      font-size: 0.75rem;
+      margin-left: var(--uui-size-space-1);
+    }
+
     .method-provider {
       font-size: 0.75rem;
       color: var(--uui-color-text-alt);
@@ -306,53 +334,62 @@ c.styles = C`
       color: var(--uui-color-text-alt);
     }
   `;
-f([
-  p()
-], c.prototype, "_preview", 2);
-f([
-  p()
-], c.prototype, "_isLoading", 2);
-f([
-  p()
-], c.prototype, "_errorMessage", 2);
-f([
-  p()
-], c.prototype, "_isCollapsed", 2);
-f([
+_([
+  v()
+], p.prototype, "_preview", 2);
+_([
+  v()
+], p.prototype, "_isLoading", 2);
+_([
+  v()
+], p.prototype, "_errorMessage", 2);
+_([
+  v()
+], p.prototype, "_isCollapsed", 2);
+_([
   T({ type: Boolean, attribute: "auto-load" })
-], c.prototype, "autoLoad", 2);
-c = f([
-  $("merchello-checkout-payment-preview")
-], c);
-var V = Object.defineProperty, X = Object.getOwnPropertyDescriptor, I = (e) => {
+], p.prototype, "autoLoad", 2);
+p = _([
+  z("merchello-checkout-payment-preview")
+], p);
+var K = Object.defineProperty, J = Object.getOwnPropertyDescriptor, A = (e) => {
   throw TypeError(e);
-}, _ = (e, i, t, o) => {
-  for (var s = o > 1 ? void 0 : o ? X(i, t) : i, v = e.length - 1, h; v >= 0; v--)
-    (h = e[v]) && (s = (o ? h(i, t, s) : h(s)) || s);
-  return o && s && V(i, t, s), s;
-}, A = (e, i, t) => i.has(e) || I("Cannot " + t), a = (e, i, t) => (A(e, i, "read from private field"), i.get(e)), w = (e, i, t) => i.has(e) ? I("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, t), y = (e, i, t, o) => (A(e, i, "write to private field"), i.set(e, t), t), n, g, l;
-let u = class extends z(k) {
+}, b = (e, i, a, t) => {
+  for (var s = t > 1 ? void 0 : t ? J(i, a) : i, h = e.length - 1, g; h >= 0; h--)
+    (g = e[h]) && (s = (t ? g(i, a, s) : g(s)) || s);
+  return t && s && K(i, a, s), s;
+}, I = (e, i, a) => i.has(e) || A("Cannot " + a), o = (e, i, a) => (I(e, i, "read from private field"), i.get(e)), y = (e, i, a) => i.has(e) ? A("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, a), w = (e, i, a, t) => (I(e, i, "write to private field"), i.set(e, a), a), n, c, l, P;
+let u = class extends E($) {
   constructor() {
-    super(), this._availableProviders = [], this._configuredProviders = [], this._isLoading = !0, this._errorMessage = null, w(this, n), w(this, g), w(this, l, !1), this.consumeContext(O, (e) => {
-      y(this, n, e);
-    }), this.consumeContext(R, (e) => {
-      y(this, g, e);
+    super(), this._availableProviders = [], this._configuredProviders = [], this._isLoading = !0, this._errorMessage = null, y(this, n), y(this, c), y(this, l, !1), y(this, P, new U(this, {
+      getUniqueOfElement: (e) => e.getAttribute("data-provider-id") ?? "",
+      getUniqueOfModel: (e) => e.id,
+      identifier: "Merchello.PaymentProviders.Sorter",
+      itemSelector: ".provider-card.configured",
+      containerSelector: ".providers-list.configured",
+      onChange: ({ model: e }) => {
+        this._configuredProviders = e, this._handleProviderReorder(e.map((i) => i.id));
+      }
+    })), this.consumeContext(O, (e) => {
+      w(this, n, e);
+    }), this.consumeContext(D, (e) => {
+      w(this, c, e);
     });
   }
   connectedCallback() {
-    super.connectedCallback(), y(this, l, !0), this._loadProviders();
+    super.connectedCallback(), w(this, l, !0), this._loadProviders();
   }
   disconnectedCallback() {
-    super.disconnectedCallback(), y(this, l, !1);
+    super.disconnectedCallback(), w(this, l, !1);
   }
   async _loadProviders() {
     this._isLoading = !0, this._errorMessage = null;
     try {
       const [e, i] = await Promise.all([
-        b.getAvailablePaymentProviders(),
-        b.getPaymentProviders()
+        m.getAvailablePaymentProviders(),
+        m.getPaymentProviders()
       ]);
-      if (!a(this, l)) return;
+      if (!o(this, l)) return;
       if (e.error) {
         this._errorMessage = e.error.message, this._isLoading = !1;
         return;
@@ -361,41 +398,47 @@ let u = class extends z(k) {
         this._errorMessage = i.error.message, this._isLoading = !1;
         return;
       }
-      this._availableProviders = e.data ?? [], this._configuredProviders = i.data ?? [];
+      this._availableProviders = e.data ?? [], this._configuredProviders = i.data ?? [], o(this, P).setModel(this._configuredProviders);
     } catch (e) {
-      if (!a(this, l)) return;
+      if (!o(this, l)) return;
       this._errorMessage = e instanceof Error ? e.message : "Failed to load providers";
     }
     this._isLoading = !1, await this._previewElement?.loadPreview();
+  }
+  async _handleProviderReorder(e) {
+    const { error: i } = await m.reorderPaymentProviders(e);
+    o(this, l) && (i ? (o(this, c)?.peek("danger", {
+      data: { headline: "Reorder failed", message: i.message }
+    }), await this._loadProviders()) : await this._previewElement?.loadPreview());
   }
   _getUnconfiguredProviders() {
     const e = new Set(this._configuredProviders.map((i) => i.providerAlias));
     return this._availableProviders.filter((i) => !e.has(i.alias));
   }
   async _openConfigModal(e, i) {
-    if (!a(this, n)) return;
-    (await a(this, n).open(this, F, {
+    if (!o(this, n)) return;
+    (await o(this, n).open(this, G, {
       data: { provider: e, setting: i }
     }).onSubmit().catch(() => {
     }))?.isSaved && await this._loadProviders();
   }
   async _openMethodsModal(e) {
-    if (!a(this, n)) return;
-    (await a(this, n).open(this, W, {
+    if (!o(this, n)) return;
+    (await o(this, n).open(this, W, {
       data: { setting: e }
     }).onSubmit().catch(() => {
     }))?.isChanged && await this._previewElement?.loadPreview();
   }
   async _toggleProvider(e) {
-    const { error: i } = await b.togglePaymentProvider(e.id, !e.isEnabled);
-    if (a(this, l)) {
+    const { error: i } = await m.togglePaymentProvider(e.id, !e.isEnabled);
+    if (o(this, l)) {
       if (i) {
-        a(this, g)?.peek("danger", {
+        o(this, c)?.peek("danger", {
           data: { headline: "Error", message: i.message }
         });
         return;
       }
-      a(this, g)?.peek("positive", {
+      o(this, c)?.peek("positive", {
         data: {
           headline: "Success",
           message: `${e.displayName} ${e.isEnabled ? "hidden from checkout" : "now showing in checkout"}`
@@ -404,7 +447,7 @@ let u = class extends z(k) {
     }
   }
   async _deleteProvider(e) {
-    if (!await a(this, n)?.open(this, N, {
+    if (!await o(this, n)?.open(this, N, {
       data: {
         headline: "Remove Payment Provider",
         content: `Are you sure you want to remove ${e.displayName}? This action cannot be undone.`,
@@ -412,22 +455,22 @@ let u = class extends z(k) {
         color: "danger"
       }
     })?.onSubmit().catch(() => {
-    }) || !a(this, l)) return;
-    const { error: o } = await b.deletePaymentProvider(e.id);
-    if (a(this, l)) {
-      if (o) {
-        a(this, g)?.peek("danger", {
-          data: { headline: "Error", message: o.message }
+    }) || !o(this, l)) return;
+    const { error: t } = await m.deletePaymentProvider(e.id);
+    if (o(this, l)) {
+      if (t) {
+        o(this, c)?.peek("danger", {
+          data: { headline: "Error", message: t.message }
         });
         return;
       }
-      a(this, g)?.peek("positive", {
+      o(this, c)?.peek("positive", {
         data: { headline: "Success", message: `${e.displayName} removed` }
       }), await this._loadProviders();
     }
   }
   _openSetupInstructions(e) {
-    !a(this, n) || !e.setupInstructions || a(this, n).open(this, D, {
+    !o(this, n) || !e.setupInstructions || o(this, n).open(this, B, {
       data: {
         providerName: e.displayName,
         instructions: e.setupInstructions
@@ -435,19 +478,22 @@ let u = class extends z(k) {
     });
   }
   _openTestModal(e) {
-    a(this, n) && a(this, n).open(this, B, {
+    o(this, n) && o(this, n).open(this, j, {
       data: { setting: e }
     });
   }
   _renderProviderIcon(e, i) {
-    const t = U(e);
-    return t ? r`<span class="provider-icon-svg" .innerHTML=${t}></span>` : r`<uui-icon name="${i ?? "icon-credit-card"}"></uui-icon>`;
+    const a = H(e);
+    return a ? r`<span class="provider-icon-svg" .innerHTML=${a}></span>` : r`<uui-icon name="${i ?? "icon-credit-card"}"></uui-icon>`;
   }
   _renderConfiguredProvider(e) {
     const i = e.provider;
     return r`
-      <div class="provider-card configured">
+      <div class="provider-card configured" data-provider-id=${e.id}>
         <div class="provider-header">
+          <div class="provider-drag-handle">
+            <uui-icon name="icon-navigation"></uui-icon>
+          </div>
           <div class="provider-info">
             ${this._renderProviderIcon(e.providerAlias, i?.icon)}
             <div class="provider-details">
@@ -591,9 +637,10 @@ let u = class extends z(k) {
         <p class="section-description">
           These payment providers are installed and configured.
           Toggle the switch to show or hide a provider from checkout.
+          Drag to reorder how providers appear.
         </p>
         ${this._configuredProviders.length === 0 ? r`<p class="no-items">No payment providers configured yet.</p>` : r`
-              <div class="providers-list">
+              <div class="providers-list configured">
                 ${this._configuredProviders.map(
       (i) => this._renderConfiguredProvider(i)
     )}
@@ -620,8 +667,9 @@ let u = class extends z(k) {
   }
 };
 n = /* @__PURE__ */ new WeakMap();
-g = /* @__PURE__ */ new WeakMap();
+c = /* @__PURE__ */ new WeakMap();
 l = /* @__PURE__ */ new WeakMap();
+P = /* @__PURE__ */ new WeakMap();
 u.styles = C`
     :host {
       display: block;
@@ -684,6 +732,33 @@ u.styles = C`
 
     .provider-card.available {
       border-left: 3px solid var(--uui-color-border-emphasis);
+    }
+
+    .provider-drag-handle {
+      cursor: grab;
+      color: var(--uui-color-text-alt);
+      display: flex;
+      align-items: center;
+      padding-right: var(--uui-size-space-2);
+    }
+
+    .provider-drag-handle:active {
+      cursor: grabbing;
+    }
+
+    .provider-card.--umb-sorter-placeholder {
+      visibility: hidden;
+      position: relative;
+    }
+
+    .provider-card.--umb-sorter-placeholder::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border: 2px dashed var(--uui-color-divider-emphasis);
+      border-radius: var(--uui-border-radius);
+      visibility: visible;
+      background: var(--uui-color-surface-alt);
     }
 
     .provider-header {
@@ -805,27 +880,27 @@ u.styles = C`
       color: var(--uui-color-positive-contrast);
     }
   `;
-_([
-  p()
+b([
+  v()
 ], u.prototype, "_availableProviders", 2);
-_([
-  p()
+b([
+  v()
 ], u.prototype, "_configuredProviders", 2);
-_([
-  p()
+b([
+  v()
 ], u.prototype, "_isLoading", 2);
-_([
-  p()
+b([
+  v()
 ], u.prototype, "_errorMessage", 2);
-_([
-  S("merchello-checkout-payment-preview")
+b([
+  R("merchello-checkout-payment-preview")
 ], u.prototype, "_previewElement", 2);
-u = _([
-  $("merchello-payment-providers-list")
+u = b([
+  z("merchello-payment-providers-list")
 ], u);
-const re = u;
+const se = u;
 export {
   u as MerchelloPaymentProvidersListElement,
-  re as default
+  se as default
 };
-//# sourceMappingURL=payment-providers-list.element-BTI0G8RH.js.map
+//# sourceMappingURL=payment-providers-list.element-Bi1K6D5V.js.map

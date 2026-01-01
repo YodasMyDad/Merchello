@@ -690,7 +690,12 @@ public class PaymentProvidersApiController(
                 IsEnabled = persisted?.IsEnabled ?? true, // Default enabled if no setting
                 SortOrder = persisted?.SortOrder ?? def.DefaultSortOrder,
                 IsExpressCheckout = def.IsExpressCheckout,
-                MethodType = def.MethodType
+                MethodType = def.MethodType,
+                SupportedRegions = def.SupportedRegions?.Select(r => new PaymentMethodRegionDto
+                {
+                    Code = r.Code,
+                    Name = r.Name
+                }).ToList()
             };
         })
         .OrderBy(m => m.SortOrder)
