@@ -42,6 +42,56 @@ document.addEventListener('alpine:init', () => {
     });
 
     /**
+     * Country Store - Global shipping country state
+     */
+    Alpine.store('country', {
+        code: '',
+        name: '',
+        countries: [],
+        isLoading: false,
+
+        async init() {
+            await this.fetch();
+        },
+
+        async fetch() {
+            try {
+                const response = await fetch('/api/storefront/shipping/countries');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.countries = data.countries;
+                    this.code = data.current.countryCode;
+                    this.name = data.current.countryName;
+                }
+            } catch (error) {
+                console.error('Failed to fetch shipping countries:', error);
+            }
+        },
+
+        async setCountry(code) {
+            this.isLoading = true;
+            try {
+                const response = await fetch('/api/storefront/shipping/country', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ countryCode: code })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.code = data.countryCode;
+                    this.name = data.countryName;
+                    window.dispatchEvent(new CustomEvent('country-changed', {
+                        detail: { countryCode: code }
+                    }));
+                }
+            } catch (error) {
+                console.error('Failed to set country:', error);
+            }
+            this.isLoading = false;
+        }
+    });
+
+    /**
      * Toast Store - Global toast notification system
      */
     Alpine.store('toast', {
@@ -138,6 +188,14 @@ document.addEventListener('alpine:init', () => {
             return this.currentVariant?.totalStock || 0;
         },
 
+        get showStockLevels() {
+            return this.currentVariant?.showStockLevels || false;
+        },
+
+        get canShipToLocation() {
+            return this.currentVariant?.canShipToLocation ?? true;
+        },
+
         get images() {
             return this.currentVariant?.images || [];
         },
@@ -163,6 +221,11 @@ document.addEventListener('alpine:init', () => {
             this.$nextTick(() => {
                 this.initGallerySwipers();
                 this.initOptionSwipers();
+            });
+
+            // Reload page when shipping country changes to get fresh location-aware data
+            window.addEventListener('country-changed', () => {
+                window.location.reload();
             });
         },
 
@@ -368,6 +431,13 @@ document.addEventListener('alpine:init', () => {
         updatingItemId: null,
         removingItemId: null,
 
+        // Location-aware availability state
+        itemAvailability: {},
+        allItemsAvailable: true,
+        regions: [],
+        selectedRegion: '',
+        isLoadingAvailability: false,
+
         // Computed
         get productItems() {
             return this.items.filter(item => item.lineItemType === 'Product');
@@ -379,10 +449,73 @@ document.addEventListener('alpine:init', () => {
             );
         },
 
+        isItemAvailable(lineItemId) {
+            const avail = this.itemAvailability[lineItemId];
+            return avail ? avail.canShipToCountry && avail.hasStock : true;
+        },
+
+        getItemMessage(lineItemId) {
+            return this.itemAvailability[lineItemId]?.message || '';
+        },
+
         // Methods
         init() {
             // Update global basket store with initial data
             Alpine.store('basket').update(this.itemCount, this.total, this.formattedTotal);
+
+            // Listen for country changes
+            window.addEventListener('country-changed', async () => {
+                this.selectedRegion = '';
+                await this.fetchRegions();
+                await this.checkBasketAvailability();
+            });
+
+            // Initial availability check
+            this.$nextTick(async () => {
+                await this.fetchRegions();
+                await this.checkBasketAvailability();
+            });
+        },
+
+        async fetchRegions() {
+            const countryCode = Alpine.store('country').code;
+            if (!countryCode) return;
+
+            try {
+                const response = await fetch(`/api/storefront/shipping/countries/${countryCode}/regions`);
+                if (response.ok) {
+                    this.regions = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to fetch regions:', error);
+            }
+        },
+
+        async checkBasketAvailability() {
+            const countryCode = Alpine.store('country').code;
+            if (!countryCode || this.isEmpty) return;
+
+            this.isLoadingAvailability = true;
+            try {
+                let url = `/api/storefront/basket/availability?countryCode=${countryCode}`;
+                if (this.selectedRegion) {
+                    url += `&regionCode=${this.selectedRegion}`;
+                }
+
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.allItemsAvailable = data.allItemsAvailable;
+                    this.itemAvailability = {};
+                    data.items.forEach(item => {
+                        this.itemAvailability[item.lineItemId] = item;
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to check basket availability:', error);
+            } finally {
+                this.isLoadingAvailability = false;
+            }
         },
 
         async refreshBasket() {

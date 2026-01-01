@@ -1477,7 +1477,9 @@ public class ProductService(
                 {
                     query = query.Include(p => p.ProductRoot)
                         .ThenInclude(pr => pr!.Products)
-                            .ThenInclude(p => p.ProductWarehouses);
+                            .ThenInclude(p => p.ProductWarehouses)
+                                .ThenInclude(pw => pw.Warehouse)
+                                    .ThenInclude(w => w.ServiceRegions);
                 }
             }
 
@@ -1489,7 +1491,10 @@ public class ProductService(
 
             if (parameters.IncludeProductWarehouses)
             {
-                query = query.Include(p => p.ProductWarehouses);
+                query = query
+                    .Include(p => p.ProductWarehouses)
+                        .ThenInclude(pw => pw.Warehouse)
+                            .ThenInclude(w => w.ServiceRegions);
             }
 
             if (parameters.IncludeShippingRestrictions)
@@ -1672,7 +1677,10 @@ public class ProductService(
 
             if (parameters.IncludeProductWarehouses)
             {
-                itemsQuery = itemsQuery.Include(x => x.ProductWarehouses);
+                itemsQuery = itemsQuery
+                    .Include(x => x.ProductWarehouses)
+                        .ThenInclude(pw => pw.Warehouse)
+                            .ThenInclude(w => w.ServiceRegions);
             }
 
             if (parameters.IncludeSiblingVariants)
@@ -3197,11 +3205,65 @@ public class ProductService(
     {
         var normalizedUrl = rootUrl.ToLowerInvariant();
         using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.RootProducts
+        var result = await scope.ExecuteWithContextAsync<ProductRoot?>(async db =>
+        {
+            // Load ProductRoot with Products and their ProductWarehouses
+            var query = db.RootProducts
                 .Include(pr => pr.Products)
+                    .ThenInclude(p => p.ProductWarehouses)
+                        .ThenInclude(pw => pw.Warehouse)
+                // Also include ProductRootWarehouses for fallback location checking
+                .Include(pr => pr.ProductRootWarehouses)
+                    .ThenInclude(prw => prw.Warehouse)
                 .AsNoTracking()
-                .FirstOrDefaultAsync(pr => pr.RootUrl == normalizedUrl, ct));
+                .AsSplitQuery();
+
+            var productRoot = await query.FirstOrDefaultAsync(pr => pr.RootUrl == normalizedUrl, ct);
+
+            // Load ServiceRegions for warehouses (needed for CanServeRegion checks)
+            if (productRoot != null)
+            {
+                var warehouseIds = productRoot.Products
+                    .SelectMany(p => p.ProductWarehouses)
+                    .Where(pw => pw.Warehouse != null)
+                    .Select(pw => pw.Warehouse!.Id)
+                    .Concat(productRoot.ProductRootWarehouses
+                        .Where(prw => prw.Warehouse != null)
+                        .Select(prw => prw.Warehouse!.Id))
+                    .Distinct()
+                    .ToList();
+
+                if (warehouseIds.Count > 0)
+                {
+                    var warehousesWithRegions = await db.Warehouses
+                        .Include(w => w.ServiceRegions)
+                        .Where(w => warehouseIds.Contains(w.Id))
+                        .AsNoTracking()
+                        .ToDictionaryAsync(w => w.Id, ct);
+
+                    // Populate ServiceRegions on the loaded warehouses
+                    foreach (var product in productRoot.Products)
+                    {
+                        foreach (var pw in product.ProductWarehouses.Where(pw => pw.Warehouse != null))
+                        {
+                            if (warehousesWithRegions.TryGetValue(pw.Warehouse!.Id, out var fullWarehouse))
+                            {
+                                pw.Warehouse.ServiceRegions = fullWarehouse.ServiceRegions;
+                            }
+                        }
+                    }
+                    foreach (var prw in productRoot.ProductRootWarehouses.Where(prw => prw.Warehouse != null))
+                    {
+                        if (warehousesWithRegions.TryGetValue(prw.Warehouse!.Id, out var fullWarehouse))
+                        {
+                            prw.Warehouse.ServiceRegions = fullWarehouse.ServiceRegions;
+                        }
+                    }
+                }
+            }
+
+            return productRoot;
+        });
         scope.Complete();
         return result;
     }

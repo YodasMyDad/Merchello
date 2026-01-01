@@ -15,13 +15,11 @@ namespace Merchello.Core.Locality.Services;
 
 public class DefaultLocalityCatalog(
     IOptions<CacheOptions> cacheOptions,
-    IOptions<MerchelloSettings> merchelloSettings,
     ICacheService cacheService)
     : ILocalityCatalog
 {
     private readonly Lazy<IReadOnlyDictionary<string, string>> _countries = new(BuildCountryMap, isThreadSafe: true);
     private readonly CacheOptions _cacheOptions = cacheOptions.Value;
-    private readonly MerchelloSettings _settings = merchelloSettings.Value;
 
     public Task<IReadOnlyCollection<CountryInfo>> GetCountriesAsync(CancellationToken ct = default)
     {
@@ -35,16 +33,9 @@ public class DefaultLocalityCatalog(
 
     public Task<IReadOnlyCollection<CountryInfo>> GetStoreCountriesAsync(CancellationToken ct = default)
     {
-        IEnumerable<KeyValuePair<string, string>> source = _countries.Value;
-
-        // Filter by allowed countries if configured
-        if (_settings.HasCountryRestrictions)
-        {
-            var allowedSet = new HashSet<string>(_settings.AllowedCountries!, StringComparer.OrdinalIgnoreCase);
-            source = source.Where(kv => allowedSet.Contains(kv.Key));
-        }
-
-        var list = source
+        // Returns all countries - use LocationsService.GetAvailableCountriesAsync() for
+        // countries that warehouses can actually ship to
+        var list = _countries.Value
             .OrderBy(kv => kv.Value, StringComparer.OrdinalIgnoreCase)
             .Select(kv => new CountryInfo(kv.Key, kv.Value))
             .ToList()

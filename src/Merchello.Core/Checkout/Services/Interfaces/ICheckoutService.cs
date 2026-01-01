@@ -71,7 +71,7 @@ public interface ICheckoutService
     /// Calculate the basket if there are any changes
     /// </summary>
     /// <param name="basket"></param>
-    /// <param name="countryCode">Country code for shipping/tax. When null, uses AllowedCountries from settings.</param>
+    /// <param name="countryCode">Country code for shipping/tax. When null, uses DefaultShippingCountry from settings.</param>
     /// <param name="defaultTaxRate">Defaults to 20%</param>
     /// <param name="isShippingTaxable">Should we tax the shipping, defaults to true</param>
     /// <param name="cancellationToken"></param>

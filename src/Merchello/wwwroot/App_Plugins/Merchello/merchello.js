@@ -908,7 +908,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Providers.PaymentProviders.View",
     name: "Payment Providers View",
-    js: () => import("./payment-providers-list.element-Bi1K6D5V.js"),
+    js: () => import("./payment-providers-list.element-C0skbjR0.js"),
     weight: 100,
     meta: {
       label: "Payments",
@@ -934,7 +934,7 @@ const e = [
     type: "modal",
     alias: "Merchello.PaymentMethods.Config.Modal",
     name: "Payment Methods Configuration Modal",
-    js: () => import("./payment-methods-config-modal.element-BtDgBLsL.js")
+    js: () => import("./payment-methods-config-modal.element-Bzju4GAt.js")
   },
   // Modal for displaying setup instructions
   {

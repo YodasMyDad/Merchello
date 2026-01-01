@@ -10,8 +10,8 @@ public interface ILocalityCatalog
     Task<IReadOnlyCollection<CountryInfo>> GetCountriesAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// Gets countries filtered by store settings (AllowedCountries).
-    /// If no restrictions are configured, returns all countries.
+    /// Gets all countries for admin configuration and address selection.
+    /// For storefront use, see ILocationsService.GetAvailableCountriesAsync().
     /// </summary>
     Task<IReadOnlyCollection<CountryInfo>> GetStoreCountriesAsync(CancellationToken ct = default);
 

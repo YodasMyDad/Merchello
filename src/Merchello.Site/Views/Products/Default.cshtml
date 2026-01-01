@@ -6,6 +6,7 @@
 @inject Umbraco.Cms.Core.PublishedCache.IPublishedMediaCache MediaCache
 @inject Microsoft.Extensions.Options.IOptions<Merchello.Core.Shared.Models.MerchelloSettings> Settings
 @inject Merchello.Services.IRichTextRenderer RichTextRenderer
+@inject Merchello.Core.Storefront.Services.IStorefrontContextService StorefrontContext
 @inherits UmbracoViewPage<MerchelloProductViewModel>
 @{
     Layout = "~/Views/Website.cshtml";
@@ -28,13 +29,26 @@
         ?? resolvedImages.FirstOrDefault()?.GetCropUrl(width: 1200)
         ?? "";
 
-    // SSR stock calculation for search engines
+    // Get customer's shipping location for location-aware stock display
+    var shippingLocation = await StorefrontContext.GetShippingLocationAsync();
+
+    // Pre-calculate location-aware availability for all variants
+    var variantAvailability = new Dictionary<Guid, Merchello.Core.Storefront.Models.ProductLocationAvailability>();
+    foreach (var variant in Model.AllVariants)
+    {
+        var availability = await StorefrontContext.GetProductAvailabilityAsync(variant, 1);
+        variantAvailability[variant.Id] = availability;
+    }
+
+    // Get availability for selected variant
+    var selectedAvailability = variantAvailability.GetValueOrDefault(Model.SelectedVariant.Id);
+
+    // SSR stock calculation - now location-aware
     var ssrTrackStock = Model.SelectedVariant.ProductWarehouses.Any(pw => pw.TrackStock);
-    var ssrTotalStock = Model.SelectedVariant.ProductWarehouses
-        .Where(pw => pw.TrackStock)
-        .Sum(pw => Math.Max(0, pw.Stock - pw.ReservedStock));
+    var ssrTotalStock = selectedAvailability?.AvailableStock ?? 0;
+    var ssrCanShipToLocation = selectedAvailability?.CanShipToLocation ?? false;
     var ssrIsLowStock = ssrTrackStock && ssrTotalStock > 0 && ssrTotalStock <= settings.LowStockThreshold;
-    var ssrInStock = Model.AvailableForPurchase;
+    var ssrInStock = ssrCanShipToLocation && (selectedAvailability?.HasStock ?? false);
 
     // Build selected options from current variant's VariantOptionsKey
     // The key contains value GUIDs joined by hyphens (sorted alphabetically)
@@ -64,26 +78,32 @@
         productUrl = Model.ProductUrl,
         currencySymbol = settings.CurrencySymbol,
         lowStockThreshold = settings.LowStockThreshold,
-        variants = Model.AllVariants.Select(v => new
+        variants = Model.AllVariants.Select(v =>
         {
-            id = v.Id.ToString(),
-            name = v.Name,
-            price = v.Price,
-            previousPrice = v.PreviousPrice,
-            onSale = v.OnSale,
-            availableForPurchase = v.AvailableForPurchase,
-            trackStock = v.ProductWarehouses.Any(pw => pw.TrackStock),
-            totalStock = v.ProductWarehouses
-                .Where(pw => pw.TrackStock)
-                .Sum(pw => Math.Max(0, pw.Stock - pw.ReservedStock)),
-            sku = v.Sku,
-            variantOptionsKey = v.VariantOptionsKey,
-            url = Model.GetVariantUrl(v),
-            images = v.ExcludeRootProductImages
-                ? v.Images.ToMedia(MediaCache).Select(m => m.GetCropUrl(width: 800)).ToList()
-                : v.Images.ToMedia(MediaCache).Select(m => m.GetCropUrl(width: 800))
-                    .Concat(Model.ProductRoot.RootImages.ToMedia(MediaCache).Select(m => m.GetCropUrl(width: 800)))
-                    .ToList()
+            var avail = variantAvailability.GetValueOrDefault(v.Id);
+            return new
+            {
+                id = v.Id.ToString(),
+                name = v.Name,
+                price = v.Price,
+                previousPrice = v.PreviousPrice,
+                onSale = v.OnSale,
+                // Location-aware: only available if can ship AND has stock at location
+                availableForPurchase = avail?.CanShipToLocation == true && avail?.HasStock == true,
+                canShipToLocation = avail?.CanShipToLocation ?? false,
+                trackStock = v.ProductWarehouses.Any(pw => pw.TrackStock),
+                // Location-aware stock (only from warehouses that can ship to customer)
+                totalStock = avail?.AvailableStock ?? 0,
+                showStockLevels = avail?.ShowStockLevels ?? false,
+                sku = v.Sku,
+                variantOptionsKey = v.VariantOptionsKey,
+                url = Model.GetVariantUrl(v),
+                images = v.ExcludeRootProductImages
+                    ? v.Images.ToMedia(MediaCache).Select(m => m.GetCropUrl(width: 800)).ToList()
+                    : v.Images.ToMedia(MediaCache).Select(m => m.GetCropUrl(width: 800))
+                        .Concat(Model.ProductRoot.RootImages.ToMedia(MediaCache).Select(m => m.GetCropUrl(width: 800)))
+                        .ToList()
+            };
         }).ToList(),
         variantOptions = Model.VariantOptions.Select(o => new
         {
@@ -280,11 +300,11 @@
             <div class="stock-status mb-4">
                 @* SSR fallback for initial page load (visible to search engines) *@
                 <noscript>
-                    @if (ssrInStock && ssrIsLowStock)
+                    @if (ssrInStock && ssrIsLowStock && settings.ShowStockLevels)
                     {
                         <span class="text-warning">Low Stock - Only @ssrTotalStock left!</span>
                     }
-                    else if (ssrInStock && ssrTrackStock)
+                    else if (ssrInStock && ssrTrackStock && settings.ShowStockLevels)
                     {
                         <span class="text-success">In Stock (@ssrTotalStock available)</span>
                     }
@@ -298,10 +318,10 @@
                     }
                 </noscript>
 
-                @* Low Stock *@
+                @* Low Stock (only show count if showStockLevels enabled) *@
                 <span class="text-warning"
-                      x-show="inStock && trackStock && stockCount <= lowStockThreshold"
-                      @(ssrInStock && ssrIsLowStock ? "" : "x-cloak")>
+                      x-show="inStock && trackStock && showStockLevels && stockCount <= lowStockThreshold"
+                      @(ssrInStock && ssrIsLowStock && settings.ShowStockLevels ? "" : "x-cloak")>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-exclamation-triangle me-1" viewBox="0 0 16 16">
                         <path d="M7.938 2.016A.13.13 0 0 1 8.002 2a.13.13 0 0 1 .063.016.15.15 0 0 1 .054.057l6.857 11.667c.036.06.035.124.002.183a.2.2 0 0 1-.054.06.1.1 0 0 1-.066.017H1.146a.1.1 0 0 1-.066-.017.2.2 0 0 1-.054-.06.18.18 0 0 1 .002-.183L7.884 2.073a.15.15 0 0 1 .054-.057m1.044-.45a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767z"/>
                         <path d="M7.002 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0M7.1 5.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0z"/>
@@ -309,10 +329,10 @@
                     Low Stock - Only <span x-text="stockCount">@ssrTotalStock</span> left!
                 </span>
 
-                @* In Stock with count *@
+                @* In Stock with count (when showStockLevels enabled) *@
                 <span class="text-success"
-                      x-show="inStock && trackStock && stockCount > lowStockThreshold"
-                      @(ssrInStock && ssrTrackStock && !ssrIsLowStock ? "" : "x-cloak")>
+                      x-show="inStock && trackStock && showStockLevels && stockCount > lowStockThreshold"
+                      @(ssrInStock && ssrTrackStock && settings.ShowStockLevels && !ssrIsLowStock ? "" : "x-cloak")>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-circle me-1" viewBox="0 0 16 16">
                         <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
                         <path d="m10.97 4.97-.02.022-3.473 4.425-2.093-2.094a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05"/>
@@ -320,10 +340,10 @@
                     In Stock (<span x-text="stockCount">@ssrTotalStock</span> available)
                 </span>
 
-                @* In Stock (untracked) *@
+                @* In Stock without count (when showStockLevels disabled OR untracked stock) *@
                 <span class="text-success"
-                      x-show="inStock && !trackStock"
-                      @(ssrInStock && !ssrTrackStock ? "" : "x-cloak")>
+                      x-show="inStock && (!trackStock || !showStockLevels)"
+                      @(ssrInStock && (!ssrTrackStock || !settings.ShowStockLevels) ? "" : "x-cloak")>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-circle me-1" viewBox="0 0 16 16">
                         <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
                         <path d="m10.97 4.97-.02.022-3.473 4.425-2.093-2.094a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05"/>
