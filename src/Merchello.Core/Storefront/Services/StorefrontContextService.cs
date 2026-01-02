@@ -2,6 +2,7 @@ using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Storefront.Models;
+using Merchello.Core.Storefront.Services.Parameters;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
@@ -104,11 +105,20 @@ public class StorefrontContextService(
     public async Task<int> GetAvailableStockAsync(Product product, CancellationToken ct = default)
     {
         var location = await GetShippingLocationAsync(ct);
-        return await GetAvailableStockForLocationAsync(product, location.CountryCode, location.RegionCode, ct);
+        return await GetAvailableStockForLocationAsync(new GetStockForLocationParameters
+        {
+            Product = product,
+            CountryCode = location.CountryCode,
+            RegionCode = location.RegionCode
+        }, ct);
     }
 
-    public Task<int> GetAvailableStockForLocationAsync(Product product, string countryCode, string? regionCode = null, CancellationToken ct = default)
+    public Task<int> GetAvailableStockForLocationAsync(GetStockForLocationParameters parameters, CancellationToken ct = default)
     {
+        var product = parameters.Product;
+        var countryCode = parameters.CountryCode;
+        var regionCode = parameters.RegionCode;
+
         if (product.ProductWarehouses == null || product.ProductWarehouses.Count == 0)
         {
             // No warehouse assignments - use the product's root warehouse assignments
@@ -153,16 +163,24 @@ public class StorefrontContextService(
         CancellationToken ct = default)
     {
         var location = await GetShippingLocationAsync(ct);
-        return await GetProductAvailabilityForLocationAsync(product, location.CountryCode, location.RegionCode, quantity, ct);
+        return await GetProductAvailabilityForLocationAsync(new ProductAvailabilityParameters
+        {
+            Product = product,
+            CountryCode = location.CountryCode,
+            RegionCode = location.RegionCode,
+            Quantity = quantity
+        }, ct);
     }
 
     public async Task<ProductLocationAvailability> GetProductAvailabilityForLocationAsync(
-        Product product,
-        string countryCode,
-        string? regionCode = null,
-        int quantity = 1,
+        ProductAvailabilityParameters parameters,
         CancellationToken ct = default)
     {
+        var product = parameters.Product;
+        var countryCode = parameters.CountryCode;
+        var regionCode = parameters.RegionCode;
+        var quantity = parameters.Quantity;
+
         var canShipToLocation = CanShipToLocation(product, countryCode, regionCode);
 
         if (!canShipToLocation)
@@ -180,7 +198,12 @@ public class StorefrontContextService(
                 ShowStockLevels: _settings.ShowStockLevels);
         }
 
-        var availableStock = await GetAvailableStockForLocationAsync(product, countryCode, regionCode, ct);
+        var availableStock = await GetAvailableStockForLocationAsync(new GetStockForLocationParameters
+        {
+            Product = product,
+            CountryCode = countryCode,
+            RegionCode = regionCode
+        }, ct);
         var hasUnlimitedStock = availableStock == int.MaxValue;
         var hasStock = hasUnlimitedStock || availableStock >= quantity;
 

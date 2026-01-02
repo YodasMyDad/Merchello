@@ -1,6 +1,7 @@
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Shared.Services.Interfaces;
 
 namespace Merchello.Core.Accounting.Services;
@@ -40,18 +41,19 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         return errors;
     }
 
-    public (decimal subTotal, decimal discount, decimal adjustedSubTotal, decimal tax, decimal total, decimal shipping)
-        CalculateFromLineItems(
-            List<LineItem> lineItems,
-            decimal shippingAmount,
-            decimal defaultTaxRate,
-            string currencyCode,
-            bool isShippingTaxable = true)
+    public CalculateLineItemsResult CalculateFromLineItems(CalculateLineItemsParameters parameters)
     {
+        var lineItems = parameters.LineItems;
+        var shippingAmount = parameters.ShippingAmount;
+        var defaultTaxRate = parameters.DefaultTaxRate;
+        var currencyCode = parameters.CurrencyCode;
+        var isShippingTaxable = parameters.IsShippingTaxable;
+
         // Separate product/custom items from discount items
         var productItems = lineItems.Where(li =>
             li.LineItemType == LineItemType.Product ||
-            li.LineItemType == LineItemType.Custom).ToList();
+            li.LineItemType == LineItemType.Custom ||
+            li.LineItemType == LineItemType.Addon).ToList();
 
         var discountItems = lineItems.Where(li => li.LineItemType == LineItemType.Discount).ToList();
 
@@ -277,7 +279,15 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         // Cap discount at subtotal - discount can never exceed what's being purchased
         var discountAbsolute = currencyService.Round(Math.Min(Math.Abs(totalDiscountAmount), subTotal), currencyCode);
 
-        return (subTotal, discountAbsolute, adjustedSubTotal, tax, total, shippingAmount);
+        return new CalculateLineItemsResult
+        {
+            SubTotal = subTotal,
+            Discount = discountAbsolute,
+            AdjustedSubTotal = adjustedSubTotal,
+            Tax = tax,
+            Total = total,
+            Shipping = shippingAmount
+        };
     }
 
     /// <summary>
@@ -447,16 +457,17 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         return total;
     }
 
-    public List<string> AddDiscountLineItem(
-        List<LineItem> lineItems,
-        decimal amount,
-        DiscountValueType discountValueType,
-        string currencyCode,
-        string? linkedSku = null,
-        string? name = null,
-        string? reason = null,
-        Dictionary<string, string>? extendedData = null)
+    public List<string> AddDiscountLineItem(AddDiscountLineItemParameters parameters)
     {
+        var lineItems = parameters.LineItems;
+        var amount = parameters.Amount;
+        var discountValueType = parameters.DiscountValueType;
+        var currencyCode = parameters.CurrencyCode;
+        var linkedSku = parameters.LinkedSku;
+        var name = parameters.Name;
+        var reason = parameters.Reason;
+        var extendedData = parameters.ExtendedData;
+
         List<string> errors = [];
 
         if (amount <= 0)
@@ -476,11 +487,11 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         {
             var linkedItem = lineItems.FirstOrDefault(li =>
                 li.Sku == linkedSku &&
-                (li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom));
+                (li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom || li.LineItemType == LineItemType.Addon));
 
             if (linkedItem == null)
             {
-                errors.Add($"Cannot link discount to SKU '{linkedSku}' - item not found in line items");
+                errors.Add("Cannot link discount to SKU '" + linkedSku + "' - item not found in line items");
                 return errors;
             }
         }
@@ -503,7 +514,7 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         {
             Id = Guid.NewGuid(),
             LineItemType = LineItemType.Discount,
-            Name = name ?? (discountValueType == DiscountValueType.Percentage ? $"{amount}% discount" : discountValueType == DiscountValueType.Free ? "Free" : "Discount"),
+            Name = name ?? (discountValueType == DiscountValueType.Percentage ? amount + "% discount" : discountValueType == DiscountValueType.Free ? "Free" : "Discount"),
             Sku = $"DISCOUNT-{Guid.NewGuid():N}",
             Amount = storedAmount,
             Quantity = 1,

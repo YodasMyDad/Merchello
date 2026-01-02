@@ -10,6 +10,10 @@ const defaultSettings: StoreSettingsDto = {
   currencySymbol: '£',
   invoiceNumberPrefix: 'INV-',
   lowStockThreshold: 10,
+  discountCodeLength: 8,
+  defaultDiscountPriority: 1000,
+  defaultPaginationPageSize: 50,
+  refundQuickAmountPercentages: [50],
 };
 
 /**

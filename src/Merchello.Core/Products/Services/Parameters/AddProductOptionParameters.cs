@@ -85,4 +85,9 @@ public class ProductOptionValueParameters
     /// SKU suffix for this value
     /// </summary>
     public string? SkuSuffix { get; init; }
+
+    /// <summary>
+    /// Weight in kilograms
+    /// </summary>
+    public decimal? WeightKg { get; init; }
 }

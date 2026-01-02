@@ -8,6 +8,13 @@ public class InvoiceForEditDto
     public Guid Id { get; set; }
     public string InvoiceNumber { get; set; } = string.Empty;
     public string FulfillmentStatus { get; set; } = string.Empty;
+
+    /// <summary>
+    /// CSS class for fulfillment status styling (e.g., "unfulfilled", "partial", "fulfilled").
+    /// Calculated by backend to avoid frontend logic duplication.
+    /// </summary>
+    public string FulfillmentStatusCssClass { get; set; } = "unfulfilled";
+
     public bool CanEdit { get; set; }
     public string? CannotEditReason { get; set; }
     public string CurrencySymbol { get; set; } = string.Empty;

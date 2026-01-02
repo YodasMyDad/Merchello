@@ -10,7 +10,7 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import { formatNumber } from "@shared/utils/formatting.js";
 import type {
   AnalyticsSummaryDto,
-  TimeSeriesDataPointDto,
+  TimeSeriesResultDto,
   SalesBreakdownDto,
   DateRange,
 } from "../types/analytics.types.js";
@@ -31,10 +31,10 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
   private _summary: AnalyticsSummaryDto | null = null;
 
   @state()
-  private _salesTimeSeries: TimeSeriesDataPointDto[] = [];
+  private _salesResult: TimeSeriesResultDto | null = null;
 
   @state()
-  private _aovTimeSeries: TimeSeriesDataPointDto[] = [];
+  private _aovResult: TimeSeriesResultDto | null = null;
 
   @state()
   private _breakdown: SalesBreakdownDto | null = null;
@@ -84,11 +84,11 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
     const endDate = this._formatDateForApi(this._dateRange.endDate);
 
     try {
-      // Load all data in parallel
+      // Load all data in parallel - using WithTotals variants for backend-calculated aggregates
       const [summaryResult, salesResult, aovResult, breakdownResult] = await Promise.all([
         MerchelloApi.getAnalyticsSummary(startDate, endDate),
-        MerchelloApi.getSalesTimeSeries(startDate, endDate),
-        MerchelloApi.getAovTimeSeries(startDate, endDate),
+        MerchelloApi.getSalesTimeSeriesWithTotals(startDate, endDate),
+        MerchelloApi.getAovTimeSeriesWithTotals(startDate, endDate),
         MerchelloApi.getSalesBreakdown(startDate, endDate),
       ]);
 
@@ -107,8 +107,8 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
       }
 
       this._summary = summaryResult.data ?? null;
-      this._salesTimeSeries = salesResult.data ?? [];
-      this._aovTimeSeries = aovResult.data ?? [];
+      this._salesResult = salesResult.data ?? null;
+      this._aovResult = aovResult.data ?? null;
       this._breakdown = breakdownResult.data ?? null;
     } catch (error) {
       if (!this.#isConnected) return;
@@ -192,7 +192,9 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
       <merchello-analytics-line-chart
         headline="Total sales over time"
         valuePrefix=${this._currencySymbol}
-        .data=${this._salesTimeSeries}
+        .data=${this._salesResult?.dataPoints ?? []}
+        .periodTotal=${this._salesResult?.periodTotal}
+        .percentChange=${this._salesResult?.percentChange}
         ?isLoading=${this._isLoading}
         showComparison>
       </merchello-analytics-line-chart>
@@ -201,7 +203,9 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
         <merchello-analytics-line-chart
           headline="Average order value over time"
           valuePrefix=${this._currencySymbol}
-          .data=${this._aovTimeSeries}
+          .data=${this._aovResult?.dataPoints ?? []}
+          .periodTotal=${this._aovResult?.periodTotal}
+          .percentChange=${this._aovResult?.percentChange}
           ?isLoading=${this._isLoading}
           showComparison>
         </merchello-analytics-line-chart>

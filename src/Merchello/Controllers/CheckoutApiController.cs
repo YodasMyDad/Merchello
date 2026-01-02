@@ -157,7 +157,11 @@ public partial class CheckoutApiController(
         basket.DateUpdated = DateTime.UtcNow;
 
         // Recalculate with the new shipping address country
-        await checkoutService.CalculateBasketAsync(basket, shippingAddress.CountryCode, cancellationToken: ct);
+        await checkoutService.CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = shippingAddress.CountryCode
+        }, ct);
 
         // Apply automatic discounts (e.g., "Free shipping in UK", "10% off orders over £100")
         basket = await checkoutService.RefreshAutomaticDiscountsAsync(basket, shippingAddress.CountryCode, ct);
@@ -376,12 +380,13 @@ public partial class CheckoutApiController(
         }
 
         // Save shipping selections
-        basket = await checkoutService.SaveShippingSelectionsAsync(
-            basket,
-            session,
-            request.Selections,
-            request.DeliveryDates,
-            ct);
+        basket = await checkoutService.SaveShippingSelectionsAsync(new SaveShippingSelectionsParameters
+        {
+            Basket = basket,
+            Session = session,
+            Selections = request.Selections,
+            DeliveryDates = request.DeliveryDates
+        }, ct);
 
         // Refresh automatic discounts (shipping costs may affect free shipping thresholds)
         basket = await checkoutService.RefreshAutomaticDiscountsAsync(
@@ -558,7 +563,9 @@ public partial class CheckoutApiController(
         var currencySymbol = basket.CurrencySymbol ?? _settings.CurrencySymbol;
 
         var lineItems = basket.LineItems
-            .Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom)
+            .Where(li => li.LineItemType == LineItemType.Product
+                      || li.LineItemType == LineItemType.Custom
+                      || li.LineItemType == LineItemType.Addon)
             .Select(li => new CheckoutLineItemDto
             {
                 Id = li.Id,

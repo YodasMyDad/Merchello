@@ -1226,7 +1226,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         <div id="main">
           <!-- Fulfillment Status Badge -->
           <div class="status-section">
-            <span class="fulfillment-badge ${this._invoice.fulfillmentStatus.toLowerCase()}">
+            <span class="fulfillment-badge ${this._invoice.fulfillmentStatusCssClass}">
               <uui-icon name="icon-box"></uui-icon>
               ${this._invoice.fulfillmentStatus}
             </span>

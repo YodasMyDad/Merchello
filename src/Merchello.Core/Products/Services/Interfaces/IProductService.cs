@@ -34,12 +34,12 @@ public interface IProductService
     Task<(decimal MinPrice, decimal MaxPrice)> GetPriceRangeForCollection(Guid collectionId, CancellationToken cancellationToken = default);
 
     // Wizard creation methods
-    Task<CrudResult<ProductRoot>> CreateProductRootOnly(string name, decimal price, decimal costOfGoods, decimal weight, Guid taxGroupId, Guid productTypeId, List<Guid> collectionIds, string? description = null, CancellationToken cancellationToken = default);
-    Task<CrudResult<ProductOption>> AddProductOption(Guid productRootId, string name, string? alias, int sortOrder, string? optionTypeAlias, string? optionUiAlias, bool isVariant, List<(string Name, string? FullName, int SortOrder, string? HexValue, decimal PriceAdjustment, decimal CostAdjustment, string? SkuSuffix)> values, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductRoot>> CreateProductRootOnly(CreateProductRootOnlyParameters parameters, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductOption>> AddProductOption(AddProductOptionParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> RemoveProductOption(Guid productRootId, Guid optionId, CancellationToken cancellationToken = default);
     Task<CrudResult<List<Product>>> GenerateVariantsFromOptions(Guid productRootId, decimal defaultPrice, decimal defaultCostOfGoods, CancellationToken cancellationToken = default);
-    Task<CrudResult<bool>> UpdateVariantStock(Guid variantId, Guid warehouseId, int stock, int? reorderPoint, bool trackStock, CancellationToken cancellationToken = default);
-    Task<CrudResult<bool>> ApplyStockTemplateToAllVariants(Guid productRootId, Guid warehouseId, int defaultStock, int? defaultReorderPoint, bool trackStock, CancellationToken cancellationToken = default);
+    Task<CrudResult<bool>> UpdateVariantStock(UpdateVariantStockParameters parameters, CancellationToken cancellationToken = default);
+    Task<CrudResult<bool>> ApplyStockTemplateToAllVariants(ApplyStockTemplateParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> UpdateVariantExcludedShippingOptions(Guid variantId, List<Guid> excludedShippingOptionIds, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -79,13 +79,13 @@ public interface IProductService
 
     // Filter operations
     Task<CrudResult<ProductFilterGroup>> CreateFilterGroup(string name, CancellationToken cancellationToken = default);
-    Task<CrudResult<ProductFilter>> CreateFilter(Guid filterGroupId, string name, string? hexColour = null, Guid? image = null, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductFilter>> CreateFilter(CreateFilterParameters parameters, CancellationToken cancellationToken = default);
     Task<ProductFilterGroup?> GetFilterGroup(Guid filterGroupId, CancellationToken cancellationToken = default);
     Task<CrudResult<ProductFilterGroup>> UpdateFilterGroup(Guid filterGroupId, string? name, int? sortOrder, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> DeleteFilterGroup(Guid filterGroupId, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> ReorderFilterGroups(List<Guid> orderedIds, CancellationToken cancellationToken = default);
     Task<ProductFilter?> GetFilter(Guid filterId, CancellationToken cancellationToken = default);
-    Task<CrudResult<ProductFilter>> UpdateFilter(Guid filterId, string? name, string? hexColour, Guid? image, int? sortOrder, CancellationToken cancellationToken = default);
+    Task<CrudResult<ProductFilter>> UpdateFilter(UpdateFilterParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> DeleteFilter(Guid filterId, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> ReorderFilters(Guid filterGroupId, List<Guid> orderedIds, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> AssignFiltersToProduct(Guid productId, List<Guid> filterIds, CancellationToken cancellationToken = default);

@@ -84,6 +84,16 @@ export interface PaymentStatusDto {
    * Calculated by backend to avoid frontend logic duplication from comparing balanceDue values.
    */
   balanceStatus: string;
+  /**
+   * CSS class for balance status styling (e.g., "balanced", "underpaid", "overpaid").
+   * Calculated by backend to avoid frontend logic duplication.
+   */
+  balanceStatusCssClass: string;
+  /**
+   * Display label for balance due row (e.g., "Balance Due", "Credit Due").
+   * Calculated by backend to avoid frontend logic duplication.
+   */
+  balanceStatusLabel: string;
 }
 
 /** Request to record a manual/offline payment */
@@ -177,6 +187,16 @@ export interface OrderDetailDto {
    * Calculated by backend to avoid frontend logic duplication from comparing balanceDue values.
    */
   balanceStatus: string;
+  /**
+   * CSS class for balance status styling (e.g., "balanced", "underpaid", "overpaid").
+   * Calculated by backend to avoid frontend logic duplication.
+   */
+  balanceStatusCssClass: string;
+  /**
+   * Display label for balance due row (e.g., "Balance Due", "Credit Due").
+   * Calculated by backend to avoid frontend logic duplication.
+   */
+  balanceStatusLabel: string;
   paymentStatus: InvoicePaymentStatus;
   paymentStatusDisplay: string;
   /** Maximum fraud/risk score across all payments (0-100 scale). */
@@ -184,12 +204,27 @@ export interface OrderDetailDto {
   /** Source of the maximum risk score. */
   maxRiskScoreSource?: string | null;
   fulfillmentStatus: string;
+  /**
+   * CSS class for fulfillment status styling (e.g., "unfulfilled", "partial", "fulfilled").
+   * Calculated by backend to avoid frontend logic duplication.
+   */
+  fulfillmentStatusCssClass: string;
   isCancelled: boolean;
   billingAddress: AddressDto | null;
   shippingAddress: AddressDto | null;
   orders: FulfillmentOrderDto[];
   notes: InvoiceNoteDto[];
+  /**
+   * Total number of items in the order (sum of line item quantities).
+   * Calculated by backend to avoid frontend logic duplication.
+   */
+  itemCount: number;
   customerOrderCount: number;
+  /**
+   * Whether the invoice can be fulfilled (has unfulfilled items and is not cancelled).
+   * Calculated by backend to avoid frontend logic duplication.
+   */
+  canFulfill: boolean;
 }
 
 export interface AddressDto {
@@ -440,6 +475,11 @@ export interface InvoiceForEditDto {
   id: string;
   invoiceNumber: string;
   fulfillmentStatus: string;
+  /**
+   * CSS class for fulfillment status styling (e.g., "unfulfilled", "partial", "fulfilled").
+   * Calculated by backend to avoid frontend logic duplication.
+   */
+  fulfillmentStatusCssClass: string;
   canEdit: boolean;
   cannotEditReason: string | null;
   currencySymbol: string;

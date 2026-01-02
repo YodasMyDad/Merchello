@@ -64,17 +64,23 @@ public class ShippingQuoteService(
             .OrderBy(li => li.ProductId)
             .Select(li => $"{li.ProductId}:{li.Quantity}"));
 
+        // Include add-on line items in cache key (they affect weight)
+        var addonIds = string.Join("-", basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Addon)
+            .OrderBy(li => li.Sku)
+            .Select(li => $"{li.Sku}:{li.Quantity}"));
+
         var destination = string.IsNullOrEmpty(stateOrProvinceCode)
             ? countryCode
             : $"{countryCode}-{stateOrProvinceCode}";
 
         var currency = basket.Currency ?? string.Empty;
 
-        // Hash the product IDs to keep key under HybridCache's 1024 char limit
-        var productHash = Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(productIds)))[..16];
+        // Hash the product and addon IDs to keep key under HybridCache's 1024 char limit
+        var contentHash = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes($"{productIds}|{addonIds}")))[..16];
 
-        return $"shipping-quote:{basket.Id}:{destination}:{currency}:{productHash}";
+        return $"shipping-quote:{basket.Id}:{destination}:{currency}:{contentHash}";
     }
 
     private async Task<List<ShippingRateQuote>> FetchQuotesFromProvidersAsync(
@@ -277,6 +283,27 @@ public class ShippingQuoteService(
             }
         }
 
+        // Add weight from add-on line items (non-variant options)
+        // Add-ons contribute additional weight to shipping calculations
+        var addonLineItems = basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Addon)
+            .ToList();
+
+        foreach (var addon in addonLineItems)
+        {
+            // Extract weight from ExtendedData (stored when add-on was added to basket)
+            var weightKg = GetDecimalFromExtendedData(addon.ExtendedData, "WeightKg");
+
+            // Only add package if there's actual weight
+            if (weightKg > 0)
+            {
+                for (var qty = 0; qty < Math.Max(addon.Quantity, 1); qty++)
+                {
+                    packages.Add(new ShipmentPackage(weightKg));
+                }
+            }
+        }
+
         var subtotal = lineItems.Sum(item => item.Amount * item.Quantity);
 
         var request = new ShippingQuoteRequest
@@ -406,5 +433,34 @@ public class ShippingQuoteService(
 
         var countryLevelCost = matchingCountryCosts.FirstOrDefault(cost => cost.StateOrProvinceCode == null)?.Cost;
         return countryLevelCost ?? universalCost;
+    }
+
+    /// <summary>
+    /// Safely extracts a decimal value from ExtendedData, handling JSON deserialization edge cases.
+    /// </summary>
+    private static decimal GetDecimalFromExtendedData(Dictionary<string, object> extendedData, string key)
+    {
+        if (!extendedData.TryGetValue(key, out var value))
+        {
+            return 0m;
+        }
+
+        // Handle JsonElement (from JSON deserialization)
+        if (value is System.Text.Json.JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind == System.Text.Json.JsonValueKind.Number
+                ? jsonElement.GetDecimal()
+                : 0m;
+        }
+
+        // Handle direct decimal or numeric types
+        try
+        {
+            return Convert.ToDecimal(value);
+        }
+        catch
+        {
+            return 0m;
+        }
     }
 }

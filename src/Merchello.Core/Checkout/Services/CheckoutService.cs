@@ -2,6 +2,7 @@ using System.Text.Json;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
@@ -75,40 +76,38 @@ public class CheckoutService(
             return;
         }
 
-        await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
+        await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
         basket.DateUpdated = DateTime.UtcNow;
     }
 
     /// <summary>
     /// Add a discount to the basket as a discount line item.
     /// </summary>
-    /// <param name="basket">The basket to add the discount to</param>
-    /// <param name="amount">The discount amount (positive value)</param>
-    /// <param name="discountValueType">Whether this is a fixed amount, percentage, or free discount</param>
-    /// <param name="linkedSku">Optional SKU to link the discount to a specific product</param>
-    /// <param name="name">Optional name for the discount</param>
-    /// <param name="reason">Optional reason/description for the discount</param>
-    /// <param name="countryCode">Country code for shipping calculation</param>
+    /// <param name="parameters">Parameters for adding the discount</param>
     /// <param name="cancellationToken">Cancellation token</param>
     public async Task AddDiscountToBasketAsync(
-        Basket basket,
-        decimal amount,
-        DiscountValueType discountValueType,
-        string? linkedSku = null,
-        string? name = null,
-        string? reason = null,
-        string? countryCode = null,
+        AddDiscountToBasketParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        var basket = parameters.Basket;
+        var amount = parameters.Amount;
+        var discountValueType = parameters.DiscountValueType;
+        var linkedSku = parameters.LinkedSku;
+        var name = parameters.Name;
+        var reason = parameters.Reason;
+        var countryCode = parameters.CountryCode;
+
         var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
-        var errors = lineItemService.AddDiscountLineItem(
-            basket.LineItems,
-            amount,
-            discountValueType,
-            currencyCode,
-            linkedSku,
-            name,
-            reason);
+        var errors = lineItemService.AddDiscountLineItem(new AddDiscountLineItemParameters
+        {
+            LineItems = basket.LineItems,
+            Amount = amount,
+            DiscountValueType = discountValueType,
+            CurrencyCode = currencyCode,
+            LinkedSku = linkedSku,
+            Name = name,
+            Reason = reason
+        });
 
         basket.Errors = errors.Select(x => new BasketError { Message = x }).ToList();
         if (basket.Errors.Count > 0)
@@ -116,7 +115,7 @@ public class CheckoutService(
             return;
         }
 
-        await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
+        await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
         basket.DateUpdated = DateTime.UtcNow;
     }
 
@@ -144,7 +143,7 @@ public class CheckoutService(
             return;
         }
 
-        await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
+        await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
         basket.DateUpdated = DateTime.UtcNow;
     }
 
@@ -161,7 +160,7 @@ public class CheckoutService(
         if (itemToRemove != null)
         {
             basket.LineItems.Remove(itemToRemove);
-            await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
+            await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
             basket.DateUpdated = DateTime.UtcNow;
         }
         else
@@ -177,13 +176,15 @@ public class CheckoutService(
     /// <summary>
     /// Calculate the basket if there are any changes
     /// </summary>
-    /// <param name="basket"></param>
-    /// <param name="countryCode"></param>
-    /// <param name="defaultTaxRate"></param>
-    /// <param name="isShippingTaxable"></param>
-    /// <param name="cancellationToken"></param>
-    public async Task CalculateBasketAsync(Basket basket, string? countryCode = null, decimal defaultTaxRate = 20, bool isShippingTaxable = true, CancellationToken cancellationToken = default)
+    /// <param name="parameters">Parameters for calculating the basket</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    public async Task CalculateBasketAsync(CalculateBasketParameters parameters, CancellationToken cancellationToken = default)
     {
+        var basket = parameters.Basket;
+        var countryCode = parameters.CountryCode;
+        var defaultTaxRate = parameters.DefaultTaxRate;
+        var isShippingTaxable = parameters.IsShippingTaxable;
+
         // Resolve country code from settings if not provided
         var resolvedCountryCode = countryCode ?? _settings.DefaultShippingCountry ?? "US";
 
@@ -213,15 +214,21 @@ public class CheckoutService(
         var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
 
         // Use the unified calculation method that handles discount line items
-        var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            lineItemService.CalculateFromLineItems(basket.LineItems, shippingCost, defaultTaxRate, currencyCode, isShippingTaxable);
+        var calcResult = lineItemService.CalculateFromLineItems(new CalculateLineItemsParameters
+        {
+            LineItems = basket.LineItems,
+            ShippingAmount = shippingCost,
+            DefaultTaxRate = defaultTaxRate,
+            CurrencyCode = currencyCode,
+            IsShippingTaxable = isShippingTaxable
+        });
 
-        basket.SubTotal = subTotal;
-        basket.Discount = discount;
-        basket.AdjustedSubTotal = adjustedSubTotal;
-        basket.Tax = tax;
-        basket.Total = total;
-        basket.Shipping = shipping;
+        basket.SubTotal = calcResult.SubTotal;
+        basket.Discount = calcResult.Discount;
+        basket.AdjustedSubTotal = calcResult.AdjustedSubTotal;
+        basket.Tax = calcResult.Tax;
+        basket.Total = calcResult.Total;
+        basket.Shipping = calcResult.Shipping;
     }
 
     /// <summary>
@@ -399,7 +406,7 @@ public class CheckoutService(
             {
                 lineItem.Quantity = quantity;
                 basket.DateUpdated = DateTime.UtcNow;
-                await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
+                await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
 
                 using var scope = efCoreScopeProvider.CreateScope();
                 await scope.ExecuteWithContextAsync<Task>(async db =>
@@ -669,22 +676,24 @@ public class CheckoutService(
 
         // Add discount as a line item
         var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
-        var errors = lineItemService.AddDiscountLineItem(
-            basket.LineItems,
-            calculationResult.TotalDiscountAmount,
-            DiscountValueType.FixedAmount,
-            currencyCode,
-            linkedSku: null,
-            name: discount.Name,
-            reason: discount.Code,
-            extendedData: new Dictionary<string, string>
+        var errors = lineItemService.AddDiscountLineItem(new AddDiscountLineItemParameters
+        {
+            LineItems = basket.LineItems,
+            Amount = calculationResult.TotalDiscountAmount,
+            DiscountValueType = DiscountValueType.FixedAmount,
+            CurrencyCode = currencyCode,
+            LinkedSku = null,
+            Name = discount.Name,
+            Reason = discount.Code,
+            ExtendedData = new Dictionary<string, string>
             {
                 [Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString(),
                 [Constants.ExtendedDataKeys.DiscountCode] = discount.Code ?? string.Empty,
                 [Constants.ExtendedDataKeys.DiscountName] = discount.Name,
                 [Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString(),
                 [Constants.ExtendedDataKeys.ApplyAfterTax] = discount.ApplyAfterTax.ToString()
-            });
+            }
+        });
 
         if (errors.Count > 0)
         {
@@ -696,7 +705,7 @@ public class CheckoutService(
             return result;
         }
 
-        await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
+        await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
         basket.DateUpdated = DateTime.UtcNow;
 
         // Publish "After" notification
@@ -793,24 +802,26 @@ public class CheckoutService(
         {
             var discount = applicableDiscount.Discount;
 
-            lineItemService.AddDiscountLineItem(
-                basket.LineItems,
-                applicableDiscount.CalculatedAmount,
-                DiscountValueType.FixedAmount,
-                currencyCode,
-                linkedSku: null,
-                name: discount.Name,
-                reason: "Automatic discount",
-                extendedData: new Dictionary<string, string>
+            lineItemService.AddDiscountLineItem(new AddDiscountLineItemParameters
+            {
+                LineItems = basket.LineItems,
+                Amount = applicableDiscount.CalculatedAmount,
+                DiscountValueType = DiscountValueType.FixedAmount,
+                CurrencyCode = currencyCode,
+                LinkedSku = null,
+                Name = discount.Name,
+                Reason = "Automatic discount",
+                ExtendedData = new Dictionary<string, string>
                 {
                     [Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString(),
                     [Constants.ExtendedDataKeys.DiscountName] = discount.Name,
                     [Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString(),
                     [Constants.ExtendedDataKeys.ApplyAfterTax] = discount.ApplyAfterTax.ToString()
-                });
+                }
+            });
         }
 
-        await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
+        await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
         basket.DateUpdated = DateTime.UtcNow;
 
         return basket;
@@ -846,7 +857,7 @@ public class CheckoutService(
 
         basket.LineItems.Remove(discountLineItem);
 
-        await CalculateBasketAsync(basket, countryCode, cancellationToken: cancellationToken);
+        await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
         basket.DateUpdated = DateTime.UtcNow;
 
         result.ResultObject = basket;
@@ -875,35 +886,54 @@ public class CheckoutService(
                 .ToList()
         };
 
-        // Convert basket line items to discount context line items
-        foreach (var lineItem in basket.LineItems.Where(li => li.LineItemType == LineItemType.Product))
+        // Build lookup of product line items by SKU for add-on parent linking
+        var productLineItemsBySku = basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Product && !string.IsNullOrEmpty(li.Sku))
+            .ToDictionary(li => li.Sku!, li => li);
+
+        // Convert basket line items to discount context line items (products and add-ons)
+        foreach (var lineItem in basket.LineItems.Where(li =>
+            li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Addon))
         {
+            var isAddon = lineItem.LineItemType == LineItemType.Addon;
+            LineItem? parentLineItem = null;
+
+            // For add-ons, find the parent product line item
+            if (isAddon && !string.IsNullOrEmpty(lineItem.DependantLineItemSku))
+            {
+                productLineItemsBySku.TryGetValue(lineItem.DependantLineItemSku, out parentLineItem);
+            }
+
             var ctxLineItem = new DiscountContextLineItem
             {
                 LineItemId = lineItem.Id,
-                ProductId = lineItem.ProductId ?? Guid.Empty,
+                ProductId = lineItem.ProductId ?? parentLineItem?.ProductId ?? Guid.Empty,
                 Sku = lineItem.Sku ?? string.Empty,
                 Quantity = lineItem.Quantity,
                 UnitPrice = lineItem.Amount,
-                LineTotal = lineItem.Quantity * lineItem.Amount
+                LineTotal = lineItem.Quantity * lineItem.Amount,
+                IsAddon = isAddon,
+                ParentLineItemId = parentLineItem?.Id
             };
 
-            // Read product metadata from ExtendedData (populated by CreateLineItem)
-            if (lineItem.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ProductRootId, out var rootIdObj) &&
+            // Read product metadata from ExtendedData (for products) or parent (for add-ons)
+            var metadataSource = isAddon && parentLineItem != null ? parentLineItem : lineItem;
+
+            if (metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ProductRootId, out var rootIdObj) &&
                 rootIdObj is string rootIdStr &&
                 Guid.TryParse(rootIdStr, out var productRootId))
             {
                 ctxLineItem.ProductRootId = productRootId;
             }
 
-            if (lineItem.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ProductTypeId, out var typeIdObj) &&
+            if (metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ProductTypeId, out var typeIdObj) &&
                 typeIdObj is string typeIdStr &&
                 Guid.TryParse(typeIdStr, out var productTypeId))
             {
                 ctxLineItem.ProductTypeId = productTypeId;
             }
 
-            if (lineItem.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.CollectionIds, out var collectionIdsObj) &&
+            if (metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.CollectionIds, out var collectionIdsObj) &&
                 collectionIdsObj is string collectionIdsJson)
             {
                 try
@@ -970,12 +1000,14 @@ public class CheckoutService(
 
     /// <inheritdoc />
     public async Task<Basket> SaveShippingSelectionsAsync(
-        Basket basket,
-        CheckoutSession session,
-        Dictionary<Guid, Guid> selections,
-        Dictionary<Guid, DateTime>? deliveryDates = null,
+        SaveShippingSelectionsParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        var basket = parameters.Basket;
+        var session = parameters.Session;
+        var selections = parameters.Selections;
+        var deliveryDates = parameters.DeliveryDates;
+
         // Update session with selections
         session.SelectedShippingOptions = selections;
         if (deliveryDates != null)
@@ -1012,10 +1044,11 @@ public class CheckoutService(
         basket.DateUpdated = DateTime.UtcNow;
 
         // Recalculate totals
-        await CalculateBasketAsync(
-            basket,
-            session.ShippingAddress.CountryCode,
-            cancellationToken: cancellationToken);
+        await CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = session.ShippingAddress.CountryCode
+        }, cancellationToken);
 
         return basket;
     }
@@ -1038,7 +1071,7 @@ public class CheckoutService(
         // Get currency symbol
         var currencySymbol = invoice.CurrencySymbol ?? _settings.CurrencySymbol;
 
-        // Flatten line items from all orders (product items only)
+        // Flatten line items from all orders (products and add-ons)
         var lineItems = new List<CheckoutLineItemDto>();
         decimal totalShipping = 0;
 
@@ -1050,7 +1083,8 @@ public class CheckoutService(
 
                 if (order.LineItems == null) continue;
 
-                foreach (var li in order.LineItems.Where(l => l.LineItemType == LineItemType.Product))
+                foreach (var li in order.LineItems.Where(l =>
+                    l.LineItemType == LineItemType.Product || l.LineItemType == LineItemType.Addon))
                 {
                     lineItems.Add(new CheckoutLineItemDto
                     {

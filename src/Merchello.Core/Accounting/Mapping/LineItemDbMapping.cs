@@ -16,6 +16,8 @@ public class LineItemDbMapping : IEntityTypeConfiguration<LineItem>
         builder.Property(x => x.Name).HasMaxLength(500);
         builder.Property(x => x.Amount).HasPrecision(18, 4);
         builder.Property(x => x.AmountInStoreCurrency).HasPrecision(18, 4);
+        builder.Property(x => x.Cost).HasPrecision(18, 4);
+        builder.Property(x => x.CostInStoreCurrency).HasPrecision(18, 4);
         builder.Property(x => x.OriginalAmount).HasPrecision(18, 4);
         builder.Property(x => x.TaxRate).HasPrecision(5, 2);
         builder.Property(x => x.ExtendedData).ToJsonConversion(3000);

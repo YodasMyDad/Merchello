@@ -5,6 +5,7 @@ import { UMB_WORKSPACE_CONTEXT, UmbWorkspaceRouteManager } from "@umbraco-cms/ba
 import { UmbObjectState, UmbBooleanState } from "@umbraco-cms/backoffice/observable-api";
 import { DiscountMethod, DiscountStatus, DiscountValueType, DiscountCategory, DiscountRequirementType, type DiscountDetailDto } from "@discounts/types/discount.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { getStoreSettings } from "@api/store-settings.js";
 import { DISCOUNT_ENTITY_TYPE } from "@shared/utils/navigation.js";
 
 export class MerchelloDiscountDetailWorkspaceContext extends UmbControllerBase implements UmbRoutableWorkspaceContext {
@@ -14,6 +15,7 @@ export class MerchelloDiscountDetailWorkspaceContext extends UmbControllerBase i
   #discountId?: string;
   #isNew = false;
   #category?: DiscountCategory;
+  #defaultPriority = 1000;
 
   #discount = new UmbObjectState<DiscountDetailDto | undefined>(undefined);
   readonly discount = this.#discount.asObservable();
@@ -28,6 +30,7 @@ export class MerchelloDiscountDetailWorkspaceContext extends UmbControllerBase i
     super(host, UMB_WORKSPACE_CONTEXT.toString());
     this.routes = new UmbWorkspaceRouteManager(host);
     this.provideContext(UMB_WORKSPACE_CONTEXT, this);
+    this._loadSettings();
 
     // Set up routes for create and edit
     this.routes.setRoutes([
@@ -111,6 +114,11 @@ export class MerchelloDiscountDetailWorkspaceContext extends UmbControllerBase i
     this.#isSaving.setValue(saving);
   }
 
+  private async _loadSettings(): Promise<void> {
+    const settings = await getStoreSettings();
+    this.#defaultPriority = settings.defaultDiscountPriority;
+  }
+
   private _createEmptyDiscount(category: DiscountCategory): DiscountDetailDto {
     const now = new Date().toISOString();
     return {
@@ -136,7 +144,7 @@ export class MerchelloDiscountDetailWorkspaceContext extends UmbControllerBase i
       canCombineWithOrderDiscounts: true,
       canCombineWithShippingDiscounts: true,
       applyAfterTax: false,
-      priority: 1000,
+      priority: this.#defaultPriority,
       dateCreated: now,
       dateUpdated: now,
       createdBy: null,

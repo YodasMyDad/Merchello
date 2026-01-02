@@ -85,12 +85,14 @@ public class PaymentsApiController(
         var payments = await paymentService.GetPaymentsForInvoiceAsync(invoiceId, cancellationToken);
 
         // Use centralized payment status calculation from PaymentService (includes store currency)
-        var details = paymentService.CalculatePaymentStatus(
-            payments,
-            invoice.Total,
-            invoice.CurrencyCode,
-            invoice.TotalInStoreCurrency,
-            invoice.StoreCurrencyCode);
+        var details = paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoice.Total,
+            CurrencyCode = invoice.CurrencyCode,
+            InvoiceTotalInStoreCurrency = invoice.TotalInStoreCurrency,
+            StoreCurrencyCode = invoice.StoreCurrencyCode
+        });
 
         // Calculate balance status (backend-provided to avoid frontend logic duplication)
         var balanceStatus = details.BalanceDue switch
@@ -98,6 +100,20 @@ public class PaymentsApiController(
             > 0 => "Underpaid",
             < 0 => "Overpaid",
             _ => "Balanced"
+        };
+
+        var balanceStatusCssClass = details.BalanceDue switch
+        {
+            > 0 => "underpaid",
+            < 0 => "overpaid",
+            _ => "balanced"
+        };
+
+        var balanceStatusLabel = details.BalanceDue switch
+        {
+            > 0 => "Balance Due",
+            < 0 => "Credit Due",
+            _ => ""
         };
 
         return Ok(new PaymentStatusDto
@@ -120,6 +136,8 @@ public class PaymentsApiController(
             BalanceDue = details.BalanceDue,
             BalanceDueInStoreCurrency = details.BalanceDueInStoreCurrency,
             BalanceStatus = balanceStatus,
+            BalanceStatusCssClass = balanceStatusCssClass,
+            BalanceStatusLabel = balanceStatusLabel,
             MaxRiskScore = details.MaxRiskScore,
             MaxRiskScoreSource = details.MaxRiskScoreSource,
             RiskLevel = details.RiskLevel
@@ -200,20 +218,22 @@ public class PaymentsApiController(
                 amount = payment.Amount - existingRefunds;
             }
 
-            result = await paymentService.RecordManualRefundAsync(
-                id,
-                amount,
-                request.Reason,
-                cancellationToken);
+            result = await paymentService.RecordManualRefundAsync(new RecordManualRefundParameters
+            {
+                PaymentId = id,
+                Amount = amount,
+                Reason = request.Reason
+            }, cancellationToken);
         }
         else
         {
             // Process refund via provider
-            result = await paymentService.ProcessRefundAsync(
-                id,
-                request.Amount,
-                request.Reason,
-                cancellationToken);
+            result = await paymentService.ProcessRefundAsync(new ProcessRefundParameters
+            {
+                PaymentId = id,
+                Amount = request.Amount,
+                Reason = request.Reason
+            }, cancellationToken);
         }
 
         if (!result.Successful)

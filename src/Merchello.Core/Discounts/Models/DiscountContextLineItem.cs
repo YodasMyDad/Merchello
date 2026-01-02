@@ -64,4 +64,15 @@ public class DiscountContextLineItem
     /// The total price for this line (Quantity * UnitPrice).
     /// </summary>
     public decimal LineTotal { get; set; }
+
+    /// <summary>
+    /// Whether this line item is an add-on (non-variant option selection).
+    /// </summary>
+    public bool IsAddon { get; set; }
+
+    /// <summary>
+    /// The parent product line item ID if this is an add-on.
+    /// Used to link add-ons to their parent products for discount targeting.
+    /// </summary>
+    public Guid? ParentLineItemId { get; set; }
 }

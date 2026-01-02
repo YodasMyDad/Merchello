@@ -27,22 +27,10 @@ public interface ICheckoutService
     /// <summary>
     /// Add a discount to the basket as a discount line item.
     /// </summary>
-    /// <param name="basket">The basket to add the discount to</param>
-    /// <param name="amount">The discount amount (positive value)</param>
-    /// <param name="discountValueType">Whether this is a fixed amount, percentage, or free discount</param>
-    /// <param name="linkedSku">Optional SKU to link the discount to a specific product</param>
-    /// <param name="name">Optional name for the discount</param>
-    /// <param name="reason">Optional reason/description for the discount</param>
-    /// <param name="countryCode">Country code for shipping calculation</param>
+    /// <param name="parameters">Parameters for adding the discount</param>
     /// <param name="cancellationToken">Cancellation token</param>
     Task AddDiscountToBasketAsync(
-        Basket basket,
-        decimal amount,
-        DiscountValueType discountValueType,
-        string? linkedSku = null,
-        string? name = null,
-        string? reason = null,
-        string? countryCode = null,
+        AddDiscountToBasketParameters parameters,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -70,12 +58,9 @@ public interface ICheckoutService
     /// <summary>
     /// Calculate the basket if there are any changes
     /// </summary>
-    /// <param name="basket"></param>
-    /// <param name="countryCode">Country code for shipping/tax. When null, uses DefaultShippingCountry from settings.</param>
-    /// <param name="defaultTaxRate">Defaults to 20%</param>
-    /// <param name="isShippingTaxable">Should we tax the shipping, defaults to true</param>
-    /// <param name="cancellationToken"></param>
-    Task CalculateBasketAsync(Basket basket, string? countryCode = null, decimal defaultTaxRate = 20, bool isShippingTaxable = true, CancellationToken cancellationToken = default);
+    /// <param name="parameters">Parameters for calculating the basket</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task CalculateBasketAsync(CalculateBasketParameters parameters, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Get basket for a customer or anonymous user
@@ -216,17 +201,11 @@ public interface ICheckoutService
     /// <summary>
     /// Saves shipping selections to the checkout session and updates basket totals.
     /// </summary>
-    /// <param name="basket">The basket to update.</param>
-    /// <param name="session">The checkout session to update.</param>
-    /// <param name="selections">Shipping selections per group (GroupId -> ShippingOptionId).</param>
-    /// <param name="deliveryDates">Optional delivery date selections per group.</param>
+    /// <param name="parameters">Parameters for saving shipping selections</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Updated basket with shipping costs applied.</returns>
     Task<Basket> SaveShippingSelectionsAsync(
-        Basket basket,
-        CheckoutSession session,
-        Dictionary<Guid, Guid> selections,
-        Dictionary<Guid, DateTime>? deliveryDates = null,
+        SaveShippingSelectionsParameters parameters,
         CancellationToken cancellationToken = default);
 
     // Order confirmation methods

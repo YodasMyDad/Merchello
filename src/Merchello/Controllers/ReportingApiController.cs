@@ -62,4 +62,32 @@ public class ReportingApiController(
     {
         return await reportingService.GetSalesBreakdownAsync(startDate, endDate, cancellationToken);
     }
+
+    /// <summary>
+    /// Get daily sales time series data with period totals and percent change.
+    /// This is the preferred endpoint - includes backend-calculated totals.
+    /// </summary>
+    [HttpGet("reporting/sales-timeseries-with-totals")]
+    [ProducesResponseType<TimeSeriesResultDto>(StatusCodes.Status200OK)]
+    public async Task<TimeSeriesResultDto> GetSalesTimeSeriesWithTotals(
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        return await reportingService.GetSalesTimeSeriesWithTotalsAsync(startDate, endDate, cancellationToken);
+    }
+
+    /// <summary>
+    /// Get daily average order value time series data with period totals and percent change.
+    /// This is the preferred endpoint - includes backend-calculated totals.
+    /// </summary>
+    [HttpGet("reporting/aov-timeseries-with-totals")]
+    [ProducesResponseType<TimeSeriesResultDto>(StatusCodes.Status200OK)]
+    public async Task<TimeSeriesResultDto> GetAovTimeSeriesWithTotals(
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        return await reportingService.GetAverageOrderValueTimeSeriesWithTotalsAsync(startDate, endDate, cancellationToken);
+    }
 }

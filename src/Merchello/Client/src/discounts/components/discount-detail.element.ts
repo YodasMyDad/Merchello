@@ -26,6 +26,7 @@ import {
   DISCOUNT_STATUS_COLORS,
 } from "@discounts/types/discount.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { getStoreSettings } from "@api/store-settings.js";
 import { navigateToDiscountsList, getDiscountsListHref, replaceToDiscountDetail } from "@shared/utils/navigation.js";
 import "./discount-summary-card.element.js";
 import "./discount-performance.element.js";
@@ -43,6 +44,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
   @state() private _isGeneratingCode = false;
   @state() private _targetRules: DiscountTargetRuleDto[] = [];
   @state() private _eligibilityRules: DiscountEligibilityRuleDto[] = [];
+  @state() private _discountCodeLength = 8;
 
   // Router state for URL-based tab navigation
   @state() private _routes: UmbRoute[] = [];
@@ -57,6 +59,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
   constructor() {
     super();
     this._initRoutes();
+    this._loadSettings();
 
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
       this.#workspaceContext = context as MerchelloDiscountDetailWorkspaceContext;
@@ -94,6 +97,11 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
       clearTimeout(this.#codeCheckDebounce);
       this.#codeCheckDebounce = undefined;
     }
+  }
+
+  private async _loadSettings(): Promise<void> {
+    const settings = await getStoreSettings();
+    this._discountCodeLength = settings.discountCodeLength;
   }
 
   // ============================================
@@ -224,7 +232,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
 
   private async _handleGenerateCode(): Promise<void> {
     this._isGeneratingCode = true;
-    const { data, error } = await MerchelloApi.generateDiscountCode(8);
+    const { data, error } = await MerchelloApi.generateDiscountCode(this._discountCodeLength);
     this._isGeneratingCode = false;
 
     if (!error && data) {

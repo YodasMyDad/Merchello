@@ -179,11 +179,11 @@
                 tax: @Model.Basket.Tax,
                 shipping: @Model.Basket.Shipping,
                 discount: @Model.Basket.Discount,
-                item_count: @(Model.Basket.LineItems?.Count(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Product) ?? 0),
+                item_count: @(Model.Basket.LineItems?.Count(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Product || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Addon) ?? 0),
                 coupon: '@(Model.Basket.LineItems?.FirstOrDefault(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Discount)?.ExtendedData?.GetValueOrDefault("DiscountCode")?.ToString() ?? "")',
                 items: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
                     Model.Basket.LineItems?
-                        .Where(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Product)
+                        .Where(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Product || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Addon)
                         .Select(li => new {
                             item_id = li.Sku ?? li.Id.ToString(),
                             item_name = li.Name,

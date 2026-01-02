@@ -331,8 +331,12 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
         string name = "Test Item",
         int quantity = 1,
         decimal amount = 10m,
+        decimal cost = 0m,
         bool isTaxable = true,
-        decimal taxRate = 20m)
+        decimal taxRate = 20m,
+        LineItemType lineItemType = LineItemType.Product,
+        string? dependantLineItemSku = null,
+        Dictionary<string, object>? extendedData = null)
     {
         var lineItem = new LineItem
         {
@@ -342,10 +346,54 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             Name = name,
             Quantity = quantity,
             Amount = amount,
+            Cost = cost,
             Sku = product?.Sku ?? $"LINE-{Guid.NewGuid():N}"[..12],
-            LineItemType = LineItemType.Product,
+            LineItemType = lineItemType,
             IsTaxable = isTaxable,
-            TaxRate = taxRate
+            TaxRate = taxRate,
+            DependantLineItemSku = dependantLineItemSku,
+            ExtendedData = extendedData ?? []
+        };
+
+        dbContext.LineItems.Add(lineItem);
+        order.LineItems ??= [];
+        order.LineItems.Add(lineItem);
+        return lineItem;
+    }
+
+    /// <summary>
+    /// Creates an add-on LineItem for an order (linked to a parent product)
+    /// </summary>
+    public LineItem CreateAddonLineItem(
+        Order order,
+        LineItem parentLineItem,
+        string name = "Add-on Item",
+        int quantity = 1,
+        decimal amount = 5m,
+        decimal cost = 2m,
+        bool isTaxable = true,
+        decimal taxRate = 20m)
+    {
+        var extendedData = new Dictionary<string, object>
+        {
+            ["CostAdjustment"] = cost
+        };
+
+        var lineItem = new LineItem
+        {
+            OrderId = order.Id,
+            Order = order,
+            ProductId = null,
+            Name = name,
+            Quantity = quantity,
+            Amount = amount,
+            Cost = cost,
+            Sku = $"ADDON-{Guid.NewGuid():N}"[..12],
+            LineItemType = LineItemType.Addon,
+            IsTaxable = isTaxable,
+            TaxRate = taxRate,
+            DependantLineItemSku = parentLineItem.Sku,
+            ExtendedData = extendedData
         };
 
         dbContext.LineItems.Add(lineItem);

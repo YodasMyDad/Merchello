@@ -25,9 +25,27 @@ public interface IReportingService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets daily sales data with aggregated totals and percent change.
+    /// Use this instead of GetSalesTimeSeriesAsync to avoid frontend calculations.
+    /// </summary>
+    Task<TimeSeriesResultDto> GetSalesTimeSeriesWithTotalsAsync(
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets daily average order value data for the time series chart.
     /// </summary>
     Task<List<TimeSeriesDataPointDto>> GetAverageOrderValueTimeSeriesAsync(
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets daily average order value data with aggregated totals and percent change.
+    /// Use this instead of GetAverageOrderValueTimeSeriesAsync to avoid frontend calculations.
+    /// </summary>
+    Task<TimeSeriesResultDto> GetAverageOrderValueTimeSeriesWithTotalsAsync(
         DateTime startDate,
         DateTime endDate,
         CancellationToken cancellationToken = default);

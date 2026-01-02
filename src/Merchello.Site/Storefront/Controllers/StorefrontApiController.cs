@@ -5,6 +5,7 @@ using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Storefront.Services;
+using Merchello.Core.Storefront.Services.Parameters;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Site.Storefront.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -93,13 +94,15 @@ public class StorefrontApiController(
                     DependantLineItemSku = lineItem.Sku,
                     Quantity = request.Quantity,
                     Amount = ov.Value.PriceAdjustment,
-                    LineItemType = LineItemType.Custom,
+                    LineItemType = LineItemType.Addon,
                     IsTaxable = true,
                     TaxRate = product.ProductRoot.TaxGroup?.TaxPercentage ?? 20m
                 };
 
                 addonLineItem.ExtendedData["AddonOptionId"] = ov.Option.Id.ToString();
                 addonLineItem.ExtendedData["AddonValueId"] = ov.Value.Id.ToString();
+                addonLineItem.ExtendedData["CostAdjustment"] = ov.Value.CostAdjustment;
+                addonLineItem.ExtendedData["WeightKg"] = ov.Value.WeightKg ?? 0m;
 
                 await checkoutService.AddToBasket(new AddToBasketParameters
                 {
@@ -345,7 +348,13 @@ public class StorefrontApiController(
 
         var availability = string.IsNullOrWhiteSpace(countryCode)
             ? await storefrontContext.GetProductAvailabilityAsync(product, quantity, ct)
-            : await storefrontContext.GetProductAvailabilityForLocationAsync(product, countryCode, regionCode, quantity, ct);
+            : await storefrontContext.GetProductAvailabilityForLocationAsync(new ProductAvailabilityParameters
+            {
+                Product = product,
+                CountryCode = countryCode,
+                RegionCode = regionCode,
+                Quantity = quantity
+            }, ct);
 
         return Ok(new ProductAvailabilityResponse
         {
@@ -409,8 +418,13 @@ public class StorefrontApiController(
                 continue;
             }
 
-            var availability = await storefrontContext.GetProductAvailabilityForLocationAsync(
-                product, location.CountryCode, location.RegionCode, lineItem.Quantity, ct);
+            var availability = await storefrontContext.GetProductAvailabilityForLocationAsync(new ProductAvailabilityParameters
+            {
+                Product = product,
+                CountryCode = location.CountryCode,
+                RegionCode = location.RegionCode,
+                Quantity = lineItem.Quantity
+            }, ct);
 
             var isAvailable = availability.CanShipToLocation && availability.HasStock;
             if (!isAvailable) allAvailable = false;

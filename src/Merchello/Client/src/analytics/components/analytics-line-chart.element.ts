@@ -32,6 +32,20 @@ export class MerchelloAnalyticsLineChart extends UmbElementMixin(LitElement) {
   @property({ type: Boolean })
   isLoading = false;
 
+  /**
+   * Pre-calculated period total from backend.
+   * If provided, this is used instead of calculating from data points.
+   */
+  @property({ type: Number })
+  periodTotal?: number;
+
+  /**
+   * Pre-calculated percent change from backend.
+   * If provided, this is used instead of calculating from data points.
+   */
+  @property({ type: Number })
+  percentChange?: number | null;
+
   @query("canvas")
   private _canvas!: HTMLCanvasElement;
 
@@ -192,13 +206,33 @@ export class MerchelloAnalyticsLineChart extends UmbElementMixin(LitElement) {
     return formatNumber(value, 2);
   }
 
+  /**
+   * Gets the total value, using backend-provided periodTotal if available.
+   * Falls back to local calculation for backwards compatibility.
+   */
   private _getTotalValue(): number {
+    // Use backend-calculated total if provided (single source of truth)
+    if (this.periodTotal !== undefined) {
+      return this.periodTotal;
+    }
+    // Fallback to local calculation for backwards compatibility
     return this.data.reduce((sum, d) => sum + d.value, 0);
   }
 
+  /**
+   * Gets the percent change, using backend-provided percentChange if available.
+   * Falls back to local calculation for backwards compatibility.
+   */
   private _getPercentChange(): number {
     if (!this.showComparison) return 0;
-    const currentTotal = this._getTotalValue();
+
+    // Use backend-calculated percent change if provided (single source of truth)
+    if (this.percentChange !== undefined && this.percentChange !== null) {
+      return this.percentChange;
+    }
+
+    // Fallback to local calculation for backwards compatibility
+    const currentTotal = this.periodTotal ?? this.data.reduce((sum, d) => sum + d.value, 0);
     const comparisonTotal = this.data.reduce((sum, d) => sum + (d.comparisonValue ?? 0), 0);
     if (comparisonTotal === 0) return currentTotal > 0 ? 100 : 0;
     return Math.round(((currentTotal - comparisonTotal) / Math.abs(comparisonTotal)) * 100 * 10) / 10;
@@ -206,8 +240,8 @@ export class MerchelloAnalyticsLineChart extends UmbElementMixin(LitElement) {
 
   override render() {
     const totalValue = this._getTotalValue();
-    const percentChange = this._getPercentChange();
-    const isPositive = percentChange >= 0;
+    const percentChangeValue = this._getPercentChange();
+    const isPositive = percentChangeValue >= 0;
 
     return html`
       <uui-box>
@@ -218,7 +252,7 @@ export class MerchelloAnalyticsLineChart extends UmbElementMixin(LitElement) {
             ${this.showComparison
               ? html`
                   <span class="change ${isPositive ? "positive" : "negative"}">
-                    ${isPositive ? "↑" : "↓"} ${Math.abs(percentChange)}%
+                    ${isPositive ? "↑" : "↓"} ${Math.abs(percentChangeValue)}%
                   </span>
                 `
               : ""}

@@ -75,13 +75,9 @@ public interface IInvoiceService
     /// <summary>
     /// Add a note to an invoice
     /// </summary>
-    /// <param name="invoiceId">The invoice ID</param>
-    /// <param name="text">The note text</param>
-    /// <param name="visibleToCustomer">Whether the note is visible to the customer</param>
-    /// <param name="authorId">Optional author user ID</param>
-    /// <param name="authorName">Optional author name (defaults to "System" if not provided)</param>
+    /// <param name="parameters">Parameters for adding the note</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    Task<CrudResult<InvoiceNote>> AddNoteAsync(Guid invoiceId, string text, bool visibleToCustomer, Guid? authorId = null, string? authorName = null, CancellationToken cancellationToken = default);
+    Task<CrudResult<InvoiceNote>> AddNoteAsync(AddInvoiceNoteParameters parameters, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Update the billing address for an invoice
@@ -142,12 +138,9 @@ public interface IInvoiceService
     /// Edit an invoice (update quantities, apply discounts, add custom items, etc.)
     /// Validates stock availability for products and uses product tax groups for tax calculations.
     /// </summary>
-    Task<OperationResult<EditInvoiceResultDto>> EditInvoiceAsync(
-        Guid invoiceId,
-        EditInvoiceDto request,
-        Guid? authorId,
-        string? authorName,
-        CancellationToken cancellationToken = default);
+    /// <param name="parameters">Parameters for editing the invoice</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task<OperationResult<EditInvoiceResultDto>> EditInvoiceAsync(EditInvoiceParameters parameters, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Preview the calculated totals for proposed invoice changes without persisting.

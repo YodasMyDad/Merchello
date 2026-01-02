@@ -117,6 +117,14 @@ FACTORIES → All object creation, stateless singletons
 | From minor units | `ICurrencyService.FromMinorUnits()` |
 | Exchange rate | `IExchangeRateCache.GetRateAsync()` |
 
+#### Reporting & Analytics
+| Operation | Service.Method |
+|-----------|----------------|
+| Sales breakdown | `IReportingService.GetSalesBreakdownAsync()` - includes TotalCost, GrossProfit, GrossProfitMargin |
+| Best sellers | `IReportingService.GetBestSellersAsync()` |
+
+**Cost Tracking**: `LineItem.Cost` is captured at order creation time for historical profit accuracy. Add-on costs are extracted from `ExtendedData["CostAdjustment"]`.
+
 ### Factories
 
 | Factory | Creates |

@@ -19,5 +19,11 @@ public record SalesBreakdownDto(
     decimal Taxes,
     decimal TaxesChange,
     decimal TotalSales,
-    decimal TotalSalesChange
+    decimal TotalSalesChange,
+    decimal TotalCost,
+    decimal TotalCostChange,
+    decimal GrossProfit,
+    decimal GrossProfitChange,
+    decimal GrossProfitMargin,
+    decimal GrossProfitMarginChange
 );

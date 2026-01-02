@@ -168,8 +168,12 @@ public class WarehouseServiceTests
         await _dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await _warehouseService.AddWarehouseToProductRoot(
-            productRoot.Id, warehouse.Id, priorityOrder: 1);
+        var result = await _warehouseService.AddWarehouseToProductRoot(new AddWarehouseToProductRootParameters
+        {
+            ProductRootId = productRoot.Id,
+            WarehouseId = warehouse.Id,
+            PriorityOrder = 1
+        });
 
         // Assert
         result.Successful.ShouldBeTrue();
@@ -193,8 +197,12 @@ public class WarehouseServiceTests
         await _dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await _warehouseService.AddWarehouseToProductRoot(
-            productRoot.Id, warehouse.Id, priorityOrder: 2);
+        var result = await _warehouseService.AddWarehouseToProductRoot(new AddWarehouseToProductRootParameters
+        {
+            ProductRootId = productRoot.Id,
+            WarehouseId = warehouse.Id,
+            PriorityOrder = 2
+        });
 
         // Assert
         result.Successful.ShouldBeFalse();
@@ -276,8 +284,14 @@ public class WarehouseServiceTests
         await _dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await _warehouseService.SetProductStock(
-            product.Id, warehouse.Id, stock: 50, reorderPoint: 10, reorderQuantity: 30);
+        var result = await _warehouseService.SetProductStock(new SetProductStockParameters
+        {
+            ProductId = product.Id,
+            WarehouseId = warehouse.Id,
+            Stock = 50,
+            ReorderPoint = 10,
+            ReorderQuantity = 30
+        });
 
         // Assert
         result.Successful.ShouldBeTrue();
@@ -301,8 +315,13 @@ public class WarehouseServiceTests
         await _dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await _warehouseService.SetProductStock(
-            product.Id, warehouse.Id, stock: 100, reorderPoint: 20);
+        var result = await _warehouseService.SetProductStock(new SetProductStockParameters
+        {
+            ProductId = product.Id,
+            WarehouseId = warehouse.Id,
+            Stock = 100,
+            ReorderPoint = 20
+        });
 
         // Assert
         result.Successful.ShouldBeTrue();
@@ -326,8 +345,12 @@ public class WarehouseServiceTests
         await _dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await _warehouseService.SetProductStock(
-            product.Id, warehouse.Id, stock: -10);
+        var result = await _warehouseService.SetProductStock(new SetProductStockParameters
+        {
+            ProductId = product.Id,
+            WarehouseId = warehouse.Id,
+            Stock = -10
+        });
 
         // Assert
         result.Successful.ShouldBeFalse();
@@ -432,8 +455,13 @@ public class WarehouseServiceTests
         await _dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await _warehouseService.TransferStock(
-            product.Id, warehouse1.Id, warehouse2.Id, quantity: 30);
+        var result = await _warehouseService.TransferStock(new TransferStockParameters
+        {
+            ProductId = product.Id,
+            FromWarehouseId = warehouse1.Id,
+            ToWarehouseId = warehouse2.Id,
+            Quantity = 30
+        });
 
         // Assert
         result.Successful.ShouldBeTrue();
@@ -461,8 +489,13 @@ public class WarehouseServiceTests
         await _dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await _warehouseService.TransferStock(
-            product.Id, warehouse1.Id, warehouse2.Id, quantity: 25);
+        var result = await _warehouseService.TransferStock(new TransferStockParameters
+        {
+            ProductId = product.Id,
+            FromWarehouseId = warehouse1.Id,
+            ToWarehouseId = warehouse2.Id,
+            Quantity = 25
+        });
 
         // Assert
         result.Successful.ShouldBeTrue();
@@ -485,8 +518,13 @@ public class WarehouseServiceTests
         await _dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await _warehouseService.TransferStock(
-            product.Id, warehouse1.Id, warehouse2.Id, quantity: 50);
+        var result = await _warehouseService.TransferStock(new TransferStockParameters
+        {
+            ProductId = product.Id,
+            FromWarehouseId = warehouse1.Id,
+            ToWarehouseId = warehouse2.Id,
+            Quantity = 50
+        });
 
         // Assert
         result.Successful.ShouldBeFalse();
@@ -503,8 +541,13 @@ public class WarehouseServiceTests
         await _dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await _warehouseService.TransferStock(
-            product.Id, warehouse.Id, warehouse.Id, quantity: 10);
+        var result = await _warehouseService.TransferStock(new TransferStockParameters
+        {
+            ProductId = product.Id,
+            FromWarehouseId = warehouse.Id,
+            ToWarehouseId = warehouse.Id,
+            Quantity = 10
+        });
 
         // Assert
         result.Successful.ShouldBeFalse();

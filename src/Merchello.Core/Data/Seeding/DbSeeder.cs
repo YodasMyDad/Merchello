@@ -15,6 +15,7 @@ using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Suppliers.Services.Interfaces;
@@ -450,7 +451,12 @@ public class DbSeeder(
         {
             foreach (var (name, hexColour) in colors)
             {
-                await productService.CreateFilter(colorGroupResult.ResultObject.Id, name, hexColour, null, cancellationToken);
+                await productService.CreateFilter(new CreateFilterParameters
+                {
+                    FilterGroupId = colorGroupResult.ResultObject.Id,
+                    Name = name,
+                    HexColour = hexColour
+                }, cancellationToken);
             }
         }
 
@@ -461,7 +467,11 @@ public class DbSeeder(
         {
             foreach (var size in sizes)
             {
-                await productService.CreateFilter(sizeGroupResult.ResultObject.Id, size, null, null, cancellationToken);
+                await productService.CreateFilter(new CreateFilterParameters
+                {
+                    FilterGroupId = sizeGroupResult.ResultObject.Id,
+                    Name = size
+                }, cancellationToken);
             }
         }
     }
@@ -993,12 +1003,13 @@ public class DbSeeder(
             }, cancellationToken);
 
         // 9. Add note explaining this is a test case via InvoiceService
-        await invoiceService.AddNoteAsync(
-            invoice.Id,
-            $"[TEST CASE] {testCaseDescription} - Products: {string.Join(", ", productNames)}",
-            visibleToCustomer: false,
-            authorName: "System - DbSeeder",
-            cancellationToken: cancellationToken);
+        await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
+        {
+            InvoiceId = invoice.Id,
+            Text = $"[TEST CASE] {testCaseDescription} - Products: {string.Join(", ", productNames)}",
+            VisibleToCustomer = false,
+            AuthorName = "System - DbSeeder"
+        }, cancellationToken);
 
         logger.LogInformation(
             "Created multi-warehouse test invoice {InvoiceNumber} with {OrderCount} orders, {LineItemCount} products",
@@ -1343,74 +1354,81 @@ public class DbSeeder(
         CancellationToken cancellationToken)
     {
         // Order placed note
-        await invoiceService.AddNoteAsync(
-            invoice.Id,
-            "Order placed via Online Store",
-            visibleToCustomer: true,
-            authorName: "System",
-            cancellationToken: cancellationToken);
+        await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
+        {
+            InvoiceId = invoice.Id,
+            Text = "Order placed via Online Store",
+            VisibleToCustomer = true,
+            AuthorName = "System"
+        }, cancellationToken);
 
         // Payment note
         if (payment != null && paymentScenario != PaymentScenario.Unpaid)
         {
             var paymentMethod = payment.PaymentProviderAlias == "stripe" ? "Stripe" : payment.PaymentMethod;
-            await invoiceService.AddNoteAsync(
-                invoice.Id,
-                $"Payment of £{payment.Amount:F2} received via {paymentMethod}",
-                visibleToCustomer: true,
-                authorName: "System",
-                cancellationToken: cancellationToken);
+            await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
+            {
+                InvoiceId = invoice.Id,
+                Text = $"Payment of £{payment.Amount:F2} received via {paymentMethod}",
+                VisibleToCustomer = true,
+                AuthorName = "System"
+            }, cancellationToken);
         }
 
         // Status-specific notes
         switch (status)
         {
             case OrderStatus.Processing:
-                await invoiceService.AddNoteAsync(
-                    invoice.Id,
-                    "Order picked for packing",
-                    visibleToCustomer: false,
-                    authorName: "Warehouse",
-                    cancellationToken: cancellationToken);
+                await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
+                {
+                    InvoiceId = invoice.Id,
+                    Text = "Order picked for packing",
+                    VisibleToCustomer = false,
+                    AuthorName = "Warehouse"
+                }, cancellationToken);
                 break;
 
             case OrderStatus.Shipped:
             case OrderStatus.PartiallyShipped:
-                await invoiceService.AddNoteAsync(
-                    invoice.Id,
-                    status == OrderStatus.PartiallyShipped
+                await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
+                {
+                    InvoiceId = invoice.Id,
+                    Text = status == OrderStatus.PartiallyShipped
                         ? "Partial shipment dispatched - remaining items to follow"
                         : "Order dispatched",
-                    visibleToCustomer: true,
-                    authorName: "Warehouse",
-                    cancellationToken: cancellationToken);
+                    VisibleToCustomer = true,
+                    AuthorName = "Warehouse"
+                }, cancellationToken);
                 break;
 
             case OrderStatus.Completed:
-                await invoiceService.AddNoteAsync(
-                    invoice.Id,
-                    "Order delivered successfully",
-                    visibleToCustomer: true,
-                    authorName: "System",
-                    cancellationToken: cancellationToken);
+                await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
+                {
+                    InvoiceId = invoice.Id,
+                    Text = "Order delivered successfully",
+                    VisibleToCustomer = true,
+                    AuthorName = "System"
+                }, cancellationToken);
                 break;
 
             case OrderStatus.OnHold:
-                await invoiceService.AddNoteAsync(
-                    invoice.Id,
-                    "Order placed on hold - awaiting verification",
-                    visibleToCustomer: false,
-                    authorName: "Admin",
-                    cancellationToken: cancellationToken);
+                await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
+                {
+                    InvoiceId = invoice.Id,
+                    Text = "Order placed on hold - awaiting verification",
+                    VisibleToCustomer = false,
+                    AuthorName = "Admin"
+                }, cancellationToken);
                 break;
 
             case OrderStatus.Cancelled:
-                await invoiceService.AddNoteAsync(
-                    invoice.Id,
-                    "Order cancelled at customer request",
-                    visibleToCustomer: true,
-                    authorName: "System",
-                    cancellationToken: cancellationToken);
+                await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
+                {
+                    InvoiceId = invoice.Id,
+                    Text = "Order cancelled at customer request",
+                    VisibleToCustomer = true,
+                    AuthorName = "System"
+                }, cancellationToken);
                 break;
         }
     }
@@ -1432,20 +1450,22 @@ public class DbSeeder(
                 ? Math.Round(payment.Amount * 0.5m, 2)
                 : payment.Amount;
 
-            var result = await paymentService.RecordManualRefundAsync(
-                payment.Id,
-                refundAmount,
-                isPartial ? "Partial refund - item returned" : "Full refund - order cancelled",
-                cancellationToken);
+            var result = await paymentService.RecordManualRefundAsync(new RecordManualRefundParameters
+            {
+                PaymentId = payment.Id,
+                Amount = refundAmount,
+                Reason = isPartial ? "Partial refund - item returned" : "Full refund - order cancelled"
+            }, cancellationToken);
 
             if (result.Successful)
             {
-                await invoiceService.AddNoteAsync(
-                    invoice.Id,
-                    $"Refund of £{refundAmount:F2} processed - {(isPartial ? "partial return" : "full cancellation")}",
-                    visibleToCustomer: true,
-                    authorName: "System",
-                    cancellationToken: cancellationToken);
+                await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
+                {
+                    InvoiceId = invoice.Id,
+                    Text = $"Refund of £{refundAmount:F2} processed - {(isPartial ? "partial return" : "full cancellation")}",
+                    VisibleToCustomer = true,
+                    AuthorName = "System"
+                }, cancellationToken);
             }
 
             return result.Successful;

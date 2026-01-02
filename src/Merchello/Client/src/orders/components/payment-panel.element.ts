@@ -226,7 +226,7 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
                   </span>`
                 : nothing}
             </div>
-            ${status && status.balanceStatus === 'Underpaid'
+            ${status?.balanceStatusCssClass === 'underpaid'
               ? html`
                   <uui-button
                     look="primary"
@@ -260,8 +260,8 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
                       `
                     : nothing}
                   <div class="status-row total">
-                    <span>Balance Due</span>
-                    <span class="${status.balanceStatus === 'Underpaid' ? 'negative' : ''}">
+                    <span>${status.balanceStatusLabel || 'Balance Due'}</span>
+                    <span class="${status.balanceStatusCssClass === 'underpaid' ? 'negative' : ''}">
                       ${formatCurrency(status.balanceDue, status.currencyCode, status.currencySymbol)}
                     </span>
                   </div>

@@ -57,7 +57,7 @@
         <div class="space-y-4 pb-6">
             @if (basket?.LineItems != null)
             {
-                @foreach (var item in basket.LineItems.Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom))
+                @foreach (var item in basket.LineItems.Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom || li.LineItemType == LineItemType.Addon))
                 {
                     <div class="flex gap-4 items-start">
                         <!-- Product Image with Quantity Badge -->

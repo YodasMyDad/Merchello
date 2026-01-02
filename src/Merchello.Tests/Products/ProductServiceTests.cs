@@ -39,14 +39,16 @@ public class ProductServiceTests
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
-        var result = await _productService.CreateProductRootOnly(
-            name: "Test Product",
-            price: 29.99m,
-            costOfGoods: 15.00m,
-            weight: 1.5m,
-            taxGroupId: taxGroup.Id,
-            productTypeId: productType.Id,
-            collectionIds: []);
+        var result = await _productService.CreateProductRootOnly(new CreateProductRootOnlyParameters
+        {
+            Name = "Test Product",
+            Price = 29.99m,
+            CostOfGoods = 15.00m,
+            Weight = 1.5m,
+            TaxGroupId = taxGroup.Id,
+            ProductTypeId = productType.Id,
+            CollectionIds = []
+        });
 
         // Assert
         result.Successful.ShouldBeTrue();
@@ -70,14 +72,16 @@ public class ProductServiceTests
         await _dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var createResult = await _productService.CreateProductRootOnly(
-            name: "Single Product",
-            price: 19.99m,
-            costOfGoods: 10.00m,
-            weight: 0.5m,
-            taxGroupId: taxGroup.Id,
-            productTypeId: productType.Id,
-            collectionIds: []);
+        var createResult = await _productService.CreateProductRootOnly(new CreateProductRootOnlyParameters
+        {
+            Name = "Single Product",
+            Price = 19.99m,
+            CostOfGoods = 10.00m,
+            Weight = 0.5m,
+            TaxGroupId = taxGroup.Id,
+            ProductTypeId = productType.Id,
+            CollectionIds = []
+        });
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -105,32 +109,37 @@ public class ProductServiceTests
         await _dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var createResult = await _productService.CreateProductRootOnly(
-            name: "T-Shirt",
-            price: 25.00m,
-            costOfGoods: 12.00m,
-            weight: 0.3m,
-            taxGroupId: taxGroup.Id,
-            productTypeId: productType.Id,
-            collectionIds: []);
+        var createResult = await _productService.CreateProductRootOnly(new CreateProductRootOnlyParameters
+        {
+            Name = "T-Shirt",
+            Price = 25.00m,
+            CostOfGoods = 12.00m,
+            Weight = 0.3m,
+            TaxGroupId = taxGroup.Id,
+            ProductTypeId = productType.Id,
+            CollectionIds = []
+        });
         createResult.Successful.ShouldBeTrue();
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act - add color option with 3 values
-        var optionResult = await _productService.AddProductOption(
-            productRootId: productRootId,
-            name: "Color",
-            alias: "color",
-            sortOrder: 1,
-            optionTypeAlias: null,
-            optionUiAlias: null,
-            isVariant: true,
-            values: [
-                ("Red", "Red Color", 1, "#FF0000", 0m, 0m, "-RED"),
-                ("Blue", "Blue Color", 2, "#0000FF", 0m, 0m, "-BLUE"),
-                ("Green", "Green Color", 3, "#00FF00", 0m, 0m, "-GRN")
-            ]);
+        var optionResult = await _productService.AddProductOption(new AddProductOptionParameters
+        {
+            ProductRootId = productRootId,
+            Name = "Color",
+            Alias = "color",
+            SortOrder = 1,
+            OptionTypeAlias = null,
+            OptionUiAlias = null,
+            IsVariant = true,
+            Values =
+            [
+                new() { Name = "Red", FullName = "Red Color", SortOrder = 1, HexValue = "#FF0000", PriceAdjustment = 0m, CostAdjustment = 0m, SkuSuffix = "-RED" },
+                new() { Name = "Blue", FullName = "Blue Color", SortOrder = 2, HexValue = "#0000FF", PriceAdjustment = 0m, CostAdjustment = 0m, SkuSuffix = "-BLUE" },
+                new() { Name = "Green", FullName = "Green Color", SortOrder = 3, HexValue = "#00FF00", PriceAdjustment = 0m, CostAdjustment = 0m, SkuSuffix = "-GRN" }
+            ]
+        });
 
         // Assert
         optionResult.Successful.ShouldBeTrue();
@@ -161,46 +170,50 @@ public class ProductServiceTests
         await _dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var createResult = await _productService.CreateProductRootOnly(
-            name: "Polo Shirt",
-            price: 35.00m,
-            costOfGoods: 18.00m,
-            weight: 0.4m,
-            taxGroupId: taxGroup.Id,
-            productTypeId: productType.Id,
-            collectionIds: []);
+        var createResult = await _productService.CreateProductRootOnly(new CreateProductRootOnlyParameters
+        {
+            Name = "Polo Shirt",
+            Price = 35.00m,
+            CostOfGoods = 18.00m,
+            Weight = 0.4m,
+            TaxGroupId = taxGroup.Id,
+            ProductTypeId = productType.Id,
+            CollectionIds = []
+        });
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Add color option (3 values)
-        await _productService.AddProductOption(
-            productRootId: productRootId,
-            name: "Color",
-            alias: "color",
-            sortOrder: 1,
-            optionTypeAlias: null,
-            optionUiAlias: null,
-            isVariant: true,
-            values: [
-                ("Red", null, 1, null, 0m, 0m, "-R"),
-                ("Blue", null, 2, null, 0m, 0m, "-B"),
-                ("White", null, 3, null, 0m, 0m, "-W")
-            ]);
+        await _productService.AddProductOption(new AddProductOptionParameters
+        {
+            ProductRootId = productRootId,
+            Name = "Color",
+            Alias = "color",
+            SortOrder = 1,
+            IsVariant = true,
+            Values =
+            [
+                new() { Name = "Red", SortOrder = 1, SkuSuffix = "-R" },
+                new() { Name = "Blue", SortOrder = 2, SkuSuffix = "-B" },
+                new() { Name = "White", SortOrder = 3, SkuSuffix = "-W" }
+            ]
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Add size option (2 values)
-        await _productService.AddProductOption(
-            productRootId: productRootId,
-            name: "Size",
-            alias: "size",
-            sortOrder: 2,
-            optionTypeAlias: null,
-            optionUiAlias: null,
-            isVariant: true,
-            values: [
-                ("Small", null, 1, null, 0m, 0m, "-S"),
-                ("Large", null, 2, null, 0m, 0m, "-L")
-            ]);
+        await _productService.AddProductOption(new AddProductOptionParameters
+        {
+            ProductRootId = productRootId,
+            Name = "Size",
+            Alias = "size",
+            SortOrder = 2,
+            IsVariant = true,
+            Values =
+            [
+                new() { Name = "Small", SortOrder = 1, SkuSuffix = "-S" },
+                new() { Name = "Large", SortOrder = 2, SkuSuffix = "-L" }
+            ]
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act - generate variants
@@ -230,30 +243,33 @@ public class ProductServiceTests
         await _dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var createResult = await _productService.CreateProductRootOnly(
-            name: "Test Product",
-            price: 20.00m,
-            costOfGoods: 10.00m,
-            weight: 0.2m,
-            taxGroupId: taxGroup.Id,
-            productTypeId: productType.Id,
-            collectionIds: []);
+        var createResult = await _productService.CreateProductRootOnly(new CreateProductRootOnlyParameters
+        {
+            Name = "Test Product",
+            Price = 20.00m,
+            CostOfGoods = 10.00m,
+            Weight = 0.2m,
+            TaxGroupId = taxGroup.Id,
+            ProductTypeId = productType.Id,
+            CollectionIds = []
+        });
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Add an option
-        await _productService.AddProductOption(
-            productRootId: productRootId,
-            name: "Material",
-            alias: "material",
-            sortOrder: 1,
-            optionTypeAlias: null,
-            optionUiAlias: null,
-            isVariant: true,
-            values: [
-                ("Cotton", null, 1, null, 0m, 0m, "-COT"),
-                ("Polyester", null, 2, null, 0m, 0m, "-POL")
-            ]);
+        await _productService.AddProductOption(new AddProductOptionParameters
+        {
+            ProductRootId = productRootId,
+            Name = "Material",
+            Alias = "material",
+            SortOrder = 1,
+            IsVariant = true,
+            Values =
+            [
+                new() { Name = "Cotton", SortOrder = 1, SkuSuffix = "-COT" },
+                new() { Name = "Polyester", SortOrder = 2, SkuSuffix = "-POL" }
+            ]
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
@@ -292,30 +308,33 @@ public class ProductServiceTests
         await _dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var createResult = await _productService.CreateProductRootOnly(
-            name: "Product With Option",
-            price: 30.00m,
-            costOfGoods: 15.00m,
-            weight: 0.5m,
-            taxGroupId: taxGroup.Id,
-            productTypeId: productType.Id,
-            collectionIds: []);
+        var createResult = await _productService.CreateProductRootOnly(new CreateProductRootOnlyParameters
+        {
+            Name = "Product With Option",
+            Price = 30.00m,
+            CostOfGoods = 15.00m,
+            Weight = 0.5m,
+            TaxGroupId = taxGroup.Id,
+            ProductTypeId = productType.Id,
+            CollectionIds = []
+        });
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var optionResult = await _productService.AddProductOption(
-            productRootId: productRootId,
-            name: "Size",
-            alias: "size",
-            sortOrder: 1,
-            optionTypeAlias: null,
-            optionUiAlias: null,
-            isVariant: true,
-            values: [
-                ("S", null, 1, null, 0m, 0m, "-S"),
-                ("M", null, 2, null, 0m, 0m, "-M"),
-                ("L", null, 3, null, 0m, 0m, "-L")
-            ]);
+        var optionResult = await _productService.AddProductOption(new AddProductOptionParameters
+        {
+            ProductRootId = productRootId,
+            Name = "Size",
+            Alias = "size",
+            SortOrder = 1,
+            IsVariant = true,
+            Values =
+            [
+                new() { Name = "S", SortOrder = 1, SkuSuffix = "-S" },
+                new() { Name = "M", SortOrder = 2, SkuSuffix = "-M" },
+                new() { Name = "L", SortOrder = 3, SkuSuffix = "-L" }
+            ]
+        });
         var optionId = optionResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -369,29 +388,32 @@ public class ProductServiceTests
         await _dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var createResult = await _productService.CreateProductRootOnly(
-            name: "Multi-Variant Product",
-            price: 40.00m,
-            costOfGoods: 20.00m,
-            weight: 0.6m,
-            taxGroupId: taxGroup.Id,
-            productTypeId: productType.Id,
-            collectionIds: []);
+        var createResult = await _productService.CreateProductRootOnly(new CreateProductRootOnlyParameters
+        {
+            Name = "Multi-Variant Product",
+            Price = 40.00m,
+            CostOfGoods = 20.00m,
+            Weight = 0.6m,
+            TaxGroupId = taxGroup.Id,
+            ProductTypeId = productType.Id,
+            CollectionIds = []
+        });
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
-        await _productService.AddProductOption(
-            productRootId: productRootId,
-            name: "Color",
-            alias: "color",
-            sortOrder: 1,
-            optionTypeAlias: null,
-            optionUiAlias: null,
-            isVariant: true,
-            values: [
-                ("Black", null, 1, null, 0m, 0m, "-BLK"),
-                ("Navy", null, 2, null, 0m, 0m, "-NVY")
-            ]);
+        await _productService.AddProductOption(new AddProductOptionParameters
+        {
+            ProductRootId = productRootId,
+            Name = "Color",
+            Alias = "color",
+            SortOrder = 1,
+            IsVariant = true,
+            Values =
+            [
+                new() { Name = "Black", SortOrder = 1, SkuSuffix = "-BLK" },
+                new() { Name = "Navy", SortOrder = 2, SkuSuffix = "-NVY" }
+            ]
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         await _productService.GenerateVariantsFromOptions(
@@ -435,31 +457,34 @@ public class ProductServiceTests
         await _dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var createResult = await _productService.CreateProductRootOnly(
-            name: "Product To Delete",
-            price: 50.00m,
-            costOfGoods: 25.00m,
-            weight: 0.8m,
-            taxGroupId: taxGroup.Id,
-            productTypeId: productType.Id,
-            collectionIds: []);
+        var createResult = await _productService.CreateProductRootOnly(new CreateProductRootOnlyParameters
+        {
+            Name = "Product To Delete",
+            Price = 50.00m,
+            CostOfGoods = 25.00m,
+            Weight = 0.8m,
+            TaxGroupId = taxGroup.Id,
+            ProductTypeId = productType.Id,
+            CollectionIds = []
+        });
         var productRoot = createResult.ResultObject!;
         var productRootId = productRoot.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Add option and generate variants
-        await _productService.AddProductOption(
-            productRootId: productRootId,
-            name: "Style",
-            alias: "style",
-            sortOrder: 1,
-            optionTypeAlias: null,
-            optionUiAlias: null,
-            isVariant: true,
-            values: [
-                ("Classic", null, 1, null, 0m, 0m, "-CL"),
-                ("Modern", null, 2, null, 0m, 0m, "-MD")
-            ]);
+        await _productService.AddProductOption(new AddProductOptionParameters
+        {
+            ProductRootId = productRootId,
+            Name = "Style",
+            Alias = "style",
+            SortOrder = 1,
+            IsVariant = true,
+            Values =
+            [
+                new() { Name = "Classic", SortOrder = 1, SkuSuffix = "-CL" },
+                new() { Name = "Modern", SortOrder = 2, SkuSuffix = "-MD" }
+            ]
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         await _productService.GenerateVariantsFromOptions(
@@ -502,29 +527,29 @@ public class ProductServiceTests
         await _dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var createResult = await _productService.CreateProductRootOnly(
-            name: "Product With Relations",
-            price: 60.00m,
-            costOfGoods: 30.00m,
-            weight: 1.0m,
-            taxGroupId: taxGroup.Id,
-            productTypeId: productType.Id,
-            collectionIds: []);
+        var createResult = await _productService.CreateProductRootOnly(new CreateProductRootOnlyParameters
+        {
+            Name = "Product With Relations",
+            Price = 60.00m,
+            CostOfGoods = 30.00m,
+            Weight = 1.0m,
+            TaxGroupId = taxGroup.Id,
+            ProductTypeId = productType.Id,
+            CollectionIds = []
+        });
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Add a variant option (required for GenerateVariantsFromOptions to work)
-        await _productService.AddProductOption(
-            productRootId: productRootId,
-            name: "Color",
-            alias: "color",
-            sortOrder: 1,
-            optionTypeAlias: null,
-            optionUiAlias: null,
-            isVariant: true,
-            values: [
-                ("Red", null, 1, null, 0m, 0m, "-RED")
-            ]);
+        await _productService.AddProductOption(new AddProductOptionParameters
+        {
+            ProductRootId = productRootId,
+            Name = "Color",
+            Alias = "color",
+            SortOrder = 1,
+            IsVariant = true,
+            Values = [new() { Name = "Red", SortOrder = 1, SkuSuffix = "-RED" }]
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Generate variants
@@ -555,14 +580,16 @@ public class ProductServiceTests
 
         for (int i = 1; i <= 5; i++)
         {
-            await _productService.CreateProductRootOnly(
-                name: $"Product {i}",
-                price: i * 10.00m,
-                costOfGoods: i * 5.00m,
-                weight: i * 0.1m,
-                taxGroupId: taxGroup.Id,
-                productTypeId: productType.Id,
-                collectionIds: []);
+            await _productService.CreateProductRootOnly(new CreateProductRootOnlyParameters
+            {
+                Name = $"Product {i}",
+                Price = i * 10.00m,
+                CostOfGoods = i * 5.00m,
+                Weight = i * 0.1m,
+                TaxGroupId = taxGroup.Id,
+                ProductTypeId = productType.Id,
+                CollectionIds = []
+            });
             _fixture.DbContext.ChangeTracker.Clear();
         }
 
@@ -592,30 +619,33 @@ public class ProductServiceTests
         await _dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var createResult = await _productService.CreateProductRootOnly(
-            name: "Product With Add-on",
-            price: 45.00m,
-            costOfGoods: 22.00m,
-            weight: 0.7m,
-            taxGroupId: taxGroup.Id,
-            productTypeId: productType.Id,
-            collectionIds: []);
+        var createResult = await _productService.CreateProductRootOnly(new CreateProductRootOnlyParameters
+        {
+            Name = "Product With Add-on",
+            Price = 45.00m,
+            CostOfGoods = 22.00m,
+            Weight = 0.7m,
+            TaxGroupId = taxGroup.Id,
+            ProductTypeId = productType.Id,
+            CollectionIds = []
+        });
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
         // First add a variant option and generate products
-        await _productService.AddProductOption(
-            productRootId: productRootId,
-            name: "Size",
-            alias: "size",
-            sortOrder: 1,
-            optionTypeAlias: null,
-            optionUiAlias: null,
-            isVariant: true,
-            values: [
-                ("Small", null, 1, null, 0m, 0m, "-S"),
-                ("Large", null, 2, null, 0m, 0m, "-L")
-            ]);
+        await _productService.AddProductOption(new AddProductOptionParameters
+        {
+            ProductRootId = productRootId,
+            Name = "Size",
+            Alias = "size",
+            SortOrder = 1,
+            IsVariant = true,
+            Values =
+            [
+                new() { Name = "Small", SortOrder = 1, SkuSuffix = "-S" },
+                new() { Name = "Large", SortOrder = 2, SkuSuffix = "-L" }
+            ]
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         await _productService.GenerateVariantsFromOptions(
@@ -630,18 +660,19 @@ public class ProductServiceTests
         productsBefore.ShouldBe(2);
 
         // Act - add non-variant option (add-on/modifier)
-        var optionResult = await _productService.AddProductOption(
-            productRootId: productRootId,
-            name: "Gift Wrap",
-            alias: "gift-wrap",
-            sortOrder: 2,
-            optionTypeAlias: null,
-            optionUiAlias: null,
-            isVariant: false, // This is an add-on, not a variant generator
-            values: [
-                ("Standard Wrap", null, 1, null, 5.00m, 2.00m, null),
-                ("Premium Wrap", null, 2, null, 10.00m, 4.00m, null)
-            ]);
+        var optionResult = await _productService.AddProductOption(new AddProductOptionParameters
+        {
+            ProductRootId = productRootId,
+            Name = "Gift Wrap",
+            Alias = "gift-wrap",
+            SortOrder = 2,
+            IsVariant = false, // This is an add-on, not a variant generator
+            Values =
+            [
+                new() { Name = "Standard Wrap", SortOrder = 1, PriceAdjustment = 5.00m, CostAdjustment = 2.00m },
+                new() { Name = "Premium Wrap", SortOrder = 2, PriceAdjustment = 10.00m, CostAdjustment = 4.00m }
+            ]
+        });
 
         // Assert - adding non-variant option succeeds
         optionResult.Successful.ShouldBeTrue();
@@ -678,45 +709,49 @@ public class ProductServiceTests
         await _dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var createResult = await _productService.CreateProductRootOnly(
-            name: "Test Product",
-            price: 25.00m,
-            costOfGoods: 12.00m,
-            weight: 0.3m,
-            taxGroupId: taxGroup.Id,
-            productTypeId: productType.Id,
-            collectionIds: []);
+        var createResult = await _productService.CreateProductRootOnly(new CreateProductRootOnlyParameters
+        {
+            Name = "Test Product",
+            Price = 25.00m,
+            CostOfGoods = 12.00m,
+            Weight = 0.3m,
+            TaxGroupId = taxGroup.Id,
+            ProductTypeId = productType.Id,
+            CollectionIds = []
+        });
         var productRootId = createResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Add Color option
-        await _productService.AddProductOption(
-            productRootId: productRootId,
-            name: "Color",
-            alias: "color",
-            sortOrder: 1,
-            optionTypeAlias: null,
-            optionUiAlias: null,
-            isVariant: true,
-            values: [
-                ("Red", "Color: Red", 1, "#FF0000", 0m, 0m, "-RED"),
-                ("Blue", "Color: Blue", 2, "#0000FF", 0m, 0m, "-BLUE")
-            ]);
+        await _productService.AddProductOption(new AddProductOptionParameters
+        {
+            ProductRootId = productRootId,
+            Name = "Color",
+            Alias = "color",
+            SortOrder = 1,
+            IsVariant = true,
+            Values =
+            [
+                new() { Name = "Red", FullName = "Color: Red", SortOrder = 1, HexValue = "#FF0000", SkuSuffix = "-RED" },
+                new() { Name = "Blue", FullName = "Color: Blue", SortOrder = 2, HexValue = "#0000FF", SkuSuffix = "-BLUE" }
+            ]
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Add Size option
-        await _productService.AddProductOption(
-            productRootId: productRootId,
-            name: "Size",
-            alias: "size",
-            sortOrder: 2,
-            optionTypeAlias: null,
-            optionUiAlias: null,
-            isVariant: true,
-            values: [
-                ("Small", "Size: Small", 1, null, 0m, 0m, "-S"),
-                ("Large", "Size: Large", 2, null, 0m, 0m, "-L")
-            ]);
+        await _productService.AddProductOption(new AddProductOptionParameters
+        {
+            ProductRootId = productRootId,
+            Name = "Size",
+            Alias = "size",
+            SortOrder = 2,
+            IsVariant = true,
+            Values =
+            [
+                new() { Name = "Small", FullName = "Size: Small", SortOrder = 1, SkuSuffix = "-S" },
+                new() { Name = "Large", FullName = "Size: Large", SortOrder = 2, SkuSuffix = "-L" }
+            ]
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Generate variants

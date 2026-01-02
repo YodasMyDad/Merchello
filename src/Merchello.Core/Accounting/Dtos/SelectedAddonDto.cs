@@ -34,4 +34,24 @@ public class SelectedAddonDto
     /// SKU suffix to append to the parent product SKU
     /// </summary>
     public string? SkuSuffix { get; set; }
+
+    /// <summary>
+    /// Additional weight in kilograms for shipping calculations
+    /// </summary>
+    public decimal? WeightKg { get; set; }
+
+    /// <summary>
+    /// Additional length in centimeters for shipping calculations
+    /// </summary>
+    public decimal? LengthCm { get; set; }
+
+    /// <summary>
+    /// Additional width in centimeters for shipping calculations
+    /// </summary>
+    public decimal? WidthCm { get; set; }
+
+    /// <summary>
+    /// Additional height in centimeters for shipping calculations
+    /// </summary>
+    public decimal? HeightCm { get; set; }
 }

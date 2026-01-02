@@ -1,29 +1,23 @@
 using Merchello.Core.Products.Models;
+using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Extensions;
 
 namespace Merchello.Core.Products.Factories;
 
 public class ProductOptionFactory(SlugHelper slugHelper)
 {
-    public ProductOption Create(
-        string name,
-        string? alias,
-        int sortOrder,
-        string? optionTypeAlias,
-        string? optionUiAlias,
-        bool isVariant,
-        List<(string Name, string? FullName, int SortOrder, string? HexValue, decimal PriceAdjustment, decimal CostAdjustment, string? SkuSuffix)> values)
+    public ProductOption Create(AddProductOptionParameters parameters)
     {
         return new ProductOption
         {
             Id = Guid.NewGuid(),
-            Name = name,
-            Alias = string.IsNullOrWhiteSpace(alias) ? slugHelper.GenerateSlug(name) : alias,
-            SortOrder = sortOrder,
-            OptionTypeAlias = optionTypeAlias,
-            OptionUiAlias = optionUiAlias,
-            IsVariant = isVariant,
-            ProductOptionValues = values.Select(v => new ProductOptionValue
+            Name = parameters.Name,
+            Alias = string.IsNullOrWhiteSpace(parameters.Alias) ? slugHelper.GenerateSlug(parameters.Name) : parameters.Alias,
+            SortOrder = parameters.SortOrder,
+            OptionTypeAlias = parameters.OptionTypeAlias,
+            OptionUiAlias = parameters.OptionUiAlias,
+            IsVariant = parameters.IsVariant,
+            ProductOptionValues = parameters.Values.Select(v => new ProductOptionValue
             {
                 Id = Guid.NewGuid(),
                 Name = v.Name,
@@ -32,7 +26,8 @@ public class ProductOptionFactory(SlugHelper slugHelper)
                 HexValue = v.HexValue,
                 PriceAdjustment = v.PriceAdjustment,
                 CostAdjustment = v.CostAdjustment,
-                SkuSuffix = v.SkuSuffix
+                SkuSuffix = v.SkuSuffix,
+                WeightKg = v.WeightKg
             }).ToList()
         };
     }

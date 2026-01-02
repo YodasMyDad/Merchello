@@ -11,6 +11,7 @@ import {
   type DiscountQueryParams,
 } from "@discounts/types/discount.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { getStoreSettings } from "@api/store-settings.js";
 import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
 import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";
@@ -50,6 +51,13 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
   override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
+    this._initializeAndLoad();
+  }
+
+  private async _initializeAndLoad(): Promise<void> {
+    const settings = await getStoreSettings();
+    if (!this.#isConnected) return;
+    this._pageSize = settings.defaultPaginationPageSize;
     this._loadDiscounts();
   }
 
