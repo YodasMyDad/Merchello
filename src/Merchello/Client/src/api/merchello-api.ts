@@ -290,6 +290,7 @@ import type {
 import type {
   AnalyticsSummaryDto,
   TimeSeriesDataPointDto,
+  TimeSeriesResultDto,
   SalesBreakdownDto,
 } from '../analytics/types/analytics.types.js';
 
@@ -372,6 +373,14 @@ export interface StoreSettingsDto {
   currencySymbol: string;
   invoiceNumberPrefix: string;
   lowStockThreshold: number;
+  /** Default length for auto-generated discount codes. */
+  discountCodeLength: number;
+  /** Default priority for newly created discounts. Lower numbers = higher priority. */
+  defaultDiscountPriority: number;
+  /** Default number of items per page in list views. */
+  defaultPaginationPageSize: number;
+  /** Quick-select refund amount percentages shown in the refund modal. */
+  refundQuickAmountPercentages: number[];
 }
 
 // Country type for dropdowns
@@ -1057,9 +1066,23 @@ export const MerchelloApi = {
   getSalesTimeSeries: (startDate: string, endDate: string) =>
     apiGet<TimeSeriesDataPointDto[]>(`reporting/sales-timeseries?startDate=${startDate}&endDate=${endDate}`),
 
+  /**
+   * Get daily sales time series data with backend-calculated totals and percent change.
+   * Preferred over getSalesTimeSeries - avoids frontend calculation of aggregates.
+   */
+  getSalesTimeSeriesWithTotals: (startDate: string, endDate: string) =>
+    apiGet<TimeSeriesResultDto>(`reporting/sales-timeseries-with-totals?startDate=${startDate}&endDate=${endDate}`),
+
   /** Get daily average order value time series data */
   getAovTimeSeries: (startDate: string, endDate: string) =>
     apiGet<TimeSeriesDataPointDto[]>(`reporting/aov-timeseries?startDate=${startDate}&endDate=${endDate}`),
+
+  /**
+   * Get daily AOV time series data with backend-calculated totals and percent change.
+   * Preferred over getAovTimeSeries - avoids frontend calculation of aggregates.
+   */
+  getAovTimeSeriesWithTotals: (startDate: string, endDate: string) =>
+    apiGet<TimeSeriesResultDto>(`reporting/aov-timeseries-with-totals?startDate=${startDate}&endDate=${endDate}`),
 
   /** Get sales breakdown (gross, discounts, returns, net, shipping, taxes) */
   getSalesBreakdown: (startDate: string, endDate: string) =>

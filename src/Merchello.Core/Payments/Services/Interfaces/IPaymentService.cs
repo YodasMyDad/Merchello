@@ -44,15 +44,11 @@ public interface IPaymentService
     /// <summary>
     /// Process a refund for an existing payment.
     /// </summary>
-    /// <param name="paymentId">The original payment ID to refund.</param>
-    /// <param name="amount">Amount to refund (null for full refund).</param>
-    /// <param name="reason">Reason for the refund.</param>
+    /// <param name="parameters">Parameters for the refund.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result containing the refund payment record (negative amount).</returns>
     Task<CrudResult<Payment>> ProcessRefundAsync(
-        Guid paymentId,
-        decimal? amount,
-        string reason,
+        ProcessRefundParameters parameters,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -99,30 +95,11 @@ public interface IPaymentService
     /// Calculate payment status details from a list of payments.
     /// This is the single source of truth for payment status calculations.
     /// Use this when you already have payments loaded.
+    /// Supports both single-currency and multi-currency scenarios via optional parameters.
     /// </summary>
-    /// <param name="payments">The payments for the invoice.</param>
-    /// <param name="invoiceTotal">The invoice total amount.</param>
-    /// <param name="currencyCode">The invoice currency code for proper rounding (e.g., JPY has 0 decimals).</param>
+    /// <param name="parameters">Parameters for calculating payment status.</param>
     /// <returns>Full payment status details including totals and balance.</returns>
-    PaymentStatusDetails CalculatePaymentStatus(IEnumerable<Payment> payments, decimal invoiceTotal, string currencyCode);
-
-    /// <summary>
-    /// Calculate payment status details from a list of payments, including store currency calculations.
-    /// This is the single source of truth for payment status calculations in multi-currency scenarios.
-    /// Use this when you need both invoice currency and store currency totals.
-    /// </summary>
-    /// <param name="payments">The payments for the invoice.</param>
-    /// <param name="invoiceTotal">The invoice total amount in invoice currency.</param>
-    /// <param name="currencyCode">The invoice currency code for proper rounding.</param>
-    /// <param name="invoiceTotalInStoreCurrency">The invoice total in store currency (null if same as invoice currency).</param>
-    /// <param name="storeCurrencyCode">The store currency code.</param>
-    /// <returns>Full payment status details including totals and balance in both currencies.</returns>
-    PaymentStatusDetails CalculatePaymentStatus(
-        IEnumerable<Payment> payments,
-        decimal invoiceTotal,
-        string currencyCode,
-        decimal? invoiceTotalInStoreCurrency,
-        string storeCurrencyCode);
+    PaymentStatusDetails CalculatePaymentStatus(CalculatePaymentStatusParameters parameters);
 
     /// <summary>
     /// Record a manual/offline payment (for backoffice use).
@@ -137,14 +114,10 @@ public interface IPaymentService
     /// <summary>
     /// Record a manual refund (for backoffice use when provider refund already processed externally).
     /// </summary>
-    /// <param name="paymentId">The original payment ID.</param>
-    /// <param name="amount">Refund amount.</param>
-    /// <param name="reason">Reason for the refund.</param>
+    /// <param name="parameters">Parameters for the manual refund.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result containing the refund payment record.</returns>
     Task<CrudResult<Payment>> RecordManualRefundAsync(
-        Guid paymentId,
-        decimal amount,
-        string reason,
+        RecordManualRefundParameters parameters,
         CancellationToken cancellationToken = default);
 }

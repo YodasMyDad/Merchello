@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Accounting.Handlers.Interfaces;
@@ -630,9 +631,10 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         initialResult.OrderDiscounts.Count.ShouldBe(1);
 
         // Act: Remove the order discount
-        var editResult = await _invoiceService.EditInvoiceAsync(
-            invoice.Id,
-            new EditInvoiceDto
+        var editResult = await _invoiceService.EditInvoiceAsync(new EditInvoiceParameters
+        {
+            InvoiceId = invoice.Id,
+            Request = new EditInvoiceDto
             {
                 LineItems = [],
                 RemovedLineItems = [],
@@ -642,8 +644,9 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 EditReason = "Test removal",
                 ShouldRemoveTax = false
             },
-            authorId: Guid.NewGuid(),
-            authorName: "Test User");
+            AuthorId = Guid.NewGuid(),
+            AuthorName = "Test User"
+        });
 
         // Assert
         editResult.IsSuccess.ShouldBeTrue();
@@ -1436,9 +1439,10 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         initialResult.OrderDiscounts.Count.ShouldBe(0);
 
         // Act: Add order discount
-        var editResult = await _invoiceService.EditInvoiceAsync(
-            invoice.Id,
-            new EditInvoiceDto
+        var editResult = await _invoiceService.EditInvoiceAsync(new EditInvoiceParameters
+        {
+            InvoiceId = invoice.Id,
+            Request = new EditInvoiceDto
             {
                 LineItems = [],
                 RemovedLineItems = [],
@@ -1455,8 +1459,9 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 EditReason = "Adding goodwill discount",
                 ShouldRemoveTax = false
             },
-            authorId: Guid.NewGuid(),
-            authorName: "Test User");
+            AuthorId = Guid.NewGuid(),
+            AuthorName = "Test User"
+        });
 
         // Assert
         editResult.IsSuccess.ShouldBeTrue();
@@ -1487,9 +1492,10 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Add 25% order discount
-        var editResult = await _invoiceService.EditInvoiceAsync(
-            invoice.Id,
-            new EditInvoiceDto
+        var editResult = await _invoiceService.EditInvoiceAsync(new EditInvoiceParameters
+        {
+            InvoiceId = invoice.Id,
+            Request = new EditInvoiceDto
             {
                 LineItems = [],
                 RemovedLineItems = [],
@@ -1505,8 +1511,9 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 EditReason = null,
                 ShouldRemoveTax = false
             },
-            authorId: Guid.NewGuid(),
-            authorName: "Test User");
+            AuthorId = Guid.NewGuid(),
+            AuthorName = "Test User"
+        });
 
         // Assert
         editResult.IsSuccess.ShouldBeTrue();

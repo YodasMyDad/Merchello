@@ -149,6 +149,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
       priceAdjustment: 0,
       costAdjustment: 0,
       skuSuffix: null,
+      weightKg: null,
     });
     this._formData = { ...this._formData, values };
   }
@@ -227,6 +228,24 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                     </uui-input>
                   </div>
                 </div>
+
+                <div class="addon-fields shipping-fields">
+                  <div class="addon-field weight-field">
+                    <label class="field-label">+ Weight (kg)</label>
+                    <uui-input
+                      type="number"
+                      step="0.001"
+                      .value=${value.weightKg != null ? String(value.weightKg) : ""}
+                      placeholder="0.000"
+                      title="Additional weight added to the product for shipping"
+                      @input=${(e: Event) => {
+                        const val = (e.target as HTMLInputElement).value;
+                        this._updateValue(index, "weightKg", val ? parseFloat(val) : null);
+                      }}>
+                    </uui-input>
+                    <span class="field-hint">Added to product weight</span>
+                  </div>
+                </div>
               `
             : nothing}
         </div>
@@ -281,8 +300,8 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                 <div class="info-banner addon-info">
                   <uui-icon name="icon-coin"></uui-icon>
                   <div>
-                    <strong>Add-on Pricing</strong>
-                    <p>Price and cost adjustments are added to the base product when customers select this option. Negative values apply discounts.</p>
+                    <strong>Add-on Pricing &amp; Shipping</strong>
+                    <p>Price, cost, and weight adjustments are <em>added</em> to the base product when customers select this option. Weight affects shipping calculations.</p>
                   </div>
                 </div>
               `
@@ -544,6 +563,23 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
 
     .addon-field uui-input {
       width: 100%;
+    }
+
+    .shipping-fields {
+      margin-top: var(--uui-size-space-2);
+      padding-top: var(--uui-size-space-2);
+      border-top: 1px dashed var(--uui-color-border);
+    }
+
+    .shipping-fields .weight-field {
+      min-width: 120px;
+      max-width: 160px;
+    }
+
+    .field-hint {
+      font-size: 0.625rem;
+      color: var(--uui-color-text-alt);
+      font-style: italic;
     }
 
     .info-banner.addon-info {

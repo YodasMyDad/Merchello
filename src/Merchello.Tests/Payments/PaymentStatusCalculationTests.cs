@@ -8,6 +8,7 @@ using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Payments.Services;
 using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services;
 using Microsoft.Extensions.Caching.Memory;
@@ -66,7 +67,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert
         result.Status.ShouldBe(InvoicePaymentStatus.Unpaid);
@@ -87,7 +93,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert
         result.Status.ShouldBe(InvoicePaymentStatus.PartiallyPaid);
@@ -107,7 +118,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert
         result.Status.ShouldBe(InvoicePaymentStatus.Paid);
@@ -127,7 +143,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert
         result.Status.ShouldBe(InvoicePaymentStatus.Paid);
@@ -152,7 +173,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert
         result.Status.ShouldBe(InvoicePaymentStatus.Refunded);
@@ -174,7 +200,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert
         result.Status.ShouldBe(InvoicePaymentStatus.PartiallyRefunded);
@@ -197,7 +228,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert
         result.Status.ShouldBe(InvoicePaymentStatus.PartiallyRefunded);
@@ -222,7 +258,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert - Unsuccessful payments are treated as if no payment exists
         result.Status.ShouldBe(InvoicePaymentStatus.Unpaid);
@@ -242,7 +283,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert
         result.Status.ShouldBe(InvoicePaymentStatus.PartiallyPaid);
@@ -267,7 +313,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert
         result.Status.ShouldBe(InvoicePaymentStatus.Paid);
@@ -289,7 +340,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert - System treats this as PartiallyRefunded because a refund exists
         result.Status.ShouldBe(InvoicePaymentStatus.PartiallyRefunded);
@@ -314,7 +370,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert
         result.StatusDisplay.ShouldBe("Partially Paid");
@@ -352,7 +413,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert
         result.MaxRiskScore.ShouldBe(75m);
@@ -399,7 +465,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 0m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert
         result.Status.ShouldBe(InvoicePaymentStatus.Paid); // No payment needed
@@ -421,7 +492,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, "JPY");
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = "JPY"
+        });
 
         // Assert
         result.TotalPaid.ShouldBe(99m);
@@ -444,12 +520,14 @@ public class PaymentStatusCalculationTests
         var invoiceTotalInStoreCurrency = 100m; // USD
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(
-            payments,
-            invoiceTotal,
-            "EUR",
-            invoiceTotalInStoreCurrency,
-            "USD");
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = "EUR",
+            InvoiceTotalInStoreCurrency = invoiceTotalInStoreCurrency,
+            StoreCurrencyCode = "USD"
+        });
 
         // Assert
         result.Status.ShouldBe(InvoicePaymentStatus.Paid);
@@ -471,12 +549,14 @@ public class PaymentStatusCalculationTests
         var invoiceTotalInStoreCurrency = 100m; // USD
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(
-            payments,
-            invoiceTotal,
-            "EUR",
-            invoiceTotalInStoreCurrency,
-            "USD");
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = "EUR",
+            InvoiceTotalInStoreCurrency = invoiceTotalInStoreCurrency,
+            StoreCurrencyCode = "USD"
+        });
 
         // Assert
         result.Status.ShouldBe(InvoicePaymentStatus.PartiallyPaid);
@@ -498,7 +578,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = -50m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert - System treats negative total as paid (balance capped at 0)
         result.BalanceDue.ShouldBe(0m);
@@ -516,7 +601,12 @@ public class PaymentStatusCalculationTests
         var invoiceTotal = 100m;
 
         // Act
-        var result = _paymentService.CalculatePaymentStatus(payments, invoiceTotal, _currencyCode);
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
 
         // Assert
         result.Status.ShouldBe(InvoicePaymentStatus.Paid);

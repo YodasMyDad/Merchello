@@ -25,11 +25,13 @@ public class WarehouseService(
     /// If no single warehouse can fulfill the full quantity, attempts multi-warehouse allocation.
     /// </summary>
     public async Task<WarehouseSelectionResult> SelectWarehouseForProduct(
-        Product product,
-        Address shippingAddress,
-        int quantity = 1,
+        SelectWarehouseForProductParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        var product = parameters.Product;
+        var shippingAddress = parameters.ShippingAddress;
+        var quantity = parameters.Quantity;
+
         if (string.IsNullOrWhiteSpace(shippingAddress.CountryCode))
         {
             return new WarehouseSelectionResult
@@ -476,11 +478,13 @@ public class WarehouseService(
     /// Adds a warehouse to a product root with priority
     /// </summary>
     public async Task<CrudResult<bool>> AddWarehouseToProductRoot(
-        Guid productRootId,
-        Guid warehouseId,
-        int priorityOrder,
+        AddWarehouseToProductRootParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        var productRootId = parameters.ProductRootId;
+        var warehouseId = parameters.WarehouseId;
+        var priorityOrder = parameters.PriorityOrder;
+
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
@@ -652,13 +656,15 @@ public class WarehouseService(
     /// Sets or updates stock for a product at a warehouse
     /// </summary>
     public async Task<CrudResult<bool>> SetProductStock(
-        Guid productId,
-        Guid warehouseId,
-        int stock,
-        int? reorderPoint = null,
-        int? reorderQuantity = null,
+        SetProductStockParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        var productId = parameters.ProductId;
+        var warehouseId = parameters.WarehouseId;
+        var stock = parameters.Stock;
+        var reorderPoint = parameters.ReorderPoint;
+        var reorderQuantity = parameters.ReorderQuantity;
+
         var result = new CrudResult<bool>();
 
         if (stock < 0)
@@ -799,12 +805,14 @@ public class WarehouseService(
     /// Transfers stock from one warehouse to another
     /// </summary>
     public async Task<CrudResult<bool>> TransferStock(
-        Guid productId,
-        Guid fromWarehouseId,
-        Guid toWarehouseId,
-        int quantity,
+        TransferStockParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        var productId = parameters.ProductId;
+        var fromWarehouseId = parameters.FromWarehouseId;
+        var toWarehouseId = parameters.ToWarehouseId;
+        var quantity = parameters.Quantity;
+
         var result = new CrudResult<bool>();
 
         if (quantity <= 0)

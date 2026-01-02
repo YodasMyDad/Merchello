@@ -229,6 +229,58 @@ public class ReportingService(
         });
     }
 
+    public async Task<TimeSeriesResultDto> GetSalesTimeSeriesWithTotalsAsync(
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        var dataPoints = await GetSalesTimeSeriesAsync(startDate, endDate, cancellationToken);
+
+        var periodTotal = dataPoints.Sum(d => d.Value);
+        var comparisonTotal = dataPoints
+            .Where(d => d.ComparisonValue.HasValue)
+            .Sum(d => d.ComparisonValue!.Value);
+
+        var hasComparison = dataPoints.Any(d => d.ComparisonValue.HasValue);
+        decimal? percentChange = hasComparison
+            ? CalculatePercentChange(periodTotal, comparisonTotal)
+            : null;
+
+        return new TimeSeriesResultDto(
+            DataPoints: dataPoints,
+            PeriodTotal: periodTotal,
+            ComparisonTotal: hasComparison ? comparisonTotal : null,
+            PercentChange: percentChange
+        );
+    }
+
+    public async Task<TimeSeriesResultDto> GetAverageOrderValueTimeSeriesWithTotalsAsync(
+        DateTime startDate,
+        DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        var dataPoints = await GetAverageOrderValueTimeSeriesAsync(startDate, endDate, cancellationToken);
+
+        // For AOV, calculate overall average instead of sum
+        var nonZeroPoints = dataPoints.Where(d => d.Value > 0).ToList();
+        var periodTotal = nonZeroPoints.Count > 0 ? nonZeroPoints.Average(d => d.Value) : 0;
+
+        var comparisonPoints = dataPoints.Where(d => d.ComparisonValue.HasValue && d.ComparisonValue.Value > 0).ToList();
+        var comparisonTotal = comparisonPoints.Count > 0 ? comparisonPoints.Average(d => d.ComparisonValue!.Value) : 0;
+
+        var hasComparison = dataPoints.Any(d => d.ComparisonValue.HasValue);
+        decimal? percentChange = hasComparison
+            ? CalculatePercentChange(periodTotal, comparisonTotal)
+            : null;
+
+        return new TimeSeriesResultDto(
+            DataPoints: dataPoints,
+            PeriodTotal: periodTotal,
+            ComparisonTotal: hasComparison ? comparisonTotal : null,
+            PercentChange: percentChange
+        );
+    }
+
     public async Task<SalesBreakdownDto> GetSalesBreakdownAsync(
         DateTime startDate,
         DateTime endDate,
@@ -280,7 +332,13 @@ public class ReportingService(
                 Taxes: currentBreakdown.Taxes,
                 TaxesChange: CalculatePercentChange(currentBreakdown.Taxes, comparisonBreakdown.Taxes),
                 TotalSales: currentBreakdown.TotalSales,
-                TotalSalesChange: CalculatePercentChange(currentBreakdown.TotalSales, comparisonBreakdown.TotalSales)
+                TotalSalesChange: CalculatePercentChange(currentBreakdown.TotalSales, comparisonBreakdown.TotalSales),
+                TotalCost: currentBreakdown.TotalCost,
+                TotalCostChange: CalculatePercentChange(currentBreakdown.TotalCost, comparisonBreakdown.TotalCost),
+                GrossProfit: currentBreakdown.GrossProfit,
+                GrossProfitChange: CalculatePercentChange(currentBreakdown.GrossProfit, comparisonBreakdown.GrossProfit),
+                GrossProfitMargin: currentBreakdown.GrossProfitMargin,
+                GrossProfitMarginChange: currentBreakdown.GrossProfitMargin - comparisonBreakdown.GrossProfitMargin
             );
         });
     }
@@ -380,6 +438,19 @@ public class ReportingService(
         var netSales = grossSales - discounts - returns;
         var totalSales = netSales + shippingCharges + taxes - returnFees;
 
+        // Calculate cost of goods from order line items (Product and Addon types)
+        // Cost is captured at order time for historical accuracy
+        var totalCost = invoices
+            .SelectMany(i => i.Orders ?? [])
+            .SelectMany(o => o.LineItems ?? [])
+            .Where(li => li.LineItemType == LineItemType.Product
+                      || li.LineItemType == LineItemType.Addon
+                      || li.LineItemType == LineItemType.Custom)
+            .Sum(li => (li.CostInStoreCurrency ?? li.Cost) * li.Quantity);
+
+        var grossProfit = netSales - totalCost;
+        var grossProfitMargin = netSales > 0 ? Math.Round(grossProfit / netSales * 100, 2) : 0;
+
         return new BreakdownData(
             grossSales,
             discounts,
@@ -388,7 +459,10 @@ public class ReportingService(
             shippingCharges,
             returnFees,
             taxes,
-            totalSales);
+            totalSales,
+            totalCost,
+            grossProfit,
+            grossProfitMargin);
     }
 
     private static decimal CalculatePercentChange(decimal current, decimal previous)

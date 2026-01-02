@@ -8,6 +8,7 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import type { CustomerListItemDto, CustomerListParams } from "@customers/types/customer.types.js";
 import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { getStoreSettings } from "@api/store-settings.js";
 import { MERCHELLO_CUSTOMER_EDIT_MODAL } from "../modals/customer-edit-modal.token.js";
 import { MERCHELLO_CUSTOMER_ORDERS_MODAL } from "@orders/modals/customer-orders-modal.token.js";
 import "@shared/components/pagination.element.js";
@@ -42,6 +43,13 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
   override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
+    this._initializeAndLoad();
+  }
+
+  private async _initializeAndLoad(): Promise<void> {
+    const settings = await getStoreSettings();
+    if (!this.#isConnected) return;
+    this._pageSize = settings.defaultPaginationPageSize;
     this._loadCustomers();
   }
 

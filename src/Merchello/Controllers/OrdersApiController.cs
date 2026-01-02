@@ -5,6 +5,7 @@ using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
@@ -278,12 +279,14 @@ public class OrdersApiController(
         var authorId = currentUser?.Key;
         var authorName = currentUser?.Name;
 
-        var result = await invoiceService.AddNoteAsync(
-            invoiceId,
-            request.Text,
-            request.IsVisibleToCustomer,
-            authorId,
-            authorName);
+        var result = await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
+        {
+            InvoiceId = invoiceId,
+            Text = request.Text,
+            VisibleToCustomer = request.IsVisibleToCustomer,
+            AuthorId = authorId,
+            AuthorName = authorName
+        });
 
         if (result.ResultObject == null)
         {
@@ -443,11 +446,13 @@ public class OrdersApiController(
         var authorId = currentUser?.Key;
         var authorName = currentUser?.Name;
 
-        var result = await invoiceService.EditInvoiceAsync(
-            invoiceId,
-            request,
-            authorId,
-            authorName);
+        var result = await invoiceService.EditInvoiceAsync(new EditInvoiceParameters
+        {
+            InvoiceId = invoiceId,
+            Request = request,
+            AuthorId = authorId,
+            AuthorName = authorName
+        });
 
         if (!result.IsSuccess)
         {
@@ -484,7 +489,12 @@ public class OrdersApiController(
         var payments = invoice.Payments?.ToList() ?? [];
 
         // Use centralized payment status calculation from PaymentService
-        var paymentDetails = paymentService.CalculatePaymentStatus(payments, invoice.Total, invoice.CurrencyCode);
+        var paymentDetails = paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoice.Total,
+            CurrencyCode = invoice.CurrencyCode
+        });
 
         var itemCount = orders
             .SelectMany(o => o.LineItems ?? [])
@@ -531,12 +541,14 @@ public class OrdersApiController(
         var payments = invoice.Payments?.ToList() ?? [];
 
         // Use centralized payment status calculation from PaymentService (includes store currency)
-        var paymentDetails = paymentService.CalculatePaymentStatus(
-            payments,
-            invoice.Total,
-            invoice.CurrencyCode,
-            invoice.TotalInStoreCurrency,
-            invoice.StoreCurrencyCode);
+        var paymentDetails = paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoice.Total,
+            CurrencyCode = invoice.CurrencyCode,
+            InvoiceTotalInStoreCurrency = invoice.TotalInStoreCurrency,
+            StoreCurrencyCode = invoice.StoreCurrencyCode
+        });
 
         var shippingCost = orders.Sum(o => o.ShippingCost);
         var shippingCostInStoreCurrency = orders.Sum(o => o.ShippingCostInStoreCurrency ?? o.ShippingCost);
@@ -592,11 +604,24 @@ public class OrdersApiController(
                 < 0 => "Overpaid",
                 _ => "Balanced"
             },
+            BalanceStatusCssClass = paymentDetails.BalanceDue switch
+            {
+                > 0 => "underpaid",
+                < 0 => "overpaid",
+                _ => "balanced"
+            },
+            BalanceStatusLabel = paymentDetails.BalanceDue switch
+            {
+                > 0 => "Balance Due",
+                < 0 => "Credit Due",
+                _ => ""
+            },
             PaymentStatus = paymentDetails.Status,
             PaymentStatusDisplay = paymentDetails.StatusDisplay,
             MaxRiskScore = paymentDetails.MaxRiskScore,
             MaxRiskScoreSource = paymentDetails.MaxRiskScoreSource,
             FulfillmentStatus = GetFulfillmentStatus(orders),
+            FulfillmentStatusCssClass = GetFulfillmentStatusCssClass(orders),
             IsCancelled = invoice.IsCancelled,
             BillingAddress = MapAddress(invoice.BillingAddress),
             ShippingAddress = MapAddress(invoice.ShippingAddress),
@@ -608,7 +633,14 @@ public class OrdersApiController(
                 AuthorId = n.AuthorId,
                 Author = n.Author,
                 IsVisibleToCustomer = n.VisibleToCustomer
-            }).ToList() ?? []
+            }).ToList() ?? [],
+            ItemCount = orders
+                .SelectMany(o => o.LineItems ?? [])
+                .Where(li => li.LineItemType == LineItemType.Product
+                          || li.LineItemType == LineItemType.Custom
+                          || li.LineItemType == LineItemType.Addon)
+                .Sum(li => li.Quantity),
+            CanFulfill = !invoice.IsCancelled && GetFulfillmentStatus(orders) != "Fulfilled"
         };
     }
 
@@ -647,7 +679,9 @@ public class OrdersApiController(
             DeliveryMethod = deliveryMethod,
             ShippingCost = order.ShippingCost,
             LineItems = order.LineItems?
-                .Where(li => li.LineItemType == LineItemType.Product)
+                .Where(li => li.LineItemType == LineItemType.Product
+                          || li.LineItemType == LineItemType.Custom
+                          || li.LineItemType == LineItemType.Addon)
                 .Select(li => new LineItemDto
             {
                 Id = li.Id,
@@ -682,6 +716,12 @@ public class OrdersApiController(
         if (anyShipped) return "Partial";
 
         return "Unfulfilled";
+    }
+
+    private static string GetFulfillmentStatusCssClass(List<Order> orders)
+    {
+        var status = GetFulfillmentStatus(orders);
+        return status.ToLowerInvariant();
     }
 
     private static string GetDeliveryStatus(List<Order> orders)

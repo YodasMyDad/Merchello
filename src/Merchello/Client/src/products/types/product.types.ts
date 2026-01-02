@@ -178,6 +178,8 @@ export interface ProductOptionValueDto {
   priceAdjustment: number;
   costAdjustment: number;
   skuSuffix: string | null;
+  /** Additional weight in kg for add-on shipping calculations */
+  weightKg: number | null;
 }
 
 export interface ProductVariantDto {
@@ -371,6 +373,8 @@ export interface SaveOptionValueDto {
   priceAdjustment: number;
   costAdjustment: number;
   skuSuffix?: string;
+  /** Additional weight in kg for add-on shipping calculations */
+  weightKg?: number;
 }
 
 export interface ProductPageDto {

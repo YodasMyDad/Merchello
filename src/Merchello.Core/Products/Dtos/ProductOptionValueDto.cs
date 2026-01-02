@@ -14,4 +14,5 @@ public class ProductOptionValueDto
     public decimal PriceAdjustment { get; set; }
     public decimal CostAdjustment { get; set; }
     public string? SkuSuffix { get; set; }
+    public decimal? WeightKg { get; set; }
 }

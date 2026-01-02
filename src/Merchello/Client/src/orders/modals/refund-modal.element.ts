@@ -2,6 +2,7 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { getStoreSettings } from "@api/store-settings.js";
 import { formatCurrency, formatShortDate } from "@shared/utils/formatting.js";
 import type { RefundModalData, RefundModalValue } from "./refund-modal.token.js";
 
@@ -15,6 +16,7 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
   @state() private _isManualRefund: boolean = false;
   @state() private _isSaving: boolean = false;
   @state() private _errorMessage: string | null = null;
+  @state() private _quickAmountPercentages: number[] = [50];
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -24,6 +26,14 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
     // Default to manual refund if the payment was manual
     this._isManualRefund = !this.data?.payment.paymentProviderAlias ||
                            this.data?.payment.paymentProviderAlias === "manual";
+
+    // Load quick amount percentages from settings
+    this._loadSettings();
+  }
+
+  private async _loadSettings(): Promise<void> {
+    const settings = await getStoreSettings();
+    this._quickAmountPercentages = settings.refundQuickAmountPercentages;
   }
 
 
@@ -148,14 +158,18 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
               >
                 Full Refund
               </uui-button>
-              <uui-button
-                look="secondary"
-                label="50%"
-                compact
-                @click=${() => (this._amount = payment.refundableAmount * 0.5)}
-              >
-                50%
-              </uui-button>
+              ${this._quickAmountPercentages.map(
+                (pct) => html`
+                  <uui-button
+                    look="secondary"
+                    label="${pct}%"
+                    compact
+                    @click=${() => (this._amount = payment.refundableAmount * (pct / 100))}
+                  >
+                    ${pct}%
+                  </uui-button>
+                `
+              )}
             </div>
           </div>
 

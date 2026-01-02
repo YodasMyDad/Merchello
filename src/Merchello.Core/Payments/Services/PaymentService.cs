@@ -314,11 +314,13 @@ public class PaymentService(
 
     /// <inheritdoc />
     public async Task<CrudResult<Payment>> ProcessRefundAsync(
-        Guid paymentId,
-        decimal? amount,
-        string reason,
+        ProcessRefundParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        var paymentId = parameters.PaymentId;
+        var amount = parameters.Amount;
+        var reason = parameters.Reason;
+
         var result = new CrudResult<Payment>();
 
         // Validate refund reason (required business rule)
@@ -600,85 +602,23 @@ public class PaymentService(
         });
         scope.Complete();
 
-        var details = CalculatePaymentStatus(statusInfo.Payments, statusInfo.InvoiceTotal, statusInfo.CurrencyCode);
+        var details = CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = statusInfo.Payments,
+            InvoiceTotal = statusInfo.InvoiceTotal,
+            CurrencyCode = statusInfo.CurrencyCode
+        });
         return details.Status;
     }
 
     /// <inheritdoc />
-    public PaymentStatusDetails CalculatePaymentStatus(IEnumerable<Payment> payments, decimal invoiceTotal, string currencyCode)
+    public PaymentStatusDetails CalculatePaymentStatus(CalculatePaymentStatusParameters parameters)
     {
-        var paymentList = payments.ToList();
-
-        // Calculate totals - only count successful payments
-        var totalPaid = paymentList
-            .Where(p => p.PaymentSuccess && p.PaymentType == PaymentType.Payment)
-            .Sum(p => p.Amount);
-
-        var totalRefunded = paymentList
-            .Where(p => p.PaymentSuccess &&
-                  (p.PaymentType == PaymentType.Refund || p.PaymentType == PaymentType.PartialRefund))
-            .Sum(p => Math.Abs(p.Amount));
-
-        // Round to avoid floating-point precision issues using currency-aware rounding
-        totalPaid = _currencyService.Round(totalPaid, currencyCode);
-        totalRefunded = _currencyService.Round(totalRefunded, currencyCode);
-        invoiceTotal = _currencyService.Round(invoiceTotal, currencyCode);
-
-        var netPayment = totalPaid - totalRefunded;
-        var balanceDue = Math.Max(0, invoiceTotal - netPayment);
-
-        // Determine status
-        InvoicePaymentStatus status;
-        if (totalRefunded > 0 && netPayment <= 0)
-        {
-            status = InvoicePaymentStatus.Refunded;
-        }
-        else if (totalRefunded > 0 && netPayment < totalPaid)
-        {
-            status = InvoicePaymentStatus.PartiallyRefunded;
-        }
-        else if (netPayment >= invoiceTotal)
-        {
-            status = InvoicePaymentStatus.Paid;
-        }
-        else if (netPayment > 0)
-        {
-            status = InvoicePaymentStatus.PartiallyPaid;
-        }
-        else
-        {
-            status = InvoicePaymentStatus.Unpaid;
-        }
-
-        // Find max risk score
-        var maxRiskPayment = paymentList
-            .Where(p => p.RiskScore.HasValue)
-            .OrderByDescending(p => p.RiskScore)
-            .FirstOrDefault();
-
-        return new PaymentStatusDetails
-        {
-            Status = status,
-            StatusDisplay = PaymentStatusDetails.GetStatusDisplay(status),
-            TotalPaid = totalPaid,
-            TotalRefunded = totalRefunded,
-            NetPayment = netPayment,
-            BalanceDue = balanceDue,
-            MaxRiskScore = maxRiskPayment?.RiskScore,
-            MaxRiskScoreSource = maxRiskPayment?.RiskScoreSource,
-            RiskLevel = PaymentStatusDetails.GetRiskLevel(maxRiskPayment?.RiskScore)
-        };
-    }
-
-    /// <inheritdoc />
-    public PaymentStatusDetails CalculatePaymentStatus(
-        IEnumerable<Payment> payments,
-        decimal invoiceTotal,
-        string currencyCode,
-        decimal? invoiceTotalInStoreCurrency,
-        string storeCurrencyCode)
-    {
-        var paymentList = payments.ToList();
+        var paymentList = parameters.Payments.ToList();
+        var invoiceTotal = parameters.InvoiceTotal;
+        var currencyCode = parameters.CurrencyCode;
+        var invoiceTotalInStoreCurrency = parameters.InvoiceTotalInStoreCurrency;
+        var storeCurrencyCode = parameters.StoreCurrencyCode;
 
         // Calculate totals in invoice currency - only count successful payments
         var totalPaid = paymentList
@@ -688,7 +628,7 @@ public class PaymentService(
         var totalRefunded = paymentList
             .Where(p => p.PaymentSuccess &&
                   (p.PaymentType == PaymentType.Refund || p.PaymentType == PaymentType.PartialRefund))
-            .Sum(p => Math.Abs(p.Amount));
+            .Sum(p => Math.Abs((decimal)p.Amount));
 
         // Round to avoid floating-point precision issues using currency-aware rounding
         totalPaid = _currencyService.Round(totalPaid, currencyCode);
@@ -696,25 +636,33 @@ public class PaymentService(
         invoiceTotal = _currencyService.Round(invoiceTotal, currencyCode);
 
         var netPayment = totalPaid - totalRefunded;
-        var balanceDue = Math.Max(0, invoiceTotal - netPayment);
+        var balanceDue = Math.Max(0m, invoiceTotal - netPayment);
 
-        // Calculate store currency totals
-        var storeTotalPaid = paymentList
-            .Where(p => p.PaymentSuccess && p.PaymentType == PaymentType.Payment)
-            .Sum(p => p.AmountInStoreCurrency ?? p.Amount);
+        // Calculate store currency totals if store currency is provided
+        decimal? storeTotalPaid = null;
+        decimal? storeTotalRefunded = null;
+        decimal? storeNetPayment = null;
+        decimal? storeBalanceDue = null;
 
-        var storeTotalRefunded = paymentList
-            .Where(p => p.PaymentSuccess &&
-                  (p.PaymentType == PaymentType.Refund || p.PaymentType == PaymentType.PartialRefund))
-            .Sum(p => Math.Abs(p.AmountInStoreCurrency ?? p.Amount));
+        if (!string.IsNullOrEmpty(storeCurrencyCode))
+        {
+            storeTotalPaid = paymentList
+                .Where(p => p.PaymentSuccess && p.PaymentType == PaymentType.Payment)
+                .Sum(p => p.AmountInStoreCurrency ?? p.Amount);
 
-        storeTotalPaid = _currencyService.Round(storeTotalPaid, storeCurrencyCode);
-        storeTotalRefunded = _currencyService.Round(storeTotalRefunded, storeCurrencyCode);
+            storeTotalRefunded = paymentList
+                .Where(p => p.PaymentSuccess &&
+                      (p.PaymentType == PaymentType.Refund || p.PaymentType == PaymentType.PartialRefund))
+                .Sum(p => Math.Abs((decimal)(p.AmountInStoreCurrency ?? p.Amount)));
 
-        var storeNetPayment = storeTotalPaid - storeTotalRefunded;
-        var storeInvoiceTotal = invoiceTotalInStoreCurrency ?? invoiceTotal;
-        storeInvoiceTotal = _currencyService.Round(storeInvoiceTotal, storeCurrencyCode);
-        var storeBalanceDue = Math.Max(0, storeInvoiceTotal - storeNetPayment);
+            storeTotalPaid = _currencyService.Round(storeTotalPaid.Value, storeCurrencyCode);
+            storeTotalRefunded = _currencyService.Round(storeTotalRefunded.Value, storeCurrencyCode);
+
+            storeNetPayment = storeTotalPaid - storeTotalRefunded;
+            var storeInvoiceTotal = invoiceTotalInStoreCurrency ?? invoiceTotal;
+            storeInvoiceTotal = _currencyService.Round(storeInvoiceTotal, storeCurrencyCode);
+            storeBalanceDue = Math.Max(0, storeInvoiceTotal - storeNetPayment.Value);
+        }
 
         // Determine status (based on invoice currency, not store currency)
         InvoicePaymentStatus status;
@@ -820,11 +768,13 @@ public class PaymentService(
 
     /// <inheritdoc />
     public async Task<CrudResult<Payment>> RecordManualRefundAsync(
-        Guid paymentId,
-        decimal amount,
-        string reason,
+        RecordManualRefundParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        var paymentId = parameters.PaymentId;
+        var amount = parameters.Amount;
+        var reason = parameters.Reason;
+
         var result = new CrudResult<Payment>();
 
         if (amount <= 0)

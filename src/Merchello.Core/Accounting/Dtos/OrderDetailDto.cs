@@ -55,9 +55,27 @@ public class OrderDetailDto
     /// </summary>
     public string BalanceStatus { get; set; } = "Balanced";
 
+    /// <summary>
+    /// CSS class for balance status styling (e.g., "balanced", "underpaid", "overpaid").
+    /// Calculated by backend to avoid frontend logic duplication.
+    /// </summary>
+    public string BalanceStatusCssClass { get; set; } = "balanced";
+
+    /// <summary>
+    /// Display label for balance due row (e.g., "Balance Due", "Credit Due").
+    /// Calculated by backend to avoid frontend logic duplication.
+    /// </summary>
+    public string BalanceStatusLabel { get; set; } = string.Empty;
+
     public InvoicePaymentStatus PaymentStatus { get; set; }
     public string PaymentStatusDisplay { get; set; } = string.Empty;
     public string FulfillmentStatus { get; set; } = string.Empty;
+
+    /// <summary>
+    /// CSS class for fulfillment status styling (e.g., "unfulfilled", "partial", "fulfilled").
+    /// Calculated by backend to avoid frontend logic duplication.
+    /// </summary>
+    public string FulfillmentStatusCssClass { get; set; } = "unfulfilled";
 
     /// <summary>
     /// Maximum fraud/risk score across all payments (0-100 scale).
@@ -85,7 +103,19 @@ public class OrderDetailDto
     public List<InvoiceNoteDto> Notes { get; set; } = [];
 
     /// <summary>
+    /// Total number of items in the order (sum of line item quantities).
+    /// Calculated by backend to avoid frontend logic duplication.
+    /// </summary>
+    public int ItemCount { get; set; }
+
+    /// <summary>
     /// Count of orders with the same billing email (for customer order history)
     /// </summary>
     public int CustomerOrderCount { get; set; }
+
+    /// <summary>
+    /// Whether the invoice can be fulfilled (has unfulfilled items and is not cancelled).
+    /// Calculated by backend to avoid frontend logic duplication.
+    /// </summary>
+    public bool CanFulfill { get; set; }
 }

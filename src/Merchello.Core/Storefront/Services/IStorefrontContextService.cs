@@ -1,5 +1,6 @@
 using Merchello.Core.Products.Models;
 using Merchello.Core.Storefront.Models;
+using Merchello.Core.Storefront.Services.Parameters;
 
 namespace Merchello.Core.Storefront.Services;
 
@@ -29,7 +30,7 @@ public interface IStorefrontContextService
     /// Gets stock available for a specific location.
     /// Only counts stock from warehouses that can ship to the specified country/region.
     /// </summary>
-    Task<int> GetAvailableStockForLocationAsync(Product product, string countryCode, string? regionCode = null, CancellationToken ct = default);
+    Task<int> GetAvailableStockForLocationAsync(GetStockForLocationParameters parameters, CancellationToken ct = default);
 
     /// <summary>
     /// Checks if a product can ship to the current customer's location.
@@ -48,9 +49,6 @@ public interface IStorefrontContextService
     /// Gets full availability info for a product at a specific location.
     /// </summary>
     Task<ProductLocationAvailability> GetProductAvailabilityForLocationAsync(
-        Product product,
-        string countryCode,
-        string? regionCode = null,
-        int quantity = 1,
+        ProductAvailabilityParameters parameters,
         CancellationToken ct = default);
 }

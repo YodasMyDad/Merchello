@@ -7,6 +7,7 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
+using Merchello.Core.Warehouses.Services.Parameters;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -71,11 +72,12 @@ public class DefaultOrderGroupingStrategy(
             }
 
             // Use WarehouseService to select best warehouse based on priority, region, and stock
-            var selectionResult = await warehouseService.SelectWarehouseForProduct(
-                product,
-                context.ShippingAddress,
-                lineItem.Quantity,
-                cancellationToken);
+            var selectionResult = await warehouseService.SelectWarehouseForProduct(new SelectWarehouseForProductParameters
+            {
+                Product = product,
+                ShippingAddress = context.ShippingAddress,
+                Quantity = lineItem.Quantity
+            }, cancellationToken);
 
             if (!selectionResult.Success)
             {

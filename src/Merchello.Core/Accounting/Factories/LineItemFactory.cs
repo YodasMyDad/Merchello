@@ -20,6 +20,7 @@ public class LineItemFactory
             Sku = product.Sku,
             Quantity = quantity,
             Amount = product.Price,
+            Cost = product.CostOfGoods,
             LineItemType = LineItemType.Product,
             IsTaxable = taxRate > 0,
             TaxRate = taxRate
@@ -46,10 +47,15 @@ public class LineItemFactory
     /// Creates an order line item from a basket line item with allocated quantity and amount.
     /// Used during order creation when basket items may be split across multiple orders.
     /// </summary>
+    /// <param name="basketLineItem">The source basket line item</param>
+    /// <param name="allocatedQuantity">Quantity allocated to this order</param>
+    /// <param name="allocatedAmount">Amount allocated to this order</param>
+    /// <param name="cost">Cost of goods for this item (captured at order time for profit calculations)</param>
     public LineItem CreateForOrder(
         LineItem basketLineItem,
         int allocatedQuantity,
-        decimal allocatedAmount)
+        decimal allocatedAmount,
+        decimal cost = 0)
     {
         return new LineItem
         {
@@ -59,6 +65,7 @@ public class LineItemFactory
             Sku = basketLineItem.Sku,
             Quantity = allocatedQuantity,
             Amount = allocatedAmount,
+            Cost = cost,
             OriginalAmount = basketLineItem.OriginalAmount,
             LineItemType = basketLineItem.LineItemType,
             IsTaxable = basketLineItem.IsTaxable,
@@ -70,9 +77,13 @@ public class LineItemFactory
 
     /// <summary>
     /// Creates an add-on line item for an order (e.g., custom/service items dependent on a product).
+    /// Cost is extracted from ExtendedData["CostAdjustment"] if available.
     /// </summary>
     public LineItem CreateAddonForOrder(LineItem addonItem, int quantity)
     {
+        // Extract cost from ExtendedData if available (stored when add-on was added to basket)
+        var cost = GetDecimalFromExtendedData(addonItem.ExtendedData, "CostAdjustment");
+
         return new LineItem
         {
             Id = GuidExtensions.NewSequentialGuid,
@@ -81,6 +92,7 @@ public class LineItemFactory
             Sku = addonItem.Sku,
             Quantity = quantity,
             Amount = addonItem.Amount,
+            Cost = cost,
             OriginalAmount = addonItem.OriginalAmount,
             LineItemType = addonItem.LineItemType,
             IsTaxable = addonItem.IsTaxable,
@@ -119,6 +131,35 @@ public class LineItemFactory
             DependantLineItemSku = discountItem.DependantLineItemSku,
             ExtendedData = discountItem.ExtendedData // Preserves DiscountId, DiscountCode, etc.
         };
+    }
+
+    /// <summary>
+    /// Safely extracts a decimal value from ExtendedData, handling JSON deserialization edge cases.
+    /// </summary>
+    private static decimal GetDecimalFromExtendedData(Dictionary<string, object> extendedData, string key)
+    {
+        if (!extendedData.TryGetValue(key, out var value))
+        {
+            return 0m;
+        }
+
+        // Handle JsonElement (from JSON deserialization)
+        if (value is System.Text.Json.JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind == System.Text.Json.JsonValueKind.Number
+                ? jsonElement.GetDecimal()
+                : 0m;
+        }
+
+        // Handle direct decimal or numeric types
+        try
+        {
+            return Convert.ToDecimal(value);
+        }
+        catch
+        {
+            return 0m;
+        }
     }
 }
 

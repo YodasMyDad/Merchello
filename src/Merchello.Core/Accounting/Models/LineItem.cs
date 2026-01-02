@@ -75,6 +75,18 @@ public class LineItem
     public decimal? AmountInStoreCurrency { get; set; }
 
     /// <summary>
+    /// The cost of goods for this line item (unit cost).
+    /// For products, this is Product.CostOfGoods at order time.
+    /// For add-ons, this is ProductOptionValue.CostAdjustment.
+    /// </summary>
+    public decimal Cost { get; set; }
+
+    /// <summary>
+    /// Unit cost in store currency (for multi-currency reporting).
+    /// </summary>
+    public decimal? CostInStoreCurrency { get; set; }
+
+    /// <summary>
     /// Optional value, only added when the line item price has been manually changed from the original
     /// </summary>
     public decimal? OriginalAmount { get; set; }

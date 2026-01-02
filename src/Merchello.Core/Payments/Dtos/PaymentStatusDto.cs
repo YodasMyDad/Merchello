@@ -48,4 +48,16 @@ public class PaymentStatusDto
     /// Calculated by backend to ensure consistency - frontend should use this instead of local amount comparisons.
     /// </summary>
     public string BalanceStatus { get; set; } = "Balanced";
+
+    /// <summary>
+    /// CSS class for balance status styling (e.g., "balanced", "underpaid", "overpaid").
+    /// Calculated by backend to avoid frontend logic duplication.
+    /// </summary>
+    public string BalanceStatusCssClass { get; set; } = "balanced";
+
+    /// <summary>
+    /// Display label for balance due row (e.g., "Balance Due", "Credit Due").
+    /// Calculated by backend to avoid frontend logic duplication.
+    /// </summary>
+    public string BalanceStatusLabel { get; set; } = string.Empty;
 }

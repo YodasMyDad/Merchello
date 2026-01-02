@@ -71,7 +71,12 @@ public class PaymentServiceTests
         var service = CreateService();
 
         // Act
-        var result = await service.ProcessRefundAsync(paymentId, 25m, "Test refund");
+        var result = await service.ProcessRefundAsync(new ProcessRefundParameters
+        {
+            PaymentId = paymentId,
+            Amount = 25m,
+            Reason = "Test refund"
+        });
 
         // Assert
         result.ResultObject.ShouldBeNull();
@@ -103,7 +108,12 @@ public class PaymentServiceTests
         var service = CreateService();
 
         // Act - try to refund 80 when only 70 is refundable (100 - 30)
-        var result = await service.ProcessRefundAsync(paymentId, 80m, "Test refund");
+        var result = await service.ProcessRefundAsync(new ProcessRefundParameters
+        {
+            PaymentId = paymentId,
+            Amount = 80m,
+            Reason = "Test refund"
+        });
 
         // Assert
         result.ResultObject.ShouldBeNull();
@@ -147,7 +157,12 @@ public class PaymentServiceTests
         var service = CreateService();
 
         // Act - try partial refund of 50 on 100 payment
-        var result = await service.ProcessRefundAsync(paymentId, 50m, "Partial refund");
+        var result = await service.ProcessRefundAsync(new ProcessRefundParameters
+        {
+            PaymentId = paymentId,
+            Amount = 50m,
+            Reason = "Partial refund"
+        });
 
         // Assert
         result.ResultObject.ShouldBeNull();

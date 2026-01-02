@@ -165,7 +165,7 @@ public class ProductService(
                     {
                         var template = products.FirstOrDefault();
 
-                        var p = productFactory.Create(productRootDb, $"{productRootDb.RootName} - {keyValuePair.Value}",
+                        var p = productFactory.Create(productRootDb, keyValuePair.Value,
                             template!.Price,
                             template.CostOfGoods, template.Gtin ?? "", template.Sku ?? "",
                             false, keyValuePair.Key);
@@ -336,14 +336,7 @@ public class ProductService(
     /// Creates a ProductRoot without variants (wizard step 1)
     /// </summary>
     public async Task<CrudResult<ProductRoot>> CreateProductRootOnly(
-        string name,
-        decimal price,
-        decimal costOfGoods,
-        decimal weight,
-        Guid taxGroupId,
-        Guid productTypeId,
-        List<Guid> collectionIds,
-        string? description = null,
+        CreateProductRootOnlyParameters parameters,
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<ProductRoot>();
@@ -352,14 +345,14 @@ public class ProductService(
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
-            var taxGroup = await db.TaxGroups.FindAsync([taxGroupId], cancellationToken);
+            var taxGroup = await db.TaxGroups.FindAsync([parameters.TaxGroupId], cancellationToken);
             if (taxGroup == null)
             {
                 result.AddErrorMessage("Tax group not found");
                 return;
             }
 
-            var productType = await db.ProductTypes.FindAsync([productTypeId], cancellationToken);
+            var productType = await db.ProductTypes.FindAsync([parameters.ProductTypeId], cancellationToken);
             if (productType == null)
             {
                 result.AddErrorMessage("Product type not found");
@@ -367,18 +360,18 @@ public class ProductService(
             }
 
             var collections = await db.ProductCollections
-                .Where(c => collectionIds.Contains(c.Id))
+                .Where(c => parameters.CollectionIds.Contains(c.Id))
                 .ToListAsync(cancellationToken);
 
             productRoot = new ProductRoot
             {
                 Id = Guid.NewGuid(),
-                RootName = name,
-                RootUrl = slugHelper.GenerateSlug(name),
+                RootName = parameters.Name,
+                RootUrl = slugHelper.GenerateSlug(parameters.Name),
                 TaxGroup = taxGroup,
-                TaxGroupId = taxGroupId,
+                TaxGroupId = parameters.TaxGroupId,
                 ProductType = productType,
-                ProductTypeId = productTypeId,
+                ProductTypeId = parameters.ProductTypeId,
                 Collections = collections
             };
 
@@ -397,14 +390,7 @@ public class ProductService(
     /// Adds a product option to an existing ProductRoot
     /// </summary>
     public async Task<CrudResult<ProductOption>> AddProductOption(
-        Guid productRootId,
-        string name,
-        string? alias,
-        int sortOrder,
-        string? optionTypeAlias,
-        string? optionUiAlias,
-        bool isVariant,
-        List<(string Name, string? FullName, int SortOrder, string? HexValue, decimal PriceAdjustment, decimal CostAdjustment, string? SkuSuffix)> values,
+        AddProductOptionParameters parameters,
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<ProductOption>();
@@ -414,7 +400,7 @@ public class ProductService(
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var productRoot = await db.RootProducts
-                .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
+                .FirstOrDefaultAsync(pr => pr.Id == parameters.ProductRootId, cancellationToken);
 
             if (productRoot == null)
             {
@@ -422,7 +408,7 @@ public class ProductService(
                 return;
             }
 
-            option = productOptionFactory.Create(name, alias, sortOrder, optionTypeAlias, optionUiAlias, isVariant, values);
+            option = productOptionFactory.Create(parameters);
             productRoot.ProductOptions.Add(option);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
         });
@@ -487,11 +473,7 @@ public class ProductService(
     /// Updates stock levels for a variant at a specific warehouse
     /// </summary>
     public async Task<CrudResult<bool>> UpdateVariantStock(
-        Guid variantId,
-        Guid warehouseId,
-        int stock,
-        int? reorderPoint,
-        bool trackStock,
+        UpdateVariantStockParameters parameters,
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
@@ -500,32 +482,32 @@ public class ProductService(
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var productWarehouse = await db.ProductWarehouses
-                .FirstOrDefaultAsync(pw => pw.ProductId == variantId && pw.WarehouseId == warehouseId, cancellationToken);
+                .FirstOrDefaultAsync(pw => pw.ProductId == parameters.VariantId && pw.WarehouseId == parameters.WarehouseId, cancellationToken);
 
             if (productWarehouse == null)
             {
                 productWarehouse = new ProductWarehouse
                 {
-                    ProductId = variantId,
-                    WarehouseId = warehouseId,
-                    Stock = stock,
-                    ReorderPoint = reorderPoint,
-                    TrackStock = trackStock
+                    ProductId = parameters.VariantId,
+                    WarehouseId = parameters.WarehouseId,
+                    Stock = parameters.Stock,
+                    ReorderPoint = parameters.ReorderPoint,
+                    TrackStock = parameters.TrackStock
                 };
                 db.ProductWarehouses.Add(productWarehouse);
             }
             else
             {
-                productWarehouse.Stock = stock;
-                productWarehouse.ReorderPoint = reorderPoint;
-                productWarehouse.TrackStock = trackStock;
+                productWarehouse.Stock = parameters.Stock;
+                productWarehouse.ReorderPoint = parameters.ReorderPoint;
+                productWarehouse.TrackStock = parameters.TrackStock;
             }
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             logger.LogDebug(
                 "UpdateVariantStock: Variant {VariantId}, Warehouse {WarehouseId}, Stock {Stock}, TrackStock {TrackStock}",
-                variantId, warehouseId, stock, trackStock);
+                parameters.VariantId, parameters.WarehouseId, parameters.Stock, parameters.TrackStock);
 
             result.ResultObject = true;
         });
@@ -538,11 +520,7 @@ public class ProductService(
     /// Applies stock template to all variants of a product root for a specific warehouse
     /// </summary>
     public async Task<CrudResult<bool>> ApplyStockTemplateToAllVariants(
-        Guid productRootId,
-        Guid warehouseId,
-        int defaultStock,
-        int? defaultReorderPoint,
-        bool trackStock,
+        ApplyStockTemplateParameters parameters,
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
@@ -552,7 +530,7 @@ public class ProductService(
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             variants = await db.Products
-                .Where(p => p.ProductRootId == productRootId)
+                .Where(p => p.ProductRootId == parameters.ProductRootId)
                 .ToListAsync(cancellationToken);
         });
 
@@ -567,11 +545,14 @@ public class ProductService(
         foreach (var variant in variants)
         {
             var stockResult = await UpdateVariantStock(
-                variant.Id,
-                warehouseId,
-                defaultStock,
-                defaultReorderPoint,
-                trackStock,
+                new UpdateVariantStockParameters
+                {
+                    VariantId = variant.Id,
+                    WarehouseId = parameters.WarehouseId,
+                    Stock = parameters.DefaultStock,
+                    ReorderPoint = parameters.DefaultReorderPoint,
+                    TrackStock = parameters.TrackStock
+                },
                 cancellationToken
             );
 
@@ -871,8 +852,9 @@ public class ProductService(
         {
             var variantOption = variantOptions[index];
             var variantKeyName = variantOption.GenerateVariantKeyName();
-            var variantName = $"{productRoot.RootName} - {variantKeyName.Name}";
-            var variantSku = GenerateVariantSku(variantName, baseSku);
+            var variantName = variantKeyName.Name;
+            var skuBase = $"{productRoot.RootName} - {variantKeyName.Name}";
+            var variantSku = GenerateVariantSku(skuBase, baseSku);
             variantData.Add((variantOption, variantName, variantSku));
         }
 
@@ -2296,6 +2278,7 @@ public class ProductService(
                     value.PriceAdjustment = valueRequest.PriceAdjustment;
                     value.CostAdjustment = valueRequest.CostAdjustment;
                     value.SkuSuffix = valueRequest.SkuSuffix;
+                    value.WeightKg = valueRequest.WeightKg;
                 }
 
                 savedOptions.Add(option);
@@ -2541,7 +2524,8 @@ public class ProductService(
             MediaKey = value.MediaKey,
             PriceAdjustment = value.PriceAdjustment,
             CostAdjustment = value.CostAdjustment,
-            SkuSuffix = value.SkuSuffix
+            SkuSuffix = value.SkuSuffix,
+            WeightKg = value.WeightKg
         };
     }
 
@@ -2681,10 +2665,7 @@ public class ProductService(
     /// Creates a new product filter within a filter group
     /// </summary>
     public async Task<CrudResult<ProductFilter>> CreateFilter(
-        Guid filterGroupId,
-        string name,
-        string? hexColour = null,
-        Guid? image = null,
+        CreateFilterParameters parameters,
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<ProductFilter>();
@@ -2694,26 +2675,26 @@ public class ProductService(
         {
             // Get the current filter count for sort order
             var filterCount = await db.ProductFilters
-                .CountAsync(f => f.ProductFilterGroupId == filterGroupId, cancellationToken);
+                .CountAsync(f => f.ProductFilterGroupId == parameters.FilterGroupId, cancellationToken);
 
             // Verify filter group exists
             var filterGroupExists = await db.ProductFilterGroups
-                .AnyAsync(fg => fg.Id == filterGroupId, cancellationToken);
+                .AnyAsync(fg => fg.Id == parameters.FilterGroupId, cancellationToken);
 
             if (!filterGroupExists)
             {
-                result.AddErrorMessage($"Filter group with ID {filterGroupId} not found");
+                result.AddErrorMessage("Filter group with ID " + parameters.FilterGroupId + " not found");
                 return;
             }
 
             var filter = new ProductFilter
             {
                 Id = GuidExtensions.NewSequentialGuid,
-                Name = name,
-                HexColour = hexColour,
-                Image = image,
+                Name = parameters.Name,
+                HexColour = parameters.HexColour,
+                Image = parameters.Image,
                 SortOrder = filterCount,
-                ProductFilterGroupId = filterGroupId
+                ProductFilterGroupId = parameters.FilterGroupId
             };
 
             db.ProductFilters.Add(filter);
@@ -2855,11 +2836,7 @@ public class ProductService(
     /// Updates a filter
     /// </summary>
     public async Task<CrudResult<ProductFilter>> UpdateFilter(
-        Guid filterId,
-        string? name,
-        string? hexColour,
-        Guid? image,
-        int? sortOrder,
+        UpdateFilterParameters parameters,
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<ProductFilter>();
@@ -2868,18 +2845,18 @@ public class ProductService(
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var filter = await db.ProductFilters
-                .FirstOrDefaultAsync(f => f.Id == filterId, cancellationToken);
+                .FirstOrDefaultAsync(f => f.Id == parameters.FilterId, cancellationToken);
 
             if (filter == null)
             {
-                result.AddErrorMessage($"Filter with ID {filterId} not found");
+                result.AddErrorMessage("Filter with ID " + parameters.FilterId + " not found");
                 return;
             }
 
-            if (name != null) filter.Name = name;
-            if (hexColour != null) filter.HexColour = hexColour == "" ? null : hexColour;
-            if (image.HasValue) filter.Image = image.Value == Guid.Empty ? null : image.Value;
-            if (sortOrder.HasValue) filter.SortOrder = sortOrder.Value;
+            if (parameters.Name != null) filter.Name = parameters.Name;
+            if (parameters.HexColour != null) filter.HexColour = parameters.HexColour == "" ? null : parameters.HexColour;
+            if (parameters.Image.HasValue) filter.Image = parameters.Image.Value == Guid.Empty ? null : parameters.Image.Value;
+            if (parameters.SortOrder.HasValue) filter.SortOrder = parameters.SortOrder.Value;
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = filter;

@@ -493,7 +493,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
   }
 
   private _renderFulfillmentCard(fulfillmentOrder: FulfillmentOrderDto): unknown {
-    const isFulfilled = this._order?.fulfillmentStatus === "Fulfilled";
+    const canFulfill = this._order?.canFulfill ?? false;
     const currencyCode = this._order?.currencyCode;
     const currencySymbol = this._order?.currencySymbol;
 
@@ -540,12 +540,12 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
         <div class="fulfillment-footer">
           <div class="fulfillment-actions">
             <uui-button
-              look="${isFulfilled ? 'secondary' : 'primary'}"
-              label="${isFulfilled ? 'Fulfilled' : 'Fulfil'}"
-              ?disabled=${isFulfilled}
-              @click=${isFulfilled ? nothing : this._openFulfillmentModal}
+              look="${canFulfill ? 'primary' : 'secondary'}"
+              label="${canFulfill ? 'Fulfil' : 'Fulfilled'}"
+              ?disabled=${!canFulfill}
+              @click=${canFulfill ? this._openFulfillmentModal : nothing}
             >
-              ${isFulfilled ? "Fulfilled" : "Fulfil"}
+              ${canFulfill ? "Fulfil" : "Fulfilled"}
             </uui-button>
             <uui-button look="outline" label="Create shipping label">
               Create shipping label
@@ -671,7 +671,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <span class="order-meta">${formatDateTime(order.dateCreated)} from ${order.channel}</span>
           </div>
           <span class="badge ${getPaymentStatusBadgeClass(order.paymentStatus)}">${order.paymentStatusDisplay}</span>
-          <span class="badge ${order.fulfillmentStatus.toLowerCase().replace(" ", "-")}">${order.fulfillmentStatus}</span>
+          <span class="badge ${order.fulfillmentStatusCssClass}">${order.fulfillmentStatus}</span>
           ${order.isCancelled ? html`<span class="badge cancelled">Cancelled</span>` : nothing}
         </div>
 
@@ -743,7 +743,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
               <div class="payment-summary">
                 <div class="summary-row">
                   <span>Subtotal</span>
-                  <span>${order.orders.reduce((sum, o) => sum + o.lineItems.reduce((s, li) => s + li.quantity, 0), 0)} items</span>
+                  <span>${order.itemCount} items</span>
                   <span>${formatCurrency(order.subTotal, order.currencyCode, order.currencySymbol)}</span>
                 </div>
                 ${order.discountTotal > 0 ? html`
@@ -784,7 +784,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                     <span>${formatCurrency(order.totalInStoreCurrency, order.storeCurrencyCode, order.storeCurrencySymbol)}</span>
                   </div>
                 ` : nothing}
-                <div class="summary-row ${order.balanceStatus === 'Overpaid' ? 'overpaid' : order.balanceStatus === 'Underpaid' ? 'underpaid' : ''}">
+                <div class="summary-row ${order.balanceStatusCssClass}">
                   <span>Paid</span>
                   <span></span>
                   <span>${formatCurrency(order.amountPaid, order.currencyCode, order.currencySymbol)}</span>
@@ -796,16 +796,16 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                     <span>${formatCurrency(order.amountPaidInStoreCurrency, order.storeCurrencyCode, order.storeCurrencySymbol)}</span>
                   </div>
                 ` : nothing}
-                ${order.balanceStatus !== 'Balanced' ? html`
-                  <div class="summary-row balance ${order.balanceStatus === 'Underpaid' ? 'underpaid' : 'overpaid'}">
-                    <span>${order.balanceStatus === 'Underpaid' ? 'Balance Due' : 'Credit Due'}</span>
+                ${order.balanceStatusLabel ? html`
+                  <div class="summary-row balance ${order.balanceStatusCssClass}">
+                    <span>${order.balanceStatusLabel}</span>
                     <span></span>
                     <span>${formatCurrency(Math.abs(order.balanceDue), order.currencyCode, order.currencySymbol)}</span>
                   </div>
                 ` : nothing}
-                ${order.balanceDueInStoreCurrency != null && order.storeCurrencyCode !== order.currencyCode && order.balanceStatus !== 'Balanced' ? html`
+                ${order.balanceDueInStoreCurrency != null && order.storeCurrencyCode !== order.currencyCode && order.balanceStatusLabel ? html`
                   <div class="summary-row">
-                    <span>${order.balanceStatus === 'Underpaid' ? 'Balance Due (Store)' : 'Credit Due (Store)'}</span>
+                    <span>${order.balanceStatusLabel} (Store)</span>
                     <span></span>
                     <span>${formatCurrency(Math.abs(order.balanceDueInStoreCurrency ?? 0), order.storeCurrencyCode, order.storeCurrencySymbol)}</span>
                   </div>

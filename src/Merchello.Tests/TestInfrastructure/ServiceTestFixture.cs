@@ -364,6 +364,19 @@ public class ServiceTestFixture : IDisposable
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Customer>>>>()))
                     .Returns((Func<MerchelloDbContext, Task<List<Customer>>> func) => func(dbContext));
 
+                // Reporting service return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Core.Reporting.Dtos.SalesBreakdownDto>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Core.Reporting.Dtos.SalesBreakdownDto>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Core.Reporting.Dtos.AnalyticsSummaryDto>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Core.Reporting.Dtos.AnalyticsSummaryDto>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Core.Reporting.Dtos.TimeSeriesDataPointDto>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<Core.Reporting.Dtos.TimeSeriesDataPointDto>>> func) => func(dbContext));
+
                 scopeMock.Setup(s => s.Complete()).Returns(true);
                 scopeMock.Setup(s => s.Dispose()).Callback(dbContext.Dispose);
 

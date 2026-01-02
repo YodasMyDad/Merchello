@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Products.Services.Parameters;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -135,7 +136,13 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CreateFilter(Guid groupId, [FromBody] CreateFilterDto dto, CancellationToken ct)
     {
-        var result = await productService.CreateFilter(groupId, dto.Name, dto.HexColour, dto.Image, ct);
+        var result = await productService.CreateFilter(new CreateFilterParameters
+        {
+            FilterGroupId = groupId,
+            Name = dto.Name,
+            HexColour = dto.HexColour,
+            Image = dto.Image
+        }, ct);
         if (!result.Successful)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to create filter.";
@@ -176,7 +183,14 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateFilter(Guid id, [FromBody] UpdateFilterDto dto, CancellationToken ct)
     {
-        var result = await productService.UpdateFilter(id, dto.Name, dto.HexColour, dto.Image, dto.SortOrder, ct);
+        var result = await productService.UpdateFilter(new UpdateFilterParameters
+        {
+            FilterId = id,
+            Name = dto.Name,
+            HexColour = dto.HexColour,
+            Image = dto.Image,
+            SortOrder = dto.SortOrder
+        }, ct);
 
         if (!result.Successful)
         {

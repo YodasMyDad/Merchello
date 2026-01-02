@@ -11,4 +11,7 @@ internal record BreakdownData(
     decimal ShippingCharges,
     decimal ReturnFees,
     decimal Taxes,
-    decimal TotalSales);
+    decimal TotalSales,
+    decimal TotalCost,
+    decimal GrossProfit,
+    decimal GrossProfitMargin);

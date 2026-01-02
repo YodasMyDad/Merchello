@@ -5,6 +5,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Warehouses.Models;
@@ -168,11 +169,14 @@ public static class ProductServiceDbSeedExtensions
                                 var reorderPoint = trackStock ? Math.Max(5, (int)(maxStock * 0.25)) : (int?)null;
 
                                 await productService.UpdateVariantStock(
-                                    variant.Id,
-                                    warehouse.Id,
-                                    stock,
-                                    reorderPoint,
-                                    trackStock,
+                                    new UpdateVariantStockParameters
+                                    {
+                                        VariantId = variant.Id,
+                                        WarehouseId = warehouse.Id,
+                                        Stock = stock,
+                                        ReorderPoint = reorderPoint,
+                                        TrackStock = trackStock
+                                    },
                                     cancellationToken);
                             }
                         }
@@ -201,11 +205,14 @@ public static class ProductServiceDbSeedExtensions
                             var reorderPoint = trackStock ? Math.Max(5, (int)(maxStock * 0.25)) : (int?)null;
 
                             await productService.UpdateVariantStock(
-                                defaultVariant.Id,
-                                warehouse.Id,
-                                stock,
-                                reorderPoint,
-                                trackStock,
+                                new UpdateVariantStockParameters
+                                {
+                                    VariantId = defaultVariant.Id,
+                                    WarehouseId = warehouse.Id,
+                                    Stock = stock,
+                                    ReorderPoint = reorderPoint,
+                                    TrackStock = trackStock
+                                },
                                 cancellationToken);
                         }
                     }

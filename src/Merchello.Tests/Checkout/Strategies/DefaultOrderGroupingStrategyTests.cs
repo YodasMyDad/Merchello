@@ -11,6 +11,7 @@ using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
+using Merchello.Core.Warehouses.Services.Parameters;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -87,9 +88,7 @@ public class DefaultOrderGroupingStrategyTests
 
         _warehouseServiceMock
             .Setup(x => x.SelectWarehouseForProduct(
-                It.IsAny<Product>(),
-                It.IsAny<Address>(),
-                It.IsAny<int>(),
+                It.IsAny<SelectWarehouseForProductParameters>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WarehouseSelectionResult
             {
@@ -135,9 +134,7 @@ public class DefaultOrderGroupingStrategyTests
 
         _warehouseServiceMock
             .Setup(x => x.SelectWarehouseForProduct(
-                It.IsAny<Product>(),
-                It.IsAny<Address>(),
-                It.IsAny<int>(),
+                It.IsAny<SelectWarehouseForProductParameters>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WarehouseSelectionResult
             {
@@ -187,9 +184,7 @@ public class DefaultOrderGroupingStrategyTests
 
         _warehouseServiceMock
             .Setup(x => x.SelectWarehouseForProduct(
-                It.Is<Product>(p => p.Id == productId1),
-                It.IsAny<Address>(),
-                It.IsAny<int>(),
+                It.Is<SelectWarehouseForProductParameters>(p => p.Product.Id == productId1),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WarehouseSelectionResult
             {
@@ -198,9 +193,7 @@ public class DefaultOrderGroupingStrategyTests
 
         _warehouseServiceMock
             .Setup(x => x.SelectWarehouseForProduct(
-                It.Is<Product>(p => p.Id == productId2),
-                It.IsAny<Address>(),
-                It.IsAny<int>(),
+                It.Is<SelectWarehouseForProductParameters>(p => p.Product.Id == productId2),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WarehouseSelectionResult
             {
@@ -231,9 +224,7 @@ public class DefaultOrderGroupingStrategyTests
 
         _warehouseServiceMock
             .Setup(x => x.SelectWarehouseForProduct(
-                It.IsAny<Product>(),
-                It.IsAny<Address>(),
-                It.IsAny<int>(),
+                It.IsAny<SelectWarehouseForProductParameters>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WarehouseSelectionResult
             {
@@ -265,9 +256,7 @@ public class DefaultOrderGroupingStrategyTests
 
         _warehouseServiceMock
             .Setup(x => x.SelectWarehouseForProduct(
-                It.IsAny<Product>(),
-                It.IsAny<Address>(),
-                It.IsAny<int>(),
+                It.IsAny<SelectWarehouseForProductParameters>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WarehouseSelectionResult
             {

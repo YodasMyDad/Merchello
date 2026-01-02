@@ -26,6 +26,7 @@ using Merchello.Core.Notifications.Order;
 using Merchello.Core.Notifications.Shipment;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared;
@@ -163,6 +164,18 @@ public class InvoiceService(
             // Create one order per warehouse shipping group
             List<Order> orders = [];
 
+            // Load products to capture CostOfGoods at order time for profit calculations
+            var productIds = basket.LineItems
+                .Where(li => li.ProductId.HasValue)
+                .Select(li => li.ProductId!.Value)
+                .Distinct()
+                .ToList();
+
+            var products = productIds.Any()
+                ? await db.Products.Where(p => productIds.Contains(p.Id))
+                    .ToDictionaryAsync(p => p.Id, cancellationToken)
+                : new Dictionary<Guid, Product>();
+
             foreach (var group in shippingResult.WarehouseGroups)
             {
                 // Determine which shipping option was selected for this group
@@ -219,16 +232,25 @@ public class InvoiceService(
                         continue;
                     }
 
+                    // Get cost of goods from product (captured at order time for profit calculations)
+                    var cost = 0m;
+                    if (basketLineItem.ProductId.HasValue &&
+                        products.TryGetValue(basketLineItem.ProductId.Value, out var product))
+                    {
+                        cost = product.CostOfGoods;
+                    }
+
                     var orderLineItem = lineItemFactory.CreateForOrder(
                         basketLineItem,
                         shippingLineItem.Quantity,  // Use allocated quantity (not basket quantity)
-                        shippingLineItem.Amount);   // Use allocated amount (not basket amount)
+                        shippingLineItem.Amount,    // Use allocated amount (not basket amount)
+                        cost);                      // Captured cost of goods for profit calculations
 
                     orderLineItems.Add(orderLineItem);
 
                     // Attach any add-on (custom) items dependent on this product SKU
                     var dependentAddons = basket.LineItems
-                        .Where(li => li.LineItemType == LineItemType.Custom && li.DependantLineItemSku == basketLineItem.Sku)
+                        .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == basketLineItem.Sku)
                         .ToList();
 
                     foreach (var addon in dependentAddons)
@@ -1103,7 +1125,12 @@ public class InvoiceService(
                 var filteredInvoices = invoicesWithPayments.Where(invoice =>
                 {
                     var payments = invoice.Payments?.ToList() ?? [];
-                    var statusDetails = paymentService.CalculatePaymentStatus(payments, invoice.Total, invoice.CurrencyCode);
+                    var statusDetails = paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+                    {
+                        Payments = payments,
+                        InvoiceTotal = invoice.Total,
+                        CurrencyCode = invoice.CurrencyCode
+                    });
 
                     return parameters.PaymentStatusFilter switch
                     {
@@ -1405,7 +1432,12 @@ public class InvoiceService(
             foreach (var invoice in invoices)
             {
                 var payments = invoice.Payments?.ToList() ?? [];
-                var paymentDetails = paymentService.CalculatePaymentStatus(payments, invoice.Total, invoice.CurrencyCode);
+                var paymentDetails = paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+                {
+                    Payments = payments,
+                    InvoiceTotal = invoice.Total,
+                    CurrencyCode = invoice.CurrencyCode
+                });
                 var shippingTotal = invoice.Orders?.Sum(o => o.ShippingCost) ?? 0;
                 var shippingTotalInStoreCurrency = invoice.Orders?.Sum(o => o.ShippingCostInStoreCurrency ?? o.ShippingCost) ?? 0;
 
@@ -1437,13 +1469,15 @@ public class InvoiceService(
 
     /// <inheritdoc />
     public async Task<CrudResult<InvoiceNote>> AddNoteAsync(
-        Guid invoiceId,
-        string text,
-        bool visibleToCustomer,
-        Guid? authorId = null,
-        string? authorName = null,
+        AddInvoiceNoteParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        var invoiceId = parameters.InvoiceId;
+        var text = parameters.Text;
+        var visibleToCustomer = parameters.VisibleToCustomer;
+        var authorId = parameters.AuthorId;
+        var authorName = parameters.AuthorName;
+
         var result = new CrudResult<InvoiceNote>();
 
         using var scope = efCoreScopeProvider.CreateScope();
@@ -2014,6 +2048,11 @@ public class InvoiceService(
         return anyShipped ? "Partial" : "Unfulfilled";
     }
 
+    private static string GetFulfillmentStatusCssClass(List<Order> orders)
+    {
+        return GetFulfillmentStatus(orders).ToLowerInvariant();
+    }
+
     /// <inheritdoc />
     public async Task<int> GetInvoiceCountByBillingEmailAsync(
         string email,
@@ -2146,12 +2185,23 @@ public class InvoiceService(
             var shippingTotal = currencyService.Round(orders.Sum(o => o.ShippingCost), currencyCode);
 
             // Use centralized calculation method - handles before-tax and after-tax discounts
-            var (subTotal, discountTotal, adjustedSubTotal, tax, total, _) =
-                lineItemService.CalculateFromLineItems(allLineItems, shippingTotal, 0, currencyCode, isShippingTaxable: false);
+            var calcResult = lineItemService.CalculateFromLineItems(new CalculateLineItemsParameters
+            {
+                LineItems = allLineItems,
+                ShippingAmount = shippingTotal,
+                DefaultTaxRate = 0,
+                CurrencyCode = currencyCode,
+                IsShippingTaxable = false
+            });
+            var subTotal = calcResult.SubTotal;
+            var discountTotal = calcResult.Discount;
+            var adjustedSubTotal = calcResult.AdjustedSubTotal;
+            var tax = calcResult.Tax;
+            var total = calcResult.Total;
 
             // Extract order-level discounts for display
             var productItems = allLineItems.Where(li =>
-                li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom).ToList();
+                li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom || li.LineItemType == LineItemType.Addon).ToList();
             var discountItems = allLineItems.Where(li => li.LineItemType == LineItemType.Discount).ToList();
             var productSkus = productItems.Select(p => p.Sku).Where(s => !string.IsNullOrEmpty(s)).ToHashSet();
             var orderLevelDiscounts = discountItems
@@ -2165,6 +2215,7 @@ public class InvoiceService(
                 Id = invoice.Id,
                 InvoiceNumber = invoice.InvoiceNumber,
                 FulfillmentStatus = GetFulfillmentStatus(orders),
+                FulfillmentStatusCssClass = GetFulfillmentStatusCssClass(orders),
                 CanEdit = canEdit,
                 CannotEditReason = cannotEditReason,
                 CurrencySymbol = invoice.CurrencySymbol,
@@ -2560,12 +2611,14 @@ public class InvoiceService(
 
     /// <inheritdoc />
     public async Task<OperationResult<EditInvoiceResultDto>> EditInvoiceAsync(
-        Guid invoiceId,
-        EditInvoiceDto request,
-        Guid? authorId,
-        string? authorName,
+        EditInvoiceParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        var invoiceId = parameters.InvoiceId;
+        var request = parameters.Request;
+        var authorId = parameters.AuthorId;
+        var authorName = parameters.AuthorName;
+
         List<string> changes = [];
         List<string> warnings = [];
 
@@ -2983,7 +3036,7 @@ public class InvoiceService(
                     // Calculate subtotal for percentage discounts
                     var currentSubTotal = orders
                         .SelectMany(o => o.LineItems ?? [])
-                        .Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom)
+                        .Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom || li.LineItemType == LineItemType.Addon)
                         .Sum(li => li.Amount * li.Quantity);
 
                     foreach (var orderDiscount in request.OrderDiscounts)
@@ -3344,8 +3397,19 @@ public class InvoiceService(
         // Use centralized calculation method - shipping tax is not applied here as each line item has its own tax rate
         // IMPORTANT: We use the stored TaxRate on each line item, NOT the current TaxGroup rate.
         // This ensures historical invoices are not affected by future TaxGroup rate changes.
-        var (subTotal, discount, adjustedSubTotal, tax, total, _) =
-            lineItemService.CalculateFromLineItems(allLineItems, shippingTotal, 0, currencyCode, isShippingTaxable: false);
+        var calcResult = lineItemService.CalculateFromLineItems(new CalculateLineItemsParameters
+        {
+            LineItems = allLineItems,
+            ShippingAmount = shippingTotal,
+            DefaultTaxRate = 0,
+            CurrencyCode = currencyCode,
+            IsShippingTaxable = false
+        });
+        var subTotal = calcResult.SubTotal;
+        var discount = calcResult.Discount;
+        var adjustedSubTotal = calcResult.AdjustedSubTotal;
+        var tax = calcResult.Tax;
+        var total = calcResult.Total;
 
         // Update invoice with calculated values
         invoice.SubTotal = subTotal;
@@ -4011,7 +4075,11 @@ public class InvoiceService(
                     ["OptionId"] = addon.OptionId.ToString(),
                     ["OptionValueId"] = addon.OptionValueId.ToString(),
                     ["CostAdjustment"] = addon.CostAdjustment,
-                    ["IsAddon"] = true
+                    ["IsAddon"] = true,
+                    ["WeightKg"] = addon.WeightKg ?? 0m,
+                    ["LengthCm"] = addon.LengthCm ?? 0m,
+                    ["WidthCm"] = addon.WidthCm ?? 0m,
+                    ["HeightCm"] = addon.HeightCm ?? 0m
                 }
             };
 
@@ -4132,7 +4200,7 @@ public class InvoiceService(
             // Calculate subtotal for percentage discounts and minimum requirements
             var productLineItems = orders
                 .SelectMany(o => o.LineItems ?? [])
-                .Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom)
+                .Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom || li.LineItemType == LineItemType.Addon)
                 .ToList();
             var subTotal = productLineItems.Sum(li => currencyService.Round(li.Amount * li.Quantity, invoice.CurrencyCode));
 

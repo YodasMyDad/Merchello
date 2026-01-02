@@ -11,6 +11,7 @@ import type {
   ProductColumnKey,
 } from "@products/types/product.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { getStoreSettings } from "@api/store-settings.js";
 import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
 import type { SelectOption } from "@shared/types/index.js";
 import { MERCHELLO_CREATE_PRODUCT_MODAL } from "@products/modals/create-product-modal.token.js";
@@ -40,6 +41,7 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
 
   private _searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   #modalManager?: UmbModalManagerContext;
+  #isConnected = false;
 
   constructor() {
     super();
@@ -50,12 +52,21 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    this.#isConnected = true;
+    this._initializeAndLoad();
+  }
+
+  private async _initializeAndLoad(): Promise<void> {
+    const settings = await getStoreSettings();
+    if (!this.#isConnected) return;
+    this._pageSize = settings.defaultPaginationPageSize;
     this._loadFilterOptions();
     this._loadProducts();
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.#isConnected = false;
     if (this._searchDebounceTimer) {
       clearTimeout(this._searchDebounceTimer);
     }
@@ -67,6 +78,7 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
       MerchelloApi.getProductCollections(),
     ]);
 
+    if (!this.#isConnected) return;
     if (typesResult.data) this._productTypes = typesResult.data;
     if (collectionsResult.data) this._collections = collectionsResult.data;
   }
@@ -89,6 +101,8 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
     if (this._stockStatus !== "all") params.stockStatus = this._stockStatus as ProductListParams["stockStatus"];
 
     const { data, error } = await MerchelloApi.getProducts(params);
+
+    if (!this.#isConnected) return;
 
     if (error) {
       this._errorMessage = error.message;

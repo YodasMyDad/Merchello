@@ -30,4 +30,10 @@ public class ProductOptionValue
     /// Only used when parent option IsVariant == false.
     /// </summary>
     public string? SkuSuffix { get; set; }
+
+    /// <summary>
+    /// Additional weight in kilograms when this add-on is selected.
+    /// Used for shipping calculations. Only applies when parent option IsVariant == false.
+    /// </summary>
+    public decimal? WeightKg { get; set; }
 }
