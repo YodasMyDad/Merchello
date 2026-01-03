@@ -1,5 +1,9 @@
 @model Merchello.Site.Shared.Components.ProductAddonSelector.ProductAddonSelectorViewModel
 
+@{
+    var priceFormat = $"N{Model.DecimalPlaces}";
+}
+
 <div class="addon-group mb-3">
     <label class="form-label fw-semibold">@Model.Name</label>
 
@@ -15,10 +19,10 @@
                        @@change="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, $event.target.checked)" />
                 <label class="form-check-label" for="addon-@value.Id">
                     @value.Name
-                    @if (value.PriceAdjustment != 0)
+                    @if (value.DisplayPriceAdjustment != 0)
                     {
-                        <span class="addon-price @(value.PriceAdjustment > 0 ? "text-success" : "text-danger")">
-                            (@(value.PriceAdjustment > 0 ? "+" : "")@Model.CurrencySymbol@value.PriceAdjustment.ToString("N2"))
+                        <span class="addon-price @(value.DisplayPriceAdjustment > 0 ? "text-success" : "text-danger")">
+                            (@(value.DisplayPriceAdjustment > 0 ? "+" : "")@Model.CurrencySymbol@value.DisplayPriceAdjustment.ToString(priceFormat))
                         </span>
                     }
                 </label>
@@ -33,7 +37,7 @@
                 <div class="swiper-wrapper">
                     @foreach (var value in Model.Values)
                     {
-                        var priceLabel = value.GetPriceLabel(Model.CurrencySymbol);
+                        var priceLabel = value.GetPriceLabel(Model.CurrencySymbol, Model.DecimalPlaces);
                         <div class="swiper-slide" style="width: auto;">
                             <button type="button"
                                     class="color-swatch"
@@ -54,7 +58,7 @@
             <div class="color-swatch-grid">
                 @foreach (var value in Model.Values)
                 {
-                    var priceLabel = value.GetPriceLabel(Model.CurrencySymbol);
+                    var priceLabel = value.GetPriceLabel(Model.CurrencySymbol, Model.DecimalPlaces);
                     <button type="button"
                             class="color-swatch"
                             :class="{ 'selected': isAddonSelected('@Model.OptionId', '@value.Id') }"
@@ -74,7 +78,7 @@
                 <div class="swiper-wrapper">
                     @foreach (var value in Model.Values)
                     {
-                        var priceLabel = value.GetPriceLabel(Model.CurrencySymbol);
+                        var priceLabel = value.GetPriceLabel(Model.CurrencySymbol, Model.DecimalPlaces);
                         <div class="swiper-slide" style="width: auto;">
                             <button type="button"
                                     class="image-swatch"
@@ -102,7 +106,7 @@
             <div class="image-swatch-grid">
                 @foreach (var value in Model.Values)
                 {
-                    var priceLabel = value.GetPriceLabel(Model.CurrencySymbol);
+                    var priceLabel = value.GetPriceLabel(Model.CurrencySymbol, Model.DecimalPlaces);
                     <button type="button"
                             class="image-swatch"
                             :class="{ 'selected': isAddonSelected('@Model.OptionId', '@value.Id') }"
@@ -135,10 +139,10 @@
                        @@change="selectAddonRadio('@Model.OptionId', '@value.Id', @value.PriceAdjustment)" />
                 <label class="btn btn-outline-secondary" for="addon-@Model.OptionId-@value.Id">
                     @value.Name
-                    @if (value.PriceAdjustment != 0)
+                    @if (value.DisplayPriceAdjustment != 0)
                     {
-                        <span class="addon-price-inline @(value.PriceAdjustment > 0 ? "text-success" : "text-danger")">
-                            (@(value.PriceAdjustment > 0 ? "+" : "")@Model.CurrencySymbol@value.PriceAdjustment.ToString("N2"))
+                        <span class="addon-price-inline @(value.DisplayPriceAdjustment > 0 ? "text-success" : "text-danger")">
+                            (@(value.DisplayPriceAdjustment > 0 ? "+" : "")@Model.CurrencySymbol@value.DisplayPriceAdjustment.ToString(priceFormat))
                         </span>
                     }
                 </label>
@@ -155,9 +159,9 @@
             {
                 <option value="@value.Id" data-price="@value.PriceAdjustment">
                     @value.Name
-                    @if (value.PriceAdjustment != 0)
+                    @if (value.DisplayPriceAdjustment != 0)
                     {
-                        @:(@(value.PriceAdjustment > 0 ? "+" : "")@Model.CurrencySymbol@value.PriceAdjustment.ToString("N2"))
+                        @:(@(value.DisplayPriceAdjustment > 0 ? "+" : "")@Model.CurrencySymbol@value.DisplayPriceAdjustment.ToString(priceFormat))
                     }
                 </option>
             }

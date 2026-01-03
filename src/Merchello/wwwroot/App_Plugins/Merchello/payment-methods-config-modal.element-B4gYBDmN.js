@@ -108,15 +108,17 @@ let a = class extends C {
   _renderMethod(e) {
     return s`
       <div class="method-row" data-method-alias=${e.methodAlias}>
-        <div class="method-drag-handle">
-          <uui-icon name="icon-navigation"></uui-icon>
-        </div>
-        <div class="method-info">
-          ${this._renderMethodIcon(e)}
-          <div class="method-details">
-            <span class="method-name">${e.displayName}</span>
-            ${e.isExpressCheckout ? s`<span class="express-badge">Express</span>` : l}
-            ${this._renderRegionBadges(e.supportedRegions)}
+        <div class="method-left">
+          <div class="method-drag-handle">
+            <uui-icon name="icon-navigation"></uui-icon>
+          </div>
+          <div class="method-info">
+            ${this._renderMethodIcon(e)}
+            <div class="method-details">
+              <span class="method-name">${e.displayName}</span>
+              ${e.isExpressCheckout ? s`<span class="express-badge">Express</span>` : l}
+              ${this._renderRegionBadges(e.supportedRegions)}
+            </div>
           </div>
         </div>
         <uui-toggle
@@ -222,6 +224,12 @@ a.styles = M`
       background: var(--uui-color-surface);
       border: 1px solid var(--uui-color-border);
       border-radius: var(--uui-border-radius);
+    }
+
+    .method-left {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
     }
 
     .method-drag-handle {
@@ -341,4 +349,4 @@ export {
   a as MerchelloPaymentMethodsConfigModalElement,
   N as default
 };
-//# sourceMappingURL=payment-methods-config-modal.element-CfNfNzes.js.map
+//# sourceMappingURL=payment-methods-config-modal.element-B4gYBDmN.js.map

@@ -17,8 +17,19 @@ public interface IStorefrontContextService
 
     /// <summary>
     /// Sets the customer's preferred shipping country (writes cookie).
+    /// Also automatically updates the currency based on the country.
     /// </summary>
     void SetShippingCountry(string countryCode, string? regionCode = null);
+
+    /// <summary>
+    /// Gets the current customer's currency from cookie, derived from country, or store default.
+    /// </summary>
+    Task<StorefrontCurrency> GetCurrencyAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Sets the customer's preferred currency (writes cookie).
+    /// </summary>
+    void SetCurrency(string currencyCode);
 
     /// <summary>
     /// Gets stock available to the current customer's location.
@@ -51,4 +62,20 @@ public interface IStorefrontContextService
     Task<ProductLocationAvailability> GetProductAvailabilityForLocationAsync(
         ProductAvailabilityParameters parameters,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets the exchange rate from store currency to customer's selected currency.
+    /// Returns 1.0 if same currency or rate unavailable.
+    /// </summary>
+    Task<decimal> GetExchangeRateAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Converts a price from store currency to customer's selected currency.
+    /// </summary>
+    Task<decimal> ConvertToCustomerCurrencyAsync(decimal amount, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets full currency context for display (code, symbol, exchange rate).
+    /// </summary>
+    Task<StorefrontCurrencyContext> GetCurrencyContextAsync(CancellationToken ct = default);
 }

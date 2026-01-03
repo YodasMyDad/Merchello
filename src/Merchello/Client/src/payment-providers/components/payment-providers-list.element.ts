@@ -243,14 +243,16 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     return html`
       <div class="provider-card configured" data-provider-id=${setting.id}>
         <div class="provider-header">
-          <div class="provider-drag-handle">
-            <uui-icon name="icon-navigation"></uui-icon>
-          </div>
-          <div class="provider-info">
-            ${this._renderProviderIcon(setting.providerAlias, provider?.iconHtml, provider?.icon)}
-            <div class="provider-details">
-              <span class="provider-name">${setting.displayName}</span>
-              <span class="provider-alias">${setting.providerAlias}</span>
+          <div class="provider-left">
+            <div class="provider-drag-handle">
+              <uui-icon name="icon-navigation"></uui-icon>
+            </div>
+            <div class="provider-info">
+              ${this._renderProviderIcon(setting.providerAlias, provider?.iconHtml, provider?.icon)}
+              <div class="provider-details">
+                <span class="provider-name">${setting.displayName}</span>
+                <span class="provider-alias">${setting.providerAlias}</span>
+              </div>
             </div>
           </div>
           <div class="provider-actions">
@@ -542,7 +544,12 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: var(--uui-size-space-4);
+    }
+
+    .provider-left {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
     }
 
     .provider-info {

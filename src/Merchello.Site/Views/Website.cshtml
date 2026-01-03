@@ -25,6 +25,9 @@
     <!-- Alpine cloak style -->
     <style>[x-cloak] { display: none !important; }</style>
 
+    <!-- Currency context for storefront display -->
+    @await Component.InvokeAsync("StorefrontCurrency")
+
     @await RenderSectionAsync("Head", required: false)
 </head>
 <body class="d-flex flex-column min-vh-100">

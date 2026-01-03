@@ -32,6 +32,9 @@
     // Get customer's shipping location for location-aware stock display
     var shippingLocation = await StorefrontContext.GetShippingLocationAsync();
 
+    // Get currency context for display prices
+    var currencyContext = await StorefrontContext.GetCurrencyContextAsync();
+
     // Pre-calculate location-aware availability for all variants
     var variantAvailability = new Dictionary<Guid, Merchello.Core.Storefront.Models.ProductLocationAvailability>();
     foreach (var variant in Model.AllVariants)
@@ -284,13 +287,21 @@
             </p>
 
             <!-- Pricing -->
+            @{
+                // Calculate display prices for SSR fallback
+                var displayPrice = Model.Price * currencyContext.ExchangeRate;
+                var displayPreviousPrice = Model.PreviousPrice.HasValue
+                    ? Model.PreviousPrice.Value * currencyContext.ExchangeRate
+                    : (decimal?)null;
+                var priceFormat = $"N{currencyContext.DecimalPlaces}";
+            }
             <div class="pricing mb-3">
-                <span class="h3 text-dark" x-text="formatPrice(totalPrice)">@settings.CurrencySymbol@Model.Price.ToString("N2")</span>
+                <span class="h3 text-dark" x-text="formatPrice(totalPrice)">@currencyContext.CurrencySymbol@displayPrice.ToString(priceFormat)</span>
                 @* SSR fallback for sale - x-cloak hides until Alpine loads, then Alpine controls visibility *@
                 <span class="text-decoration-line-through text-muted ms-2"
                       x-show="onSale && previousPrice"
                       x-text="formatPrice(previousPrice)"
-                      @(Model.OnSale && Model.PreviousPrice.HasValue ? "" : "x-cloak")>@(Model.OnSale && Model.PreviousPrice.HasValue ? $"{settings.CurrencySymbol}{Model.PreviousPrice.Value:N2}" : "")</span>
+                      @(Model.OnSale && Model.PreviousPrice.HasValue ? "" : "x-cloak")>@(Model.OnSale && displayPreviousPrice.HasValue ? $"{currencyContext.CurrencySymbol}{displayPreviousPrice.Value.ToString(priceFormat)}" : "")</span>
                 <span class="badge bg-danger ms-2"
                       x-show="onSale"
                       @(Model.OnSale ? "" : "x-cloak")>Sale</span>

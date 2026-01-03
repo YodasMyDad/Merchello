@@ -1,5 +1,6 @@
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Storefront.Services;
 using Microsoft.AspNetCore.Mvc;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.PublishedCache;
@@ -8,11 +9,15 @@ namespace Merchello.Site.Shared.Components.ProductBox;
 
 public class ProductBoxViewComponent(
     IProductService productService,
-    IPublishedMediaCache mediaCache) : ViewComponent
+    IPublishedMediaCache mediaCache,
+    IStorefrontContextService storefrontContext) : ViewComponent
 {
     public async Task<IViewComponentResult> InvokeAsync(Product product)
     {
         ArgumentNullException.ThrowIfNull(product);
+
+        // Get currency context for display prices
+        var currencyContext = await storefrontContext.GetCurrencyContextAsync();
 
         // Get the first image GUID for this product
         var imageDict = await productService.GetProductImagesAsync([product.Id]);
@@ -29,6 +34,12 @@ public class ProductBoxViewComponent(
             }
         }
 
+        // Calculate display prices with exchange rate
+        var displayPrice = product.Price * currencyContext.ExchangeRate;
+        var displayPreviousPrice = product.OnSale && product.PreviousPrice.HasValue
+            ? product.PreviousPrice.Value * currencyContext.ExchangeRate
+            : (decimal?)null;
+
         var model = new ProductBoxViewModel
         {
             ProductId = product.Id,
@@ -39,7 +50,13 @@ public class ProductBoxViewComponent(
             ImageUrl = imageUrl,
             ProductUrl = product.ProductRoot?.RootUrl != null
                 ? $"/{product.ProductRoot.RootUrl}"
-                : $"/products/{product.Id}"
+                : $"/products/{product.Id}",
+            // Display prices in customer's currency
+            DisplayPrice = displayPrice,
+            DisplayPreviousPrice = displayPreviousPrice,
+            CurrencyCode = currencyContext.CurrencyCode,
+            CurrencySymbol = currencyContext.CurrencySymbol,
+            DecimalPlaces = currencyContext.DecimalPlaces
         };
 
         return View(model);

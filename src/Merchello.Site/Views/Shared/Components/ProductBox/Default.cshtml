@@ -29,16 +29,20 @@
             </a>
         </h5>
         <p class="card-text mb-0">
-            @if (Model.OnSale && Model.PreviousPrice.HasValue)
+            @{
+                // Format prices using customer's currency
+                var priceFormat = $"N{Model.DecimalPlaces}";
+            }
+            @if (Model.OnSale && Model.DisplayPreviousPrice.HasValue)
             {
                 <span class="text-muted text-decoration-line-through me-2">
-                    @Model.PreviousPrice.Value.ToString("C")
+                    @Model.CurrencySymbol@Model.DisplayPreviousPrice.Value.ToString(priceFormat)
                 </span>
-                <span class="text-danger fw-bold">@Model.Price.ToString("C")</span>
+                <span class="text-danger fw-bold">@Model.CurrencySymbol@Model.DisplayPrice.ToString(priceFormat)</span>
             }
             else
             {
-                <span class="fw-bold">@Model.Price.ToString("C")</span>
+                <span class="fw-bold">@Model.CurrencySymbol@Model.DisplayPrice.ToString(priceFormat)</span>
             }
         </p>
     </div>

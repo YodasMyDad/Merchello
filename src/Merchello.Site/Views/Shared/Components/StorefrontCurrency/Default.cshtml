@@ -1,0 +1,11 @@
+@model Merchello.Core.Storefront.Models.StorefrontCurrencyContext
+@using System.Globalization
+<script>
+window.merchelloCurrency = {
+    code: '@Model.CurrencyCode',
+    symbol: '@Model.CurrencySymbol',
+    decimals: @Model.DecimalPlaces,
+    rate: @Model.ExchangeRate.ToString(CultureInfo.InvariantCulture),
+    storeCode: '@Model.StoreCurrencyCode'
+};
+</script>

@@ -103,6 +103,45 @@ document.addEventListener('alpine:init', () => {
         }
     });
 
+    /**
+     * Currency Store - Global currency context for price display
+     * Initialized from server-injected window.merchelloCurrency
+     */
+    Alpine.store('currency', {
+        code: 'GBP',
+        symbol: '£',
+        decimals: 2,
+        rate: 1.0,
+        storeCode: 'GBP',
+
+        init() {
+            // Initialize from server-injected data
+            if (window.merchelloCurrency) {
+                this.code = window.merchelloCurrency.code;
+                this.symbol = window.merchelloCurrency.symbol;
+                this.decimals = window.merchelloCurrency.decimals;
+                this.rate = window.merchelloCurrency.rate;
+                this.storeCode = window.merchelloCurrency.storeCode;
+            }
+        },
+
+        // Convert store price to display price
+        convert(storePrice) {
+            return storePrice * this.rate;
+        },
+
+        // Format a store price for display in customer currency
+        formatPrice(storePrice) {
+            const displayPrice = this.convert(storePrice);
+            return new Intl.NumberFormat(undefined, {
+                style: 'currency',
+                currency: this.code || 'GBP',
+                minimumFractionDigits: this.decimals,
+                maximumFractionDigits: this.decimals
+            }).format(displayPrice);
+        }
+    });
+
     // ==========================================================================
     // Components
     // ==========================================================================
@@ -394,7 +433,8 @@ document.addEventListener('alpine:init', () => {
         },
 
         formatPrice(value) {
-            return this.currencySymbol + value.toFixed(2);
+            // Use global currency store for proper formatting with exchange rate
+            return Alpine.store('currency').formatPrice(value);
         },
 
         incrementQuantity() {
@@ -610,7 +650,8 @@ document.addEventListener('alpine:init', () => {
         },
 
         formatPrice(value) {
-            return this.currencySymbol + value.toFixed(2);
+            // Use global currency store for proper formatting with exchange rate
+            return Alpine.store('currency').formatPrice(value);
         }
     }));
 

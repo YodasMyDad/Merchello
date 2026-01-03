@@ -4,6 +4,7 @@ using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Parameters;
 using Merchello.Core.Warehouses.Services.Interfaces;
@@ -20,6 +21,7 @@ public class StorefrontApiController(
     IProductService productService,
     IStorefrontContextService storefrontContext,
     ILocationsService locationsService,
+    ICurrencyService currencyService,
     IOptions<MerchelloSettings> settings) : ControllerBase
 {
     private readonly MerchelloSettings _settings = settings.Value;
@@ -134,28 +136,52 @@ public class StorefrontApiController(
     {
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
 
+        // Get currency context for display conversion
+        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
+        var rate = currencyContext.ExchangeRate;
+
         if (basket == null || basket.LineItems.Count == 0)
         {
             return Ok(new FullBasketResponse
             {
                 IsEmpty = true,
-                CurrencySymbol = _settings.CurrencySymbol
+                CurrencySymbol = _settings.CurrencySymbol,
+                DisplayCurrencyCode = currencyContext.CurrencyCode,
+                DisplayCurrencySymbol = currencyContext.CurrencySymbol,
+                ExchangeRate = rate
             });
         }
 
-        var items = basket.LineItems.Select(li => new BasketLineItemDto
+        var items = basket.LineItems.Select(li =>
         {
-            Id = li.Id,
-            Sku = li.Sku ?? "",
-            Name = li.Name ?? "",
-            Quantity = li.Quantity,
-            UnitPrice = li.Amount,
-            LineTotal = li.Amount * li.Quantity,
-            FormattedUnitPrice = FormatPrice(li.Amount),
-            FormattedLineTotal = FormatPrice(li.Amount * li.Quantity),
-            LineItemType = li.LineItemType.ToString(),
-            DependantLineItemSku = li.DependantLineItemSku
+            var displayUnitPrice = currencyService.Round(li.Amount * rate, currencyContext.CurrencyCode);
+            var displayLineTotal = currencyService.Round(li.Amount * li.Quantity * rate, currencyContext.CurrencyCode);
+
+            return new BasketLineItemDto
+            {
+                Id = li.Id,
+                Sku = li.Sku ?? "",
+                Name = li.Name ?? "",
+                Quantity = li.Quantity,
+                UnitPrice = li.Amount,
+                LineTotal = li.Amount * li.Quantity,
+                FormattedUnitPrice = FormatPrice(li.Amount),
+                FormattedLineTotal = FormatPrice(li.Amount * li.Quantity),
+                DisplayUnitPrice = displayUnitPrice,
+                DisplayLineTotal = displayLineTotal,
+                FormattedDisplayUnitPrice = FormatDisplayPrice(displayUnitPrice, currencyContext.CurrencySymbol),
+                FormattedDisplayLineTotal = FormatDisplayPrice(displayLineTotal, currencyContext.CurrencySymbol),
+                LineItemType = li.LineItemType.ToString(),
+                DependantLineItemSku = li.DependantLineItemSku
+            };
         }).ToList();
+
+        // Convert totals for display
+        var displaySubTotal = currencyService.Round(basket.SubTotal * rate, currencyContext.CurrencyCode);
+        var displayDiscount = currencyService.Round(basket.Discount * rate, currencyContext.CurrencyCode);
+        var displayTax = currencyService.Round(basket.Tax * rate, currencyContext.CurrencyCode);
+        var displayShipping = currencyService.Round(basket.Shipping * rate, currencyContext.CurrencyCode);
+        var displayTotal = currencyService.Round(basket.Total * rate, currencyContext.CurrencyCode);
 
         return Ok(new FullBasketResponse
         {
@@ -163,12 +189,26 @@ public class StorefrontApiController(
             SubTotal = basket.SubTotal,
             Discount = basket.Discount,
             Tax = basket.Tax,
+            Shipping = basket.Shipping,
             Total = basket.Total,
             FormattedSubTotal = FormatPrice(basket.SubTotal),
             FormattedDiscount = FormatPrice(basket.Discount),
             FormattedTax = FormatPrice(basket.Tax),
             FormattedTotal = FormatPrice(basket.Total),
             CurrencySymbol = _settings.CurrencySymbol,
+            DisplaySubTotal = displaySubTotal,
+            DisplayDiscount = displayDiscount,
+            DisplayTax = displayTax,
+            DisplayShipping = displayShipping,
+            DisplayTotal = displayTotal,
+            FormattedDisplaySubTotal = FormatDisplayPrice(displaySubTotal, currencyContext.CurrencySymbol),
+            FormattedDisplayDiscount = FormatDisplayPrice(displayDiscount, currencyContext.CurrencySymbol),
+            FormattedDisplayTax = FormatDisplayPrice(displayTax, currencyContext.CurrencySymbol),
+            FormattedDisplayShipping = FormatDisplayPrice(displayShipping, currencyContext.CurrencySymbol),
+            FormattedDisplayTotal = FormatDisplayPrice(displayTotal, currencyContext.CurrencySymbol),
+            DisplayCurrencyCode = currencyContext.CurrencyCode,
+            DisplayCurrencySymbol = currencyContext.CurrencySymbol,
+            ExchangeRate = rate,
             ItemCount = basket.LineItems.Sum(li => li.Quantity),
             IsEmpty = false
         });
@@ -241,6 +281,11 @@ public class StorefrontApiController(
         return $"{_settings.CurrencySymbol}{price:N2}";
     }
 
+    private static string FormatDisplayPrice(decimal price, string currencySymbol)
+    {
+        return $"{currencySymbol}{price:N2}";
+    }
+
     #region Shipping Country Endpoints
 
     /// <summary>
@@ -251,6 +296,7 @@ public class StorefrontApiController(
     {
         var countries = await locationsService.GetAvailableCountriesAsync(ct);
         var current = await storefrontContext.GetShippingLocationAsync(ct);
+        var currency = await storefrontContext.GetCurrencyAsync(ct);
 
         return Ok(new ShippingCountriesResponse
         {
@@ -263,6 +309,12 @@ public class StorefrontApiController(
             {
                 CountryCode = current.CountryCode,
                 CountryName = current.CountryName
+            },
+            Currency = new StorefrontCurrencyResponse
+            {
+                CurrencyCode = currency.CurrencyCode,
+                CurrencySymbol = currency.CurrencySymbol,
+                DecimalPlaces = currency.DecimalPlaces
             }
         });
     }
@@ -283,7 +335,7 @@ public class StorefrontApiController(
     }
 
     /// <summary>
-    /// Set shipping country preference
+    /// Set shipping country preference (also updates currency automatically)
     /// </summary>
     [HttpPost("shipping/country")]
     public async Task<IActionResult> SetCurrentCountry([FromBody] SetCountryRequest request, CancellationToken ct)
@@ -298,12 +350,52 @@ public class StorefrontApiController(
             return BadRequest(new { message = "Invalid country code" });
         }
 
+        // This also sets the currency cookie automatically
         storefrontContext.SetShippingCountry(request.CountryCode, request.RegionCode);
 
-        return Ok(new CountryResponse
+        // Get the new currency to return
+        var currency = await storefrontContext.GetCurrencyAsync(ct);
+
+        return Ok(new SetCountryResponse
         {
             CountryCode = country.Code,
-            CountryName = country.Name
+            CountryName = country.Name,
+            CurrencyCode = currency.CurrencyCode,
+            CurrencySymbol = currency.CurrencySymbol
+        });
+    }
+
+    /// <summary>
+    /// Get current storefront currency
+    /// </summary>
+    [HttpGet("currency")]
+    public async Task<IActionResult> GetCurrency(CancellationToken ct)
+    {
+        var currency = await storefrontContext.GetCurrencyAsync(ct);
+
+        return Ok(new StorefrontCurrencyResponse
+        {
+            CurrencyCode = currency.CurrencyCode,
+            CurrencySymbol = currency.CurrencySymbol,
+            DecimalPlaces = currency.DecimalPlaces
+        });
+    }
+
+    /// <summary>
+    /// Override storefront currency (for testing different currencies)
+    /// </summary>
+    [HttpPost("currency")]
+    public IActionResult SetCurrency([FromBody] SetCurrencyRequest request)
+    {
+        storefrontContext.SetCurrency(request.CurrencyCode);
+
+        var currencyInfo = currencyService.GetCurrency(request.CurrencyCode);
+
+        return Ok(new StorefrontCurrencyResponse
+        {
+            CurrencyCode = currencyInfo.Code,
+            CurrencySymbol = currencyInfo.Symbol,
+            DecimalPlaces = currencyInfo.DecimalPlaces
         });
     }
 

@@ -1,6 +1,8 @@
+using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services.Parameters;
 using Merchello.Core.Warehouses.Services.Interfaces;
@@ -13,10 +15,14 @@ public class StorefrontContextService(
     IHttpContextAccessor httpContextAccessor,
     IOptions<MerchelloSettings> settings,
     ILocationsService locationsService,
-    ILocalityCatalog localityCatalog) : IStorefrontContextService
+    ILocalityCatalog localityCatalog,
+    ICurrencyService currencyService,
+    ICountryCurrencyMappingService countryCurrencyMapping,
+    IExchangeRateCache exchangeRateCache) : IStorefrontContextService
 {
     private const string CountryCookieName = "Merchello.ShippingCountry";
     private const string RegionCookieName = "Merchello.ShippingRegion";
+    private const string CurrencyCookieName = "Merchello.Currency";
     private const int CookieExpiryDays = 30;
     private const string FallbackCountryCode = "US";
 
@@ -100,6 +106,51 @@ public class StorefrontContextService(
         {
             httpContext.Response.Cookies.Delete(RegionCookieName);
         }
+
+        // Automatically update currency based on the new country
+        var currencyCode = countryCurrencyMapping.GetCurrencyForCountry(countryCode);
+        SetCurrency(currencyCode);
+    }
+
+    public Task<StorefrontCurrency> GetCurrencyAsync(CancellationToken ct = default)
+    {
+        var httpContext = httpContextAccessor.HttpContext;
+        string? currencyCode = null;
+
+        // Try to read from cookie first
+        if (httpContext?.Request.Cookies.TryGetValue(CurrencyCookieName, out var cookieCurrency) == true
+            && !string.IsNullOrWhiteSpace(cookieCurrency))
+        {
+            currencyCode = cookieCurrency;
+        }
+
+        // Fallback to store default if no cookie
+        if (string.IsNullOrWhiteSpace(currencyCode))
+        {
+            currencyCode = _settings.StoreCurrencyCode;
+        }
+
+        var currencyInfo = currencyService.GetCurrency(currencyCode);
+        return Task.FromResult(new StorefrontCurrency(
+            currencyInfo.Code,
+            currencyInfo.Symbol,
+            currencyInfo.DecimalPlaces));
+    }
+
+    public void SetCurrency(string currencyCode)
+    {
+        var httpContext = httpContextAccessor.HttpContext;
+        if (httpContext == null) return;
+
+        var cookieOptions = new CookieOptions
+        {
+            Expires = DateTimeOffset.UtcNow.AddDays(CookieExpiryDays),
+            HttpOnly = false, // Allow JS to read for display
+            Secure = true,
+            SameSite = SameSiteMode.Lax
+        };
+
+        httpContext.Response.Cookies.Append(CurrencyCookieName, currencyCode.ToUpperInvariant(), cookieOptions);
     }
 
     public async Task<int> GetAvailableStockAsync(Product product, CancellationToken ct = default)
@@ -266,5 +317,60 @@ public class StorefrontContextService(
             prw.Warehouse?.CanServeRegion(countryCode, regionCode) == true);
 
         return canServe ? int.MaxValue : 0;
+    }
+
+    public async Task<decimal> GetExchangeRateAsync(CancellationToken ct = default)
+    {
+        var customerCurrency = await GetCurrencyAsync(ct);
+        return await GetExchangeRateForCurrencyAsync(customerCurrency.CurrencyCode, ct);
+    }
+
+    public async Task<decimal> ConvertToCustomerCurrencyAsync(decimal amount, CancellationToken ct = default)
+    {
+        var customerCurrency = await GetCurrencyAsync(ct);
+        var rate = await GetExchangeRateForCurrencyAsync(customerCurrency.CurrencyCode, ct);
+
+        if (rate == 1.0m)
+        {
+            return amount;
+        }
+
+        var converted = amount * rate;
+
+        // Round to the appropriate decimal places for the customer's currency
+        return currencyService.Round(converted, customerCurrency.CurrencyCode);
+    }
+
+    public async Task<StorefrontCurrencyContext> GetCurrencyContextAsync(CancellationToken ct = default)
+    {
+        var customerCurrency = await GetCurrencyAsync(ct);
+        var exchangeRate = await GetExchangeRateForCurrencyAsync(customerCurrency.CurrencyCode, ct);
+
+        return new StorefrontCurrencyContext(
+            customerCurrency.CurrencyCode,
+            customerCurrency.CurrencySymbol,
+            customerCurrency.DecimalPlaces,
+            exchangeRate,
+            _settings.StoreCurrencyCode);
+    }
+
+    /// <summary>
+    /// Gets the exchange rate from store currency to the specified target currency.
+    /// </summary>
+    private async Task<decimal> GetExchangeRateForCurrencyAsync(string targetCurrencyCode, CancellationToken ct)
+    {
+        var storeCurrencyCode = _settings.StoreCurrencyCode;
+
+        // Same currency - no conversion needed
+        if (targetCurrencyCode.Equals(storeCurrencyCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return 1.0m;
+        }
+
+        // Fetch exchange rate from cache
+        var rate = await exchangeRateCache.GetRateAsync(storeCurrencyCode, targetCurrencyCode, ct);
+
+        // Return rate if available, otherwise 1.0 (no conversion)
+        return rate ?? 1.0m;
     }
 }

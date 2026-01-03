@@ -358,10 +358,10 @@ var K = Object.defineProperty, J = Object.getOwnPropertyDescriptor, A = (e) => {
   for (var s = t > 1 ? void 0 : t ? J(i, a) : i, h = e.length - 1, g; h >= 0; h--)
     (g = e[h]) && (s = (t ? g(i, a, s) : g(s)) || s);
   return t && s && K(i, a, s), s;
-}, I = (e, i, a) => i.has(e) || A("Cannot " + a), o = (e, i, a) => (I(e, i, "read from private field"), i.get(e)), y = (e, i, a) => i.has(e) ? A("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, a), w = (e, i, a, t) => (I(e, i, "write to private field"), i.set(e, a), a), n, c, l, P;
-let u = class extends E($) {
+}, I = (e, i, a) => i.has(e) || A("Cannot " + a), o = (e, i, a) => (I(e, i, "read from private field"), i.get(e)), y = (e, i, a) => i.has(e) ? A("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(e) : i.set(e, a), w = (e, i, a, t) => (I(e, i, "write to private field"), i.set(e, a), a), n, u, l, P;
+let c = class extends E($) {
   constructor() {
-    super(), this._availableProviders = [], this._configuredProviders = [], this._isLoading = !0, this._errorMessage = null, y(this, n), y(this, c), y(this, l, !1), y(this, P, new U(this, {
+    super(), this._availableProviders = [], this._configuredProviders = [], this._isLoading = !0, this._errorMessage = null, y(this, n), y(this, u), y(this, l, !1), y(this, P, new U(this, {
       getUniqueOfElement: (e) => e.getAttribute("data-provider-id") ?? "",
       getUniqueOfModel: (e) => e.id,
       identifier: "Merchello.PaymentProviders.Sorter",
@@ -373,7 +373,7 @@ let u = class extends E($) {
     })), this.consumeContext(O, (e) => {
       w(this, n, e);
     }), this.consumeContext(D, (e) => {
-      w(this, c, e);
+      w(this, u, e);
     });
   }
   connectedCallback() {
@@ -407,7 +407,7 @@ let u = class extends E($) {
   }
   async _handleProviderReorder(e) {
     const { error: i } = await m.reorderPaymentProviders(e);
-    o(this, l) && (i ? (o(this, c)?.peek("danger", {
+    o(this, l) && (i ? (o(this, u)?.peek("danger", {
       data: { headline: "Reorder failed", message: i.message }
     }), await this._loadProviders()) : await this._previewElement?.loadPreview());
   }
@@ -433,12 +433,12 @@ let u = class extends E($) {
     const { error: i } = await m.togglePaymentProvider(e.id, !e.isEnabled);
     if (o(this, l)) {
       if (i) {
-        o(this, c)?.peek("danger", {
+        o(this, u)?.peek("danger", {
           data: { headline: "Error", message: i.message }
         });
         return;
       }
-      o(this, c)?.peek("positive", {
+      o(this, u)?.peek("positive", {
         data: {
           headline: "Success",
           message: `${e.displayName} ${e.isEnabled ? "hidden from checkout" : "now showing in checkout"}`
@@ -459,12 +459,12 @@ let u = class extends E($) {
     const { error: t } = await m.deletePaymentProvider(e.id);
     if (o(this, l)) {
       if (t) {
-        o(this, c)?.peek("danger", {
+        o(this, u)?.peek("danger", {
           data: { headline: "Error", message: t.message }
         });
         return;
       }
-      o(this, c)?.peek("positive", {
+      o(this, u)?.peek("positive", {
         data: { headline: "Success", message: `${e.displayName} removed` }
       }), await this._loadProviders();
     }
@@ -491,14 +491,16 @@ let u = class extends E($) {
     return r`
       <div class="provider-card configured" data-provider-id=${e.id}>
         <div class="provider-header">
-          <div class="provider-drag-handle">
-            <uui-icon name="icon-navigation"></uui-icon>
-          </div>
-          <div class="provider-info">
-            ${this._renderProviderIcon(e.providerAlias, i?.iconHtml, i?.icon)}
-            <div class="provider-details">
-              <span class="provider-name">${e.displayName}</span>
-              <span class="provider-alias">${e.providerAlias}</span>
+          <div class="provider-left">
+            <div class="provider-drag-handle">
+              <uui-icon name="icon-navigation"></uui-icon>
+            </div>
+            <div class="provider-info">
+              ${this._renderProviderIcon(e.providerAlias, i?.iconHtml, i?.icon)}
+              <div class="provider-details">
+                <span class="provider-name">${e.displayName}</span>
+                <span class="provider-alias">${e.providerAlias}</span>
+              </div>
             </div>
           </div>
           <div class="provider-actions">
@@ -667,10 +669,10 @@ let u = class extends E($) {
   }
 };
 n = /* @__PURE__ */ new WeakMap();
-c = /* @__PURE__ */ new WeakMap();
+u = /* @__PURE__ */ new WeakMap();
 l = /* @__PURE__ */ new WeakMap();
 P = /* @__PURE__ */ new WeakMap();
-u.styles = C`
+c.styles = C`
     :host {
       display: block;
       height: 100%;
@@ -765,7 +767,12 @@ u.styles = C`
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: var(--uui-size-space-4);
+    }
+
+    .provider-left {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
     }
 
     .provider-info {
@@ -882,25 +889,25 @@ u.styles = C`
   `;
 b([
   v()
-], u.prototype, "_availableProviders", 2);
+], c.prototype, "_availableProviders", 2);
 b([
   v()
-], u.prototype, "_configuredProviders", 2);
+], c.prototype, "_configuredProviders", 2);
 b([
   v()
-], u.prototype, "_isLoading", 2);
+], c.prototype, "_isLoading", 2);
 b([
   v()
-], u.prototype, "_errorMessage", 2);
+], c.prototype, "_errorMessage", 2);
 b([
   R("merchello-checkout-payment-preview")
-], u.prototype, "_previewElement", 2);
-u = b([
+], c.prototype, "_previewElement", 2);
+c = b([
   z("merchello-payment-providers-list")
-], u);
-const se = u;
+], c);
+const se = c;
 export {
-  u as MerchelloPaymentProvidersListElement,
+  c as MerchelloPaymentProvidersListElement,
   se as default
 };
-//# sourceMappingURL=payment-providers-list.element-fYmzqFhc.js.map
+//# sourceMappingURL=payment-providers-list.element-FiGRIIov.js.map

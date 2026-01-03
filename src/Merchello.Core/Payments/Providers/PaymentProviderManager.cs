@@ -52,10 +52,11 @@ public class PaymentProviderManager(
                 .Cast<IPaymentProvider>()
                 .ToList();
 
-            // Load all settings from database
+            // Load all settings from database (including method settings for filtering)
             using var scope = efCoreScopeProvider.CreateScope();
             var settings = await scope.ExecuteWithContextAsync(async db =>
                 await db.PaymentProviderSettings
+                    .Include(s => s.MethodSettings)
                     .AsNoTracking()
                     .ToListAsync(cancellationToken));
             scope.Complete();
