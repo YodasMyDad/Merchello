@@ -359,13 +359,13 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
     /// </summary>
     private string BuildPayPalJsSdkUrl(string currency, string fundingSource)
     {
-        var parameters = new List<string>
-        {
+        List<string> parameters =
+        [
             $"client-id={_clientId}",
             $"currency={currency.ToUpperInvariant()}",
             "intent=capture",
             "components=buttons,funding-eligibility"
-        };
+        ];
 
         // Add Pay Later specific parameters
         if (fundingSource == "paylater")
@@ -1083,8 +1083,8 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
     public override ValueTask<IReadOnlyList<WebhookEventTemplate>> GetWebhookEventTemplatesAsync(
         CancellationToken cancellationToken = default)
     {
-        var templates = new List<WebhookEventTemplate>
-        {
+        List<WebhookEventTemplate> templates =
+        [
             new()
             {
                 EventType = "CHECKOUT.ORDER.APPROVED",
@@ -1117,7 +1117,7 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
                 Category = WebhookEventCategory.Refund,
                 MerchelloEventType = WebhookEventType.RefundCompleted
             }
-        };
+        ];
 
         return ValueTask.FromResult<IReadOnlyList<WebhookEventTemplate>>(templates);
     }
@@ -1555,7 +1555,7 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
     /// </summary>
     private static string BuildInvoicePayload(PaymentLinkRequest request, string? brandName)
     {
-        var items = new List<object>();
+        List<object> items = [];
 
         // Use line items if provided, otherwise create a single item
         if (request.LineItems is { Count: > 0 })

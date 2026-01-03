@@ -61,11 +61,11 @@ public class DiscountsApiControllerTests
     public async Task GetDiscounts_ReturnsPagedResults()
     {
         // Arrange
-        var discounts = new List<Discount>
-        {
+        List<Discount> discounts =
+        [
             CreateDiscount("Discount 1"),
             CreateDiscount("Discount 2")
-        };
+        ];
 
         _discountServiceMock.Setup(s => s.QueryAsync(
             It.IsAny<DiscountQueryParameters>(),
@@ -616,8 +616,8 @@ public class DiscountsApiControllerTests
     public async Task GetUsageReport_ReturnsOk()
     {
         // Arrange
-        var summaries = new List<DiscountUsageSummaryDto>
-        {
+        List<DiscountUsageSummaryDto> summaries =
+        [
             new()
             {
                 DiscountId = Guid.NewGuid(),
@@ -632,7 +632,7 @@ public class DiscountsApiControllerTests
                 TotalUsageCount = 200,
                 TotalDiscountAmount = 1000m
             }
-        };
+        ];
 
         _discountServiceMock.Setup(s => s.GetUsageSummaryAsync(
             It.IsAny<DiscountReportParameters>(),

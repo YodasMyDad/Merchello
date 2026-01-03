@@ -149,6 +149,8 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Channel");
+
                     b.HasIndex("CurrencyCode");
 
                     b.HasIndex("CustomerId");
@@ -191,7 +193,7 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("DependantLineItemSku")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
@@ -233,6 +235,8 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("decimal(5,2)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DependantLineItemSku");
 
                     b.HasIndex("InvoiceId");
 
@@ -314,6 +318,8 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CompletedDate");
 
                     b.HasIndex("InvoiceId");
 
@@ -1138,7 +1144,11 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.HasIndex("ProductRootId");
 
+                    b.HasIndex("Sku");
+
                     b.HasIndex("Url");
+
+                    b.HasIndex("AvailableForPurchase", "CanPurchase");
 
                     b.ToTable("merchelloProducts", (string)null);
                 });

@@ -247,7 +247,7 @@ public class DiscountEngineTests
         discount.TargetRules.Add(new DiscountTargetRule
         {
             TargetType = DiscountTargetType.SpecificProducts,
-            TargetIds = System.Text.Json.JsonSerializer.Serialize(new List<Guid> { Guid.NewGuid() }),
+            TargetIds = System.Text.Json.JsonSerializer.Serialize((Guid[])[Guid.NewGuid()]),
             IsExclusion = false
         });
         _discountServiceMock.Setup(s => s.GetByCodeAsync("SPECIFIC", It.IsAny<CancellationToken>()))
@@ -269,7 +269,7 @@ public class DiscountEngineTests
     {
         // Arrange
         var discount = CreateDiscount();
-        var context = CreateBasicContext(appliedDiscountIds: new List<Guid> { discount.Id });
+        var context = CreateBasicContext(appliedDiscountIds: [discount.Id]);
         _discountServiceMock.Setup(s => s.GetByCodeAsync("SAVE10", It.IsAny<CancellationToken>()))
             .ReturnsAsync(discount);
         _discountServiceMock.Setup(s => s.GetUsageCountAsync(discount.Id, It.IsAny<CancellationToken>()))
@@ -423,7 +423,7 @@ public class DiscountEngineTests
         discount.TargetRules.Add(new DiscountTargetRule
         {
             TargetType = DiscountTargetType.SpecificProducts,
-            TargetIds = System.Text.Json.JsonSerializer.Serialize(new List<Guid> { Guid.NewGuid() }),
+            TargetIds = System.Text.Json.JsonSerializer.Serialize((Guid[])[Guid.NewGuid()]),
             IsExclusion = false
         });
 
@@ -687,7 +687,7 @@ public class DiscountEngineTests
         var discount2 = CreateDiscount(category: DiscountCategory.AmountOffOrder, value: 5m);
         discount2.Priority = 1;
 
-        var discounts = new List<Discount> { discount1, discount2 };
+        List<Discount> discounts = [discount1, discount2];
 
         // Act
         var result = await _engine.ApplyDiscountsAsync(discounts, [], context);
@@ -713,7 +713,7 @@ public class DiscountEngineTests
         discount2.Priority = 2;
         discount2.CanCombineWithOrderDiscounts = false;
 
-        var discounts = new List<Discount> { discount1, discount2 };
+        List<Discount> discounts = [discount1, discount2];
 
         // Act
         var result = await _engine.ApplyDiscountsAsync(discounts, [], context);
@@ -736,7 +736,7 @@ public class DiscountEngineTests
         var discount2 = CreateDiscount(category: DiscountCategory.AmountOffOrder, value: 5m);
         discount2.CanCombineWithOrderDiscounts = true;
 
-        var discounts = new List<Discount> { discount1, discount2 };
+        List<Discount> discounts = [discount1, discount2];
 
         // Act
         var result = await _engine.ApplyDiscountsAsync(discounts, [], context);

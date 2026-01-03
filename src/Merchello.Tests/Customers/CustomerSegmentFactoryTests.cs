@@ -55,8 +55,8 @@ public class CustomerSegmentFactoryTests
     public void Create_AutomatedSegment_SerializesCriteriaToJson()
     {
         // Arrange
-        var criteria = new List<SegmentCriteria>
-        {
+        List<SegmentCriteria> criteria =
+        [
             new()
             {
                 Field = "TotalSpend",
@@ -69,7 +69,7 @@ public class CustomerSegmentFactoryTests
                 Operator = SegmentCriteriaOperator.GreaterThanOrEqual,
                 Value = 5
             }
-        };
+        ];
 
         var parameters = new CreateSegmentParameters
         {

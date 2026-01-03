@@ -387,7 +387,7 @@ public class PaymentProviderManager(
         CancellationToken cancellationToken = default)
     {
         var enabledProviders = await GetEnabledProvidersAsync(cancellationToken);
-        var methods = new List<PaymentMethodDto>();
+        List<PaymentMethodDto> methods = [];
 
         foreach (var registered in enabledProviders)
         {
@@ -461,7 +461,7 @@ public class PaymentProviderManager(
         CancellationToken cancellationToken = default)
     {
         var enabledProviders = await GetEnabledProvidersAsync(cancellationToken);
-        var allMethods = new List<CheckoutMethodPreviewDto>();
+        List<CheckoutMethodPreviewDto> allMethods = [];
 
         // Build list of all enabled methods with provider context
         foreach (var registered in enabledProviders)
@@ -515,9 +515,9 @@ public class PaymentProviderManager(
             .ToList();
 
         // Apply deduplication and track winners/losers
-        var expressMethods = new List<CheckoutMethodPreviewDto>();
-        var standardMethods = new List<CheckoutMethodPreviewDto>();
-        var hiddenMethods = new List<CheckoutMethodPreviewDto>();
+        List<CheckoutMethodPreviewDto> expressMethods = [];
+        List<CheckoutMethodPreviewDto> standardMethods = [];
+        List<CheckoutMethodPreviewDto> hiddenMethods = [];
 
         // Track winners per MethodType for express and standard separately
         var expressWinners = new Dictionary<PaymentMethodType, CheckoutMethodPreviewDto>();
@@ -580,7 +580,7 @@ public class PaymentProviderManager(
     /// </summary>
     private List<PaymentMethodDto> DeduplicateByMethodType(List<PaymentMethodDto> methods)
     {
-        var result = new List<PaymentMethodDto>();
+        List<PaymentMethodDto> result = [];
         var seenMethodTypes = new Dictionary<PaymentMethodType, PaymentMethodDto>();
 
         foreach (var method in methods.OrderBy(m => m.SortOrder).ThenBy(m => m.DisplayName))

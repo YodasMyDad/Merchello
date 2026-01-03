@@ -1,14 +1,14 @@
-import { nothing as o, html as r, css as p, state as u, customElement as f } from "@umbraco-cms/backoffice/external/lit";
+import { nothing as o, html as s, css as p, state as u, customElement as f } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement as h } from "@umbraco-cms/backoffice/modal";
 import { M as v } from "./merchello-api-DPQ4r4XT.js";
 import { g } from "./store-settings-BhzqJKNt.js";
 import { a as m, b } from "./formatting-DYmyPQEL.js";
-var y = Object.defineProperty, _ = Object.getOwnPropertyDescriptor, n = (e, t, a, l) => {
-  for (var s = l > 1 ? void 0 : l ? _(t, a) : t, d = e.length - 1, c; d >= 0; d--)
-    (c = e[d]) && (s = (l ? c(t, a, s) : c(s)) || s);
-  return l && s && y(t, a, s), s;
+var y = Object.defineProperty, _ = Object.getOwnPropertyDescriptor, r = (e, i, a, l) => {
+  for (var n = l > 1 ? void 0 : l ? _(i, a) : i, d = e.length - 1, c; d >= 0; d--)
+    (c = e[d]) && (n = (l ? c(i, a, n) : c(n)) || n);
+  return l && n && y(i, a, n), n;
 };
-let i = class extends h {
+let t = class extends h {
   constructor() {
     super(...arguments), this._amount = 0, this._reason = "", this._isManualRefund = !1, this._isSaving = !1, this._errorMessage = null, this._quickAmountPercentages = [50];
   }
@@ -31,13 +31,13 @@ let i = class extends h {
       return;
     }
     this._isSaving = !0, this._errorMessage = null;
-    const { error: t } = await v.processRefund(e.id, {
+    const { error: i } = await v.processRefund(e.id, {
       amount: this._amount,
       reason: this._reason,
       isManualRefund: this._isManualRefund
     });
-    if (t) {
-      this._errorMessage = t.message, this._isSaving = !1;
+    if (i) {
+      this._errorMessage = i.message, this._isSaving = !1;
       return;
     }
     this._isSaving = !1, this.value = { refunded: !0 }, this.modalContext?.submit();
@@ -48,11 +48,11 @@ let i = class extends h {
   render() {
     const e = this.data?.payment;
     if (!e) return o;
-    const t = e.paymentProviderAlias && e.paymentProviderAlias !== "manual";
-    return r`
+    const i = e.paymentProviderAlias && e.paymentProviderAlias !== "manual";
+    return s`
       <umb-body-layout headline="Process Refund">
         <div id="main">
-          ${this._errorMessage ? r`
+          ${this._errorMessage ? s`
                 <div class="error-message">
                   <uui-icon name="icon-alert"></uui-icon>
                   ${this._errorMessage}
@@ -74,13 +74,13 @@ let i = class extends h {
               <span>Method:</span>
               <span>${e.paymentMethod ?? "N/A"}</span>
             </div>
-            ${e.paymentProviderAlias ? r`
+            ${e.paymentProviderAlias ? s`
                   <div class="info-row">
                     <span>Provider:</span>
                     <span>${e.paymentProviderAlias}</span>
                   </div>
                 ` : o}
-            ${e.transactionId ? r`
+            ${e.transactionId ? s`
                   <div class="info-row">
                     <span>Transaction ID:</span>
                     <span class="mono">${e.transactionId}</span>
@@ -107,6 +107,8 @@ let i = class extends h {
       this._amount = parseFloat(a.target.value) || 0;
     }}
             ></uui-input>
+            <!-- Quick amount buttons for UX convenience only.
+                 Backend validates actual refund amount in processRefund API call. -->
             <div class="amount-buttons">
               <uui-button
                 look="secondary"
@@ -117,7 +119,7 @@ let i = class extends h {
                 Full Refund
               </uui-button>
               ${this._quickAmountPercentages.map(
-      (a) => r`
+      (a) => s`
                   <uui-button
                     look="secondary"
                     label="${a}%"
@@ -144,7 +146,7 @@ let i = class extends h {
             ></uui-textarea>
           </div>
 
-          ${t ? r`
+          ${i ? s`
                 <div class="form-field checkbox-field">
                   <uui-checkbox
                     id="isManualRefund"
@@ -179,7 +181,7 @@ let i = class extends h {
             @click=${this._handleSave}
             ?disabled=${this._isSaving || this._amount <= 0 || !this._reason.trim()}
           >
-            ${this._isSaving ? r`<uui-loader-circle></uui-loader-circle>` : o}
+            ${this._isSaving ? s`<uui-loader-circle></uui-loader-circle>` : o}
             Process Refund
           </uui-button>
         </div>
@@ -187,7 +189,7 @@ let i = class extends h {
     `;
   }
 };
-i.styles = p`
+t.styles = p`
     :host {
       display: block;
     }
@@ -269,30 +271,30 @@ i.styles = p`
       justify-content: flex-end;
     }
   `;
-n([
+r([
   u()
-], i.prototype, "_amount", 2);
-n([
+], t.prototype, "_amount", 2);
+r([
   u()
-], i.prototype, "_reason", 2);
-n([
+], t.prototype, "_reason", 2);
+r([
   u()
-], i.prototype, "_isManualRefund", 2);
-n([
+], t.prototype, "_isManualRefund", 2);
+r([
   u()
-], i.prototype, "_isSaving", 2);
-n([
+], t.prototype, "_isSaving", 2);
+r([
   u()
-], i.prototype, "_errorMessage", 2);
-n([
+], t.prototype, "_errorMessage", 2);
+r([
   u()
-], i.prototype, "_quickAmountPercentages", 2);
-i = n([
+], t.prototype, "_quickAmountPercentages", 2);
+t = r([
   f("merchello-refund-modal")
-], i);
-const R = i;
+], t);
+const R = t;
 export {
-  i as MerchelloRefundModalElement,
+  t as MerchelloRefundModalElement,
   R as default
 };
-//# sourceMappingURL=refund-modal.element-4MceWLTB.js.map
+//# sourceMappingURL=refund-modal.element-CoIN7BDV.js.map

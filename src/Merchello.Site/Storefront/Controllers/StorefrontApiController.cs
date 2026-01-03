@@ -391,7 +391,7 @@ public class StorefrontApiController(
             ? await storefrontContext.GetShippingLocationAsync(ct)
             : new Core.Storefront.Models.ShippingLocation(countryCode, countryCode, regionCode, null);
 
-        var items = new List<BasketItemAvailability>();
+        List<BasketItemAvailability> items = [];
         var allAvailable = true;
 
         foreach (var lineItem in basket.LineItems.Where(li => li.ProductId.HasValue))

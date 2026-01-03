@@ -97,10 +97,10 @@ public class PaymentServiceTests
             PaymentType = PaymentType.Payment,
             PaymentSuccess = true,
             PaymentProviderAlias = "manual",
-            Refunds = new List<Payment>
-            {
+            Refunds =
+            [
                 new() { Amount = -30m, PaymentType = PaymentType.PartialRefund } // Already refunded 30
-            }
+            ]
         };
 
         SetupScopeForPaymentLookup(originalPayment);
@@ -180,10 +180,10 @@ public class PaymentServiceTests
         // Arrange
         var invoiceId = Guid.NewGuid();
         var invoiceTotal = 100m;
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             new() { Amount = 100m, PaymentType = PaymentType.Payment, PaymentSuccess = true }
-        };
+        ];
 
         SetupScopeForStatusCalculation(invoiceId, invoiceTotal, payments);
 
@@ -202,10 +202,10 @@ public class PaymentServiceTests
         // Arrange
         var invoiceId = Guid.NewGuid();
         var invoiceTotal = 100m;
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             new() { Amount = 40m, PaymentType = PaymentType.Payment, PaymentSuccess = true }
-        };
+        ];
 
         SetupScopeForStatusCalculation(invoiceId, invoiceTotal, payments);
 
@@ -224,11 +224,11 @@ public class PaymentServiceTests
         // Arrange
         var invoiceId = Guid.NewGuid();
         var invoiceTotal = 100m;
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             new() { Amount = 100m, PaymentType = PaymentType.Payment, PaymentSuccess = true },
             new() { Amount = -100m, PaymentType = PaymentType.Refund, PaymentSuccess = true }
-        };
+        ];
 
         SetupScopeForStatusCalculation(invoiceId, invoiceTotal, payments);
 
@@ -247,11 +247,11 @@ public class PaymentServiceTests
         // Arrange
         var invoiceId = Guid.NewGuid();
         var invoiceTotal = 100m;
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             new() { Amount = 100m, PaymentType = PaymentType.Payment, PaymentSuccess = true },
             new() { Amount = -30m, PaymentType = PaymentType.PartialRefund, PaymentSuccess = true }
-        };
+        ];
 
         SetupScopeForStatusCalculation(invoiceId, invoiceTotal, payments);
 

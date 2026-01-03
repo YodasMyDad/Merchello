@@ -479,7 +479,7 @@ public class DbSeeder(
     private async Task<List<Customer>> CreateCustomersAsync(CancellationToken cancellationToken)
     {
         var sampleCustomers = GetSampleCustomers();
-        var customers = new List<Customer>();
+        List<Customer> customers = [];
 
         foreach (var (billing, _) in sampleCustomers)
         {

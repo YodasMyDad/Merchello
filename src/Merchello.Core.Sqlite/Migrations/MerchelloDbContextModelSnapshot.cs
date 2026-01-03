@@ -144,6 +144,8 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Channel");
+
                     b.HasIndex("CurrencyCode");
 
                     b.HasIndex("CustomerId");
@@ -229,6 +231,8 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DependantLineItemSku");
+
                     b.HasIndex("InvoiceId");
 
                     b.HasIndex("LineItemType");
@@ -309,6 +313,8 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CompletedDate");
 
                     b.HasIndex("InvoiceId");
 
@@ -1133,7 +1139,11 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasIndex("ProductRootId");
 
+                    b.HasIndex("Sku");
+
                     b.HasIndex("Url");
+
+                    b.HasIndex("AvailableForPurchase", "CanPurchase");
 
                     b.ToTable("merchelloProducts", (string)null);
                 });

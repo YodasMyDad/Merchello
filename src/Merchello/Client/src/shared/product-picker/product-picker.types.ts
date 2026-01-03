@@ -168,6 +168,9 @@ export interface PendingShippingSelection {
   /** Selected add-ons (empty if none selected) */
   addons: SelectedAddon[];
 
+  /** Total price including variant base price and add-ons (calculated by backend) */
+  totalPrice: number;
+
   /** Warehouse ID for shipping */
   warehouseId: string;
 

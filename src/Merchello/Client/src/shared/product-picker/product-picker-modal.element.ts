@@ -55,6 +55,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
   // Addon price preview (from backend API - single source of truth)
   @state() private _addonPricePreview: { basePrice: number; addonsTotal: number; totalPrice: number } | null = null;
   @state() private _isLoadingAddonPreview = false;
+  @state() private _addonPreviewError: string | null = null;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -507,6 +508,9 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     const pending = this._pendingAddonSelection;
     if (!pending) return;
 
+    // Clear any previous error
+    this._addonPreviewError = null;
+
     // If no addons selected, just use the base price
     if (this._selectedAddons.size === 0) {
       this._addonPricePreview = {
@@ -529,18 +533,17 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
 
     const { data, error } = await MerchelloApi.previewAddonPrice(pending.variant.id, request);
 
+    // Guard against race condition - user may have navigated away during API call
+    if (!this._pendingAddonSelection) {
+      return;
+    }
+
     if (error) {
       console.error("Failed to fetch addon price preview:", error);
-      // Fallback to local calculation on error
-      const addonsTotal = Array.from(this._selectedAddons.values()).reduce(
-        (sum, addon) => sum + addon.priceAdjustment,
-        0
-      );
-      this._addonPricePreview = {
-        basePrice: pending.variant.price,
-        addonsTotal,
-        totalPrice: pending.variant.price + addonsTotal,
-      };
+      // Do NOT fall back to local calculation - show error state instead
+      // Backend is single source of truth for pricing
+      this._addonPricePreview = null;
+      this._addonPreviewError = "Unable to calculate price. Please try again.";
     } else if (data) {
       this._addonPricePreview = {
         basePrice: data.basePrice,
@@ -558,6 +561,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     this._selectedAddons = new Map();
     this._addonPricePreview = null;
     this._isLoadingAddonPreview = false;
+    this._addonPreviewError = null;
   }
 
   private _handleSkipAddons(): void {
@@ -593,10 +597,14 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       return;
     }
 
+    // Use backend-calculated total price, falling back to base price if no addons were selected
+    const totalPrice = this._addonPricePreview?.totalPrice ?? variant.price;
+
     // Set up pending shipping selection with loading state
     this._pendingShippingSelection = {
       variant,
       addons,
+      totalPrice,
       warehouseId,
       warehouseName,
       isLoadingOptions: true,
@@ -609,10 +617,12 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     const address = this._config?.shippingAddress;
     if (!address) {
       // No shipping address - shouldn't happen in order editing context
-      this._pendingShippingSelection = {
-        ...this._pendingShippingSelection,
-        isLoadingOptions: false,
-      };
+      if (this._pendingShippingSelection) {
+        this._pendingShippingSelection = {
+          ...this._pendingShippingSelection,
+          isLoadingOptions: false,
+        };
+      }
       return;
     }
 
@@ -621,6 +631,11 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       address.countryCode,
       address.stateCode
     );
+
+    // Guard against race condition - user may have navigated away during API call
+    if (!this._pendingShippingSelection) {
+      return;
+    }
 
     if (error || !data) {
       console.error("Failed to load shipping options:", error);
@@ -816,21 +831,41 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
 
     // Use backend-calculated addon pricing (single source of truth)
     const preview = this._addonPricePreview;
+    const hasPreviewError = this._addonPreviewError !== null;
     const basePrice = preview?.basePrice ?? variant.price;
     const addonsTotal = preview?.addonsTotal ?? 0;
     const totalPrice = preview?.totalPrice ?? variant.price;
 
+    // Disable continue if preview failed (backend is source of truth for pricing)
+    const canContinue = !hasPreviewError && !this._isLoadingAddonPreview;
+
     return html`
       <umb-body-layout headline="Select Add-ons (Optional)">
         <div id="main">
+          ${hasPreviewError
+            ? html`
+                <div class="addon-error">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>${this._addonPreviewError}</span>
+                  <uui-button
+                    look="secondary"
+                    compact
+                    @click=${() => this._fetchAddonPricePreview()}
+                  >
+                    Retry
+                  </uui-button>
+                </div>
+              `
+            : nothing}
+
           <div class="addon-product-summary">
             <div class="product-info">
               <strong>${variantName}</strong>
               ${variant.sku ? html`<span class="sku">${variant.sku}</span>` : nothing}
             </div>
-            <div class="product-pricing ${this._isLoadingAddonPreview ? "loading" : ""}">
+            <div class="product-pricing ${this._isLoadingAddonPreview ? "loading" : ""} ${hasPreviewError ? "error" : ""}">
               <span class="base-price">${formatPrice(basePrice, this._currencySymbol)}</span>
-              ${addonsTotal !== 0
+              ${!hasPreviewError && addonsTotal !== 0
                 ? html`
                     <span class="addon-total">
                       ${addonsTotal > 0 ? "+" : ""}${formatPrice(addonsTotal, this._currencySymbol)}
@@ -855,7 +890,12 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
           <uui-button look="secondary" @click=${this._handleSkipAddons}>
             Skip Add-ons
           </uui-button>
-          <uui-button look="primary" color="positive" @click=${this._handleConfirmWithAddons}>
+          <uui-button
+            look="primary"
+            color="positive"
+            ?disabled=${!canContinue}
+            @click=${this._handleConfirmWithAddons}
+          >
             Continue
           </uui-button>
         </div>
@@ -918,9 +958,8 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       ? `${variant.rootName} - ${variant.optionValuesDisplay}`
       : variant.rootName;
 
-    // Calculate total with add-ons
-    const addonsTotal = pending.addons.reduce((sum, addon) => sum + addon.priceAdjustment, 0);
-    const totalPrice = variant.price + addonsTotal;
+    // Use backend-calculated total price (stored when transitioning from addon selection)
+    const totalPrice = pending.totalPrice;
 
     return html`
       <umb-body-layout headline="Select Shipping">
@@ -1162,6 +1201,29 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
 
     .addon-product-summary .product-pricing.loading {
       opacity: 0.6;
+    }
+
+    .addon-product-summary .product-pricing.error {
+      opacity: 0.5;
+    }
+
+    .addon-error {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3);
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
+      border-radius: var(--uui-border-radius);
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .addon-error uui-icon {
+      flex-shrink: 0;
+    }
+
+    .addon-error span {
+      flex: 1;
     }
 
     .addon-product-summary .product-pricing uui-loader-circle {

@@ -212,8 +212,6 @@ public class InvoiceService(
                     requestedDeliveryDate = selectedDate;
                     isDeliveryDateGuaranteed = shippingOption.IsDeliveryDateGuaranteed;
 
-                    // TODO: Delivery date surcharge calculation can be implemented through shipping providers
-                    // For now, surcharge is 0 - can be extended when carrier APIs support date-based pricing
                     deliveryDateSurcharge = 0m;
                 }
 
@@ -1160,7 +1158,7 @@ public class InvoiceService(
             else
             {
                 // No payment filter - use efficient DB-level paging
-                var totalCount = await query.Select(i => i.Id).CountAsync(cancellationToken);
+                var totalCount = await query.CountAsync(cancellationToken);
 
                 var pageIndex = parameters.CurrentPage - 1;
                 var pageSize = parameters.AmountPerPage;
@@ -3908,7 +3906,7 @@ public class InvoiceService(
             .ToDictionaryAsync(w => w.Id, cancellationToken);
 
         // Build virtual basket with line items for the products being added
-        var virtualLineItems = new List<LineItem>();
+        List<LineItem> virtualLineItems = [];
         var lineItemShippingSelections = new Dictionary<Guid, (Guid WarehouseId, Guid ShippingOptionId)>();
 
         // Add products as virtual line items

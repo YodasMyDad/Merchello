@@ -803,7 +803,7 @@ public class ProductServiceTests
             guids.Count.ShouldBe(2);
 
             // Each GUID should match an option value
-            var matchedNames = new List<string>();
+            List<string> matchedNames = [];
             foreach (var guid in guids)
             {
                 valueIdToName.ShouldContainKey(guid);

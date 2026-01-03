@@ -403,7 +403,7 @@ public class DiscountsApiController(
     private async Task<List<string>> GetProductNamesAsync(List<Guid> ids, CancellationToken ct)
     {
         // Query products by ID
-        var names = new List<string>();
+        List<string> names = [];
         foreach (var id in ids)
         {
             var product = await productService.GetProduct(new GetProductParameters { ProductId = id }, ct);
@@ -447,7 +447,7 @@ public class DiscountsApiController(
 
     private async Task<List<string>> GetFilterNamesAsync(List<Guid> ids, CancellationToken ct)
     {
-        var names = new List<string>();
+        List<string> names = [];
         foreach (var id in ids)
         {
             var filter = await productService.GetFilter(id, ct);

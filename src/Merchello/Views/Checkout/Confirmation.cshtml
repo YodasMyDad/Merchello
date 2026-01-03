@@ -133,7 +133,7 @@ else
                             @confirmation.ShippingAddress.Address2<br />
                         }
                         @{
-                            var cityLine = new List<string>();
+                            List<string> cityLine = [];
                             if (!string.IsNullOrEmpty(confirmation.ShippingAddress.City)) cityLine.Add(confirmation.ShippingAddress.City);
                             if (!string.IsNullOrEmpty(confirmation.ShippingAddress.State)) cityLine.Add(confirmation.ShippingAddress.State);
                             if (!string.IsNullOrEmpty(confirmation.ShippingAddress.PostalCode)) cityLine.Add(confirmation.ShippingAddress.PostalCode);

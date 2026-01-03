@@ -65,7 +65,7 @@ public class FilterGroupPickerValueConverter(IServiceScopeFactory serviceScopeFa
         var filterGroups = Task.Run(() => productService.GetFilterGroupsByIds(ids)).GetAwaiter().GetResult();
 
         // Preserve the original order from the stored value
-        var orderedGroups = new List<ProductFilterGroup>(ids.Count);
+        List<ProductFilterGroup> orderedGroups = new(ids.Count);
         foreach (var id in ids)
         {
             var group = filterGroups.Find(g => g.Id == id);
@@ -86,7 +86,7 @@ public class FilterGroupPickerValueConverter(IServiceScopeFactory serviceScopeFa
         }
 
         var parts = value.Split(',', StringSplitOptions.RemoveEmptyEntries);
-        var ids = new List<Guid>(parts.Length);
+        List<Guid> ids = new(parts.Length);
 
         foreach (var part in parts)
         {

@@ -65,7 +65,7 @@ public class FilterValuePickerValueConverter(IServiceScopeFactory serviceScopeFa
         var filters = Task.Run(() => productService.GetFiltersByIds(ids)).GetAwaiter().GetResult();
 
         // Preserve the original order from the stored value
-        var orderedFilters = new List<ProductFilter>(ids.Count);
+        List<ProductFilter> orderedFilters = new(ids.Count);
         foreach (var id in ids)
         {
             var filter = filters.Find(f => f.Id == id);
@@ -86,7 +86,7 @@ public class FilterValuePickerValueConverter(IServiceScopeFactory serviceScopeFa
         }
 
         var parts = value.Split(',', StringSplitOptions.RemoveEmptyEntries);
-        var ids = new List<Guid>(parts.Length);
+        List<Guid> ids = new(parts.Length);
 
         foreach (var part in parts)
         {

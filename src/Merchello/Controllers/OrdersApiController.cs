@@ -916,7 +916,7 @@ public class OrdersApiController(
     {
         if (string.IsNullOrWhiteSpace(email))
         {
-            return Ok(new List<OrderListItemDto>());
+            return Ok(Array.Empty<OrderListItemDto>());
         }
 
         // URL decode the email in case it contains special characters

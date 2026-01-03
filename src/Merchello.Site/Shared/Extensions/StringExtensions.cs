@@ -9,7 +9,7 @@ public static class StringExtensions
     {
         public List<int> ToListInt()
         {
-            return !s.IsNullOrWhiteSpace() ? s.Split(',').Select(int.Parse).ToList() : new List<int>();
+            return !s.IsNullOrWhiteSpace() ? s.Split(',').Select(int.Parse).ToList() : [];
         }
 
         public string Truncate(int length)

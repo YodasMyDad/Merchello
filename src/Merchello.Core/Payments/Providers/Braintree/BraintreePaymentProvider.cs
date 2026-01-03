@@ -1226,8 +1226,8 @@ public class BraintreePaymentProvider : PaymentProviderBase
     public override ValueTask<IReadOnlyList<WebhookEventTemplate>> GetWebhookEventTemplatesAsync(
         CancellationToken cancellationToken = default)
     {
-        var templates = new List<WebhookEventTemplate>
-        {
+        List<WebhookEventTemplate> templates =
+        [
             new()
             {
                 EventType = "transaction_settled",
@@ -1310,7 +1310,7 @@ public class BraintreePaymentProvider : PaymentProviderBase
                 Category = WebhookEventCategory.Payment,
                 MerchelloEventType = WebhookEventType.Unknown
             }
-        };
+        ];
 
         return ValueTask.FromResult<IReadOnlyList<WebhookEventTemplate>>(templates);
     }

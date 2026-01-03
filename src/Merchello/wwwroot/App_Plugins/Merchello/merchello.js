@@ -145,7 +145,7 @@ const e = [
     type: "modal",
     alias: "Merchello.Refund.Modal",
     name: "Merchello Refund Modal",
-    js: () => import("./refund-modal.element-4MceWLTB.js")
+    js: () => import("./refund-modal.element-CoIN7BDV.js")
   },
   // Cancel invoice modal for cancelling invoices
   {
@@ -603,7 +603,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Analytics.Workspace.View",
     name: "Merchello Analytics View",
-    js: () => import("./analytics-workspace.element-BaPM0RaD.js"),
+    js: () => import("./analytics-workspace.element-CXYLRUXc.js"),
     weight: 100,
     meta: {
       label: "Analytics",
@@ -1003,7 +1003,7 @@ const e = [
     type: "modal",
     alias: "Merchello.ProductPicker.Modal",
     name: "Merchello Product Picker Modal",
-    js: () => import("./product-picker-modal.element-CtyZ9TjT.js")
+    js: () => import("./product-picker-modal.element-CBzRp68j.js")
   }
 ], W = [
   {
@@ -1116,7 +1116,7 @@ const e = [
     type: "propertyEditorUi",
     alias: "Merchello.PropertyEditorUi.ProductPicker",
     name: "Merchello Product Picker",
-    element: () => import("./property-editor-ui-product-picker.element-ma2HZpc-.js"),
+    element: () => import("./property-editor-ui-product-picker.element-DpESznY1.js"),
     meta: {
       label: "Product Picker",
       icon: "icon-box",
