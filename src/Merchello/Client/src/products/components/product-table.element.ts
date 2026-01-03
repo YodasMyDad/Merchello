@@ -8,7 +8,6 @@ import type {
   ProductSelectionChangeEventDetail,
 } from "@products/types/product.types.js";
 import { PRODUCT_COLUMN_LABELS, DEFAULT_PRODUCT_COLUMNS } from "@products/types/product.types.js";
-import { getStockStatusBadgeClass } from "@products/utils/variant-helpers.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
 import { getProductDetailHref } from "@shared/utils/navigation.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
@@ -95,8 +94,6 @@ export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
         return html`<uui-table-cell>${this._formatPriceRange(product)}</uui-table-cell>`;
       case "purchaseable":
         return html`<uui-table-cell><span class="badge ${product.purchaseable ? "badge-positive" : "badge-danger"}">${product.purchaseable ? "Available" : "Unavailable"}</span></uui-table-cell>`;
-      case "stock":
-        return html`<uui-table-cell><span class="badge ${getStockStatusBadgeClass(product.stockStatus)}">${product.totalStock}</span></uui-table-cell>`;
       case "variants":
         return html`<uui-table-cell><span class="badge badge-default">${product.variantCount}</span></uui-table-cell>`;
       case "warnings":

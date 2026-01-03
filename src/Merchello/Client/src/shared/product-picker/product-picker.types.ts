@@ -267,10 +267,10 @@ export interface PickerProductRoot {
   /** Maximum price across variants */
   maxPrice: number | null;
 
-  /** Total stock across all variants and warehouses */
+  /** Total stock across all variants and warehouses (calculated when variants loaded) */
   totalStock: number;
 
-  /** Stock status classification calculated by backend - use this instead of comparing totalStock to threshold locally */
+  /** Stock status classification (calculated when variants loaded) */
   stockStatus: StockStatus;
 
   /** Whether this is a digital product (no shipping) */

@@ -363,17 +363,10 @@ public class ProductsApiController(
             CurrentPage = query.Page,
             AmountPerPage = query.PageSize,
             ProductTypeKey = query.ProductTypeId,
-            NoTracking = true,
-            IncludeProductWarehouses = true,
-            IncludeSiblingVariants = true,
-            IncludeProductRootWarehouses = true,
-            AllVariants = false,
-            // DB-level filtering via service
             Search = query.Search,
             AvailabilityFilter = MapAvailabilityFilter(query.Availability),
             StockStatusFilter = MapStockStatusFilter(query.StockStatus),
             LowStockThreshold = _settings.LowStockThreshold,
-            // Sorting by name at DB level
             OrderBy = ProductOrderBy.ProductRoot
         };
 
@@ -382,13 +375,12 @@ public class ProductsApiController(
             parameters.CollectionIds = [query.CollectionId.Value];
         }
 
-        var result = await productService.QueryProducts(parameters);
-
-        var items = result.Items.Select(p => MapToListItem(p, _settings.LowStockThreshold)).ToList();
+        // Use summary projection query - returns DTOs directly
+        var result = await productService.QueryProductsSummary(parameters);
 
         return new ProductPageDto
         {
-            Items = items,
+            Items = result.Items.ToList(),
             Page = result.PageIndex,
             PageSize = query.PageSize,
             TotalItems = result.TotalItems,
@@ -584,69 +576,6 @@ public class ProductsApiController(
     }
 
     #endregion
-
-    private static ProductListItemDto MapToListItem(Product product, int lowStockThreshold)
-    {
-        var totalStock = product.ProductWarehouses?.Sum(pw => pw.Stock) ?? 0;
-        var variants = product.ProductRoot?.Products;
-        var variantCount = variants?.Count ?? 1;
-
-        // Calculate price range from all variants
-        decimal? minPrice = null;
-        decimal? maxPrice = null;
-        if (variants != null && variants.Count > 1)
-        {
-            minPrice = variants.Min(v => v.Price);
-            maxPrice = variants.Max(v => v.Price);
-        }
-
-        // Calculate warning fields
-        var productRootWarehouses = product.ProductRoot?.ProductRootWarehouses;
-        var hasWarehouse = productRootWarehouses?.Any() == true;
-        var hasShippingOptions = productRootWarehouses?.Any(prw =>
-            prw.Warehouse?.ShippingOptions?.Any() == true) == true;
-        var isDigitalProduct = product.ProductRoot?.IsDigitalProduct == true;
-
-        // Calculate stock status centrally
-        var stockStatus = CalculateStockStatus(totalStock, isDigitalProduct, lowStockThreshold);
-
-        return new ProductListItemDto
-        {
-            Id = product.Id,
-            ProductRootId = product.ProductRootId,
-            RootName = product.ProductRoot?.RootName ?? product.Name ?? "Unknown",
-            Sku = variantCount > 1 ? null : product.Sku,
-            Price = product.Price,
-            MinPrice = minPrice,
-            MaxPrice = maxPrice,
-            Purchaseable = product.AvailableForPurchase && product.CanPurchase,
-            TotalStock = totalStock,
-            StockStatus = stockStatus,
-            VariantCount = variantCount,
-            ProductTypeName = product.ProductRoot?.ProductType?.Name ?? "",
-            CollectionNames = product.ProductRoot?.Collections?.Select(c => c.Name ?? string.Empty).ToList() ?? [],
-            ImageUrl = product.Images.FirstOrDefault() ?? product.ProductRoot?.RootImages.FirstOrDefault(),
-            HasWarehouse = hasWarehouse,
-            HasShippingOptions = hasShippingOptions,
-            IsDigitalProduct = isDigitalProduct
-        };
-    }
-
-    /// <summary>
-    /// Calculates the stock status based on available stock and threshold.
-    /// This is the single source of truth for stock status calculation.
-    /// </summary>
-    private static StockStatus CalculateStockStatus(int totalStock, bool isDigitalProduct, int lowStockThreshold)
-    {
-        // Digital products don't track stock
-        if (isDigitalProduct)
-            return StockStatus.Untracked;
-        if (totalStock <= 0)
-            return StockStatus.OutOfStock;
-        if (totalStock <= lowStockThreshold)
-            return StockStatus.LowStock;
-        return StockStatus.InStock;
-    }
 
     #endregion
 

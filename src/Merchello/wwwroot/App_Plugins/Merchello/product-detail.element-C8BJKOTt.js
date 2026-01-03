@@ -1,25 +1,24 @@
-import { LitElement as C, nothing as n, html as o, css as S, property as w, state as c, customElement as E } from "@umbraco-cms/backoffice/external/lit";
-import { UmbElementMixin as O } from "@umbraco-cms/backoffice/element-api";
-import { UMB_WORKSPACE_CONTEXT as U } from "@umbraco-cms/backoffice/workspace";
-import { UmbModalToken as N, UMB_MODAL_MANAGER_CONTEXT as R, UMB_CONFIRM_MODAL as P } from "@umbraco-cms/backoffice/modal";
+import { LitElement as S, nothing as n, html as o, css as O, property as x, state as c, customElement as E } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as F } from "@umbraco-cms/backoffice/element-api";
+import { UMB_WORKSPACE_CONTEXT as G } from "@umbraco-cms/backoffice/workspace";
+import { UmbModalToken as N, UMB_MODAL_MANAGER_CONTEXT as R, UMB_CONFIRM_MODAL as I } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT as j } from "@umbraco-cms/backoffice/notification";
 import { M as g } from "./merchello-api-DPQ4r4XT.js";
 import "@umbraco-cms/backoffice/property";
-import { b as B } from "./badge.styles-DUcdl6GY.js";
-import { c as L, d as W } from "./navigation-m-G5wLvz.js";
-import { a as I } from "./formatting-DYmyPQEL.js";
+import { b as L } from "./badge.styles-DUcdl6GY.js";
+import { c as B, d as W } from "./navigation-m-G5wLvz.js";
+import { a as C } from "./formatting-DYmyPQEL.js";
 import { UmbChangeEvent as K } from "@umbraco-cms/backoffice/event";
 import "./product-shipping-exclusions.element-C9wmmLsg.js";
-import { h as H, a as q, f as Y, g as X, b as J, c as Q } from "./variant-helpers-BWMAK-La.js";
-import { UmbDataTypeDetailRepository as Z } from "@umbraco-cms/backoffice/data-type";
-import { UmbPropertyEditorConfigCollection as F } from "@umbraco-cms/backoffice/property-editor";
+import { UmbDataTypeDetailRepository as H } from "@umbraco-cms/backoffice/data-type";
+import { UmbPropertyEditorConfigCollection as V } from "@umbraco-cms/backoffice/property-editor";
 import "@umbraco-cms/backoffice/tiptap";
-var tt = Object.defineProperty, et = Object.getOwnPropertyDescriptor, T = (t, e, i, a) => {
-  for (var r = a > 1 ? void 0 : a ? et(e, i) : e, l = t.length - 1, u; l >= 0; l--)
+var q = Object.defineProperty, Y = Object.getOwnPropertyDescriptor, T = (t, e, i, a) => {
+  for (var r = a > 1 ? void 0 : a ? Y(e, i) : e, l = t.length - 1, u; l >= 0; l--)
     (u = t[l]) && (r = (a ? u(e, i, r) : u(r)) || r);
-  return a && r && tt(e, i, r), r;
+  return a && r && q(e, i, r), r;
 };
-let _ = class extends O(C) {
+let y = class extends F(S) {
   constructor() {
     super(...arguments), this.values = {}, this._datasetValue = [];
   }
@@ -104,7 +103,7 @@ let _ = class extends O(C) {
       return t.dataTypeConfiguration;
   }
 };
-_.styles = S`
+y.styles = O`
     :host {
       display: block;
     }
@@ -130,21 +129,21 @@ _.styles = S`
     }
   `;
 T([
-  w({ attribute: !1 })
-], _.prototype, "elementType", 2);
+  x({ attribute: !1 })
+], y.prototype, "elementType", 2);
 T([
-  w({ attribute: !1 })
-], _.prototype, "values", 2);
+  x({ attribute: !1 })
+], y.prototype, "values", 2);
 T([
-  w({ type: String })
-], _.prototype, "activeTabId", 2);
+  x({ type: String })
+], y.prototype, "activeTabId", 2);
 T([
   c()
-], _.prototype, "_datasetValue", 2);
-_ = T([
+], y.prototype, "_datasetValue", 2);
+y = T([
   E("merchello-product-element-properties")
-], _);
-const V = new N(
+], y);
+const A = new N(
   "Merchello.OptionEditor.Modal",
   {
     modal: {
@@ -153,12 +152,12 @@ const V = new N(
     }
   }
 );
-var it = Object.defineProperty, at = Object.getOwnPropertyDescriptor, y = (t, e, i, a) => {
-  for (var r = a > 1 ? void 0 : a ? at(e, i) : e, l = t.length - 1, u; l >= 0; l--)
+var X = Object.defineProperty, J = Object.getOwnPropertyDescriptor, w = (t, e, i, a) => {
+  for (var r = a > 1 ? void 0 : a ? J(e, i) : e, l = t.length - 1, u; l >= 0; l--)
     (u = t[l]) && (r = (a ? u(e, i, r) : u(r)) || r);
-  return a && r && it(e, i, r), r;
+  return a && r && X(e, i, r), r;
 };
-let b = class extends O(C) {
+let b = class extends F(S) {
   constructor() {
     super(...arguments), this.items = [], this.placeholder = "Add item...", this.readonly = !1, this._newItemValue = "", this._editingIndex = null, this._editingValue = "";
   }
@@ -338,7 +337,7 @@ let b = class extends O(C) {
     `;
   }
 };
-b.styles = S`
+b.styles = O`
     :host {
       display: block;
     }
@@ -426,57 +425,102 @@ b.styles = S`
       font-style: italic;
     }
   `;
-y([
-  w({ type: Array })
+w([
+  x({ type: Array })
 ], b.prototype, "items", 2);
-y([
-  w({ type: String })
+w([
+  x({ type: String })
 ], b.prototype, "placeholder", 2);
-y([
-  w({ type: Boolean })
+w([
+  x({ type: Boolean })
 ], b.prototype, "readonly", 2);
-y([
+w([
   c()
 ], b.prototype, "_newItemValue", 2);
-y([
+w([
   c()
 ], b.prototype, "_editingIndex", 2);
-y([
+w([
   c()
 ], b.prototype, "_editingValue", 2);
-b = y([
+b = w([
   E("merchello-editable-text-list")
 ], b);
-function rt(t, e = {}) {
+function Q(t, e = {}) {
   const i = {};
   return t.rootName?.trim() || (i.rootName = "Product name is required"), t.taxGroupId || (i.taxGroupId = "Tax group is required"), t.productTypeId || (i.productTypeId = "Product type is required"), !(e.isDigitalProduct ?? t.isDigitalProduct ?? !1) && (!t.warehouseIds || t.warehouseIds.length === 0) && (i.warehouseIds = "At least one warehouse is required for physical products"), {
     isValid: Object.keys(i).length === 0,
     errors: i
   };
 }
-function ot(t) {
+function Z(t) {
   const e = {};
   return t.sku?.trim() || (e.sku = "SKU is required"), (t.price ?? 0) < 0 && (e.price = "Price must be 0 or greater"), t.costOfGoods !== void 0 && t.costOfGoods < 0 && (e.costOfGoods = "Cost of goods must be 0 or greater"), t.onSale && t.previousPrice !== void 0 && t.previousPrice !== null && t.previousPrice < 0 && (e.previousPrice = "Previous price must be 0 or greater"), {
     isValid: Object.keys(e).length === 0,
     errors: e
   };
 }
-function st(t, e) {
+function tt(t, e) {
   if (!t && !e)
     return null;
   const i = [];
   return t && i.push("Details"), e && i.push("Basic Info"), `Please fix the errors on the ${i.join(" and ")} tab${i.length > 1 ? "s" : ""} before saving`;
 }
-var nt = Object.defineProperty, lt = Object.getOwnPropertyDescriptor, A = (t) => {
+function et(t, e) {
+  if (!t.variantOptionsKey)
+    return null;
+  const i = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, a = t.variantOptionsKey.match(i) || [], r = [];
+  for (const l of a)
+    for (const u of e) {
+      const _ = u.values.find((P) => P.id === l);
+      if (_) {
+        r.push(_.name);
+        break;
+      }
+    }
+  return r.length > 0 ? r.join(" / ") : null;
+}
+function it(t) {
+  const e = t.filter((i) => i.isVariant);
+  return e.length === 0 ? 0 : e.reduce((i, a) => i * (a.values.length || 1), 1);
+}
+function at(t) {
+  switch (t) {
+    case "OutOfStock":
+      return "badge-danger";
+    case "LowStock":
+      return "badge-warning";
+    case "InStock":
+      return "badge-positive";
+    case "Untracked":
+    default:
+      return "badge-default";
+  }
+}
+function rt(t) {
+  return t.some((e) => !e.sku || e.price === 0);
+}
+function ot(t, e) {
+  return t > 1 && e === 0;
+}
+function st(t) {
+  try {
+    const e = new URL(t), i = e.pathname.split("/").filter((a) => a);
+    return i.length === 0 ? e.hostname : `${e.hostname} › ${i.join(" › ")}`;
+  } catch {
+    return t;
+  }
+}
+var nt = Object.defineProperty, lt = Object.getOwnPropertyDescriptor, z = (t) => {
   throw TypeError(t);
 }, p = (t, e, i, a) => {
   for (var r = a > 1 ? void 0 : a ? lt(e, i) : e, l = t.length - 1, u; l >= 0; l--)
     (u = t[l]) && (r = (a ? u(e, i, r) : u(r)) || r);
   return a && r && nt(e, i, r), r;
-}, z = (t, e, i) => e.has(t) || A("Cannot " + i), s = (t, e, i) => (z(t, e, "read from private field"), e.get(t)), $ = (t, e, i) => e.has(t) ? A("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(t) : e.set(t, i), D = (t, e, i, a) => (z(t, e, "write to private field"), e.set(t, i), i), k, h, f, m, v;
-let d = class extends O(C) {
+}, M = (t, e, i) => e.has(t) || z("Cannot " + i), s = (t, e, i) => (M(t, e, "read from private field"), e.get(t)), $ = (t, e, i) => e.has(t) ? z("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(t) : e.set(t, i), D = (t, e, i, a) => (M(t, e, "write to private field"), e.set(t, i), i), k, h, v, m, f;
+let d = class extends F(S) {
   constructor() {
-    super(), this._product = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._validationAttempted = !1, this._fieldErrors = {}, this._routes = [], this._activePath = "", this._formData = {}, this._variantFormData = {}, this._variantFieldErrors = {}, this._taxGroups = [], this._productTypes = [], this._warehouses = [], this._productViews = [], this._optionSettings = null, this._filterGroups = [], this._assignedFilterIds = [], this._originalAssignedFilterIds = [], this._shippingOptions = [], this._elementType = null, this._elementPropertyValues = {}, this._descriptionEditorConfig = void 0, this._descriptionBlocks = null, $(this, k, new Z(this)), $(this, h), $(this, f), $(this, m), $(this, v, !1), this.consumeContext(U, (t) => {
+    super(), this._product = null, this._isLoading = !0, this._isSaving = !1, this._errorMessage = null, this._validationAttempted = !1, this._fieldErrors = {}, this._routes = [], this._activePath = "", this._formData = {}, this._variantFormData = {}, this._variantFieldErrors = {}, this._taxGroups = [], this._productTypes = [], this._warehouses = [], this._productViews = [], this._optionSettings = null, this._filterGroups = [], this._assignedFilterIds = [], this._originalAssignedFilterIds = [], this._shippingOptions = [], this._elementType = null, this._elementPropertyValues = {}, this._descriptionEditorConfig = void 0, this._descriptionBlocks = null, $(this, k, new H(this)), $(this, h), $(this, v), $(this, m), $(this, f, !1), this.consumeContext(G, (t) => {
       D(this, h, t), s(this, h) && (this.observe(s(this, h).product, (e) => {
         this._product = e ?? null, e && (this._formData = { ...e }, this._descriptionBlocks = null, this._shippingOptions = e.availableShippingOptions ?? [], e.variants.length === 1 && (this._variantFormData = { ...e.variants[0] }, this._loadAssignedFilters()), e.elementProperties && (this._elementPropertyValues = { ...e.elementProperties })), this._isLoading = !e;
       }), this.observe(s(this, h).elementType, (e) => {
@@ -487,16 +531,16 @@ let d = class extends O(C) {
         this._filterGroups = e;
       }));
     }), this.consumeContext(R, (t) => {
-      D(this, f, t);
+      D(this, v, t);
     }), this.consumeContext(j, (t) => {
       D(this, m, t);
     });
   }
   connectedCallback() {
-    super.connectedCallback(), D(this, v, !0), this._loadReferenceData(), this._createRoutes();
+    super.connectedCallback(), D(this, f, !0), this._loadReferenceData(), this._createRoutes();
   }
   disconnectedCallback() {
-    super.disconnectedCallback(), D(this, v, !1);
+    super.disconnectedCallback(), D(this, f, !1);
   }
   async _loadReferenceData() {
     try {
@@ -509,7 +553,7 @@ let d = class extends O(C) {
         g.getDescriptionEditorSettings(),
         g.getProductViews()
       ]);
-      if (!s(this, v) || (t.data && (this._taxGroups = t.data), e.data && (this._productTypes = e.data), i.data && (this._warehouses = i.data), a.data && (this._optionSettings = a.data), l.data && (this._productViews = l.data), r.data?.dataTypeKey && (await this._loadDataTypeConfig(r.data.dataTypeKey), !s(this, v))))
+      if (!s(this, f) || (t.data && (this._taxGroups = t.data), e.data && (this._productTypes = e.data), i.data && (this._warehouses = i.data), a.data && (this._optionSettings = a.data), l.data && (this._productViews = l.data), r.data?.dataTypeKey && (await this._loadDataTypeConfig(r.data.dataTypeKey), !s(this, f))))
         return;
       await this._loadAssignedFilters(), await s(this, h)?.loadElementType();
     } catch (t) {
@@ -526,7 +570,7 @@ let d = class extends O(C) {
     const t = this._product?.variants[0]?.id;
     if (!t || s(this, h)?.isNew) return;
     const { data: e } = await g.getFiltersForProduct(t);
-    if (s(this, v) && e) {
+    if (s(this, f) && e) {
       const i = e.map((a) => a.id);
       this._assignedFilterIds = i, this._originalAssignedFilterIds = [...i];
     }
@@ -545,12 +589,12 @@ let d = class extends O(C) {
       this.observe(
         await s(this, k).byUnique(t),
         (i) => {
-          if (!s(this, v)) return;
+          if (!s(this, f)) return;
           if (!i) {
             console.warn("[Merchello] DataType not found, using fallback config"), this._setFallbackEditorConfig();
             return;
           }
-          i.values?.some((r) => r.alias === "extensions") || console.warn("[Merchello] DataType is missing 'extensions' config. Delete it in Settings > Data Types and restart to recreate."), this._descriptionEditorConfig = new F(i.values);
+          i.values?.some((r) => r.alias === "extensions") || console.warn("[Merchello] DataType is missing 'extensions' config. Delete it in Settings > Data Types and restart to recreate."), this._descriptionEditorConfig = new V(i.values);
         },
         "_observeDescriptionDataType"
       );
@@ -562,7 +606,7 @@ let d = class extends O(C) {
    * Sets a fallback editor configuration if the DataType cannot be loaded.
    */
   _setFallbackEditorConfig() {
-    this._descriptionEditorConfig = new F([
+    this._descriptionEditorConfig = new V([
       {
         alias: "toolbar",
         value: [
@@ -878,13 +922,13 @@ let d = class extends O(C) {
    */
   _validateForm() {
     this._validationAttempted = !0, this._errorMessage = null;
-    const t = rt(this._formData, {
+    const t = Q(this._formData, {
       isDigitalProduct: this._formData.isDigitalProduct
     });
     this._fieldErrors = t.errors;
     let e = { isValid: !0, errors: {} };
-    this._isSingleVariant() && (e = ot(this._variantFormData)), this._variantFieldErrors = e.errors;
-    const i = st(
+    this._isSingleVariant() && (e = Z(this._variantFormData)), this._variantFieldErrors = e.errors;
+    const i = tt(
       !t.isValid,
       !e.isValid
     );
@@ -895,7 +939,7 @@ let d = class extends O(C) {
    * Uses utility function from variant-helpers.
    */
   _hasVariantWarnings() {
-    return this._product?.variants ? H(this._product.variants) : !1;
+    return this._product?.variants ? rt(this._product.variants) : !1;
   }
   /**
    * Checks if there are warnings for options tab.
@@ -903,7 +947,7 @@ let d = class extends O(C) {
    */
   _hasOptionWarnings() {
     const t = this._product?.variants.length ?? 0, e = this._product?.productOptions.length ?? 0;
-    return q(t, e);
+    return ot(t, e);
   }
   _renderTabs() {
     const t = this._product?.variants.length ?? 0, e = this._product?.productOptions.length ?? 0, i = this._isSingleVariant(), a = this._getActiveTab(), r = this._getTabHint("details"), l = this._getTabHint("variants"), u = this._getTabHint("options");
@@ -1373,7 +1417,7 @@ let d = class extends O(C) {
     `;
   }
   _renderGoogleSearchPreview() {
-    const t = this._formData.pageTitle || this._formData.rootName || "Product Title", e = this._formData.metaDescription || "No meta description set. Add a description to improve search visibility.", i = this._formData.canonicalUrl || "https://yourstore.com/products/product-name", a = this._formatUrlAsBreadcrumb(i), r = 60, l = 160, u = t.length > r, x = e.length > l, M = u ? t.substring(0, r - 3) + "..." : t, G = x ? e.substring(0, l - 3) + "..." : e;
+    const t = this._formData.pageTitle || this._formData.rootName || "Product Title", e = this._formData.metaDescription || "No meta description set. Add a description to improve search visibility.", i = this._formData.canonicalUrl || "https://yourstore.com/products/product-name", a = this._formatUrlAsBreadcrumb(i), r = 60, l = 160, u = t.length > r, _ = e.length > l, P = u ? t.substring(0, r - 3) + "..." : t, U = _ ? e.substring(0, l - 3) + "..." : e;
     return o`
       <div class="google-preview">
         <div class="google-preview-header">
@@ -1385,15 +1429,15 @@ let d = class extends O(C) {
             <div class="google-preview-url">${a}</div>
           </div>
         </div>
-        <div class="google-preview-title">${M}</div>
-        <div class="google-preview-description">${G}</div>
+        <div class="google-preview-title">${P}</div>
+        <div class="google-preview-description">${U}</div>
       </div>
       <div class="google-preview-stats">
         <span class="${u ? "stat-warning" : "stat-ok"}">
           Title: ${t.length}/${r} chars ${u ? "(will be truncated)" : ""}
         </span>
-        <span class="${x ? "stat-warning" : "stat-ok"}">
-          Description: ${e.length}/${l} chars ${x ? "(will be truncated)" : ""}
+        <span class="${_ ? "stat-warning" : "stat-ok"}">
+          Description: ${e.length}/${l} chars ${_ ? "(will be truncated)" : ""}
         </span>
       </div>
     `;
@@ -1403,7 +1447,7 @@ let d = class extends O(C) {
    * Uses utility function from variant-helpers.
    */
   _formatUrlAsBreadcrumb(t) {
-    return Y(t);
+    return st(t);
   }
   _handleOpenGraphImageChange(t) {
     const i = t.target?.value || [], a = i.length > 0 ? i[0].mediaKey : null;
@@ -1460,7 +1504,7 @@ let d = class extends O(C) {
     `;
   }
   _renderVariantRow(t) {
-    const e = this._product ? L(this._product.id, t.id) : "", i = this._getVariantOptionDescription(t);
+    const e = this._product ? B(this._product.id, t.id) : "", i = this._getVariantOptionDescription(t);
     return o`
       <uui-table-row>
         <uui-table-cell>
@@ -1479,9 +1523,9 @@ let d = class extends O(C) {
           </div>
         </uui-table-cell>
         <uui-table-cell>${t.sku || "—"}</uui-table-cell>
-        <uui-table-cell>${I(t.price)}</uui-table-cell>
+        <uui-table-cell>${C(t.price)}</uui-table-cell>
         <uui-table-cell>
-          <span class="badge ${X(t.stockStatus)}">${t.totalStock}</span>
+          <span class="badge ${at(t.stockStatus)}">${t.totalStock}</span>
         </uui-table-cell>
         <uui-table-cell>
           <span class="badge ${t.availableForPurchase ? "badge-positive" : "badge-danger"}">
@@ -1497,7 +1541,7 @@ let d = class extends O(C) {
    * Uses utility function from variant-helpers.
    */
   _getVariantOptionDescription(t) {
-    return this._product ? J(t, this._product.productOptions) : null;
+    return this._product ? et(t, this._product.productOptions) : null;
   }
   async _handleSetDefaultVariant(t) {
     if (!this._product || this._product.variants.find((r) => r.id === t)?.default) return;
@@ -1563,7 +1607,7 @@ let d = class extends O(C) {
     this._variantFormData = { ...this._variantFormData, warehouseStock: l };
   }
   _renderOptionsTab() {
-    const t = this._formData.productOptions ?? [], e = s(this, h)?.isNew ?? !0, i = Q(t), a = this._optionSettings?.maxProductOptions ?? 5, r = t.length >= a;
+    const t = this._formData.productOptions ?? [], e = s(this, h)?.isNew ?? !0, i = it(t), a = this._optionSettings?.maxProductOptions ?? 5, r = t.length >= a;
     return o`
       <div class="tab-content">
         ${e ? o`
@@ -1651,17 +1695,17 @@ let d = class extends O(C) {
         <span>${t.name}</span>
         ${i ? o`
               <span class="adjustments">
-                ${t.priceAdjustment !== 0 ? o`<span class="price-adjustment">${t.priceAdjustment > 0 ? "+" : ""}${I(t.priceAdjustment)}</span>` : n}
+                ${t.priceAdjustment !== 0 ? o`<span class="price-adjustment">${t.priceAdjustment > 0 ? "+" : ""}${C(t.priceAdjustment)}</span>` : n}
                 ${t.priceAdjustment !== 0 && t.costAdjustment !== 0 ? o`<span class="adjustment-separator">/</span>` : n}
-                ${t.costAdjustment !== 0 ? o`<span class="cost-adjustment">${t.costAdjustment > 0 ? "+" : ""}${I(t.costAdjustment)} cost</span>` : n}
+                ${t.costAdjustment !== 0 ? o`<span class="cost-adjustment">${t.costAdjustment > 0 ? "+" : ""}${C(t.costAdjustment)} cost</span>` : n}
               </span>
             ` : n}
       </div>
     `;
   }
   async _addNewOption() {
-    if (!s(this, f) || !this._optionSettings) return;
-    const e = await s(this, f).open(this, V, {
+    if (!s(this, v) || !this._optionSettings) return;
+    const e = await s(this, v).open(this, A, {
       data: {
         option: void 0,
         settings: this._optionSettings
@@ -1677,8 +1721,8 @@ let d = class extends O(C) {
     }
   }
   async _editOption(t) {
-    if (!s(this, f) || !this._optionSettings) return;
-    const i = await s(this, f).open(this, V, {
+    if (!s(this, v) || !this._optionSettings) return;
+    const i = await s(this, v).open(this, A, {
       data: {
         option: t,
         settings: this._optionSettings
@@ -1696,7 +1740,7 @@ let d = class extends O(C) {
   }
   async _deleteOption(t) {
     const i = this._formData.productOptions?.find((u) => u.id === t)?.name || "this option";
-    if (!await s(this, f)?.open(this, P, {
+    if (!await s(this, v)?.open(this, I, {
       data: {
         headline: "Delete Option",
         content: `Are you sure you want to delete "${i}"? This action cannot be undone.`,
@@ -1704,7 +1748,7 @@ let d = class extends O(C) {
         color: "danger"
       }
     })?.onSubmit().catch(() => {
-    }) || !s(this, v)) return;
+    }) || !s(this, f)) return;
     const l = (this._formData.productOptions || []).filter((u) => u.id !== t);
     this._formData = { ...this._formData, productOptions: l }, await this._saveOptions();
   }
@@ -1714,7 +1758,7 @@ let d = class extends O(C) {
    */
   async _confirmVariantRegeneration() {
     const e = (this._formData.productOptions || []).filter((r) => r.isVariant), i = this._product?.variants.length ?? 0, a = e.length > 0 ? e.reduce((r, l) => r * (l.values.length || 1), 1) : 1;
-    return i > 0 && e.length > 0 ? !(!await s(this, f)?.open(this, P, {
+    return i > 0 && e.length > 0 ? !(!await s(this, v)?.open(this, I, {
       data: {
         headline: "Regenerate Variants",
         content: `Saving these options will regenerate all product variants. Current variants: ${i}. New variants to create: ${a}. This will DELETE all existing variants and create new ones. Any variant-specific data (pricing, stock levels, images, SKUs) will need to be re-entered manually.`,
@@ -1722,7 +1766,7 @@ let d = class extends O(C) {
         color: "danger"
       }
     })?.onSubmit().catch(() => {
-    }) || !s(this, v)) : i > 1 && e.length === 0 ? !(!await s(this, f)?.open(this, P, {
+    }) || !s(this, f)) : i > 1 && e.length === 0 ? !(!await s(this, v)?.open(this, I, {
       data: {
         headline: "Remove Variant Options",
         content: `Removing all variant options will collapse this product to a single variant. Current variants: ${i}. After save: 1 variant (default only). ${i - 1} variants will be DELETED. Only the default variant will be kept.`,
@@ -1730,7 +1774,7 @@ let d = class extends O(C) {
         color: "danger"
       }
     })?.onSubmit().catch(() => {
-    }) || !s(this, v)) : !0;
+    }) || !s(this, f)) : !0;
   }
   async _saveOptions() {
     if (!this._product?.id) return;
@@ -1747,10 +1791,10 @@ let d = class extends O(C) {
         optionTypeAlias: r.optionTypeAlias ?? void 0,
         optionUiAlias: r.optionUiAlias ?? void 0,
         isVariant: r.isVariant,
-        values: r.values.map((u, x) => ({
+        values: r.values.map((u, _) => ({
           id: u.id,
           name: u.name,
-          sortOrder: x,
+          sortOrder: _,
           hexValue: u.hexValue ?? void 0,
           mediaKey: u.mediaKey ?? void 0,
           priceAdjustment: u.priceAdjustment,
@@ -1760,10 +1804,10 @@ let d = class extends O(C) {
       }));
       s(this, m)?.peek("default", { data: { headline: "Saving options...", message: "Variants will be regenerated" } });
       const { data: i, error: a } = await g.saveProductOptions(this._product.id, e);
-      if (!s(this, v)) return;
+      if (!s(this, f)) return;
       !a && i ? (this._formData = { ...this._formData, productOptions: i }, s(this, m)?.peek("positive", { data: { headline: "Options saved", message: "Variants have been regenerated" } }), s(this, h)?.reload()) : a && (console.error("Failed to save options:", a), this._errorMessage = "Failed to save options: " + a.message, s(this, m)?.peek("danger", { data: { headline: "Failed to save options", message: a.message } }));
     } catch (e) {
-      if (!s(this, v)) return;
+      if (!s(this, f)) return;
       console.error("Failed to save options:", e), this._errorMessage = e instanceof Error ? e.message : "Failed to save options", s(this, m)?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } });
     }
   }
@@ -1898,12 +1942,12 @@ let d = class extends O(C) {
 };
 k = /* @__PURE__ */ new WeakMap();
 h = /* @__PURE__ */ new WeakMap();
-f = /* @__PURE__ */ new WeakMap();
-m = /* @__PURE__ */ new WeakMap();
 v = /* @__PURE__ */ new WeakMap();
+m = /* @__PURE__ */ new WeakMap();
+f = /* @__PURE__ */ new WeakMap();
 d.styles = [
-  B,
-  S`
+  L,
+  O`
       :host {
         display: block;
         width: 100%;
@@ -2482,9 +2526,9 @@ p([
 d = p([
   E("merchello-product-detail")
 ], d);
-const Tt = d;
+const Dt = d;
 export {
   d as MerchelloProductDetailElement,
-  Tt as default
+  Dt as default
 };
-//# sourceMappingURL=product-detail.element-H8zUa-st.js.map
+//# sourceMappingURL=product-detail.element-C8BJKOTt.js.map

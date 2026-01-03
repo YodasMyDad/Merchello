@@ -6,35 +6,32 @@ import { g as E } from "./store-settings-BhzqJKNt.js";
 import { a as M, b as z } from "./navigation-m-G5wLvz.js";
 import "./pagination.element-sDi4Myhy.js";
 import "./merchello-empty-state.element-mt97UoA5.js";
-import { g as D } from "./variant-helpers-BWMAK-La.js";
 import { a as f } from "./formatting-DYmyPQEL.js";
-import { b as L } from "./badge.styles-DUcdl6GY.js";
-const N = new I("Merchello.CreateProduct.Modal", {
+import { b as D } from "./badge.styles-DUcdl6GY.js";
+const L = new I("Merchello.CreateProduct.Modal", {
   modal: {
     type: "sidebar",
     size: "large"
   }
-}), R = {
+}), N = {
   select: "",
   rootName: "Product",
   sku: "SKU",
   price: "Price",
   purchaseable: "Available",
-  stock: "Stock",
   variants: "Variants",
   warnings: ""
-}, U = [
+}, R = [
   "rootName",
   "sku",
   "price",
   "purchaseable",
-  "stock",
   "variants"
 ];
-var W = Object.defineProperty, j = Object.getOwnPropertyDescriptor, C = (e, t, i, s) => {
-  for (var a = s > 1 ? void 0 : s ? j(t, i) : t, c = e.length - 1, u; c >= 0; c--)
+var U = Object.defineProperty, W = Object.getOwnPropertyDescriptor, C = (e, t, i, s) => {
+  for (var a = s > 1 ? void 0 : s ? W(t, i) : t, c = e.length - 1, u; c >= 0; c--)
     (u = e[c]) && (a = (s ? u(t, i, a) : u(a)) || a);
-  return s && a && W(t, i, a), a;
+  return s && a && U(t, i, a), a;
 };
 let _ = class extends x(P) {
   constructor() {
@@ -210,14 +207,14 @@ C([
 _ = C([
   S("merchello-warning-popover")
 ], _);
-var B = Object.defineProperty, H = Object.getOwnPropertyDescriptor, g = (e, t, i, s) => {
-  for (var a = s > 1 ? void 0 : s ? H(t, i) : t, c = e.length - 1, u; c >= 0; c--)
+var j = Object.defineProperty, B = Object.getOwnPropertyDescriptor, g = (e, t, i, s) => {
+  for (var a = s > 1 ? void 0 : s ? B(t, i) : t, c = e.length - 1, u; c >= 0; c--)
     (u = e[c]) && (a = (s ? u(t, i, a) : u(a)) || a);
-  return s && a && B(t, i, a), a;
+  return s && a && j(t, i, a), a;
 };
 let d = class extends x(P) {
   constructor() {
-    super(...arguments), this.products = [], this.columns = [...U], this.selectable = !1, this.selectedIds = [], this.clickable = !0;
+    super(...arguments), this.products = [], this.columns = [...R], this.selectable = !1, this.selectedIds = [], this.clickable = !0;
   }
   _getEffectiveColumns() {
     const e = [...this.columns];
@@ -252,7 +249,7 @@ let d = class extends x(P) {
           <uui-checkbox aria-label="Select all" @change=${this._handleSelectAll}
             ?checked=${this.selectedIds.length === this.products.length && this.products.length > 0}></uui-checkbox>
         </uui-table-head-cell>
-      ` : r`<uui-table-head-cell>${R[e]}</uui-table-head-cell>`;
+      ` : r`<uui-table-head-cell>${N[e]}</uui-table-head-cell>`;
   }
   _renderCell(e, t) {
     switch (t) {
@@ -272,8 +269,6 @@ let d = class extends x(P) {
         return r`<uui-table-cell>${this._formatPriceRange(e)}</uui-table-cell>`;
       case "purchaseable":
         return r`<uui-table-cell><span class="badge ${e.purchaseable ? "badge-positive" : "badge-danger"}">${e.purchaseable ? "Available" : "Unavailable"}</span></uui-table-cell>`;
-      case "stock":
-        return r`<uui-table-cell><span class="badge ${D(e.stockStatus)}">${e.totalStock}</span></uui-table-cell>`;
       case "variants":
         return r`<uui-table-cell><span class="badge badge-default">${e.variantCount}</span></uui-table-cell>`;
       case "warnings":
@@ -324,7 +319,7 @@ let d = class extends x(P) {
   }
 };
 d.styles = [
-  L,
+  D,
   k`
       :host { display: block; }
       .table-container { overflow-x: auto; background: var(--uui-color-surface); border: 1px solid var(--uui-color-border); border-radius: var(--uui-border-radius); }
@@ -356,16 +351,16 @@ g([
 d = g([
   S("merchello-product-table")
 ], d);
-var K = Object.defineProperty, F = Object.getOwnPropertyDescriptor, T = (e) => {
+var H = Object.defineProperty, K = Object.getOwnPropertyDescriptor, T = (e) => {
   throw TypeError(e);
 }, n = (e, t, i, s) => {
-  for (var a = s > 1 ? void 0 : s ? F(t, i) : t, c = e.length - 1, u; c >= 0; c--)
+  for (var a = s > 1 ? void 0 : s ? K(t, i) : t, c = e.length - 1, u; c >= 0; c--)
     (u = e[c]) && (a = (s ? u(t, i, a) : u(a)) || a);
-  return s && a && K(t, i, a), a;
+  return s && a && H(t, i, a), a;
 }, O = (e, t, i) => t.has(e) || T("Cannot " + i), m = (e, t, i) => (O(e, t, "read from private field"), t.get(e)), $ = (e, t, i) => t.has(e) ? T("Cannot add the same private member more than once") : t instanceof WeakSet ? t.add(e) : t.set(e, i), y = (e, t, i, s) => (O(e, t, "write to private field"), t.set(e, i), i), b, h;
 let o = class extends x(P) {
   constructor() {
-    super(), this._products = [], this._isLoading = !0, this._errorMessage = null, this._page = 1, this._pageSize = 50, this._totalItems = 0, this._totalPages = 0, this._selectedProducts = /* @__PURE__ */ new Set(), this._searchTerm = "", this._productTypeId = "", this._collectionId = "", this._availability = "all", this._stockStatus = "all", this._productTypes = [], this._collections = [], this._searchDebounceTimer = null, $(this, b), $(this, h, !1), this._tableColumns = ["select", "warnings", "rootName", "sku", "price", "purchaseable", "stock", "variants"], this.consumeContext(A, (e) => {
+    super(), this._products = [], this._isLoading = !0, this._errorMessage = null, this._page = 1, this._pageSize = 50, this._totalItems = 0, this._totalPages = 0, this._selectedProducts = /* @__PURE__ */ new Set(), this._searchTerm = "", this._productTypeId = "", this._collectionId = "", this._availability = "all", this._stockStatus = "all", this._productTypes = [], this._collections = [], this._searchDebounceTimer = null, $(this, b), $(this, h, !1), this._tableColumns = ["select", "warnings", "rootName", "sku", "price", "purchaseable", "variants"], this.consumeContext(A, (e) => {
       y(this, b, e);
     });
   }
@@ -440,7 +435,7 @@ let o = class extends x(P) {
     this._selectedProducts = new Set(e.detail.selectedIds), this.requestUpdate();
   }
   async _handleAddProduct() {
-    const t = await m(this, b)?.open(this, N, {
+    const t = await m(this, b)?.open(this, L, {
       data: {}
     })?.onSubmit().catch(() => {
     });
@@ -601,9 +596,9 @@ n([
 o = n([
   S("merchello-products-list")
 ], o);
-const ae = o;
+const te = o;
 export {
   o as MerchelloProductsListElement,
-  ae as default
+  te as default
 };
-//# sourceMappingURL=products-list.element-HFKmko3U.js.map
+//# sourceMappingURL=products-list.element-D1AENFfQ.js.map

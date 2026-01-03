@@ -99,9 +99,6 @@ export interface ProductListItemDto {
   minPrice: number | null;
   maxPrice: number | null;
   purchaseable: boolean;
-  totalStock: number;
-  /** Stock status classification calculated by backend - use this instead of comparing totalStock to threshold locally */
-  stockStatus: StockStatus;
   variantCount: number;
   productTypeName: string;
   collectionNames: string[];
@@ -423,7 +420,6 @@ export type ProductColumnKey =
   | "sku"
   | "price"
   | "purchaseable"
-  | "stock"
   | "variants"
   | "warnings";
 
@@ -433,7 +429,6 @@ export const PRODUCT_COLUMN_LABELS: Record<ProductColumnKey, string> = {
   sku: "SKU",
   price: "Price",
   purchaseable: "Available",
-  stock: "Stock",
   variants: "Variants",
   warnings: "",
 };
@@ -443,7 +438,6 @@ export const DEFAULT_PRODUCT_COLUMNS: ProductColumnKey[] = [
   "sku",
   "price",
   "purchaseable",
-  "stock",
   "variants",
 ];
 

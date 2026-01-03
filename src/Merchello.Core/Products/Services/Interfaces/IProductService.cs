@@ -25,6 +25,13 @@ public interface IProductService
     Task<List<ProductCollection>> GetCollectionsByIds(IEnumerable<Guid> collectionIds, CancellationToken cancellationToken = default);
     Task<Product?> GetProduct(GetProductParameters parameters, CancellationToken cancellationToken = default);
     Task<PaginatedList<Product>> QueryProducts(ProductQueryParameters parameters, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Query products returning summary DTOs for list views.
+    /// Uses database projection for better performance.
+    /// </summary>
+    Task<PaginatedList<ProductListItemDto>> QueryProductsSummary(ProductQueryParameters parameters, CancellationToken cancellationToken = default);
+
     Task<PaginatedList<ProductRoot>> QueryProductRoots(ProductRootQueryParameters parameters, CancellationToken cancellationToken = default);
 
     /// <summary>

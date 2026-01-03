@@ -1,13 +1,13 @@
-import { LitElement as A, html as o, nothing as c, css as x, property as f, customElement as P, state as p } from "@umbraco-cms/backoffice/external/lit";
-import { UmbModalBaseElement as I } from "@umbraco-cms/backoffice/modal";
+import { LitElement as A, html as o, nothing as d, css as x, property as f, customElement as P, state as g } from "@umbraco-cms/backoffice/external/lit";
+import { UmbModalBaseElement as z } from "@umbraco-cms/backoffice/modal";
 import { M as S } from "./merchello-api-DPQ4r4XT.js";
 import { c as O } from "./formatting-DYmyPQEL.js";
-import { UmbElementMixin as z } from "@umbraco-cms/backoffice/element-api";
-function g(e, i) {
+import { UmbElementMixin as I } from "@umbraco-cms/backoffice/element-api";
+function v(e, i) {
   return `${i}${O(e, 2)}`;
 }
 function T(e, i, t) {
-  return e === null && i === null ? "N/A" : e === i || i === null ? g(e ?? 0, t) : e === null ? g(i, t) : `${g(e, t)} - ${g(i, t)}`;
+  return e === null && i === null ? "N/A" : e === i || i === null ? v(e ?? 0, t) : e === null ? v(i, t) : `${v(e, t)} - ${v(i, t)}`;
 }
 function R(e) {
   return e.name ? e.name : null;
@@ -20,7 +20,7 @@ var D = Object.defineProperty, N = Object.getOwnPropertyDescriptor, y = (e, i, t
     (n = e[r]) && (a = (s ? n(i, t, a) : n(a)) || a);
   return s && a && D(i, t, a), a;
 };
-let _ = class extends z(A) {
+let _ = class extends I(A) {
   constructor() {
     super(...arguments), this.selected = !1, this.currencySymbol = "£", this.showImage = !0;
   }
@@ -52,10 +52,10 @@ let _ = class extends z(A) {
     return o`<span class="variant-name">${e}</span>`;
   }
   _renderSku() {
-    return this.variant.sku ? o`<span class="variant-sku">${this.variant.sku}</span>` : c;
+    return this.variant.sku ? o`<span class="variant-sku">${this.variant.sku}</span>` : d;
   }
   _renderPrice() {
-    return o`<span class="variant-price">${g(this.variant.price, this.currencySymbol)}</span>`;
+    return o`<span class="variant-price">${v(this.variant.price, this.currencySymbol)}</span>`;
   }
   /**
    * Renders stock status using backend-provided stockStatus.
@@ -75,7 +75,7 @@ let _ = class extends z(A) {
     }
   }
   _renderRegionStatus() {
-    return this.variant.canShipToRegion ? c : o`<span class="status blocked">${this.variant.regionMessage ?? "Cannot ship"}</span>`;
+    return this.variant.canShipToRegion ? d : o`<span class="status blocked">${this.variant.regionMessage ?? "Cannot ship"}</span>`;
   }
   _renderBlockedReason() {
     return !this.variant.canSelect && this.variant.blockedReason ? o`
@@ -83,7 +83,7 @@ let _ = class extends z(A) {
           <uui-icon name="icon-block"></uui-icon>
           <span>${this.variant.blockedReason}</span>
         </div>
-      ` : c;
+      ` : d;
   }
   render() {
     const e = !this.variant.canSelect;
@@ -102,7 +102,7 @@ let _ = class extends z(A) {
           label="Select variant"
         ></uui-checkbox>
 
-        ${this.showImage ? this._renderImage() : c}
+        ${this.showImage ? this._renderImage() : d}
 
         <div class="variant-info">
           <div class="variant-name-row">
@@ -258,12 +258,12 @@ y([
 _ = y([
   P("merchello-product-picker-variant-row")
 ], _);
-var E = Object.defineProperty, M = Object.getOwnPropertyDescriptor, k = (e, i, t, s) => {
-  for (var a = s > 1 ? void 0 : s ? M(i, t) : i, r = e.length - 1, n; r >= 0; r--)
+var E = Object.defineProperty, L = Object.getOwnPropertyDescriptor, k = (e, i, t, s) => {
+  for (var a = s > 1 ? void 0 : s ? L(i, t) : i, r = e.length - 1, n; r >= 0; r--)
     (n = e[r]) && (a = (s ? n(i, t, a) : n(a)) || a);
   return s && a && E(i, t, a), a;
 };
-let b = class extends z(A) {
+let b = class extends I(A) {
   constructor() {
     super(...arguments), this.productRoots = [], this.selectedIds = [], this.currencySymbol = "£", this.showImages = !0;
   }
@@ -328,12 +328,12 @@ let b = class extends z(A) {
           aria-expanded=${e.isExpanded}
         >
           ${i ? o`<div class="expand-spacer"></div>` : this._renderExpandIcon(e.isExpanded)}
-          ${this.showImages ? this._renderProductImage(e.imageUrl, e.rootName) : c}
+          ${this.showImages ? this._renderProductImage(e.imageUrl, e.rootName) : d}
           <div class="product-info">
             <div class="product-name">${e.rootName}</div>
             <div class="product-meta">
               <span class="price">${this._renderPriceRange(e)}</span>
-              ${i ? c : o`<span class="variant-count">${e.variantCount} variants</span>`}
+              ${i ? d : o`<span class="variant-count">${e.variantCount} variants</span>`}
               ${this._renderStockBadge(e)}
             </div>
           </div>
@@ -353,13 +353,13 @@ let b = class extends z(A) {
                   `
     )}
               </div>
-            ` : c}
+            ` : d}
 
         ${e.isExpanded && !e.variantsLoaded ? o`
               <div class="variants-loading">
                 <uui-loader-bar></uui-loader-bar>
               </div>
-            ` : c}
+            ` : d}
       </div>
     `;
   }
@@ -537,12 +537,12 @@ k([
 b = k([
   P("merchello-product-picker-list")
 ], b);
-var L = Object.defineProperty, V = Object.getOwnPropertyDescriptor, u = (e, i, t, s) => {
+var M = Object.defineProperty, V = Object.getOwnPropertyDescriptor, p = (e, i, t, s) => {
   for (var a = s > 1 ? void 0 : s ? V(i, t) : i, r = e.length - 1, n; r >= 0; r--)
     (n = e[r]) && (a = (s ? n(i, t, a) : n(a)) || a);
-  return s && a && L(i, t, a), a;
+  return s && a && M(i, t, a), a;
 };
-let d = class extends I {
+let l = class extends z {
   constructor() {
     super(...arguments), this._searchTerm = "", this._page = 1, this._pageSize = 20, this._totalPages = 0, this._isLoading = !0, this._errorMessage = null, this._productRoots = [], this._selections = /* @__PURE__ */ new Map(), this._viewState = "product-selection", this._pendingAddonSelection = null, this._selectedAddons = /* @__PURE__ */ new Map(), this._pendingShippingSelection = null, this._selectedShippingOptionId = null, this._productDetailCache = /* @__PURE__ */ new Map(), this._searchDebounceTimer = null, this._addonPreviewDebounceTimer = null, this._addonPricePreview = null, this._isLoadingAddonPreview = !1, this._addonPreviewError = null;
   }
@@ -604,8 +604,9 @@ let d = class extends I {
       variantCount: e.variantCount,
       minPrice: e.minPrice,
       maxPrice: e.maxPrice,
-      totalStock: e.totalStock,
-      stockStatus: e.stockStatus,
+      // Stock is calculated when variants are loaded
+      totalStock: 0,
+      stockStatus: e.isDigitalProduct ? "Untracked" : "InStock",
       isDigitalProduct: e.isDigitalProduct,
       isExpanded: !1,
       variantsLoaded: !1,
@@ -613,7 +614,7 @@ let d = class extends I {
     };
   }
   async _loadVariantsForRoot(e) {
-    const i = this._productRoots.findIndex((r) => r.id === e);
+    const i = this._productRoots.findIndex((c) => c.id === e);
     if (i === -1) return;
     const { data: t, error: s } = await S.getProductDetail(e);
     if (s || !t) {
@@ -622,28 +623,29 @@ let d = class extends I {
     }
     this._productDetailCache.set(e, t);
     const a = await Promise.all(
-      t.variants.map(async (r) => this._mapToPickerVariant(r, t))
-    );
-    this._productRoots = this._productRoots.map(
-      (r, n) => n === i ? { ...r, variants: a, variantsLoaded: !0 } : r
+      t.variants.map(async (c) => this._mapToPickerVariant(c, t))
+    ), r = a.reduce((c, h) => c + h.availableStock, 0), n = t.isDigitalProduct;
+    let m = "InStock";
+    n ? m = "Untracked" : r <= 0 ? m = "OutOfStock" : a.some((c) => c.stockStatus === "LowStock") && (m = "LowStock"), this._productRoots = this._productRoots.map(
+      (c, h) => h === i ? { ...c, variants: a, variantsLoaded: !0, totalStock: r, stockStatus: m } : c
     );
   }
   async _mapToPickerVariant(e, i) {
-    const t = e.warehouseStock.reduce((l, w) => l + w.availableStock, 0), s = e.warehouseStock.some((l) => l.trackStock);
-    let a = !0, r = null, n = !0, m = null, v = null, h = "InStock";
+    const t = e.warehouseStock.reduce((u, w) => u + w.availableStock, 0), s = e.warehouseStock.some((u) => u.trackStock);
+    let a = !0, r = null, n = !0, m = null, c = null, h = "InStock";
     if (!this._isPropertyEditorMode) {
       if (this._config?.shippingAddress && !i.isDigitalProduct) {
-        const l = await this._getFulfillmentOptions(e.id);
-        a = l.canAddToOrder, r = l.blockedReason, n = l.canAddToOrder, m = l.warehouseId, v = l.warehouseName, h = l.aggregateStockStatus;
+        const u = await this._getFulfillmentOptions(e.id);
+        a = u.canAddToOrder, r = u.blockedReason, n = u.canAddToOrder, m = u.warehouseId, c = u.warehouseName, h = u.aggregateStockStatus;
       } else if (!i.isDigitalProduct && e.warehouseStock.length > 0) {
-        const l = await this._getDefaultFulfillingWarehouse(e.id);
-        a = l.canAddToOrder, r = l.blockedReason, m = l.warehouseId, v = l.warehouseName, h = l.aggregateStockStatus;
+        const u = await this._getDefaultFulfillingWarehouse(e.id);
+        a = u.canAddToOrder, r = u.blockedReason, m = u.warehouseId, c = u.warehouseName, h = u.aggregateStockStatus;
       }
     }
     let $ = h;
     if (m) {
-      const l = e.warehouseStock.find((w) => w.warehouseId === m);
-      l && ($ = l.stockStatus);
+      const u = e.warehouseStock.find((w) => w.warehouseId === m);
+      u && ($ = u.stockStatus);
     }
     return {
       id: e.id,
@@ -663,7 +665,7 @@ let d = class extends I {
       regionMessage: r,
       // Use blockedReason for any message (region or other)
       fulfillingWarehouseId: m,
-      fulfillingWarehouseName: v,
+      fulfillingWarehouseName: c,
       warehouseStock: e.warehouseStock
     };
   }
@@ -897,7 +899,7 @@ let d = class extends I {
       };
       return;
     }
-    const v = n.availableOptions.map((h) => ({
+    const c = n.availableOptions.map((h) => ({
       id: h.id,
       name: h.name,
       deliveryTimeDescription: h.deliveryTimeDescription,
@@ -908,8 +910,8 @@ let d = class extends I {
     this._pendingShippingSelection = {
       ...this._pendingShippingSelection,
       isLoadingOptions: !1,
-      shippingOptions: v
-    }, v.length === 1 && (this._selectedShippingOptionId = v[0].id);
+      shippingOptions: c
+    }, c.length === 1 && (this._selectedShippingOptionId = c[0].id);
   }
   _handleShippingOptionSelect(e) {
     this._selectedShippingOptionId = e;
@@ -964,7 +966,7 @@ let d = class extends I {
                 <uui-button slot="append" compact look="secondary" label="Clear" @click=${this._handleSearchClear}>
                   <uui-icon name="icon-wrong"></uui-icon>
                 </uui-button>
-              ` : c}
+              ` : d}
         </uui-input>
       </div>
     `;
@@ -988,7 +990,7 @@ let d = class extends I {
     `;
   }
   _renderPagination() {
-    return this._totalPages <= 1 ? c : o`
+    return this._totalPages <= 1 ? d : o`
       <div class="pagination">
         <uui-button
           look="secondary"
@@ -1017,8 +1019,8 @@ let d = class extends I {
   // ============================================
   _renderAddonSelectionView() {
     const e = this._pendingAddonSelection;
-    if (!e) return c;
-    const i = e.variant, t = i.optionValuesDisplay ? `${i.rootName} - ${i.optionValuesDisplay}` : i.rootName, s = this._addonPricePreview, a = this._addonPreviewError !== null, r = s?.basePrice ?? i.price, n = s?.addonsTotal ?? 0, m = s?.totalPrice ?? i.price, v = !a && !this._isLoadingAddonPreview;
+    if (!e) return d;
+    const i = e.variant, t = i.optionValuesDisplay ? `${i.rootName} - ${i.optionValuesDisplay}` : i.rootName, s = this._addonPricePreview, a = this._addonPreviewError !== null, r = s?.basePrice ?? i.price, n = s?.addonsTotal ?? 0, m = s?.totalPrice ?? i.price, c = !a && !this._isLoadingAddonPreview;
     return o`
       <umb-body-layout headline="Select Add-ons (Optional)">
         <div id="main">
@@ -1034,22 +1036,22 @@ let d = class extends I {
                     Retry
                   </uui-button>
                 </div>
-              ` : c}
+              ` : d}
 
           <div class="addon-product-summary">
             <div class="product-info">
               <strong>${t}</strong>
-              ${i.sku ? o`<span class="sku">${i.sku}</span>` : c}
+              ${i.sku ? o`<span class="sku">${i.sku}</span>` : d}
             </div>
             <div class="product-pricing ${this._isLoadingAddonPreview ? "loading" : ""} ${a ? "error" : ""}">
-              <span class="base-price">${g(r, this._currencySymbol)}</span>
+              <span class="base-price">${v(r, this._currencySymbol)}</span>
               ${!a && n !== 0 ? o`
                     <span class="addon-total">
-                      ${n > 0 ? "+" : ""}${g(n, this._currencySymbol)}
+                      ${n > 0 ? "+" : ""}${v(n, this._currencySymbol)}
                     </span>
-                    <span class="total-price">= ${g(m, this._currencySymbol)}</span>
-                  ` : c}
-              ${this._isLoadingAddonPreview ? o`<uui-loader-circle></uui-loader-circle>` : c}
+                    <span class="total-price">= ${v(m, this._currencySymbol)}</span>
+                  ` : d}
+              ${this._isLoadingAddonPreview ? o`<uui-loader-circle></uui-loader-circle>` : d}
             </div>
           </div>
 
@@ -1069,7 +1071,7 @@ let d = class extends I {
           <uui-button
             look="primary"
             color="positive"
-            ?disabled=${!v}
+            ?disabled=${!c}
             @click=${this._handleConfirmWithAddons}
           >
             Continue
@@ -1089,7 +1091,7 @@ let d = class extends I {
                 <uui-button compact look="secondary" @click=${() => this._handleAddonClear(e.id)}>
                   Clear
                 </uui-button>
-              ` : c}
+              ` : d}
         </div>
         <div class="addon-values">
           ${e.values.map((t) => this._renderAddonValue(e, t, i?.valueId === t.id))}
@@ -1107,9 +1109,9 @@ let d = class extends I {
         <span class="value-name">${i.name}</span>
         ${i.priceAdjustment !== 0 ? o`
               <span class="value-price ${i.priceAdjustment > 0 ? "positive" : "negative"}">
-                ${i.priceAdjustment > 0 ? "+" : ""}${g(i.priceAdjustment, this._currencySymbol)}
+                ${i.priceAdjustment > 0 ? "+" : ""}${v(i.priceAdjustment, this._currencySymbol)}
               </span>
-            ` : c}
+            ` : d}
       </button>
     `;
   }
@@ -1118,7 +1120,7 @@ let d = class extends I {
   // ============================================
   _renderShippingSelectionView() {
     const e = this._pendingShippingSelection;
-    if (!e) return c;
+    if (!e) return d;
     const i = e.variant, t = i.optionValuesDisplay ? `${i.rootName} - ${i.optionValuesDisplay}` : i.rootName, s = e.totalPrice;
     return o`
       <umb-body-layout headline="Select Shipping">
@@ -1126,14 +1128,14 @@ let d = class extends I {
           <div class="shipping-product-summary">
             <div class="product-info">
               <strong>${t}</strong>
-              ${i.sku ? o`<span class="sku">${i.sku}</span>` : c}
+              ${i.sku ? o`<span class="sku">${i.sku}</span>` : d}
               <div class="warehouse-info">
                 <uui-icon name="icon-home"></uui-icon>
                 ${e.warehouseName}
               </div>
             </div>
             <div class="product-pricing">
-              <span class="total-price">${g(s, this._currencySymbol)}</span>
+              <span class="total-price">${v(s, this._currencySymbol)}</span>
             </div>
           </div>
 
@@ -1175,8 +1177,8 @@ let d = class extends I {
         </div>
         <div class="shipping-option-cost">
           ${e.estimatedCost !== null ? o`
-                <span class="cost">${g(e.estimatedCost, this._currencySymbol)}</span>
-                ${e.isEstimate ? o`<span class="estimate-label">est.</span>` : c}
+                <span class="cost">${v(e.estimatedCost, this._currencySymbol)}</span>
+                ${e.isEstimate ? o`<span class="estimate-label">est.</span>` : d}
               ` : o`<span class="cost-at-checkout">Calculated at checkout</span>`}
         </div>
       </button>
@@ -1214,7 +1216,7 @@ let d = class extends I {
     `;
   }
 };
-d.styles = x`
+l.styles = x`
     :host {
       display: block;
     }
@@ -1560,60 +1562,60 @@ d.styles = x`
       border-radius: var(--uui-border-radius);
     }
   `;
-u([
-  p()
-], d.prototype, "_searchTerm", 2);
-u([
-  p()
-], d.prototype, "_page", 2);
-u([
-  p()
-], d.prototype, "_pageSize", 2);
-u([
-  p()
-], d.prototype, "_totalPages", 2);
-u([
-  p()
-], d.prototype, "_isLoading", 2);
-u([
-  p()
-], d.prototype, "_errorMessage", 2);
-u([
-  p()
-], d.prototype, "_productRoots", 2);
-u([
-  p()
-], d.prototype, "_selections", 2);
-u([
-  p()
-], d.prototype, "_viewState", 2);
-u([
-  p()
-], d.prototype, "_pendingAddonSelection", 2);
-u([
-  p()
-], d.prototype, "_selectedAddons", 2);
-u([
-  p()
-], d.prototype, "_pendingShippingSelection", 2);
-u([
-  p()
-], d.prototype, "_selectedShippingOptionId", 2);
-u([
-  p()
-], d.prototype, "_addonPricePreview", 2);
-u([
-  p()
-], d.prototype, "_isLoadingAddonPreview", 2);
-u([
-  p()
-], d.prototype, "_addonPreviewError", 2);
-d = u([
+p([
+  g()
+], l.prototype, "_searchTerm", 2);
+p([
+  g()
+], l.prototype, "_page", 2);
+p([
+  g()
+], l.prototype, "_pageSize", 2);
+p([
+  g()
+], l.prototype, "_totalPages", 2);
+p([
+  g()
+], l.prototype, "_isLoading", 2);
+p([
+  g()
+], l.prototype, "_errorMessage", 2);
+p([
+  g()
+], l.prototype, "_productRoots", 2);
+p([
+  g()
+], l.prototype, "_selections", 2);
+p([
+  g()
+], l.prototype, "_viewState", 2);
+p([
+  g()
+], l.prototype, "_pendingAddonSelection", 2);
+p([
+  g()
+], l.prototype, "_selectedAddons", 2);
+p([
+  g()
+], l.prototype, "_pendingShippingSelection", 2);
+p([
+  g()
+], l.prototype, "_selectedShippingOptionId", 2);
+p([
+  g()
+], l.prototype, "_addonPricePreview", 2);
+p([
+  g()
+], l.prototype, "_isLoadingAddonPreview", 2);
+p([
+  g()
+], l.prototype, "_addonPreviewError", 2);
+l = p([
   P("merchello-product-picker-modal")
-], d);
-const q = d;
+], l);
+const q = l;
 export {
-  d as MerchelloProductPickerModalElement,
+  l as MerchelloProductPickerModalElement,
   q as default
 };
-//# sourceMappingURL=product-picker-modal.element-CBzRp68j.js.map
+//# sourceMappingURL=product-picker-modal.element-By-FeZ2V.js.map

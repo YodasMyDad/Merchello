@@ -1702,6 +1702,162 @@ public class ProductService(
     }
 
     /// <summary>
+    /// Query products returning summary DTOs for list views.
+    /// Uses database projection for better performance.
+    /// </summary>
+    public async Task<PaginatedList<ProductListItemDto>> QueryProductsSummary(ProductQueryParameters parameters, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            // Build filtered base query (same filters as QueryProducts)
+            IQueryable<Product> baseQuery = db.Products;
+
+            if (parameters.ProductTypeKey != null)
+            {
+                baseQuery = baseQuery.Where(x => x.ProductRoot.ProductType.Id == parameters.ProductTypeKey.Value);
+            }
+
+            if (parameters.CollectionIds?.Any() == true)
+            {
+                baseQuery = baseQuery.Where(x => x.ProductRoot.Collections.Any(pc => parameters.CollectionIds.Contains(pc.Id)));
+            }
+
+            if (parameters.FilterKeys?.Any() == true)
+            {
+                baseQuery = baseQuery.Where(x => x.Filters.Any(pc => parameters.FilterKeys.Contains(pc.Id)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(parameters.Search))
+            {
+                var searchLower = parameters.Search.ToLower();
+                baseQuery = baseQuery.Where(x =>
+                    (x.ProductRoot.RootName != null && x.ProductRoot.RootName.ToLower().Contains(searchLower)) ||
+                    (x.Sku != null && x.Sku.ToLower().Contains(searchLower)));
+            }
+
+            if (parameters.AvailabilityFilter == ProductAvailabilityFilter.Available)
+            {
+                baseQuery = baseQuery.Where(x => x.AvailableForPurchase && x.CanPurchase);
+            }
+            else if (parameters.AvailabilityFilter == ProductAvailabilityFilter.Unavailable)
+            {
+                baseQuery = baseQuery.Where(x => !x.AvailableForPurchase || !x.CanPurchase);
+            }
+
+            if (parameters.StockStatusFilter != ProductStockStatusFilter.All)
+            {
+                var threshold = parameters.LowStockThreshold;
+                baseQuery = parameters.StockStatusFilter switch
+                {
+                    ProductStockStatusFilter.InStock => baseQuery.Where(x =>
+                        x.ProductWarehouses.Sum(pw => pw.Stock) > threshold),
+                    ProductStockStatusFilter.LowStock => baseQuery.Where(x =>
+                        x.ProductWarehouses.Sum(pw => pw.Stock) > 0 &&
+                        x.ProductWarehouses.Sum(pw => pw.Stock) <= threshold),
+                    ProductStockStatusFilter.OutOfStock => baseQuery.Where(x =>
+                        x.ProductWarehouses.Sum(pw => pw.Stock) <= 0),
+                    _ => baseQuery
+                };
+            }
+
+            if (parameters.MinPrice.HasValue)
+            {
+                baseQuery = baseQuery.Where(x => x.Price >= parameters.MinPrice.Value);
+            }
+
+            if (parameters.MaxPrice.HasValue)
+            {
+                baseQuery = baseQuery.Where(x => x.Price <= parameters.MaxPrice.Value);
+            }
+
+            // Only default variants for the list view
+            var resultQuery = baseQuery.Where(x => x.Default);
+
+            // Paging
+            var pageIndex = parameters.CurrentPage - 1;
+            var pageSize = parameters.AmountPerPage;
+
+            // Get total count
+            var totalCount = await resultQuery.CountAsync(cancellationToken);
+
+            if (totalCount == 0)
+            {
+                return new PaginatedList<ProductListItemDto>([], 0, parameters.CurrentPage, parameters.AmountPerPage);
+            }
+
+            // Apply ordering
+            var orderedQuery = ApplyOrdering(resultQuery, parameters.OrderBy);
+
+            // Project directly to DTO with database-level aggregations
+            // Note: MinPrice/MaxPrice use placeholder - we calculate them in a separate query
+            // to avoid Umbraco SQLite wrapper issues with ef_min/ef_max/EF_DECIMAL
+            var items = await orderedQuery
+                .Skip(pageIndex * pageSize)
+                .Take(pageSize)
+                .Select(p => new ProductListItemDto
+                {
+                    Id = p.Id,
+                    ProductRootId = p.ProductRootId,
+                    RootName = p.ProductRoot.RootName ?? p.Name ?? "Unknown",
+                    Sku = db.Products.Count(v => v.ProductRootId == p.ProductRootId) > 1
+                        ? null
+                        : p.Sku,
+                    Price = p.Price,
+                    VariantCount = db.Products.Count(v => v.ProductRootId == p.ProductRootId),
+                    MinPrice = p.Price, // Placeholder - updated below
+                    MaxPrice = p.Price, // Placeholder - updated below
+                    HasWarehouse = db.ProductRootWarehouses
+                        .Any(prw => prw.ProductRootId == p.ProductRootId),
+                    HasShippingOptions = db.ProductRootWarehouses
+                        .Where(prw => prw.ProductRootId == p.ProductRootId)
+                        .Any(prw => prw.Warehouse!.ShippingOptions.Any()),
+                    Purchaseable = p.AvailableForPurchase && p.CanPurchase,
+                    ProductTypeName = p.ProductRoot.ProductType.Name ?? "",
+                    CollectionNames = p.ProductRoot.Collections.Select(c => c.Name ?? "").ToList(),
+                    ImageUrl = p.Images.FirstOrDefault() ?? p.ProductRoot.RootImages.FirstOrDefault(),
+                    IsDigitalProduct = p.ProductRoot.IsDigitalProduct
+                })
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+
+            // Get min/max prices: load only ProductRootId + Price, aggregate in memory
+            // This avoids SQLite's ef_min/ef_max decimal function issues while staying efficient
+            if (items.Count > 0)
+            {
+                var productRootIds = items.Select(x => x.ProductRootId).Distinct().ToList();
+
+                // Load only 2 columns - very lightweight even for many variants
+                var prices = await db.Products
+                    .Where(p => productRootIds.Contains(p.ProductRootId))
+                    .Select(p => new { p.ProductRootId, p.Price })
+                    .AsNoTracking()
+                    .ToListAsync(cancellationToken);
+
+                // Aggregate in memory - fast for this small dataset
+                var priceDict = prices
+                    .GroupBy(p => p.ProductRootId)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => (Min: g.Min(p => p.Price), Max: g.Max(p => p.Price)));
+
+                foreach (var item in items)
+                {
+                    if (priceDict.TryGetValue(item.ProductRootId, out var range))
+                    {
+                        item.MinPrice = range.Min;
+                        item.MaxPrice = range.Max;
+                    }
+                }
+            }
+
+            return new PaginatedList<ProductListItemDto>(items, totalCount, parameters.CurrentPage, parameters.AmountPerPage);
+        });
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
     /// Query product roots with filtering and pagination
     /// </summary>
     /// <param name="parameters"></param>

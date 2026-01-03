@@ -1,5 +1,3 @@
-using Merchello.Core.Products.Models;
-
 namespace Merchello.Core.Products.Dtos;
 
 /// <summary>
@@ -22,14 +20,6 @@ public class ProductListItemDto
     public decimal? MaxPrice { get; set; }
 
     public bool Purchaseable { get; set; }
-
-    public int TotalStock { get; set; }
-
-    /// <summary>
-    /// Stock status classification calculated by the backend.
-    /// Use this instead of comparing TotalStock to threshold locally.
-    /// </summary>
-    public StockStatus StockStatus { get; set; }
 
     public int VariantCount { get; set; }
 

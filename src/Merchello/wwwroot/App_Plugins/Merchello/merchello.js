@@ -268,7 +268,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Products.Workspace.View",
     name: "Merchello Products View",
-    js: () => import("./products-list.element-HFKmko3U.js"),
+    js: () => import("./products-list.element-D1AENFfQ.js"),
     weight: 100,
     meta: {
       label: "Products",
@@ -288,7 +288,7 @@ const e = [
     kind: "routable",
     alias: "Merchello.Product.Detail.Workspace",
     name: "Product Detail Workspace",
-    api: () => import("./product-detail-workspace.context-DTw9rsnE.js"),
+    api: () => import("./product-detail-workspace.context-DC5fN7ux.js"),
     meta: {
       entityType: "merchello-product"
     }
@@ -298,7 +298,7 @@ const e = [
     type: "workspaceView",
     alias: "Merchello.Product.Detail.View",
     name: "Product Detail View",
-    js: () => import("./product-detail.element-H8zUa-st.js"),
+    js: () => import("./product-detail.element-C8BJKOTt.js"),
     weight: 100,
     meta: {
       label: "Product",
@@ -1003,7 +1003,7 @@ const e = [
     type: "modal",
     alias: "Merchello.ProductPicker.Modal",
     name: "Merchello Product Picker Modal",
-    js: () => import("./product-picker-modal.element-CBzRp68j.js")
+    js: () => import("./product-picker-modal.element-By-FeZ2V.js")
   }
 ], W = [
   {
