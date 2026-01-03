@@ -6,4 +6,8 @@ public class PriceRangeSliderViewModel
     public decimal RangeMax { get; set; }
     public decimal? SelectedMin { get; set; }
     public decimal? SelectedMax { get; set; }
+
+    // Currency context for SSR fallback display
+    public string CurrencySymbol { get; set; } = "£";
+    public int DecimalPlaces { get; set; } = 2;
 }

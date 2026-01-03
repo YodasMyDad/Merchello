@@ -1,7 +1,6 @@
 using Merchello.Core.Products.Models;
-using Merchello.Core.Shared.Models;
+using Merchello.Core.Storefront.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.PublishedCache;
 
 namespace Merchello.Site.Shared.Components.ProductAddonSelector;
@@ -13,17 +12,18 @@ namespace Merchello.Site.Shared.Components.ProductAddonSelector;
 /// </summary>
 public class ProductAddonSelectorViewComponent(
     IPublishedMediaCache mediaCache,
-    IOptions<MerchelloSettings> settings) : ViewComponent
+    IStorefrontContextService storefrontContext) : ViewComponent
 {
     /// <summary>
     /// Renders the add-on selector based on the option's UI type.
     /// </summary>
     /// <param name="option">The product add-on option to render.</param>
     /// <returns>The rendered view component result.</returns>
-    public IViewComponentResult Invoke(ProductOption option)
+    public async Task<IViewComponentResult> InvokeAsync(ProductOption option)
     {
         ArgumentNullException.ThrowIfNull(option);
 
+        var currencyContext = await storefrontContext.GetCurrencyContextAsync();
         var uiType = option.OptionUiAlias ?? "checkbox";
 
         var model = new ProductAddonSelectorViewModel
@@ -32,7 +32,8 @@ public class ProductAddonSelectorViewComponent(
             Name = option.Name ?? "Add-on",
             UiType = uiType,
             UseSwiper = option.ProductOptionValues.Count > 6,
-            CurrencySymbol = settings.Value.CurrencySymbol,
+            CurrencySymbol = currencyContext.CurrencySymbol,
+            DecimalPlaces = currencyContext.DecimalPlaces,
             Values = option.ProductOptionValues
                 .OrderBy(v => v.SortOrder)
                 .Select(v => new ProductAddonValueViewModel
@@ -40,6 +41,7 @@ public class ProductAddonSelectorViewComponent(
                     Id = v.Id.ToString(),
                     Name = v.Name ?? "",
                     PriceAdjustment = v.PriceAdjustment,
+                    DisplayPriceAdjustment = v.PriceAdjustment * currencyContext.ExchangeRate,
                     HexValue = v.HexValue,
                     MediaUrl = v.MediaKey.HasValue
                         ? mediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 80)

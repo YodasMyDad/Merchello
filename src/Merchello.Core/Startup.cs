@@ -106,6 +106,7 @@ public static class Startup
         builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
         builder.Services.AddSingleton<ICacheService, CacheService>();
         builder.Services.AddSingleton<ICurrencyService, CurrencyService>();
+        builder.Services.AddSingleton<ICountryCurrencyMappingService, CountryCurrencyMappingService>();
         builder.Services.AddSingleton<ILocalityCatalog, DefaultLocalityCatalog>();
         builder.Services.AddSingleton<ILocalityCacheInvalidator, LocalityCacheInvalidator>();
         builder.Services.AddSingleton<SlugHelper>();

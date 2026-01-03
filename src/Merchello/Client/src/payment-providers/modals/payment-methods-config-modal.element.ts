@@ -176,17 +176,19 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
   private _renderMethod(method: PaymentMethodSettingDto): unknown {
     return html`
       <div class="method-row" data-method-alias=${method.methodAlias}>
-        <div class="method-drag-handle">
-          <uui-icon name="icon-navigation"></uui-icon>
-        </div>
-        <div class="method-info">
-          ${this._renderMethodIcon(method)}
-          <div class="method-details">
-            <span class="method-name">${method.displayName}</span>
-            ${method.isExpressCheckout
-              ? html`<span class="express-badge">Express</span>`
-              : nothing}
-            ${this._renderRegionBadges(method.supportedRegions)}
+        <div class="method-left">
+          <div class="method-drag-handle">
+            <uui-icon name="icon-navigation"></uui-icon>
+          </div>
+          <div class="method-info">
+            ${this._renderMethodIcon(method)}
+            <div class="method-details">
+              <span class="method-name">${method.displayName}</span>
+              ${method.isExpressCheckout
+                ? html`<span class="express-badge">Express</span>`
+                : nothing}
+              ${this._renderRegionBadges(method.supportedRegions)}
+            </div>
           </div>
         </div>
         <uui-toggle
@@ -297,6 +299,12 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
       background: var(--uui-color-surface);
       border: 1px solid var(--uui-color-border);
       border-radius: var(--uui-border-radius);
+    }
+
+    .method-left {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
     }
 
     .method-drag-handle {

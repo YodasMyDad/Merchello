@@ -6,16 +6,37 @@ public class SetCountryRequest
     public string? RegionCode { get; set; }
 }
 
+public class SetCurrencyRequest
+{
+    public required string CurrencyCode { get; set; }
+}
+
 public class CountryResponse
 {
     public required string CountryCode { get; set; }
     public required string CountryName { get; set; }
 }
 
+public class SetCountryResponse
+{
+    public required string CountryCode { get; set; }
+    public required string CountryName { get; set; }
+    public required string CurrencyCode { get; set; }
+    public required string CurrencySymbol { get; set; }
+}
+
+public class StorefrontCurrencyResponse
+{
+    public required string CurrencyCode { get; set; }
+    public required string CurrencySymbol { get; set; }
+    public int DecimalPlaces { get; set; }
+}
+
 public class ShippingCountriesResponse
 {
     public required List<CountryResponse> Countries { get; set; }
     public required CountryResponse Current { get; set; }
+    public required StorefrontCurrencyResponse Currency { get; set; }
 }
 
 public class RegionResponse

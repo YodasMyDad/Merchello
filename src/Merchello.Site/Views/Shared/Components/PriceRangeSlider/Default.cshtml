@@ -10,6 +10,8 @@
     var step = range > 0 ? Math.Max(1, Math.Floor(range / 100)) : 1;
     // For CSS calculation, prevent division by zero
     var rangeForCalc = range > 0 ? range : 1;
+    // Price format for SSR fallback
+    var priceFormat = $"N{Model.DecimalPlaces}";
 }
 
 @if (range > 0)
@@ -18,8 +20,8 @@
         <h6 class="fw-bold mb-3">Price Range</h6>
 
         <div class="d-flex justify-content-between mb-2">
-            <span class="price-label" x-text="formatPrice(priceMin)">@selectedMin.ToString("C")</span>
-            <span class="price-label" x-text="formatPrice(priceMax)">@selectedMax.ToString("C")</span>
+            <span class="price-label" x-text="formatPrice(priceMin)">@Model.CurrencySymbol@selectedMin.ToString(priceFormat)</span>
+            <span class="price-label" x-text="formatPrice(priceMax)">@Model.CurrencySymbol@selectedMax.ToString(priceFormat)</span>
         </div>
 
         <div class="range-slider-container">
@@ -44,7 +46,7 @@
 
         <div class="d-flex gap-2 mt-3">
             <div class="input-group input-group-sm">
-                <span class="input-group-text">£</span>
+                <span class="input-group-text" x-text="$store.currency.symbol">@Model.CurrencySymbol</span>
                 <input type="number"
                        class="form-control"
                        x-model.number="priceMin"
@@ -54,7 +56,7 @@
             </div>
             <span class="align-self-center">-</span>
             <div class="input-group input-group-sm">
-                <span class="input-group-text">£</span>
+                <span class="input-group-text" x-text="$store.currency.symbol">@Model.CurrencySymbol</span>
                 <input type="number"
                        class="form-control"
                        x-model.number="priceMax"
