@@ -98,5 +98,6 @@ public class InvoiceDbMapping : IEntityTypeConfiguration<Invoice>
         builder.HasIndex(x => x.CurrencyCode);
         builder.HasIndex(x => x.DateCreated);
         builder.HasIndex(x => x.CustomerId);
+        builder.HasIndex(x => x.Channel);
     }
 }

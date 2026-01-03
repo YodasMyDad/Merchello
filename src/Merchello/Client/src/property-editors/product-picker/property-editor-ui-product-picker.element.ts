@@ -19,6 +19,7 @@ import type {
 import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-picker-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
+import { formatCurrency } from "@shared/utils/formatting.js";
 import "@shared/components/product-image.element.js";
 
 interface SelectedProduct {
@@ -272,7 +273,7 @@ export class MerchelloPropertyEditorUiProductPickerElement
   }
 
   #formatPrice(price: number): string {
-    return `${getCurrencySymbol()}${price.toFixed(2)}`;
+    return formatCurrency(price);
   }
 
   #renderSingleSelect(): unknown {

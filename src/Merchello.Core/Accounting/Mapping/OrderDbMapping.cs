@@ -36,5 +36,8 @@ public class OrderDbMapping : IEntityTypeConfiguration<Order>
         // Indexes for fulfillment queries
         builder.HasIndex(x => x.Status);
         builder.HasIndex(x => x.WarehouseId);
+
+        // Index for reporting queries on completed orders
+        builder.HasIndex(x => x.CompletedDate);
     }
 }

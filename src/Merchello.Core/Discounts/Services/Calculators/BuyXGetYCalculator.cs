@@ -224,7 +224,7 @@ public class BuyXGetYCalculator(ICurrencyService currencyService) : IBuyXGetYCal
                 .ToList();
         }
 
-        var adjustedGetItems = new List<DiscountContextLineItem>();
+        List<DiscountContextLineItem> adjustedGetItems = [];
         adjustedGetItems.AddRange(nonOverlappingItems);
 
         var remainingBuyQuantity = buyQuantityNeeded;
@@ -282,7 +282,7 @@ public class BuyXGetYCalculator(ICurrencyService currencyService) : IBuyXGetYCal
         DiscountBuyXGetYConfig config,
         string currencyCode)
     {
-        var discountedItems = new List<DiscountedLineItem>();
+        List<DiscountedLineItem> discountedItems = [];
         var remainingQuantityToDiscount = maxDiscountableQuantity;
 
         foreach (var item in sortedItems)

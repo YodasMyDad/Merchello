@@ -172,7 +172,7 @@ public class ProductsApiController(
         var variants = await productService.GetVariantsByIds(variantIds);
 
         // Build results for all requested IDs, marking missing ones as not found
-        var results = new List<VariantLookupDto>();
+        List<VariantLookupDto> results = [];
         foreach (var requestedId in variantIds)
         {
             var variant = variants.FirstOrDefault(v => v.Id == requestedId);

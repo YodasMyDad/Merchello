@@ -58,6 +58,12 @@ public class ProductDbMapping : IEntityTypeConfiguration<Product>
         // Index for front-end URL routing performance
         builder.HasIndex(x => x.Url);
 
+        // Index for SKU lookups during checkout and search
+        builder.HasIndex(x => x.Sku);
+
+        // Composite index for catalog availability queries
+        builder.HasIndex(x => new { x.AvailableForPurchase, x.CanPurchase });
+
         // Configure shipping restriction mode
         builder.Property(x => x.ShippingRestrictionMode)
             .IsRequired()

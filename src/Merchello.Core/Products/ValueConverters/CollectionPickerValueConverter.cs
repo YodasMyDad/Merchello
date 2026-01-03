@@ -65,7 +65,7 @@ public class CollectionPickerValueConverter(IServiceScopeFactory serviceScopeFac
         var collections = Task.Run(() => productService.GetCollectionsByIds(ids)).GetAwaiter().GetResult();
 
         // Preserve the original order from the stored value
-        var orderedCollections = new List<ProductCollection>(ids.Count);
+        List<ProductCollection> orderedCollections = new(ids.Count);
         foreach (var id in ids)
         {
             var collection = collections.Find(c => c.Id == id);
@@ -86,7 +86,7 @@ public class CollectionPickerValueConverter(IServiceScopeFactory serviceScopeFac
         }
 
         var parts = value.Split(',', StringSplitOptions.RemoveEmptyEntries);
-        var ids = new List<Guid>(parts.Length);
+        List<Guid> ids = new(parts.Length);
 
         foreach (var part in parts)
         {

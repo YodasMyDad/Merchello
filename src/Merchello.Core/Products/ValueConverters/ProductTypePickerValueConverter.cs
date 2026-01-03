@@ -65,7 +65,7 @@ public class ProductTypePickerValueConverter(IServiceScopeFactory serviceScopeFa
         var productTypes = Task.Run(() => productService.GetProductTypesByIds(ids)).GetAwaiter().GetResult();
 
         // Preserve the original order from the stored value
-        var orderedProductTypes = new List<ProductType>(ids.Count);
+        List<ProductType> orderedProductTypes = new(ids.Count);
         foreach (var id in ids)
         {
             var productType = productTypes.Find(t => t.Id == id);
@@ -86,7 +86,7 @@ public class ProductTypePickerValueConverter(IServiceScopeFactory serviceScopeFa
         }
 
         var parts = value.Split(',', StringSplitOptions.RemoveEmptyEntries);
-        var ids = new List<Guid>(parts.Length);
+        List<Guid> ids = new(parts.Length);
 
         foreach (var part in parts)
         {

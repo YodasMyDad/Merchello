@@ -1077,8 +1077,8 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
     public override ValueTask<IReadOnlyList<WebhookEventTemplate>> GetWebhookEventTemplatesAsync(
         CancellationToken cancellationToken = default)
     {
-        var templates = new List<WebhookEventTemplate>
-        {
+        List<WebhookEventTemplate> templates =
+        [
             new()
             {
                 EventType = "checkout.session.completed",
@@ -1127,7 +1127,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
                 Category = WebhookEventCategory.Dispute,
                 MerchelloEventType = WebhookEventType.DisputeResolved
             }
-        };
+        ];
 
         return ValueTask.FromResult<IReadOnlyList<WebhookEventTemplate>>(templates);
     }

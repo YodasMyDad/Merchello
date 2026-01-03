@@ -316,8 +316,8 @@ public class DefaultOrderGroupingStrategyTests
         {
             Id = id,
             Name = name,
-            ShippingOptions = new List<ShippingOption>
-            {
+            ShippingOptions =
+            [
                 new()
                 {
                     Id = shippingOptionId,
@@ -326,7 +326,7 @@ public class DefaultOrderGroupingStrategyTests
                     DaysTo = 5,
                     FixedCost = 5.99m
                 }
-            }
+            ]
         };
     }
 

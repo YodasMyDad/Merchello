@@ -22,7 +22,7 @@ public class DiscountEngine(
         DiscountContext context,
         CancellationToken ct = default)
     {
-        var applicableDiscounts = new List<ApplicableDiscount>();
+        List<ApplicableDiscount> applicableDiscounts = [];
 
         // Get all active automatic discounts
         var queryParams = new Parameters.DiscountQueryParameters
@@ -535,7 +535,7 @@ public class DiscountEngine(
         // Sort by priority (lower number = higher priority)
         var sortedDiscounts = discounts.OrderBy(d => d.Priority).ToList();
 
-        var result = new List<Discount>();
+        List<Discount> result = [];
         foreach (var discount in sortedDiscounts)
         {
             if (result.Count == 0)

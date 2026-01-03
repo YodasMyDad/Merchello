@@ -1,33 +1,34 @@
-import { html as r, nothing as m, repeat as T, css as z, property as O, state as _, customElement as B } from "@umbraco-cms/backoffice/external/lit";
-import { UmbLitElement as F } from "@umbraco-cms/backoffice/lit-element";
-import { UmbFormControlMixin as R } from "@umbraco-cms/backoffice/validation";
-import { UmbChangeEvent as D } from "@umbraco-cms/backoffice/event";
-import { UMB_MODAL_MANAGER_CONTEXT as W } from "@umbraco-cms/backoffice/modal";
-import { UmbSorterController as q } from "@umbraco-cms/backoffice/sorter";
-import { M as N } from "./product-picker-modal.token-BfbHsSHl.js";
-import { M as G } from "./merchello-api-DPQ4r4XT.js";
-import { g as H, b as C } from "./store-settings-BhzqJKNt.js";
+import { html as n, nothing as m, repeat as A, css as T, property as z, state as _, customElement as O } from "@umbraco-cms/backoffice/external/lit";
+import { UmbLitElement as B } from "@umbraco-cms/backoffice/lit-element";
+import { UmbFormControlMixin as F } from "@umbraco-cms/backoffice/validation";
+import { UmbChangeEvent as R } from "@umbraco-cms/backoffice/event";
+import { UMB_MODAL_MANAGER_CONTEXT as D } from "@umbraco-cms/backoffice/modal";
+import { UmbSorterController as W } from "@umbraco-cms/backoffice/sorter";
+import { M as q } from "./product-picker-modal.token-BfbHsSHl.js";
+import { M as N } from "./merchello-api-DPQ4r4XT.js";
+import { g as G, b as H } from "./store-settings-BhzqJKNt.js";
+import { a as K } from "./formatting-DYmyPQEL.js";
 import "./product-image.element-D7HwAIKr.js";
-var K = Object.defineProperty, X = Object.getOwnPropertyDescriptor, j = Object.getPrototypeOf, J = Reflect.set, S = (t) => {
+var X = Object.defineProperty, j = Object.getOwnPropertyDescriptor, J = Object.getPrototypeOf, Q = Reflect.set, w = (t) => {
   throw TypeError(t);
-}, p = (t, e, i, n) => {
-  for (var o = n > 1 ? void 0 : n ? X(e, i) : e, f = t.length - 1, u; f >= 0; f--)
-    (u = t[f]) && (o = (n ? u(e, i, o) : u(o)) || o);
-  return n && o && K(e, i, o), o;
-}, P = (t, e, i) => e.has(t) || S("Cannot " + i), l = (t, e, i) => (P(t, e, "read from private field"), i ? i.call(t) : e.get(t)), g = (t, e, i) => e.has(t) ? S("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(t) : e.set(t, i), b = (t, e, i, n) => (P(t, e, "write to private field"), e.set(t, i), i), a = (t, e, i) => (P(t, e, "access private method"), i), Q = (t, e, i, n) => ({
+}, p = (t, e, i, r) => {
+  for (var o = r > 1 ? void 0 : r ? j(e, i) : e, f = t.length - 1, u; f >= 0; f--)
+    (u = t[f]) && (o = (r ? u(e, i, o) : u(o)) || o);
+  return r && o && X(e, i, o), o;
+}, P = (t, e, i) => e.has(t) || w("Cannot " + i), l = (t, e, i) => (P(t, e, "read from private field"), i ? i.call(t) : e.get(t)), g = (t, e, i) => e.has(t) ? w("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(t) : e.set(t, i), b = (t, e, i, r) => (P(t, e, "write to private field"), e.set(t, i), i), a = (t, e, i) => (P(t, e, "access private method"), i), Y = (t, e, i, r) => ({
   set _(o) {
     b(t, e, o);
   },
   get _() {
-    return l(t, e, n);
+    return l(t, e, r);
   }
-}), Y = (t, e, i, n) => (J(j(t), i, n, e), n), I, v, x, d, s, U, k, y, $, M, w, E, L, V;
-let c = class extends R(
-  F,
+}), Z = (t, e, i, r) => (Q(J(t), i, r, e), r), I, v, x, d, s, S, k, y, $, M, C, U, E, L;
+let c = class extends F(
+  B,
   void 0
 ) {
   constructor() {
-    super(), g(this, s), this.readonly = !1, this._selection = [], this._maxItems = 1, this._collectionIds = [], this._productTypeIds = [], this._filterValueIds = [], this._isLoading = !1, g(this, I), g(this, v, !1), g(this, x, 0), g(this, d, new q(this, {
+    super(), g(this, s), this.readonly = !1, this._selection = [], this._maxItems = 1, this._collectionIds = [], this._productTypeIds = [], this._filterValueIds = [], this._isLoading = !1, g(this, I), g(this, v, !1), g(this, x, 0), g(this, d, new W(this, {
       getUniqueOfElement: (t) => t.getAttribute("data-id"),
       getUniqueOfModel: (t) => t.id,
       identifier: "Merchello.ProductPicker",
@@ -36,12 +37,12 @@ let c = class extends R(
       onChange: ({ model: t }) => {
         this._selection = t, a(this, s, k).call(this);
       }
-    })), this.consumeContext(W, (t) => {
+    })), this.consumeContext(D, (t) => {
       b(this, I, t);
     });
   }
   connectedCallback() {
-    super.connectedCallback(), b(this, v, !0), H();
+    super.connectedCallback(), b(this, v, !0), G();
   }
   disconnectedCallback() {
     super.disconnectedCallback(), b(this, v, !1);
@@ -51,19 +52,19 @@ let c = class extends R(
     this._maxItems = e === 0 ? 1 / 0 : e ?? 1;
     const i = t?.getValueByAlias("collectionIds");
     this._collectionIds = i ? i.split(",").filter(Boolean) : [];
-    const n = t?.getValueByAlias("productTypeIds");
-    this._productTypeIds = n ? n.split(",").filter(Boolean) : [];
+    const r = t?.getValueByAlias("productTypeIds");
+    this._productTypeIds = r ? r.split(",").filter(Boolean) : [];
     const o = t?.getValueByAlias("filterValueIds");
     this._filterValueIds = o ? o.split(",").filter(Boolean) : [];
   }
   set value(t) {
-    super.value = t, a(this, s, U).call(this, t);
+    super.value = t, a(this, s, S).call(this, t);
   }
   get value() {
     return super.value;
   }
   render() {
-    return this._isLoading && this._selection.length === 0 ? r`<uui-loader></uui-loader>` : this._maxItems === 1 ? a(this, s, E).call(this) : a(this, s, L).call(this);
+    return this._isLoading && this._selection.length === 0 ? n`<uui-loader></uui-loader>` : this._maxItems === 1 ? a(this, s, U).call(this) : a(this, s, E).call(this);
   }
 };
 I = /* @__PURE__ */ new WeakMap();
@@ -71,8 +72,8 @@ v = /* @__PURE__ */ new WeakMap();
 x = /* @__PURE__ */ new WeakMap();
 d = /* @__PURE__ */ new WeakMap();
 s = /* @__PURE__ */ new WeakSet();
-U = async function(t) {
-  const e = ++Q(this, x)._;
+S = async function(t) {
+  const e = ++Y(this, x)._;
   if (!t) {
     this._selection = [], this._maxItems !== 1 && l(this, d).setModel([]);
     return;
@@ -83,7 +84,7 @@ U = async function(t) {
     return;
   }
   this._isLoading = !0;
-  const { data: n, error: o } = await G.getVariantsByIds(i);
+  const { data: r, error: o } = await N.getVariantsByIds(i);
   if (!l(this, v) || e !== l(this, x)) return;
   if (this._isLoading = !1, o) {
     console.error("Failed to load product variants:", o), this._selection = i.map((u) => ({
@@ -97,7 +98,7 @@ U = async function(t) {
     return;
   }
   const f = i.map((u) => {
-    const h = n?.find((A) => A.id === u);
+    const h = r?.find((V) => V.id === u);
     return h?.found ? {
       id: h.id,
       name: h.name ?? h.rootName ?? "Unknown",
@@ -118,14 +119,14 @@ U = async function(t) {
 };
 k = function() {
   const t = this._selection.length > 0 ? this._selection.map((e) => e.id).join(",") : void 0;
-  Y(c.prototype, this, "value", t), this.dispatchEvent(new D());
+  Z(c.prototype, this, "value", t), this.dispatchEvent(new R());
 };
 y = async function() {
   if (this.readonly || !l(this, I)) return;
-  const t = this._selection.map((o) => o.id), e = await l(this, I).open(this, N, {
+  const t = this._selection.map((o) => o.id), e = await l(this, I).open(this, q, {
     data: {
       config: {
-        currencySymbol: C(),
+        currencySymbol: H(),
         excludeProductIds: t,
         productTypeId: this._productTypeIds.length === 1 ? this._productTypeIds[0] : void 0,
         productTypeIds: this._productTypeIds.length > 1 ? this._productTypeIds : void 0,
@@ -162,12 +163,12 @@ $ = function(t) {
 M = function() {
   this._selection = [], l(this, d).setModel([]), a(this, s, k).call(this);
 };
-w = function(t) {
-  return `${C()}${t.toFixed(2)}`;
+C = function(t) {
+  return K(t);
 };
-E = function() {
+U = function() {
   const t = this._selection[0];
-  return t ? t.notFound ? r`
+  return t ? t.notFound ? n`
         <div class="single-select-display not-found">
           <div class="product-info">
             <div class="product-image-placeholder">
@@ -178,7 +179,7 @@ E = function() {
               <span class="product-id">ID: ${t.id}</span>
             </div>
           </div>
-          ${this.readonly ? m : r`
+          ${this.readonly ? m : n`
                 <div class="actions">
                   <uui-button
                     compact
@@ -197,7 +198,7 @@ E = function() {
                 </div>
               `}
         </div>
-      ` : r`
+      ` : n`
       <div class="single-select-display">
         <div class="product-info">
           <merchello-product-image
@@ -207,11 +208,11 @@ E = function() {
           </merchello-product-image>
           <div class="product-details">
             <span class="product-name">${t.name}</span>
-            ${t.sku ? r`<span class="product-sku">${t.sku}</span>` : m}
-            <span class="product-price">${a(this, s, w).call(this, t.price)}</span>
+            ${t.sku ? n`<span class="product-sku">${t.sku}</span>` : m}
+            <span class="product-price">${a(this, s, C).call(this, t.price)}</span>
           </div>
         </div>
-        ${this.readonly ? m : r`
+        ${this.readonly ? m : n`
               <div class="actions">
                 <uui-button
                   compact
@@ -230,7 +231,7 @@ E = function() {
               </div>
             `}
       </div>
-    ` : r`
+    ` : n`
         <uui-button
           look="placeholder"
           label="Select product"
@@ -240,17 +241,17 @@ E = function() {
         </uui-button>
       `;
 };
-L = function() {
+E = function() {
   const t = !this.readonly && this._selection.length < this._maxItems;
-  return r`
+  return n`
       <div class="product-list">
-        ${T(
+        ${A(
     this._selection,
     (e) => e.id,
-    (e) => a(this, s, V).call(this, e)
+    (e) => a(this, s, L).call(this, e)
   )}
       </div>
-      ${t ? r`
+      ${t ? n`
             <uui-button
               look="placeholder"
               label="Add product"
@@ -261,8 +262,8 @@ L = function() {
           ` : m}
     `;
 };
-V = function(t) {
-  return t.notFound ? r`
+L = function(t) {
+  return t.notFound ? n`
         <div class="product-item not-found" data-id=${t.id}>
           <uui-icon name="icon-navigation" class="drag-handle"></uui-icon>
           <div class="product-image-placeholder">
@@ -272,7 +273,7 @@ V = function(t) {
             <span class="product-name">Product not found</span>
             <span class="product-id">ID: ${t.id}</span>
           </div>
-          ${this.readonly ? m : r`
+          ${this.readonly ? m : n`
                 <uui-button
                   compact
                   look="secondary"
@@ -282,7 +283,7 @@ V = function(t) {
                 </uui-button>
               `}
         </div>
-      ` : r`
+      ` : n`
       <div class="product-item" data-id=${t.id}>
         <uui-icon name="icon-navigation" class="drag-handle"></uui-icon>
         <merchello-product-image
@@ -292,10 +293,10 @@ V = function(t) {
         </merchello-product-image>
         <div class="product-details">
           <span class="product-name">${t.name}</span>
-          ${t.sku ? r`<span class="product-sku">${t.sku}</span>` : m}
+          ${t.sku ? n`<span class="product-sku">${t.sku}</span>` : m}
         </div>
-        <span class="product-price">${a(this, s, w).call(this, t.price)}</span>
-        ${this.readonly ? m : r`
+        <span class="product-price">${a(this, s, C).call(this, t.price)}</span>
+        ${this.readonly ? m : n`
               <uui-button
                 compact
                 look="secondary"
@@ -307,7 +308,7 @@ V = function(t) {
       </div>
     `;
 };
-c.styles = z`
+c.styles = T`
     :host {
       display: block;
     }
@@ -416,7 +417,7 @@ c.styles = z`
     }
   `;
 p([
-  O({ type: Boolean, reflect: !0 })
+  z({ type: Boolean, reflect: !0 })
 ], c.prototype, "readonly", 2);
 p([
   _()
@@ -437,11 +438,11 @@ p([
   _()
 ], c.prototype, "_isLoading", 2);
 c = p([
-  B("merchello-property-editor-ui-product-picker")
+  O("merchello-property-editor-ui-product-picker")
 ], c);
-const ct = c;
+const dt = c;
 export {
   c as MerchelloPropertyEditorUiProductPickerElement,
-  ct as default
+  dt as default
 };
-//# sourceMappingURL=property-editor-ui-product-picker.element-ma2HZpc-.js.map
+//# sourceMappingURL=property-editor-ui-product-picker.element-DpESznY1.js.map

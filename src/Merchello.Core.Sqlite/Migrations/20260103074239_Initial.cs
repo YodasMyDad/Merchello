@@ -799,6 +799,8 @@ namespace Merchello.Core.Sqlite.Migrations
                     Quantity = table.Column<int>(type: "INTEGER", nullable: false),
                     Amount = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
                     AmountInStoreCurrency = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
+                    Cost = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
+                    CostInStoreCurrency = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
                     OriginalAmount = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
                     IsTaxable = table.Column<bool>(type: "INTEGER", nullable: false),
                     TaxRate = table.Column<decimal>(type: "TEXT", precision: 5, scale: 2, nullable: false),
@@ -1206,6 +1208,11 @@ namespace Merchello.Core.Sqlite.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_merchelloInvoices_Channel",
+                table: "merchelloInvoices",
+                column: "Channel");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_merchelloInvoices_CurrencyCode",
                 table: "merchelloInvoices",
                 column: "CurrencyCode");
@@ -1231,6 +1238,11 @@ namespace Merchello.Core.Sqlite.Migrations
                 column: "IsDeleted");
 
             migrationBuilder.CreateIndex(
+                name: "IX_merchelloLineItems_DependantLineItemSku",
+                table: "merchelloLineItems",
+                column: "DependantLineItemSku");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_merchelloLineItems_InvoiceId",
                 table: "merchelloLineItems",
                 column: "InvoiceId");
@@ -1249,6 +1261,11 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "IX_merchelloLineItems_ProductId",
                 table: "merchelloLineItems",
                 column: "ProductId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_merchelloOrders_CompletedDate",
+                table: "merchelloOrders",
+                column: "CompletedDate");
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloOrders_InvoiceId",
@@ -1345,6 +1362,11 @@ namespace Merchello.Core.Sqlite.Migrations
                 column: "WarehouseId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_merchelloProducts_AvailableForPurchase_CanPurchase",
+                table: "merchelloProducts",
+                columns: new[] { "AvailableForPurchase", "CanPurchase" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_merchelloProducts_Price",
                 table: "merchelloProducts",
                 column: "Price");
@@ -1353,6 +1375,11 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "IX_merchelloProducts_ProductRootId",
                 table: "merchelloProducts",
                 column: "ProductRootId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_merchelloProducts_Sku",
+                table: "merchelloProducts",
+                column: "Sku");
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloProducts_Url",

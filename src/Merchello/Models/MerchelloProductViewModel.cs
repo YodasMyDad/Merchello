@@ -74,7 +74,7 @@ public class MerchelloProductViewModel : IContentModel
     {
         get
         {
-            var images = new List<string>(SelectedVariant.Images);
+            List<string> images = new(SelectedVariant.Images);
             if (!SelectedVariant.ExcludeRootProductImages)
             {
                 images.AddRange(ProductRoot.RootImages);

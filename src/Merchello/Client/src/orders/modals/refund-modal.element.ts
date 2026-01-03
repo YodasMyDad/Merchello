@@ -149,6 +149,8 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
                 this._amount = parseFloat((e.target as HTMLInputElement).value) || 0;
               }}
             ></uui-input>
+            <!-- Quick amount buttons for UX convenience only.
+                 Backend validates actual refund amount in processRefund API call. -->
             <div class="amount-buttons">
               <uui-button
                 look="secondary"

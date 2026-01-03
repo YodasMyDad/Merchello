@@ -8,7 +8,7 @@ namespace Merchello.Tests.Payments.Providers;
 public class BraintreePaymentProviderTests
 {
     [Fact]
-    public void GetAvailablePaymentMethods_ReturnsAllFourMethods()
+    public void GetAvailablePaymentMethods_ReturnsAllMethods()
     {
         // Arrange
         var provider = new BraintreePaymentProvider();
@@ -16,8 +16,8 @@ public class BraintreePaymentProviderTests
         // Act
         var methods = provider.GetAvailablePaymentMethods().ToList();
 
-        // Assert
-        methods.Count.ShouldBe(4);
+        // Assert - 10 methods: cards, paypal, applepay, googlepay, venmo, ideal, bancontact, sepa, eps, p24
+        methods.Count.ShouldBe(10);
 
         // Verify Cards method
         var cards = methods.FirstOrDefault(m => m.Alias == "cards");
@@ -41,6 +41,19 @@ public class BraintreePaymentProviderTests
         googlePay.ShouldNotBeNull();
         googlePay!.DisplayName.ShouldBe("Google Pay");
         googlePay.IsExpressCheckout.ShouldBeTrue();
+
+        // Verify Venmo method
+        var venmo = methods.FirstOrDefault(m => m.Alias == "venmo");
+        venmo.ShouldNotBeNull();
+        venmo.DisplayName.ShouldBe("Venmo");
+        venmo.IsExpressCheckout.ShouldBeTrue();
+
+        // Verify Local Payment Methods exist
+        methods.ShouldContain(m => m.Alias == "ideal");
+        methods.ShouldContain(m => m.Alias == "bancontact");
+        methods.ShouldContain(m => m.Alias == "sepa");
+        methods.ShouldContain(m => m.Alias == "eps");
+        methods.ShouldContain(m => m.Alias == "p24");
     }
 
     [Fact]
@@ -315,7 +328,7 @@ public class BraintreePaymentProviderTests
 
         // Assert
         templates.ShouldNotBeNull();
-        templates.Count.ShouldBe(5);
+        templates.Count.ShouldBe(10);
 
         // Verify transaction events
         templates.ShouldContain(t => t.EventType == "transaction_settled" &&
@@ -330,6 +343,18 @@ public class BraintreePaymentProviderTests
                                      t.MerchelloEventType == WebhookEventType.DisputeResolved);
         templates.ShouldContain(t => t.EventType == "dispute_lost" &&
                                      t.MerchelloEventType == WebhookEventType.DisputeResolved);
+
+        // Verify local payment events
+        templates.ShouldContain(t => t.EventType == "local_payment_completed" &&
+                                     t.MerchelloEventType == WebhookEventType.PaymentCompleted);
+        templates.ShouldContain(t => t.EventType == "local_payment_reversed" &&
+                                     t.MerchelloEventType == WebhookEventType.RefundCompleted);
+        templates.ShouldContain(t => t.EventType == "local_payment_expired" &&
+                                     t.MerchelloEventType == WebhookEventType.PaymentFailed);
+
+        // Verify additional events
+        templates.ShouldContain(t => t.EventType == "dispute_under_review");
+        templates.ShouldContain(t => t.EventType == "transaction_disbursed");
     }
 
     [Theory]

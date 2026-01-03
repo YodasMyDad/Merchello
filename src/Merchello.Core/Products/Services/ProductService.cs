@@ -1325,7 +1325,7 @@ public class ProductService(
                 .ToListAsync(cancellationToken);
 
             if (relevantFilterIds.Count == 0)
-                return new List<ProductFilterGroup>();
+                return [];
 
             // Get filter groups with their filters
             var groups = await db.ProductFilterGroups

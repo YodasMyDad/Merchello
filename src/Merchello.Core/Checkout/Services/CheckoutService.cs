@@ -769,7 +769,7 @@ public class CheckoutService(
             .Where(id => id != Guid.Empty)
             .ToList();
 
-        var existingCodeDiscounts = new List<Discount>();
+        List<Discount> existingCodeDiscounts = [];
         if (discountService != null)
         {
             foreach (var discountId in existingCodeDiscountIds)
@@ -1072,7 +1072,7 @@ public class CheckoutService(
         var currencySymbol = invoice.CurrencySymbol ?? _settings.CurrencySymbol;
 
         // Flatten line items from all orders (products and add-ons)
-        var lineItems = new List<CheckoutLineItemDto>();
+        List<CheckoutLineItemDto> lineItems = [];
         decimal totalShipping = 0;
 
         if (invoice.Orders != null)
@@ -1114,7 +1114,7 @@ public class CheckoutService(
             : new Dictionary<Guid, string>();
 
         // Build shipment summaries
-        var shipments = new List<ShipmentSummaryDto>();
+        List<ShipmentSummaryDto> shipments = [];
         if (invoice.Orders != null)
         {
             foreach (var order in invoice.Orders)

@@ -30,11 +30,11 @@ public class PaymentSessionResultTests
     public void DirectForm_SetsIntegrationTypeAndFormFields()
     {
         // Arrange
-        var formFields = new List<CheckoutFormField>
-        {
+        List<CheckoutFormField> formFields =
+        [
             new() { Key = "poNumber", Label = "PO Number", FieldType = CheckoutFieldType.Text, IsRequired = true },
             new() { Key = "notes", Label = "Notes", FieldType = CheckoutFieldType.Textarea, IsRequired = false }
-        };
+        ];
         var sessionId = "session-456";
 
         // Act

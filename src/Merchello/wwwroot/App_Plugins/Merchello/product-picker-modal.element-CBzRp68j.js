@@ -1,8 +1,8 @@
-import { LitElement as A, html as o, nothing as d, css as x, property as v, customElement as $, state as p } from "@umbraco-cms/backoffice/external/lit";
-import { UmbModalBaseElement as z } from "@umbraco-cms/backoffice/modal";
-import { M as b } from "./merchello-api-DPQ4r4XT.js";
+import { LitElement as A, html as o, nothing as c, css as x, property as f, customElement as P, state as p } from "@umbraco-cms/backoffice/external/lit";
+import { UmbModalBaseElement as I } from "@umbraco-cms/backoffice/modal";
+import { M as S } from "./merchello-api-DPQ4r4XT.js";
 import { c as O } from "./formatting-DYmyPQEL.js";
-import { UmbElementMixin as I } from "@umbraco-cms/backoffice/element-api";
+import { UmbElementMixin as z } from "@umbraco-cms/backoffice/element-api";
 function g(e, i) {
   return `${i}${O(e, 2)}`;
 }
@@ -15,12 +15,12 @@ function R(e) {
 function C(e, i) {
   return e.images.length > 0 && !e.excludeRootProductImages ? e.images[0] : !e.excludeRootProductImages && i.length > 0 ? i[0] : e.images.length > 0 ? e.images[0] : null;
 }
-var D = Object.defineProperty, N = Object.getOwnPropertyDescriptor, S = (e, i, t, s) => {
+var D = Object.defineProperty, N = Object.getOwnPropertyDescriptor, y = (e, i, t, s) => {
   for (var a = s > 1 ? void 0 : s ? N(i, t) : i, r = e.length - 1, n; r >= 0; r--)
     (n = e[r]) && (a = (s ? n(i, t, a) : n(a)) || a);
   return s && a && D(i, t, a), a;
 };
-let f = class extends I(A) {
+let _ = class extends z(A) {
   constructor() {
     super(...arguments), this.selected = !1, this.currencySymbol = "£", this.showImage = !0;
   }
@@ -52,7 +52,7 @@ let f = class extends I(A) {
     return o`<span class="variant-name">${e}</span>`;
   }
   _renderSku() {
-    return this.variant.sku ? o`<span class="variant-sku">${this.variant.sku}</span>` : d;
+    return this.variant.sku ? o`<span class="variant-sku">${this.variant.sku}</span>` : c;
   }
   _renderPrice() {
     return o`<span class="variant-price">${g(this.variant.price, this.currencySymbol)}</span>`;
@@ -75,7 +75,7 @@ let f = class extends I(A) {
     }
   }
   _renderRegionStatus() {
-    return this.variant.canShipToRegion ? d : o`<span class="status blocked">${this.variant.regionMessage ?? "Cannot ship"}</span>`;
+    return this.variant.canShipToRegion ? c : o`<span class="status blocked">${this.variant.regionMessage ?? "Cannot ship"}</span>`;
   }
   _renderBlockedReason() {
     return !this.variant.canSelect && this.variant.blockedReason ? o`
@@ -83,7 +83,7 @@ let f = class extends I(A) {
           <uui-icon name="icon-block"></uui-icon>
           <span>${this.variant.blockedReason}</span>
         </div>
-      ` : d;
+      ` : c;
   }
   render() {
     const e = !this.variant.canSelect;
@@ -102,7 +102,7 @@ let f = class extends I(A) {
           label="Select variant"
         ></uui-checkbox>
 
-        ${this.showImage ? this._renderImage() : d}
+        ${this.showImage ? this._renderImage() : c}
 
         <div class="variant-info">
           <div class="variant-name-row">
@@ -121,7 +121,7 @@ let f = class extends I(A) {
     `;
   }
 };
-f.styles = x`
+_.styles = x`
     :host {
       display: block;
     }
@@ -243,27 +243,27 @@ f.styles = x`
       font-size: 0.75rem;
     }
   `;
-S([
-  v({ type: Object })
-], f.prototype, "variant", 2);
-S([
-  v({ type: Boolean })
-], f.prototype, "selected", 2);
-S([
-  v({ type: String })
-], f.prototype, "currencySymbol", 2);
-S([
-  v({ type: Boolean })
-], f.prototype, "showImage", 2);
-f = S([
-  $("merchello-product-picker-variant-row")
-], f);
-var E = Object.defineProperty, M = Object.getOwnPropertyDescriptor, y = (e, i, t, s) => {
+y([
+  f({ type: Object })
+], _.prototype, "variant", 2);
+y([
+  f({ type: Boolean })
+], _.prototype, "selected", 2);
+y([
+  f({ type: String })
+], _.prototype, "currencySymbol", 2);
+y([
+  f({ type: Boolean })
+], _.prototype, "showImage", 2);
+_ = y([
+  P("merchello-product-picker-variant-row")
+], _);
+var E = Object.defineProperty, M = Object.getOwnPropertyDescriptor, k = (e, i, t, s) => {
   for (var a = s > 1 ? void 0 : s ? M(i, t) : i, r = e.length - 1, n; r >= 0; r--)
     (n = e[r]) && (a = (s ? n(i, t, a) : n(a)) || a);
   return s && a && E(i, t, a), a;
 };
-let _ = class extends I(A) {
+let b = class extends z(A) {
   constructor() {
     super(...arguments), this.productRoots = [], this.selectedIds = [], this.currencySymbol = "£", this.showImages = !0;
   }
@@ -328,12 +328,12 @@ let _ = class extends I(A) {
           aria-expanded=${e.isExpanded}
         >
           ${i ? o`<div class="expand-spacer"></div>` : this._renderExpandIcon(e.isExpanded)}
-          ${this.showImages ? this._renderProductImage(e.imageUrl, e.rootName) : d}
+          ${this.showImages ? this._renderProductImage(e.imageUrl, e.rootName) : c}
           <div class="product-info">
             <div class="product-name">${e.rootName}</div>
             <div class="product-meta">
               <span class="price">${this._renderPriceRange(e)}</span>
-              ${i ? d : o`<span class="variant-count">${e.variantCount} variants</span>`}
+              ${i ? c : o`<span class="variant-count">${e.variantCount} variants</span>`}
               ${this._renderStockBadge(e)}
             </div>
           </div>
@@ -353,13 +353,13 @@ let _ = class extends I(A) {
                   `
     )}
               </div>
-            ` : d}
+            ` : c}
 
         ${e.isExpanded && !e.variantsLoaded ? o`
               <div class="variants-loading">
                 <uui-loader-bar></uui-loader-bar>
               </div>
-            ` : d}
+            ` : c}
       </div>
     `;
   }
@@ -371,7 +371,7 @@ let _ = class extends I(A) {
     `;
   }
 };
-_.styles = x`
+b.styles = x`
     :host {
       display: block;
     }
@@ -522,29 +522,29 @@ _.styles = x`
       color: var(--uui-color-text-alt);
     }
   `;
-y([
-  v({ type: Array })
-], _.prototype, "productRoots", 2);
-y([
-  v({ type: Array })
-], _.prototype, "selectedIds", 2);
-y([
-  v({ type: String })
-], _.prototype, "currencySymbol", 2);
-y([
-  v({ type: Boolean })
-], _.prototype, "showImages", 2);
-_ = y([
-  $("merchello-product-picker-list")
-], _);
-var j = Object.defineProperty, L = Object.getOwnPropertyDescriptor, u = (e, i, t, s) => {
-  for (var a = s > 1 ? void 0 : s ? L(i, t) : i, r = e.length - 1, n; r >= 0; r--)
+k([
+  f({ type: Array })
+], b.prototype, "productRoots", 2);
+k([
+  f({ type: Array })
+], b.prototype, "selectedIds", 2);
+k([
+  f({ type: String })
+], b.prototype, "currencySymbol", 2);
+k([
+  f({ type: Boolean })
+], b.prototype, "showImages", 2);
+b = k([
+  P("merchello-product-picker-list")
+], b);
+var L = Object.defineProperty, V = Object.getOwnPropertyDescriptor, u = (e, i, t, s) => {
+  for (var a = s > 1 ? void 0 : s ? V(i, t) : i, r = e.length - 1, n; r >= 0; r--)
     (n = e[r]) && (a = (s ? n(i, t, a) : n(a)) || a);
-  return s && a && j(i, t, a), a;
+  return s && a && L(i, t, a), a;
 };
-let l = class extends z {
+let d = class extends I {
   constructor() {
-    super(...arguments), this._searchTerm = "", this._page = 1, this._pageSize = 20, this._totalPages = 0, this._isLoading = !0, this._errorMessage = null, this._productRoots = [], this._selections = /* @__PURE__ */ new Map(), this._viewState = "product-selection", this._pendingAddonSelection = null, this._selectedAddons = /* @__PURE__ */ new Map(), this._pendingShippingSelection = null, this._selectedShippingOptionId = null, this._productDetailCache = /* @__PURE__ */ new Map(), this._searchDebounceTimer = null, this._addonPreviewDebounceTimer = null, this._addonPricePreview = null, this._isLoadingAddonPreview = !1;
+    super(...arguments), this._searchTerm = "", this._page = 1, this._pageSize = 20, this._totalPages = 0, this._isLoading = !0, this._errorMessage = null, this._productRoots = [], this._selections = /* @__PURE__ */ new Map(), this._viewState = "product-selection", this._pendingAddonSelection = null, this._selectedAddons = /* @__PURE__ */ new Map(), this._pendingShippingSelection = null, this._selectedShippingOptionId = null, this._productDetailCache = /* @__PURE__ */ new Map(), this._searchDebounceTimer = null, this._addonPreviewDebounceTimer = null, this._addonPricePreview = null, this._isLoadingAddonPreview = !1, this._addonPreviewError = null;
   }
   connectedCallback() {
     super.connectedCallback(), this._loadProducts();
@@ -585,7 +585,7 @@ let l = class extends z {
       sortDir: "asc"
     };
     this._searchTerm.trim() && (e.search = this._searchTerm.trim()), this._config?.productTypeId && (e.productTypeId = this._config.productTypeId), this._config?.collectionId && (e.collectionId = this._config.collectionId);
-    const { data: i, error: t } = await b.getProducts(e);
+    const { data: i, error: t } = await S.getProducts(e);
     if (t) {
       this._errorMessage = t.message, this._isLoading = !1;
       return;
@@ -615,7 +615,7 @@ let l = class extends z {
   async _loadVariantsForRoot(e) {
     const i = this._productRoots.findIndex((r) => r.id === e);
     if (i === -1) return;
-    const { data: t, error: s } = await b.getProductDetail(e);
+    const { data: t, error: s } = await S.getProductDetail(e);
     if (s || !t) {
       console.error("Failed to load product variants:", s);
       return;
@@ -629,21 +629,21 @@ let l = class extends z {
     );
   }
   async _mapToPickerVariant(e, i) {
-    const t = e.warehouseStock.reduce((c, w) => c + w.availableStock, 0), s = e.warehouseStock.some((c) => c.trackStock);
-    let a = !0, r = null, n = !0, h = null, m = null, k = "InStock";
+    const t = e.warehouseStock.reduce((l, w) => l + w.availableStock, 0), s = e.warehouseStock.some((l) => l.trackStock);
+    let a = !0, r = null, n = !0, m = null, v = null, h = "InStock";
     if (!this._isPropertyEditorMode) {
       if (this._config?.shippingAddress && !i.isDigitalProduct) {
-        const c = await this._getFulfillmentOptions(e.id);
-        a = c.canAddToOrder, r = c.blockedReason, n = c.canAddToOrder, h = c.warehouseId, m = c.warehouseName, k = c.aggregateStockStatus;
+        const l = await this._getFulfillmentOptions(e.id);
+        a = l.canAddToOrder, r = l.blockedReason, n = l.canAddToOrder, m = l.warehouseId, v = l.warehouseName, h = l.aggregateStockStatus;
       } else if (!i.isDigitalProduct && e.warehouseStock.length > 0) {
-        const c = await this._getDefaultFulfillingWarehouse(e.id);
-        a = c.canAddToOrder, r = c.blockedReason, h = c.warehouseId, m = c.warehouseName, k = c.aggregateStockStatus;
+        const l = await this._getDefaultFulfillingWarehouse(e.id);
+        a = l.canAddToOrder, r = l.blockedReason, m = l.warehouseId, v = l.warehouseName, h = l.aggregateStockStatus;
       }
     }
-    let P = k;
-    if (h) {
-      const c = e.warehouseStock.find((w) => w.warehouseId === h);
-      c && (P = c.stockStatus);
+    let $ = h;
+    if (m) {
+      const l = e.warehouseStock.find((w) => w.warehouseId === m);
+      l && ($ = l.stockStatus);
     }
     return {
       id: e.id,
@@ -657,13 +657,13 @@ let l = class extends z {
       canSelect: a,
       blockedReason: r,
       availableStock: t,
-      stockStatus: P,
+      stockStatus: $,
       trackStock: s,
       canShipToRegion: n,
       regionMessage: r,
       // Use blockedReason for any message (region or other)
-      fulfillingWarehouseId: h,
-      fulfillingWarehouseName: m,
+      fulfillingWarehouseId: m,
+      fulfillingWarehouseName: v,
       warehouseStock: e.warehouseStock
     };
   }
@@ -680,7 +680,7 @@ let l = class extends z {
     if (!i)
       return { canAddToOrder: !0, warehouseId: null, warehouseName: null, blockedReason: null, aggregateStockStatus: "InStock" };
     try {
-      const { data: t, error: s } = await b.getProductFulfillmentOptions(
+      const { data: t, error: s } = await S.getProductFulfillmentOptions(
         e,
         i.countryCode,
         i.stateCode
@@ -702,7 +702,7 @@ let l = class extends z {
    */
   async _getDefaultFulfillingWarehouse(e) {
     try {
-      const { data: i, error: t } = await b.getDefaultFulfillingWarehouse(e);
+      const { data: i, error: t } = await S.getDefaultFulfillingWarehouse(e);
       return t ? (console.error("Failed to get default warehouse:", t), { canAddToOrder: !1, warehouseId: null, warehouseName: null, blockedReason: "Unable to check fulfillment", aggregateStockStatus: "OutOfStock" }) : {
         canAddToOrder: i?.canAddToOrder ?? !1,
         warehouseId: i?.fulfillingWarehouse?.id ?? null,
@@ -824,7 +824,7 @@ let l = class extends z {
   async _fetchAddonPricePreview() {
     const e = this._pendingAddonSelection;
     if (!e) return;
-    if (this._selectedAddons.size === 0) {
+    if (this._addonPreviewError = null, this._selectedAddons.size === 0) {
       this._addonPricePreview = {
         basePrice: e.variant.price,
         addonsTotal: 0,
@@ -838,27 +838,15 @@ let l = class extends z {
         optionId: a.optionId,
         valueId: a.valueId
       }))
-    }, { data: t, error: s } = await b.previewAddonPrice(e.variant.id, i);
-    if (s) {
-      console.error("Failed to fetch addon price preview:", s);
-      const a = Array.from(this._selectedAddons.values()).reduce(
-        (r, n) => r + n.priceAdjustment,
-        0
-      );
-      this._addonPricePreview = {
-        basePrice: e.variant.price,
-        addonsTotal: a,
-        totalPrice: e.variant.price + a
-      };
-    } else t && (this._addonPricePreview = {
+    }, { data: t, error: s } = await S.previewAddonPrice(e.variant.id, i);
+    this._pendingAddonSelection && (s ? (console.error("Failed to fetch addon price preview:", s), this._addonPricePreview = null, this._addonPreviewError = "Unable to calculate price. Please try again.") : t && (this._addonPricePreview = {
       basePrice: t.basePrice,
       addonsTotal: t.addonsTotal,
       totalPrice: t.totalPrice
-    });
-    this._isLoadingAddonPreview = !1;
+    }), this._isLoadingAddonPreview = !1);
   }
   _handleBackToProducts() {
-    this._viewState = "product-selection", this._pendingAddonSelection = null, this._selectedAddons = /* @__PURE__ */ new Map(), this._addonPricePreview = null, this._isLoadingAddonPreview = !1;
+    this._viewState = "product-selection", this._pendingAddonSelection = null, this._selectedAddons = /* @__PURE__ */ new Map(), this._addonPricePreview = null, this._isLoadingAddonPreview = !1, this._addonPreviewError = null;
   }
   _handleSkipAddons() {
     this._pendingAddonSelection && (this._transitionToShippingSelection(this._pendingAddonSelection.variant, []), this._pendingAddonSelection = null, this._selectedAddons = /* @__PURE__ */ new Map());
@@ -877,47 +865,51 @@ let l = class extends z {
       console.error("No warehouse for variant", e);
       return;
     }
+    const a = this._addonPricePreview?.totalPrice ?? e.price;
     this._pendingShippingSelection = {
       variant: e,
       addons: i,
+      totalPrice: a,
       warehouseId: t,
       warehouseName: s,
       isLoadingOptions: !0,
       shippingOptions: []
     }, this._selectedShippingOptionId = null, this._viewState = "shipping-selection";
-    const a = this._config?.shippingAddress;
-    if (!a) {
-      this._pendingShippingSelection = {
+    const r = this._config?.shippingAddress;
+    if (!r) {
+      this._pendingShippingSelection && (this._pendingShippingSelection = {
         ...this._pendingShippingSelection,
         isLoadingOptions: !1
-      };
+      });
       return;
     }
-    const { data: r, error: n } = await b.getShippingOptionsForWarehouse(
+    const { data: n, error: m } = await S.getShippingOptionsForWarehouse(
       t,
-      a.countryCode,
-      a.stateCode
+      r.countryCode,
+      r.stateCode
     );
-    if (n || !r) {
-      console.error("Failed to load shipping options:", n), this._pendingShippingSelection = {
+    if (!this._pendingShippingSelection)
+      return;
+    if (m || !n) {
+      console.error("Failed to load shipping options:", m), this._pendingShippingSelection = {
         ...this._pendingShippingSelection,
         isLoadingOptions: !1
       };
       return;
     }
-    const h = r.availableOptions.map((m) => ({
-      id: m.id,
-      name: m.name,
-      deliveryTimeDescription: m.deliveryTimeDescription,
-      estimatedCost: m.estimatedCost ?? null,
-      isEstimate: m.isEstimate,
-      isNextDay: m.isNextDay
+    const v = n.availableOptions.map((h) => ({
+      id: h.id,
+      name: h.name,
+      deliveryTimeDescription: h.deliveryTimeDescription,
+      estimatedCost: h.estimatedCost ?? null,
+      isEstimate: h.isEstimate,
+      isNextDay: h.isNextDay
     }));
     this._pendingShippingSelection = {
       ...this._pendingShippingSelection,
       isLoadingOptions: !1,
-      shippingOptions: h
-    }, h.length === 1 && (this._selectedShippingOptionId = h[0].id);
+      shippingOptions: v
+    }, v.length === 1 && (this._selectedShippingOptionId = v[0].id);
   }
   _handleShippingOptionSelect(e) {
     this._selectedShippingOptionId = e;
@@ -972,7 +964,7 @@ let l = class extends z {
                 <uui-button slot="append" compact look="secondary" label="Clear" @click=${this._handleSearchClear}>
                   <uui-icon name="icon-wrong"></uui-icon>
                 </uui-button>
-              ` : d}
+              ` : c}
         </uui-input>
       </div>
     `;
@@ -996,7 +988,7 @@ let l = class extends z {
     `;
   }
   _renderPagination() {
-    return this._totalPages <= 1 ? d : o`
+    return this._totalPages <= 1 ? c : o`
       <div class="pagination">
         <uui-button
           look="secondary"
@@ -1025,25 +1017,39 @@ let l = class extends z {
   // ============================================
   _renderAddonSelectionView() {
     const e = this._pendingAddonSelection;
-    if (!e) return d;
-    const i = e.variant, t = i.optionValuesDisplay ? `${i.rootName} - ${i.optionValuesDisplay}` : i.rootName, s = this._addonPricePreview, a = s?.basePrice ?? i.price, r = s?.addonsTotal ?? 0, n = s?.totalPrice ?? i.price;
+    if (!e) return c;
+    const i = e.variant, t = i.optionValuesDisplay ? `${i.rootName} - ${i.optionValuesDisplay}` : i.rootName, s = this._addonPricePreview, a = this._addonPreviewError !== null, r = s?.basePrice ?? i.price, n = s?.addonsTotal ?? 0, m = s?.totalPrice ?? i.price, v = !a && !this._isLoadingAddonPreview;
     return o`
       <umb-body-layout headline="Select Add-ons (Optional)">
         <div id="main">
+          ${a ? o`
+                <div class="addon-error">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>${this._addonPreviewError}</span>
+                  <uui-button
+                    look="secondary"
+                    compact
+                    @click=${() => this._fetchAddonPricePreview()}
+                  >
+                    Retry
+                  </uui-button>
+                </div>
+              ` : c}
+
           <div class="addon-product-summary">
             <div class="product-info">
               <strong>${t}</strong>
-              ${i.sku ? o`<span class="sku">${i.sku}</span>` : d}
+              ${i.sku ? o`<span class="sku">${i.sku}</span>` : c}
             </div>
-            <div class="product-pricing ${this._isLoadingAddonPreview ? "loading" : ""}">
-              <span class="base-price">${g(a, this._currencySymbol)}</span>
-              ${r !== 0 ? o`
+            <div class="product-pricing ${this._isLoadingAddonPreview ? "loading" : ""} ${a ? "error" : ""}">
+              <span class="base-price">${g(r, this._currencySymbol)}</span>
+              ${!a && n !== 0 ? o`
                     <span class="addon-total">
-                      ${r > 0 ? "+" : ""}${g(r, this._currencySymbol)}
+                      ${n > 0 ? "+" : ""}${g(n, this._currencySymbol)}
                     </span>
-                    <span class="total-price">= ${g(n, this._currencySymbol)}</span>
-                  ` : d}
-              ${this._isLoadingAddonPreview ? o`<uui-loader-circle></uui-loader-circle>` : d}
+                    <span class="total-price">= ${g(m, this._currencySymbol)}</span>
+                  ` : c}
+              ${this._isLoadingAddonPreview ? o`<uui-loader-circle></uui-loader-circle>` : c}
             </div>
           </div>
 
@@ -1060,7 +1066,12 @@ let l = class extends z {
           <uui-button look="secondary" @click=${this._handleSkipAddons}>
             Skip Add-ons
           </uui-button>
-          <uui-button look="primary" color="positive" @click=${this._handleConfirmWithAddons}>
+          <uui-button
+            look="primary"
+            color="positive"
+            ?disabled=${!v}
+            @click=${this._handleConfirmWithAddons}
+          >
             Continue
           </uui-button>
         </div>
@@ -1078,7 +1089,7 @@ let l = class extends z {
                 <uui-button compact look="secondary" @click=${() => this._handleAddonClear(e.id)}>
                   Clear
                 </uui-button>
-              ` : d}
+              ` : c}
         </div>
         <div class="addon-values">
           ${e.values.map((t) => this._renderAddonValue(e, t, i?.valueId === t.id))}
@@ -1098,7 +1109,7 @@ let l = class extends z {
               <span class="value-price ${i.priceAdjustment > 0 ? "positive" : "negative"}">
                 ${i.priceAdjustment > 0 ? "+" : ""}${g(i.priceAdjustment, this._currencySymbol)}
               </span>
-            ` : d}
+            ` : c}
       </button>
     `;
   }
@@ -1107,28 +1118,28 @@ let l = class extends z {
   // ============================================
   _renderShippingSelectionView() {
     const e = this._pendingShippingSelection;
-    if (!e) return d;
-    const i = e.variant, t = i.optionValuesDisplay ? `${i.rootName} - ${i.optionValuesDisplay}` : i.rootName, s = e.addons.reduce((r, n) => r + n.priceAdjustment, 0), a = i.price + s;
+    if (!e) return c;
+    const i = e.variant, t = i.optionValuesDisplay ? `${i.rootName} - ${i.optionValuesDisplay}` : i.rootName, s = e.totalPrice;
     return o`
       <umb-body-layout headline="Select Shipping">
         <div id="main">
           <div class="shipping-product-summary">
             <div class="product-info">
               <strong>${t}</strong>
-              ${i.sku ? o`<span class="sku">${i.sku}</span>` : d}
+              ${i.sku ? o`<span class="sku">${i.sku}</span>` : c}
               <div class="warehouse-info">
                 <uui-icon name="icon-home"></uui-icon>
                 ${e.warehouseName}
               </div>
             </div>
             <div class="product-pricing">
-              <span class="total-price">${g(a, this._currencySymbol)}</span>
+              <span class="total-price">${g(s, this._currencySymbol)}</span>
             </div>
           </div>
 
           ${e.isLoadingOptions ? o`<div class="loading"><uui-loader></uui-loader></div>` : e.shippingOptions.length === 0 ? o`<div class="no-options">No shipping options available for this destination.</div>` : o`
                   <div class="shipping-options">
-                    ${e.shippingOptions.map((r) => this._renderShippingOption(r))}
+                    ${e.shippingOptions.map((a) => this._renderShippingOption(a))}
                   </div>
                 `}
         </div>
@@ -1165,7 +1176,7 @@ let l = class extends z {
         <div class="shipping-option-cost">
           ${e.estimatedCost !== null ? o`
                 <span class="cost">${g(e.estimatedCost, this._currencySymbol)}</span>
-                ${e.isEstimate ? o`<span class="estimate-label">est.</span>` : d}
+                ${e.isEstimate ? o`<span class="estimate-label">est.</span>` : c}
               ` : o`<span class="cost-at-checkout">Calculated at checkout</span>`}
         </div>
       </button>
@@ -1203,7 +1214,7 @@ let l = class extends z {
     `;
   }
 };
-l.styles = x`
+d.styles = x`
     :host {
       display: block;
     }
@@ -1331,6 +1342,29 @@ l.styles = x`
 
     .addon-product-summary .product-pricing.loading {
       opacity: 0.6;
+    }
+
+    .addon-product-summary .product-pricing.error {
+      opacity: 0.5;
+    }
+
+    .addon-error {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3);
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
+      border-radius: var(--uui-border-radius);
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .addon-error uui-icon {
+      flex-shrink: 0;
+    }
+
+    .addon-error span {
+      flex: 1;
     }
 
     .addon-product-summary .product-pricing uui-loader-circle {
@@ -1528,55 +1562,58 @@ l.styles = x`
   `;
 u([
   p()
-], l.prototype, "_searchTerm", 2);
+], d.prototype, "_searchTerm", 2);
 u([
   p()
-], l.prototype, "_page", 2);
+], d.prototype, "_page", 2);
 u([
   p()
-], l.prototype, "_pageSize", 2);
+], d.prototype, "_pageSize", 2);
 u([
   p()
-], l.prototype, "_totalPages", 2);
+], d.prototype, "_totalPages", 2);
 u([
   p()
-], l.prototype, "_isLoading", 2);
+], d.prototype, "_isLoading", 2);
 u([
   p()
-], l.prototype, "_errorMessage", 2);
+], d.prototype, "_errorMessage", 2);
 u([
   p()
-], l.prototype, "_productRoots", 2);
+], d.prototype, "_productRoots", 2);
 u([
   p()
-], l.prototype, "_selections", 2);
+], d.prototype, "_selections", 2);
 u([
   p()
-], l.prototype, "_viewState", 2);
+], d.prototype, "_viewState", 2);
 u([
   p()
-], l.prototype, "_pendingAddonSelection", 2);
+], d.prototype, "_pendingAddonSelection", 2);
 u([
   p()
-], l.prototype, "_selectedAddons", 2);
+], d.prototype, "_selectedAddons", 2);
 u([
   p()
-], l.prototype, "_pendingShippingSelection", 2);
+], d.prototype, "_pendingShippingSelection", 2);
 u([
   p()
-], l.prototype, "_selectedShippingOptionId", 2);
+], d.prototype, "_selectedShippingOptionId", 2);
 u([
   p()
-], l.prototype, "_addonPricePreview", 2);
+], d.prototype, "_addonPricePreview", 2);
 u([
   p()
-], l.prototype, "_isLoadingAddonPreview", 2);
-l = u([
-  $("merchello-product-picker-modal")
-], l);
-const q = l;
+], d.prototype, "_isLoadingAddonPreview", 2);
+u([
+  p()
+], d.prototype, "_addonPreviewError", 2);
+d = u([
+  P("merchello-product-picker-modal")
+], d);
+const q = d;
 export {
-  l as MerchelloProductPickerModalElement,
+  d as MerchelloProductPickerModalElement,
   q as default
 };
-//# sourceMappingURL=product-picker-modal.element-CtyZ9TjT.js.map
+//# sourceMappingURL=product-picker-modal.element-CBzRp68j.js.map

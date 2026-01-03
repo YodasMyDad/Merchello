@@ -41,7 +41,7 @@ public static class ConcurrentTestHelper
         Func<Task<TResult>> operation)
     {
         var results = new ConcurrentBag<TResult>();
-        var tasks = new List<Task>();
+        List<Task> tasks = [];
 
         for (int i = 0; i < operationCount; i++)
         {

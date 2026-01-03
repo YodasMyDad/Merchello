@@ -44,14 +44,12 @@ public class ReportingService(
 
             // Current period orders fulfilled (Completed status)
             var currentOrdersFulfilled = await db.Orders
-                .Include(o => o.Invoice)
                 .Where(o => o.Invoice != null && !o.Invoice.IsDeleted
                     && o.CompletedDate >= start && o.CompletedDate <= end
                     && o.Status == OrderStatus.Completed)
                 .CountAsync(cancellationToken);
 
             var comparisonOrdersFulfilled = await db.Orders
-                .Include(o => o.Invoice)
                 .Where(o => o.Invoice != null && !o.Invoice.IsDeleted
                     && o.CompletedDate >= comparisonStart && o.CompletedDate <= comparisonEnd
                     && o.Status == OrderStatus.Completed)
@@ -80,7 +78,6 @@ public class ReportingService(
 
             // Orders fulfilled sparkline - fetch raw data and group in memory (SQLite compatibility)
             var fulfilledOrders = await db.Orders
-                .Include(o => o.Invoice)
                 .Where(o => o.Invoice != null && !o.Invoice.IsDeleted
                     && o.CompletedDate >= start && o.CompletedDate <= end
                     && o.Status == OrderStatus.Completed)

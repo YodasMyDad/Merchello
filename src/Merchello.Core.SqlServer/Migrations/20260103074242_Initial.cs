@@ -794,11 +794,13 @@ namespace Merchello.Core.SqlServer.Migrations
                     Sku = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     ProductId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    DependantLineItemSku = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    DependantLineItemSku = table.Column<string>(type: "nvarchar(450)", nullable: true),
                     LineItemType = table.Column<int>(type: "int", nullable: false),
                     Quantity = table.Column<int>(type: "int", nullable: false),
                     Amount = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
                     AmountInStoreCurrency = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    Cost = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    CostInStoreCurrency = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
                     OriginalAmount = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
                     IsTaxable = table.Column<bool>(type: "bit", nullable: false),
                     TaxRate = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
@@ -1207,6 +1209,11 @@ namespace Merchello.Core.SqlServer.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_merchelloInvoices_Channel",
+                table: "merchelloInvoices",
+                column: "Channel");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_merchelloInvoices_CurrencyCode",
                 table: "merchelloInvoices",
                 column: "CurrencyCode");
@@ -1232,6 +1239,11 @@ namespace Merchello.Core.SqlServer.Migrations
                 column: "IsDeleted");
 
             migrationBuilder.CreateIndex(
+                name: "IX_merchelloLineItems_DependantLineItemSku",
+                table: "merchelloLineItems",
+                column: "DependantLineItemSku");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_merchelloLineItems_InvoiceId",
                 table: "merchelloLineItems",
                 column: "InvoiceId");
@@ -1250,6 +1262,11 @@ namespace Merchello.Core.SqlServer.Migrations
                 name: "IX_merchelloLineItems_ProductId",
                 table: "merchelloLineItems",
                 column: "ProductId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_merchelloOrders_CompletedDate",
+                table: "merchelloOrders",
+                column: "CompletedDate");
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloOrders_InvoiceId",
@@ -1346,6 +1363,11 @@ namespace Merchello.Core.SqlServer.Migrations
                 column: "WarehouseId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_merchelloProducts_AvailableForPurchase_CanPurchase",
+                table: "merchelloProducts",
+                columns: new[] { "AvailableForPurchase", "CanPurchase" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_merchelloProducts_Price",
                 table: "merchelloProducts",
                 column: "Price");
@@ -1354,6 +1376,11 @@ namespace Merchello.Core.SqlServer.Migrations
                 name: "IX_merchelloProducts_ProductRootId",
                 table: "merchelloProducts",
                 column: "ProductRootId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_merchelloProducts_Sku",
+                table: "merchelloProducts",
+                column: "Sku");
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloProducts_Url",

@@ -63,7 +63,7 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithNoPayments_ReturnsUnpaid()
     {
         // Arrange
-        var payments = new List<Payment>();
+        List<Payment> payments = [];
         var invoiceTotal = 100m;
 
         // Act
@@ -86,10 +86,10 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithPartialPayment_ReturnsPartiallyPaid()
     {
         // Arrange
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(50m, PaymentType.Payment, success: true)
-        };
+        ];
         var invoiceTotal = 100m;
 
         // Act
@@ -111,10 +111,10 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithFullPayment_ReturnsPaid()
     {
         // Arrange
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(100m, PaymentType.Payment, success: true)
-        };
+        ];
         var invoiceTotal = 100m;
 
         // Act
@@ -136,10 +136,10 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithOverpayment_ReturnsPaid()
     {
         // Arrange
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(120m, PaymentType.Payment, success: true)
-        };
+        ];
         var invoiceTotal = 100m;
 
         // Act
@@ -165,11 +165,11 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithFullRefund_ReturnsRefunded()
     {
         // Arrange
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(100m, PaymentType.Payment, success: true),
             CreatePayment(-100m, PaymentType.Refund, success: true)
-        };
+        ];
         var invoiceTotal = 100m;
 
         // Act
@@ -192,11 +192,11 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithPartialRefund_ReturnsPartiallyRefunded()
     {
         // Arrange
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(100m, PaymentType.Payment, success: true),
             CreatePayment(-30m, PaymentType.PartialRefund, success: true)
-        };
+        ];
         var invoiceTotal = 100m;
 
         // Act
@@ -219,12 +219,12 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithMultiplePartialRefunds_CalculatesCorrectly()
     {
         // Arrange
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(100m, PaymentType.Payment, success: true),
             CreatePayment(-20m, PaymentType.PartialRefund, success: true),
             CreatePayment(-15m, PaymentType.PartialRefund, success: true)
-        };
+        ];
         var invoiceTotal = 100m;
 
         // Act
@@ -251,10 +251,10 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithPendingPayment_ReturnsUnpaid()
     {
         // Arrange - Payment exists but is not yet successful
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(100m, PaymentType.Payment, success: false)
-        };
+        ];
         var invoiceTotal = 100m;
 
         // Act
@@ -275,11 +275,11 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithMixedSuccessAndPending_CalculatesCorrectly()
     {
         // Arrange - One successful partial, one pending
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(50m, PaymentType.Payment, success: true),
             CreatePayment(50m, PaymentType.Payment, success: false) // Pending
-        };
+        ];
         var invoiceTotal = 100m;
 
         // Act
@@ -304,12 +304,12 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithMultiplePaymentsEqualingTotal_ReturnsPaid()
     {
         // Arrange
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(30m, PaymentType.Payment, success: true),
             CreatePayment(40m, PaymentType.Payment, success: true),
             CreatePayment(30m, PaymentType.Payment, success: true)
-        };
+        ];
         var invoiceTotal = 100m;
 
         // Act
@@ -331,12 +331,12 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithPaymentThenRefundThenRepayment_CalculatesCorrectly()
     {
         // Arrange - Customer paid, got refund, then paid again
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(100m, PaymentType.Payment, success: true),
             CreatePayment(-100m, PaymentType.Refund, success: true),
             CreatePayment(100m, PaymentType.Payment, success: true)
-        };
+        ];
         var invoiceTotal = 100m;
 
         // Act
@@ -363,10 +363,10 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_SetsCorrectStatusDisplay()
     {
         // Arrange
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(50m, PaymentType.Payment, success: true)
-        };
+        ];
         var invoiceTotal = 100m;
 
         // Act
@@ -405,11 +405,11 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithRiskScore_ReturnsMaxRiskScore()
     {
         // Arrange
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(50m, PaymentType.Payment, success: true, riskScore: 30m),
             CreatePayment(50m, PaymentType.Payment, success: true, riskScore: 75m)
-        };
+        ];
         var invoiceTotal = 100m;
 
         // Act
@@ -461,7 +461,7 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithZeroTotal_AndNoPayments_ReturnsPaid()
     {
         // Arrange - Free order
-        var payments = new List<Payment>();
+        List<Payment> payments = [];
         var invoiceTotal = 0m;
 
         // Act
@@ -485,10 +485,10 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithJPY_RoundsToWholeNumber()
     {
         // Arrange - JPY has 0 decimal places
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(99m, PaymentType.Payment, success: true)
-        };
+        ];
         var invoiceTotal = 100m;
 
         // Act
@@ -512,10 +512,10 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithStoreCurrency_CalculatesBothCurrencies()
     {
         // Arrange - EUR invoice with USD store currency
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(85m, PaymentType.Payment, success: true, storeCurrencyAmount: 100m)
-        };
+        ];
         var invoiceTotal = 85m; // EUR
         var invoiceTotalInStoreCurrency = 100m; // USD
 
@@ -541,10 +541,10 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithPartialMultiCurrencyPayment_CalculatesBothBalances()
     {
         // Arrange - EUR invoice, partial payment
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(42.5m, PaymentType.Payment, success: true, storeCurrencyAmount: 50m)
-        };
+        ];
         var invoiceTotal = 85m; // EUR
         var invoiceTotalInStoreCurrency = 100m; // USD
 
@@ -574,7 +574,7 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_WithNegativeInvoiceTotal_HandlesGracefully()
     {
         // Arrange - Credit note scenario
-        var payments = new List<Payment>();
+        List<Payment> payments = [];
         var invoiceTotal = -50m;
 
         // Act
@@ -593,11 +593,11 @@ public class PaymentStatusCalculationTests
     public void CalculatePaymentStatus_IgnoresFailedRefunds()
     {
         // Arrange
-        var payments = new List<Payment>
-        {
+        List<Payment> payments =
+        [
             CreatePayment(100m, PaymentType.Payment, success: true),
             CreatePayment(-50m, PaymentType.Refund, success: false) // Failed refund
-        };
+        ];
         var invoiceTotal = 100m;
 
         // Act

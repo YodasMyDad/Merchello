@@ -58,15 +58,15 @@ public class CustomerSegmentServiceTests
     public async Task CreateAsync_AutomatedSegment_CreatesWithCriteria()
     {
         // Arrange
-        var criteria = new List<SegmentCriteria>
-        {
+        List<SegmentCriteria> criteria =
+        [
             new()
             {
                 Field = "TotalSpend",
                 Operator = SegmentCriteriaOperator.GreaterThan,
                 Value = 1000m
             }
-        };
+        ];
 
         var parameters = new CreateSegmentParameters
         {
@@ -289,10 +289,10 @@ public class CustomerSegmentServiceTests
         });
         var segmentId = createResult.ResultObject!.Id;
 
-        var newCriteria = new List<SegmentCriteria>
-        {
+        List<SegmentCriteria> newCriteria =
+        [
             new() { Field = "TotalSpend", Operator = SegmentCriteriaOperator.GreaterThan, Value = 500m }
-        };
+        ];
 
         // Act
         var updateResult = await _segmentService.UpdateAsync(segmentId, new UpdateSegmentParameters
@@ -657,15 +657,15 @@ public class CustomerSegmentServiceTests
     public async Task ValidateCriteriaAsync_ValidCriteria_ReturnsValid()
     {
         // Arrange
-        var criteria = new List<SegmentCriteria>
-        {
+        List<SegmentCriteria> criteria =
+        [
             new()
             {
                 Field = "OrderCount",
                 Operator = SegmentCriteriaOperator.GreaterThan,
                 Value = 5
             }
-        };
+        ];
 
         // Act
         var result = await _segmentService.ValidateCriteriaAsync(criteria);
@@ -679,15 +679,15 @@ public class CustomerSegmentServiceTests
     public async Task ValidateCriteriaAsync_InvalidField_ReturnsError()
     {
         // Arrange
-        var criteria = new List<SegmentCriteria>
-        {
+        List<SegmentCriteria> criteria =
+        [
             new()
             {
                 Field = "InvalidFieldName",
                 Operator = SegmentCriteriaOperator.Equals,
                 Value = "test"
             }
-        };
+        ];
 
         // Act
         var result = await _segmentService.ValidateCriteriaAsync(criteria);
@@ -701,7 +701,7 @@ public class CustomerSegmentServiceTests
     public async Task ValidateCriteriaAsync_EmptyCriteria_ReturnsError()
     {
         // Arrange
-        var criteria = new List<SegmentCriteria>();
+        List<SegmentCriteria> criteria = [];
 
         // Act
         var result = await _segmentService.ValidateCriteriaAsync(criteria);

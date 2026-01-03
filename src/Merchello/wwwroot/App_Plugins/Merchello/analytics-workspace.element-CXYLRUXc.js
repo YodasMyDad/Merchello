@@ -9598,7 +9598,7 @@ var sd = Object.defineProperty, nd = Object.getOwnPropertyDescriptor, ut = (i, t
 es.register(...id);
 let ot = class extends Le(Pe) {
   constructor() {
-    super(...arguments), this.headline = "", this.valuePrefix = "", this.data = [], this.showComparison = !0, this.isLoading = !1;
+    super(...arguments), this.headline = "", this.valuePrefix = "", this.data = [], this.showComparison = !0, this.isLoading = !1, this.periodTotal = 0, this.percentChange = 0;
   }
   disconnectedCallback() {
     super.disconnectedCallback(), this._destroyChart();
@@ -9722,22 +9722,18 @@ let ot = class extends Le(Pe) {
     return i >= 1e6 ? me(i / 1e6, 1) + "M" : i >= 1e3 ? me(i / 1e3, 1) + "K" : me(i, 2);
   }
   /**
-   * Gets the total value, using backend-provided periodTotal if available.
-   * Falls back to local calculation for backwards compatibility.
+   * Gets the total value from backend-provided periodTotal.
+   * Backend is the single source of truth for all calculations.
    */
   _getTotalValue() {
-    return this.periodTotal !== void 0 ? this.periodTotal : this.data.reduce((i, t) => i + t.value, 0);
+    return this.periodTotal;
   }
   /**
-   * Gets the percent change, using backend-provided percentChange if available.
-   * Falls back to local calculation for backwards compatibility.
+   * Gets the percent change from backend-provided percentChange.
+   * Backend is the single source of truth for all calculations.
    */
   _getPercentChange() {
-    if (!this.showComparison) return 0;
-    if (this.percentChange !== void 0 && this.percentChange !== null)
-      return this.percentChange;
-    const i = this.periodTotal ?? this.data.reduce((e, s) => e + s.value, 0), t = this.data.reduce((e, s) => e + (s.comparisonValue ?? 0), 0);
-    return t === 0 ? i > 0 ? 100 : 0 : Math.round((i - t) / Math.abs(t) * 100 * 10) / 10;
+    return this.showComparison ? this.percentChange : 0;
   }
   render() {
     const i = this._getTotalValue(), t = this._getPercentChange(), e = t >= 0;
@@ -10275,4 +10271,4 @@ export {
   at as MerchelloAnalyticsWorkspaceElement,
   gd as default
 };
-//# sourceMappingURL=analytics-workspace.element-BaPM0RaD.js.map
+//# sourceMappingURL=analytics-workspace.element-CXYLRUXc.js.map
