@@ -1,3 +1,4 @@
+import { MERCHELLO_PRODUCTS_ENTITY_TYPE } from "@tree/types/tree.types.js";
 
 export const manifests: Array<UmbExtensionManifest> = [
   // Create product modal
@@ -19,16 +20,16 @@ export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for products list (when clicking "Products" in tree)
   {
     type: "workspace",
-    kind: "default",
+    kind: "routable",
     alias: "Merchello.Products.Workspace",
     name: "Merchello Products Workspace",
+    api: () => import("./contexts/products-workspace.context.js"),
     meta: {
-      entityType: "merchello-products",
-      headline: "Products",
+      entityType: MERCHELLO_PRODUCTS_ENTITY_TYPE,
     },
   },
 
-  // Workspace view for products list
+  // Workspace view for products list (used when on list route)
   {
     type: "workspaceView",
     alias: "Merchello.Products.Workspace.View",
@@ -44,38 +45,6 @@ export const manifests: Array<UmbExtensionManifest> = [
       {
         alias: "Umb.Condition.WorkspaceAlias",
         match: "Merchello.Products.Workspace",
-      },
-    ],
-  },
-
-  // Workspace for individual product detail (routable)
-  {
-    type: "workspace",
-    kind: "routable",
-    alias: "Merchello.Product.Detail.Workspace",
-    name: "Product Detail Workspace",
-    api: () => import("./contexts/product-detail-workspace.context.js"),
-    meta: {
-      entityType: "merchello-product",
-    },
-  },
-
-  // Workspace view for product detail
-  {
-    type: "workspaceView",
-    alias: "Merchello.Product.Detail.View",
-    name: "Product Detail View",
-    js: () => import("./components/product-detail.element.js"),
-    weight: 100,
-    meta: {
-      label: "Product",
-      pathname: "product",
-      icon: "icon-box",
-    },
-    conditions: [
-      {
-        alias: "Umb.Condition.WorkspaceAlias",
-        match: "Merchello.Product.Detail.Workspace",
       },
     ],
   },

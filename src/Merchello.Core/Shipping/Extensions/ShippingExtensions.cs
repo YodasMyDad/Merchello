@@ -37,12 +37,13 @@ public static class ShippingExtensions
         }
 
         // Find the relevant shipping option for the warehouse and country/state
+        // CountryCode can be "*" for universal/wildcard shipping costs that apply to all countries.
         var shippingOption = shippingOptions
             .Include(so => so.ShippingCosts)
             .FirstOrDefault(so =>
                 so.WarehouseId == warehouse.Id &&
                 so.ShippingCosts.Any(sc =>
-                    sc.CountryCode == countryCode &&
+                    (sc.CountryCode == countryCode || sc.CountryCode == "*") &&
                     (stateOrProvinceCode == null || sc.StateOrProvinceCode == stateOrProvinceCode || sc.StateOrProvinceCode == null)));
 
         if (shippingOption == null)
@@ -50,10 +51,11 @@ public static class ShippingExtensions
             return null;
         }
 
-        // Try to find the most specific shipping cost
+        // Try to find the most specific shipping cost (prefer exact country match over wildcard)
         var shippingCost = shippingOption.ShippingCosts
-            .Where(sc => sc.CountryCode == countryCode)
-            .OrderBy(sc => sc.StateOrProvinceCode == null ? 1 : 0) // Prefer specific state/province costs
+            .Where(sc => sc.CountryCode == countryCode || sc.CountryCode == "*")
+            .OrderBy(sc => sc.CountryCode == "*" ? 1 : 0) // Prefer specific country over wildcard
+            .ThenBy(sc => sc.StateOrProvinceCode == null ? 1 : 0) // Prefer specific state/province costs
             .FirstOrDefault(sc => stateOrProvinceCode == null || sc.StateOrProvinceCode == stateOrProvinceCode || sc.StateOrProvinceCode == null);
 
         return shippingCost?.Cost;
@@ -73,13 +75,14 @@ public static class ShippingExtensions
         string? stateOrProvinceCode = null) // Optional state/province
     {
         // Get all valid shipping options for the country and optionally the state/province
+        // CountryCode can be "*" for universal/wildcard shipping costs that apply to all countries.
         var validShippingOptions = shippingOptions
             .Include(so => so.Warehouse)
             .Include(so => so.ShippingCosts)
             .Where(so =>
                 so.Warehouse.CanServeRegion(countryCode, stateOrProvinceCode) &&
                 so.ShippingCosts.Any(sc =>
-                    sc.CountryCode == countryCode &&
+                    (sc.CountryCode == countryCode || sc.CountryCode == "*") &&
                     (stateOrProvinceCode == null || sc.StateOrProvinceCode == stateOrProvinceCode || sc.StateOrProvinceCode == null)))
             .ToList();
 

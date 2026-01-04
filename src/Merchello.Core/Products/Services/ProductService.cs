@@ -1462,6 +1462,13 @@ public class ProductService(
                             .ThenInclude(p => p.ProductWarehouses)
                                 .ThenInclude(pw => pw.Warehouse)
                                     .ThenInclude(w => w.ServiceRegions);
+
+                    query = query.Include(p => p.ProductRoot)
+                        .ThenInclude(pr => pr!.Products)
+                            .ThenInclude(p => p.ProductWarehouses)
+                                .ThenInclude(pw => pw.Warehouse)
+                                    .ThenInclude(w => w.ShippingOptions)
+                                        .ThenInclude(so => so.ShippingCosts);
                 }
             }
 
@@ -1477,6 +1484,12 @@ public class ProductService(
                     .Include(p => p.ProductWarehouses)
                         .ThenInclude(pw => pw.Warehouse)
                             .ThenInclude(w => w.ServiceRegions);
+
+                query = query
+                    .Include(p => p.ProductWarehouses)
+                        .ThenInclude(pw => pw.Warehouse)
+                            .ThenInclude(w => w.ShippingOptions)
+                                .ThenInclude(so => so.ShippingCosts);
             }
 
             if (parameters.IncludeShippingRestrictions)
@@ -1486,6 +1499,20 @@ public class ProductService(
                     .Include(p => p.ExcludedShippingOptions);
             }
 
+            if (parameters.IncludeProductRootWarehouses && parameters.IncludeProductRoot)
+            {
+                query = query.Include(p => p.ProductRoot)
+                    .ThenInclude(pr => pr!.ProductRootWarehouses)
+                    .ThenInclude(prw => prw.Warehouse)
+                    .ThenInclude(w => w!.ServiceRegions);
+
+                query = query.Include(p => p.ProductRoot)
+                    .ThenInclude(pr => pr!.ProductRootWarehouses)
+                    .ThenInclude(prw => prw.Warehouse)
+                    .ThenInclude(w => w!.ShippingOptions)
+                    .ThenInclude(so => so.ShippingCosts);
+            }
+
             // Note: Cannot use NoTracking with circular references (ProductRoot->Products creates a cycle)
             // Only apply NoTracking if we're not including variants
             if (parameters.NoTracking && !parameters.IncludeVariants)
@@ -1493,7 +1520,70 @@ public class ProductService(
                 query = query.AsNoTracking();
             }
 
-            return await query.FirstOrDefaultAsync(p => p.Id == parameters.ProductId, cancellationToken);
+            var product = await query.FirstOrDefaultAsync(p => p.Id == parameters.ProductId, cancellationToken);
+
+            // Explicitly populate warehouse shipping data to work around EF Core NoTracking issue
+            // where multiple ThenInclude branches from the same entity don't merge properly.
+            // This mirrors the pattern used in GetByRootUrlAsync for consistency.
+            if (product != null && (parameters.IncludeProductWarehouses || parameters.IncludeProductRootWarehouses))
+            {
+                var warehouseIds = new HashSet<Guid>();
+
+                if (parameters.IncludeProductWarehouses && product.ProductWarehouses != null)
+                {
+                    foreach (var pw in product.ProductWarehouses.Where(pw => pw.Warehouse != null))
+                    {
+                        warehouseIds.Add(pw.Warehouse!.Id);
+                    }
+                }
+
+                if (parameters.IncludeProductRootWarehouses && product.ProductRoot?.ProductRootWarehouses != null)
+                {
+                    foreach (var prw in product.ProductRoot.ProductRootWarehouses.Where(prw => prw.Warehouse != null))
+                    {
+                        warehouseIds.Add(prw.Warehouse!.Id);
+                    }
+                }
+
+                if (warehouseIds.Count > 0)
+                {
+                    var warehousesWithData = await db.Warehouses
+                        .Include(w => w.ServiceRegions)
+                        .Include(w => w.ShippingOptions)
+                            .ThenInclude(so => so.ShippingCosts)
+                        .Where(w => warehouseIds.Contains(w.Id))
+                        .AsNoTracking()
+                        .ToDictionaryAsync(w => w.Id, cancellationToken);
+
+                    // Populate on ProductWarehouses
+                    if (parameters.IncludeProductWarehouses && product.ProductWarehouses != null)
+                    {
+                        foreach (var pw in product.ProductWarehouses.Where(pw => pw.Warehouse != null))
+                        {
+                            if (warehousesWithData.TryGetValue(pw.Warehouse!.Id, out var fullWarehouse))
+                            {
+                                pw.Warehouse.ServiceRegions = fullWarehouse.ServiceRegions;
+                                pw.Warehouse.ShippingOptions = fullWarehouse.ShippingOptions;
+                            }
+                        }
+                    }
+
+                    // Populate on ProductRootWarehouses
+                    if (parameters.IncludeProductRootWarehouses && product.ProductRoot?.ProductRootWarehouses != null)
+                    {
+                        foreach (var prw in product.ProductRoot.ProductRootWarehouses.Where(prw => prw.Warehouse != null))
+                        {
+                            if (warehousesWithData.TryGetValue(prw.Warehouse!.Id, out var fullWarehouse))
+                            {
+                                prw.Warehouse.ServiceRegions = fullWarehouse.ServiceRegions;
+                                prw.Warehouse.ShippingOptions = fullWarehouse.ShippingOptions;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return product;
         });
         scope.Complete();
         return result;
@@ -1663,6 +1753,12 @@ public class ProductService(
                     .Include(x => x.ProductWarehouses)
                         .ThenInclude(pw => pw.Warehouse)
                             .ThenInclude(w => w.ServiceRegions);
+
+                itemsQuery = itemsQuery
+                    .Include(x => x.ProductWarehouses)
+                        .ThenInclude(pw => pw.Warehouse)
+                            .ThenInclude(w => w.ShippingOptions)
+                                .ThenInclude(so => so.ShippingCosts);
             }
 
             if (parameters.IncludeSiblingVariants)
@@ -1676,7 +1772,8 @@ public class ProductService(
                 itemsQuery = itemsQuery.Include(x => x.ProductRoot)
                     .ThenInclude(x => x.ProductRootWarehouses)
                     .ThenInclude(prw => prw.Warehouse)
-                    .ThenInclude(w => w!.ShippingOptions);
+                    .ThenInclude(w => w!.ShippingOptions)
+                    .ThenInclude(so => so.ShippingCosts);
             }
 
             // Note: Cannot use NoTracking with circular references (ProductRoot->Products creates a cycle)
@@ -3368,28 +3465,32 @@ public class ProductService(
 
                 if (warehouseIds.Count > 0)
                 {
-                    var warehousesWithRegions = await db.Warehouses
+                    var warehousesWithData = await db.Warehouses
                         .Include(w => w.ServiceRegions)
+                        .Include(w => w.ShippingOptions)
+                            .ThenInclude(so => so.ShippingCosts)
                         .Where(w => warehouseIds.Contains(w.Id))
                         .AsNoTracking()
                         .ToDictionaryAsync(w => w.Id, ct);
 
-                    // Populate ServiceRegions on the loaded warehouses
+                    // Populate ServiceRegions and ShippingOptions on the loaded warehouses
                     foreach (var product in productRoot.Products)
                     {
                         foreach (var pw in product.ProductWarehouses.Where(pw => pw.Warehouse != null))
                         {
-                            if (warehousesWithRegions.TryGetValue(pw.Warehouse!.Id, out var fullWarehouse))
+                            if (warehousesWithData.TryGetValue(pw.Warehouse!.Id, out var fullWarehouse))
                             {
                                 pw.Warehouse.ServiceRegions = fullWarehouse.ServiceRegions;
+                                pw.Warehouse.ShippingOptions = fullWarehouse.ShippingOptions;
                             }
                         }
                     }
                     foreach (var prw in productRoot.ProductRootWarehouses.Where(prw => prw.Warehouse != null))
                     {
-                        if (warehousesWithRegions.TryGetValue(prw.Warehouse!.Id, out var fullWarehouse))
+                        if (warehousesWithData.TryGetValue(prw.Warehouse!.Id, out var fullWarehouse))
                         {
                             prw.Warehouse.ServiceRegions = fullWarehouse.ServiceRegions;
+                            prw.Warehouse.ShippingOptions = fullWarehouse.ShippingOptions;
                         }
                     }
                 }

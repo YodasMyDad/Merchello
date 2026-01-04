@@ -1,6 +1,11 @@
+using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Locality.Services.Interfaces;
+using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
@@ -18,7 +23,9 @@ public class StorefrontContextService(
     ILocalityCatalog localityCatalog,
     ICurrencyService currencyService,
     ICountryCurrencyMappingService countryCurrencyMapping,
-    IExchangeRateCache exchangeRateCache) : IStorefrontContextService
+    IExchangeRateCache exchangeRateCache,
+    ICheckoutService checkoutService,
+    IProductService productService) : IStorefrontContextService
 {
     private const string CountryCookieName = "Merchello.ShippingCountry";
     private const string RegionCookieName = "Merchello.ShippingRegion";
@@ -286,22 +293,50 @@ public class StorefrontContextService(
 
     private bool CanShipToLocation(Product product, string countryCode, string? regionCode)
     {
-        // Check if any warehouse assigned to this product can serve the location
+        // First check: Can any warehouse serve the location?
+        bool warehouseCanServe;
+
         if (product.ProductWarehouses != null && product.ProductWarehouses.Count > 0)
         {
-            return product.ProductWarehouses.Any(pw =>
+            warehouseCanServe = product.ProductWarehouses.Any(pw =>
                 pw.Warehouse?.CanServeRegion(countryCode, regionCode) == true);
         }
-
-        // Fall back to root product warehouses
-        if (product.ProductRoot?.ProductRootWarehouses != null)
+        else if (product.ProductRoot?.ProductRootWarehouses != null &&
+                 product.ProductRoot.ProductRootWarehouses.Count > 0)
         {
-            return product.ProductRoot.ProductRootWarehouses.Any(prw =>
+            warehouseCanServe = product.ProductRoot.ProductRootWarehouses.Any(prw =>
                 prw.Warehouse?.CanServeRegion(countryCode, regionCode) == true);
         }
+        else
+        {
+            // No warehouse restrictions - can ship anywhere (warehouse-wise)
+            warehouseCanServe = true;
+        }
 
-        // No warehouse restrictions - can ship anywhere
-        return true;
+        if (!warehouseCanServe)
+        {
+            return false;
+        }
+
+        // Second check: Are shipping options with costs configured for this destination?
+        // GetValidShippingOptionsForCountry checks both warehouse service regions AND shipping costs
+        var validShippingOptions = product.GetValidShippingOptionsForCountry(countryCode, regionCode);
+        if (validShippingOptions.Any())
+        {
+            return true;
+        }
+
+        // Check if shipping options are loaded but none can ship to this destination
+        var allowedOptions = product.GetAllowedShippingOptions();
+        if (allowedOptions.Any())
+        {
+            // Shipping options exist but none can ship to this destination
+            return false;
+        }
+
+        // No shipping options configured/loaded on product - fall back to warehouse check only
+        // This allows the system to work even when shipping options aren't loaded
+        return warehouseCanServe;
     }
 
     private static int CalculateStockFromRootWarehouses(Product product, string countryCode, string? regionCode)
@@ -372,5 +407,70 @@ public class StorefrontContextService(
 
         // Return rate if available, otherwise 1.0 (no conversion)
         return rate ?? 1.0m;
+    }
+
+    public async Task<BasketLocationAvailability> GetBasketAvailabilityAsync(
+        string? countryCode = null,
+        string? regionCode = null,
+        CancellationToken ct = default)
+    {
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
+
+        if (basket == null || basket.LineItems.Count == 0)
+        {
+            return new BasketLocationAvailability(AllItemsAvailable: true, Items: []);
+        }
+
+        // Get the location to check - use provided or current customer location
+        var location = string.IsNullOrWhiteSpace(countryCode)
+            ? await GetShippingLocationAsync(ct)
+            : new ShippingLocation(countryCode, countryCode, regionCode, null);
+
+        List<BasketItemLocationAvailability> items = [];
+        var allAvailable = true;
+
+        foreach (var lineItem in basket.LineItems.Where(li => li.ProductId.HasValue))
+        {
+            var product = await productService.GetProduct(new GetProductParameters
+            {
+                ProductId = lineItem.ProductId!.Value,
+                IncludeProductRoot = true,
+                IncludeProductWarehouses = true,
+                IncludeProductRootWarehouses = true,
+                NoTracking = true
+            }, ct);
+
+            if (product == null)
+            {
+                items.Add(new BasketItemLocationAvailability(
+                    LineItemId: lineItem.Id,
+                    ProductId: lineItem.ProductId!.Value,
+                    CanShipToLocation: false,
+                    HasStock: false,
+                    StatusMessage: "Product not found"));
+                allAvailable = false;
+                continue;
+            }
+
+            var availability = await GetProductAvailabilityForLocationAsync(new ProductAvailabilityParameters
+            {
+                Product = product,
+                CountryCode = location.CountryCode,
+                RegionCode = location.RegionCode,
+                Quantity = lineItem.Quantity
+            }, ct);
+
+            var isAvailable = availability.CanShipToLocation && availability.HasStock;
+            if (!isAvailable) allAvailable = false;
+
+            items.Add(new BasketItemLocationAvailability(
+                LineItemId: lineItem.Id,
+                ProductId: lineItem.ProductId!.Value,
+                CanShipToLocation: availability.CanShipToLocation,
+                HasStock: availability.HasStock,
+                StatusMessage: availability.StatusMessage));
+        }
+
+        return new BasketLocationAvailability(AllItemsAvailable: allAvailable, Items: items);
     }
 }

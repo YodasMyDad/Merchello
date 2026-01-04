@@ -1,14 +1,15 @@
+import { MERCHELLO_COLLECTIONS_ENTITY_TYPE } from "@tree/types/tree.types.js";
 
 export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for collections (when clicking "Collections" in tree)
   {
     type: "workspace",
-    kind: "default",
+    kind: "routable",
     alias: "Merchello.Collections.Workspace",
     name: "Merchello Collections Workspace",
+    api: () => import("./contexts/collections-workspace.context.js"),
     meta: {
-      entityType: "merchello-collections",
-      headline: "Collections",
+      entityType: MERCHELLO_COLLECTIONS_ENTITY_TYPE,
     },
   },
 

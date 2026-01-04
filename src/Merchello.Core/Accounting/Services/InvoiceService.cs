@@ -38,6 +38,8 @@ using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Tax.Providers.Interfaces;
+using Merchello.Core.Tax.Providers.Models;
 using Merchello.Core.Warehouses.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -61,6 +63,8 @@ public class InvoiceService(
     ICurrencyService currencyService,
     ILineItemService lineItemService,
     IDiscountService discountService,
+    ITaxService taxService,
+    ITaxProviderManager taxProviderManager,
     InvoiceFactory invoiceFactory,
     OrderFactory orderFactory,
     ShipmentFactory shipmentFactory,
@@ -2922,7 +2926,7 @@ public class InvoiceService(
                             if (productDto != null)
                             {
                                 var addProductResult = await AddProductLineItemAsync(
-                                    db, targetOrder, productDto, changes, cancellationToken);
+                                    db, targetOrder, productDto, invoice.ShippingAddress, invoice.CurrencyCode, changes, cancellationToken);
                                 if (!addProductResult.Success)
                                 {
                                     return OperationResult<EditInvoiceResultDto>.Fail(addProductResult.ErrorMessage!);
@@ -3970,6 +3974,8 @@ public class InvoiceService(
         MerchelloDbContext db,
         Order targetOrder,
         AddProductToOrderDto productDto,
+        Address? shippingAddress,
+        string currencyCode,
         List<string> changes,
         CancellationToken cancellationToken)
     {
@@ -4010,9 +4016,24 @@ public class InvoiceService(
             }
         }
 
-        // Determine tax info from product root
-        var taxRate = product.ProductRoot?.TaxGroup?.TaxPercentage ?? 0;
-        var isTaxable = product.ProductRoot?.TaxGroup != null;
+        // Determine tax info using the active tax provider
+        var taxRate = 0m;
+        var isTaxable = false;
+        var taxGroupId = product.ProductRoot?.TaxGroupId;
+
+        if (taxGroupId.HasValue && !string.IsNullOrEmpty(shippingAddress?.CountryCode))
+        {
+            taxRate = await GetTaxRateFromProviderAsync(
+                sku: product.Sku ?? $"PROD-{product.Id:N}"[..20],
+                name: product.Name ?? product.ProductRoot?.RootName ?? "Unknown Product",
+                amount: product.Price,
+                quantity: productDto.Quantity,
+                taxGroupId: taxGroupId.Value,
+                shippingAddress: shippingAddress,
+                currencyCode: currencyCode,
+                cancellationToken: cancellationToken);
+            isTaxable = taxRate > 0;
+        }
 
         // Get product image
         string? imageUrl = null;
@@ -4352,5 +4373,57 @@ public class InvoiceService(
         scope.Complete();
 
         return result;
+    }
+
+    /// <summary>
+    /// Gets the tax rate for a line item using the active tax provider.
+    /// </summary>
+    private async Task<decimal> GetTaxRateFromProviderAsync(
+        string sku,
+        string name,
+        decimal amount,
+        int quantity,
+        Guid taxGroupId,
+        Address shippingAddress,
+        string currencyCode,
+        CancellationToken cancellationToken)
+    {
+        var activeProvider = await taxProviderManager.GetActiveProviderAsync(cancellationToken);
+        if (activeProvider == null)
+        {
+            logger.LogWarning("No active tax provider found, falling back to direct tax service");
+            return await taxService.GetApplicableRateAsync(
+                taxGroupId,
+                shippingAddress.CountryCode ?? string.Empty,
+                shippingAddress.CountyState?.RegionCode,
+                cancellationToken);
+        }
+
+        var request = new TaxCalculationRequest
+        {
+            ShippingAddress = shippingAddress,
+            BillingAddress = null,
+            CurrencyCode = currencyCode,
+            LineItems =
+            [
+                new TaxableLineItem
+                {
+                    Sku = sku,
+                    Name = name,
+                    Amount = amount,
+                    Quantity = quantity,
+                    TaxGroupId = taxGroupId
+                }
+            ]
+        };
+
+        var result = await activeProvider.Provider.CalculateTaxAsync(request, cancellationToken);
+        if (!result.Success)
+        {
+            logger.LogWarning("Tax provider calculation failed: {ErrorMessage}", result.ErrorMessage);
+            return 0m;
+        }
+
+        return result.LineResults.FirstOrDefault()?.TaxRate ?? 0m;
     }
 }

@@ -56,6 +56,8 @@ using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Reporting.Services;
 using Merchello.Core.Reporting.Services.Interfaces;
+using Merchello.Core.Tax.Providers;
+using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Suppliers.Factories;
 using Merchello.Core.Suppliers.Services;
 using Merchello.Core.Suppliers.Services.Interfaces;
@@ -187,6 +189,7 @@ public static class Startup
 
         // Tax
         builder.Services.AddScoped<ITaxService, TaxService>();
+        builder.Services.AddScoped<ITaxProviderManager, TaxProviderManager>();
 
         // Warehouses & Suppliers
         builder.Services.AddScoped<IWarehouseService, WarehouseService>();
@@ -254,6 +257,7 @@ public static class Startup
         var shippingProviderType = typeof(IShippingProvider);
         var orderGroupingStrategyType = typeof(IOrderGroupingStrategy);
         var exchangeRateProviderType = typeof(IExchangeRateProvider);
+        var taxProviderType = typeof(ITaxProvider);
 
         HashSet<Assembly> discoveredAssemblies = [];
 
@@ -278,7 +282,8 @@ public static class Startup
                     (paymentProviderType.IsAssignableFrom(t) ||
                      shippingProviderType.IsAssignableFrom(t) ||
                      orderGroupingStrategyType.IsAssignableFrom(t) ||
-                     exchangeRateProviderType.IsAssignableFrom(t)));
+                     exchangeRateProviderType.IsAssignableFrom(t) ||
+                     taxProviderType.IsAssignableFrom(t)));
 
                 if (hasProviders)
                 {

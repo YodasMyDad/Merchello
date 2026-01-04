@@ -100,7 +100,7 @@
                                                 <div class="mt-2 ps-3 border-start border-2 border-primary">
                                                     <small class="text-muted">
                                                         <span x-text="addon.name"></span>
-                                                        <span class="ms-2" x-text="addon.formattedUnitPrice"></span>
+                                                        <span class="ms-2" x-text="addon.formattedDisplayUnitPrice || addon.formattedUnitPrice"></span>
                                                     </small>
                                                 </div>
                                             </template>
@@ -141,8 +141,8 @@
 
                                         <!-- Price & Remove -->
                                         <div class="col-6 col-md-3 text-end">
-                                            <div class="fw-bold" x-text="item.formattedLineTotal"></div>
-                                            <small class="text-muted" x-show="item.quantity > 1" x-text="item.formattedUnitPrice + ' each'"></small>
+                                            <div class="fw-bold" x-text="item.formattedDisplayLineTotal"></div>
+                                            <small class="text-muted" x-show="item.quantity > 1" x-text="item.formattedDisplayUnitPrice + ' each'"></small>
                                             <div class="mt-2">
                                                 <button type="button"
                                                         class="btn btn-link btn-sm text-danger p-0"
@@ -181,20 +181,20 @@
                         <div class="card-body">
                             <div class="d-flex justify-content-between mb-2">
                                 <span>Subtotal</span>
-                                <span x-text="formattedSubTotal"></span>
+                                <span x-text="formattedDisplaySubTotal"></span>
                             </div>
                             <div class="d-flex justify-content-between mb-2" x-show="discount > 0">
                                 <span class="text-success">Discount</span>
-                                <span class="text-success" x-text="'-' + formattedDiscount"></span>
+                                <span class="text-success" x-text="'-' + formattedDisplayDiscount"></span>
                             </div>
                             <div class="d-flex justify-content-between mb-2">
                                 <span>Tax</span>
-                                <span x-text="formattedTax"></span>
+                                <span x-text="formattedDisplayTax"></span>
                             </div>
                             <hr>
                             <div class="d-flex justify-content-between mb-3">
                                 <strong>Total</strong>
-                                <strong class="fs-5" x-text="formattedTotal"></strong>
+                                <strong class="fs-5" x-text="formattedDisplayTotal"></strong>
                             </div>
 
                             <!-- Checkout Button -->

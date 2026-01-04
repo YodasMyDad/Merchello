@@ -1095,7 +1095,9 @@ Routable workspaces are used for CRUD operations where you need to navigate to a
 section/{sectionPathname}/workspace/{entityType}/{routePath}
 ```
 
-Example: `section/merchello/workspace/merchello-order/edit/9cd851e3-da06-4563-be6a-b3a700b565fd`
+Example: `section/merchello/workspace/merchello-orders/edit/orders/9cd851e3-da06-4563-be6a-b3a700b565fd`
+
+> **Note**: For tree selection to persist when navigating to detail views, the `routePath` must include the tree item's `unique` value. See "Common Mistakes" section for details.
 
 ### Manifest Setup
 ```typescript
@@ -1136,14 +1138,28 @@ export class MyItemDetailWorkspaceContext extends UmbControllerBase implements U
     this.provideContext(UMB_WORKSPACE_CONTEXT, this);
 
     // CRITICAL: Must set up routes - without this, navigation won't work!
+    // IMPORTANT: For tree selection to persist, routes must be nested under the list path.
+    // The tree item's path is: section/{section}/workspace/{entityType}/edit/{unique}
+    // Detail routes must contain this path for the tree item to remain highlighted.
     this.routes.setRoutes([
       {
-        path: "edit/:id",  // Matches URL: .../workspace/my-item/edit/{id}
+        // Matches URL: .../workspace/my-item/edit/items/{id}
+        // Since tree item unique="items", this path contains "/edit/items/" so tree stays selected
+        path: "edit/items/:id",
         component: () => import("./item-detail.element.js"),
         setup: (_component, info) => {
           const id = info.match.params.id;
           this.load(id);
         },
+      },
+      {
+        // List view at: .../workspace/my-item/edit/items
+        path: "edit/items",
+        component: () => import("./items-list.element.js"),
+      },
+      {
+        path: "",
+        redirectTo: "edit/items",
       },
     ]);
   }
@@ -1178,7 +1194,8 @@ Use `href` attributes on elements - **never use `window.location.hash` or `windo
 private _getItemHref(id: string): string {
   // Pattern: section/{sectionPathname}/workspace/{entityType}/{routePath}
   // Note: NO leading slash, NO /umbraco/ prefix - must be relative!
-  return `section/my-section/workspace/my-item/edit/${id}`;
+  // IMPORTANT: Route must include the list path (e.g., "edit/items/") for tree selection to work
+  return `section/my-section/workspace/my-item/edit/items/${id}`;
 }
 
 render() {
@@ -1202,6 +1219,7 @@ render() {
 4. **EntityType mismatch** - The `entityType` in manifest must match what's in the URL
 5. **Absolute paths cause full page reloads** - Use relative paths like `section/...`, NOT `/umbraco/section/...`
 6. **Using `window.location.href`** - Causes full page reload; use `history.pushState()` or navigation helpers instead
+7. **Tree selection not persisting on detail views** - Routes must be nested under the list path. The tree uses `location.includes(path)` to determine if a tree item is active. If your tree item has `unique="items"`, its path is `.../edit/items`. A detail route of `edit/:id` creates URLs like `.../edit/{guid}` which doesn't contain `/edit/items/`. Fix by nesting: `edit/items/:id` creates `.../edit/items/{guid}` which contains `/edit/items/`
 
 ---
 

@@ -13,7 +13,7 @@ import type {
   CreateCustomerSegmentDto,
   UpdateCustomerSegmentDto,
 } from "@customers/types/segment.types.js";
-import type { MerchelloSegmentDetailWorkspaceContext } from "../contexts/segment-detail-workspace.context.js";
+import type { MerchelloCustomersWorkspaceContext } from "../contexts/customers-workspace.context.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getSegmentsListHref, navigateToSegmentDetail } from "@shared/utils/navigation.js";
 import "./segment-members-table.element.js";
@@ -35,7 +35,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
   @state() private _fieldErrors: Record<string, string> = {};
   @state() private _isNew = true;
 
-  #workspaceContext?: MerchelloSegmentDetailWorkspaceContext;
+  #workspaceContext?: MerchelloCustomersWorkspaceContext;
   #notificationContext?: UmbNotificationContext;
 
   private _routes: UmbRoute[] = [
@@ -47,7 +47,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
   constructor() {
     super();
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
-      this.#workspaceContext = context as MerchelloSegmentDetailWorkspaceContext;
+      this.#workspaceContext = context as MerchelloCustomersWorkspaceContext;
       this._isNew = this.#workspaceContext.isNew;
       this.observe(this.#workspaceContext.segment, (segment) => {
         this._segment = segment;
@@ -297,7 +297,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
         <uui-box headline="Members (${this._segment?.memberCount ?? 0})">
           <merchello-segment-members-table
             .segmentId=${this._segment.id}
-            @members-changed=${() => this.#workspaceContext?.reload()}>
+            @members-changed=${() => this.#workspaceContext?.reloadSegment()}>
           </merchello-segment-members-table>
         </uui-box>
       ` : nothing}

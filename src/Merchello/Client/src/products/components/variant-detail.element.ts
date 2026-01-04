@@ -5,7 +5,7 @@ import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
-import type { MerchelloProductDetailWorkspaceContext } from "@products/contexts/product-detail-workspace.context.js";
+import type { MerchelloProductsWorkspaceContext } from "@products/contexts/products-workspace.context.js";
 import type { ProductRootDetailDto, ProductVariantDto, ProductPackageDto, UpdateVariantDto, ShippingOptionExclusionDto } from "@products/types/product.types.js";
 import type { ProductFilterGroupDto } from "@filters/types/filters.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
@@ -84,7 +84,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
   // Private Members
   // ============================================
 
-  #workspaceContext?: MerchelloProductDetailWorkspaceContext;
+  #workspaceContext?: MerchelloProductsWorkspaceContext;
   #notificationContext?: UmbNotificationContext;
   #variantId: string | undefined;
   #isConnected = false;
@@ -96,7 +96,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
   constructor() {
     super();
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
-      this.#workspaceContext = context as MerchelloProductDetailWorkspaceContext;
+      this.#workspaceContext = context as MerchelloProductsWorkspaceContext;
       if (this.#workspaceContext) {
         this.observe(this.#workspaceContext.product, (product) => {
           this._product = product ?? null;

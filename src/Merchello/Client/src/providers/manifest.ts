@@ -1,14 +1,15 @@
+import { MERCHELLO_PROVIDERS_ENTITY_TYPE } from "@tree/types/tree.types.js";
 
 export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for providers (when clicking "Providers" in tree)
   {
     type: "workspace",
-    kind: "default",
+    kind: "routable",
     alias: "Merchello.Providers.Workspace",
     name: "Merchello Providers Workspace",
+    api: () => import("./contexts/providers-workspace.context.js"),
     meta: {
-      entityType: "merchello-providers",
-      headline: "Providers",
+      entityType: MERCHELLO_PROVIDERS_ENTITY_TYPE,
     },
   },
 ];

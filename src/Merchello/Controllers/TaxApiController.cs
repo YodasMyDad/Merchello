@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Locality.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,7 +12,7 @@ namespace Merchello.Controllers;
 /// </summary>
 [ApiVersion("1.0")]
 [ApiExplorerSettings(GroupName = "Merchello")]
-public class TaxApiController(ITaxService taxService) : MerchelloApiControllerBase
+public class TaxApiController(ITaxService taxService, ILocalityCatalog localityCatalog) : MerchelloApiControllerBase
 {
     /// <summary>
     /// Get all tax groups
@@ -159,4 +160,154 @@ public class TaxApiController(ITaxService taxService) : MerchelloApiControllerBa
 
         return NoContent();
     }
+
+    #region Tax Group Rates
+
+    /// <summary>
+    /// Get all rates for a tax group
+    /// </summary>
+    [HttpGet("tax-groups/{taxGroupId:guid}/rates")]
+    [ProducesResponseType<List<TaxGroupRateDto>>(StatusCodes.Status200OK)]
+    public async Task<List<TaxGroupRateDto>> GetTaxGroupRates(Guid taxGroupId, CancellationToken ct)
+    {
+        var rates = await taxService.GetRatesForTaxGroup(taxGroupId, ct);
+
+        var result = new List<TaxGroupRateDto>();
+        foreach (var rate in rates)
+        {
+            var countryName = await localityCatalog.TryGetCountryNameAsync(rate.CountryCode);
+            string? regionName = null;
+            if (!string.IsNullOrEmpty(rate.StateOrProvinceCode))
+            {
+                regionName = await localityCatalog.TryGetRegionNameAsync(rate.CountryCode, rate.StateOrProvinceCode);
+            }
+
+            result.Add(new TaxGroupRateDto
+            {
+                Id = rate.Id,
+                TaxGroupId = rate.TaxGroupId,
+                CountryCode = rate.CountryCode,
+                StateOrProvinceCode = rate.StateOrProvinceCode,
+                TaxPercentage = rate.TaxPercentage,
+                CountryName = countryName,
+                RegionName = regionName
+            });
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Create a new geographic tax rate for a tax group
+    /// </summary>
+    [HttpPost("tax-groups/{taxGroupId:guid}/rates")]
+    [ProducesResponseType<TaxGroupRateDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateTaxGroupRate(
+        Guid taxGroupId,
+        [FromBody] CreateTaxGroupRateDto dto,
+        CancellationToken ct)
+    {
+        var result = await taxService.CreateTaxGroupRate(
+            taxGroupId,
+            dto.CountryCode,
+            dto.StateOrProvinceCode,
+            dto.TaxPercentage,
+            ct);
+
+        if (!result.Successful)
+        {
+            var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to create tax rate.";
+            return message.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                ? NotFound(message)
+                : BadRequest(message);
+        }
+
+        var rate = result.ResultObject!;
+        var countryName = await localityCatalog.TryGetCountryNameAsync(rate.CountryCode);
+        string? regionName = null;
+        if (!string.IsNullOrEmpty(rate.StateOrProvinceCode))
+        {
+            regionName = await localityCatalog.TryGetRegionNameAsync(rate.CountryCode, rate.StateOrProvinceCode);
+        }
+
+        var rateDto = new TaxGroupRateDto
+        {
+            Id = rate.Id,
+            TaxGroupId = rate.TaxGroupId,
+            CountryCode = rate.CountryCode,
+            StateOrProvinceCode = rate.StateOrProvinceCode,
+            TaxPercentage = rate.TaxPercentage,
+            CountryName = countryName,
+            RegionName = regionName
+        };
+
+        return Created($"/api/v1/tax-groups/{taxGroupId}/rates/{rate.Id}", rateDto);
+    }
+
+    /// <summary>
+    /// Update an existing geographic tax rate
+    /// </summary>
+    [HttpPut("tax-groups/rates/{rateId:guid}")]
+    [ProducesResponseType<TaxGroupRateDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateTaxGroupRate(
+        Guid rateId,
+        [FromBody] UpdateTaxGroupRateDto dto,
+        CancellationToken ct)
+    {
+        var result = await taxService.UpdateTaxGroupRate(rateId, dto.TaxPercentage, ct);
+
+        if (!result.Successful)
+        {
+            var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to update tax rate.";
+            return message.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                ? NotFound(message)
+                : BadRequest(message);
+        }
+
+        var rate = result.ResultObject!;
+        var countryName = await localityCatalog.TryGetCountryNameAsync(rate.CountryCode);
+        string? regionName = null;
+        if (!string.IsNullOrEmpty(rate.StateOrProvinceCode))
+        {
+            regionName = await localityCatalog.TryGetRegionNameAsync(rate.CountryCode, rate.StateOrProvinceCode);
+        }
+
+        return Ok(new TaxGroupRateDto
+        {
+            Id = rate.Id,
+            TaxGroupId = rate.TaxGroupId,
+            CountryCode = rate.CountryCode,
+            StateOrProvinceCode = rate.StateOrProvinceCode,
+            TaxPercentage = rate.TaxPercentage,
+            CountryName = countryName,
+            RegionName = regionName
+        });
+    }
+
+    /// <summary>
+    /// Delete a geographic tax rate
+    /// </summary>
+    [HttpDelete("tax-groups/rates/{rateId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteTaxGroupRate(Guid rateId, CancellationToken ct)
+    {
+        var result = await taxService.DeleteTaxGroupRate(rateId, ct);
+
+        if (!result.Successful)
+        {
+            var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to delete tax rate.";
+            return message.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                ? NotFound(message)
+                : BadRequest(message);
+        }
+
+        return NoContent();
+    }
+
+    #endregion
 }

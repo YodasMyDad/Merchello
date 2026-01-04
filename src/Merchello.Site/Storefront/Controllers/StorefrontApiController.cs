@@ -467,74 +467,19 @@ public class StorefrontApiController(
         [FromQuery] string? regionCode,
         CancellationToken ct = default)
     {
-        var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
-
-        if (basket == null || basket.LineItems.Count == 0)
-        {
-            return Ok(new BasketAvailabilityResponse
-            {
-                AllItemsAvailable = true,
-                Items = []
-            });
-        }
-
-        // Get the location to check
-        var location = string.IsNullOrWhiteSpace(countryCode)
-            ? await storefrontContext.GetShippingLocationAsync(ct)
-            : new Core.Storefront.Models.ShippingLocation(countryCode, countryCode, regionCode, null);
-
-        List<BasketItemAvailability> items = [];
-        var allAvailable = true;
-
-        foreach (var lineItem in basket.LineItems.Where(li => li.ProductId.HasValue))
-        {
-            var product = await productService.GetProduct(new GetProductParameters
-            {
-                ProductId = lineItem.ProductId!.Value,
-                IncludeProductRoot = true,
-                IncludeProductWarehouses = true,
-                NoTracking = true
-            }, ct);
-
-            if (product == null)
-            {
-                items.Add(new BasketItemAvailability
-                {
-                    LineItemId = lineItem.Id,
-                    ProductId = lineItem.ProductId!.Value,
-                    CanShipToCountry = false,
-                    HasStock = false,
-                    Message = "Product not found"
-                });
-                allAvailable = false;
-                continue;
-            }
-
-            var availability = await storefrontContext.GetProductAvailabilityForLocationAsync(new ProductAvailabilityParameters
-            {
-                Product = product,
-                CountryCode = location.CountryCode,
-                RegionCode = location.RegionCode,
-                Quantity = lineItem.Quantity
-            }, ct);
-
-            var isAvailable = availability.CanShipToLocation && availability.HasStock;
-            if (!isAvailable) allAvailable = false;
-
-            items.Add(new BasketItemAvailability
-            {
-                LineItemId = lineItem.Id,
-                ProductId = lineItem.ProductId!.Value,
-                CanShipToCountry = availability.CanShipToLocation,
-                HasStock = availability.HasStock,
-                Message = availability.StatusMessage
-            });
-        }
+        var availability = await storefrontContext.GetBasketAvailabilityAsync(countryCode, regionCode, ct);
 
         return Ok(new BasketAvailabilityResponse
         {
-            AllItemsAvailable = allAvailable,
-            Items = items
+            AllItemsAvailable = availability.AllItemsAvailable,
+            Items = availability.Items.Select(item => new BasketItemAvailability
+            {
+                LineItemId = item.LineItemId,
+                ProductId = item.ProductId,
+                CanShipToCountry = item.CanShipToLocation,
+                HasStock = item.HasStock,
+                Message = item.StatusMessage
+            }).ToList()
         });
     }
 

@@ -1,14 +1,15 @@
+import { MERCHELLO_ANALYTICS_ENTITY_TYPE } from "@tree/types/tree.types.js";
 
 export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for analytics (when clicking "Analytics" in tree)
   {
     type: "workspace",
-    kind: "default",
+    kind: "routable",
     alias: "Merchello.Analytics.Workspace",
     name: "Merchello Analytics Workspace",
+    api: () => import("./contexts/analytics-workspace.context.js"),
     meta: {
-      entityType: "merchello-analytics",
-      headline: "Analytics",
+      entityType: MERCHELLO_ANALYTICS_ENTITY_TYPE,
     },
   },
 

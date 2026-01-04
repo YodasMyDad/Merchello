@@ -342,7 +342,6 @@ export enum OrderStatus {
 
 // Entity types for workspace routing
 export const MERCHELLO_ORDERS_ENTITY_TYPE = "merchello-orders";
-export const MERCHELLO_ORDER_ENTITY_TYPE = "merchello-order";
 
 // ============================================
 // Fulfillment Types

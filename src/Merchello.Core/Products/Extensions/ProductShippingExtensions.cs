@@ -8,16 +8,41 @@ public static class ProductShippingExtensions
     /// <summary>
     /// Gets the allowed shipping options for a product based on its restriction mode.
     /// Falls back to warehouse shipping options if product has no specific options configured.
+    /// Checks both ProductWarehouses (variant-level) and ProductRootWarehouses (root-level).
     /// </summary>
     public static IEnumerable<ShippingOption> GetAllowedShippingOptions(this Product product)
     {
         // Get base shipping options - use product options or fall back to warehouse options
-        var baseOptions = product.ShippingOptions.Any()
-            ? product.ShippingOptions
-            : product.ProductRoot?.ProductRootWarehouses
-                .SelectMany(prw => prw.Warehouse?.ShippingOptions ?? Enumerable.Empty<ShippingOption>())
+        IEnumerable<ShippingOption> baseOptions;
+
+        if (product.ShippingOptions.Count > 0)
+        {
+            // Product has its own shipping options configured
+            baseOptions = product.ShippingOptions;
+        }
+        else
+        {
+            // Fall back to warehouse shipping options
+            // Check ProductWarehouses first (variant-level), then ProductRootWarehouses (root-level)
+            var variantWarehouseOptions = product.ProductWarehouses
+                .Where(pw => pw.Warehouse.ShippingOptions.Count > 0)
+                .SelectMany(pw => pw.Warehouse.ShippingOptions)
                 .Distinct()
-                .ToList() ?? Enumerable.Empty<ShippingOption>();
+                .ToList();
+
+            if (variantWarehouseOptions.Count > 0)
+            {
+                baseOptions = variantWarehouseOptions;
+            }
+            else
+            {
+                baseOptions = product.ProductRoot?.ProductRootWarehouses
+                    .Where(prw => prw.Warehouse?.ShippingOptions != null)
+                    .SelectMany(prw => prw.Warehouse!.ShippingOptions)
+                    .Distinct()
+                    .ToList() ?? [];
+            }
+        }
 
         // Apply restriction mode
         return product.ShippingRestrictionMode switch

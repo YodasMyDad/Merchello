@@ -7,7 +7,7 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
-import type { MerchelloDiscountDetailWorkspaceContext } from "@discounts/contexts/discount-detail-workspace.context.js";
+import type { MerchelloDiscountsWorkspaceContext } from "@discounts/contexts/discounts-workspace.context.js";
 import type {
   DiscountDetailDto,
   CreateDiscountDto,
@@ -51,7 +51,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
   @state() private _routerPath?: string;
   @state() private _activePath = "";
 
-  #workspaceContext?: MerchelloDiscountDetailWorkspaceContext;
+  #workspaceContext?: MerchelloDiscountsWorkspaceContext;
   #notificationContext?: UmbNotificationContext;
   #modalManager?: UmbModalManagerContext;
   #codeCheckDebounce?: ReturnType<typeof setTimeout>;
@@ -62,7 +62,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
     this._loadSettings();
 
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
-      this.#workspaceContext = context as MerchelloDiscountDetailWorkspaceContext;
+      this.#workspaceContext = context as MerchelloDiscountsWorkspaceContext;
       this._isNew = this.#workspaceContext.isNew;
 
       this.observe(this.#workspaceContext.discount, (discount) => {

@@ -1,3 +1,4 @@
+import { MERCHELLO_ORDERS_ENTITY_TYPE } from "@tree/types/tree.types.js";
 
 export const manifests: Array<UmbExtensionManifest> = [
   // Fulfillment modal for creating shipments
@@ -91,16 +92,16 @@ export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for orders list (when clicking "Orders" in tree)
   {
     type: "workspace",
-    kind: "default",
+    kind: "routable",
     alias: "Merchello.Orders.Workspace",
     name: "Merchello Orders Workspace",
+    api: () => import("./contexts/orders-workspace.context.js"),
     meta: {
-      entityType: "merchello-orders",
-      headline: "Orders",
+      entityType: MERCHELLO_ORDERS_ENTITY_TYPE,
     },
   },
 
-  // Workspace view - the orders list
+  // Workspace view - the orders list (used when on list route)
   {
     type: "workspaceView",
     alias: "Merchello.Orders.ListView",
@@ -118,17 +119,5 @@ export const manifests: Array<UmbExtensionManifest> = [
         match: "Merchello.Orders.Workspace",
       },
     ],
-  },
-
-  // Workspace for individual order detail (routable)
-  {
-    type: "workspace",
-    kind: "routable",
-    alias: "Merchello.Order.Detail.Workspace",
-    name: "Order Detail Workspace",
-    api: () => import("./contexts/order-detail-workspace.context.js"),
-    meta: {
-      entityType: "merchello-order",
-    },
   },
 ];

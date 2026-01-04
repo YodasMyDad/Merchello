@@ -28,7 +28,6 @@ export const manifests: Array<UmbExtensionManifest> = [
     forEntityTypes: [
       "merchello-root",
       "merchello-orders",
-      "merchello-order",
       "merchello-products",
       "merchello-customers",
       "merchello-collections",

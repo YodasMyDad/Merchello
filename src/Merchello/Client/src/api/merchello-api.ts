@@ -300,6 +300,13 @@ import type {
   UpdateTaxGroupDto,
   PreviewCustomItemTaxRequestDto,
   PreviewCustomItemTaxResultDto,
+  TaxGroupRateDto,
+  CreateTaxGroupRateDto,
+  UpdateTaxGroupRateDto,
+  TaxProviderDto,
+  TaxProviderFieldDto,
+  SaveTaxProviderSettingsDto,
+  TestTaxProviderResultDto,
 } from '@tax/types/tax.types.js';
 
 // Import exchange rate provider types
@@ -424,6 +431,54 @@ export const MerchelloApi = {
    */
   previewCustomItemTax: (request: PreviewCustomItemTaxRequestDto) =>
     apiPost<PreviewCustomItemTaxResultDto>('tax-groups/preview-custom-item', request),
+
+  // ============================================
+  // Tax Group Rates API (Geographic Tax Rates)
+  // ============================================
+
+  /** Get all geographic rates for a tax group */
+  getTaxGroupRates: (taxGroupId: string) =>
+    apiGet<TaxGroupRateDto[]>(`tax-groups/${taxGroupId}/rates`),
+
+  /** Create a new geographic tax rate for a tax group */
+  createTaxGroupRate: (taxGroupId: string, data: CreateTaxGroupRateDto) =>
+    apiPost<TaxGroupRateDto>(`tax-groups/${taxGroupId}/rates`, data),
+
+  /** Update an existing geographic tax rate */
+  updateTaxGroupRate: (rateId: string, data: UpdateTaxGroupRateDto) =>
+    apiPut<TaxGroupRateDto>(`tax-groups/rates/${rateId}`, data),
+
+  /** Delete a geographic tax rate */
+  deleteTaxGroupRate: (rateId: string) =>
+    apiDelete(`tax-groups/rates/${rateId}`),
+
+  // ============================================
+  // Tax Providers API
+  // ============================================
+
+  /** Get all available tax providers */
+  getTaxProviders: () =>
+    apiGet<TaxProviderDto[]>('tax-providers'),
+
+  /** Get the currently active tax provider */
+  getActiveTaxProvider: () =>
+    apiGet<TaxProviderDto>('tax-providers/active'),
+
+  /** Get configuration fields for a tax provider */
+  getTaxProviderFields: (alias: string) =>
+    apiGet<TaxProviderFieldDto[]>(`tax-providers/${alias}/fields`),
+
+  /** Activate a tax provider (only one can be active at a time) */
+  activateTaxProvider: (alias: string) =>
+    apiPut<{ message: string }>(`tax-providers/${alias}/activate`),
+
+  /** Save tax provider configuration settings */
+  saveTaxProviderSettings: (alias: string, settings: SaveTaxProviderSettingsDto) =>
+    apiPut<{ message: string }>(`tax-providers/${alias}/settings`, settings),
+
+  /** Test/validate a tax provider's configuration */
+  testTaxProvider: (alias: string) =>
+    apiPost<TestTaxProviderResultDto>(`tax-providers/${alias}/test`),
 
   // Orders API
   getOrders: (params?: OrderListParams) => {

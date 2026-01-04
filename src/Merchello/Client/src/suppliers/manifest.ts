@@ -1,3 +1,4 @@
+import { MERCHELLO_SUPPLIERS_ENTITY_TYPE } from "@tree/types/tree.types.js";
 
 export const manifests: Array<UmbExtensionManifest> = [
   // ============================================
@@ -7,12 +8,12 @@ export const manifests: Array<UmbExtensionManifest> = [
   // Main workspace for suppliers list
   {
     type: "workspace",
-    kind: "default",
+    kind: "routable",
     alias: "Merchello.Suppliers.Workspace",
     name: "Merchello Suppliers Workspace",
+    api: () => import("./contexts/suppliers-workspace.context.js"),
     meta: {
-      entityType: "merchello-suppliers",
-      headline: "Suppliers",
+      entityType: MERCHELLO_SUPPLIERS_ENTITY_TYPE,
     },
   },
 

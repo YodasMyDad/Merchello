@@ -38,5 +38,57 @@ public interface ITaxService
     /// Deletes a tax group
     /// </summary>
     Task<CrudResult<bool>> DeleteTaxGroup(Guid taxGroupId, CancellationToken cancellationToken = default);
+
+    #region Tax Group Rates
+
+    /// <summary>
+    /// Gets the applicable tax rate for a tax group at a specific location.
+    /// Lookup priority: State-specific -> Country-level -> Zero (0%)
+    /// </summary>
+    /// <param name="taxGroupId">The tax group ID</param>
+    /// <param name="countryCode">ISO 3166-1 country code</param>
+    /// <param name="stateOrProvinceCode">Optional ISO 3166-2 state/province code</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The applicable tax percentage (0-100)</returns>
+    Task<decimal> GetApplicableRateAsync(
+        Guid taxGroupId,
+        string countryCode,
+        string? stateOrProvinceCode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all rates for a tax group
+    /// </summary>
+    Task<List<TaxGroupRate>> GetRatesForTaxGroup(Guid taxGroupId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a specific tax group rate by ID
+    /// </summary>
+    Task<TaxGroupRate?> GetTaxGroupRate(Guid rateId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a new geographic tax rate
+    /// </summary>
+    Task<CrudResult<TaxGroupRate>> CreateTaxGroupRate(
+        Guid taxGroupId,
+        string countryCode,
+        string? stateOrProvinceCode,
+        decimal taxPercentage,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates an existing geographic tax rate
+    /// </summary>
+    Task<CrudResult<TaxGroupRate>> UpdateTaxGroupRate(
+        Guid rateId,
+        decimal taxPercentage,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a geographic tax rate
+    /// </summary>
+    Task<CrudResult<bool>> DeleteTaxGroupRate(Guid rateId, CancellationToken cancellationToken = default);
+
+    #endregion
 }
 
