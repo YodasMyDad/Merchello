@@ -20,6 +20,7 @@ using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Suppliers.Services.Interfaces;
 using Merchello.Core.Suppliers.Services.Parameters;
+using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Parameters;
@@ -42,6 +43,7 @@ public class DbSeeder(
     ICustomerSegmentService customerSegmentService,
     IDiscountService discountService,
     ITaxService taxService,
+    ITaxProviderManager taxProviderManager,
     IWarehouseService warehouseService,
     ISupplierService supplierService,
     ILogger<DbSeeder> logger)
@@ -61,6 +63,10 @@ public class DbSeeder(
         var taxGroupResult = await taxService.CreateTaxGroup("UK VAT 20%", 20m, cancellationToken);
         var ukVat = taxGroupResult.ResultObject!;
         logger.LogDebug("Created tax group: {Name}", ukVat.Name);
+
+        // 1b. Activate Manual Tax Provider (ensures tax calculations use the provider system)
+        await taxProviderManager.SetActiveProviderAsync("manual", cancellationToken);
+        logger.LogDebug("Activated manual tax provider");
 
         // 2. Create Product Types via service
         var productTypes = await CreateProductTypesAsync(cancellationToken);
