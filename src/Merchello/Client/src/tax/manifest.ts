@@ -1,3 +1,4 @@
+import { MERCHELLO_TAX_ENTITY_TYPE } from "@tree/types/tree.types.js";
 
 export const manifests: Array<UmbExtensionManifest> = [
   // ============================================
@@ -7,12 +8,12 @@ export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for tax (when clicking "Tax" in tree)
   {
     type: "workspace",
-    kind: "default",
+    kind: "routable",
     alias: "Merchello.Tax.Workspace",
     name: "Merchello Tax Workspace",
+    api: () => import("./contexts/tax-workspace.context.js"),
     meta: {
-      entityType: "merchello-tax",
-      headline: "Tax Groups",
+      entityType: MERCHELLO_TAX_ENTITY_TYPE,
     },
   },
 
@@ -36,6 +37,26 @@ export const manifests: Array<UmbExtensionManifest> = [
     ],
   },
 
+  // Workspace view for tax providers
+  {
+    type: "workspaceView",
+    alias: "Merchello.Tax.Providers.View",
+    name: "Merchello Tax Providers View",
+    js: () => import("./components/tax-providers-list.element.js"),
+    weight: 90,
+    meta: {
+      label: "Providers",
+      pathname: "providers",
+      icon: "icon-server-alt",
+    },
+    conditions: [
+      {
+        alias: "Umb.Condition.WorkspaceAlias",
+        match: "Merchello.Tax.Workspace",
+      },
+    ],
+  },
+
   // ============================================
   // Modals
   // ============================================
@@ -46,5 +67,29 @@ export const manifests: Array<UmbExtensionManifest> = [
     alias: "Merchello.TaxGroup.Modal",
     name: "Merchello Tax Group Modal",
     js: () => import("./modals/tax-group-modal.element.js"),
+  },
+
+  // Tax rate modal (handles both create and edit for geographic rates)
+  {
+    type: "modal",
+    alias: "Merchello.TaxRate.Modal",
+    name: "Merchello Tax Rate Modal",
+    js: () => import("./modals/tax-rate-modal.element.js"),
+  },
+
+  // Tax provider config modal
+  {
+    type: "modal",
+    alias: "Merchello.TaxProviderConfig.Modal",
+    name: "Merchello Tax Provider Config Modal",
+    js: () => import("./modals/tax-provider-config-modal.element.js"),
+  },
+
+  // Test tax provider modal
+  {
+    type: "modal",
+    alias: "Merchello.TestTaxProvider.Modal",
+    name: "Merchello Test Tax Provider Modal",
+    js: () => import("./modals/test-tax-provider-modal.element.js"),
   },
 ];

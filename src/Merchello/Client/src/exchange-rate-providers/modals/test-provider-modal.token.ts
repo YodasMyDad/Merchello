@@ -12,7 +12,7 @@ export interface TestExchangeRateProviderModalValue {
 export const MERCHELLO_TEST_EXCHANGE_RATE_PROVIDER_MODAL = new UmbModalToken<
   TestExchangeRateProviderModalData,
   TestExchangeRateProviderModalValue
->("Merchello.TestExchangeRateProvider.Modal", {
+>("Merchello.ExchangeRateProvider.Test.Modal", {
   modal: {
     type: "sidebar",
     size: "medium",

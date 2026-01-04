@@ -1,14 +1,15 @@
+import { MERCHELLO_CUSTOMERS_ENTITY_TYPE } from "@tree/types/tree.types.js";
 
 export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for customers (when clicking "Customers" in tree)
   {
     type: "workspace",
-    kind: "default",
+    kind: "routable",
     alias: "Merchello.Customers.Workspace",
     name: "Merchello Customers Workspace",
+    api: () => import("./contexts/customers-workspace.context.js"),
     meta: {
-      entityType: "merchello-customers",
-      headline: "Customers",
+      entityType: MERCHELLO_CUSTOMERS_ENTITY_TYPE,
     },
   },
 
@@ -50,18 +51,6 @@ export const manifests: Array<UmbExtensionManifest> = [
         match: "Merchello.Customers.Workspace",
       },
     ],
-  },
-
-  // Routable workspace for segment detail (edit/create)
-  {
-    type: "workspace",
-    kind: "routable",
-    alias: "Merchello.CustomerSegment.Detail.Workspace",
-    name: "Customer Segment Detail Workspace",
-    api: () => import("./contexts/segment-detail-workspace.context.js"),
-    meta: {
-      entityType: "merchello-customer-segment",
-    },
   },
 
   // Customer edit modal

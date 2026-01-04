@@ -9,7 +9,7 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatShortDate } from "@shared/utils/formatting.js";
 import type { FulfillmentSummaryDto, ShipmentDetailDto } from "@orders/types/order.types.js";
-import type { MerchelloOrderDetailWorkspaceContext } from "@orders/contexts/order-detail-workspace.context.js";
+import type { MerchelloOrdersWorkspaceContext } from "@orders/contexts/orders-workspace.context.js";
 import { MERCHELLO_SHIPMENT_EDIT_MODAL } from "@orders/modals/shipment-edit-modal.token.js";
 
 // Import shared components
@@ -22,7 +22,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
   @state() private _isLoading: boolean = true;
   @state() private _errorMessage: string | null = null;
 
-  #workspaceContext?: MerchelloOrderDetailWorkspaceContext;
+  #workspaceContext?: MerchelloOrdersWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
   #isConnected = false;
@@ -30,7 +30,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
   constructor() {
     super();
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
-      this.#workspaceContext = context as MerchelloOrderDetailWorkspaceContext;
+      this.#workspaceContext = context as MerchelloOrdersWorkspaceContext;
       this.observe(this.#workspaceContext.order, (order) => {
         if (order?.id && order.id !== this._invoiceId) {
           this._invoiceId = order.id;

@@ -1,14 +1,15 @@
+import { MERCHELLO_FILTERS_ENTITY_TYPE } from "@tree/types/tree.types.js";
 
 export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for filters (when clicking "Filters" in tree)
   {
     type: "workspace",
-    kind: "default",
+    kind: "routable",
     alias: "Merchello.Filters.Workspace",
     name: "Merchello Filters Workspace",
+    api: () => import("./contexts/filters-workspace.context.js"),
     meta: {
-      entityType: "merchello-filters",
-      headline: "Filters",
+      entityType: MERCHELLO_FILTERS_ENTITY_TYPE,
     },
   },
 

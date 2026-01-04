@@ -452,6 +452,43 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.ToTable("merchelloTaxGroups", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.Accounting.Models.TaxGroupRate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DateUpdated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("StateOrProvinceCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid>("TaxGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("TaxPercentage")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaxGroupId", "CountryCode", "StateOrProvinceCode")
+                        .IsUnique()
+                        .HasFilter("[StateOrProvinceCode] IS NOT NULL");
+
+                    b.ToTable("merchelloTaxGroupRates", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.Checkout.Models.Basket", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1706,6 +1743,43 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.ToTable("merchelloSuppliers", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.Tax.Models.TaxProviderSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConfigurationJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ProviderAlias")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdateDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("ProviderAlias")
+                        .IsUnique();
+
+                    b.ToTable("merchelloTaxProviders", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.Warehouses.Models.Warehouse", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2093,6 +2167,17 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Navigation("Invoice");
 
                     b.Navigation("ParentPayment");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Accounting.Models.TaxGroupRate", b =>
+                {
+                    b.HasOne("Merchello.Core.Accounting.Models.TaxGroup", "TaxGroup")
+                        .WithMany("Rates")
+                        .HasForeignKey("TaxGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TaxGroup");
                 });
 
             modelBuilder.Entity("Merchello.Core.Customers.Models.CustomerSegmentMember", b =>
@@ -2506,6 +2591,8 @@ namespace Merchello.Core.SqlServer.Migrations
             modelBuilder.Entity("Merchello.Core.Accounting.Models.TaxGroup", b =>
                 {
                     b.Navigation("Products");
+
+                    b.Navigation("Rates");
                 });
 
             modelBuilder.Entity("Merchello.Core.Customers.Models.Customer", b =>

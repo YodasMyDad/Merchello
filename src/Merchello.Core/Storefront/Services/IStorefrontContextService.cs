@@ -78,4 +78,13 @@ public interface IStorefrontContextService
     /// Gets full currency context for display (code, symbol, exchange rate).
     /// </summary>
     Task<StorefrontCurrencyContext> GetCurrencyContextAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets availability info for all items in the current basket at a specific location.
+    /// Checks if each item can ship to the location and has sufficient stock.
+    /// </summary>
+    Task<BasketLocationAvailability> GetBasketAvailabilityAsync(
+        string? countryCode = null,
+        string? regionCode = null,
+        CancellationToken ct = default);
 }

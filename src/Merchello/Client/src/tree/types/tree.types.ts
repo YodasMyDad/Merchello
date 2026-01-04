@@ -23,7 +23,6 @@ export const MERCHELLO_ROOT_ENTITY_TYPE = "merchello-root";
 
 // Main tree item entity types
 export const MERCHELLO_ORDERS_ENTITY_TYPE = "merchello-orders";
-export const MERCHELLO_ORDER_ENTITY_TYPE = "merchello-order";
 export const MERCHELLO_PRODUCTS_ENTITY_TYPE = "merchello-products";
 export const MERCHELLO_CUSTOMERS_ENTITY_TYPE = "merchello-customers";
 export const MERCHELLO_COLLECTIONS_ENTITY_TYPE = "merchello-collections";

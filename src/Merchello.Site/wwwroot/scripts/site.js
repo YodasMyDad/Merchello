@@ -80,9 +80,8 @@ document.addEventListener('alpine:init', () => {
                     const data = await response.json();
                     this.code = data.countryCode;
                     this.name = data.countryName;
-                    window.dispatchEvent(new CustomEvent('country-changed', {
-                        detail: { countryCode: code }
-                    }));
+                    // Reload page to refresh server-rendered prices in new currency
+                    window.location.reload();
                 }
             } catch (error) {
                 console.error('Failed to set country:', error);
@@ -216,7 +215,9 @@ document.addEventListener('alpine:init', () => {
         },
 
         get inStock() {
-            return this.currentVariant?.availableForPurchase || false;
+            // availableForPurchase is set server-side based on canShipToLocation && hasStock
+            // We also explicitly check canShipToLocation here for clarity
+            return (this.currentVariant?.availableForPurchase || false) && this.canShipToLocation;
         },
 
         get trackStock() {
@@ -260,11 +261,6 @@ document.addEventListener('alpine:init', () => {
             this.$nextTick(() => {
                 this.initGallerySwipers();
                 this.initOptionSwipers();
-            });
-
-            // Reload page when shipping country changes to get fresh location-aware data
-            window.addEventListener('country-changed', () => {
-                window.location.reload();
             });
         },
 
@@ -465,6 +461,10 @@ document.addEventListener('alpine:init', () => {
         formattedDiscount: config.formattedDiscount || '',
         formattedTax: config.formattedTax || '',
         formattedTotal: config.formattedTotal || '',
+        formattedDisplaySubTotal: config.formattedDisplaySubTotal || '',
+        formattedDisplayDiscount: config.formattedDisplayDiscount || '',
+        formattedDisplayTax: config.formattedDisplayTax || '',
+        formattedDisplayTotal: config.formattedDisplayTotal || '',
         currencySymbol: config.currencySymbol || '£',
         itemCount: config.itemCount || 0,
         isEmpty: config.isEmpty ?? true,
@@ -502,13 +502,6 @@ document.addEventListener('alpine:init', () => {
         init() {
             // Update global basket store with initial data
             Alpine.store('basket').update(this.itemCount, this.total, this.formattedTotal);
-
-            // Listen for country changes
-            window.addEventListener('country-changed', async () => {
-                this.selectedRegion = '';
-                await this.fetchRegions();
-                await this.checkBasketAvailability();
-            });
 
             // Initial availability check
             this.$nextTick(async () => {
@@ -580,6 +573,10 @@ document.addEventListener('alpine:init', () => {
             this.formattedDiscount = data.formattedDiscount;
             this.formattedTax = data.formattedTax;
             this.formattedTotal = data.formattedTotal;
+            this.formattedDisplaySubTotal = data.formattedDisplaySubTotal || '';
+            this.formattedDisplayDiscount = data.formattedDisplayDiscount || '';
+            this.formattedDisplayTax = data.formattedDisplayTax || '';
+            this.formattedDisplayTotal = data.formattedDisplayTotal || '';
             this.currencySymbol = data.currencySymbol || this.currencySymbol;
             this.itemCount = data.itemCount;
             this.isEmpty = data.isEmpty;

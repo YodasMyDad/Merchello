@@ -3,7 +3,7 @@
 Opinionated enterprise ecommerce plugin for Umbraco v17+, which will be installed via Nuget (Merchello.Site will use the Nuget package when complete) **Ethos: making enterprise ecommerce simple.**
 
 ## Design Principles
-- **Modular** - `ExtensionManager` for pluggable providers (Shipping, Payment, OrderGrouping)
+- **Modular** - `ExtensionManager` for pluggable providers (Shipping, Payment, Tax, OrderGrouping)
 - **Services** - Feature-grouped, DI, parameter models
 - **Factories** - All domain objects via factories
 - **Multi-warehouse** - Variant-level stock with priority-based selection
@@ -107,6 +107,8 @@ FACTORIES → All object creation, stateless singletons
 | Operation | Service.Method |
 |-----------|----------------|
 | Tax groups | `ITaxService.GetTaxGroups()` |
+| Tax rates (geographic) | `ITaxService.GetApplicableRateAsync()` |
+| Tax calculation | `ITaxProviderManager.GetActiveProviderAsync()` → `ITaxProvider.CalculateTaxAsync()` |
 | Tax preview (custom items) | `ITaxService` via `TaxApiController.PreviewCustomItemTax()` |
 
 #### Currency
@@ -239,6 +241,17 @@ Task<RefundResult> RefundPaymentAsync(RefundRequest request);
 ```
 - Built-in: `ManualPaymentProvider`
 
+### ITaxProvider
+```csharp
+TaxProviderMetadata Metadata { get; }
+ValueTask<IEnumerable<TaxProviderConfigurationField>> GetConfigurationFieldsAsync(ct);
+ValueTask ConfigureAsync(TaxProviderConfiguration? config, ct);
+Task<TaxCalculationResult> CalculateTaxAsync(TaxCalculationRequest request, ct);
+Task<TaxProviderValidationResult> ValidateConfigurationAsync(ct);
+```
+- Single active provider at a time (centralized tax calculation)
+- Built-in: `ManualTaxProvider` (uses TaxGroup/TaxGroupRate)
+
 ### Config Field Types
 `Text`, `Password`, `Number`, `Checkbox`, `Select`, `Textarea`
 
@@ -368,7 +381,8 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 | `ISupplierService` | Supplier mgmt |
 | `IWarehouseService` | Selection, regions |
 | `ILineItemService` | Unified calculations (basket/invoice), discounts, tax |
-| `ITaxService` | Tax groups |
+| `ITaxService` | Tax groups, geographic rates |
+| `ITaxProviderManager` | Tax provider discovery, activation, caching |
 | `ICurrencyService` | Formatting, rounding, rates |
 | `IDiscountService` | Discount CRUD, validation, usage tracking |
 | `IDiscountEngine` | Calculation, validation, application to baskets/invoices |
@@ -388,6 +402,7 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 |-------|-----------|---------|
 | Shipping | `IShippingProvider` | `ShippingProviderManager` |
 | Payment | `IPaymentProvider` | `PaymentProviderManager` |
+| Tax | `ITaxProvider` | `TaxProviderManager` |
 | Order grouping | `IOrderGroupingStrategy` | `OrderGroupingStrategyResolver` |
 | Order status | `IOrderStatusHandler` | - |
 | Entity events | `INotificationAsyncHandler<T>` | Umbraco notifications |

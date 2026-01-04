@@ -21,6 +21,7 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services;
 using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -68,6 +69,10 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var currencyService = new CurrencyService(settings);
         var lineItemService = new LineItemService(currencyService);
         var discountService = new Mock<IDiscountService>().Object;
+        var taxServiceMock = new Mock<ITaxService>();
+        taxServiceMock.Setup(x => x.GetApplicableRateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0m);
+        var taxProviderManager = new Mock<ITaxProviderManager>().Object;
         var strategyResolver = new Mock<IOrderGroupingStrategyResolver>().Object;
         var logger = new Mock<ILogger<InvoiceService>>().Object;
 
@@ -92,6 +97,8 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             currencyService,
             lineItemService,
             discountService,
+            taxServiceMock.Object,
+            taxProviderManager,
             invoiceFactory,
             orderFactory,
             shipmentFactory,

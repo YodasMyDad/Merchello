@@ -8,7 +8,7 @@ import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { WarehouseDetailDto, SupplierDto, CountryInfo, ServiceRegionDto } from "@warehouses/types/warehouses.types.js";
-import type { MerchelloWarehouseDetailWorkspaceContext } from "@warehouses/contexts/warehouse-detail-workspace.context.js";
+import type { MerchelloWarehousesWorkspaceContext } from "@warehouses/contexts/warehouses-workspace.context.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { MERCHELLO_SERVICE_REGION_MODAL } from "@warehouses/modals/service-region-modal.token.js";
 import { MERCHELLO_SUPPLIER_MODAL } from "@suppliers/modals/supplier-modal.token.js";
@@ -45,7 +45,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
   @state() private _isDeletingRegion: string | null = null;
   @state() private _isDeletingOption: string | null = null;
 
-  #workspaceContext?: MerchelloWarehouseDetailWorkspaceContext;
+  #workspaceContext?: MerchelloWarehousesWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
   #isConnected = false;
@@ -53,7 +53,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
   constructor() {
     super();
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
-      this.#workspaceContext = context as MerchelloWarehouseDetailWorkspaceContext;
+      this.#workspaceContext = context as MerchelloWarehousesWorkspaceContext;
       if (this.#workspaceContext) {
         this.observe(this.#workspaceContext.warehouse, (warehouse) => {
           this._warehouse = warehouse ?? null;

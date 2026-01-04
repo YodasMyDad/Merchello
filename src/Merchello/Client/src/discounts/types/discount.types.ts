@@ -318,7 +318,6 @@ export const DISCOUNT_STATUS_COLORS: Record<DiscountStatus, "default" | "positiv
 
 /** Entity types for workspace routing */
 export const MERCHELLO_DISCOUNTS_ENTITY_TYPE = "merchello-discounts";
-export const MERCHELLO_DISCOUNT_ENTITY_TYPE = "merchello-discount";
 
 // ============================================
 // Performance / Reporting Types

@@ -1,14 +1,15 @@
+import { MERCHELLO_PRODUCT_TYPES_ENTITY_TYPE } from "@tree/types/tree.types.js";
 
 export const manifests: Array<UmbExtensionManifest> = [
   // Workspace for product types (when clicking "Product Types" in tree)
   {
     type: "workspace",
-    kind: "default",
+    kind: "routable",
     alias: "Merchello.ProductTypes.Workspace",
     name: "Merchello Product Types Workspace",
+    api: () => import("./contexts/product-types-workspace.context.js"),
     meta: {
-      entityType: "merchello-product-types",
-      headline: "Product Types",
+      entityType: MERCHELLO_PRODUCT_TYPES_ENTITY_TYPE,
     },
   },
 

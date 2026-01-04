@@ -12,7 +12,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { UMB_CURRENT_USER_CONTEXT, type UmbCurrentUserModel } from "@umbraco-cms/backoffice/current-user";
 import type { OrderDetailDto, AddressDto, FulfillmentOrderDto, InvoiceNoteDto } from "@orders/types/order.types.js";
-import type { MerchelloOrderDetailWorkspaceContext } from "@orders/contexts/order-detail-workspace.context.js";
+import type { MerchelloOrdersWorkspaceContext } from "@orders/contexts/orders-workspace.context.js";
 import { MERCHELLO_FULFILLMENT_MODAL } from "@orders/modals/fulfillment-modal.token.js";
 import { MERCHELLO_EDIT_ORDER_MODAL } from "@orders/modals/edit-order-modal.token.js";
 import { MERCHELLO_CUSTOMER_ORDERS_MODAL } from "@orders/modals/customer-orders-modal.token.js";
@@ -60,7 +60,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
   @state() private _purchaseOrderValue: string = "";
   @state() private _isSavingPurchaseOrder: boolean = false;
 
-  #workspaceContext?: MerchelloOrderDetailWorkspaceContext;
+  #workspaceContext?: MerchelloOrdersWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
   #isConnected = false;
@@ -68,7 +68,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
   constructor() {
     super();
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
-      this.#workspaceContext = context as MerchelloOrderDetailWorkspaceContext;
+      this.#workspaceContext = context as MerchelloOrdersWorkspaceContext;
       if (this.#workspaceContext) {
         this.observe(this.#workspaceContext.order, (order) => {
           this._order = order ?? null;

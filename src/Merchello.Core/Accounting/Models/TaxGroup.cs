@@ -24,9 +24,14 @@ public class TaxGroup
     public decimal TaxPercentage { get; set; }
 
     /// <summary>
-    /// Products this supplier supplies
+    /// Products assigned to this tax group
     /// </summary>
     public virtual ICollection<ProductRoot> Products { get; set; } = [];
+
+    /// <summary>
+    /// Geographic-specific tax rates for this group
+    /// </summary>
+    public virtual ICollection<TaxGroupRate> Rates { get; set; } = [];
 
     /// <summary>
     /// Update date

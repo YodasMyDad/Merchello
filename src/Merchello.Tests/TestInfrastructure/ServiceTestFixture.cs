@@ -203,6 +203,7 @@ public class ServiceTestFixture : IDisposable
         services.AddSingleton(mockWebHostEnvironment.Object);
 
         services.AddScoped<IShippingService, ShippingService>();
+        services.AddScoped<ITaxService, TaxService>();
 
         _serviceProvider = services.BuildServiceProvider();
     }

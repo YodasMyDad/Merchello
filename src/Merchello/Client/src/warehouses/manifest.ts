@@ -1,3 +1,4 @@
+import { MERCHELLO_WAREHOUSES_ENTITY_TYPE } from "@tree/types/tree.types.js";
 
 export const manifests: Array<UmbExtensionManifest> = [
   // ============================================
@@ -7,16 +8,16 @@ export const manifests: Array<UmbExtensionManifest> = [
   // Main workspace for warehouses list (child of Settings in tree)
   {
     type: "workspace",
-    kind: "default",
+    kind: "routable",
     alias: "Merchello.Warehouses.Workspace",
     name: "Merchello Warehouses Workspace",
+    api: () => import("./contexts/warehouses-workspace.context.js"),
     meta: {
-      entityType: "merchello-warehouses",
-      headline: "Warehouses",
+      entityType: MERCHELLO_WAREHOUSES_ENTITY_TYPE,
     },
   },
 
-  // List view for warehouses
+  // List view for warehouses (used when on list route)
   {
     type: "workspaceView",
     alias: "Merchello.Warehouses.ListView",
@@ -32,42 +33,6 @@ export const manifests: Array<UmbExtensionManifest> = [
       {
         alias: "Umb.Condition.WorkspaceAlias",
         match: "Merchello.Warehouses.Workspace",
-      },
-    ],
-  },
-
-  // ============================================
-  // Warehouse Detail Workspace (Routable)
-  // ============================================
-
-  // Routable workspace for warehouse detail/edit
-  {
-    type: "workspace",
-    kind: "routable",
-    alias: "Merchello.Warehouse.Detail.Workspace",
-    name: "Merchello Warehouse Detail Workspace",
-    api: () => import("./contexts/warehouse-detail-workspace.context.js"),
-    meta: {
-      entityType: "merchello-warehouse",
-    },
-  },
-
-  // Detail view for warehouse editing
-  {
-    type: "workspaceView",
-    alias: "Merchello.Warehouse.Detail.View",
-    name: "Merchello Warehouse Detail View",
-    js: () => import("./components/warehouse-detail.element.js"),
-    weight: 100,
-    meta: {
-      label: "Warehouse",
-      pathname: "warehouse",
-      icon: "icon-store",
-    },
-    conditions: [
-      {
-        alias: "Umb.Condition.WorkspaceAlias",
-        match: "Merchello.Warehouse.Detail.Workspace",
       },
     ],
   },

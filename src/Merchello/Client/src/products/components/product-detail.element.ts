@@ -7,7 +7,7 @@ import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
-import type { MerchelloProductDetailWorkspaceContext } from "@products/contexts/product-detail-workspace.context.js";
+import type { MerchelloProductsWorkspaceContext } from "@products/contexts/products-workspace.context.js";
 import type {
   ProductRootDetailDto,
   ProductOptionDto,
@@ -162,7 +162,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   /** Umbraco DataType repository for loading editor configuration */
   #dataTypeRepository = new UmbDataTypeDetailRepository(this);
 
-  #workspaceContext?: MerchelloProductDetailWorkspaceContext;
+  #workspaceContext?: MerchelloProductsWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
   #isConnected = false;
@@ -170,7 +170,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   constructor() {
     super();
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
-      this.#workspaceContext = context as MerchelloProductDetailWorkspaceContext;
+      this.#workspaceContext = context as MerchelloProductsWorkspaceContext;
       if (this.#workspaceContext) {
         this.observe(this.#workspaceContext.product, (product) => {
           this._product = product ?? null;

@@ -8,6 +8,7 @@ using Merchello.Core.Payments.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Suppliers.Models;
+using Merchello.Core.Tax.Models;
 using Merchello.Core.Warehouses.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -55,6 +56,7 @@ public class MerchelloDbContext : DbContext
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<TaxGroup> TaxGroups => Set<TaxGroup>();
+    public DbSet<TaxGroupRate> TaxGroupRates => Set<TaxGroupRate>();
 
     // Shipping DbSets
     public DbSet<Shipment> Shipments => Set<Shipment>();
@@ -69,6 +71,9 @@ public class MerchelloDbContext : DbContext
 
     // Exchange Rate Provider DbSets
     public DbSet<ExchangeRateProviderSetting> ExchangeRateProviderSettings => Set<ExchangeRateProviderSetting>();
+
+    // Tax Provider DbSets
+    public DbSet<TaxProviderSetting> TaxProviderSettings => Set<TaxProviderSetting>();
 
     // Discount DbSets
     public DbSet<Discount> Discounts => Set<Discount>();
