@@ -141,12 +141,11 @@
                 } else if (methodAlias === 'venmo' || methodAlias === 'braintree-venmo') {
                     await this.renderVenmo(container, method, config, checkout, sdkConfig);
                 } else {
-                    console.warn('Unknown Braintree express method:', methodAlias);
                     container.style.display = 'none';
                 }
             } catch (error) {
-                console.error('Failed to initialize Braintree express checkout:', error);
-                container.innerHTML = '<span class="text-red-500 text-sm">Express checkout unavailable</span>';
+                // Silently hide the container on initialization error
+                container.style.display = 'none';
             }
         },
 
@@ -215,8 +214,7 @@
                             customerData,
                             {
                                 deviceData: dataCollectorInstances[methodAlias]?.deviceData || '',
-                                type: payload.type,
-                                details: payload.details
+                                type: payload.type || ''
                             }
                         );
                     } catch (error) {
@@ -242,14 +240,9 @@
         async renderApplePay(container, method, config, checkout, sdkConfig) {
             const methodAlias = method.methodAlias.toLowerCase();
 
-            // Check Apple Pay support
-            if (!window.ApplePaySession) {
-                container.innerHTML = '<div style="padding: 12px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; color: #92400e; font-size: 14px; text-align: center;">Apple Pay is only available in Safari on Apple devices</div>';
-                return;
-            }
-
-            if (!ApplePaySession.canMakePayments()) {
-                container.innerHTML = '<div style="padding: 12px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; color: #92400e; font-size: 14px; text-align: center;">Apple Pay is not set up on this device. Please add a card to Apple Wallet.</div>';
+            // Check Apple Pay support - silently hide if not available
+            if (!window.ApplePaySession || !ApplePaySession.canMakePayments()) {
+                container.style.display = 'none';
                 return;
             }
 
@@ -387,7 +380,8 @@
 
             const readyToPay = await paymentsClient.isReadyToPay(isReadyToPayRequest);
             if (!readyToPay.result) {
-                container.innerHTML = '<div style="padding: 12px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; color: #92400e; font-size: 14px; text-align: center;">Google Pay is not available. Please ensure you have a supported browser and a payment method set up in Google Pay.</div>';
+                // Silently hide if Google Pay is not available
+                container.style.display = 'none';
                 return;
             }
 
@@ -480,9 +474,9 @@
             });
             venmoInstances[methodAlias] = venmoInstance;
 
-            // Check if Venmo is available on this device/browser
+            // Check if Venmo is available on this device/browser - silently hide if not
             if (!venmoInstance.isBrowserSupported()) {
-                container.innerHTML = '<div style="padding: 12px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; color: #92400e; font-size: 14px; text-align: center;">Venmo is not available on this device or browser</div>';
+                container.style.display = 'none';
                 return;
             }
 

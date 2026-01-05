@@ -654,6 +654,17 @@ public class CheckoutPaymentsApiController(
                 request.CustomerData.FullName,
                 request.CustomerData.Phone);
 
+            // If no addresses were provided by the payment provider, we can't complete express checkout
+            // The user needs to complete the regular checkout flow instead
+            if (billingAddress == null)
+            {
+                return BadRequest(new ExpressCheckoutResponseDto
+                {
+                    Success = false,
+                    ErrorMessage = "No address provided. Please complete the checkout form."
+                });
+            }
+
             // Save addresses to checkout session
             var sameAsBilling = request.CustomerData.BillingAddress == null;
             await checkoutSessionService.SaveAddressesAsync(
@@ -942,22 +953,28 @@ public class CheckoutPaymentsApiController(
 
     /// <summary>
     /// Maps an express checkout address DTO to a checkout session address.
+    /// Returns null if the source address is null.
     /// </summary>
-    private static Address MapExpressAddress(
-        ExpressCheckoutAddressDto source,
+    private static Address? MapExpressAddress(
+        ExpressCheckoutAddressDto? source,
         string email,
         string? fullName,
         string? phone)
     {
+        if (source == null)
+        {
+            return null;
+        }
+
         return new Address
         {
             Email = email,
             Name = fullName ?? string.Empty,
-            AddressOne = source.Line1,
+            AddressOne = source.Line1 ?? string.Empty,
             AddressTwo = source.Line2,
-            TownCity = source.City,
-            PostalCode = source.PostalCode,
-            CountryCode = source.CountryCode,
+            TownCity = source.City ?? string.Empty,
+            PostalCode = source.PostalCode ?? string.Empty,
+            CountryCode = source.CountryCode ?? string.Empty,
             Phone = phone,
             CountyState = !string.IsNullOrEmpty(source.Region)
                 ? new CountyState { Name = source.Region }
@@ -967,9 +984,15 @@ public class CheckoutPaymentsApiController(
 
     /// <summary>
     /// Maps an express checkout address DTO to an express checkout address model.
+    /// Returns null if the source DTO is null.
     /// </summary>
-    private static ExpressCheckoutAddress MapDtoToExpressAddress(ExpressCheckoutAddressDto dto)
+    private static ExpressCheckoutAddress? MapDtoToExpressAddress(ExpressCheckoutAddressDto? dto)
     {
+        if (dto == null)
+        {
+            return null;
+        }
+
         return new ExpressCheckoutAddress
         {
             Line1 = dto.Line1,

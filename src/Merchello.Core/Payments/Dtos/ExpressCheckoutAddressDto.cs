@@ -2,13 +2,14 @@ namespace Merchello.Core.Payments.Dtos;
 
 /// <summary>
 /// Address data from express checkout.
+/// All fields are optional since payment providers may return partial address data.
 /// </summary>
 public class ExpressCheckoutAddressDto
 {
     /// <summary>
     /// Street address line 1.
     /// </summary>
-    public required string Line1 { get; set; }
+    public string? Line1 { get; set; }
 
     /// <summary>
     /// Street address line 2 (apartment, suite, etc.).
@@ -18,7 +19,7 @@ public class ExpressCheckoutAddressDto
     /// <summary>
     /// City or locality.
     /// </summary>
-    public required string City { get; set; }
+    public string? City { get; set; }
 
     /// <summary>
     /// State, province, or region.
@@ -28,10 +29,10 @@ public class ExpressCheckoutAddressDto
     /// <summary>
     /// Postal or ZIP code.
     /// </summary>
-    public required string PostalCode { get; set; }
+    public string? PostalCode { get; set; }
 
     /// <summary>
     /// ISO 3166-1 alpha-2 country code (e.g., "US", "GB", "CA").
     /// </summary>
-    public required string CountryCode { get; set; }
+    public string? CountryCode { get; set; }
 }

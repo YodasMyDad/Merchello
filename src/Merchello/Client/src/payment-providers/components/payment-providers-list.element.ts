@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
+import { LitElement, html, css, nothing, unsafeHTML } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state, query } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
@@ -232,7 +232,7 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     // Prefer provider-defined iconHtml, fall back to hardcoded brand icons
     const svg = iconHtml ?? getProviderIconSvg(alias);
     if (svg) {
-      return html`<span class="provider-icon-svg" .innerHTML=${svg}></span>`;
+      return html`<span class="provider-icon-svg">${unsafeHTML(svg)}</span>`;
     }
     return html`<uui-icon name="${fallbackIcon ?? 'icon-credit-card'}"></uui-icon>`;
   }

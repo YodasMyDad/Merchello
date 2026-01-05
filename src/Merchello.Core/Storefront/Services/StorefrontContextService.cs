@@ -1,3 +1,4 @@
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
@@ -321,6 +322,7 @@ public class StorefrontContextService(
         // Second check: Are shipping options with costs configured for this destination?
         // GetValidShippingOptionsForCountry checks both warehouse service regions AND shipping costs
         var validShippingOptions = product.GetValidShippingOptionsForCountry(countryCode, regionCode);
+
         if (validShippingOptions.Any())
         {
             return true;
@@ -328,6 +330,7 @@ public class StorefrontContextService(
 
         // Check if shipping options are loaded but none can ship to this destination
         var allowedOptions = product.GetAllowedShippingOptions();
+
         if (allowedOptions.Any())
         {
             // Shipping options exist but none can ship to this destination
@@ -421,6 +424,20 @@ public class StorefrontContextService(
             return new BasketLocationAvailability(AllItemsAvailable: true, Items: []);
         }
 
+        return await GetBasketAvailabilityAsync(basket.LineItems, countryCode, regionCode, ct);
+    }
+
+    public async Task<BasketLocationAvailability> GetBasketAvailabilityAsync(
+        IReadOnlyList<LineItem> lineItems,
+        string? countryCode = null,
+        string? regionCode = null,
+        CancellationToken ct = default)
+    {
+        if (lineItems.Count == 0)
+        {
+            return new BasketLocationAvailability(AllItemsAvailable: true, Items: []);
+        }
+
         // Get the location to check - use provided or current customer location
         var location = string.IsNullOrWhiteSpace(countryCode)
             ? await GetShippingLocationAsync(ct)
@@ -429,7 +446,7 @@ public class StorefrontContextService(
         List<BasketItemLocationAvailability> items = [];
         var allAvailable = true;
 
-        foreach (var lineItem in basket.LineItems.Where(li => li.ProductId.HasValue))
+        foreach (var lineItem in lineItems.Where(li => li.ProductId.HasValue))
         {
             var product = await productService.GetProduct(new GetProductParameters
             {

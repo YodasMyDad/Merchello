@@ -10,6 +10,7 @@ namespace Merchello.Core.Accounting.Dtos;
 public class OrderDetailDto
 {
     public Guid Id { get; set; }
+    public Guid CustomerId { get; set; }
     public string InvoiceNumber { get; set; } = string.Empty;
     public DateTime DateCreated { get; set; }
     public string Channel { get; set; } = string.Empty;

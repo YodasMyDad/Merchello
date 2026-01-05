@@ -21,6 +21,12 @@ public interface IInventoryService
     Task<CrudResult<bool>> AllocateStockAsync(Guid productId, Guid warehouseId, int quantity, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Reverses a stock allocation (restores stock when shipment is returned/cancelled).
+    /// Adds quantity back to Stock. Does not modify ReservedStock since allocation already removed it.
+    /// </summary>
+    Task<CrudResult<bool>> ReverseAllocationAsync(Guid productId, Guid warehouseId, int quantity, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets available stock (Stock - ReservedStock). Returns int.MaxValue if not tracked.
     /// </summary>
     Task<int> GetAvailableStockAsync(Guid productId, Guid warehouseId, CancellationToken cancellationToken = default);

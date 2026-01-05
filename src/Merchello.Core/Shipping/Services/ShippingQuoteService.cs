@@ -231,6 +231,7 @@ public class ShippingQuoteService(
                     .ThenInclude(option => option.Warehouse)
                         .ThenInclude(warehouse => warehouse!.ServiceRegions)
                 .Include(product => product.ExcludedShippingOptions)
+                .AsSplitQuery()
                 .AsNoTracking()
                 .Where(product => productIds.Contains(product.Id))
                 .ToDictionaryAsync(product => product.Id, cancellationToken));

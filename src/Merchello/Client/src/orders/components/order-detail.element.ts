@@ -17,6 +17,7 @@ import { MERCHELLO_FULFILLMENT_MODAL } from "@orders/modals/fulfillment-modal.to
 import { MERCHELLO_EDIT_ORDER_MODAL } from "@orders/modals/edit-order-modal.token.js";
 import { MERCHELLO_CUSTOMER_ORDERS_MODAL } from "@orders/modals/customer-orders-modal.token.js";
 import { MERCHELLO_CANCEL_INVOICE_MODAL } from "@orders/modals/cancel-invoice-modal.token.js";
+import { MERCHELLO_CUSTOMER_EDIT_MODAL } from "@customers/modals/customer-edit-modal.token.js";
 import { formatCurrency, formatDateTime, getPaymentStatusBadgeClass } from "@shared/utils/formatting.js";
 import { MerchelloApi, type CountryDto } from "@api/merchello-api.js";
 import { getOrdersListHref } from "@shared/utils/navigation.js";
@@ -238,6 +239,28 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     });
   }
 
+  private async _openCustomerEditModal(): Promise<void> {
+    if (!this._order?.customerId || !this.#modalManager) return;
+
+    const { data: customer, error } = await MerchelloApi.getCustomer(this._order.customerId);
+    if (error || !customer) {
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Error", message: "Could not load customer details" }
+      });
+      return;
+    }
+
+    const modal = this.#modalManager.open(this, MERCHELLO_CUSTOMER_EDIT_MODAL, {
+      data: { customer },
+    });
+
+    const result = await modal?.onSubmit().catch(() => undefined);
+    if (result?.isUpdated) {
+      this.#notificationContext?.peek("positive", {
+        data: { headline: "Customer updated", message: "Customer details have been saved" }
+      });
+    }
+  }
 
   private _formatAddress(address: AddressDto | null): string[] {
     if (!address) return ["No address"];
@@ -924,7 +947,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <div class="card">
               <h3>Customer</h3>
               <div class="customer-info">
-                <div class="customer-name">${order.billingAddress?.name || "Unknown"}</div>
+                <button type="button" class="customer-name-link" @click=${this._openCustomerEditModal}>${order.billingAddress?.name || "Unknown"}</button>
                 ${order.billingAddress?.email
                   ? html`<button type="button" class="customer-orders-link" @click=${this._openCustomerOrdersModal}>${order.customerOrderCount} ${order.customerOrderCount === 1 ? 'order' : 'orders'}</button>`
                   : html`<div class="muted">${order.customerOrderCount} ${order.customerOrderCount === 1 ? 'order' : 'orders'}</div>`
@@ -1715,6 +1738,24 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     .customer-name {
       color: var(--uui-color-text);
       font-weight: 500;
+    }
+
+    .customer-name-link {
+      background: none;
+      border: none;
+      padding: 0;
+      margin: 0;
+      font-weight: 600;
+      font-size: inherit;
+      font-family: inherit;
+      color: var(--uui-color-interactive);
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .customer-name-link:hover {
+      text-decoration: underline;
+      color: var(--uui-color-interactive-emphasis);
     }
 
     .customer-orders-link {

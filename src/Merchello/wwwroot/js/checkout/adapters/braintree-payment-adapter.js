@@ -415,6 +415,88 @@
         },
 
         /**
+         * Tokenize the card with optional 3DS verification
+         * Used by test modal to get a 3DS-verified nonce without submitting
+         * @param {Object} options - Verification options (email, billingAddress, etc.)
+         * @returns {Promise<Object>} Payment method payload with verified nonce
+         */
+        async tokenizeWithVerification(options = {}) {
+            // 1. Tokenize the card
+            const tokenizeResult = await this.tokenize();
+            if (!tokenizeResult.success) {
+                return tokenizeResult;
+            }
+
+            let nonce = tokenizeResult.nonce;
+
+            // 2. Run 3D Secure verification if enabled
+            if (threeDSecureInstance && currentSession?.sdkConfiguration?.threeDSecureEnabled) {
+                const config = currentSession.sdkConfiguration;
+                try {
+                    // Build 3DS verification request
+                    const threeDSecureRequest = {
+                        nonce: tokenizeResult.nonce,
+                        bin: tokenizeResult.bin,
+                        amount: String(config.amount || '0'),
+                        email: options.email || '',
+                        billingAddress: options.billingAddress ? {
+                            givenName: options.billingAddress.firstName || '',
+                            surname: options.billingAddress.lastName || '',
+                            phoneNumber: options.billingAddress.phone || '',
+                            streetAddress: options.billingAddress.line1 || '',
+                            extendedAddress: options.billingAddress.line2 || '',
+                            locality: options.billingAddress.city || '',
+                            region: options.billingAddress.region || '',
+                            postalCode: options.billingAddress.postalCode || '',
+                            countryCodeAlpha2: options.billingAddress.countryCode || ''
+                        } : undefined,
+                        additionalInformation: {
+                            shippingMethod: options.shippingMethod || '03',
+                            productCode: options.productCode || 'PHY'
+                        },
+                        onLookupComplete: (data, next) => {
+                            // Continue with 3D Secure verification
+                            next();
+                        }
+                    };
+
+                    // Add shipping address if available
+                    if (options.shippingAddress) {
+                        threeDSecureRequest.shippingAddress = {
+                            givenName: options.shippingAddress.firstName || '',
+                            surname: options.shippingAddress.lastName || '',
+                            phoneNumber: options.shippingAddress.phone || '',
+                            streetAddress: options.shippingAddress.line1 || '',
+                            extendedAddress: options.shippingAddress.line2 || '',
+                            locality: options.shippingAddress.city || '',
+                            region: options.shippingAddress.region || '',
+                            postalCode: options.shippingAddress.postalCode || '',
+                            countryCodeAlpha2: options.shippingAddress.countryCode || ''
+                        };
+                    }
+
+                    const threeDSecureResult = await threeDSecureInstance.verifyCard(threeDSecureRequest);
+
+                    // Use the 3D Secure nonce
+                    nonce = threeDSecureResult.nonce;
+
+                    // Check liability shift
+                    if (!threeDSecureResult.liabilityShifted && threeDSecureResult.liabilityShiftPossible) {
+                        console.warn('3D Secure: liability did not shift');
+                    }
+                } catch (threeDSecureError) {
+                    console.error('3D Secure verification failed:', threeDSecureError);
+                    // Continue without 3D Secure if it fails
+                }
+            }
+
+            return {
+                ...tokenizeResult,
+                nonce
+            };
+        },
+
+        /**
          * Submit the payment
          * @param {string} invoiceId - The invoice ID being paid
          * @param {Object} options - Additional options

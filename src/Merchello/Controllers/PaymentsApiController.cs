@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Services.Interfaces;
@@ -19,9 +20,11 @@ namespace Merchello.Controllers;
 public class PaymentsApiController(
     IPaymentService paymentService,
     IInvoiceService invoiceService,
-    ICurrencyService currencyService) : MerchelloApiControllerBase
+    ICurrencyService currencyService,
+    IPaymentProviderManager paymentProviderManager) : MerchelloApiControllerBase
 {
     private readonly ICurrencyService _currencyService = currencyService;
+    private readonly IPaymentProviderManager _paymentProviderManager = paymentProviderManager;
     /// <summary>
     /// Get all payments for an invoice
     /// </summary>
@@ -41,10 +44,12 @@ public class PaymentsApiController(
         var payments = await paymentService.GetPaymentsForInvoiceAsync(invoiceId, cancellationToken);
 
         // Only return top-level payments (not refunds, which are nested)
-        var result = payments
-            .Where(p => p.PaymentType == PaymentType.Payment)
-            .Select(MapToPaymentDto)
-            .ToList();
+        var topLevelPayments = payments.Where(p => p.PaymentType == PaymentType.Payment);
+        var result = new List<PaymentDto>();
+        foreach (var payment in topLevelPayments)
+        {
+            result.Add(await MapToPaymentDtoAsync(payment, cancellationToken));
+        }
 
         return Ok(result);
     }
@@ -63,7 +68,7 @@ public class PaymentsApiController(
             return NotFound();
         }
 
-        return Ok(MapToPaymentDto(payment));
+        return Ok(await MapToPaymentDtoAsync(payment, cancellationToken));
     }
 
     /// <summary>
@@ -183,7 +188,7 @@ public class PaymentsApiController(
             return BadRequest(errorMessage ?? "Failed to record payment.");
         }
 
-        return Ok(MapToPaymentDto(result.ResultObject!));
+        return Ok(await MapToPaymentDtoAsync(result.ResultObject!, cancellationToken));
     }
 
     /// <summary>
@@ -246,19 +251,34 @@ public class PaymentsApiController(
             return BadRequest(errorMessage ?? "Failed to process refund.");
         }
 
-        return Ok(MapToPaymentDto(result.ResultObject!));
+        return Ok(await MapToPaymentDtoAsync(result.ResultObject!, cancellationToken));
     }
 
     // ============================================
     // Mapping Helpers
     // ============================================
 
-    private PaymentDto MapToPaymentDto(Payment payment)
+    private async Task<PaymentDto> MapToPaymentDtoAsync(Payment payment, CancellationToken cancellationToken = default)
     {
         var existingRefunds = payment.Refunds?.Sum(r => Math.Abs(r.Amount)) ?? 0;
         var refundableAmount = payment.PaymentType == PaymentType.Payment
             ? payment.Amount - existingRefunds
             : 0;
+
+        // Determine provider refund capability
+        var (canRefundViaProvider, reason, supportsPartialRefunds) =
+            await GetProviderRefundCapabilityAsync(payment, cancellationToken);
+
+        // Map child refunds (recursively)
+        List<PaymentDto>? refunds = null;
+        if (payment.Refunds != null)
+        {
+            refunds = [];
+            foreach (var refund in payment.Refunds.OrderBy(r => r.DateCreated))
+            {
+                refunds.Add(await MapToPaymentDtoAsync(refund, cancellationToken));
+            }
+        }
 
         return new PaymentDto
         {
@@ -285,10 +305,56 @@ public class PaymentsApiController(
             RiskScoreSource = payment.RiskScoreSource,
             RiskLevel = PaymentStatusDetails.GetRiskLevel(payment.RiskScore),
             RefundableAmount = Math.Max(0, refundableAmount),
-            Refunds = payment.Refunds?
-                .OrderBy(r => r.DateCreated)
-                .Select(MapToPaymentDto)
-                .ToList()
+            CanRefundViaProvider = canRefundViaProvider,
+            CannotRefundViaProviderReason = reason,
+            SupportsPartialRefunds = supportsPartialRefunds,
+            Refunds = refunds
         };
+    }
+
+    /// <summary>
+    /// Determines whether a payment can be refunded via its original provider.
+    /// </summary>
+    private async Task<(bool CanRefund, string? Reason, bool SupportsPartial)> GetProviderRefundCapabilityAsync(
+        Payment payment,
+        CancellationToken cancellationToken)
+    {
+        // Not a refundable payment type (refunds can't be refunded)
+        if (payment.PaymentType != PaymentType.Payment)
+        {
+            return (false, null, false);
+        }
+
+        // No provider alias = manual payment (use manual refund, no reason needed)
+        if (string.IsNullOrEmpty(payment.PaymentProviderAlias) ||
+            string.Equals(payment.PaymentProviderAlias, "manual", StringComparison.OrdinalIgnoreCase))
+        {
+            return (false, null, false);
+        }
+
+        // Check if provider exists (don't require enabled - allow refunds even if provider is disabled)
+        var provider = await _paymentProviderManager.GetProviderAsync(
+            payment.PaymentProviderAlias,
+            requireEnabled: false,
+            cancellationToken);
+
+        if (provider == null)
+        {
+            return (false,
+                $"The payment provider '{payment.PaymentProviderAlias}' is no longer installed. " +
+                "Use manual refund to record a refund processed directly with the provider.",
+                false);
+        }
+
+        if (!provider.Metadata.SupportsRefunds)
+        {
+            return (false,
+                $"The '{provider.Metadata.DisplayName}' provider does not support refunds. " +
+                "Use manual refund to record a refund processed directly with the provider.",
+                false);
+        }
+
+        // Provider can refund
+        return (true, null, provider.Metadata.SupportsPartialRefunds);
     }
 }

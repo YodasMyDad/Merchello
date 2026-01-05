@@ -10,8 +10,9 @@ using Merchello.Core.Payments.Services;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.RateLimiting;
+using Merchello.Core.Shared.RateLimiting.Interfaces;
 using Merchello.Core.Shared.Services;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -41,10 +42,14 @@ public class PaymentStatusCalculationTests
         });
         var loggerMock = new Mock<ILogger<PaymentService>>();
         var notificationPublisherMock = new Mock<IMerchelloNotificationPublisher>();
+        var idempotencyServiceMock = new Mock<IPaymentIdempotencyService>();
         var currencyService = new CurrencyService(settings);
         var paymentFactory = new PaymentFactory(currencyService);
 
-        var memoryCacheMock = new Mock<IMemoryCache>();
+        var rateLimiterMock = new Mock<IRateLimiter>();
+        rateLimiterMock
+            .Setup(r => r.TryAcquire(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TimeSpan>()))
+            .Returns(RateLimitResult.Allowed(1, 10));
 
         _paymentService = new PaymentService(
             providerManagerMock.Object,
@@ -52,7 +57,8 @@ public class PaymentStatusCalculationTests
             paymentFactory,
             currencyService,
             notificationPublisherMock.Object,
-            memoryCacheMock.Object,
+            rateLimiterMock.Object,
+            idempotencyServiceMock.Object,
             settings,
             loggerMock.Object);
     }

@@ -42,14 +42,14 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
     private const string PayPalPaymentAdapterUrl = "/js/checkout/adapters/paypal-payment-adapter.js";
 
     /// <summary>
-    /// SVG icon for PayPal.
+    /// SVG icon for PayPal (PP logo symbol only).
     /// </summary>
-    private const string PayPalIconSvg = """<svg class="w-16 h-5" viewBox="0 0 64 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7.4 4.5H11.5C13.4 4.5 14.5 5.5 14.4 7.3C14.2 10.4 12.1 12.1 9.4 12.1H8.1L7.4 16.5H4.6L7.4 4.5Z" fill="#003087"/><path d="M9.2 7H10.6C11.5 7 12.2 7.3 12.1 8.3C11.9 9.8 11 10.2 9.9 10.2H8.8L9.2 7Z" fill="#003087"/><path d="M16.2 4.5H20.3C22.2 4.5 23.3 5.5 23.2 7.3C23 10.4 20.9 12.1 18.2 12.1H16.9L16.2 16.5H13.4L16.2 4.5Z" fill="#0070E0"/><path d="M18 7H19.4C20.3 7 21 7.3 20.9 8.3C20.7 9.8 19.8 10.2 18.7 10.2H17.6L18 7Z" fill="#0070E0"/><path d="M25.5 16.5L27.5 4.5H30.3L28.3 16.5H25.5Z" fill="#003087"/><path d="M36.8 4.2C39.8 4.2 41.6 6 41.3 9C41 12 38.8 13.9 35.8 13.9C32.8 13.9 31 12.1 31.3 9.1C31.6 6.1 33.8 4.2 36.8 4.2ZM36.1 11.5C37.5 11.5 38.6 10.5 38.8 8.9C39 7.3 38.2 6.3 36.8 6.3C35.4 6.3 34.3 7.3 34.1 8.9C33.9 10.5 34.7 11.5 36.1 11.5Z" fill="#003087"/><path d="M42.5 16.5L44.5 4.5H47.1L46.8 6.3C47.7 5.1 49.1 4.2 50.5 4.2C52.5 4.2 53.6 5.5 53.3 7.8L52.2 16.5H49.4L50.3 8.8C50.4 7.8 50 7.2 49 7.2C47.8 7.2 46.7 8.2 46.4 10.3L45.6 16.5H42.5Z" fill="#003087"/></svg>""";
+    private const string PayPalIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106z" fill="#003087"/><path d="M23.048 7.667c-.028.179-.06.362-.096.55-1.237 6.351-5.469 8.545-10.874 8.545H9.326c-.661 0-1.218.48-1.321 1.132l-1.41 8.95a.568.568 0 0 0 .562.655h3.94c.578 0 1.069-.42 1.16-.99l.045-.24.92-5.815.059-.32c.09-.572.582-.992 1.16-.992h.73c4.729 0 8.431-1.92 9.513-7.476.452-2.321.218-4.259-.978-5.622a4.667 4.667 0 0 0-1.658-1.377z" fill="#0070E0"/></svg>""";
 
     /// <summary>
-    /// SVG icon for Pay Later.
+    /// SVG icon for Pay Later (clock with currency symbol).
     /// </summary>
-    private const string PayLaterIconSvg = """<svg class="w-16 h-5" viewBox="0 0 64 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7.4 4.5H11.5C13.4 4.5 14.5 5.5 14.4 7.3C14.2 10.4 12.1 12.1 9.4 12.1H8.1L7.4 16.5H4.6L7.4 4.5Z" fill="#003087"/><path d="M9.2 7H10.6C11.5 7 12.2 7.3 12.1 8.3C11.9 9.8 11 10.2 9.9 10.2H8.8L9.2 7Z" fill="#003087"/><path d="M16.2 4.5H20.3C22.2 4.5 23.3 5.5 23.2 7.3C23 10.4 20.9 12.1 18.2 12.1H16.9L16.2 16.5H13.4L16.2 4.5Z" fill="#0070E0"/><path d="M18 7H19.4C20.3 7 21 7.3 20.9 8.3C20.7 9.8 19.8 10.2 18.7 10.2H17.6L18 7Z" fill="#0070E0"/><rect x="26" y="3" width="36" height="14" rx="2" fill="#FFD140"/><text x="44" y="13" font-size="8" fill="#003087" text-anchor="middle" font-family="Arial" font-weight="bold">PAY LATER</text></svg>""";
+    private const string PayLaterIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#FFD140"/><path d="M12 6v6l4 2" stroke="#003087" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16.5 16.5l2.5 2.5" stroke="#003087" stroke-width="2" stroke-linecap="round"/></svg>""";
 
     /// <inheritdoc />
     public override PaymentProviderMetadata Metadata => new()

@@ -84,6 +84,17 @@ public class BasketController(
             var displayShipping = currencyService.Round(basket.Shipping * rate, currencyContext.CurrencyCode);
             var displayTotal = currencyService.Round(basket.Total * rate, currencyContext.CurrencyCode);
 
+            // Get availability for basket items (SSR) - pass line items to avoid duplicate basket fetch
+            var availability = await storefrontContext.GetBasketAvailabilityAsync(basket.LineItems, ct: default);
+            var itemAvailability = availability.Items.ToDictionary(
+                i => i.LineItemId.ToString(),
+                i => new BasketItemAvailabilityDto
+                {
+                    CanShipToCountry = i.CanShipToLocation,
+                    HasStock = i.HasStock,
+                    Message = i.StatusMessage
+                });
+
             ViewBag.BasketData = new FullBasketResponse
             {
                 Items = items,
@@ -111,7 +122,9 @@ public class BasketController(
                 DisplayCurrencySymbol = currencyContext.CurrencySymbol,
                 ExchangeRate = rate,
                 ItemCount = basket.LineItems.Sum(li => li.Quantity),
-                IsEmpty = false
+                IsEmpty = false,
+                AllItemsAvailable = availability.AllItemsAvailable,
+                ItemAvailability = itemAvailability
             };
         }
 

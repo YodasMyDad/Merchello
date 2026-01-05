@@ -22,6 +22,7 @@ public class ShippingService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IOrderGroupingStrategyResolver strategyResolver,
     IMerchelloNotificationPublisher notificationPublisher,
+    IShippingCostResolver shippingCostResolver,
     IOptions<MerchelloSettings> settings,
     ILogger<ShippingService> logger) : IShippingService
 {
@@ -536,28 +537,12 @@ public class ShippingService(
         string countryCode,
         string? stateOrProvinceCode)
     {
-        var costs = shippingOption.ShippingCosts;
-        if (costs == null || costs.Count == 0)
-            return shippingOption.FixedCost;
-
-        // Try to find exact match (country + state)
-        var exactMatch = costs.FirstOrDefault(c =>
-            string.Equals(c.CountryCode, countryCode, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(c.StateOrProvinceCode, stateOrProvinceCode, StringComparison.OrdinalIgnoreCase));
-
-        if (exactMatch != null)
-            return exactMatch.Cost;
-
-        // Try country-only match
-        var countryMatch = costs.FirstOrDefault(c =>
-            string.Equals(c.CountryCode, countryCode, StringComparison.OrdinalIgnoreCase) &&
-            string.IsNullOrEmpty(c.StateOrProvinceCode));
-
-        if (countryMatch != null)
-            return countryMatch.Cost;
-
-        // Fall back to fixed cost
-        return shippingOption.FixedCost;
+        var costs = shippingOption.ShippingCosts?.ToList() ?? [];
+        return shippingCostResolver.ResolveBaseCost(
+            costs,
+            countryCode,
+            stateOrProvinceCode,
+            shippingOption.FixedCost);
     }
 
     /// <summary>

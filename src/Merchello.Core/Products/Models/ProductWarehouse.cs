@@ -54,5 +54,12 @@ public class ProductWarehouse
     /// Available stock = Stock - ReservedStock
     /// </summary>
     public int ReservedStock { get; set; }
+
+    /// <summary>
+    /// Concurrency token for optimistic locking.
+    /// Prevents race conditions during concurrent stock updates.
+    /// Auto-initialized with current timestamp for new records.
+    /// </summary>
+    public byte[] RowVersion { get; set; } = BitConverter.GetBytes(DateTime.UtcNow.Ticks);
 }
 

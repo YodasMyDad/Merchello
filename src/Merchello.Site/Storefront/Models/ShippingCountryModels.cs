@@ -36,6 +36,8 @@ public class ShippingCountriesResponse
 {
     public required List<CountryResponse> Countries { get; set; }
     public required CountryResponse Current { get; set; }
+    public string? CurrentRegionCode { get; set; }
+    public string? CurrentRegionName { get; set; }
     public required StorefrontCurrencyResponse Currency { get; set; }
 }
 

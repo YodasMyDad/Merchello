@@ -38,6 +38,7 @@ public class DiscountService(
                 .AsNoTracking()
                 .Include(d => d.TargetRules)
                 .Include(d => d.EligibilityRules)
+                .AsSplitQuery()
                 .AsQueryable();
 
             // Apply filters
@@ -116,6 +117,7 @@ public class DiscountService(
                 .Include(d => d.EligibilityRules)
                 .Include(d => d.BuyXGetYConfig)
                 .Include(d => d.FreeShippingConfig)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(d => d.Id == discountId, ct));
         scope.Complete();
         return result;
@@ -133,6 +135,7 @@ public class DiscountService(
                 .Include(d => d.EligibilityRules)
                 .Include(d => d.BuyXGetYConfig)
                 .Include(d => d.FreeShippingConfig)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(d => d.Code == normalizedCode, ct));
         scope.Complete();
         return result;
@@ -280,6 +283,7 @@ public class DiscountService(
                 .Include(d => d.EligibilityRules)
                 .Include(d => d.BuyXGetYConfig)
                 .Include(d => d.FreeShippingConfig)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(d => d.Id == discountId, ct));
 
         if (discount == null)
@@ -502,6 +506,7 @@ public class DiscountService(
                 .Include(d => d.EligibilityRules)
                 .Include(d => d.BuyXGetYConfig)
                 .Include(d => d.FreeShippingConfig)
+                .AsSplitQuery()
                 .Where(d =>
                     d.Method == DiscountMethod.Automatic &&
                     d.Status == DiscountStatus.Active &&
@@ -524,6 +529,7 @@ public class DiscountService(
                 .Include(d => d.EligibilityRules)
                 .Include(d => d.BuyXGetYConfig)
                 .Include(d => d.FreeShippingConfig)
+                .AsSplitQuery()
                 .Where(d => discountIds.Contains(d.Id))
                 .ToListAsync(ct));
         scope.Complete();
@@ -710,28 +716,11 @@ public class DiscountService(
     /// <inheritdoc />
     public async Task<int> GetUsageCountAsync(Guid discountId, CancellationToken ct = default)
     {
-        var discountIdString = discountId.ToString();
-
         using var scope = efCoreScopeProvider.CreateScope();
         var count = await scope.ExecuteWithContextAsync(async db =>
-        {
-            // Query discount line items from valid invoices
-            var discountLineItems = await db.LineItems
-                .Include(li => li.Order)
-                    .ThenInclude(o => o!.Invoice)
-                .Where(li => li.LineItemType == LineItemType.Discount)
-                .Where(li => li.Order != null && li.Order.Invoice != null)
-                .Where(li => !li.Order!.Invoice!.IsDeleted && !li.Order.Invoice.IsCancelled)
-                .ToListAsync(ct);
-
-            // Filter to specific discount and count unique invoices
-            return discountLineItems
-                .Where(li => li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id)
-                             && id?.ToString() == discountIdString)
-                .Select(li => li.Order!.InvoiceId)
-                .Distinct()
-                .Count();
-        });
+            await db.DiscountUsages
+                .AsNoTracking()
+                .CountAsync(u => u.DiscountId == discountId, ct));
         scope.Complete();
         return count;
     }
@@ -744,29 +733,15 @@ public class DiscountService(
             return [];
         }
 
-        var discountIdStrings = discountIds.Select(id => id.ToString()).ToHashSet();
-
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
-            // Query discount line items from valid invoices
-            var discountLineItems = await db.LineItems
-                .Include(li => li.Order)
-                    .ThenInclude(o => o!.Invoice)
-                .Where(li => li.LineItemType == LineItemType.Discount)
-                .Where(li => li.Order != null && li.Order.Invoice != null)
-                .Where(li => !li.Order!.Invoice!.IsDeleted && !li.Order.Invoice.IsCancelled)
-                .ToListAsync(ct);
-
-            // Filter to requested discounts and count unique invoices per discount
-            var usageCounts = discountLineItems
-                .Where(li => li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id)
-                             && discountIdStrings.Contains(id?.ToString() ?? ""))
-                .GroupBy(li => li.ExtendedData[Constants.ExtendedDataKeys.DiscountId]?.ToString() ?? "")
-                .ToDictionary(
-                    g => Guid.Parse(g.Key),
-                    g => g.Select(li => li.Order!.InvoiceId).Distinct().Count()
-                );
+            var usageCounts = await db.DiscountUsages
+                .AsNoTracking()
+                .Where(u => discountIds.Contains(u.DiscountId))
+                .GroupBy(u => u.DiscountId)
+                .Select(g => new { DiscountId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.DiscountId, x => x.Count, ct);
 
             // Ensure all requested IDs are in the result (with 0 if no usage)
             foreach (var id in discountIds)
@@ -783,31 +758,116 @@ public class DiscountService(
     /// <inheritdoc />
     public async Task<int> GetCustomerUsageCountAsync(Guid discountId, Guid customerId, CancellationToken ct = default)
     {
-        var discountIdString = discountId.ToString();
-
         using var scope = efCoreScopeProvider.CreateScope();
         var count = await scope.ExecuteWithContextAsync(async db =>
-        {
-            // Query discount line items from valid invoices for this customer
-            var discountLineItems = await db.LineItems
-                .Include(li => li.Order)
-                    .ThenInclude(o => o!.Invoice)
-                .Where(li => li.LineItemType == LineItemType.Discount)
-                .Where(li => li.Order != null && li.Order.Invoice != null)
-                .Where(li => !li.Order!.Invoice!.IsDeleted && !li.Order.Invoice.IsCancelled)
-                .Where(li => li.Order!.Invoice!.CustomerId == customerId)
-                .ToListAsync(ct);
-
-            // Filter to specific discount and count unique invoices
-            return discountLineItems
-                .Where(li => li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id)
-                             && id?.ToString() == discountIdString)
-                .Select(li => li.Order!.InvoiceId)
-                .Distinct()
-                .Count();
-        });
+            await db.DiscountUsages
+                .AsNoTracking()
+                .CountAsync(u => u.DiscountId == discountId && u.CustomerId == customerId, ct));
         scope.Complete();
         return count;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> TryRecordUsageAsync(
+        Guid discountId,
+        Guid invoiceId,
+        Guid? customerId,
+        decimal amount,
+        int? totalUsageLimit,
+        int? perCustomerLimit,
+        CancellationToken ct = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        try
+        {
+            var success = await scope.ExecuteWithContextAsync(async db =>
+            {
+                // Check if already recorded (unique constraint will also enforce this)
+                var existingUsage = await db.DiscountUsages
+                    .FirstOrDefaultAsync(u => u.DiscountId == discountId && u.InvoiceId == invoiceId, ct);
+
+                if (existingUsage != null)
+                {
+                    logger.LogWarning("Discount {DiscountId} already recorded for invoice {InvoiceId}", discountId, invoiceId);
+                    return false;
+                }
+
+                // Check total usage limit
+                if (totalUsageLimit.HasValue)
+                {
+                    var currentCount = await db.DiscountUsages
+                        .CountAsync(u => u.DiscountId == discountId, ct);
+
+                    if (currentCount >= totalUsageLimit.Value)
+                    {
+                        logger.LogInformation("Discount {DiscountId} has reached total usage limit of {Limit}",
+                            discountId, totalUsageLimit.Value);
+                        return false;
+                    }
+                }
+
+                // Check per-customer usage limit
+                if (perCustomerLimit.HasValue && customerId.HasValue)
+                {
+                    var customerCount = await db.DiscountUsages
+                        .CountAsync(u => u.DiscountId == discountId && u.CustomerId == customerId.Value, ct);
+
+                    if (customerCount >= perCustomerLimit.Value)
+                    {
+                        logger.LogInformation("Customer {CustomerId} has reached usage limit of {Limit} for discount {DiscountId}",
+                            customerId.Value, perCustomerLimit.Value, discountId);
+                        return false;
+                    }
+                }
+
+                // Record usage
+                var usage = new DiscountUsage
+                {
+                    Id = Guid.NewGuid(),
+                    DiscountId = discountId,
+                    InvoiceId = invoiceId,
+                    CustomerId = customerId,
+                    Amount = amount,
+                    DateCreated = DateTime.UtcNow
+                };
+
+                db.DiscountUsages.Add(usage);
+                await db.SaveChangesAsync(ct);
+
+                logger.LogInformation("Recorded usage of discount {DiscountId} for invoice {InvoiceId}", discountId, invoiceId);
+                return true;
+            });
+
+            scope.Complete();
+            return success;
+        }
+        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) == true ||
+                                            ex.InnerException?.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            // Unique constraint violation - concurrent insert detected
+            logger.LogWarning(ex, "Concurrent usage recording detected for discount {DiscountId} on invoice {InvoiceId}",
+                discountId, invoiceId);
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task RemoveUsageAsync(Guid discountId, Guid invoiceId, CancellationToken ct = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var usage = await db.DiscountUsages
+                .FirstOrDefaultAsync(u => u.DiscountId == discountId && u.InvoiceId == invoiceId, ct);
+
+            if (usage != null)
+            {
+                db.DiscountUsages.Remove(usage);
+                await db.SaveChangesAsync(ct);
+                logger.LogInformation("Removed usage of discount {DiscountId} from invoice {InvoiceId}", discountId, invoiceId);
+            }
+        });
+        scope.Complete();
     }
 
     #endregion

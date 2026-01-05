@@ -180,11 +180,8 @@
                 expressCheckoutElement = element;
 
             } catch (err) {
-                console.error('Failed to initialize Stripe express checkout:', err);
-                var errorSpan = document.createElement('span');
-                errorSpan.className = 'text-red-500 text-sm';
-                errorSpan.textContent = 'Express checkout unavailable';
-                container.replaceChildren(errorSpan);
+                // Silently hide the container on initialization error
+                container.style.display = 'none';
             }
         },
 

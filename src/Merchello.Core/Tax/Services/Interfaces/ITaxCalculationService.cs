@@ -1,0 +1,36 @@
+using Merchello.Core.Tax.Services.Models;
+
+namespace Merchello.Core.Tax.Services.Interfaces;
+
+/// <summary>
+/// Centralized tax calculation service that handles pro-rating of discounts,
+/// proper rounding, and consistent tax algorithms across the application.
+/// </summary>
+public interface ITaxCalculationService
+{
+    /// <summary>
+    /// Calculates tax for line items with proper discount pro-rating.
+    /// This is the single source of truth for tax calculation logic.
+    /// </summary>
+    /// <param name="request">The tax calculation request with line items and discounts</param>
+    /// <param name="currencyCode">Currency code for rounding</param>
+    /// <returns>Tax calculation result with per-item breakdown</returns>
+    TaxCalculationSummary CalculateTax(TaxCalculationInput request, string currencyCode);
+
+    /// <summary>
+    /// Calculates the taxable amount for a single line item after applying
+    /// line-item discount and pro-rated order discount.
+    /// </summary>
+    /// <param name="lineTotal">Total line amount (unit price * quantity)</param>
+    /// <param name="lineItemDiscount">Discount amount applied directly to this line item</param>
+    /// <param name="orderDiscountTotal">Total order-level discount to be pro-rated</param>
+    /// <param name="totalTaxableAmount">Sum of all taxable line item totals (for pro-rating)</param>
+    /// <param name="currencyCode">Currency code for rounding</param>
+    /// <returns>Taxable amount after discounts</returns>
+    decimal CalculateTaxableAmount(
+        decimal lineTotal,
+        decimal lineItemDiscount,
+        decimal orderDiscountTotal,
+        decimal totalTaxableAmount,
+        string currencyCode);
+}

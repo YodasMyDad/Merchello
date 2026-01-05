@@ -52,6 +52,12 @@ export interface PaymentDto {
   refunds?: PaymentDto[];
   /** Calculated refundable amount (original amount minus existing refunds) */
   refundableAmount: number;
+  /** Whether the payment can be refunded via the original provider */
+  canRefundViaProvider: boolean;
+  /** Reason why provider refund is not available (when canRefundViaProvider is false) */
+  cannotRefundViaProviderReason?: string | null;
+  /** Whether the provider supports partial refunds (when canRefundViaProvider is true) */
+  supportsPartialRefunds: boolean;
 }
 
 /** Invoice payment status response */
@@ -154,6 +160,7 @@ export interface OrderListItemDto {
 
 export interface OrderDetailDto {
   id: string;
+  customerId: string;
   invoiceNumber: string;
   dateCreated: string;
   channel: string;
@@ -637,7 +644,10 @@ export interface AddCustomItemDto {
   name: string;
   /** SKU for the custom item */
   sku: string;
+  /** Unit price (selling price) */
   price: number;
+  /** Unit cost (for profit/loss calculations) */
+  cost: number;
   quantity: number;
   /** Tax group ID. If null/undefined, item is not taxable */
   taxGroupId: string | null;

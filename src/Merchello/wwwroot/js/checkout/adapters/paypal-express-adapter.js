@@ -158,11 +158,8 @@
                 renderedButtons[method.methodAlias] = true;
 
             } catch (error) {
-                console.error('Failed to initialize PayPal express checkout:', error);
-                var errorSpan = document.createElement('span');
-                errorSpan.className = 'text-red-500 text-sm';
-                errorSpan.textContent = 'Express checkout unavailable';
-                container.replaceChildren(errorSpan);
+                // Silently hide the container on initialization error
+                container.style.display = 'none';
             }
         },
 

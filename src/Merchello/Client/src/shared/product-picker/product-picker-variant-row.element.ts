@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
-import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
+import { customElement, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import type { PickerVariant } from "./product-picker.types.js";
 import { formatPrice } from "./product-picker.types.js";
@@ -25,6 +25,9 @@ export class MerchelloProductPickerVariantRowElement extends UmbElementMixin(Lit
   @property({ type: Boolean })
   showImage = true;
 
+  @state()
+  private _imageFailed = false;
+
   private _handleClick(): void {
     if (!this.variant.canSelect) return;
 
@@ -49,8 +52,13 @@ export class MerchelloProductPickerVariantRowElement extends UmbElementMixin(Lit
   }
 
   private _renderImage() {
-    if (this.variant.imageUrl) {
-      return html`<img src="${this.variant.imageUrl}" alt="${this.variant.name ?? ""}" class="variant-image" />`;
+    if (this.variant.imageUrl && !this._imageFailed) {
+      return html`<img
+        src="${this.variant.imageUrl}"
+        alt="${this.variant.name ?? ""}"
+        class="variant-image"
+        @error=${() => (this._imageFailed = true)}
+      />`;
     }
     return html`
       <div class="variant-image placeholder">

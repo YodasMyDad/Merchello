@@ -19,4 +19,11 @@ public class ProcessRefundParameters
     /// Reason for the refund
     /// </summary>
     public required string Reason { get; init; }
+
+    /// <summary>
+    /// Idempotency key to prevent duplicate refund processing.
+    /// <para>If provided, the system will reject duplicate requests with the same key
+    /// and return the cached result from the original request.</para>
+    /// </summary>
+    public string? IdempotencyKey { get; init; }
 }

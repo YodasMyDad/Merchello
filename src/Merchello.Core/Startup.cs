@@ -56,6 +56,8 @@ using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Payments.Services;
 using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Shared.RateLimiting;
+using Merchello.Core.Shared.RateLimiting.Interfaces;
 using Merchello.Core.Warehouses.Services;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Storefront.Services;
@@ -63,6 +65,8 @@ using Merchello.Core.Reporting.Services;
 using Merchello.Core.Reporting.Services.Interfaces;
 using Merchello.Core.Tax.Providers;
 using Merchello.Core.Tax.Providers.Interfaces;
+using Merchello.Core.Tax.Services;
+using Merchello.Core.Tax.Services.Interfaces;
 using Merchello.Core.Suppliers.Factories;
 using Merchello.Core.Webhooks.Handlers;
 using Merchello.Core.Webhooks.Models;
@@ -191,16 +195,23 @@ public static class Startup
         builder.Services.AddScoped<IPaymentProviderManager, PaymentProviderManager>();
         builder.Services.AddScoped<IPaymentService, PaymentService>();
         builder.Services.AddScoped<IPaymentLinkService, PaymentLinkService>();
+        builder.Services.AddSingleton<IWebhookSecurityService, WebhookSecurityService>();
+        builder.Services.AddSingleton<IPaymentIdempotencyService, PaymentIdempotencyService>();
+
+        // Shared Services
+        builder.Services.AddSingleton<IRateLimiter, AtomicRateLimiter>();
 
         // Shipping
         builder.Services.AddScoped<IShippingProviderManager, ShippingProviderManager>();
         builder.Services.AddScoped<IShippingQuoteService, ShippingQuoteService>();
         builder.Services.AddScoped<IShippingService, ShippingService>();
         builder.Services.AddScoped<IShippingOptionService, ShippingOptionService>();
+        builder.Services.AddSingleton<IShippingCostResolver, ShippingCostResolver>();
 
         // Tax
         builder.Services.AddScoped<ITaxService, TaxService>();
         builder.Services.AddScoped<ITaxProviderManager, TaxProviderManager>();
+        builder.Services.AddSingleton<ITaxCalculationService, TaxCalculationService>();
 
         // Warehouses & Suppliers
         builder.Services.AddScoped<IWarehouseService, WarehouseService>();

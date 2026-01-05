@@ -10,9 +10,10 @@ using Merchello.Core.Payments.Services;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.RateLimiting;
+using Merchello.Core.Shared.RateLimiting.Interfaces;
 using Merchello.Core.Shared.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -29,7 +30,8 @@ public class PaymentServiceTests
     private readonly Mock<IOptions<MerchelloSettings>> _settingsMock;
     private readonly Mock<ILogger<PaymentService>> _loggerMock;
     private readonly Mock<IMerchelloNotificationPublisher> _notificationPublisherMock;
-    private readonly IMemoryCache _memoryCache;
+    private readonly Mock<IPaymentIdempotencyService> _idempotencyServiceMock;
+    private readonly Mock<IRateLimiter> _rateLimiterMock;
     private readonly CurrencyService _currencyService;
     private readonly PaymentFactory _paymentFactory;
 
@@ -41,13 +43,20 @@ public class PaymentServiceTests
         _settingsMock.Setup(s => s.Value).Returns(new MerchelloSettings());
         _loggerMock = new Mock<ILogger<PaymentService>>();
         _notificationPublisherMock = new Mock<IMerchelloNotificationPublisher>();
-        _memoryCache = new MemoryCache(new MemoryCacheOptions());
+        _idempotencyServiceMock = new Mock<IPaymentIdempotencyService>();
+        _rateLimiterMock = new Mock<IRateLimiter>();
+
+        // Default rate limiter to allow all requests
+        _rateLimiterMock
+            .Setup(r => r.TryAcquire(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TimeSpan>()))
+            .Returns(RateLimitResult.Allowed(1, 10));
+
         _currencyService = new CurrencyService(_settingsMock.Object);
         _paymentFactory = new PaymentFactory(_currencyService);
     }
 
     private PaymentService CreateService() =>
-        new(_providerManagerMock.Object, _scopeProviderMock.Object, _paymentFactory, _currencyService, _notificationPublisherMock.Object, _memoryCache, _settingsMock.Object, _loggerMock.Object);
+        new(_providerManagerMock.Object, _scopeProviderMock.Object, _paymentFactory, _currencyService, _notificationPublisherMock.Object, _rateLimiterMock.Object, _idempotencyServiceMock.Object, _settingsMock.Object, _loggerMock.Object);
 
     #region ProcessRefundAsync Tests
 

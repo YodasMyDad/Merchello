@@ -572,6 +572,7 @@ public class OrdersApiController(
         return new OrderDetailDto
         {
             Id = invoice.Id,
+            CustomerId = invoice.CustomerId,
             InvoiceNumber = invoice.InvoiceNumber,
             DateCreated = invoice.DateCreated,
             Channel = invoice.Channel,

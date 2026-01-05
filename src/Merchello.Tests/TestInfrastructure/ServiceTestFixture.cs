@@ -202,6 +202,7 @@ public class ServiceTestFixture : IDisposable
         mockWebHostEnvironment.Setup(e => e.WebRootFileProvider).Returns(new NullFileProvider());
         services.AddSingleton(mockWebHostEnvironment.Object);
 
+        services.AddSingleton<IShippingCostResolver, ShippingCostResolver>();
         services.AddScoped<IShippingService, ShippingService>();
         services.AddScoped<ITaxService, TaxService>();
 
