@@ -113,57 +113,6 @@ export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement
     });
   }
 
-  private _getActiveProvider(): TaxProviderDto | undefined {
-    return this._providers.find(p => p.isActive);
-  }
-
-  private _renderStatusBox(): unknown {
-    const activeProvider = this._getActiveProvider();
-
-    return html`
-      <uui-box>
-        <div class="status-header">
-          <div class="status-title">
-            <uui-icon name="icon-calculator"></uui-icon>
-            <span>Tax Calculation Status</span>
-          </div>
-        </div>
-
-        <div class="status-grid">
-          <div class="status-card">
-            <div class="status-card-icon">
-              <uui-icon name="icon-server-alt"></uui-icon>
-            </div>
-            <div class="status-card-content">
-              <span class="status-card-label">Active Provider</span>
-              <span class="status-card-value">${activeProvider?.displayName ?? "None configured"}</span>
-            </div>
-          </div>
-
-          <div class="status-card">
-            <div class="status-card-icon">
-              <uui-icon name="icon-cloud"></uui-icon>
-            </div>
-            <div class="status-card-content">
-              <span class="status-card-label">Calculation Type</span>
-              <span class="status-card-value">${activeProvider?.supportsRealTimeCalculation ? "Real-time API" : "Manual Rates"}</span>
-            </div>
-          </div>
-
-          <div class="status-card">
-            <div class="status-card-icon">
-              <uui-icon name="icon-key"></uui-icon>
-            </div>
-            <div class="status-card-content">
-              <span class="status-card-label">API Credentials</span>
-              <span class="status-card-value">${activeProvider?.requiresApiCredentials ? "Required" : "Not Required"}</span>
-            </div>
-          </div>
-        </div>
-      </uui-box>
-    `;
-  }
-
   private _renderProvider(provider: TaxProviderDto): unknown {
     return html`
       <div class="provider-card ${provider.isActive ? "active" : ""}">
@@ -265,8 +214,6 @@ export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="content">
-          ${this._renderStatusBox()}
-
           <uui-box headline="Available Providers">
             <p class="section-description">
               Select which tax provider to use for tax calculations.
@@ -321,81 +268,6 @@ export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
-    }
-
-    /* Status Box */
-    .status-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: var(--uui-size-space-5);
-      padding-bottom: var(--uui-size-space-4);
-      border-bottom: 1px solid var(--uui-color-border);
-    }
-
-    .status-title {
-      display: flex;
-      align-items: center;
-      gap: var(--uui-size-space-3);
-      font-size: 1.1rem;
-      font-weight: 600;
-    }
-
-    .status-title uui-icon {
-      font-size: 1.25rem;
-      color: var(--uui-color-interactive);
-    }
-
-    .status-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: var(--uui-size-space-4);
-    }
-
-    .status-card {
-      display: flex;
-      align-items: flex-start;
-      gap: var(--uui-size-space-3);
-      padding: var(--uui-size-space-4);
-      background: var(--uui-color-surface-alt);
-      border-radius: var(--uui-border-radius);
-    }
-
-    .status-card-icon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 40px;
-      height: 40px;
-      background: var(--uui-color-surface);
-      border-radius: var(--uui-border-radius);
-      flex-shrink: 0;
-    }
-
-    .status-card-icon uui-icon {
-      font-size: 1.25rem;
-      color: var(--uui-color-interactive);
-    }
-
-    .status-card-content {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      min-width: 0;
-    }
-
-    .status-card-label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--uui-color-text-alt);
-      text-transform: uppercase;
-      letter-spacing: 0.025em;
-    }
-
-    .status-card-value {
-      font-size: 1.125rem;
-      font-weight: 700;
-      color: var(--uui-color-text);
     }
 
     /* Provider Cards */

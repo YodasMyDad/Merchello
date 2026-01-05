@@ -27,6 +27,7 @@ using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Locality.Services.Interfaces;
+using Merchello.Core.Shared.Models.Enums;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -49,6 +50,7 @@ public class CheckoutService(
     IInvoiceService invoiceService,
     ICacheService cacheService,
     ILocalityCatalog localityCatalog,
+    ICheckoutSessionService checkoutSessionService,
     IDiscountEngine? discountEngine = null,
     IDiscountService? discountService = null,
     ILocationsService? locationsService = null) : ICheckoutService
@@ -174,8 +176,27 @@ public class CheckoutService(
     }
 
     /// <summary>
-    /// Calculate the basket if there are any changes
+    /// Calculates basket totals including subtotal, tax, shipping, and discounts.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Tax Preview vs Final Order:</strong> This method uses a simplified tax calculation
+    /// with the provided <c>DefaultTaxRate</c> parameter for performance during checkout preview.
+    /// The final order (created via <see cref="IInvoiceService.CreateOrderFromBasketAsync"/>)
+    /// uses the active tax provider (e.g., Avalara, TaxJar) for accurate, address-based tax calculation.
+    /// </para>
+    /// <para>
+    /// With external tax providers, the preview tax amount may differ from the final order tax.
+    /// This is expected behavior as external providers calculate precise tax based on:
+    /// - Exact shipping address (street-level precision)
+    /// - Product tax categories
+    /// - Current tax rates from tax authority databases
+    /// </para>
+    /// <para>
+    /// For high-value carts or jurisdictions with complex tax rules, consider calling
+    /// the tax provider during preview if exact tax amounts are required before order confirmation.
+    /// </para>
+    /// </remarks>
     /// <param name="parameters">Parameters for calculating the basket</param>
     /// <param name="cancellationToken">Cancellation token</param>
     public async Task CalculateBasketAsync(CalculateBasketParameters parameters, CancellationToken cancellationToken = default)
@@ -999,7 +1020,113 @@ public class CheckoutService(
     }
 
     /// <inheritdoc />
-    public async Task<Basket> SaveShippingSelectionsAsync(
+    public async Task<CrudResult<Basket>> SaveAddressesAsync(
+        SaveAddressesParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var basket = parameters.Basket;
+        var result = new CrudResult<Basket>();
+
+        // Map DTOs to Address models
+        var billingAddress = MapDtoToAddress(parameters.BillingAddress);
+        billingAddress.Email = parameters.Email;
+
+        var shippingAddress = parameters.ShippingSameAsBilling
+            ? billingAddress
+            : MapDtoToAddress(parameters.ShippingAddress ?? parameters.BillingAddress);
+
+        if (!parameters.ShippingSameAsBilling && parameters.ShippingAddress != null)
+        {
+            shippingAddress.Email = parameters.Email;
+        }
+
+        // Publish "Before" notification - handlers can cancel or modify addresses
+        var changingNotification = new CheckoutAddressesChangingNotification(
+            basket, billingAddress, shippingAddress, parameters.ShippingSameAsBilling);
+
+        if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = changingNotification.CancelReason ?? "Address change cancelled",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        // Use potentially modified addresses from handlers
+        billingAddress = changingNotification.BillingAddress;
+        shippingAddress = changingNotification.ShippingAddress;
+
+        // Update basket addresses
+        basket.BillingAddress = billingAddress;
+        basket.ShippingAddress = shippingAddress;
+        basket.DateUpdated = DateTime.UtcNow;
+
+        // Recalculate with the new shipping address country
+        await CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = shippingAddress.CountryCode
+        }, cancellationToken);
+
+        // Apply automatic discounts (e.g., "Free shipping in UK", "10% off orders over £100")
+        basket = await RefreshAutomaticDiscountsAsync(basket, shippingAddress.CountryCode, cancellationToken);
+
+        // Save to database
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            db.Baskets.Update(basket);
+            await db.SaveChangesAsync(cancellationToken);
+        });
+        scope.Complete();
+
+        // Update HTTP session
+        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
+
+        // Update checkout session
+        await checkoutSessionService.SaveAddressesAsync(
+            basket.Id,
+            billingAddress,
+            shippingAddress,
+            parameters.ShippingSameAsBilling,
+            cancellationToken);
+
+        await checkoutSessionService.SetCurrentStepAsync(basket.Id, CheckoutStep.Shipping, cancellationToken);
+
+        // Publish "After" notification
+        await notificationPublisher.PublishAsync(
+            new CheckoutAddressesChangedNotification(basket, billingAddress, shippingAddress, parameters.ShippingSameAsBilling),
+            cancellationToken);
+
+        result.ResultObject = basket;
+        return result;
+    }
+
+    private static Locality.Models.Address MapDtoToAddress(CheckoutAddressDto dto)
+    {
+        return new Locality.Models.Address
+        {
+            Name = dto.Name,
+            Company = dto.Company,
+            AddressOne = dto.Address1,
+            AddressTwo = dto.Address2,
+            TownCity = dto.City,
+            CountyState = new CountyState
+            {
+                Name = dto.State,
+                RegionCode = dto.StateCode
+            },
+            PostalCode = dto.PostalCode,
+            Country = dto.Country,
+            CountryCode = dto.CountryCode,
+            Phone = dto.Phone
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<CrudResult<Basket>> SaveShippingSelectionsAsync(
         SaveShippingSelectionsParameters parameters,
         CancellationToken cancellationToken = default)
     {
@@ -1007,6 +1134,23 @@ public class CheckoutService(
         var session = parameters.Session;
         var selections = parameters.Selections;
         var deliveryDates = parameters.DeliveryDates;
+
+        // Publish "Before" notification - handlers can cancel or modify selections
+        var changingNotification = new ShippingSelectionChangingNotification(basket, new Dictionary<Guid, Guid>(selections));
+
+        if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
+        {
+            var result = new CrudResult<Basket>();
+            result.Messages.Add(new ResultMessage
+            {
+                Message = changingNotification.CancelReason ?? "Shipping selection change cancelled",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        // Use potentially modified selections from handlers
+        selections = changingNotification.ShippingSelections;
 
         // Update session with selections
         session.SelectedShippingOptions = selections;
@@ -1020,7 +1164,12 @@ public class CheckoutService(
 
         if (!groupingResult.Success)
         {
-            return basket;
+            var result = new CrudResult<Basket>();
+            foreach (var error in groupingResult.Errors)
+            {
+                result.Messages.Add(new ResultMessage { Message = error, ResultMessageType = ResultMessageType.Error });
+            }
+            return result;
         }
 
         // Calculate total shipping cost from selected options
@@ -1050,7 +1199,40 @@ public class CheckoutService(
             CountryCode = session.ShippingAddress.CountryCode
         }, cancellationToken);
 
-        return basket;
+        // Refresh automatic discounts (shipping costs may affect free shipping thresholds)
+        basket = await RefreshAutomaticDiscountsAsync(
+            basket,
+            session.ShippingAddress.CountryCode,
+            cancellationToken);
+
+        // Save basket to database
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            db.Baskets.Update(basket);
+            await db.SaveChangesAsync(cancellationToken);
+        });
+        scope.Complete();
+
+        // Update HTTP session
+        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
+
+        // Persist shipping selections to checkout session
+        await checkoutSessionService.SaveShippingSelectionsAsync(
+            basket.Id,
+            selections,
+            deliveryDates,
+            cancellationToken);
+
+        // Set checkout step to Payment
+        await checkoutSessionService.SetCurrentStepAsync(basket.Id, CheckoutStep.Payment, cancellationToken);
+
+        // Publish "After" notification
+        await notificationPublisher.PublishAsync(
+            new ShippingSelectionChangedNotification(basket, selections),
+            cancellationToken);
+
+        return new CrudResult<Basket> { ResultObject = basket };
     }
 
     // Order Confirmation Methods

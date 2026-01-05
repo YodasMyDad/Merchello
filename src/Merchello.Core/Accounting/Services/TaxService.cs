@@ -205,7 +205,7 @@ public class TaxService(
 
     /// <summary>
     /// Gets the applicable tax rate for a tax group at a specific location.
-    /// Lookup priority: State-specific -> Country-level -> Zero (0%)
+    /// Lookup priority: State-specific -> Country-level -> TaxGroup default rate
     /// </summary>
     public async Task<decimal> GetApplicableRateAsync(
         Guid taxGroupId,
@@ -246,8 +246,12 @@ public class TaxService(
             if (countryRate != null)
                 return countryRate.TaxPercentage;
 
-            // Priority 3: Fallback to zero
-            return 0m;
+            // Priority 3: Fallback to TaxGroup's default rate
+            var taxGroup = await db.TaxGroups
+                .AsNoTracking()
+                .FirstOrDefaultAsync(tg => tg.Id == taxGroupId, cancellationToken);
+
+            return taxGroup?.TaxPercentage ?? 0m;
         });
 
         scope.Complete();

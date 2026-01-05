@@ -31,7 +31,6 @@ export const MERCHELLO_PRODUCT_TYPES_ENTITY_TYPE = "merchello-product-types";
 export const MERCHELLO_PRODUCT_FEED_ENTITY_TYPE = "merchello-product-feed";
 export const MERCHELLO_ANALYTICS_ENTITY_TYPE = "merchello-analytics";
 export const MERCHELLO_DISCOUNTS_ENTITY_TYPE = "merchello-discounts";
-export const MERCHELLO_TAX_ENTITY_TYPE = "merchello-tax";
 export const MERCHELLO_SUPPLIERS_ENTITY_TYPE = "merchello-suppliers";
 export const MERCHELLO_WAREHOUSES_ENTITY_TYPE = "merchello-warehouses";
 export const MERCHELLO_PROVIDERS_ENTITY_TYPE = "merchello-providers";

@@ -1185,10 +1185,10 @@ public class WarehouseService(
 
     private static string BuildRegionDisplay(string countryCode, string? stateOrProvinceCode)
     {
-        // For now, just return the codes - frontend can enhance with full names
+        // Returns ISO 3166-2 format (e.g., "US-CA", "GB-ENG")
         if (string.IsNullOrWhiteSpace(stateOrProvinceCode))
             return countryCode;
-        return $"{stateOrProvinceCode}, {countryCode}";
+        return $"{countryCode}-{stateOrProvinceCode}";
     }
 
     #endregion

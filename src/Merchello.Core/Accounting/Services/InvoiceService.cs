@@ -420,43 +420,27 @@ public class InvoiceService(
 
     private decimal CalculateShippingCost(ShippingOption shippingOption, Merchello.Core.Locality.Models.Address shippingAddress)
     {
-        // If fixed cost is set, use that
-        if (shippingOption.FixedCost.HasValue)
+        var countryCode = shippingAddress.CountryCode;
+        if (string.IsNullOrEmpty(countryCode))
         {
-            return shippingOption.FixedCost.Value;
+            logger.LogWarning("No country code provided for shipping cost calculation for option {OptionId}",
+                shippingOption.Id);
+            return 0;
         }
 
-        // Look up cost based on shipping address
-        if (shippingOption.ShippingCosts?.Any() == true)
+        var stateOrProvinceCode = shippingAddress.CountyState?.RegionCode;
+        var cost = shippingService.GetShippingCostForDestination(
+            shippingOption,
+            countryCode,
+            stateOrProvinceCode);
+
+        if (cost.HasValue)
         {
-            var stateOrProvinceCode = shippingAddress.CountyState?.RegionCode;
-
-            // Try to find state-specific cost first
-            var stateCost = shippingOption.ShippingCosts
-                .FirstOrDefault(sc =>
-                    sc.CountryCode == shippingAddress.CountryCode &&
-                    !string.IsNullOrEmpty(sc.StateOrProvinceCode) &&
-                    sc.StateOrProvinceCode == stateOrProvinceCode);
-
-            if (stateCost != null)
-            {
-                return stateCost.Cost;
-            }
-
-            // Fall back to country-level cost
-            var countryCost = shippingOption.ShippingCosts
-                .FirstOrDefault(sc =>
-                    sc.CountryCode == shippingAddress.CountryCode &&
-                    string.IsNullOrEmpty(sc.StateOrProvinceCode));
-
-            if (countryCost != null)
-            {
-                return countryCost.Cost;
-            }
+            return cost.Value;
         }
 
         logger.LogWarning("No shipping cost configured for option {OptionId} to {Country}/{State}",
-            shippingOption.Id, shippingAddress.CountryCode, shippingAddress.CountyState?.RegionCode);
+            shippingOption.Id, countryCode, stateOrProvinceCode);
 
         return 0;
     }
@@ -2982,7 +2966,7 @@ public class InvoiceService(
 
                         foreach (var customItem in group)
                         {
-                            var lineItem = await CreateCustomLineItemAsync(db, targetOrder.Id, customItem, cancellationToken);
+                            var lineItem = await CreateCustomLineItemAsync(db, targetOrder.Id, customItem, invoice.ShippingAddress, cancellationToken);
                             targetOrder.LineItems.Add(lineItem);
                             db.LineItems.Add(lineItem);
                             changes.Add($"Added custom item: {customItem.Name}");
@@ -3017,7 +3001,7 @@ public class InvoiceService(
 
                         foreach (var customItem in nonPhysicalItems)
                         {
-                            var lineItem = await CreateCustomLineItemAsync(db, targetOrder.Id, customItem, cancellationToken);
+                            var lineItem = await CreateCustomLineItemAsync(db, targetOrder.Id, customItem, invoice.ShippingAddress, cancellationToken);
                             targetOrder.LineItems.Add(lineItem);
                             db.LineItems.Add(lineItem);
                             changes.Add($"Added custom item: {customItem.Name}");
@@ -3807,11 +3791,13 @@ public class InvoiceService(
 
     /// <summary>
     /// Creates a custom line item from the DTO, looking up tax group info if needed.
+    /// Uses centralized geographic tax rate lookup when shipping address is available.
     /// </summary>
     private async Task<LineItem> CreateCustomLineItemAsync(
         MerchelloDbContext db,
         Guid orderId,
         AddCustomItemDto customItem,
+        Address? shippingAddress,
         CancellationToken cancellationToken)
     {
         decimal taxRate = 0;
@@ -3826,8 +3812,22 @@ public class InvoiceService(
 
             if (taxGroup != null)
             {
-                taxRate = taxGroup.TaxPercentage;
                 taxGroupName = taxGroup.Name;
+
+                // Use centralized geographic lookup if address available
+                if (!string.IsNullOrWhiteSpace(shippingAddress?.CountryCode))
+                {
+                    taxRate = await taxService.GetApplicableRateAsync(
+                        customItem.TaxGroupId.Value,
+                        shippingAddress.CountryCode,
+                        shippingAddress.CountyState?.RegionCode,
+                        cancellationToken);
+                }
+                else
+                {
+                    // Fallback to base rate if no address
+                    taxRate = taxGroup.TaxPercentage;
+                }
             }
             else
             {

@@ -101,5 +101,18 @@ public interface IShippingService
     Task<ProductFulfillmentOptionsDto> GetDefaultFulfillingWarehouseAsync(
         Guid productId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the shipping cost for a shipping option to a specific destination.
+    /// Lookup priority: State-specific cost → Country-level cost → Fixed cost.
+    /// </summary>
+    /// <param name="shippingOption">The shipping option with its costs</param>
+    /// <param name="countryCode">Destination country code</param>
+    /// <param name="stateOrProvinceCode">Optional destination state/province code</param>
+    /// <returns>The shipping cost, or null if no cost is configured</returns>
+    decimal? GetShippingCostForDestination(
+        ShippingOption shippingOption,
+        string countryCode,
+        string? stateOrProvinceCode);
 }
 

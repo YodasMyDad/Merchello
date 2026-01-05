@@ -1,58 +1,24 @@
-import { MERCHELLO_TAX_ENTITY_TYPE } from "@tree/types/tree.types.js";
-
 export const manifests: Array<UmbExtensionManifest> = [
   // ============================================
-  // Tax Workspace
+  // Tax Providers (under Providers workspace)
   // ============================================
 
-  // Workspace for tax (when clicking "Tax" in tree)
-  {
-    type: "workspace",
-    kind: "routable",
-    alias: "Merchello.Tax.Workspace",
-    name: "Merchello Tax Workspace",
-    api: () => import("./contexts/tax-workspace.context.js"),
-    meta: {
-      entityType: MERCHELLO_TAX_ENTITY_TYPE,
-    },
-  },
-
-  // Workspace view for tax groups list
+  // Workspace view for tax providers list (appears as "Tax" tab in Providers workspace)
   {
     type: "workspaceView",
-    alias: "Merchello.Tax.Workspace.View",
-    name: "Merchello Tax Groups View",
-    js: () => import("./components/tax-workspace.element.js"),
-    weight: 100,
+    alias: "Merchello.Providers.TaxProviders.View",
+    name: "Tax Providers View",
+    js: () => import("./components/tax-providers-list.element.js"),
+    weight: 85,
     meta: {
-      label: "Tax Groups",
-      pathname: "tax-groups",
+      label: "Tax",
+      pathname: "tax",
       icon: "icon-calculator",
     },
     conditions: [
       {
         alias: "Umb.Condition.WorkspaceAlias",
-        match: "Merchello.Tax.Workspace",
-      },
-    ],
-  },
-
-  // Workspace view for tax providers
-  {
-    type: "workspaceView",
-    alias: "Merchello.Tax.Providers.View",
-    name: "Merchello Tax Providers View",
-    js: () => import("./components/tax-providers-list.element.js"),
-    weight: 90,
-    meta: {
-      label: "Providers",
-      pathname: "providers",
-      icon: "icon-server-alt",
-    },
-    conditions: [
-      {
-        alias: "Umb.Condition.WorkspaceAlias",
-        match: "Merchello.Tax.Workspace",
+        match: "Merchello.Providers.Workspace",
       },
     ],
   },

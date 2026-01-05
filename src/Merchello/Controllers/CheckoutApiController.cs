@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Merchello.Core;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Dtos;
@@ -7,7 +6,6 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Checkout.Strategies.Models;
-using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
@@ -15,7 +13,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Controllers;
 
@@ -24,17 +21,15 @@ namespace Merchello.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/merchello/checkout")]
-public partial class CheckoutApiController(
+public class CheckoutApiController(
     ICheckoutService checkoutService,
     ICheckoutSessionService checkoutSessionService,
-    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    ICheckoutValidator checkoutValidator,
     IHttpContextAccessor httpContextAccessor,
     IOptions<MerchelloSettings> merchelloSettings,
-    IOptions<CheckoutSettings> checkoutSettings,
     ILogger<CheckoutApiController> logger) : ControllerBase
 {
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
-    private readonly CheckoutSettings _checkoutSettings = checkoutSettings.Value;
 
     /// <summary>
     /// Get the current basket with formatted totals.
@@ -117,7 +112,7 @@ public partial class CheckoutApiController(
     public async Task<IActionResult> SaveAddresses([FromBody] SaveAddressesRequestDto request, CancellationToken ct)
     {
         // Validation
-        var errors = ValidateAddressRequest(request);
+        var errors = checkoutValidator.ValidateAddressRequest(request);
         if (errors.Count > 0)
         {
             return BadRequest(new SaveAddressesResponseDto
@@ -138,55 +133,28 @@ public partial class CheckoutApiController(
             });
         }
 
-        // Map DTOs to Address models
-        var billingAddress = MapDtoToAddress(request.BillingAddress);
-        billingAddress.Email = request.Email;
-
-        var shippingAddress = request.ShippingSameAsBilling
-            ? billingAddress
-            : MapDtoToAddress(request.ShippingAddress ?? request.BillingAddress);
-
-        if (!request.ShippingSameAsBilling && request.ShippingAddress != null)
-        {
-            shippingAddress.Email = request.Email;
-        }
-
-        // Update basket addresses
-        basket.BillingAddress = billingAddress;
-        basket.ShippingAddress = shippingAddress;
-        basket.DateUpdated = DateTime.UtcNow;
-
-        // Recalculate with the new shipping address country
-        await checkoutService.CalculateBasketAsync(new CalculateBasketParameters
+        // Delegate to service (handles address mapping, calculation, DB save, and session updates)
+        var result = await checkoutService.SaveAddressesAsync(new SaveAddressesParameters
         {
             Basket = basket,
-            CountryCode = shippingAddress.CountryCode
+            Email = request.Email,
+            BillingAddress = request.BillingAddress,
+            ShippingAddress = request.ShippingAddress,
+            ShippingSameAsBilling = request.ShippingSameAsBilling
         }, ct);
 
-        // Apply automatic discounts (e.g., "Free shipping in UK", "10% off orders over £100")
-        basket = await checkoutService.RefreshAutomaticDiscountsAsync(basket, shippingAddress.CountryCode, ct);
-
-        // Save to database
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        if (!result.Successful)
         {
-            db.Baskets.Update(basket);
-            await db.SaveChangesAsync(ct);
-        });
-        scope.Complete();
+            var errorMessage = result.Messages
+                .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
+                ?? "Failed to save addresses.";
 
-        // Update session
-        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
-
-        // Update checkout session
-        await checkoutSessionService.SaveAddressesAsync(
-            basket.Id,
-            billingAddress,
-            shippingAddress,
-            request.ShippingSameAsBilling,
-            ct);
-
-        await checkoutSessionService.SetCurrentStepAsync(basket.Id, CheckoutStep.Shipping, ct);
+            return BadRequest(new SaveAddressesResponseDto
+            {
+                Success = false,
+                Message = errorMessage
+            });
+        }
 
         logger.LogInformation("Addresses saved for basket {BasketId}", basket.Id);
 
@@ -194,7 +162,7 @@ public partial class CheckoutApiController(
         {
             Success = true,
             Message = "Addresses saved successfully.",
-            Basket = MapBasketToDto(basket)
+            Basket = MapBasketToDto(result.ResultObject!)
         });
     }
 
@@ -379,8 +347,8 @@ public partial class CheckoutApiController(
             });
         }
 
-        // Save shipping selections
-        basket = await checkoutService.SaveShippingSelectionsAsync(new SaveShippingSelectionsParameters
+        // Delegate to service (handles calculation, discounts, DB save, and session updates)
+        var saveResult = await checkoutService.SaveShippingSelectionsAsync(new SaveShippingSelectionsParameters
         {
             Basket = basket,
             Session = session,
@@ -388,42 +356,32 @@ public partial class CheckoutApiController(
             DeliveryDates = request.DeliveryDates
         }, ct);
 
-        // Refresh automatic discounts (shipping costs may affect free shipping thresholds)
-        basket = await checkoutService.RefreshAutomaticDiscountsAsync(
-            basket,
-            basket.ShippingAddress?.CountryCode,
-            ct);
-
-        // Save basket to database
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        if (!saveResult.Successful)
         {
-            db.Baskets.Update(basket);
-            await db.SaveChangesAsync(ct);
-        });
-        scope.Complete();
+            var errorMessage = saveResult.Messages
+                .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
+                ?? "Failed to save shipping selections.";
 
-        // Update basket session
-        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
+            return Ok(new SelectShippingResponseDto
+            {
+                Success = false,
+                Message = errorMessage
+            });
+        }
 
-        // Persist shipping selections to checkout session
-        await checkoutSessionService.SaveShippingSelectionsAsync(basket.Id, request.Selections, request.DeliveryDates, ct);
-
-        // Set checkout step to Payment
-        await checkoutSessionService.SetCurrentStepAsync(basket.Id, CheckoutStep.Payment, ct);
-
+        var updatedBasket = saveResult.ResultObject!;
         logger.LogInformation("Shipping selections saved for basket {BasketId}", basket.Id);
 
         // Re-fetch groups with updated selections
         var updatedSession = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
-        var updatedGroupingResult = await checkoutService.GetOrderGroupsAsync(basket, updatedSession, ct);
-        var currencySymbol = basket.CurrencySymbol ?? _settings.CurrencySymbol;
+        var updatedGroupingResult = await checkoutService.GetOrderGroupsAsync(updatedBasket, updatedSession, ct);
+        var currencySymbol = updatedBasket.CurrencySymbol ?? _settings.CurrencySymbol;
 
         return Ok(new SelectShippingResponseDto
         {
             Success = true,
             Message = "Shipping selections saved successfully.",
-            Basket = MapBasketToDto(basket),
+            Basket = MapBasketToDto(updatedBasket),
             ShippingGroups = MapOrderGroupsToDto(updatedGroupingResult, currencySymbol, updatedSession.SelectedShippingOptions)
         });
     }
@@ -490,73 +448,6 @@ public partial class CheckoutApiController(
     }
 
     #region Private Helpers
-
-    private Dictionary<string, string> ValidateAddressRequest(SaveAddressesRequestDto request)
-    {
-        var errors = new Dictionary<string, string>();
-
-        // Email validation
-        if (string.IsNullOrWhiteSpace(request.Email))
-        {
-            errors["email"] = "Email is required.";
-        }
-        else if (!EmailRegex().IsMatch(request.Email))
-        {
-            errors["email"] = "Please enter a valid email address.";
-        }
-
-        // Billing address validation
-        if (request.BillingAddress == null)
-        {
-            errors["billingAddress"] = "Billing address is required.";
-        }
-        else
-        {
-            ValidateAddress(request.BillingAddress, "billing", errors);
-        }
-
-        // Shipping address validation (if not same as billing)
-        if (!request.ShippingSameAsBilling && request.ShippingAddress != null)
-        {
-            ValidateAddress(request.ShippingAddress, "shipping", errors);
-        }
-
-        return errors;
-    }
-
-    private void ValidateAddress(CheckoutAddressDto address, string prefix, Dictionary<string, string> errors)
-    {
-        if (string.IsNullOrWhiteSpace(address.Name))
-        {
-            errors[$"{prefix}.name"] = "Name is required.";
-        }
-
-        if (string.IsNullOrWhiteSpace(address.Address1))
-        {
-            errors[$"{prefix}.address1"] = "Address is required.";
-        }
-
-        if (string.IsNullOrWhiteSpace(address.City))
-        {
-            errors[$"{prefix}.city"] = "City is required.";
-        }
-
-        if (string.IsNullOrWhiteSpace(address.CountryCode))
-        {
-            errors[$"{prefix}.countryCode"] = "Country is required.";
-        }
-
-        if (string.IsNullOrWhiteSpace(address.PostalCode))
-        {
-            errors[$"{prefix}.postalCode"] = "Postal code is required.";
-        }
-
-        // Optional: Validate phone if required by settings
-        if (_checkoutSettings.RequirePhone && string.IsNullOrWhiteSpace(address.Phone))
-        {
-            errors[$"{prefix}.phone"] = "Phone number is required.";
-        }
-    }
 
     private CheckoutBasketDto MapBasketToDto(Basket basket)
     {
@@ -649,27 +540,6 @@ public partial class CheckoutApiController(
         };
     }
 
-    private static Address MapDtoToAddress(CheckoutAddressDto dto)
-    {
-        return new Address
-        {
-            Name = dto.Name,
-            Company = dto.Company,
-            AddressOne = dto.Address1,
-            AddressTwo = dto.Address2,
-            TownCity = dto.City,
-            CountyState = new CountyState
-            {
-                Name = dto.State,
-                RegionCode = dto.StateCode
-            },
-            PostalCode = dto.PostalCode,
-            Country = dto.Country,
-            CountryCode = dto.CountryCode,
-            Phone = dto.Phone
-        };
-    }
-
     private static string FormatPrice(decimal price, string currencySymbol)
     {
         return $"{currencySymbol}{price:N2}";
@@ -711,9 +581,6 @@ public partial class CheckoutApiController(
                 : group.SelectedShippingOptionId
         }).ToList();
     }
-
-    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.IgnoreCase)]
-    private static partial Regex EmailRegex();
 
     #endregion
 }

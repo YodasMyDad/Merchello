@@ -199,12 +199,24 @@ public interface ICheckoutService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Saves shipping selections to the checkout session and updates basket totals.
+    /// Saves billing and shipping addresses to the basket, recalculates totals,
+    /// refreshes automatic discounts, and persists to the database.
+    /// </summary>
+    /// <param name="parameters">Parameters for saving addresses</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result with updated basket or error.</returns>
+    Task<CrudResult<Basket>> SaveAddressesAsync(
+        SaveAddressesParameters parameters,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Saves shipping selections to the checkout session, updates basket totals,
+    /// refreshes automatic discounts, and persists to the database.
     /// </summary>
     /// <param name="parameters">Parameters for saving shipping selections</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Updated basket with shipping costs applied.</returns>
-    Task<Basket> SaveShippingSelectionsAsync(
+    /// <returns>Result with updated basket or error.</returns>
+    Task<CrudResult<Basket>> SaveShippingSelectionsAsync(
         SaveShippingSelectionsParameters parameters,
         CancellationToken cancellationToken = default);
 

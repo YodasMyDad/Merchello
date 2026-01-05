@@ -59,6 +59,18 @@ FACTORIES → All object creation, stateless singletons
 | Countries for warehouse | `ILocationsService.GetAvailableCountriesForWarehouseAsync()` |
 | Regions for warehouse | `ILocationsService.GetAvailableRegionsForWarehouseAsync()` |
 
+**Locality Data Source**: Country/province data is generated from [country-region-data](https://github.com/country-regions/country-region-data) and stored in `LocalityData.cs`.
+
+To regenerate: `node scripts/generate-locality-data.js`
+
+| Aspect | Details |
+|--------|---------|
+| Countries | 249 (from .NET CultureInfo + Crown Dependencies: JE, GG, IM) |
+| Subdivisions | 624 entries across 30 countries |
+| UK | ENG, SCT, WLS, NIR, BFP (British Forces) |
+| US | 50 states + DC + territories + military postal codes |
+| Code format | Internal: suffix-only (`ENG`, `CA`); Display: ISO 3166-2 (`GB-ENG`, `US-CA`) |
+
 #### Checkout
 | Operation | Service.Method |
 |-----------|----------------|
@@ -181,7 +193,7 @@ Feature/
 └── ExtensionMethods/
 ```
 
-**Modules**: Accounting, Checkout, Customers, Discounts, Products, Shipping, Payments, Suppliers, Warehouses, Locality, Notifications, Stores
+**Modules**: Accounting, Checkout, Customers, Discounts, Products, Shipping, Payments, Suppliers, Warehouses, Locality, Notifications, Stores, Webhooks
 
 ## 3. Entity Relationships
 
@@ -211,6 +223,8 @@ Invoice →1:N→ Order →1:N→ Shipment (N:1 Warehouse)
        →1:N→ Payment
 
 Order →1:N→ LineItems
+
+WebhookSubscription →1:N→ WebhookDelivery (cascade delete)
 ```
 
 ## 4. Provider Systems
@@ -364,7 +378,103 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 
 **Priority** `[NotificationHandlerPriority(n)]`: 100=validation, 500=modification, 1000=default, 2000=external sync
 
-## 9. Services
+## 9. Webhooks
+
+Outbound webhook system for external integrations (similar to Shopify webhooks).
+
+### Architecture
+```
+Internal Notification → WebhookNotificationHandler (priority 2000)
+                              ↓
+                        IWebhookService.QueueDeliveryAsync()
+                              ↓
+                        WebhookDispatcher → HTTP POST → External Endpoint
+                              ↓
+                        WebhookDelivery (stored for audit/retry)
+                              ↓
+                        WebhookDeliveryJob (background retry processor)
+```
+
+### Components
+| Component | Responsibility |
+|-----------|----------------|
+| `WebhookSubscription` | Stores endpoint URL, topic, auth config, statistics |
+| `WebhookDelivery` | Delivery attempt record with request/response |
+| `IWebhookService` | CRUD for subscriptions, queue/retry delivery |
+| `IWebhookDispatcher` | HTTP client with HMAC signing |
+| `IWebhookTopicRegistry` | Available topics with metadata |
+| `WebhookNotificationHandler` | Bridges notifications to webhooks |
+| `WebhookDeliveryJob` | Background retry processor |
+
+### Topics
+| Category | Topics |
+|----------|--------|
+| Orders | `order.created`, `order.updated`, `order.status_changed`, `order.cancelled` |
+| Invoices | `invoice.created`, `invoice.paid`, `invoice.refunded` |
+| Products | `product.created`, `product.updated`, `product.deleted` |
+| Customers | `customer.created`, `customer.updated`, `customer.deleted` |
+| Shipments | `shipment.created`, `shipment.updated` |
+| Discounts | `discount.created`, `discount.updated`, `discount.deleted` |
+| Inventory | `inventory.adjusted`, `inventory.low_stock`, `inventory.reserved`, `inventory.allocated` |
+
+### Authentication Types
+| Type | Description |
+|------|-------------|
+| `HmacSha256` | HMAC-SHA256 signature in `X-Merchello-Signature` header (default) |
+| `HmacSha512` | HMAC-SHA512 signature |
+| `BearerToken` | Bearer token in Authorization header |
+| `ApiKey` | Custom header with API key |
+| `BasicAuth` | Basic authentication |
+| `None` | No authentication |
+
+### Delivery Flow
+```
+1. Notification fires → WebhookNotificationHandler (priority 2000)
+2. Find active subscriptions for topic
+3. Create WebhookDelivery record (Status: Pending)
+4. WebhookDispatcher.DeliverAsync():
+   - Build payload (JSON/FormUrlEncoded)
+   - Sign with HMAC (if configured)
+   - POST to target URL
+   - Record response/status
+5. On failure: Schedule retry with exponential backoff
+6. WebhookDeliveryJob retries pending deliveries
+```
+
+### Configuration
+```json
+{
+  "Merchello": {
+    "Webhooks": {
+      "Enabled": true,
+      "MaxRetries": 5,
+      "RetryDelaySeconds": [60, 300, 900, 3600, 14400],
+      "TimeoutSeconds": 30,
+      "DefaultApiVersion": "2024-01",
+      "DeliveryIntervalSeconds": 30,
+      "LogRetentionDays": 30
+    }
+  }
+}
+```
+
+### API Endpoints
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/merchello/webhooks/subscriptions` | GET | List subscriptions |
+| `/api/merchello/webhooks/subscriptions` | POST | Create subscription |
+| `/api/merchello/webhooks/subscriptions/{id}` | GET | Get subscription |
+| `/api/merchello/webhooks/subscriptions/{id}` | PUT | Update subscription |
+| `/api/merchello/webhooks/subscriptions/{id}` | DELETE | Delete subscription |
+| `/api/merchello/webhooks/subscriptions/{id}/test` | POST | Send test webhook |
+| `/api/merchello/webhooks/topics` | GET | List available topics |
+| `/api/merchello/webhooks/deliveries` | GET | List deliveries |
+| `/api/merchello/webhooks/deliveries/{id}` | GET | Get delivery details |
+| `/api/merchello/webhooks/deliveries/{id}/retry` | POST | Manual retry |
+| `/api/merchello/webhooks/stats` | GET | Delivery statistics |
+| `/api/merchello/webhooks/ping` | POST | Test URL connectivity |
+
+## 10. Services
 
 | Service | Responsibility |
 |---------|----------------|
@@ -387,6 +497,9 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 | `IDiscountService` | Discount CRUD, validation, usage tracking |
 | `IDiscountEngine` | Calculation, validation, application to baskets/invoices |
 | `IBuyXGetYCalculator` | BOGO discount calculation logic |
+| `IWebhookService` | Webhook subscription CRUD, delivery queue, retry logic |
+| `IWebhookDispatcher` | HTTP delivery with HMAC signing |
+| `IWebhookTopicRegistry` | Topic discovery and metadata |
 
 **Principles**: DbContext in services only, RORO params, CrudResult<T>, async+CancellationToken, factories for creation
 
@@ -395,8 +508,9 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 | Job | Responsibility |
 |-----|----------------|
 | `DiscountStatusJob` | Updates discount status (Scheduled→Active, Active→Expired) on schedule |
+| `WebhookDeliveryJob` | Processes pending webhook retries with exponential backoff |
 
-## 10. Extension Points
+## 11. Extension Points
 
 | Point | Interface | Manager |
 |-------|-----------|---------|
@@ -406,10 +520,11 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 | Order grouping | `IOrderGroupingStrategy` | `OrderGroupingStrategyResolver` |
 | Order status | `IOrderStatusHandler` | - |
 | Entity events | `INotificationAsyncHandler<T>` | Umbraco notifications |
+| Webhooks | `IWebhookTopicRegistry` | Topic registration |
 
 **ExtendedData**: All entities have `Dictionary` for custom metadata: `entity.ExtendedData["Key"] = "value";`
 
-## 11. Limitations & Planned
+## 12. Limitations & Planned
 
 **Current**: Orders require sufficient stock (no backorder), refunds don't restock
 

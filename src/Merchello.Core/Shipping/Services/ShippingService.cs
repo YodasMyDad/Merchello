@@ -50,6 +50,108 @@ public class ShippingService(
     }
 
     /// <summary>
+    /// Result of warehouse stock calculation for a product.
+    /// </summary>
+    private record WarehouseStockResult(
+        int TotalAvailableStock,
+        bool HasAnyStock,
+        bool HasAnyTrackingWarehouse,
+        FulfillmentWarehouseDto? FulfillingWarehouse);
+
+    /// <summary>
+    /// Calculates warehouse stock information for a product.
+    /// </summary>
+    /// <param name="product">The product with loaded warehouse associations</param>
+    /// <param name="destinationCountryCode">Optional destination country for region serviceability check</param>
+    /// <param name="destinationStateCode">Optional destination state for region serviceability check</param>
+    /// <returns>Stock calculation result with fulfilling warehouse if found</returns>
+    private static WarehouseStockResult CalculateWarehouseStock(
+        Products.Models.Product product,
+        string? destinationCountryCode = null,
+        string? destinationStateCode = null)
+    {
+        // Get warehouse stock info for this product
+        var warehouseStock = product.ProductWarehouses?
+            .Where(pw => pw.Warehouse != null)
+            .ToDictionary(
+                pw => pw.WarehouseId,
+                pw => new
+                {
+                    pw.Stock,
+                    pw.ReservedStock,
+                    pw.TrackStock,
+                    AvailableStock = pw.Stock - pw.ReservedStock
+                }) ?? [];
+
+        // Get warehouses from ProductRoot in priority order
+        var productRootWarehouses = product.ProductRoot?.ProductRootWarehouses?
+            .OrderBy(prw => prw.PriorityOrder)
+            .Where(prw => prw.Warehouse != null)
+            .ToList() ?? [];
+
+        // Calculate total available stock across all warehouses
+        var totalAvailableStock = 0;
+        var hasAnyStock = false;
+        var hasAnyTrackingWarehouse = false;
+        FulfillmentWarehouseDto? fulfillingWarehouse = null;
+        var checkDestination = !string.IsNullOrEmpty(destinationCountryCode);
+
+        foreach (var prw in productRootWarehouses)
+        {
+            var warehouse = prw.Warehouse!;
+
+            // Get stock info for this warehouse
+            var stockInfo = warehouseStock.GetValueOrDefault(warehouse.Id);
+            var trackStock = stockInfo?.TrackStock ?? true;
+            var availableStock = stockInfo?.AvailableStock ?? 0;
+
+            // Accumulate total available stock
+            if (trackStock)
+            {
+                hasAnyTrackingWarehouse = true;
+                totalAvailableStock += Math.Max(0, availableStock);
+                if (availableStock > 0)
+                {
+                    hasAnyStock = true;
+                }
+            }
+            else
+            {
+                // Non-tracked stock is always available
+                hasAnyStock = true;
+            }
+
+            // Skip if we already found a fulfilling warehouse
+            if (fulfillingWarehouse != null)
+            {
+                continue;
+            }
+
+            // Check stock availability (if tracking)
+            if (trackStock && availableStock <= 0)
+            {
+                continue;
+            }
+
+            // Check if warehouse can serve the destination region (only if destination provided)
+            if (checkDestination && !CanWarehouseServiceLocation(warehouse, destinationCountryCode!, destinationStateCode))
+            {
+                continue;
+            }
+
+            // This warehouse can fulfill the order
+            fulfillingWarehouse = new FulfillmentWarehouseDto
+            {
+                Id = warehouse.Id,
+                Name = warehouse.Name ?? string.Empty,
+                AvailableStock = trackStock ? availableStock : int.MaxValue
+            };
+        }
+
+        return new WarehouseStockResult(totalAvailableStock, hasAnyStock, hasAnyTrackingWarehouse, fulfillingWarehouse);
+    }
+
+    /// <summary>
     /// Gets shipping options for a basket, grouping products by warehouse and shipping option availability.
     /// Delegates to the configured order grouping strategy for custom grouping logic.
     /// </summary>
@@ -428,7 +530,8 @@ public class ShippingService(
              string.Equals(sr.StateOrProvinceCode, stateOrProvinceCode, StringComparison.OrdinalIgnoreCase)));
     }
 
-    private static decimal? GetShippingCostForDestination(
+    /// <inheritdoc />
+    public decimal? GetShippingCostForDestination(
         ShippingOption shippingOption,
         string countryCode,
         string? stateOrProvinceCode)
@@ -609,83 +712,8 @@ public class ShippingService(
                 };
             }
 
-            // Get warehouse stock info for this product
-            var warehouseStock = product.ProductWarehouses?
-                .Where(pw => pw.Warehouse != null)
-                .ToDictionary(
-                    pw => pw.WarehouseId,
-                    pw => new
-                    {
-                        pw.Stock,
-                        pw.ReservedStock,
-                        pw.TrackStock,
-                        AvailableStock = pw.Stock - pw.ReservedStock
-                    }) ?? [];
-
-            // Get warehouses from ProductRoot in priority order
-            var productRootWarehouses = product.ProductRoot?.ProductRootWarehouses?
-                .OrderBy(prw => prw.PriorityOrder)
-                .Where(prw => prw.Warehouse != null)
-                .ToList() ?? [];
-
-            // Calculate total available stock across all warehouses
-            var totalAvailableStock = 0;
-            var hasAnyStock = false;
-            var hasAnyTrackingWarehouse = false;
-
-            FulfillmentWarehouseDto? fulfillingWarehouse = null;
-
-            foreach (var prw in productRootWarehouses)
-            {
-                var warehouse = prw.Warehouse!;
-
-                // Get stock info for this warehouse
-                var stockInfo = warehouseStock.GetValueOrDefault(warehouse.Id);
-                var trackStock = stockInfo?.TrackStock ?? true;
-                var availableStock = stockInfo?.AvailableStock ?? 0;
-
-                // Accumulate total available stock
-                if (trackStock)
-                {
-                    hasAnyTrackingWarehouse = true;
-                    totalAvailableStock += Math.Max(0, availableStock);
-                    if (availableStock > 0)
-                    {
-                        hasAnyStock = true;
-                    }
-                }
-                else
-                {
-                    // Non-tracked stock is always available
-                    hasAnyStock = true;
-                }
-
-                // Skip if we already found a fulfilling warehouse
-                if (fulfillingWarehouse != null)
-                {
-                    continue;
-                }
-
-                // Check stock availability first (if tracking)
-                if (trackStock && availableStock <= 0)
-                {
-                    continue;
-                }
-
-                // Check if warehouse can serve the destination region
-                if (!CanWarehouseServiceLocation(warehouse, destinationCountryCode, destinationStateCode))
-                {
-                    continue;
-                }
-
-                // This warehouse can fulfill the order
-                fulfillingWarehouse = new FulfillmentWarehouseDto
-                {
-                    Id = warehouse.Id,
-                    Name = warehouse.Name ?? string.Empty,
-                    AvailableStock = trackStock ? availableStock : int.MaxValue
-                };
-            }
+            // Calculate warehouse stock using shared helper
+            var stockResult = CalculateWarehouseStock(product, destinationCountryCode, destinationStateCode);
 
             // Check product availability (backend-controlled flag)
             var isAvailableForPurchase = product.AvailableForPurchase;
@@ -696,31 +724,31 @@ public class ShippingService(
             {
                 blockedReason = "Not available for purchase";
             }
-            else if (!hasAnyStock)
+            else if (!stockResult.HasAnyStock)
             {
                 blockedReason = "Out of stock";
             }
-            else if (fulfillingWarehouse == null)
+            else if (stockResult.FulfillingWarehouse == null)
             {
                 blockedReason = $"Cannot ship to {destinationCountryCode}";
             }
 
             // CanAddToOrder is the consolidated backend decision
-            var canAddToOrder = isAvailableForPurchase && hasAnyStock && fulfillingWarehouse != null;
+            var canAddToOrder = isAvailableForPurchase && stockResult.HasAnyStock && stockResult.FulfillingWarehouse != null;
 
             // Calculate aggregate stock status using backend settings
             var aggregateStockStatus = CalculateAggregateStockStatus(
-                totalAvailableStock,
-                hasAnyTrackingWarehouse,
+                stockResult.TotalAvailableStock,
+                stockResult.HasAnyTrackingWarehouse,
                 settings.Value.LowStockThreshold);
 
             return new ProductFulfillmentOptionsDto
             {
                 CanAddToOrder = canAddToOrder,
-                FulfillingWarehouse = fulfillingWarehouse,
+                FulfillingWarehouse = stockResult.FulfillingWarehouse,
                 BlockedReason = blockedReason,
-                HasAvailableStock = hasAnyStock,
-                AvailableStock = totalAvailableStock,
+                HasAvailableStock = stockResult.HasAnyStock,
+                AvailableStock = stockResult.TotalAvailableStock,
                 AggregateStockStatus = aggregateStockStatus
             };
         });
@@ -758,89 +786,28 @@ public class ShippingService(
                 };
             }
 
-            // Get warehouse stock info for this product
-            var warehouseStock = product.ProductWarehouses?
-                .Where(pw => pw.Warehouse != null)
-                .ToDictionary(
-                    pw => pw.WarehouseId,
-                    pw => new
-                    {
-                        pw.Stock,
-                        pw.ReservedStock,
-                        pw.TrackStock,
-                        AvailableStock = pw.Stock - pw.ReservedStock
-                    }) ?? [];
+            // Calculate warehouse stock using shared helper (no destination check)
+            var stockResult = CalculateWarehouseStock(product);
 
-            // Get warehouses from ProductRoot in priority order
-            var productRootWarehouses = product.ProductRoot?.ProductRootWarehouses?
-                .OrderBy(prw => prw.PriorityOrder)
-                .Where(prw => prw.Warehouse != null)
-                .ToList() ?? [];
-
-            // Calculate total available stock across all warehouses
-            var totalAvailableStock = 0;
-            var hasAnyStock = false;
-            var hasAnyTrackingWarehouse = false;
-
-            FulfillmentWarehouseDto? fulfillingWarehouse = null;
-
-            foreach (var prw in productRootWarehouses)
+            // Determine fulfilling warehouse - use result or fallback to first warehouse for display
+            var fulfillingWarehouse = stockResult.FulfillingWarehouse;
+            if (fulfillingWarehouse == null)
             {
-                var warehouse = prw.Warehouse!;
+                var productRootWarehouses = product.ProductRoot?.ProductRootWarehouses?
+                    .OrderBy(prw => prw.PriorityOrder)
+                    .Where(prw => prw.Warehouse != null)
+                    .ToList() ?? [];
 
-                // Get stock info for this warehouse
-                var stockInfo = warehouseStock.GetValueOrDefault(warehouse.Id);
-                var trackStock = stockInfo?.TrackStock ?? true;
-                var availableStock = stockInfo?.AvailableStock ?? 0;
-
-                // Accumulate total available stock
-                if (trackStock)
+                if (productRootWarehouses.Count > 0)
                 {
-                    hasAnyTrackingWarehouse = true;
-                    totalAvailableStock += Math.Max(0, availableStock);
-                    if (availableStock > 0)
+                    var firstWarehouse = productRootWarehouses[0].Warehouse!;
+                    fulfillingWarehouse = new FulfillmentWarehouseDto
                     {
-                        hasAnyStock = true;
-                    }
+                        Id = firstWarehouse.Id,
+                        Name = firstWarehouse.Name ?? string.Empty,
+                        AvailableStock = 0
+                    };
                 }
-                else
-                {
-                    // Non-tracked stock is always available
-                    hasAnyStock = true;
-                }
-
-                // Skip if we already found a fulfilling warehouse
-                if (fulfillingWarehouse != null)
-                {
-                    continue;
-                }
-
-                // Check stock availability (if tracking)
-                // Note: Unlike GetFulfillmentOptionsForProductAsync, we do NOT check region serviceability
-                if (trackStock && availableStock <= 0)
-                {
-                    continue;
-                }
-
-                // This is the highest-priority warehouse with available stock
-                fulfillingWarehouse = new FulfillmentWarehouseDto
-                {
-                    Id = warehouse.Id,
-                    Name = warehouse.Name ?? string.Empty,
-                    AvailableStock = trackStock ? availableStock : int.MaxValue
-                };
-            }
-
-            // If no warehouse with stock found, return the first warehouse anyway (for display purposes)
-            if (fulfillingWarehouse == null && productRootWarehouses.Count > 0)
-            {
-                var firstWarehouse = productRootWarehouses[0].Warehouse!;
-                fulfillingWarehouse = new FulfillmentWarehouseDto
-                {
-                    Id = firstWarehouse.Id,
-                    Name = firstWarehouse.Name ?? string.Empty,
-                    AvailableStock = 0
-                };
             }
 
             // Check product availability (backend-controlled flag)
@@ -852,19 +819,19 @@ public class ShippingService(
             {
                 blockedReason = "Not available for purchase";
             }
-            else if (!hasAnyStock)
+            else if (!stockResult.HasAnyStock)
             {
                 blockedReason = "Out of stock";
             }
 
             // CanAddToOrder: available for purchase AND has stock
             // (no region check since this is used when destination is unknown)
-            var canAddToOrder = isAvailableForPurchase && hasAnyStock;
+            var canAddToOrder = isAvailableForPurchase && stockResult.HasAnyStock;
 
             // Calculate aggregate stock status using backend settings
             var aggregateStockStatus = CalculateAggregateStockStatus(
-                totalAvailableStock,
-                hasAnyTrackingWarehouse,
+                stockResult.TotalAvailableStock,
+                stockResult.HasAnyTrackingWarehouse,
                 settings.Value.LowStockThreshold);
 
             return new ProductFulfillmentOptionsDto
@@ -872,8 +839,8 @@ public class ShippingService(
                 CanAddToOrder = canAddToOrder,
                 FulfillingWarehouse = fulfillingWarehouse,
                 BlockedReason = blockedReason,
-                HasAvailableStock = hasAnyStock,
-                AvailableStock = totalAvailableStock,
+                HasAvailableStock = stockResult.HasAnyStock,
+                AvailableStock = stockResult.TotalAvailableStock,
                 AggregateStockStatus = aggregateStockStatus
             };
         });

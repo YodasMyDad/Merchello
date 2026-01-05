@@ -55,6 +55,14 @@ public class CurrencyService(IOptions<MerchelloSettings> settings) : ICurrencySe
         return rounded.ToString("C", clone);
     }
 
+    /// <inheritdoc />
+    public string FormatWithSymbol(decimal amount, string currencySymbol, int decimalPlaces = 2)
+    {
+        var rounded = Math.Round(amount, decimalPlaces, settings.Value.DefaultRounding);
+        var formattedNumber = rounded.ToString($"N{decimalPlaces}", CultureInfo.InvariantCulture);
+        return $"{currencySymbol}{formattedNumber}";
+    }
+
     public decimal Round(decimal amount, string currencyCode)
     {
         var decimals = GetDecimalPlaces(currencyCode);

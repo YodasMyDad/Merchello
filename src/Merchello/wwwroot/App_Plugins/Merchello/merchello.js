@@ -1,5 +1,5 @@
-import { n as e } from "./bundle.manifests-e1Lo7CbL.js";
+import { m as a } from "./bundle.manifests-DpXnf-5Q.js";
 export {
-  e as manifests
+  a as manifests
 };
 //# sourceMappingURL=merchello.js.map

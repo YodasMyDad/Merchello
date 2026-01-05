@@ -12,6 +12,7 @@ namespace Merchello.Core.Checkout.Services;
 public class CheckoutSessionService(IHttpContextAccessor httpContextAccessor) : ICheckoutSessionService
 {
     private const string SessionKeyPrefix = "MerchelloCheckout_";
+    private const string BasketSessionKey = "Basket";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -104,6 +105,26 @@ public class CheckoutSessionService(IHttpContextAccessor httpContextAccessor) : 
         var key = GetSessionKey(basketId);
         session.Remove(key);
         return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public void SaveBasketToSession(Basket basket)
+    {
+        var session = GetHttpSession();
+        var json = JsonSerializer.Serialize(basket, JsonOptions);
+        session.SetString(BasketSessionKey, json);
+    }
+
+    /// <inheritdoc />
+    public Basket? GetBasketFromSession()
+    {
+        var session = GetHttpSession();
+        var json = session.GetString(BasketSessionKey);
+        if (string.IsNullOrEmpty(json))
+        {
+            return null;
+        }
+        return JsonSerializer.Deserialize<Basket>(json, JsonOptions);
     }
 
     private ISession GetHttpSession()

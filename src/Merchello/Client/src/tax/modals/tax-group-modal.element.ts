@@ -326,7 +326,7 @@ export class MerchelloTaxGroupModalElement extends UmbModalBaseElement<
               placeholder="e.g., 20"
               label="Tax percentage">
             </uui-input>
-            <span class="hint">Legacy default rate. Use Regional Rates below for location-specific taxes.</span>
+            <span class="hint">Fallback rate used when no regional rate matches the customer's location.</span>
             ${this._errors.taxPercentage ? html`<span class="error">${this._errors.taxPercentage}</span>` : nothing}
           </div>
 

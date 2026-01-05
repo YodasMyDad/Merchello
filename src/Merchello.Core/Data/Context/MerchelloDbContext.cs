@@ -10,6 +10,7 @@ using Merchello.Core.Shipping.Models;
 using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Tax.Models;
 using Merchello.Core.Warehouses.Models;
+using Merchello.Core.Webhooks.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Merchello.Core.Data;
@@ -81,6 +82,10 @@ public class MerchelloDbContext : DbContext
     public DbSet<DiscountEligibilityRule> DiscountEligibilityRules => Set<DiscountEligibilityRule>();
     public DbSet<DiscountBuyXGetYConfig> DiscountBuyXGetYConfigs => Set<DiscountBuyXGetYConfig>();
     public DbSet<DiscountFreeShippingConfig> DiscountFreeShippingConfigs => Set<DiscountFreeShippingConfig>();
+
+    // Webhook DbSets
+    public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();
+    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

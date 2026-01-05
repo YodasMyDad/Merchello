@@ -45,4 +45,16 @@ public interface ICheckoutSessionService
     /// Clears the checkout session for a basket.
     /// </summary>
     Task ClearSessionAsync(Guid basketId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Saves a basket to the HTTP session.
+    /// </summary>
+    /// <param name="basket">The basket to save.</param>
+    void SaveBasketToSession(Basket basket);
+
+    /// <summary>
+    /// Gets a basket from the HTTP session.
+    /// </summary>
+    /// <returns>The basket, or null if not found in session.</returns>
+    Basket? GetBasketFromSession();
 }

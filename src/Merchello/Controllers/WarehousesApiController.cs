@@ -425,9 +425,10 @@ public class WarehousesApiController(
 
     private static string BuildRegionDisplay(string countryCode, string? stateOrProvinceCode)
     {
+        // Returns ISO 3166-2 format (e.g., "US-CA", "GB-ENG")
         if (string.IsNullOrWhiteSpace(stateOrProvinceCode))
             return countryCode;
-        return $"{stateOrProvinceCode}, {countryCode}";
+        return $"{countryCode}-{stateOrProvinceCode}";
     }
 
     #endregion

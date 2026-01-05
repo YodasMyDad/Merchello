@@ -2,7 +2,11 @@
 
 Guide for third-party developers creating custom tax providers.
 
-> **Note:** Merchello includes a built-in Manual Tax Provider that uses TaxGroup/TaxGroupRate for location-based rates. The examples in this guide demonstrate how to build integrations for external tax services (Avalara, TaxJar, Vertex, etc.).
+> **Note:** Merchello includes built-in tax providers:
+> - **Manual Tax Provider** - Uses TaxGroup/TaxGroupRate for location-based manual rates
+> - **Avalara AvaTax Provider** - Real-time tax calculation via Avalara's API (requires Avalara account)
+>
+> The examples in this guide demonstrate how to build custom integrations for other external tax services (TaxJar, Vertex, etc.).
 
 ## Quick Start
 
@@ -264,224 +268,45 @@ public class ManualTaxProvider(ITaxService taxService) : TaxProviderBase
 
 ---
 
-## Example 2: Avalara AvaTax Provider
+## Example 2: Avalara AvaTax Provider (Built-in)
 
-Real-time tax calculation via Avalara's API.
+> **Note:** Avalara AvaTax is now a built-in provider in Merchello. The source code can be found at:
+> `src/Merchello.Core/Tax/Providers/BuiltIn/AvalaraTaxProvider.cs`
 
-```csharp
-public class AvalaraTaxProvider : TaxProviderBase
-{
-    private AvaTaxClient? _client;
-    private string? _companyCode;
+The built-in Avalara provider offers:
+- **Configuration Fields:** Account ID, License Key (sensitive), Company Code, Environment (Sandbox/Production), Enable Logging
+- **Tax Calculation:** Uses `DocumentType.SalesOrder` for non-recording tax estimates
+- **Shipping Tax:** Automatically adds shipping as a taxable line item with tax code `FR020100`
+- **Tax Codes:** Uses `P0000000` (general tangible goods) as default; supports custom tax codes via `TaxableLineItem.TaxCode`
 
-    public override TaxProviderMetadata Metadata => new(
-        Alias: "avalara",
-        DisplayName: "Avalara AvaTax",
-        Icon: "icon-cloud",
-        Description: "Automatic tax calculation via Avalara AvaTax API",
-        SupportsRealTimeCalculation: true,
-        RequiresApiCredentials: true,
-        SetupInstructions: "Get your API credentials from avalara.com/developer"
-    );
+### Configuration
 
-    public override ValueTask<IEnumerable<TaxProviderConfigurationField>> GetConfigurationFieldsAsync(
-        CancellationToken cancellationToken = default)
-    {
-        return ValueTask.FromResult<IEnumerable<TaxProviderConfigurationField>>(
-        [
-            new() {
-                Key = "accountId",
-                Label = "Account ID",
-                FieldType = ConfigurationFieldType.Text,
-                IsRequired = true
-            },
-            new() {
-                Key = "licenseKey",
-                Label = "License Key",
-                FieldType = ConfigurationFieldType.Password,
-                IsSensitive = true,
-                IsRequired = true
-            },
-            new() {
-                Key = "companyCode",
-                Label = "Company Code",
-                FieldType = ConfigurationFieldType.Text,
-                IsRequired = true,
-                Description = "Your Avalara company code"
-            },
-            new() {
-                Key = "environment",
-                Label = "Environment",
-                FieldType = ConfigurationFieldType.Select,
-                IsRequired = true,
-                DefaultValue = "sandbox",
-                Options =
-                [
-                    new SelectOption("sandbox", "Sandbox"),
-                    new SelectOption("production", "Production")
-                ]
-            }
-        ]);
-    }
+| Field | Type | Description |
+|-------|------|-------------|
+| `accountId` | Text | Avalara Account ID from Admin Console |
+| `licenseKey` | Password | Avalara License Key (API key) |
+| `companyCode` | Text | Company code (default: "DEFAULT") |
+| `environment` | Select | Sandbox (testing) or Production (live) |
+| `enableLogging` | Checkbox | Enable API call logging for debugging |
 
-    public override ValueTask ConfigureAsync(
-        TaxProviderConfiguration? configuration,
-        CancellationToken cancellationToken = default)
-    {
-        base.ConfigureAsync(configuration, cancellationToken);
+### Usage
 
-        if (configuration != null)
-        {
-            var accountId = GetRequiredConfigValue("accountId");
-            var licenseKey = GetRequiredConfigValue("licenseKey");
-            _companyCode = GetRequiredConfigValue("companyCode");
-            var environment = GetConfigValue("environment") ?? "sandbox";
+1. Get Avalara credentials from [avalara.com/developer](https://developer.avalara.com)
+2. In Merchello backoffice, navigate to **Providers > Tax**
+3. Select **Avalara AvaTax** and enter your credentials
+4. Use **Sandbox** environment for testing
+5. Click **Test** to validate your configuration
+6. Set as active provider
 
-            var env = environment == "production"
-                ? AvaTaxEnvironment.Production
-                : AvaTaxEnvironment.Sandbox;
+### Tax Code Mapping
 
-            _client = new AvaTaxClient("Merchello", "1.0", Environment.MachineName, env)
-                .WithSecurity(accountId, licenseKey);
-        }
+Products use `TaxableLineItem.TaxCode` if provided, otherwise the default `P0000000` (general tangible goods).
 
-        return ValueTask.CompletedTask;
-    }
-
-    public override async Task<TaxProviderValidationResult> ValidateConfigurationAsync(
-        CancellationToken cancellationToken = default)
-    {
-        if (_client == null)
-        {
-            return TaxProviderValidationResult.Invalid("Provider not configured");
-        }
-
-        try
-        {
-            var result = await _client.PingAsync();
-            return result.authenticated == true
-                ? TaxProviderValidationResult.Valid()
-                : TaxProviderValidationResult.Invalid("Authentication failed");
-        }
-        catch (Exception ex)
-        {
-            return TaxProviderValidationResult.Invalid($"Connection failed: {ex.Message}");
-        }
-    }
-
-    public override async Task<TaxCalculationResult> CalculateTaxAsync(
-        TaxCalculationRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        if (_client == null || _companyCode == null)
-        {
-            return TaxCalculationResult.Failed("Avalara provider not configured");
-        }
-
-        if (request.IsTaxExempt)
-        {
-            return TaxCalculationResult.ZeroTax(request.LineItems);
-        }
-
-        try
-        {
-            // Build Avalara transaction
-            var transaction = new CreateTransactionModel
-            {
-                type = DocumentType.SalesOrder,
-                companyCode = _companyCode,
-                customerCode = request.CustomerId?.ToString() ?? "GUEST",
-                date = request.TransactionDate ?? DateTime.UtcNow,
-                currencyCode = request.CurrencyCode,
-                addresses = new AddressesModel
-                {
-                    shipTo = new AddressLocationInfo
-                    {
-                        line1 = request.ShippingAddress.Line1,
-                        line2 = request.ShippingAddress.Line2,
-                        city = request.ShippingAddress.CityTown,
-                        region = request.ShippingAddress.CountyState?.RegionCode,
-                        postalCode = request.ShippingAddress.PostalCode,
-                        country = request.ShippingAddress.CountryCode
-                    }
-                },
-                lines = request.LineItems.Select((item, i) => new LineItemModel
-                {
-                    number = i.ToString(),
-                    itemCode = item.Sku,
-                    description = item.Name,
-                    quantity = item.Quantity,
-                    amount = item.Amount * item.Quantity,
-                    taxCode = item.TaxCode ?? GetAvalaraTaxCode(item.TaxGroupId)
-                }).ToList()
-            };
-
-            // Add shipping as a line item if taxable
-            if (request.ShippingAmount > 0)
-            {
-                transaction.lines.Add(new LineItemModel
-                {
-                    number = "SHIPPING",
-                    itemCode = "SHIPPING",
-                    description = "Shipping",
-                    quantity = 1,
-                    amount = request.ShippingAmount,
-                    taxCode = "FR020100" // Avalara shipping tax code
-                });
-            }
-
-            var result = await _client.CreateTransactionAsync(null, transaction);
-
-            if (result.status == DocumentStatus.Saved || result.status == DocumentStatus.Committed)
-            {
-                var lineResults = request.LineItems.Select((item, i) =>
-                {
-                    var line = result.lines?.FirstOrDefault(l => l.lineNumber == i.ToString());
-                    return new LineTaxResult
-                    {
-                        Sku = item.Sku,
-                        TaxRate = line?.taxableAmount > 0
-                            ? (line.tax ?? 0) / line.taxableAmount * 100
-                            : 0,
-                        TaxAmount = line?.tax ?? 0,
-                        IsTaxable = line?.isItemTaxable ?? false,
-                        TaxJurisdiction = line?.details?.FirstOrDefault()?.jurisName
-                    };
-                }).ToList();
-
-                var shippingLine = result.lines?.FirstOrDefault(l => l.lineNumber == "SHIPPING");
-
-                return TaxCalculationResult.Successful(
-                    totalTax: lineResults.Sum(r => r.TaxAmount),
-                    lineResults: lineResults,
-                    shippingTax: shippingLine?.tax ?? 0,
-                    transactionId: result.code
-                );
-            }
-
-            return TaxCalculationResult.Failed(
-                $"Avalara returned status: {result.status}");
-        }
-        catch (AvaTaxError ex)
-        {
-            return TaxCalculationResult.Failed($"Avalara error: {ex.error.error.message}");
-        }
-        catch (Exception ex)
-        {
-            return TaxCalculationResult.Failed($"Tax calculation failed: {ex.Message}");
-        }
-    }
-
-    // Map TaxGroup to Avalara tax code
-    private string GetAvalaraTaxCode(Guid? taxGroupId)
-    {
-        // Default: general tangible goods
-        // You could store the mapping in TaxGroup.ExtendedData["AvalaraTaxCode"]
-        // or maintain a lookup table
-        return "P0000000";
-    }
-}
-```
+Common Avalara tax codes:
+- `P0000000` - General tangible goods
+- `PF050001` - Food/groceries
+- `NT` - Non-taxable
+- `FR020100` - Shipping/freight
 
 ---
 
@@ -910,7 +735,7 @@ public override ValueTask<IEnumerable<TaxProviderConfigurationField>> GetConfigu
 
 ## Frontend Integration
 
-Tax providers are managed in the Merchello backoffice under **Tax > Providers**.
+Tax providers are managed in the Merchello backoffice under **Providers > Tax**.
 
 The storefront checkout uses the active provider automatically via `IInvoiceService`.
 

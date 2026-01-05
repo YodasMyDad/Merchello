@@ -17,7 +17,6 @@ import {
   MERCHELLO_PRODUCT_FEED_ENTITY_TYPE,
   MERCHELLO_ANALYTICS_ENTITY_TYPE,
   MERCHELLO_DISCOUNTS_ENTITY_TYPE,
-  MERCHELLO_TAX_ENTITY_TYPE,
   MERCHELLO_SUPPLIERS_ENTITY_TYPE,
   MERCHELLO_WAREHOUSES_ENTITY_TYPE,
   MERCHELLO_PROVIDERS_ENTITY_TYPE,
@@ -105,15 +104,6 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
         hasChildren: false,
         isFolder: false,
         icon: "icon-megaphone",
-        parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
-      },
-      {
-        entityType: MERCHELLO_TAX_ENTITY_TYPE,
-        unique: "tax",
-        name: "Tax",
-        hasChildren: false,
-        isFolder: false,
-        icon: "icon-calculator",
         parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
       },
       {

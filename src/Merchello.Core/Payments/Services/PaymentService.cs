@@ -268,6 +268,18 @@ public class PaymentService(
                 riskScore: parameters.RiskScore,
                 riskScoreSource: parameters.RiskScoreSource);
 
+            // Publish "Before" notification - handlers can cancel or modify
+            var creatingNotification = new PaymentCreatingNotification(payment);
+            if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = creatingNotification.CancelReason ?? "Payment creation cancelled",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
             db.Payments.Add(payment);
 
             try
@@ -278,6 +290,9 @@ public class PaymentService(
                 logger.LogInformation(
                     "Payment recorded: {PaymentId} for invoice {InvoiceId}, amount {Amount}, transaction {TransactionId}",
                     payment.Id, parameters.InvoiceId, parameters.Amount, parameters.TransactionId);
+
+                // Publish "After" notification - payment was successfully created
+                await notificationPublisher.PublishAsync(new PaymentCreatedNotification(payment), cancellationToken);
             }
             catch (DbUpdateException) when (!string.IsNullOrEmpty(parameters.TransactionId))
             {
@@ -753,6 +768,18 @@ public class PaymentService(
                 paymentMethod: parameters.PaymentMethod,
                 description: parameters.Description);
 
+            // Publish "Before" notification - handlers can cancel or modify
+            var creatingNotification = new PaymentCreatingNotification(payment);
+            if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = creatingNotification.CancelReason ?? "Payment creation cancelled",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
             db.Payments.Add(payment);
             await db.SaveChangesAsync(cancellationToken);
 
@@ -760,6 +787,9 @@ public class PaymentService(
             logger.LogInformation(
                 "Manual payment recorded: {PaymentId} for invoice {InvoiceId}, amount {Amount}, method: {Method}",
                 payment.Id, parameters.InvoiceId, parameters.Amount, parameters.PaymentMethod);
+
+            // Publish "After" notification - payment was successfully created
+            await notificationPublisher.PublishAsync(new PaymentCreatedNotification(payment), cancellationToken);
         });
         scope.Complete();
 

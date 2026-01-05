@@ -43,8 +43,13 @@ using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.Handlers;
+using Merchello.Core.Notifications.CustomerNotifications;
+using Merchello.Core.Notifications.DiscountNotifications;
+using Merchello.Core.Notifications.Inventory;
+using Merchello.Core.Notifications.Invoice;
 using Merchello.Core.Notifications.Order;
 using Merchello.Core.Notifications.Payment;
+using Merchello.Core.Notifications.Product;
 using Merchello.Core.Notifications.Shipment;
 using Merchello.Core.Payments.Factories;
 using Merchello.Core.Payments.Providers;
@@ -59,6 +64,10 @@ using Merchello.Core.Reporting.Services.Interfaces;
 using Merchello.Core.Tax.Providers;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Suppliers.Factories;
+using Merchello.Core.Webhooks.Handlers;
+using Merchello.Core.Webhooks.Models;
+using Merchello.Core.Webhooks.Services;
+using Merchello.Core.Webhooks.Services.Interfaces;
 using Merchello.Core.Suppliers.Services;
 using Merchello.Core.Suppliers.Services.Interfaces;
 using Merchello.Core.Accounting.Factories;
@@ -96,6 +105,7 @@ public static class Startup
         builder.Services.Configure<CheckoutSettings>(builder.Config.GetSection("Merchello:Checkout"));
         builder.Services.Configure<CacheOptions>(builder.Config.GetSection("Merchello:Cache"));
         builder.Services.Configure<ExchangeRateOptions>(builder.Config.GetSection("Merchello:ExchangeRates"));
+        builder.Services.Configure<WebhookSettings>(builder.Config.GetSection("Merchello:Webhooks"));
 
         // =====================================================
         // Infrastructure (Singletons)
@@ -156,6 +166,7 @@ public static class Startup
         builder.Services.AddScoped<ICheckoutService, CheckoutService>();
         builder.Services.AddScoped(sp => new Lazy<ICheckoutService>(() => sp.GetRequiredService<ICheckoutService>()));
         builder.Services.AddScoped<ICheckoutSessionService, CheckoutSessionService>();
+        builder.Services.AddScoped<ICheckoutValidator, CheckoutValidator>();
         builder.Services.AddScoped<IInvoiceService, InvoiceService>();
         builder.Services.AddScoped<ILineItemService, LineItemService>();
         builder.Services.AddScoped<IOrderStatusHandler, DefaultOrderStatusHandler>();
@@ -208,6 +219,11 @@ public static class Startup
         // Reporting
         builder.Services.AddScoped<IReportingService, ReportingService>();
 
+        // Webhooks
+        builder.Services.AddSingleton<IWebhookTopicRegistry, WebhookTopicRegistry>();
+        builder.Services.AddScoped<IWebhookDispatcher, WebhookDispatcher>();
+        builder.Services.AddScoped<IWebhookService, WebhookService>();
+
         // Other Scoped
         builder.Services.AddScoped<DbSeeder>();
         builder.Services.AddScoped<ExtensionManager>();
@@ -219,6 +235,7 @@ public static class Startup
 
         builder.Services.AddHostedService<ExchangeRateRefreshJob>();
         builder.Services.AddHostedService<DiscountStatusJob>();
+        builder.Services.AddHostedService<WebhookDeliveryJob>();
 
         // =====================================================
         // Notification Handlers
@@ -228,6 +245,38 @@ public static class Startup
         builder.AddNotificationAsyncHandler<ShipmentCreatedNotification, InvoiceTimelineHandler>();
         builder.AddNotificationAsyncHandler<PaymentCreatedNotification, InvoiceTimelineHandler>();
         builder.AddNotificationAsyncHandler<PaymentRefundedNotification, InvoiceTimelineHandler>();
+
+        // Webhook notification handlers (bridge internal events to external webhooks)
+        // Orders
+        builder.AddNotificationAsyncHandler<OrderCreatedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<OrderSavedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<OrderStatusChangedNotification, WebhookNotificationHandler>();
+        // Invoices
+        builder.AddNotificationAsyncHandler<InvoiceSavedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<InvoiceCancelledNotification, WebhookNotificationHandler>();
+        // Payments
+        builder.AddNotificationAsyncHandler<PaymentCreatedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<PaymentRefundedNotification, WebhookNotificationHandler>();
+        // Products
+        builder.AddNotificationAsyncHandler<ProductCreatedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<ProductSavedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<ProductDeletedNotification, WebhookNotificationHandler>();
+        // Customers
+        builder.AddNotificationAsyncHandler<CustomerCreatedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CustomerSavedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CustomerDeletedNotification, WebhookNotificationHandler>();
+        // Shipments
+        builder.AddNotificationAsyncHandler<ShipmentCreatedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<ShipmentSavedNotification, WebhookNotificationHandler>();
+        // Discounts
+        builder.AddNotificationAsyncHandler<DiscountCreatedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<DiscountSavedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<DiscountDeletedNotification, WebhookNotificationHandler>();
+        // Inventory
+        builder.AddNotificationAsyncHandler<StockAdjustedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<LowStockNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<StockReservedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<StockAllocatedNotification, WebhookNotificationHandler>();
 
         // =====================================================
         // Plugin Assembly Discovery
