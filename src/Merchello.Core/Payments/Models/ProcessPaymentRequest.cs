@@ -129,4 +129,13 @@ public class ProcessPaymentRequest
     /// that require production configuration (e.g., custom fields).
     /// </summary>
     public bool IsTestMode { get; init; }
+
+    /// <summary>
+    /// Idempotency key to prevent duplicate payment processing.
+    /// <para>If provided, the system will reject duplicate requests with the same key
+    /// and return the cached result from the original request.</para>
+    /// <para>Keys should be unique per payment attempt (e.g., UUID).</para>
+    /// <para>Keys are valid for 24 hours.</para>
+    /// </summary>
+    public string? IdempotencyKey { get; init; }
 }

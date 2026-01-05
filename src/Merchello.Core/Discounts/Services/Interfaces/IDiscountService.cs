@@ -96,12 +96,12 @@ public interface IDiscountService
     // =====================================================
 
     /// <summary>
-    /// Gets the total usage count for a discount (derived from line items).
+    /// Gets the total usage count for a discount from the DiscountUsage table.
     /// </summary>
     Task<int> GetUsageCountAsync(Guid discountId, CancellationToken ct = default);
 
     /// <summary>
-    /// Gets usage counts for multiple discounts in a single query (derived from line items).
+    /// Gets usage counts for multiple discounts in a single query.
     /// </summary>
     Task<Dictionary<Guid, int>> GetUsageCountsAsync(List<Guid> discountIds, CancellationToken ct = default);
 
@@ -109,6 +109,33 @@ public interface IDiscountService
     /// Gets the usage count for a specific customer on a discount.
     /// </summary>
     Task<int> GetCustomerUsageCountAsync(Guid discountId, Guid customerId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Atomically records discount usage for an invoice, enforcing usage limits.
+    /// Returns true if usage was recorded successfully, false if limit was exceeded.
+    /// Uses database constraints to prevent race conditions.
+    /// </summary>
+    /// <param name="discountId">The discount being used.</param>
+    /// <param name="invoiceId">The invoice where the discount is applied.</param>
+    /// <param name="customerId">The customer using the discount (optional).</param>
+    /// <param name="amount">The discount amount being applied.</param>
+    /// <param name="totalUsageLimit">The maximum total uses allowed (null = unlimited).</param>
+    /// <param name="perCustomerLimit">The maximum uses per customer (null = unlimited).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>True if usage was recorded; false if limit exceeded or duplicate.</returns>
+    Task<bool> TryRecordUsageAsync(
+        Guid discountId,
+        Guid invoiceId,
+        Guid? customerId,
+        decimal amount,
+        int? totalUsageLimit,
+        int? perCustomerLimit,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Removes discount usage record when a discount is removed from an invoice.
+    /// </summary>
+    Task RemoveUsageAsync(Guid discountId, Guid invoiceId, CancellationToken ct = default);
 
     // =====================================================
     // Reporting

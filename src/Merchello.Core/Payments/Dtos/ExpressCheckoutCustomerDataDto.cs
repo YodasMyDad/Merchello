@@ -22,8 +22,9 @@ public class ExpressCheckoutCustomerDataDto
 
     /// <summary>
     /// Shipping address from express checkout.
+    /// May be null if the provider didn't return an address (e.g., PayPal sandbox accounts).
     /// </summary>
-    public required ExpressCheckoutAddressDto ShippingAddress { get; set; }
+    public ExpressCheckoutAddressDto? ShippingAddress { get; set; }
 
     /// <summary>
     /// Billing address. If null, billing is same as shipping.

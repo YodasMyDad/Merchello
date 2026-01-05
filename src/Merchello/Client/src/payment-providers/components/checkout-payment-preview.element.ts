@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
+import { LitElement, html, css, nothing, unsafeHTML } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state, property } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { MerchelloApi } from "@api/merchello-api.js";
@@ -82,7 +82,7 @@ export class MerchelloCheckoutPaymentPreviewElement extends UmbElementMixin(LitE
     // Prefer provider-defined iconHtml, fall back to hardcoded brand icons
     const svg = method.iconHtml ?? getBrandIconSvg(method.methodAlias);
     if (svg) {
-      return html`<span class="method-icon-svg" .innerHTML=${svg}></span>`;
+      return html`<span class="method-icon-svg">${unsafeHTML(svg)}</span>`;
     }
     // Final fallback to UUI icon
     return html`<uui-icon name="${method.icon ?? 'icon-credit-card'}"></uui-icon>`;

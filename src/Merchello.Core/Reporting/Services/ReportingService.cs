@@ -298,6 +298,7 @@ public class ReportingService(
                 .Include(i => i.Orders)!
                     .ThenInclude(o => o.LineItems)
                 .Include(i => i.Payments)
+                .AsSplitQuery()
                 .Where(i => !i.IsDeleted && i.DateCreated >= start && i.DateCreated <= end)
                 .ToListAsync(cancellationToken);
 
@@ -306,6 +307,7 @@ public class ReportingService(
                 .Include(i => i.Orders)!
                     .ThenInclude(o => o.LineItems)
                 .Include(i => i.Payments)
+                .AsSplitQuery()
                 .Where(i => !i.IsDeleted && i.DateCreated >= comparisonStart && i.DateCreated <= comparisonEnd)
                 .ToListAsync(cancellationToken);
 

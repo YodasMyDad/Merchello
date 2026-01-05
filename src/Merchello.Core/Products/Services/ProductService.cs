@@ -1520,6 +1520,12 @@ public class ProductService(
                 query = query.AsNoTracking();
             }
 
+            // Use split query when including multiple collection navigations to avoid Cartesian explosion
+            if (parameters.IncludeProductWarehouses || parameters.IncludeProductRootWarehouses)
+            {
+                query = query.AsSplitQuery();
+            }
+
             var product = await query.FirstOrDefaultAsync(p => p.Id == parameters.ProductId, cancellationToken);
 
             // Explicitly populate warehouse shipping data to work around EF Core NoTracking issue
@@ -1993,6 +1999,7 @@ public class ProductService(
             var totalCount = await query.AsSplitQuery().Select(x => x.Id).CountAsync(cancellationToken: cancellationToken);
 
             var items = await query
+                .OrderBy(x => x.Id)
                 .AsSplitQuery()
                 .Skip(pageIndex * pageSize)
                 .Take(pageSize)
@@ -3493,6 +3500,14 @@ public class ProductService(
                             prw.Warehouse.ShippingOptions = fullWarehouse.ShippingOptions;
                         }
                     }
+                }
+
+                // Populate ProductRoot back-reference for each Product
+                // Required for CanShipToLocation() to check root-level warehouse restrictions
+                // (EF Core with NoTracking doesn't automatically populate back-references)
+                foreach (var product in productRoot.Products)
+                {
+                    product.ProductRoot = productRoot;
                 }
             }
 

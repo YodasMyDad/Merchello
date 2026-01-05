@@ -32,6 +32,7 @@ public class ShippingOptionService(
                 .Include(o => o.Warehouse)
                 .Include(o => o.ShippingCosts)
                 .Include(o => o.WeightTiers)
+                .AsSplitQuery()
                 .OrderBy(o => o.Warehouse!.Name)
                 .ThenBy(o => o.Name)
                 .Select(o => new ShippingOptionDto
@@ -87,6 +88,7 @@ public class ShippingOptionService(
                 .Include(o => o.Warehouse)
                 .Include(o => o.ShippingCosts)
                 .Include(o => o.WeightTiers)
+                .AsSplitQuery()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(o => o.Id == id, ct));
         scope.Complete();

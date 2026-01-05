@@ -1,4 +1,4 @@
-import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
+import { html, css, nothing, unsafeHTML } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
@@ -154,7 +154,7 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
     // Prefer provider-defined iconHtml, fall back to hardcoded brand icons
     const svg = method.iconHtml ?? getBrandIconSvg(method.methodAlias);
     if (svg) {
-      return html`<span class="method-icon" .innerHTML=${svg}></span>`;
+      return html`<span class="method-icon">${unsafeHTML(svg)}</span>`;
     }
     // Final fallback to UUI icon
     return html`<uui-icon name="${method.icon ?? 'icon-credit-card'}"></uui-icon>`;

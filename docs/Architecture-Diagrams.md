@@ -416,12 +416,14 @@ Internal Notification → WebhookNotificationHandler (priority 2000)
 | Shipments | `shipment.created`, `shipment.updated` |
 | Discounts | `discount.created`, `discount.updated`, `discount.deleted` |
 | Inventory | `inventory.adjusted`, `inventory.low_stock`, `inventory.reserved`, `inventory.allocated` |
+| Checkout | `checkout.abandoned`, `checkout.recovered` |
+| Baskets | `basket.created`, `basket.updated` |
 
 ### Authentication Types
 | Type | Description |
 |------|-------------|
-| `HmacSha256` | HMAC-SHA256 signature in `X-Merchello-Signature` header (default) |
-| `HmacSha512` | HMAC-SHA512 signature |
+| `HmacSha256` | HMAC-SHA256 signature in `X-Merchello-Hmac-SHA256` header (default) |
+| `HmacSha512` | HMAC-SHA512 signature in `X-Merchello-Hmac-SHA512` header |
 | `BearerToken` | Bearer token in Authorization header |
 | `ApiKey` | Custom header with API key |
 | `BasicAuth` | Basic authentication |
@@ -441,6 +443,18 @@ Internal Notification → WebhookNotificationHandler (priority 2000)
 6. WebhookDeliveryJob retries pending deliveries
 ```
 
+### Payload Envelope
+All webhook payloads are wrapped in a standard envelope:
+```json
+{
+  "id": "d290f1ee-6c54-4b01-90e6-d701748f0851",
+  "topic": "order.created",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "api_version": "2024-01",
+  "data": { /* topic-specific payload */ }
+}
+```
+
 ### Configuration
 ```json
 {
@@ -448,11 +462,11 @@ Internal Notification → WebhookNotificationHandler (priority 2000)
     "Webhooks": {
       "Enabled": true,
       "MaxRetries": 5,
-      "RetryDelaySeconds": [60, 300, 900, 3600, 14400],
-      "TimeoutSeconds": 30,
-      "DefaultApiVersion": "2024-01",
-      "DeliveryIntervalSeconds": 30,
-      "LogRetentionDays": 30
+      "RetryDelaysSeconds": [60, 300, 900, 3600, 14400],
+      "DeliveryIntervalSeconds": 10,
+      "DefaultTimeoutSeconds": 30,
+      "MaxPayloadSizeBytes": 1000000,
+      "DeliveryLogRetentionDays": 30
     }
   }
 }
@@ -461,14 +475,16 @@ Internal Notification → WebhookNotificationHandler (priority 2000)
 ### API Endpoints
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/merchello/webhooks/subscriptions` | GET | List subscriptions |
-| `/api/merchello/webhooks/subscriptions` | POST | Create subscription |
-| `/api/merchello/webhooks/subscriptions/{id}` | GET | Get subscription |
-| `/api/merchello/webhooks/subscriptions/{id}` | PUT | Update subscription |
-| `/api/merchello/webhooks/subscriptions/{id}` | DELETE | Delete subscription |
-| `/api/merchello/webhooks/subscriptions/{id}/test` | POST | Send test webhook |
+| `/api/merchello/webhooks` | GET | List subscriptions |
+| `/api/merchello/webhooks` | POST | Create subscription |
+| `/api/merchello/webhooks/{id}` | GET | Get subscription with recent deliveries |
+| `/api/merchello/webhooks/{id}` | PUT | Update subscription |
+| `/api/merchello/webhooks/{id}` | DELETE | Delete subscription |
+| `/api/merchello/webhooks/{id}/test` | POST | Send test webhook |
+| `/api/merchello/webhooks/{id}/regenerate-secret` | POST | Rotate webhook secret |
+| `/api/merchello/webhooks/{id}/deliveries` | GET | List deliveries for subscription |
 | `/api/merchello/webhooks/topics` | GET | List available topics |
-| `/api/merchello/webhooks/deliveries` | GET | List deliveries |
+| `/api/merchello/webhooks/topics/by-category` | GET | Topics grouped by category |
 | `/api/merchello/webhooks/deliveries/{id}` | GET | Get delivery details |
 | `/api/merchello/webhooks/deliveries/{id}/retry` | POST | Manual retry |
 | `/api/merchello/webhooks/stats` | GET | Delivery statistics |

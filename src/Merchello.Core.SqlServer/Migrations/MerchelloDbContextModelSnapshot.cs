@@ -941,6 +941,42 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.ToTable("merchelloDiscountTargetRules", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountUsage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("DiscountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DiscountId");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("DiscountId", "CustomerId");
+
+                    b.HasIndex("DiscountId", "InvoiceId")
+                        .IsUnique();
+
+                    b.ToTable("merchelloDiscountUsages", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.ExchangeRates.Models.ExchangeRateProviderSetting", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1391,6 +1427,11 @@ namespace Merchello.Core.SqlServer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
                         .HasDefaultValue(0);
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
 
                     b.Property<int>("Stock")
                         .HasColumnType("int");
@@ -2436,6 +2477,25 @@ namespace Merchello.Core.SqlServer.Migrations
                         .IsRequired();
 
                     b.Navigation("Discount");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountUsage", b =>
+                {
+                    b.HasOne("Merchello.Core.Discounts.Models.Discount", "Discount")
+                        .WithMany()
+                        .HasForeignKey("DiscountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Merchello.Core.Accounting.Models.Invoice", "Invoice")
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Discount");
+
+                    b.Navigation("Invoice");
                 });
 
             modelBuilder.Entity("Merchello.Core.Payments.Models.PaymentMethodSetting", b =>

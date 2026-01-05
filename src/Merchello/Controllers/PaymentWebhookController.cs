@@ -19,6 +19,7 @@ namespace Merchello.Controllers;
 public class PaymentWebhookController(
     IPaymentProviderManager providerManager,
     IPaymentService paymentService,
+    IWebhookSecurityService webhookSecurityService,
     ILogger<PaymentWebhookController> logger) : ControllerBase
 {
 
@@ -29,11 +30,25 @@ public class PaymentWebhookController(
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> HandleWebhook(
         string providerAlias,
         CancellationToken cancellationToken = default)
     {
+        var remoteIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+
         logger.LogInformation("Received webhook for provider: {Provider}", providerAlias);
+
+        // Check rate limiting first
+        if (webhookSecurityService.IsRateLimited(providerAlias, remoteIp))
+        {
+            webhookSecurityService.LogSecurityEvent(
+                WebhookSecurityEventType.RateLimited,
+                providerAlias,
+                "Webhook rate limit exceeded",
+                remoteIp);
+            return StatusCode(StatusCodes.Status429TooManyRequests, "Too many requests.");
+        }
 
         // Get the provider
         var registeredProvider = await providerManager.GetProviderAsync(
@@ -103,7 +118,11 @@ public class PaymentWebhookController(
 
         if (!isValid)
         {
-            logger.LogWarning("Invalid webhook signature for provider: {Provider}", providerAlias);
+            webhookSecurityService.LogSecurityEvent(
+                WebhookSecurityEventType.SignatureValidationFailed,
+                providerAlias,
+                "Invalid webhook signature",
+                remoteIp);
             return BadRequest("Invalid webhook signature.");
         }
 
@@ -121,30 +140,57 @@ public class PaymentWebhookController(
 
         if (!result.Success)
         {
-            logger.LogWarning(
-                "Webhook processing failed for provider: {Provider}. Error: {Error}",
+            webhookSecurityService.LogSecurityEvent(
+                WebhookSecurityEventType.ProcessingFailed,
                 providerAlias,
-                result.ErrorMessage);
+                result.ErrorMessage ?? "Processing failed",
+                remoteIp);
             return BadRequest(result.ErrorMessage);
         }
 
         if (result.AlreadyProcessed)
         {
-            logger.LogInformation(
-                "Webhook already processed for provider: {Provider}, TransactionId: {TransactionId}",
+            webhookSecurityService.LogSecurityEvent(
+                WebhookSecurityEventType.DuplicateWebhook,
                 providerAlias,
-                result.TransactionId);
+                $"Already processed: {result.TransactionId}",
+                remoteIp);
             return Ok(new { message = "Already processed" });
         }
 
-        // Handle the event based on type
-        await HandleWebhookEventAsync(providerAlias, result, cancellationToken);
+        // Atomically mark as processing to prevent concurrent duplicate handling
+        // Uses provider alias + transaction ID as the unique key
+        var webhookEventId = result.TransactionId ?? Guid.NewGuid().ToString();
+        if (!webhookSecurityService.TryMarkAsProcessing(providerAlias, webhookEventId))
+        {
+            webhookSecurityService.LogSecurityEvent(
+                WebhookSecurityEventType.DuplicateWebhook,
+                providerAlias,
+                $"Concurrent duplicate blocked: {webhookEventId}",
+                remoteIp);
+            return Ok(new { message = "Already processing" });
+        }
 
-        logger.LogInformation(
-            "Webhook processed successfully for provider: {Provider}, Event: {Event}, TransactionId: {TransactionId}",
+        try
+        {
+            // Handle the event based on type
+            await HandleWebhookEventAsync(providerAlias, result, cancellationToken);
+
+            // Mark as permanently processed
+            webhookSecurityService.MarkAsProcessed(providerAlias, webhookEventId);
+        }
+        catch
+        {
+            // Clear the processing marker so the webhook can be retried
+            webhookSecurityService.ClearProcessingMarker(providerAlias, webhookEventId);
+            throw;
+        }
+
+        webhookSecurityService.LogSecurityEvent(
+            WebhookSecurityEventType.ProcessedSuccessfully,
             providerAlias,
-            result.EventType,
-            result.TransactionId);
+            $"Event: {result.EventType}, TransactionId: {result.TransactionId}",
+            remoteIp);
 
         return Ok(new { message = "Webhook processed", eventType = result.EventType?.ToString() });
     }

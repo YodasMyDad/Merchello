@@ -11,10 +11,10 @@ using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
+using Merchello.Core.Shared.RateLimiting.Interfaces;
 using Merchello.Core.Shared.Services;
 using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
@@ -30,7 +30,8 @@ public class PaymentService(
     PaymentFactory paymentFactory,
     ICurrencyService currencyService,
     IMerchelloNotificationPublisher notificationPublisher,
-    IMemoryCache memoryCache,
+    IRateLimiter rateLimiter,
+    IPaymentIdempotencyService idempotencyService,
     IOptions<MerchelloSettings> settings,
     ILogger<PaymentService> logger) : IPaymentService
 {
@@ -42,29 +43,28 @@ public class PaymentService(
     /// </summary>
     private const int MaxPaymentSessionsPerMinute = 10;
 
+    /// <summary>
+    /// Rate limit window duration.
+    /// </summary>
+    private static readonly TimeSpan RateLimitWindow = TimeSpan.FromMinutes(1);
+
     /// <inheritdoc />
     public async Task<PaymentSessionResult> CreatePaymentSessionAsync(
         CreatePaymentSessionParameters parameters,
         CancellationToken cancellationToken = default)
     {
-        // Rate limit payment session creation per invoice
-        var cacheKey = $"payment_rate_{parameters.InvoiceId}";
-        var count = memoryCache.GetOrCreate(cacheKey, entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1);
-            return 0;
-        });
+        // Rate limit payment session creation per invoice using atomic rate limiter
+        var rateLimitKey = $"payment_rate_{parameters.InvoiceId}";
+        var rateLimitResult = rateLimiter.TryAcquire(rateLimitKey, MaxPaymentSessionsPerMinute, RateLimitWindow);
 
-        if (count >= MaxPaymentSessionsPerMinute)
+        if (!rateLimitResult.IsAllowed)
         {
             logger.LogWarning(
                 "Rate limit exceeded for payment sessions on invoice {InvoiceId}. Count: {Count}",
-                parameters.InvoiceId, count);
+                parameters.InvoiceId, rateLimitResult.CurrentCount);
             return PaymentSessionResult.Failed(
                 "Too many payment attempts. Please wait a moment before trying again.");
         }
-
-        memoryCache.Set(cacheKey, count + 1, TimeSpan.FromMinutes(1));
 
         // Get the provider
         var registeredProvider = await providerManager.GetProviderAsync(parameters.ProviderAlias, requireEnabled: true, cancellationToken);
@@ -127,10 +127,57 @@ public class PaymentService(
     {
         var result = new CrudResult<Payment>();
 
+        // Check idempotency if key provided
+        if (!string.IsNullOrEmpty(request.IdempotencyKey))
+        {
+            var cachedResult = idempotencyService.GetCachedPaymentResult(request.IdempotencyKey);
+            if (cachedResult != null)
+            {
+                logger.LogInformation(
+                    "Returning cached payment result for idempotency key {Key}",
+                    request.IdempotencyKey);
+
+                if (cachedResult.Success)
+                {
+                    result.Messages.Add(new ResultMessage
+                    {
+                        Message = "Payment already processed (idempotent request).",
+                        ResultMessageType = ResultMessageType.Success
+                    });
+                }
+                else
+                {
+                    result.Messages.Add(new ResultMessage
+                    {
+                        Message = cachedResult.ErrorMessage ?? "Payment previously failed.",
+                        ResultMessageType = ResultMessageType.Error
+                    });
+                }
+                return result;
+            }
+
+            // Mark as processing to prevent concurrent duplicates
+            if (!idempotencyService.TryMarkAsProcessing(request.IdempotencyKey))
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Payment is already being processed. Please wait.",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return result;
+            }
+        }
+
         // Get the provider
         var registeredProvider = await providerManager.GetProviderAsync(request.ProviderAlias, requireEnabled: true, cancellationToken);
         if (registeredProvider == null)
         {
+            // Clear processing marker since we're returning early
+            if (!string.IsNullOrEmpty(request.IdempotencyKey))
+            {
+                idempotencyService.ClearProcessingMarker(request.IdempotencyKey);
+            }
+
             result.Messages.Add(new ResultMessage
             {
                 Message = $"Payment provider '{request.ProviderAlias}' is not available or not enabled.",
@@ -143,6 +190,12 @@ public class PaymentService(
         {
             // Process the payment with the provider
             var paymentResult = await registeredProvider.Provider.ProcessPaymentAsync(request, cancellationToken);
+
+            // Cache the result for idempotency
+            if (!string.IsNullOrEmpty(request.IdempotencyKey))
+            {
+                idempotencyService.CachePaymentResult(request.IdempotencyKey, paymentResult);
+            }
 
             if (!paymentResult.Success)
             {
@@ -200,6 +253,13 @@ public class PaymentService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to process payment for invoice {InvoiceId} via {Provider}", request.InvoiceId, request.ProviderAlias);
+
+            // Clear processing marker on exception (don't cache exception results to allow retry)
+            if (!string.IsNullOrEmpty(request.IdempotencyKey))
+            {
+                idempotencyService.ClearProcessingMarker(request.IdempotencyKey);
+            }
+
             result.Messages.Add(new ResultMessage
             {
                 Message = $"Payment processing failed: {ex.Message}",
@@ -335,12 +395,55 @@ public class PaymentService(
         var paymentId = parameters.PaymentId;
         var amount = parameters.Amount;
         var reason = parameters.Reason;
+        var idempotencyKey = parameters.IdempotencyKey;
 
         var result = new CrudResult<Payment>();
+
+        // Check idempotency if key provided
+        if (!string.IsNullOrEmpty(idempotencyKey))
+        {
+            var cachedResult = idempotencyService.GetCachedRefundResult(idempotencyKey);
+            if (cachedResult != null)
+            {
+                logger.LogInformation(
+                    "Returning cached refund result for idempotency key {Key}",
+                    idempotencyKey);
+
+                if (cachedResult.Success)
+                {
+                    result.Messages.Add(new ResultMessage
+                    {
+                        Message = "Refund already processed (idempotent request).",
+                        ResultMessageType = ResultMessageType.Success
+                    });
+                }
+                else
+                {
+                    result.Messages.Add(new ResultMessage
+                    {
+                        Message = cachedResult.ErrorMessage ?? "Refund previously failed.",
+                        ResultMessageType = ResultMessageType.Error
+                    });
+                }
+                return result;
+            }
+
+            // Mark as processing to prevent concurrent duplicates
+            if (!idempotencyService.TryMarkAsProcessing(idempotencyKey))
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Refund is already being processed. Please wait.",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return result;
+            }
+        }
 
         // Validate refund reason (required business rule)
         if (string.IsNullOrWhiteSpace(reason))
         {
+            ClearRefundIdempotencyMarker(idempotencyKey);
             result.Messages.Add(new ResultMessage
             {
                 Message = "Refund reason is required.",
@@ -358,6 +461,7 @@ public class PaymentService(
 
         if (originalPayment == null)
         {
+            ClearRefundIdempotencyMarker(idempotencyKey);
             result.Messages.Add(new ResultMessage
             {
                 Message = $"Payment '{paymentId}' not found.",
@@ -369,6 +473,7 @@ public class PaymentService(
 
         if (originalPayment.PaymentType != PaymentType.Payment)
         {
+            ClearRefundIdempotencyMarker(idempotencyKey);
             result.Messages.Add(new ResultMessage
             {
                 Message = "Cannot refund a refund payment.",
@@ -385,6 +490,7 @@ public class PaymentService(
 
         if (refundAmount <= 0)
         {
+            ClearRefundIdempotencyMarker(idempotencyKey);
             result.Messages.Add(new ResultMessage
             {
                 Message = "Refund amount must be greater than zero.",
@@ -396,6 +502,7 @@ public class PaymentService(
 
         if (refundAmount > refundableAmount)
         {
+            ClearRefundIdempotencyMarker(idempotencyKey);
             result.Messages.Add(new ResultMessage
             {
                 Message = $"Refund amount ({refundAmount:C}) exceeds refundable amount ({refundableAmount:C}).",
@@ -408,6 +515,7 @@ public class PaymentService(
         // Get the provider to process the refund
         if (string.IsNullOrEmpty(originalPayment.PaymentProviderAlias))
         {
+            ClearRefundIdempotencyMarker(idempotencyKey);
             result.Messages.Add(new ResultMessage
             {
                 Message = "Payment has no provider alias. Use RecordManualRefundAsync instead.",
@@ -421,6 +529,7 @@ public class PaymentService(
         var refundingNotification = new PaymentRefundingNotification(originalPayment, refundAmount, reason);
         if (await notificationPublisher.PublishCancelableAsync(refundingNotification, cancellationToken))
         {
+            ClearRefundIdempotencyMarker(idempotencyKey);
             result.Messages.Add(new ResultMessage
             {
                 Message = refundingNotification.CancelReason ?? "Refund cancelled",
@@ -437,6 +546,7 @@ public class PaymentService(
 
         if (registeredProvider == null)
         {
+            ClearRefundIdempotencyMarker(idempotencyKey);
             result.Messages.Add(new ResultMessage
             {
                 Message = $"Payment provider '{originalPayment.PaymentProviderAlias}' not found.",
@@ -448,6 +558,7 @@ public class PaymentService(
 
         if (!registeredProvider.Metadata.SupportsRefunds)
         {
+            ClearRefundIdempotencyMarker(idempotencyKey);
             result.Messages.Add(new ResultMessage
             {
                 Message = $"Provider '{originalPayment.PaymentProviderAlias}' does not support refunds.",
@@ -459,6 +570,7 @@ public class PaymentService(
 
         if (refundAmount < refundableAmount && !registeredProvider.Metadata.SupportsPartialRefunds)
         {
+            ClearRefundIdempotencyMarker(idempotencyKey);
             result.Messages.Add(new ResultMessage
             {
                 Message = $"Provider '{originalPayment.PaymentProviderAlias}' does not support partial refunds.",
@@ -474,17 +586,25 @@ public class PaymentService(
             PaymentId = paymentId,
             TransactionId = originalPayment.TransactionId!,
             Amount = refundAmount,
-            Reason = reason
+            Reason = reason,
+            IdempotencyKey = idempotencyKey
         };
 
         RefundResult refundResult;
         try
         {
             refundResult = await registeredProvider.Provider.RefundPaymentAsync(refundRequest, cancellationToken);
+
+            // Cache the result for idempotency
+            if (!string.IsNullOrEmpty(idempotencyKey))
+            {
+                idempotencyService.CacheRefundResult(idempotencyKey, refundResult);
+            }
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to process refund for payment {PaymentId}", paymentId);
+            ClearRefundIdempotencyMarker(idempotencyKey);
             result.Messages.Add(new ResultMessage
             {
                 Message = $"Refund processing failed: {ex.Message}",
@@ -898,5 +1018,16 @@ public class PaymentService(
         scope.Complete();
 
         return result;
+    }
+
+    /// <summary>
+    /// Helper method to clear refund idempotency processing marker on early return.
+    /// </summary>
+    private void ClearRefundIdempotencyMarker(string? idempotencyKey)
+    {
+        if (!string.IsNullOrEmpty(idempotencyKey))
+        {
+            idempotencyService.ClearProcessingMarker(idempotencyKey);
+        }
     }
 }

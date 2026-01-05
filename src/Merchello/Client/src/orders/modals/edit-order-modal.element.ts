@@ -588,6 +588,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         name: item.name,
         sku: item.sku,
         price: item.price,
+        cost: item.cost,
         quantity: item.quantity,
         taxGroupId: item.taxGroupId,
         isPhysicalProduct: item.isPhysicalProduct,

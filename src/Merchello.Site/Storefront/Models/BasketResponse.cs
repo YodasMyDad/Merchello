@@ -51,6 +51,17 @@ public class FullBasketResponse
 
     public int ItemCount { get; set; }
     public bool IsEmpty { get; set; }
+
+    // Availability (SSR) - keyed by line item ID string for JS compatibility
+    public bool AllItemsAvailable { get; set; } = true;
+    public Dictionary<string, BasketItemAvailabilityDto> ItemAvailability { get; set; } = [];
+}
+
+public class BasketItemAvailabilityDto
+{
+    public bool CanShipToCountry { get; set; }
+    public bool HasStock { get; set; }
+    public string? Message { get; set; }
 }
 
 public class BasketLineItemDto

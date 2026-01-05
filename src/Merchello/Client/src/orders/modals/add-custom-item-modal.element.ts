@@ -17,6 +17,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
   @state() private _name: string = "";
   @state() private _sku: string = "";
   @state() private _price: number = 0;
+  @state() private _cost: number = 0;
   @state() private _quantity: number = 1;
   @state() private _selectedTaxGroupId: string | null = null;
   @state() private _isPhysicalProduct: boolean = true;
@@ -211,6 +212,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
         name: this._name.trim(),
         sku: this._sku.trim(),
         price: this._price,
+        cost: this._cost,
         quantity: this._quantity,
         taxGroupId: this._selectedTaxGroupId,
         isPhysicalProduct: this._isPhysicalProduct,
@@ -362,16 +364,31 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
         </div>
 
         <div class="form-row">
-          <label for="item-quantity">Quantity</label>
-          <uui-input
-            id="item-quantity"
-            type="number"
-            .value=${this._quantity.toString()}
-            @input=${this._handleQuantityInput}
-            min="1"
-          ></uui-input>
-          ${this._errors.quantity ? html`<span class="error">${this._errors.quantity}</span>` : nothing}
+          <label for="item-cost">Cost</label>
+          <div class="input-with-prefix">
+            <span class="prefix">${currencySymbol}</span>
+            <uui-input
+              id="item-cost"
+              type="number"
+              .value=${this._cost.toString()}
+              @input=${(e: Event) => (this._cost = parseFloat((e.target as HTMLInputElement).value) || 0)}
+              step="0.01"
+              min="0"
+            ></uui-input>
+          </div>
         </div>
+      </div>
+
+      <div class="form-row">
+        <label for="item-quantity">Quantity</label>
+        <uui-input
+          id="item-quantity"
+          type="number"
+          .value=${this._quantity.toString()}
+          @input=${this._handleQuantityInput}
+          min="1"
+        ></uui-input>
+        ${this._errors.quantity ? html`<span class="error">${this._errors.quantity}</span>` : nothing}
       </div>
 
       <div class="form-row">

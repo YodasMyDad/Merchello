@@ -24,8 +24,8 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Models;
-using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Shared.RateLimiting.Interfaces;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
 using Microsoft.AspNetCore.Http;
@@ -48,9 +48,9 @@ public class CheckoutService(
     IProductService productService,
     IWarehouseService warehouseService,
     IInvoiceService invoiceService,
-    ICacheService cacheService,
     ILocalityCatalog localityCatalog,
     ICheckoutSessionService checkoutSessionService,
+    IRateLimiter rateLimiter,
     IDiscountEngine? discountEngine = null,
     IDiscountService? discountService = null,
     ILocationsService? locationsService = null) : ICheckoutService
@@ -530,6 +530,7 @@ public class CheckoutService(
                 .Include(product => product.ShippingOptions)
                     .ThenInclude(option => option.Warehouse)
                         .ThenInclude(w => w!.ServiceRegions)
+                .AsSplitQuery()
                 .AsNoTracking()
                 .Where(product => productIds.Contains(product.Id))
                 .ToDictionaryAsync(p => p.Id, cancellationToken);
@@ -1375,36 +1376,26 @@ public class CheckoutService(
 
     /// <summary>
     /// Checks rate limit for discount code attempts.
-    /// Returns whether the request is allowed and increments the counter.
+    /// Returns whether the request is allowed and atomically increments the counter.
     /// </summary>
-    private async Task<(bool Allowed, string? ErrorMessage)> CheckDiscountCodeRateLimitAsync(
+    private Task<(bool Allowed, string? ErrorMessage)> CheckDiscountCodeRateLimitAsync(
         Guid basketId,
         CancellationToken cancellationToken)
     {
-        var cacheKey = $"discount-code-attempts:{basketId}";
+        var rateLimitKey = $"discount-code-attempts:{basketId}";
 
-        // Get current attempt count (or create with 0)
-        var attemptCount = await cacheService.GetOrCreateAsync(
-            cacheKey,
-            _ => Task.FromResult(0),
-            DiscountCodeRateLimitWindow,
-            cancellationToken: cancellationToken);
+        // Use atomic rate limiter - check and increment happen together
+        var result = rateLimiter.TryAcquire(rateLimitKey, MaxDiscountCodeAttemptsPerMinute, DiscountCodeRateLimitWindow);
 
-        if (attemptCount >= MaxDiscountCodeAttemptsPerMinute)
+        if (!result.IsAllowed)
         {
-            return (false, "Too many discount code attempts. Please wait a minute before trying again.");
+            var retryMessage = result.RetryAfter.HasValue
+                ? $" Please wait {result.RetryAfter.Value.TotalSeconds:F0} seconds before trying again."
+                : " Please wait a minute before trying again.";
+            return Task.FromResult<(bool, string?)>((false, $"Too many discount code attempts.{retryMessage}"));
         }
 
-        // Increment the counter by removing and re-adding with new value
-        // Note: This is a simple implementation. For high-traffic scenarios, consider a dedicated rate limiter.
-        await cacheService.RemoveAsync(cacheKey, cancellationToken);
-        await cacheService.GetOrCreateAsync(
-            cacheKey,
-            _ => Task.FromResult(attemptCount + 1),
-            DiscountCodeRateLimitWindow,
-            cancellationToken: cancellationToken);
-
-        return (true, null);
+        return Task.FromResult<(bool, string?)>((true, null));
     }
 
     private sealed class NoopLocationsService : ILocationsService

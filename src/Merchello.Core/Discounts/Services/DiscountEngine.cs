@@ -122,8 +122,15 @@ public class DiscountEngine(
         // Filter and sort by combination rules (FilterCombinableDiscounts handles sorting)
         var validDiscounts = FilterCombinableDiscounts(discounts);
 
+        // Track running subtotal for sequential percentage discount calculation
+        // This ensures each discount is calculated on the adjusted subtotal, not the original
+        var runningSubTotal = context.SubTotal;
+
         foreach (var discount in validDiscounts)
         {
+            // Update context with running subtotal for accurate sequential calculations
+            context.SubTotal = runningSubTotal;
+
             var calculationResult = await CalculateAsync(discount, context, ct);
             if (!calculationResult.Success || calculationResult.TotalDiscountAmount <= 0)
             {
@@ -140,6 +147,17 @@ public class DiscountEngine(
             });
 
             result.TotalDiscountAmount += calculationResult.TotalDiscountAmount;
+
+            // Adjust running subtotal for next discount calculation
+            // Order discounts reduce the subtotal for subsequent percentage calculations
+            if (discount.Category == DiscountCategory.AmountOffOrder)
+            {
+                runningSubTotal = Math.Max(0, runningSubTotal - calculationResult.OrderDiscountAmount);
+            }
+            else if (discount.Category is DiscountCategory.AmountOffProducts or DiscountCategory.BuyXGetY)
+            {
+                runningSubTotal = Math.Max(0, runningSubTotal - calculationResult.ProductDiscountAmount);
+            }
 
             // Merge discounted line items
             foreach (var item in calculationResult.DiscountedLineItems)

@@ -310,6 +310,8 @@ public class StorefrontApiController(
                 CountryCode = current.CountryCode,
                 CountryName = current.CountryName
             },
+            CurrentRegionCode = current.RegionCode,
+            CurrentRegionName = current.RegionName,
             Currency = new StorefrontCurrencyResponse
             {
                 CurrencyCode = currency.CurrencyCode,

@@ -8,6 +8,11 @@ namespace Merchello.Core.Accounting.Dtos;
 public class CustomerLookupResultDto
 {
     /// <summary>
+    /// The Customer ID if this is a registered customer, null for guest customers
+    /// </summary>
+    public Guid? CustomerId { get; set; }
+
+    /// <summary>
     /// Customer name from billing address
     /// </summary>
     public string Name { get; set; } = string.Empty;

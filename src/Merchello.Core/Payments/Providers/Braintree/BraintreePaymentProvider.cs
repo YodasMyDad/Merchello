@@ -43,54 +43,54 @@ public class BraintreePaymentProvider : PaymentProviderBase
     };
 
     /// <summary>
-    /// SVG icon for card payments.
+    /// SVG icon for card payments (credit card symbol).
     /// </summary>
-    private const string CardIconSvg = """<svg class="w-8 h-5" viewBox="0 0 32 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="30" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="5" width="30" height="4" fill="currentColor" opacity="0.3"/><rect x="4" y="12" width="8" height="2" rx="1" fill="currentColor" opacity="0.5"/></svg>""";
+    private const string CardIconSvg = """<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2 9h20" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="13" width="5" height="2" rx="0.5" fill="currentColor" opacity="0.5"/></svg>""";
 
     /// <summary>
-    /// SVG icon for PayPal.
+    /// SVG icon for PayPal (PP logo symbol only).
     /// </summary>
-    private const string PayPalIconSvg = """<svg class="w-16 h-5" viewBox="0 0 64 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7.4 4.5H11.5C13.4 4.5 14.5 5.5 14.4 7.3C14.2 10.4 12.1 12.1 9.4 12.1H8.1L7.4 16.5H4.6L7.4 4.5Z" fill="#003087"/><path d="M9.2 7H10.6C11.5 7 12.2 7.3 12.1 8.3C11.9 9.8 11 10.2 9.9 10.2H8.8L9.2 7Z" fill="#003087"/><path d="M16.2 4.5H20.3C22.2 4.5 23.3 5.5 23.2 7.3C23 10.4 20.9 12.1 18.2 12.1H16.9L16.2 16.5H13.4L16.2 4.5Z" fill="#0070E0"/><path d="M18 7H19.4C20.3 7 21 7.3 20.9 8.3C20.7 9.8 19.8 10.2 18.7 10.2H17.6L18 7Z" fill="#0070E0"/><path d="M25.5 16.5L27.5 4.5H30.3L28.3 16.5H25.5Z" fill="#003087"/><path d="M36.8 4.2C39.8 4.2 41.6 6 41.3 9C41 12 38.8 13.9 35.8 13.9C32.8 13.9 31 12.1 31.3 9.1C31.6 6.1 33.8 4.2 36.8 4.2ZM36.1 11.5C37.5 11.5 38.6 10.5 38.8 8.9C39 7.3 38.2 6.3 36.8 6.3C35.4 6.3 34.3 7.3 34.1 8.9C33.9 10.5 34.7 11.5 36.1 11.5Z" fill="#003087"/><path d="M42.5 16.5L44.5 4.5H47.1L46.8 6.3C47.7 5.1 49.1 4.2 50.5 4.2C52.5 4.2 53.6 5.5 53.3 7.8L52.2 16.5H49.4L50.3 8.8C50.4 7.8 50 7.2 49 7.2C47.8 7.2 46.7 8.2 46.4 10.3L45.6 16.5H42.5Z" fill="#003087"/></svg>""";
+    private const string PayPalIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106z" fill="#003087"/><path d="M23.048 7.667c-.028.179-.06.362-.096.55-1.237 6.351-5.469 8.545-10.874 8.545H9.326c-.661 0-1.218.48-1.321 1.132l-1.41 8.95a.568.568 0 0 0 .562.655h3.94c.578 0 1.069-.42 1.16-.99l.045-.24.92-5.815.059-.32c.09-.572.582-.992 1.16-.992h.73c4.729 0 8.431-1.92 9.513-7.476.452-2.321.218-4.259-.978-5.622a4.667 4.667 0 0 0-1.658-1.377z" fill="#0070E0"/></svg>""";
 
     /// <summary>
-    /// SVG icon for Apple Pay.
+    /// SVG icon for Apple Pay (Apple logo only).
     /// </summary>
-    private const string ApplePayIconSvg = """<svg class="w-12 h-5" viewBox="0 0 50 21" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.6 2.7C10.2 2 10.7 1 10.5 0C9.6 0.1 8.5 0.6 7.9 1.3C7.3 1.9 6.7 2.9 6.9 3.9C7.9 4 8.9 3.5 9.6 2.7ZM10.5 4.1C9 4 7.7 4.9 7 4.9C6.2 4.9 5.1 4.1 3.8 4.2C2.2 4.2 0.8 5 0 6.3C-1.5 9 0.1 12.9 1.6 15.1C2.3 16.2 3.2 17.5 4.4 17.4C5.6 17.4 6 16.6 7.4 16.6C8.8 16.6 9.2 17.4 10.5 17.4C11.7 17.4 12.5 16.2 13.2 15.1C14 13.9 14.4 12.7 14.4 12.6C14.4 12.6 11.8 11.6 11.8 8.7C11.8 6.2 13.8 5 13.9 5C12.7 3.2 10.8 4.1 10.5 4.1Z" fill="currentColor"/><path d="M21.2 1.3C24.6 1.3 27 3.7 27 7.1C27 10.6 24.5 13 21 13H17.7V17.3H14.8V1.3H21.2ZM17.7 10.5H20.4C22.7 10.5 24 9.2 24 7.1C24 5 22.7 3.7 20.4 3.7H17.7V10.5Z" fill="currentColor"/><path d="M28.1 14C28.1 11.8 29.8 10.4 32.8 10.3L36.2 10.1V9.2C36.2 7.8 35.2 6.9 33.5 6.9C32 6.9 31 7.6 30.8 8.7H28.2C28.3 6.2 30.5 4.6 33.6 4.6C36.8 4.6 38.9 6.2 38.9 8.9V17.3H36.3V15.2H36.2C35.5 16.6 33.8 17.5 32.1 17.5C29.6 17.5 28.1 16.1 28.1 14ZM36.2 12.8V11.9L33.2 12.1C31.6 12.2 30.8 12.9 30.8 13.9C30.8 14.9 31.7 15.6 33 15.6C34.8 15.6 36.2 14.4 36.2 12.8Z" fill="currentColor"/><path d="M41.2 21V18.8C41.4 18.8 41.8 18.9 42.1 18.9C43.2 18.9 43.9 18.4 44.2 17.4L44.4 16.7L39.5 4.8H42.5L45.8 14.4H45.9L49.2 4.8H52.1L47 17.6C46 20.4 44.7 21.2 42.3 21.2C42 21 41.5 21 41.2 21Z" fill="currentColor"/></svg>""";
+    private const string ApplePayIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.53 4.08M12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" fill="currentColor"/></svg>""";
 
     /// <summary>
-    /// SVG icon for Google Pay.
+    /// SVG icon for Google Pay (colored G logo only).
     /// </summary>
-    private const string GooglePayIconSvg = """<svg class="w-12 h-5" viewBox="0 0 50 21" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M23.8 10.5V16.3H22V1.5H27C28.4 1.5 29.6 2 30.5 2.9C31.5 3.8 32 4.9 32 6.2C32 7.6 31.5 8.7 30.5 9.6C29.6 10.5 28.4 10.5 27 10.5H23.8ZM23.8 3.2V8.8H27C27.9 8.8 28.6 8.5 29.1 7.9C29.7 7.3 30 6.8 30 6C30 5.3 29.7 4.7 29.1 4.1C28.5 3.5 27.8 3.2 27 3.2H23.8Z" fill="#5F6368"/><path d="M37 6.3C38.5 6.3 39.7 6.7 40.6 7.6C41.5 8.5 42 9.6 42 11V16.3H40.2V14.9H40.1C39.2 16.1 38 16.5 36.7 16.5C35.5 16.5 34.5 16.2 33.7 15.5C32.9 14.8 32.5 13.9 32.5 12.9C32.5 11.8 32.9 10.9 33.8 10.2C34.7 9.5 35.8 9.2 37.2 9.2C38.4 9.2 39.4 9.4 40.1 9.9V9.5C40.1 8.7 39.8 8.1 39.2 7.5C38.6 6.9 37.9 6.6 37.1 6.6C35.9 6.6 35 7.1 34.4 8L32.8 7C33.7 5.9 35.1 6.3 37 6.3ZM34.4 12.9C34.4 13.5 34.7 14 35.2 14.3C35.7 14.7 36.3 14.9 37 14.9C37.9 14.9 38.8 14.5 39.5 13.9C40.2 13.2 40.5 12.5 40.5 11.6C39.9 11.1 39 10.8 37.8 10.8C36.9 10.8 36.1 11 35.5 11.4C34.8 11.8 34.4 12.3 34.4 12.9Z" fill="#5F6368"/><path d="M50 6.5L44.4 19.5H42.5L44.5 15.1L40.5 6.5H42.5L45.4 13.2L48.2 6.5H50Z" fill="#5F6368"/><path d="M16 8.5C16 7.9 16 7.3 15.9 6.8H8.2V10H12.5C12.3 11.1 11.7 12.1 10.8 12.7V15H13.5C15.1 13.5 16 11.2 16 8.5Z" fill="#4285F4"/><path d="M8.2 17C10.6 17 12.6 16.2 13.5 15L10.8 12.7C10 13.2 9.2 13.5 8.2 13.5C5.9 13.5 3.9 11.9 3.2 9.8H0.4V12.2C1.8 14.9 4.8 17 8.2 17Z" fill="#34A853"/><path d="M3.2 9.8C3 9.2 2.9 8.6 2.9 8C2.9 7.4 3 6.8 3.2 6.2V3.8H0.4C-0.2 5.1 -0.5 6.5 -0.5 8C-0.5 9.5 -0.2 10.9 0.4 12.2L3.2 9.8Z" fill="#FBBC05"/><path d="M8.2 2.5C9.4 2.5 10.5 2.9 11.3 3.7L13.6 1.4C12.1 0 10.3 -0.7 8.2 -0.7C4.8 -0.7 1.8 1.4 0.4 3.8L3.2 6.2C3.9 4.1 5.9 2.5 8.2 2.5Z" fill="#EA4335"/></svg>""";
+    private const string GooglePayIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>""";
 
     /// <summary>
-    /// SVG icon for Venmo.
+    /// SVG icon for Venmo (V symbol only).
     /// </summary>
-    private const string VenmoIconSvg = """<svg class="w-16 h-5" viewBox="0 0 64 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10.5 0.5C11.2 1.7 11.5 2.9 11.5 4.5C11.5 8.9 7.7 14.6 4.6 18.5H0L2.3 1L7.3 0.5L6.2 11.5C7.5 9.4 9.1 6 9.1 3.8C9.1 2.5 8.9 1.6 8.5 0.9L10.5 0.5ZM17.5 7.5C18.5 7.5 20.5 7 20.5 5.5C20.5 4.7 20 4.3 19.3 4.3C18.3 4.3 17.6 5.3 17.5 7.5ZM17.3 10C17.3 12.3 18.3 13.2 19.8 13.2C21.2 13.2 22.5 12.8 24.3 11.8L23.8 15.5C22.5 16.3 20.5 17 18.3 17C14.3 17 12.5 14.5 12.5 11C12.5 6 15.5 1.5 20.3 1.5C23.3 1.5 25 3.3 25 5.8C25 9.5 21 10 17.3 10ZM32.5 4.8C33.5 4.8 34.3 5 35.3 5.5L34.5 9.5C33.7 9.1 32.8 8.8 31.8 8.8C30 8.8 29 10.5 29 12.5C29 14 29.7 14.8 30.8 14.8C31.7 14.8 32.5 14.5 33.5 13.8L33 17.5C32 18 30.5 18.5 29 18.5C26 18.5 24 16.3 24 13C24 8 27 1.5 32.5 1.5C34.3 1.5 36 2 37 2.8L35.5 6.5C34.8 6 33.8 5.5 32.8 5.5L32.5 4.8ZM44.5 4.8C43.3 4.8 42.5 6.3 42.5 8C42.5 9.5 43.2 10.3 44.2 10.3C45.4 10.3 46.2 8.8 46.2 7C46.2 5.7 45.5 4.8 44.5 4.8ZM43.5 13.8C42.2 13.8 41.2 13.3 40.5 12.5C40 14.3 39.3 16.3 38.5 18.5H33.5L38 1L42.5 0.5L42.3 2C43.3 1 44.5 0.5 46 0.5C48.8 0.5 51 2.8 51 6.3C51 11 47.8 14.5 43.5 13.8ZM58.5 1C60.5 1 62.5 1.5 64 2.3L63.3 6C61.8 5.3 60.3 4.8 58.8 4.8C57.8 4.8 57.3 5.1 57.3 5.7C57.3 7.3 64 7 64 11.5C64 15 61 17 57 17C55 17 52.8 16.5 51.3 15.5L52 12C53.5 13 55.5 13.5 57.3 13.5C58.5 13.5 59.3 13.1 59.3 12.3C59.3 10.7 52.3 11.1 52.3 6.5C52.3 3.3 55 1 58.5 1Z" fill="#3D95CE"/></svg>""";
+    private const string VenmoIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19.5 1c.87 1.44 1.26 2.92 1.26 4.8 0 5.98-5.1 13.75-9.24 19.2H4.2L1 2.85l6.24-.6 1.86 14.9C11.04 13.5 13.2 8.18 13.2 5.08c0-1.74-.3-2.92-.78-3.9L19.5 1z" fill="#3D95CE"/></svg>""";
 
     /// <summary>
-    /// SVG icon for iDEAL.
+    /// SVG icon for iDEAL (Netherlands - stylized bank symbol).
     /// </summary>
-    private const string IdealIconSvg = """<svg class="w-10 h-5" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="20" rx="2" fill="#CC0066"/><text x="20" y="14" text-anchor="middle" fill="white" font-size="10" font-weight="bold">iDEAL</text></svg>""";
+    private const string IdealIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#CC0066"/><path d="M12 8v8M8 12h8" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>""";
 
     /// <summary>
-    /// SVG icon for Bancontact.
+    /// SVG icon for Bancontact (Belgium - interlocking circles).
     /// </summary>
-    private const string BancontactIconSvg = """<svg class="w-10 h-5" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="20" rx="2" fill="#005498"/><text x="20" y="14" text-anchor="middle" fill="white" font-size="7" font-weight="bold">Bancontact</text></svg>""";
+    private const string BancontactIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#005498"/><circle cx="9" cy="12" r="4" fill="none" stroke="#FFD800" stroke-width="1.5"/><circle cx="15" cy="12" r="4" fill="none" stroke="#FFD800" stroke-width="1.5"/></svg>""";
 
     /// <summary>
-    /// SVG icon for SEPA.
+    /// SVG icon for SEPA (EU - euro stars symbol).
     /// </summary>
-    private const string SepaIconSvg = """<svg class="w-10 h-5" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="20" rx="2" fill="#2E4A7D"/><text x="20" y="14" text-anchor="middle" fill="white" font-size="10" font-weight="bold">SEPA</text></svg>""";
+    private const string SepaIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#003399"/><circle cx="12" cy="12" r="5" fill="none" stroke="#FFCC00" stroke-width="1.5"/><path d="M7 12h10" stroke="#FFCC00" stroke-width="1"/></svg>""";
 
     /// <summary>
-    /// SVG icon for EPS.
+    /// SVG icon for EPS (Austria - bank symbol).
     /// </summary>
-    private const string EpsIconSvg = """<svg class="w-10 h-5" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="20" rx="2" fill="#9E1B34"/><text x="20" y="14" text-anchor="middle" fill="white" font-size="10" font-weight="bold">eps</text></svg>""";
+    private const string EpsIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#C8202F"/><path d="M6 16V10l6-4 6 4v6" stroke="white" stroke-width="1.5" fill="none"/><rect x="10" y="12" width="4" height="4" fill="white"/></svg>""";
 
     /// <summary>
-    /// SVG icon for P24.
+    /// SVG icon for P24 (Poland - stylized P symbol).
     /// </summary>
-    private const string P24IconSvg = """<svg class="w-10 h-5" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="20" rx="2" fill="#D13239"/><text x="20" y="14" text-anchor="middle" fill="white" font-size="10" font-weight="bold">P24</text></svg>""";
+    private const string P24IconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#D13239"/><path d="M8 8h4a3 3 0 0 1 0 6H8V8zm0 6v4" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>""";
 
     /// <inheritdoc />
     public override PaymentProviderMetadata Metadata => new()
@@ -174,15 +174,23 @@ public class BraintreePaymentProvider : PaymentProviderBase
 
             ### 9. Test Card Numbers
 
-            Use these test cards with any future expiry date and any 3-digit CVV:
+            **Basic test cards** (any future expiry, any 3-digit CVV):
 
             | Card Number | Result |
             |-------------|--------|
-            | `4111 1111 1111 1111` | Successful transaction |
+            | `4111 1111 1111 1111` | Successful transaction (no 3DS) |
             | `4000 1111 1111 1115` | Processor Declined |
-            | `4000 0000 0000 3063` | 3D Secure Required |
             | `5555 5555 5555 4444` | Mastercard success |
             | `378282246310005` | American Express success |
+
+            **3D Secure test cards** (use expiry `01/28` - month 01, current year + 3):
+
+            | Card Number | Result |
+            |-------------|--------|
+            | `4000 0000 0000 2503` | 3DS challenge popup (Visa) |
+            | `5200 0000 0000 2151` | 3DS challenge popup (Mastercard) |
+            | `4000 0000 0000 2701` | 3DS success, no challenge (frictionless) |
+            | `4000 0000 0000 2925` | 3DS authentication failed |
 
             ### 10. Test PayPal Accounts
 

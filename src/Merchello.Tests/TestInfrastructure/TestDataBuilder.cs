@@ -204,7 +204,8 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             TrackStock = trackStock,
             ReservedStock = reservedStock,
             ReorderPoint = reorderPoint,
-            ReorderQuantity = reorderQuantity
+            ReorderQuantity = reorderQuantity,
+            RowVersion = BitConverter.GetBytes(DateTime.UtcNow.Ticks)
         };
 
         dbContext.ProductWarehouses.Add(productWarehouse);

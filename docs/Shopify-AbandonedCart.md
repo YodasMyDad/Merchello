@@ -17,6 +17,73 @@ Track abandoned checkouts and enable recovery through unique links and email not
 
 ---
 
+## Integration Architecture
+
+Abandoned cart tracking is **built into the standalone checkout** - no separate API calls required. The system automatically tracks activity through existing `CheckoutService` methods.
+
+### Automatic Tracking Flow
+
+```
+Customer adds to basket
+         ↓
+Customer enters email (SaveAddressesAsync)  →  AbandonedCheckout record created
+         ↓
+Customer selects shipping (SaveShippingSelectionsAsync)  →  LastActivityUtc updated
+         ↓
+Customer leaves without completing...
+         ↓
+Background job detects abandonment (1 hour default)
+         ↓
+CheckoutAbandonedNotification fired  →  You send recovery email
+         ↓
+Customer clicks recovery link  →  Basket restored, redirected to checkout
+         ↓
+Customer completes purchase (CreateOrderFromBasketAsync)  →  Auto-marked as Converted
+```
+
+### CheckoutService Integration Points
+
+| Existing Method | Abandoned Cart Behavior |
+|-----------------|------------------------|
+| `SaveAddressesAsync` | Creates `AbandonedCheckout` record when email is captured |
+| `SaveShippingSelectionsAsync` | Updates `LastActivityUtc` |
+| `ApplyDiscountCodeAsync` | Updates `LastActivityUtc` |
+| `UpdateLineItemQuantity` | Updates `LastActivityUtc` (if checkout started) |
+
+### InvoiceService Integration
+
+| Method | Abandoned Cart Behavior |
+|--------|------------------------|
+| `CreateOrderFromBasketAsync` | Auto-marks abandoned checkout as `Converted` |
+
+### What You Provide
+
+1. **Email handler** - Subscribe to `CheckoutAbandonedNotification` to send recovery emails
+2. **Configuration** - Set thresholds in `appsettings.json`
+
+### What The System Handles Automatically
+
+- Activity tracking on every checkout action
+- Abandonment detection (background job)
+- Recovery token generation
+- Basket restoration from recovery link
+- Conversion tracking when order completes
+- Analytics and reporting
+- **Webhook delivery** (topics already registered)
+
+### Webhook Integration
+
+Abandoned cart events integrate with the existing webhook system. Topics are already registered in `WebhookTopicRegistry`:
+
+| Topic | Trigger |
+|-------|---------|
+| `checkout.abandoned` | When checkout is detected as abandoned |
+| `checkout.recovered` | When customer returns via recovery link |
+
+External systems (Klaviyo, Mailchimp, custom CRM) can subscribe to these webhooks to trigger their own recovery flows.
+
+---
+
 ## Entity Models
 
 ### Location: `src/Merchello.Core/Checkout/Models/`
@@ -282,38 +349,82 @@ public class AbandonedCheckoutEmailHandler(
 
 ---
 
-## Integration Points
+## Implementation Details
 
-### 1. Track Activity on Checkout Actions
+### 1. CheckoutService Changes
 
-Hook into `CheckoutService`:
+Inject `IAbandonedCheckoutService` into `CheckoutService` and add tracking to existing methods:
 
 ```csharp
-// In CheckoutService methods
-public async Task<CrudResult<CheckoutSession>> SaveAddressesAsync(...)
+// CheckoutService.cs - Add to constructor
+public class CheckoutService(
+    // ... existing dependencies ...
+    IAbandonedCheckoutService abandonedCheckoutService) : ICheckoutService
 {
-    // ... existing logic ...
+```
 
-    // Track activity
-    await _abandonedCheckoutService.TrackCheckoutActivityAsync(
-        basket,
-        dto.Email,
-        cancellationToken);
+#### SaveAddressesAsync - Create/Update Abandoned Checkout
 
-    return result;
+```csharp
+public async Task<CrudResult<Basket>> SaveAddressesAsync(
+    SaveAddressesParameters parameters,
+    CancellationToken cancellationToken = default)
+{
+    // ... existing address saving logic ...
+
+    // Track checkout activity (creates record on first email capture)
+    if (!string.IsNullOrEmpty(parameters.Email))
+    {
+        await abandonedCheckoutService.TrackCheckoutActivityAsync(
+            basket,
+            parameters.Email,
+            cancellationToken);
+    }
+
+    // ... rest of existing method ...
 }
 ```
 
-### 2. Mark Converted on Order Creation
-
-Hook into `InvoiceService.CreateOrderFromBasketAsync`:
+#### SaveShippingSelectionsAsync - Update Activity
 
 ```csharp
-// After invoice created
-var abandoned = await _abandonedCheckoutService.GetByBasketIdAsync(basket.Id, ct);
-if (abandoned != null)
+public async Task<CrudResult<Basket>> SaveShippingSelectionsAsync(
+    SaveShippingSelectionsParameters parameters,
+    CancellationToken cancellationToken = default)
 {
-    await _abandonedCheckoutService.MarkAsConvertedAsync(abandoned.Id, invoice.Id, ct);
+    // ... existing shipping logic ...
+
+    // Update last activity timestamp
+    await abandonedCheckoutService.TrackCheckoutActivityAsync(
+        parameters.Basket.Id,
+        cancellationToken);
+
+    // ... rest of existing method ...
+}
+```
+
+### 2. InvoiceService Changes
+
+Add conversion tracking to `CreateOrderFromBasketAsync`:
+
+```csharp
+public async Task<CrudResult<Invoice>> CreateOrderFromBasketAsync(
+    CreateOrderFromBasketParameters parameters,
+    CancellationToken cancellationToken = default)
+{
+    // ... existing order creation logic ...
+
+    // After invoice successfully created, mark any abandoned checkout as converted
+    var abandoned = await _abandonedCheckoutService.GetByBasketIdAsync(basket.Id, cancellationToken);
+    if (abandoned != null)
+    {
+        await _abandonedCheckoutService.MarkAsConvertedAsync(
+            abandoned.Id,
+            invoice.Id,
+            cancellationToken);
+    }
+
+    // ... rest of existing method ...
 }
 ```
 
@@ -322,6 +433,9 @@ if (abandoned != null)
 Add to `CheckoutApiController`:
 
 ```csharp
+/// <summary>
+/// Restores a basket from a recovery link (abandoned cart recovery).
+/// </summary>
 [HttpGet("recover/{token}")]
 [AllowAnonymous]
 public async Task<IActionResult> RecoverCheckout(string token, CancellationToken ct)
@@ -331,9 +445,20 @@ public async Task<IActionResult> RecoverCheckout(string token, CancellationToken
     if (!result.Successful)
         return BadRequest(result.Messages.FirstOrDefault()?.Message);
 
-    // Set basket cookie and redirect to checkout
-    SetBasketCookie(result.ResultObject!.Id);
-    return Redirect("/checkout");
+    // Set basket cookie so checkout can load the restored basket
+    Response.Cookies.Append(
+        Constants.Cookies.BasketId,
+        result.ResultObject!.Id.ToString(),
+        new CookieOptions
+        {
+            Expires = DateTimeOffset.UtcNow.AddDays(30),
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Lax
+        });
+
+    // Redirect to checkout page
+    return Redirect(_settings.Value.AbandonedCheckout.RecoveryUrlBase.TrimEnd('/') + "/address");
 }
 ```
 
@@ -405,15 +530,49 @@ public string GenerateRecoveryToken()
 
 ## Implementation Sequence
 
-1. Create entity model and enum
-2. Create EF mapping and migration
-3. Create DTOs
-4. Create service interface and implementation
-5. Create background job
-6. Create notifications
-7. Hook into CheckoutService for activity tracking
-8. Hook into InvoiceService for conversion tracking
-9. Add recovery endpoint
-10. Register services and job in DI
-11. Add configuration options
-12. Create backoffice UI for viewing abandoned checkouts
+### Phase 1: Core Infrastructure
+
+1. Create `AbandonedCheckout` entity and `AbandonedCheckoutStatus` enum in `Checkout/Models/`
+2. Create EF mapping in `Checkout/Mapping/AbandonedCheckoutDbMapping.cs`
+3. Run migration script: `scripts/add-migration.ps1` with name `AddAbandonedCheckouts`
+4. Create DTOs in `Checkout/Dtos/`
+5. Create `IAbandonedCheckoutService` interface and implementation
+
+### Phase 2: Integrate into Standalone Checkout
+
+6. **Modify `CheckoutService`**:
+   - Add `IAbandonedCheckoutService` to constructor
+   - Add tracking call in `SaveAddressesAsync` (after email captured)
+   - Add tracking call in `SaveShippingSelectionsAsync`
+   - Add tracking call in `ApplyDiscountCodeAsync`
+
+7. **Modify `InvoiceService`**:
+   - Add `IAbandonedCheckoutService` to constructor
+   - Add conversion tracking in `CreateOrderFromBasketAsync` (after invoice created)
+
+8. **Add recovery endpoint** to `CheckoutApiController`
+
+### Phase 3: Background Processing & Webhooks
+
+9. Create `AbandonedCheckoutDetectionJob` background service
+10. Create notifications: `CheckoutAbandonedNotification`, `CheckoutRecoveredNotification`, `CheckoutRecoveryConvertedNotification`
+11. **Update `WebhookNotificationHandler`** to dispatch `checkout.abandoned` and `checkout.recovered` topics (topics already registered in `WebhookTopicRegistry`)
+
+### Phase 4: Configuration & Registration
+
+12. Create `AbandonedCheckoutSettings` configuration class
+13. Register services and background job in DI (`MerchelloServiceCollectionExtensions`)
+14. Add default configuration to `appsettings.json`
+
+### Phase 5: Backoffice (Optional)
+
+15. **Analytics Integration** - Add abandoned cart metrics to existing analytics workspace:
+    - Recovery funnel graph (Abandoned → Recovered → Converted)
+    - Abandoned cart value over time
+    - Recovery rate trend line
+    - Key stats cards: Total abandoned, Recovery rate %, Value recovered
+
+16. **Abandoned Checkouts List** - Add workspace for viewing/managing abandoned checkouts:
+    - List with columns: Customer, Total, Status, Last Activity, Emails Sent
+    - Filter by status (Active, Abandoned, Recovered, Converted, Expired)
+    - Actions: View basket contents, Resend recovery email, Copy recovery link

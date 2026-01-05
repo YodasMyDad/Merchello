@@ -23,8 +23,9 @@ public class ExpressCheckoutCustomerData
 
     /// <summary>
     /// Shipping address selected by the customer in the express checkout flow.
+    /// May be null if the provider didn't return an address.
     /// </summary>
-    public required ExpressCheckoutAddress ShippingAddress { get; set; }
+    public ExpressCheckoutAddress? ShippingAddress { get; set; }
 
     /// <summary>
     /// Billing address. If null, billing address is same as shipping address.

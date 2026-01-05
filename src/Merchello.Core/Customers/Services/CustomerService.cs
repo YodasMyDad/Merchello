@@ -93,18 +93,6 @@ public class CustomerService(
     {
         var result = new CrudResult<Customer>();
 
-        // Validate email uniqueness
-        var existing = await GetByEmailAsync(parameters.Email, ct);
-        if (existing != null)
-        {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = $"Customer with email '{parameters.Email}' already exists",
-                ResultMessageType = ResultMessageType.Error
-            });
-            return result;
-        }
-
         // Create customer object
         var newCustomer = customerFactory.Create(parameters);
 
@@ -121,27 +109,72 @@ public class CustomerService(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        var customer = await scope.ExecuteWithContextAsync(async db =>
+        try
         {
-            db.Customers.Add(newCustomer);
-            await db.SaveChangesAsync(ct);
-            return newCustomer;
-        });
-        scope.Complete();
+            var customer = await scope.ExecuteWithContextAsync(async db =>
+            {
+                // Check uniqueness inside the scope for better concurrency handling
+                // The unique index on Email will catch any race conditions
+                var normalizedEmail = parameters.Email.Trim().ToLowerInvariant();
+                var existing = await db.Customers
+                    .FirstOrDefaultAsync(c => c.Email == normalizedEmail, ct);
 
-        // Publish "After" notification
-        await notificationPublisher.PublishAsync(
-            new CustomerCreatedNotification(customer), ct);
+                if (existing != null)
+                {
+                    result.Messages.Add(new ResultMessage
+                    {
+                        Message = $"Customer with email '{parameters.Email}' already exists",
+                        ResultMessageType = ResultMessageType.Error
+                    });
+                    return null;
+                }
 
-        result.ResultObject = customer;
-        result.Messages.Add(new ResultMessage
+                db.Customers.Add(newCustomer);
+                await db.SaveChangesAsync(ct);
+                return newCustomer;
+            });
+
+            if (customer == null)
+            {
+                // Uniqueness check failed inside scope
+                return result;
+            }
+
+            scope.Complete();
+
+            // Publish "After" notification
+            await notificationPublisher.PublishAsync(
+                new CustomerCreatedNotification(customer), ct);
+
+            result.ResultObject = customer;
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Customer created successfully",
+                ResultMessageType = ResultMessageType.Success
+            });
+
+            logger.LogInformation("Created customer {CustomerId} with email {Email}", customer.Id, customer.Email);
+            return result;
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
-            Message = "Customer created successfully",
-            ResultMessageType = ResultMessageType.Success
-        });
+            // Race condition: another request created the customer concurrently
+            logger.LogWarning(ex, "Concurrent customer creation detected for email {Email}", parameters.Email);
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Customer with email '{parameters.Email}' already exists",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+    }
 
-        logger.LogInformation("Created customer {CustomerId} with email {Email}", customer.Id, customer.Email);
-        return result;
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+    {
+        var message = ex.InnerException?.Message ?? ex.Message;
+        return message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("IX_", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <inheritdoc />
@@ -371,6 +404,7 @@ public class CustomerService(
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
 
             // Get paginated items with order count
+            // Use explicit subqueries to avoid N+1 query problem with navigation properties
             var items = await query
                 .OrderByDescending(c => c.DateCreated)
                 .Skip((page - 1) * pageSize)
@@ -383,8 +417,10 @@ public class CustomerService(
                     LastName = c.LastName,
                     MemberKey = c.MemberKey,
                     DateCreated = c.DateCreated,
-                    OrderCount = c.Invoices != null ? c.Invoices.Count : 0,
-                    Tags = c.CustomerTags.Select(t => t.Tag).ToList(),
+                    // Use subquery for order count instead of navigation property to avoid N+1
+                    OrderCount = db.Invoices.Count(i => i.CustomerId == c.Id),
+                    // Use subquery for tags instead of navigation property to avoid N+1
+                    Tags = db.CustomerTags.Where(t => t.CustomerId == c.Id).Select(t => t.Tag).ToList(),
                     IsFlagged = c.IsFlagged,
                     AcceptsMarketing = c.AcceptsMarketing
                 })

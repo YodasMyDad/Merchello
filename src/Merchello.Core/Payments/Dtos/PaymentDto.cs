@@ -53,4 +53,22 @@ public class PaymentDto
     /// Calculated refundable amount (original amount minus existing refunds)
     /// </summary>
     public decimal RefundableAmount { get; set; }
+
+    /// <summary>
+    /// Whether the payment can be refunded via the original provider.
+    /// False when: provider not found, provider disabled, or provider doesn't support refunds.
+    /// </summary>
+    public bool CanRefundViaProvider { get; set; }
+
+    /// <summary>
+    /// Human-readable reason why provider refund is not available.
+    /// Only populated when CanRefundViaProvider is false and payment has a provider alias.
+    /// </summary>
+    public string? CannotRefundViaProviderReason { get; set; }
+
+    /// <summary>
+    /// Whether the provider supports partial refunds.
+    /// Only relevant when CanRefundViaProvider is true.
+    /// </summary>
+    public bool SupportsPartialRefunds { get; set; }
 }

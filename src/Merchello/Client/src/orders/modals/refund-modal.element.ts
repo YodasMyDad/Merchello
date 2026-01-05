@@ -23,12 +23,28 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
     // Default to full refundable amount
     this._amount = this.data?.payment.refundableAmount ?? 0;
 
-    // Default to manual refund if the payment was manual
-    this._isManualRefund = !this.data?.payment.paymentProviderAlias ||
-                           this.data?.payment.paymentProviderAlias === "manual";
+    // Force manual refund if:
+    // 1. No provider alias (manual payment)
+    // 2. Provider is "manual"
+    // 3. Provider refund is not available (provider not installed, doesn't support refunds, etc.)
+    const payment = this.data?.payment;
+    this._isManualRefund = !payment?.paymentProviderAlias ||
+                           payment.paymentProviderAlias === "manual" ||
+                           !payment.canRefundViaProvider;
 
     // Load quick amount percentages from settings
     this._loadSettings();
+  }
+
+  /** Whether the payment has a non-manual provider alias */
+  private get _hasProviderAlias(): boolean {
+    const p = this.data?.payment;
+    return !!p?.paymentProviderAlias && p.paymentProviderAlias !== "manual";
+  }
+
+  /** Whether provider-based refund is available */
+  private get _canRefundViaProvider(): boolean {
+    return this.data?.payment?.canRefundViaProvider ?? false;
   }
 
   private async _loadSettings(): Promise<void> {
@@ -82,8 +98,6 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
   override render() {
     const payment = this.data?.payment;
     if (!payment) return nothing;
-
-    const hasProvider = payment.paymentProviderAlias && payment.paymentProviderAlias !== "manual";
 
     return html`
       <umb-body-layout headline="Process Refund">
@@ -188,21 +202,39 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
             ></uui-textarea>
           </div>
 
-          ${hasProvider
+          ${this._hasProviderAlias
             ? html`
+                <!-- Show warning if provider refund is not available -->
+                ${!this._canRefundViaProvider
+                  ? html`
+                      <div class="provider-warning">
+                        <uui-icon name="icon-alert"></uui-icon>
+                        <div class="warning-content">
+                          <strong>Provider refund not available</strong>
+                          <p>${payment.cannotRefundViaProviderReason}</p>
+                        </div>
+                      </div>
+                    `
+                  : nothing}
                 <div class="form-field checkbox-field">
                   <uui-checkbox
                     id="isManualRefund"
                     ?checked=${this._isManualRefund}
+                    ?disabled=${!this._canRefundViaProvider}
                     @change=${(e: Event) => {
-                      this._isManualRefund = (e.target as HTMLInputElement).checked;
+                      if (this._canRefundViaProvider) {
+                        this._isManualRefund = (e.target as HTMLInputElement).checked;
+                      }
                     }}
                   >
                     Manual refund (already processed externally)
                   </uui-checkbox>
                   <p class="field-description">
-                    Check this if you have already processed the refund through ${payment.paymentProviderAlias}
-                    and just need to record it here.
+                    ${this._canRefundViaProvider
+                      ? html`Check this if you have already processed the refund through ${payment.paymentProviderAlias}
+                             and just need to record it here.`
+                      : html`This refund will be recorded as manual. You must process the actual refund
+                             directly with ${payment.paymentProviderAlias}.`}
                   </p>
                 </div>
               `
@@ -302,6 +334,36 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
       margin: var(--uui-size-space-1) 0 0 var(--uui-size-space-5);
       font-size: 0.75rem;
       color: var(--uui-color-text-alt);
+    }
+
+    .checkbox-field uui-checkbox[disabled] {
+      opacity: 0.7;
+    }
+
+    .provider-warning {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3);
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
+      border-radius: var(--uui-border-radius);
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .provider-warning .warning-content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-1);
+    }
+
+    .provider-warning .warning-content strong {
+      font-weight: 600;
+    }
+
+    .provider-warning .warning-content p {
+      margin: 0;
+      font-size: 0.875rem;
     }
 
     uui-input,

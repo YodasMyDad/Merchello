@@ -1,3 +1,4 @@
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services.Parameters;
@@ -84,6 +85,16 @@ public interface IStorefrontContextService
     /// Checks if each item can ship to the location and has sufficient stock.
     /// </summary>
     Task<BasketLocationAvailability> GetBasketAvailabilityAsync(
+        string? countryCode = null,
+        string? regionCode = null,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets availability info for provided line items at a specific location.
+    /// Use this overload when you already have the basket loaded to avoid duplicate DB calls.
+    /// </summary>
+    Task<BasketLocationAvailability> GetBasketAvailabilityAsync(
+        IReadOnlyList<LineItem> lineItems,
         string? countryCode = null,
         string? regionCode = null,
         CancellationToken ct = default);

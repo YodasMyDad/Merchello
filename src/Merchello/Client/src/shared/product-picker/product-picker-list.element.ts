@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
-import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
+import { customElement, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import type { PickerProductRoot, PickerVariant } from "./product-picker.types.js";
 import { formatPriceRange } from "./product-picker.types.js";
@@ -26,6 +26,9 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
   @property({ type: Boolean })
   showImages = true;
 
+  @state()
+  private _failedImages: Set<string> = new Set();
+
   private _handleRootClick(root: PickerProductRoot): void {
     this.dispatchEvent(
       new CustomEvent("toggle-expand", {
@@ -46,9 +49,18 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
     );
   }
 
+  private _handleImageError(imageUrl: string) {
+    this._failedImages = new Set([...this._failedImages, imageUrl]);
+  }
+
   private _renderProductImage(imageUrl: string | null, name: string) {
-    if (imageUrl) {
-      return html`<img src="${imageUrl}" alt="${name}" class="product-image" />`;
+    if (imageUrl && !this._failedImages.has(imageUrl)) {
+      return html`<img
+        src="${imageUrl}"
+        alt="${name}"
+        class="product-image"
+        @error=${() => this._handleImageError(imageUrl)}
+      />`;
     }
     return html`
       <div class="product-image placeholder">

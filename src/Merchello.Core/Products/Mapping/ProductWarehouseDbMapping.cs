@@ -50,6 +50,16 @@ public class ProductWarehouseDbMapping : IEntityTypeConfiguration<ProductWarehou
         builder
             .Property(pw => pw.ReorderQuantity)
             .IsRequired(false);
+
+        // Concurrency token for optimistic locking - prevents race conditions
+        // Note: Using IsConcurrencyToken only (not IsRowVersion) for cross-database compatibility.
+        // IsRowVersion tells EF the value is database-generated, which works for SQL Server but fails
+        // for SQLite since it doesn't auto-generate row versions. The value is set in the model
+        // via the default initializer and must be updated on each save for concurrency to work.
+        builder
+            .Property(pw => pw.RowVersion)
+            .IsRequired()
+            .IsConcurrencyToken();
     }
 }
 

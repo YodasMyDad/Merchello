@@ -471,9 +471,9 @@ document.addEventListener('alpine:init', () => {
         updatingItemId: null,
         removingItemId: null,
 
-        // Location-aware availability state
-        itemAvailability: {},
-        allItemsAvailable: true,
+        // Location-aware availability state (initialized from SSR)
+        itemAvailability: config.itemAvailability || {},
+        allItemsAvailable: config.allItemsAvailable ?? true,
         regions: [],
         selectedRegion: '',
         isLoadingAvailability: false,
@@ -503,10 +503,16 @@ document.addEventListener('alpine:init', () => {
             // Update global basket store with initial data
             Alpine.store('basket').update(this.itemCount, this.total, this.formattedTotal);
 
-            // Initial availability check
+            // Fetch regions for the user's country (availability is already SSR'd)
             this.$nextTick(async () => {
+                // Wait for country to be fetched (poll until ready or timeout)
+                let attempts = 0;
+                while (!Alpine.store('country').code && attempts < 20) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+
                 await this.fetchRegions();
-                await this.checkBasketAvailability();
             });
         },
 

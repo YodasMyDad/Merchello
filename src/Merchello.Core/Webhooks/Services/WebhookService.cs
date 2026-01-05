@@ -603,6 +603,7 @@ public class WebhookService(
                 .Where(d => d.Status == WebhookDeliveryStatus.Retrying &&
                             d.NextRetryUtc != null &&
                             d.NextRetryUtc <= DateTime.UtcNow)
+                .OrderBy(d => d.NextRetryUtc)
                 .Take(100)
                 .Select(d => d.Id)
                 .ToListAsync(ct));

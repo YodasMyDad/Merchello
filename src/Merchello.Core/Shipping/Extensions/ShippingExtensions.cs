@@ -79,6 +79,7 @@ public static class ShippingExtensions
         var validShippingOptions = shippingOptions
             .Include(so => so.Warehouse)
             .Include(so => so.ShippingCosts)
+            .AsSplitQuery()
             .Where(so =>
                 so.Warehouse.CanServeRegion(countryCode, stateOrProvinceCode) &&
                 so.ShippingCosts.Any(sc =>

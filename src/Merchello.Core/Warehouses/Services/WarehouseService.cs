@@ -53,6 +53,7 @@ public class WarehouseService(
                                 .ThenInclude(w => w!.ServiceRegions)
                     .Include(p => p.ProductWarehouses)
                         .ThenInclude(pw => pw.Warehouse)
+                    .AsSplitQuery()
                     .FirstOrDefaultAsync(p => p.Id == product.Id, cancellationToken));
             scope.Complete();
 
@@ -399,6 +400,7 @@ public class WarehouseService(
             var warehouse = await db.Warehouses
                 .Include(w => w.ProductRootWarehouses)
                 .Include(w => w.ProductWarehouses)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken);
 
             if (warehouse == null)
@@ -1067,6 +1069,7 @@ public class WarehouseService(
                 .Include(w => w.Supplier)
                 .Include(w => w.ServiceRegions)
                 .Include(w => w.ShippingOptions)
+                .AsSplitQuery()
                 .OrderBy(w => w.Name)
                 .Select(w => new WarehouseListDto
                 {
@@ -1098,6 +1101,7 @@ public class WarehouseService(
                 .Include(w => w.Supplier)
                 .Include(w => w.ServiceRegions)
                 .Include(w => w.ShippingOptions)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken);
 
             if (warehouse == null)
@@ -1143,6 +1147,7 @@ public class WarehouseService(
                 .AsNoTracking()
                 .Include(w => w.Supplier)
                 .Include(w => w.ServiceRegions)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken));
         scope.Complete();
         return result;

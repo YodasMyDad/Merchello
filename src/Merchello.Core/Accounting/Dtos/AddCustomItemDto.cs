@@ -16,9 +16,14 @@ public class AddCustomItemDto
     public string Sku { get; set; } = string.Empty;
 
     /// <summary>
-    /// Unit price
+    /// Unit price (selling price)
     /// </summary>
     public decimal Price { get; set; }
+
+    /// <summary>
+    /// Unit cost (for profit/loss calculations)
+    /// </summary>
+    public decimal Cost { get; set; }
 
     /// <summary>
     /// Quantity

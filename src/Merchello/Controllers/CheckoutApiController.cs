@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Merchello.Core;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Dtos;
@@ -9,7 +8,6 @@ using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -25,7 +23,6 @@ public class CheckoutApiController(
     ICheckoutService checkoutService,
     ICheckoutSessionService checkoutSessionService,
     ICheckoutValidator checkoutValidator,
-    IHttpContextAccessor httpContextAccessor,
     IOptions<MerchelloSettings> merchelloSettings,
     ILogger<CheckoutApiController> logger) : ControllerBase
 {
@@ -223,7 +220,7 @@ public class CheckoutApiController(
         // Update session with the updated basket
         if (updatedBasket != null)
         {
-            httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket));
+            checkoutSessionService.SaveBasketToSession(updatedBasket);
         }
 
         logger.LogInformation("Discount code {Code} applied to basket {BasketId}", request.Code, basket.Id);
@@ -434,7 +431,7 @@ public class CheckoutApiController(
         // Update session with the updated basket
         if (updatedBasket != null)
         {
-            httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket));
+            checkoutSessionService.SaveBasketToSession(updatedBasket);
         }
 
         logger.LogInformation("Discount {DiscountId} removed from basket {BasketId}", discountId, basket.Id);

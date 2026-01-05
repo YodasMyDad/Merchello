@@ -56,6 +56,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
   #currentAdapter?: {
     render?: (container: HTMLElement, session: unknown, checkout: unknown) => Promise<void>;
     tokenize?: () => Promise<{ success: boolean; nonce?: string; error?: string; isButtonFlow?: boolean }>;
+    tokenizeWithVerification?: (options: unknown) => Promise<{ success: boolean; nonce?: string; error?: string; isButtonFlow?: boolean }>;
     teardown?: () => void;
   };
 
@@ -339,7 +340,21 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
 
     try {
       // Call adapter to get payment method token/nonce
-      const tokenResult = await this.#currentAdapter.tokenize();
+      // Use tokenizeWithVerification if available (includes 3DS), otherwise fall back to tokenize
+      const tokenResult = this.#currentAdapter.tokenizeWithVerification
+        ? await this.#currentAdapter.tokenizeWithVerification({
+            email: 'test@example.com',
+            billingAddress: {
+              firstName: 'Test',
+              lastName: 'User',
+              line1: '123 Test Street',
+              city: 'Test City',
+              region: 'CA',
+              postalCode: '12345',
+              countryCode: 'US'
+            }
+          })
+        : await this.#currentAdapter.tokenize();
 
       if (!tokenResult.success) {
         // Check if this is a button-based flow (like PayPal)

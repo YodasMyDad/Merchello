@@ -16,7 +16,7 @@
 *@
 
 <div id="express-checkout-container"
-     class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200"
+     class="mb-8"
      x-data="expressCheckout()"
      x-init="init()"
      x-show="hasExpressMethods"
@@ -33,8 +33,6 @@
 
     <!-- Express Checkout Content -->
     <div x-show="!isLoading && hasExpressMethods" x-cloak>
-        <p class="text-sm text-gray-600 text-center mb-4">Express checkout</p>
-
         <!-- Dynamic Express Checkout Buttons Container -->
         <div id="express-buttons-container" class="flex flex-col sm:flex-row sm:flex-wrap items-center sm:justify-center gap-3">
             <!-- Buttons are rendered dynamically by JavaScript based on API response -->
@@ -46,7 +44,7 @@
                 <div class="w-full border-t border-gray-300"></div>
             </div>
             <div class="relative flex justify-center text-sm">
-                <span class="px-4 bg-gray-50 text-gray-500">Or continue below</span>
+                <span class="px-4 bg-white text-gray-500">Or continue below</span>
             </div>
         </div>
     </div>
