@@ -40,6 +40,7 @@ public class CheckoutService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IHttpContextAccessor httpContextAccessor,
     IShippingQuoteService shippingQuoteService,
+    IShippingCostResolver shippingCostResolver,
     BasketFactory basketFactory,
     LineItemFactory lineItemFactory,
     IMerchelloNotificationPublisher notificationPublisher,
@@ -226,11 +227,12 @@ public class CheckoutService(
             });
         }
 
-        var shippingCost = shippingQuotes
-            .SelectMany(q => q.ServiceLevels)
-            .OrderBy(level => level.TotalCost)
-            .Select(level => level.TotalCost)
-            .FirstOrDefault();
+        var shippingCost = parameters.ShippingAmountOverride
+            ?? shippingQuotes
+                .SelectMany(q => q.ServiceLevels)
+                .OrderBy(level => level.TotalCost)
+                .Select(level => level.TotalCost)
+                .FirstOrDefault();
 
         var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
 
@@ -556,7 +558,7 @@ public class CheckoutService(
                     }
 
                     var hasValid = Merchello.Core.Products.Extensions.ProductExtensions
-                        .GetShippingAmountForCountry(product, countryCode, r.RegionCode)
+                        .GetShippingAmountForCountry(product, countryCode, r.RegionCode, shippingCostResolver)
                         .HasValue;
 
                     if (!hasValid)
@@ -1189,15 +1191,14 @@ public class CheckoutService(
             }
         }
 
-        // Update basket shipping cost
-        basket.Shipping = totalShipping;
         basket.DateUpdated = DateTime.UtcNow;
 
-        // Recalculate totals
+        // Recalculate totals with the selected shipping amount
         await CalculateBasketAsync(new CalculateBasketParameters
         {
             Basket = basket,
-            CountryCode = session.ShippingAddress.CountryCode
+            CountryCode = session.ShippingAddress.CountryCode,
+            ShippingAmountOverride = totalShipping
         }, cancellationToken);
 
         // Refresh automatic discounts (shipping costs may affect free shipping thresholds)
@@ -1428,14 +1429,12 @@ public class CheckoutService(
                 groupingResult.Groups,
                 autoSelectedOptions);
 
-            // Update basket shipping total
-            basket.Shipping = combinedShippingTotal;
-
-            // Recalculate totals with shipping
+            // Recalculate totals with the auto-selected shipping amount
             await CalculateBasketAsync(new CalculateBasketParameters
             {
                 Basket = basket,
-                CountryCode = parameters.CountryCode
+                CountryCode = parameters.CountryCode,
+                ShippingAmountOverride = combinedShippingTotal
             }, cancellationToken);
 
             // Save auto-selections to session

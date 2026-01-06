@@ -22,7 +22,7 @@ document.addEventListener('alpine:init', () => {
 
         async fetchCount() {
             try {
-                const response = await fetch('/api/storefront/basket/count');
+                const response = await fetch('/api/merchello/storefront/basket/count');
                 if (response.ok) {
                     const data = await response.json();
                     this.count = data.itemCount;
@@ -56,7 +56,7 @@ document.addEventListener('alpine:init', () => {
 
         async fetch() {
             try {
-                const response = await fetch('/api/storefront/shipping/countries');
+                const response = await fetch('/api/merchello/storefront/shipping/countries');
                 if (response.ok) {
                     const data = await response.json();
                     this.countries = data.countries;
@@ -71,7 +71,7 @@ document.addEventListener('alpine:init', () => {
         async setCountry(code) {
             this.isLoading = true;
             try {
-                const response = await fetch('/api/storefront/shipping/country', {
+                const response = await fetch('/api/merchello/storefront/shipping/country', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ countryCode: code })
@@ -393,7 +393,7 @@ document.addEventListener('alpine:init', () => {
             this.isLoading = true;
 
             try {
-                const response = await fetch('/api/storefront/basket/add', {
+                const response = await fetch('/api/merchello/storefront/basket/add', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -478,6 +478,14 @@ document.addEventListener('alpine:init', () => {
         selectedRegion: '',
         isLoadingAvailability: false,
 
+        // Estimated shipping state
+        displayTotal: config.displayTotal || 0,
+        displayEstimatedShipping: 0,
+        formattedDisplayEstimatedShipping: '',
+        shippingGroupCount: 0,
+        isLoadingShipping: false,
+        hasShippingEstimate: false,
+
         // Computed
         get productItems() {
             return this.items.filter(item => item.lineItemType === 'Product');
@@ -498,12 +506,32 @@ document.addEventListener('alpine:init', () => {
             return this.itemAvailability[lineItemId]?.message || '';
         },
 
+        get estimatedTotal() {
+            return this.hasShippingEstimate
+                ? this.displayTotal + this.displayEstimatedShipping
+                : this.displayTotal;
+        },
+
+        get formattedEstimatedTotal() {
+            if (!this.hasShippingEstimate) {
+                return this.formattedDisplayTotal;
+            }
+            // Format the already-converted display value (don't use formatPrice which applies conversion again)
+            const currency = Alpine.store('currency');
+            return new Intl.NumberFormat(undefined, {
+                style: 'currency',
+                currency: currency.code || 'GBP',
+                minimumFractionDigits: currency.decimals,
+                maximumFractionDigits: currency.decimals
+            }).format(this.estimatedTotal);
+        },
+
         // Methods
         init() {
             // Update global basket store with initial data
             Alpine.store('basket').update(this.itemCount, this.total, this.formattedTotal);
 
-            // Fetch regions for the user's country (availability is already SSR'd)
+            // Fetch regions and estimated shipping for the user's country (availability is already SSR'd)
             this.$nextTick(async () => {
                 // Wait for country to be fetched (poll until ready or timeout)
                 let attempts = 0;
@@ -513,6 +541,7 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 await this.fetchRegions();
+                await this.fetchEstimatedShipping();
             });
         },
 
@@ -521,7 +550,7 @@ document.addEventListener('alpine:init', () => {
             if (!countryCode) return;
 
             try {
-                const response = await fetch(`/api/storefront/shipping/countries/${countryCode}/regions`);
+                const response = await fetch(`/api/merchello/storefront/shipping/countries/${countryCode}/regions`);
                 if (response.ok) {
                     this.regions = await response.json();
                 }
@@ -536,7 +565,7 @@ document.addEventListener('alpine:init', () => {
 
             this.isLoadingAvailability = true;
             try {
-                let url = `/api/storefront/basket/availability?countryCode=${countryCode}`;
+                let url = `/api/merchello/storefront/basket/availability?countryCode=${countryCode}`;
                 if (this.selectedRegion) {
                     url += `&regionCode=${this.selectedRegion}`;
                 }
@@ -555,14 +584,51 @@ document.addEventListener('alpine:init', () => {
             } finally {
                 this.isLoadingAvailability = false;
             }
+
+            // Also refresh estimated shipping when location changes
+            await this.fetchEstimatedShipping();
+        },
+
+        async fetchEstimatedShipping() {
+            const countryCode = Alpine.store('country').code;
+            if (!countryCode || this.isEmpty) {
+                this.hasShippingEstimate = false;
+                return;
+            }
+
+            this.isLoadingShipping = true;
+            try {
+                let url = `/api/merchello/storefront/basket/estimated-shipping?countryCode=${countryCode}`;
+                if (this.selectedRegion) {
+                    url += `&regionCode=${this.selectedRegion}`;
+                }
+
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.displayEstimatedShipping = data.displayEstimatedShipping || 0;
+                    this.formattedDisplayEstimatedShipping = data.formattedDisplayEstimatedShipping || '';
+                    this.shippingGroupCount = data.groupCount || 0;
+                    this.hasShippingEstimate = data.success;
+                } else {
+                    this.hasShippingEstimate = false;
+                }
+            } catch (error) {
+                console.error('Failed to fetch estimated shipping:', error);
+                this.hasShippingEstimate = false;
+            } finally {
+                this.isLoadingShipping = false;
+            }
         },
 
         async refreshBasket() {
             try {
-                const response = await fetch('/api/storefront/basket');
+                const response = await fetch('/api/merchello/storefront/basket');
                 if (response.ok) {
                     const data = await response.json();
                     this.updateFromResponse(data);
+                    // Refresh estimated shipping after basket changes
+                    await this.fetchEstimatedShipping();
                 }
             } catch (error) {
                 console.error('Failed to refresh basket:', error);
@@ -575,6 +641,7 @@ document.addEventListener('alpine:init', () => {
             this.discount = data.discount;
             this.tax = data.tax;
             this.total = data.total;
+            this.displayTotal = data.displayTotal || 0;
             this.formattedSubTotal = data.formattedSubTotal;
             this.formattedDiscount = data.formattedDiscount;
             this.formattedTax = data.formattedTax;
@@ -599,7 +666,7 @@ document.addEventListener('alpine:init', () => {
 
             this.updatingItemId = itemId;
             try {
-                const response = await fetch('/api/storefront/basket/update', {
+                const response = await fetch('/api/merchello/storefront/basket/update', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ lineItemId: itemId, quantity: newQuantity })
@@ -624,7 +691,7 @@ document.addEventListener('alpine:init', () => {
         async removeItem(itemId) {
             this.removingItemId = itemId;
             try {
-                const response = await fetch(`/api/storefront/basket/${itemId}`, {
+                const response = await fetch(`/api/merchello/storefront/basket/${itemId}`, {
                     method: 'DELETE'
                 });
 

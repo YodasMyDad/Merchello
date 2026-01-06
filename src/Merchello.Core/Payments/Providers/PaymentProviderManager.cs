@@ -444,7 +444,11 @@ public class PaymentProviderManager(
         CancellationToken cancellationToken = default)
     {
         var allMethods = await GetEnabledPaymentMethodsAsync(cancellationToken);
-        var checkoutMethods = allMethods.Where(m => m.ShowInCheckout).ToList();
+        // Filter to methods shown in checkout, excluding express checkout methods
+        // (express methods are displayed separately via GetExpressCheckoutMethodsAsync)
+        var checkoutMethods = allMethods
+            .Where(m => m.ShowInCheckout && !m.IsExpressCheckout)
+            .ToList();
         return DeduplicateByMethodType(checkoutMethods);
     }
 

@@ -2004,9 +2004,7 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("nvarchar(1000)");
 
                     b.Property<int>("AuthType")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(1);
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("datetime2");
@@ -2027,9 +2025,7 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("nvarchar(2000)");
 
                     b.Property<int>("Format")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(1);
+                        .HasColumnType("int");
 
                     b.Property<string>("Headers")
                         .IsRequired()

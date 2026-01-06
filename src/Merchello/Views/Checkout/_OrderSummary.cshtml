@@ -5,6 +5,7 @@
     var hasItems = model?.HasItems ?? false;
     var currencySymbol = basket?.CurrencySymbol ?? "£";
     var currencyCode = basket?.Currency ?? "GBP";
+    var isSinglePage = model?.IsSinglePageCheckout ?? false;
 
     // Get discount line items
     var discountLineItems = basket?.LineItems?
@@ -177,7 +178,16 @@
             <!-- Shipping -->
             <div class="flex justify-between text-sm">
                 <span class="text-gray-600">Shipping</span>
-                @if (basket?.Shipping > 0)
+                @if (isSinglePage)
+                {
+                    <template x-if="shipping > 0">
+                        <span class="text-gray-900 font-medium" x-text="formatCurrency(shipping)"></span>
+                    </template>
+                    <template x-if="shipping === 0">
+                        <span class="text-gray-500 text-xs">Select shipping above</span>
+                    </template>
+                }
+                else if (basket?.Shipping > 0)
                 {
                     <span class="text-gray-900 font-medium">@($"{currencySymbol}{basket.Shipping:N2}")</span>
                 }
@@ -190,7 +200,16 @@
             <!-- Tax -->
             <div class="flex justify-between text-sm">
                 <span class="text-gray-600">Tax</span>
-                @if (basket?.Tax > 0)
+                @if (isSinglePage)
+                {
+                    <template x-if="tax > 0">
+                        <span class="text-gray-900 font-medium" x-text="formatCurrency(tax)"></span>
+                    </template>
+                    <template x-if="tax === 0">
+                        <span class="text-gray-500 text-xs">Included in total</span>
+                    </template>
+                }
+                else if (basket?.Tax > 0)
                 {
                     <span class="text-gray-900 font-medium">@($"{currencySymbol}{basket.Tax:N2}")</span>
                 }
@@ -205,7 +224,14 @@
                 <span class="text-base text-gray-900">Total</span>
                 <div class="text-right flex items-baseline gap-2">
                     <span class="text-xs text-gray-500">@currencyCode</span>
-                    <span class="text-xl font-semibold text-gray-900">@(basket != null ? $"{currencySymbol}{basket.Total:N2}" : "--")</span>
+                    @if (isSinglePage)
+                    {
+                        <span class="text-xl font-semibold text-gray-900" x-text="formatCurrency(total)"></span>
+                    }
+                    else
+                    {
+                        <span class="text-xl font-semibold text-gray-900">@(basket != null ? $"{currencySymbol}{basket.Total:N2}" : "--")</span>
+                    }
                 </div>
             </div>
         </div>
@@ -223,6 +249,27 @@
             removingDiscount: null,
             discountError: '',
             discountSuccess: '',
+            // Dynamic totals for single-page checkout
+            isSinglePage: @(isSinglePage ? "true" : "false"),
+            shipping: @(basket?.Shipping ?? 0),
+            tax: @(basket?.Tax ?? 0),
+            total: @(basket?.Total ?? 0),
+            currencySymbol: '@currencySymbol',
+
+            init() {
+                // Listen for basket updates from single-page checkout
+                document.addEventListener('merchello:basket-updated', (e) => {
+                    if (e.detail) {
+                        this.shipping = e.detail.shipping ?? 0;
+                        this.tax = e.detail.tax ?? 0;
+                        this.total = e.detail.total ?? 0;
+                    }
+                });
+            },
+
+            formatCurrency(value) {
+                return this.currencySymbol + value.toFixed(2);
+            },
 
             async applyDiscount() {
                 if (!this.discountCode.trim()) return;

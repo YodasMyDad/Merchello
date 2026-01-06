@@ -18,7 +18,7 @@
         ? JsonSerializer.Serialize(Model.ShippingGroups!.Select(g => new {
             groupId = g.GroupId.ToString(),
             groupName = g.GroupName,
-            lineItems = g.LineItems.Select(li => new { li.Name, li.Quantity, li.FormattedAmount }),
+            lineItems = g.LineItems.Select(li => new { name = li.Name, quantity = li.Quantity, formattedAmount = li.FormattedAmount }),
             shippingOptions = g.ShippingOptions.Select(o => new {
                 id = o.Id.ToString(),
                 name = o.Name,
@@ -58,7 +58,7 @@
             <div class="checkout-section">
                 <h2 class="font-heading text-lg font-normal mb-3">Contact</h2>
                 <div>
-                    <label for="email" class="block text-xs font-medium text-gray-700 mb-1">
+                    <label for="email" class="block text-xs font-medium text-gray-700 mb-0.5">
                         Email address <span class="text-red-500" aria-hidden="true">*</span>
                     </label>
                     <input type="email"
@@ -70,7 +70,7 @@
                            @@blur="validateField('email')"
                            :aria-invalid="errors.email ? 'true' : 'false'"
                            :class="errors.email ? 'checkout-input-error' : ''"
-                           class="checkout-input w-full"
+                           class="checkout-input-compact w-full"
                            placeholder="you@example.com" />
                     <p x-show="errors.email" x-cloak class="checkout-error" x-text="errors.email"></p>
                 </div>
@@ -79,7 +79,7 @@
             <!-- Shipping Address Section -->
             <div class="checkout-section">
                 <h2 class="font-heading text-lg font-normal mb-3">Shipping address</h2>
-                @await Html.PartialAsync("_AddressForm", Model, new ViewDataDictionary(ViewData) {
+                @await Html.PartialAsync("~/Views/Checkout/_AddressForm.cshtml", Model, new ViewDataDictionary(ViewData) {
                     { "Prefix", "shipping" },
                     { "OnBlurCallback", "debouncedCalculateShipping()" },
                     { "ShowRequired", true }
@@ -98,7 +98,7 @@
 
                 <div x-show="!sameAsShipping" x-cloak x-transition class="mt-3">
                     <h3 class="font-heading text-base font-normal mb-2">Billing address</h3>
-                    @await Html.PartialAsync("_AddressForm", Model, new ViewDataDictionary(ViewData) {
+                    @await Html.PartialAsync("~/Views/Checkout/_AddressForm.cshtml", Model, new ViewDataDictionary(ViewData) {
                         { "Prefix", "billing" },
                         { "ShowRequired", true }
                     })
@@ -116,13 +116,18 @@
                 </div>
 
                 <!-- No shipping address yet -->
-                <div x-show="!shippingLoading && !canCalculateShipping" x-cloak class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <div x-show="!shippingLoading && !canCalculateShipping && shippingGroups.length === 0" x-cloak class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                     <p class="text-sm text-gray-600">Enter your shipping address to see available shipping options.</p>
                 </div>
 
                 <!-- Shipping error -->
                 <div x-show="!shippingLoading && shippingError" x-cloak class="p-3 bg-red-50 border border-red-200 rounded-lg">
                     <p class="text-sm text-red-700" x-text="shippingError"></p>
+                </div>
+
+                <!-- Multi-warehouse notification -->
+                <div x-show="!shippingLoading && shippingGroups.length > 1" x-cloak class="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-3">
+                    <p class="text-sm text-blue-800">Your order will ship from multiple locations. You'll receive separate tracking for each shipment.</p>
                 </div>
 
                 <!-- Shipping options -->
@@ -132,7 +137,15 @@
                             <!-- Group header (only show if multiple groups) -->
                             <template x-if="shippingGroups.length > 1">
                                 <div class="bg-gray-50 px-3 py-2 border-b border-gray-200">
-                                    <span class="text-sm font-medium text-gray-700" x-text="group.groupName"></span>
+                                    <p class="text-sm font-medium text-gray-700" x-text="getSelectedShippingName(group)"></p>
+                                    <p class="text-xs text-gray-500 mt-1.5 flex flex-wrap gap-x-2 gap-y-1">
+                                        <template x-for="(item, idx) in group.lineItems" :key="idx">
+                                            <span class="inline-flex items-center whitespace-nowrap">
+                                                <span x-text="item.name"></span>
+                                                <span x-show="item.quantity > 1" class="ml-1 text-gray-400" x-text="'(' + item.quantity + ')'"></span>
+                                            </span>
+                                        </template>
+                                    </p>
                                 </div>
                             </template>
 
@@ -156,10 +169,12 @@
                                             </p>
                                             <p class="text-xs text-gray-500" x-text="option.deliveryDescription"></p>
                                         </div>
-                                        <span class="text-sm font-medium" :class="option.cost === 0 ? 'text-green-600' : 'text-gray-900'">
-                                            <template x-if="option.cost === 0">FREE</template>
-                                            <template x-if="option.cost > 0"><span x-text="option.formattedCost"></span></template>
-                                        </span>
+                                        <template x-if="option.cost === 0">
+                                            <span class="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 rounded-full">FREE</span>
+                                        </template>
+                                        <template x-if="option.cost > 0">
+                                            <span class="text-sm font-medium text-gray-900" x-text="option.formattedCost"></span>
+                                        </template>
                                     </label>
                                 </template>
                             </div>
@@ -180,31 +195,70 @@
 
                 <!-- Payment methods -->
                 <div x-show="!paymentLoading && paymentMethods.length > 0" x-cloak>
-                    <!-- Payment method selector -->
-                    <div class="space-y-2 mb-4">
-                        <template x-for="method in paymentMethods" :key="method.providerAlias + ':' + (method.methodAlias || '')">
+                    <!-- Single card payment method (selectable for when more options like pro-forma are added) -->
+                    <template x-if="cardPaymentMethods.length === 1">
+                        <div class="space-y-2 mb-4">
                             <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
-                                   :class="{ 'border-accent bg-accent/5': selectedPaymentMethod?.providerAlias === method.providerAlias && selectedPaymentMethod?.methodAlias === method.methodAlias }">
+                                   :class="{ 'border-accent bg-accent/5': selectedPaymentMethod?.providerAlias === cardPaymentMethods[0].providerAlias && selectedPaymentMethod?.methodAlias === cardPaymentMethods[0].methodAlias }">
                                 <input type="radio"
                                        name="payment-method"
-                                       :value="method.providerAlias + ':' + (method.methodAlias || '')"
+                                       :value="cardPaymentMethods[0].providerAlias + ':' + (cardPaymentMethods[0].methodAlias || '')"
                                        x-model="selectedPaymentMethodKey"
-                                       @@change="onPaymentMethodChange(method)"
+                                       @@change="onPaymentMethodChange(cardPaymentMethods[0])"
                                        class="w-4 h-4 text-accent focus:ring-accent" />
                                 <div class="flex items-center gap-2 flex-1">
-                                    <span x-html="getPaymentMethodIcon(method)" class="flex-shrink-0"></span>
-                                    <span class="text-sm font-medium text-gray-900" x-text="method.displayName"></span>
+                                    <span x-html="getPaymentMethodIcon(cardPaymentMethods[0])" class="flex-shrink-0"></span>
+                                    <span class="text-sm font-medium text-gray-900" x-text="cardPaymentMethods[0].displayName"></span>
                                 </div>
                             </label>
-                        </template>
-                    </div>
+                        </div>
+                    </template>
+
+                    <!-- Card payment selector (if multiple card methods) -->
+                    <template x-if="cardPaymentMethods.length > 1">
+                        <div class="space-y-2 mb-4">
+                            <template x-for="method in cardPaymentMethods" :key="method.providerAlias + ':' + (method.methodAlias || '')">
+                                <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
+                                       :class="{ 'border-accent bg-accent/5': selectedPaymentMethod?.providerAlias === method.providerAlias && selectedPaymentMethod?.methodAlias === method.methodAlias }">
+                                    <input type="radio"
+                                           name="payment-method"
+                                           :value="method.providerAlias + ':' + (method.methodAlias || '')"
+                                           x-model="selectedPaymentMethodKey"
+                                           @@change="onPaymentMethodChange(method)"
+                                           class="w-4 h-4 text-accent focus:ring-accent" />
+                                    <div class="flex items-center gap-2 flex-1">
+                                        <span x-html="getPaymentMethodIcon(method)" class="flex-shrink-0"></span>
+                                        <span class="text-sm font-medium text-gray-900" x-text="method.displayName"></span>
+                                    </div>
+                                </label>
+                            </template>
+                        </div>
+                    </template>
 
                     <!-- Payment form container (for hosted fields/widget integrations) -->
-                    <div id="payment-form-container" x-show="selectedPaymentMethod" x-cloak class="mt-4">
+                    <div id="payment-form-container" x-show="selectedPaymentMethod && (selectedPaymentMethod.integrationType === 10 || selectedPaymentMethod.integrationType === 30)" x-cloak>
                         <div id="hosted-fields-container" class="min-h-[100px]"></div>
                         <div id="widget-container"></div>
                         <div id="direct-form-container"></div>
                     </div>
+
+                    <!-- Redirect payment methods (shown as buttons below the form) -->
+                    <template x-if="redirectPaymentMethods.length > 0">
+                        <div class="mt-4 pt-4 border-t border-gray-200">
+                            <p class="text-xs text-gray-500 mb-3">Or pay with</p>
+                            <div class="space-y-2">
+                                <template x-for="method in redirectPaymentMethods" :key="method.providerAlias + ':' + (method.methodAlias || '')">
+                                    <button type="button"
+                                            @@click="onPaymentMethodChange(method); selectedPaymentMethodKey = method.providerAlias + ':' + (method.methodAlias || '')"
+                                            class="w-full flex items-center justify-center gap-2 p-3 border border-gray-200 rounded-lg hover:border-accent hover:bg-accent/5 transition-colors"
+                                            :class="{ 'border-accent bg-accent/5': selectedPaymentMethod?.providerAlias === method.providerAlias && selectedPaymentMethod?.methodAlias === method.methodAlias }">
+                                        <span x-html="getPaymentMethodIcon(method)" class="flex-shrink-0"></span>
+                                        <span class="text-sm font-medium text-gray-900" x-text="method.displayName"></span>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
                 </div>
 
                 <!-- No payment methods available -->
@@ -331,6 +385,8 @@
                 paymentLoading: true,
                 paymentError: null,
                 paymentMethods: [],
+                cardPaymentMethods: [],
+                redirectPaymentMethods: [],
                 selectedPaymentMethod: null,
                 selectedPaymentMethodKey: '',
                 paymentSession: null,
@@ -346,8 +402,10 @@
                 _debounceTimers: {},
                 _shippingCalculated: @(hasShippingGroups ? "true" : "false"),
 
-                // Basket totals
+                // Basket totals (updated dynamically when shipping is selected)
                 basketTotal: @(basket?.Total ?? 0),
+                basketShipping: @(basket?.Shipping ?? 0),
+                basketTax: @(basket?.Tax ?? 0),
                 currencySymbol: '@currencySymbol',
 
                 // Computed properties
@@ -381,6 +439,21 @@
                     return this.currencySymbol + this.basketTotal.toFixed(2);
                 },
 
+                // Calculate shipping total from selected options (not from basket)
+                get calculatedShipping() {
+                    let total = 0;
+                    for (const group of this.shippingGroups) {
+                        const selectedId = this.shippingSelections[group.groupId];
+                        if (selectedId && group.shippingOptions) {
+                            const selected = group.shippingOptions.find(o => o.id === selectedId);
+                            if (selected) {
+                                total += selected.cost;
+                            }
+                        }
+                    }
+                    return total;
+                },
+
                 // Lifecycle
                 async init() {
                     // Load regions for pre-selected countries
@@ -391,13 +464,32 @@
                         await this.loadRegions('billing', this.form.billing.countryCode);
                     }
 
-                    // If we have a country but no shipping groups yet, calculate shipping
-                    if (this.form.shipping.countryCode && !this._shippingCalculated) {
+                    // Sort initial shipping groups from server
+                    if (this.shippingGroups.length > 0) {
+                        this.sortShippingOptions();
+                    }
+
+                    // Calculate shipping if we have a country and either:
+                    // - No shipping groups yet (!_shippingCalculated), OR
+                    // - Groups exist but basket totals are stale (basketShipping is 0 with selections)
+                    const needsShippingCalc = !this._shippingCalculated ||
+                        (this._shippingCalculated && this.basketShipping === 0 && this.allShippingSelected);
+                    if (this.form.shipping.countryCode && needsShippingCalc) {
                         await this.calculateShipping();
                     }
 
                     // Load payment methods
                     await this.loadPaymentMethods();
+
+                    // Sync totals with order summary after all initialization is complete
+                    // This ensures the order summary receives shipping/tax values after Alpine components are ready
+                    this.$nextTick(() => {
+                        if (this.calculatedShipping > 0 || this._shippingCalculated) {
+                            document.dispatchEvent(new CustomEvent('merchello:basket-updated', {
+                                detail: { shipping: this.calculatedShipping, tax: this.basketTax, total: this.basketTotal }
+                            }));
+                        }
+                    });
 
                     // Emit checkout begin event (with deduplication)
                     if (window.MerchelloSinglePageAnalytics) {
@@ -416,6 +508,31 @@
                 announce(message) {
                     this.announcement = '';
                     setTimeout(() => { this.announcement = message; }, 100);
+                },
+
+                // Sort shipping options: Next Day first, then by cost (cheapest to most expensive)
+                sortShippingOptions() {
+                    this.shippingGroups.forEach(group => {
+                        if (group.shippingOptions && group.shippingOptions.length > 1) {
+                            group.shippingOptions.sort((a, b) => {
+                                // Next Day options come first
+                                if (a.isNextDay && !b.isNextDay) return -1;
+                                if (!a.isNextDay && b.isNextDay) return 1;
+                                // Within same category, sort by cost (cheapest first)
+                                return a.cost - b.cost;
+                            });
+                        }
+                    });
+                },
+
+                // Get the selected shipping option name for a group (used in header)
+                getSelectedShippingName(group) {
+                    const selectedId = this.shippingSelections[group.groupId];
+                    if (selectedId && group.shippingOptions) {
+                        const selected = group.shippingOptions.find(o => o.id === selectedId);
+                        if (selected) return selected.name;
+                    }
+                    return 'Select shipping method';
                 },
 
                 // Region loading
@@ -493,6 +610,9 @@
                         if (data.success) {
                             this.shippingGroups = data.shippingGroups || [];
 
+                            // Sort shipping options: Next Day first, then by cost
+                            this.sortShippingOptions();
+
                             // Apply auto-selected options
                             this.shippingGroups.forEach(g => {
                                 if (g.selectedShippingOptionId) {
@@ -500,9 +620,15 @@
                                 }
                             });
 
-                            // Update basket total
+                            // Update basket totals (including shipping and tax)
                             if (data.basket) {
                                 this.basketTotal = data.basket.total;
+                                this.basketShipping = data.basket.shipping ?? 0;
+                                this.basketTax = data.basket.tax ?? 0;
+                                // Dispatch event to update Order Summary with calculated shipping from selections
+                                document.dispatchEvent(new CustomEvent('merchello:basket-updated', {
+                                    detail: { shipping: this.calculatedShipping, tax: this.basketTax, total: this.basketTotal }
+                                }));
                             }
 
                             this._shippingCalculated = true;
@@ -518,12 +644,41 @@
                     }
                 },
 
-                onShippingOptionChange(groupId, option) {
+                async onShippingOptionChange(groupId, option) {
                     this.announce(`Selected ${option.name} shipping`);
 
                     // Emit analytics event (with deduplication per group)
                     if (window.MerchelloSinglePageAnalytics) {
                         window.MerchelloSinglePageAnalytics.trackShippingSelected(groupId, option.name, option.cost);
+                    }
+
+                    // Recalculate totals with new shipping selection
+                    await this.updateShippingAndRecalculate();
+                },
+
+                async updateShippingAndRecalculate() {
+                    try {
+                        const response = await fetch('/api/merchello/checkout/shipping', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                selections: this.shippingSelections
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success && data.basket) {
+                            this.basketTotal = data.basket.total;
+                            this.basketShipping = data.basket.shipping ?? 0;
+                            this.basketTax = data.basket.tax ?? 0;
+                            // Dispatch event to update Order Summary with calculated shipping from selections
+                            document.dispatchEvent(new CustomEvent('merchello:basket-updated', {
+                                detail: { shipping: this.calculatedShipping, tax: this.basketTax, total: this.basketTotal }
+                            }));
+                        }
+                    } catch (error) {
+                        console.error('Failed to update shipping totals:', error);
                     }
                 },
 
@@ -537,12 +692,14 @@
                         const methods = await response.json();
                         this.paymentMethods = methods || [];
 
-                        // Auto-select first method if only one available
-                        if (this.paymentMethods.length === 1) {
-                            const method = this.paymentMethods[0];
-                            this.selectedPaymentMethodKey = method.providerAlias + ':' + (method.methodAlias || '');
-                            this.selectedPaymentMethod = method;
-                        }
+                        // Separate form-based (card) methods from redirect methods
+                        // Integration types: 0=Redirect, 10=HostedFields, 20=Widget, 30=DirectForm
+                        const formBasedTypes = [10, 30]; // HostedFields, DirectForm
+                        this.cardPaymentMethods = this.paymentMethods.filter(m => formBasedTypes.includes(m.integrationType));
+                        this.redirectPaymentMethods = this.paymentMethods.filter(m => !formBasedTypes.includes(m.integrationType));
+
+                        // No auto-selection - user must explicitly choose payment method
+                        // (supports multiple options like card payment vs pro-forma)
                     } catch (error) {
                         console.error('Failed to load payment methods:', error);
                         this.paymentError = 'Unable to load payment methods. Please refresh the page.';
@@ -551,7 +708,7 @@
                     }
                 },
 
-                onPaymentMethodChange(method) {
+                async onPaymentMethodChange(method) {
                     this.selectedPaymentMethod = method;
                     this.paymentError = null;
 
@@ -561,6 +718,66 @@
                     }
 
                     this.announce(`Selected ${method.displayName} payment`);
+
+                    // Lazy-initialize payment form if not already done and checkout data is ready
+                    if (!this.paymentSession && this.form.email) {
+                        await this.initializePaymentForm(method);
+                    }
+                },
+
+                /**
+                 * Initialize the payment form for HostedFields/DirectForm methods
+                 * This pre-loads the payment adapter so the form appears immediately
+                 */
+                async initializePaymentForm(method) {
+                    if (!method) return;
+
+                    // Only initialize form-based payment methods (HostedFields, DirectForm)
+                    // Skip for Redirect and Widget types - they don't have embedded forms
+                    // Integration types: 0=Redirect, 10=HostedFields, 20=Widget, 30=DirectForm
+                    if (![10, 30].includes(method.integrationType)) {
+                        return;
+                    }
+
+                    try {
+                        const returnUrl = window.location.origin + '/checkout/return';
+                        const cancelUrl = window.location.origin + '/checkout/cancel';
+
+                        const response = await fetch('/api/merchello/checkout/pay', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                providerAlias: method.providerAlias,
+                                methodAlias: method.methodAlias || null,
+                                returnUrl,
+                                cancelUrl
+                            })
+                        });
+
+                        const payData = await response.json();
+
+                        if (payData.success && window.MerchelloPayment) {
+                            this.invoiceId = payData.invoiceId;
+                            this.paymentSession = payData;
+
+                            await window.MerchelloPayment.handlePaymentFlow(payData, {
+                                containerId: 'hosted-fields-container',
+                                onReady: () => {
+                                    this.announce('Payment form ready');
+                                },
+                                onError: (err) => {
+                                    console.error('Payment form setup failed:', err);
+                                    this.paymentError = err.message || 'Failed to load payment form';
+                                }
+                            });
+                        } else if (!payData.success) {
+                            console.error('Payment session creation failed:', payData.errorMessage);
+                            this.paymentError = payData.errorMessage || 'Failed to initialize payment';
+                        }
+                    } catch (error) {
+                        console.error('Failed to initialize payment form:', error);
+                        this.paymentError = 'Failed to load payment form. Please try again.';
+                    }
                 },
 
                 getPaymentMethodIcon(method) {
@@ -585,6 +802,10 @@
                             // Valid email - track contact info
                             if (window.MerchelloSinglePageAnalytics) {
                                 window.MerchelloSinglePageAnalytics.trackContactInfo(this.form.email);
+                            }
+                            // Initialize payment form if method selected but not yet initialized
+                            if (this.selectedPaymentMethod && !this.paymentSession) {
+                                this.initializePaymentForm(this.selectedPaymentMethod);
                             }
                         }
                     } else if (field.startsWith('shipping.')) {
@@ -680,27 +901,40 @@
                         }
 
                         // 3. Initiate payment with selected method
-                        const returnUrl = window.location.origin + '/checkout/return';
-                        const cancelUrl = window.location.origin + '/checkout/cancel';
+                        // Check if we already have a cached payment session from initializePaymentForm()
+                        const sessionMatchesMethod = this.paymentSession &&
+                            this.paymentSession.providerAlias === this.selectedPaymentMethod.providerAlias &&
+                            this.paymentSession.methodAlias === (this.selectedPaymentMethod.methodAlias || null);
 
-                        const payResponse = await fetch('/api/merchello/checkout/pay', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                providerAlias: this.selectedPaymentMethod.providerAlias,
-                                methodAlias: this.selectedPaymentMethod.methodAlias || null,
-                                returnUrl: returnUrl,
-                                cancelUrl: cancelUrl
-                            })
-                        });
+                        let payData;
 
-                        const payData = await payResponse.json();
-                        if (!payData.success) {
-                            throw new Error(payData.errorMessage || 'Failed to initiate payment');
+                        if (sessionMatchesMethod) {
+                            // Use cached session - form is already rendered
+                            payData = this.paymentSession;
+                        } else {
+                            // No cached session or method changed - create new payment session
+                            const returnUrl = window.location.origin + '/checkout/return';
+                            const cancelUrl = window.location.origin + '/checkout/cancel';
+
+                            const payResponse = await fetch('/api/merchello/checkout/pay', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    providerAlias: this.selectedPaymentMethod.providerAlias,
+                                    methodAlias: this.selectedPaymentMethod.methodAlias || null,
+                                    returnUrl: returnUrl,
+                                    cancelUrl: cancelUrl
+                                })
+                            });
+
+                            payData = await payResponse.json();
+                            if (!payData.success) {
+                                throw new Error(payData.errorMessage || 'Failed to initiate payment');
+                            }
+
+                            this.invoiceId = payData.invoiceId;
+                            this.paymentSession = payData;
                         }
-
-                        this.invoiceId = payData.invoiceId;
-                        this.paymentSession = payData;
 
                         // 4. Handle payment flow based on integration type
                         // IntegrationType: 0=Redirect, 10=HostedFields, 20=Widget, 30=DirectForm
@@ -712,16 +946,19 @@
 
                         // For hosted fields/widget/direct form, use payment adapter
                         if (window.MerchelloPayment) {
-                            await window.MerchelloPayment.handlePaymentFlow(payData, {
-                                containerId: 'hosted-fields-container',
-                                onReady: () => {
-                                    this.announce('Payment form ready. Please complete your payment details.');
-                                },
-                                onError: (err) => {
-                                    this.paymentError = err.message || 'Payment setup failed';
-                                    this.isSubmitting = false;
-                                }
-                            });
+                            // If form wasn't pre-initialized (or method changed), initialize now
+                            if (!sessionMatchesMethod) {
+                                await window.MerchelloPayment.handlePaymentFlow(payData, {
+                                    containerId: 'hosted-fields-container',
+                                    onReady: () => {
+                                        this.announce('Payment form ready. Please complete your payment details.');
+                                    },
+                                    onError: (err) => {
+                                        this.paymentError = err.message || 'Payment setup failed';
+                                        this.isSubmitting = false;
+                                    }
+                                });
+                            }
 
                             // For non-redirect flows, submit payment
                             if (payData.integrationType !== 0) {
@@ -748,9 +985,6 @@
             };
         }
     </script>
-}
-
-@@section Scripts {
     <!-- Payment module for handling payment method adapters -->
     <script src="/js/checkout/payment.js"></script>
 }

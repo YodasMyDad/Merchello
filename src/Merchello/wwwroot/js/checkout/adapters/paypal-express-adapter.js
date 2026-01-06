@@ -9,7 +9,8 @@
 (function() {
     'use strict';
 
-    // Track rendered buttons
+    // Track rendered buttons with their instances for proper cleanup
+    // { methodAlias: { button: PayPalButtonInstance, containerId: string } }
     let renderedButtons = {};
 
     /**
@@ -30,7 +31,7 @@
 
                 // Wait for PayPal SDK to be available
                 if (typeof paypal === 'undefined') {
-                    console.error('PayPal SDK not loaded');
+                    console.error('PayPal SDK not loaded. Ensure the SDK script URL is correct and accessible.');
                     container.style.display = 'none';
                     return;
                 }
@@ -150,16 +151,33 @@
 
                 // Check if this funding source is eligible
                 if (!buttons.isEligible()) {
+                    console.warn(`PayPal express button '${method.methodAlias}' is not eligible for this configuration. ` +
+                        `This may be due to currency, country, or account settings. Hiding button.`);
                     container.style.display = 'none';
                     return;
                 }
 
+                // Verify container is visible before rendering (PayPal requires visible container)
+                if (elementContainer.offsetParent === null) {
+                    console.warn(`PayPal container not visible, waiting for paint...`);
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
                 await buttons.render('#' + elementContainer.id);
-                renderedButtons[method.methodAlias] = true;
+
+                // Store button instance for proper cleanup
+                renderedButtons[method.methodAlias] = {
+                    button: buttons,
+                    containerId: elementContainer.id
+                };
 
             } catch (error) {
-                // Silently hide the container on initialization error
-                container.style.display = 'none';
+                console.error(`PayPal express button '${method.methodAlias}' failed to initialize:`, error);
+                console.error('Debug info - Container visible:', container.offsetParent !== null, 'SDK loaded:', typeof paypal !== 'undefined');
+                // Only hide if this is a genuine eligibility/config issue, not a transient timing issue
+                if (error.message && (error.message.includes('eligible') || error.message.includes('Script'))) {
+                    container.style.display = 'none';
+                }
             }
         },
 
@@ -194,11 +212,23 @@
          * @param {string} methodAlias - The method alias to clean up
          */
         teardown(methodAlias) {
-            const container = document.getElementById('paypal-express-' + methodAlias);
-            if (container) {
-                container.replaceChildren();
+            const entry = renderedButtons[methodAlias];
+            if (entry) {
+                // Close the PayPal button instance properly to avoid zoid errors
+                if (entry.button && typeof entry.button.close === 'function') {
+                    try {
+                        entry.button.close();
+                    } catch (e) {
+                        // Ignore errors during close - button may already be destroyed
+                    }
+                }
+                // Now safe to remove the container
+                const container = document.getElementById(entry.containerId);
+                if (container) {
+                    container.remove();
+                }
+                delete renderedButtons[methodAlias];
             }
-            delete renderedButtons[methodAlias];
         },
 
         /**

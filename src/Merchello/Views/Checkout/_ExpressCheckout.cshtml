@@ -19,7 +19,7 @@
      class="mb-8"
      x-data="expressCheckout()"
      x-init="init()"
-     x-show="hasExpressMethods"
+     x-show="isLoading || hasExpressMethods"
      x-cloak>
 
     <!-- Loading State - Skeleton Loaders -->
@@ -190,8 +190,15 @@
             config: null,
             loadedSdks: new Set(),
             adapters: {},
+            _initialized: false,
 
             async init() {
+                // Guard against double initialization (can happen with nested Alpine components)
+                if (this._initialized) {
+                    console.log('Express checkout already initialized, skipping');
+                    return;
+                }
+                this._initialized = true;
                 try {
                     // Fetch express checkout configuration from API
                     const response = await fetch('/api/merchello/checkout/express-config');
@@ -203,15 +210,29 @@
                     this.config = await response.json();
                     this.hasExpressMethods = this.config.methods && this.config.methods.length > 0;
 
-                    if (this.hasExpressMethods) {
-                        await this.initializeExpressCheckout();
-                    }
+                    // Listen for basket updates to refresh config with new totals
+                    // This ensures PayPal/express providers get the correct amount after shipping changes
+                    document.addEventListener('merchello:basket-updated', (e) => {
+                        if (this.hasExpressMethods && this.config && e.detail?.total) {
+                            this.config.amount = e.detail.total;
+                            // Note: No need to re-render buttons - PayPal's createOrder fetches fresh amount from server
+                        }
+                    });
                 } catch (err) {
                     console.error('Express checkout initialization failed:', err);
                     this.error = 'Failed to load express checkout options.';
                     this.hasExpressMethods = false;
                 } finally {
                     this.isLoading = false;
+                }
+
+                // Initialize buttons AFTER isLoading is false to ensure container is visible
+                // PayPal SDK requires visible container to render properly
+                if (this.hasExpressMethods) {
+                    await this.$nextTick(); // Wait for Alpine to update DOM (unhide container)
+                    // Wait for browser to actually paint the container (required for PayPal SDK)
+                    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                    await this.initializeExpressCheckout();
                 }
             },
 
@@ -222,7 +243,10 @@
                 const container = document.getElementById('express-buttons-container');
                 if (!container) return;
 
-                // Clear existing buttons
+                // Properly teardown existing buttons before clearing
+                await this.teardownExpressButtons();
+
+                // Now safe to clear the container
                 container.innerHTML = '';
 
                 // Process each method
@@ -231,6 +255,29 @@
                         await this.initializeMethod(method, container);
                     } catch (err) {
                         console.error(`Failed to initialize ${method.methodAlias}:`, err);
+                    }
+                }
+            },
+
+            /**
+             * Teardown all express checkout buttons properly
+             * This ensures PayPal and other SDK-based buttons are closed before DOM removal
+             */
+            async teardownExpressButtons() {
+                if (!window.MerchelloExpressAdapters) return;
+
+                // Track which adapters we've already torn down (avoid duplicates from aliased registrations)
+                const tornDown = new Set();
+
+                for (const key of Object.keys(window.MerchelloExpressAdapters)) {
+                    const adapter = window.MerchelloExpressAdapters[key];
+                    if (adapter && !tornDown.has(adapter) && typeof adapter.teardownAll === 'function') {
+                        try {
+                            adapter.teardownAll();
+                            tornDown.add(adapter);
+                        } catch (e) {
+                            console.warn(`Failed to teardown adapter ${key}:`, e);
+                        }
                     }
                 }
             },

@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Merchello.Core.Sqlite.Migrations
 {
     [DbContext(typeof(MerchelloDbContext))]
-    [Migration("20260105141213_Initial")]
+    [Migration("20260106130323_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -2000,9 +2000,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int>("AuthType")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(1);
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("TEXT");
@@ -2023,9 +2021,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Format")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(1);
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Headers")
                         .IsRequired()

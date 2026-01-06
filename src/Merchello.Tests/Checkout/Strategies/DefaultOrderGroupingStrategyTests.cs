@@ -9,6 +9,7 @@ using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Parameters;
@@ -25,6 +26,7 @@ public class DefaultOrderGroupingStrategyTests
     private readonly Mock<IWarehouseService> _warehouseServiceMock;
     private readonly Mock<IExchangeRateCache> _exchangeRateCacheMock;
     private readonly Mock<ICurrencyService> _currencyServiceMock;
+    private readonly Mock<IShippingCostResolver> _shippingCostResolverMock;
     private readonly Mock<ILogger<DefaultOrderGroupingStrategy>> _loggerMock;
     private readonly DefaultOrderGroupingStrategy _strategy;
 
@@ -37,12 +39,20 @@ public class DefaultOrderGroupingStrategyTests
         _currencyServiceMock = new Mock<ICurrencyService>();
         _currencyServiceMock.Setup(x => x.Round(It.IsAny<decimal>(), It.IsAny<string>()))
             .Returns((decimal amount, string _) => Math.Round(amount, 2));
+        _shippingCostResolverMock = new Mock<IShippingCostResolver>();
+        _shippingCostResolverMock.Setup(x => x.GetTotalShippingCost(
+                It.IsAny<ShippingOption>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<decimal?>()))
+            .Returns((ShippingOption so, string _, string? __, decimal? ___) => so.FixedCost ?? 0);
         var settings = Options.Create(new MerchelloSettings { StoreCurrencyCode = "USD" });
         _loggerMock = new Mock<ILogger<DefaultOrderGroupingStrategy>>();
         _strategy = new DefaultOrderGroupingStrategy(
             _warehouseServiceMock.Object,
             _exchangeRateCacheMock.Object,
             _currencyServiceMock.Object,
+            _shippingCostResolverMock.Object,
             settings,
             _loggerMock.Object);
     }

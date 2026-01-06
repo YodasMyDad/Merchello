@@ -26,4 +26,10 @@ public class CalculateBasketParameters
     /// Whether shipping should be taxable. Defaults to true.
     /// </summary>
     public bool IsShippingTaxable { get; init; } = true;
+
+    /// <summary>
+    /// When set, use this shipping amount instead of auto-selecting from quotes.
+    /// Used when the user has explicitly selected a shipping option.
+    /// </summary>
+    public decimal? ShippingAmountOverride { get; init; }
 }

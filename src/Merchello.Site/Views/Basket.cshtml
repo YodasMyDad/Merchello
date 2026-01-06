@@ -1,9 +1,9 @@
 ﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Basket>
 @using System.Text.Json
-@using Merchello.Site.Storefront.Models
+@using Merchello.Core.Storefront.Dtos
 @{
     Layout = "Website.cshtml";
-    var basketData = (FullBasketResponse)ViewBag.BasketData;
+    var basketData = (StorefrontBasketDto)ViewBag.BasketData;
     var configJson = JsonSerializer.Serialize(basketData, new JsonSerializerOptions
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -193,10 +193,28 @@
                                 <span>Tax</span>
                                 <span x-text="formattedDisplayTax"></span>
                             </div>
+                            <!-- Estimated Shipping -->
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>
+                                    Est. Shipping
+                                    <template x-if="shippingGroupCount > 1">
+                                        <small class="text-muted" x-text="'(' + shippingGroupCount + ' shipments)'"></small>
+                                    </template>
+                                    <template x-if="isLoadingShipping">
+                                        <span class="spinner-border spinner-border-sm text-primary ms-1"></span>
+                                    </template>
+                                </span>
+                                <template x-if="hasShippingEstimate && !isLoadingShipping">
+                                    <span x-text="formattedDisplayEstimatedShipping"></span>
+                                </template>
+                                <template x-if="!hasShippingEstimate && !isLoadingShipping">
+                                    <small class="text-muted">Calculated at checkout</small>
+                                </template>
+                            </div>
                             <hr>
                             <div class="d-flex justify-content-between mb-3">
-                                <strong>Total</strong>
-                                <strong class="fs-5" x-text="formattedDisplayTotal"></strong>
+                                <strong x-text="hasShippingEstimate ? 'Est. Total' : 'Total'"></strong>
+                                <strong class="fs-5" x-text="formattedEstimatedTotal"></strong>
                             </div>
 
                             <!-- Checkout Button -->
