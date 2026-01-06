@@ -56,13 +56,14 @@
 
     <!-- Address Line 2 (Optional) -->
     <div>
-        <label for="@(prefix)-address2" class="@labelClass">
-            Apartment, suite, etc. <span class="text-gray-400">(optional)</span>
+        <label for="@(prefix)-address2" class="sr-only">
+            Apartment, suite, etc. (optional)
         </label>
         <input type="text"
                id="@(prefix)-address2"
                x-model="form.@(prefix).address2"
                autocomplete="@prefix address-line2"
+               placeholder="Apartment, suite, etc. (optional)"
                class="@inputClass" />
     </div>
 

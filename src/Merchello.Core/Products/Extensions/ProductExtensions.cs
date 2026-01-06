@@ -2,6 +2,7 @@ using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Models;
 
 namespace Merchello.Core.Products.Extensions;
@@ -105,43 +106,27 @@ public static class ProductExtensions
     /// <param name="countryCode"></param>
     /// <param name="stateOrProvinceCode">Optional state or province code.</param>
     /// <returns></returns>
-    public static decimal? GetShippingAmountForCountry(this Product product, string countryCode, string? stateOrProvinceCode = null)
+    public static decimal? GetShippingAmountForCountry(this Product product, string countryCode, string? stateOrProvinceCode, IShippingCostResolver costResolver)
     {
         // Get all allowed shipping options (includes warehouse options as fallback)
         var baseOptions = product.GetAllowedShippingOptions();
 
-        // First, check if there's a universal cost override (FixedCost in the original model).
+        // Filter to eligible options (warehouse can serve region)
         var eligibleOptions = baseOptions
             .Where(so => so.Warehouse == null || so.Warehouse.CanServeRegion(countryCode, stateOrProvinceCode))
             .ToList();
 
-        var universalCostOption = eligibleOptions
-            .FirstOrDefault(so => so.ShippingCosts.Any(sc => sc is { CountryCode: "*", StateOrProvinceCode: null }));
-        if (universalCostOption != null)
+        // Find the first shipping option that has a resolvable cost for this destination
+        foreach (var option in eligibleOptions)
         {
-            return universalCostOption.ShippingCosts
-                .FirstOrDefault(sc => sc is { CountryCode: "*", StateOrProvinceCode: null })?.Cost;
+            var cost = costResolver.GetTotalShippingCost(option, countryCode, stateOrProvinceCode);
+            if (cost.HasValue)
+            {
+                return cost.Value;
+            }
         }
 
-        // Find the shipping option with the best match for the country and optionally state/province.
-        var shippingOption = eligibleOptions
-            .FirstOrDefault(so => so.ShippingCosts.Any(sc =>
-                sc.CountryCode == countryCode &&
-                (stateOrProvinceCode == null || sc.StateOrProvinceCode == stateOrProvinceCode || sc.StateOrProvinceCode == null)));
-
-        if (shippingOption == null)
-        {
-            // No matching shipping option found.
-            return null;
-        }
-
-        // Retrieve the most specific shipping cost.
-        var shippingCost = shippingOption.ShippingCosts
-            .Where(sc => sc.CountryCode == countryCode)
-            .OrderBy(sc => sc.StateOrProvinceCode == null ? 1 : 0) // Prioritize specific state/province costs.
-            .FirstOrDefault(sc => stateOrProvinceCode == null || sc.StateOrProvinceCode == stateOrProvinceCode || sc.StateOrProvinceCode == null);
-
-        return shippingCost?.Cost;
+        return null;
     }
 
     /// <summary>

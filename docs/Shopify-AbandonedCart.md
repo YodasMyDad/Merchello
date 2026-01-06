@@ -58,7 +58,9 @@ Customer completes purchase (CreateOrderFromBasketAsync)  →  Auto-marked as Co
 
 ### What You Provide
 
-1. **Email handler** - Subscribe to `CheckoutAbandonedNotification` to send recovery emails
+1. **Email sending** - Merchello fires events; you provide the email service:
+   - **Option A**: Implement `INotificationAsyncHandler<CheckoutAbandonedNotification>` with your email service (SendGrid, Mailgun, SMTP, etc.)
+   - **Option B**: Subscribe to `checkout.abandoned` webhook to trigger external platforms (Klaviyo, Mailchimp, etc.)
 2. **Configuration** - Set thresholds in `appsettings.json`
 
 ### What The System Handles Automatically
@@ -126,6 +128,8 @@ public class AbandonedCheckout
     public virtual Basket? Basket { get; set; }
 }
 ```
+
+> **Basket Lifecycle Note**: After order conversion via `CreateOrderFromBasketAsync`, the basket is deleted but the `AbandonedCheckout` record is retained for analytics. The `BasketId` becomes an orphaned reference, but `BasketTotal`, `CurrencyCode`, and `CurrencySymbol` preserve the key metrics needed for reporting.
 
 ### AbandonedCheckoutStatus.cs
 
@@ -289,6 +293,7 @@ public class AbandonedCheckoutSettings
     public double AbandonmentThresholdHours { get; set; } = 1.0;
     public int RecoveryExpiryDays { get; set; } = 30;
     public int CheckIntervalMinutes { get; set; } = 15;
+    public int MaxRecoveryEmails { get; set; } = 3;
     public string RecoveryUrlBase { get; set; } = "/checkout/recover";
 }
 ```
@@ -303,6 +308,7 @@ public class AbandonedCheckoutSettings
       "AbandonmentThresholdHours": 1.0,
       "RecoveryExpiryDays": 30,
       "CheckIntervalMinutes": 15,
+      "MaxRecoveryEmails": 3,
       "RecoveryUrlBase": "/checkout/recover"
     }
   }
@@ -327,6 +333,7 @@ public class AbandonedCheckoutSettings
 public class AbandonedCheckoutEmailHandler(
     IEmailService emailService,
     IAbandonedCheckoutService abandonedService,
+    IOptions<AbandonedCheckoutSettings> settings,
     ILogger<AbandonedCheckoutEmailHandler> logger)
     : INotificationAsyncHandler<CheckoutAbandonedNotification>
 {
@@ -334,6 +341,14 @@ public class AbandonedCheckoutEmailHandler(
     {
         if (string.IsNullOrEmpty(notification.CustomerEmail))
             return;
+
+        // Check max recovery emails limit
+        if (notification.AbandonedCheckout.RecoveryEmailsSent >= settings.Value.MaxRecoveryEmails)
+        {
+            logger.LogDebug("Max recovery emails ({Max}) reached for checkout {Id}",
+                settings.Value.MaxRecoveryEmails, notification.AbandonedCheckout.Id);
+            return;
+        }
 
         var recoveryLink = await abandonedService.GenerateRecoveryLinkAsync(
             notification.AbandonedCheckout.Id, ct);
@@ -343,6 +358,8 @@ public class AbandonedCheckoutEmailHandler(
             notification.BasketTotal,
             recoveryLink,
             ct);
+
+        // Note: Service should increment RecoveryEmailsSent after successful send
     }
 }
 ```
@@ -435,11 +452,19 @@ Add to `CheckoutApiController`:
 ```csharp
 /// <summary>
 /// Restores a basket from a recovery link (abandoned cart recovery).
+/// Replaces any existing basket the customer may have.
 /// </summary>
 [HttpGet("recover/{token}")]
 [AllowAnonymous]
 public async Task<IActionResult> RecoverCheckout(string token, CancellationToken ct)
 {
+    // Get existing basket ID from cookie (if any) to delete it
+    var existingBasketId = Request.Cookies[Constants.Cookies.BasketId];
+    if (Guid.TryParse(existingBasketId, out var basketIdToDelete))
+    {
+        await _checkoutService.DeleteBasket(basketIdToDelete, ct);
+    }
+
     var result = await _abandonedCheckoutService.RestoreBasketFromRecoveryAsync(token, ct);
 
     if (!result.Successful)
@@ -461,6 +486,8 @@ public async Task<IActionResult> RecoverCheckout(string token, CancellationToken
     return Redirect(_settings.Value.AbandonedCheckout.RecoveryUrlBase.TrimEnd('/') + "/address");
 }
 ```
+
+> **Note**: Recovery replaces any existing basket the customer may have. The previous basket is deleted before the recovered basket is restored.
 
 ---
 

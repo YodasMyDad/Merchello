@@ -352,9 +352,37 @@ public class InvoiceService(
             RecalculateInvoiceTotals(newInvoice, orders);
             ApplyPricingRateToStoreAmounts(newInvoice, orders);
 
+            // Publish InvoiceSavingNotification - handlers can validate/modify or cancel
+            var invoiceSavingNotification = new InvoiceSavingNotification(newInvoice);
+            if (await notificationPublisher.PublishCancelableAsync(invoiceSavingNotification, cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    $"Invoice creation cancelled: {invoiceSavingNotification.CancelReason ?? "Cancelled by handler"}");
+            }
+
+            // Publish OrderCreatingNotification for each order - handlers can validate/modify or cancel
+            foreach (var order in orders)
+            {
+                var orderCreatingNotification = new OrderCreatingNotification(order);
+                if (await notificationPublisher.PublishCancelableAsync(orderCreatingNotification, cancellationToken))
+                {
+                    throw new InvalidOperationException(
+                        $"Order creation cancelled for warehouse {order.WarehouseId}: {orderCreatingNotification.CancelReason ?? "Cancelled by handler"}");
+                }
+            }
+
             // Save invoice and orders to database
             db.Invoices.Add(newInvoice);
             await db.SaveChangesAsync(cancellationToken);
+
+            // Publish InvoiceSavedNotification - invoice and orders now persisted
+            await notificationPublisher.PublishAsync(new InvoiceSavedNotification(newInvoice), cancellationToken);
+
+            // Publish OrderCreatedNotification for each order
+            foreach (var order in orders)
+            {
+                await notificationPublisher.PublishAsync(new OrderCreatedNotification(order), cancellationToken);
+            }
 
             // Reserve stock for each order
             foreach (var order in orders)
@@ -429,8 +457,34 @@ public class InvoiceService(
                     order.Id, string.Join("; ", reservationResults));
             }
 
+            // Publish OrderSavingNotification for each order before status update save
+            foreach (var order in orders)
+            {
+                var orderSavingNotification = new OrderSavingNotification(order);
+                if (await notificationPublisher.PublishCancelableAsync(orderSavingNotification, cancellationToken))
+                {
+                    logger.LogWarning("Order {OrderId} save notification cancelled: {Reason}",
+                        order.Id, orderSavingNotification.CancelReason);
+                }
+            }
+
             // Save updated order statuses
             await db.SaveChangesAsync(cancellationToken);
+
+            // Publish OrderSavedNotification for each order
+            foreach (var order in orders)
+            {
+                await notificationPublisher.PublishAsync(new OrderSavedNotification(order), cancellationToken);
+            }
+
+            // Publish aggregate notification for the entire checkout operation
+            await notificationPublisher.PublishAsync(
+                new InvoiceAggregateChangedNotification(
+                    newInvoice,
+                    AggregateChangeType.Created,
+                    AggregateChangeSource.Invoice,
+                    newInvoice),
+                cancellationToken);
 
             logger.LogInformation("Created invoice {InvoiceId} with {OrderCount} orders from {GroupCount} warehouse groups",
                 newInvoice.Id, orders.Count, shippingResult.WarehouseGroups.Count);

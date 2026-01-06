@@ -19,6 +19,7 @@ namespace Merchello.Core.Shipping.Services;
 public class ShippingQuoteService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IShippingProviderManager providerRegistry,
+    IShippingCostResolver shippingCostResolver,
     ICacheService cacheService,
     ILogger<ShippingQuoteService> logger) : IShippingQuoteService
 {
@@ -253,7 +254,7 @@ public class ShippingQuoteService(
                 continue;
             }
 
-            var snapshot = BuildProductSnapshot(product, countryCode, stateOrProvinceCode);
+            var snapshot = BuildProductSnapshot(product, countryCode, stateOrProvinceCode, shippingCostResolver);
 
             // Get effective packages (variant override or root default)
             var productPackages = GetEffectivePackages(product);
@@ -266,7 +267,7 @@ public class ShippingQuoteService(
                 Quantity = lineItem.Quantity,
                 IsShippable = true,
                 TotalWeightKg = totalWeightForItem,
-                DestinationCost = product.GetShippingAmountForCountry(countryCode, stateOrProvinceCode),
+                DestinationCost = product.GetShippingAmountForCountry(countryCode, stateOrProvinceCode, shippingCostResolver),
                 ProductSnapshot = snapshot
             });
 
@@ -321,7 +322,7 @@ public class ShippingQuoteService(
         return (request, errors);
     }
 
-    private static ShippingProductSnapshot BuildProductSnapshot(Product product, string countryCode, string? stateOrProvinceCode)
+    private static ShippingProductSnapshot BuildProductSnapshot(Product product, string countryCode, string? stateOrProvinceCode, IShippingCostResolver costResolver)
     {
         // Get allowed shipping options based on product restrictions
         var allowedOptions = product.GetAllowedShippingOptions();
@@ -329,7 +330,7 @@ public class ShippingQuoteService(
         var options = allowedOptions
             .Select(option =>
             {
-                var destinationCost = ResolveShippingCost(option.ShippingCosts, countryCode, stateOrProvinceCode);
+                var destinationCost = costResolver.ResolveBaseCost(option.ShippingCosts.ToList(), countryCode, stateOrProvinceCode, option.FixedCost);
                 var canShip = option.Warehouse.CanServeRegion(countryCode, stateOrProvinceCode);
 
                 // For external providers, they're available if the warehouse can ship to the region
@@ -403,37 +404,6 @@ public class ShippingQuoteService(
         }
 
         return product.ProductRoot?.DefaultPackageConfigurations ?? [];
-    }
-
-    private static decimal? ResolveShippingCost(IEnumerable<ShippingCost> costs, string countryCode, string? stateOrProvinceCode)
-    {
-        var normalizedCountry = countryCode.ToUpperInvariant();
-        var normalizedState = stateOrProvinceCode?.ToUpperInvariant();
-
-        var universalCost = costs.FirstOrDefault(cost =>
-            cost.CountryCode == "*" && cost.StateOrProvinceCode == null)?.Cost;
-
-        var matchingCountryCosts = costs
-            .Where(cost => string.Equals(cost.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        if (!matchingCountryCosts.Any())
-        {
-            return universalCost;
-        }
-
-        if (!string.IsNullOrWhiteSpace(normalizedState))
-        {
-            var stateMatch = matchingCountryCosts
-                .FirstOrDefault(cost => string.Equals(cost.StateOrProvinceCode, normalizedState, StringComparison.OrdinalIgnoreCase));
-            if (stateMatch != null)
-            {
-                return stateMatch.Cost;
-            }
-        }
-
-        var countryLevelCost = matchingCountryCosts.FirstOrDefault(cost => cost.StateOrProvinceCode == null)?.Cost;
-        return countryLevelCost ?? universalCost;
     }
 
     /// <summary>

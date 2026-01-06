@@ -1,21 +1,28 @@
+using Merchello.Core;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Warehouses.Services.Interfaces;
+using Merchello.Core.Storefront.Dtos;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Parameters;
-using Merchello.Core.Warehouses.Services.Interfaces;
-using Merchello.Site.Storefront.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
-namespace Merchello.Site.Storefront.Controllers;
+namespace Merchello.Controllers;
 
+/// <summary>
+/// API controller for storefront operations (basket, country/currency, availability).
+/// </summary>
 [ApiController]
-[Route("api/storefront")]
+[Route("api/merchello/storefront")]
 public class StorefrontApiController(
     ICheckoutService checkoutService,
     IProductService productService,
@@ -30,7 +37,7 @@ public class StorefrontApiController(
     /// Add item to basket
     /// </summary>
     [HttpPost("basket/add")]
-    public async Task<IActionResult> AddToBasket([FromBody] AddToBasketRequest request, CancellationToken ct)
+    public async Task<IActionResult> AddToBasket([FromBody] AddToBasketDto request, CancellationToken ct)
     {
         // Get the product (variant)
         var product = await productService.GetProduct(new GetProductParameters
@@ -43,7 +50,7 @@ public class StorefrontApiController(
 
         if (product == null)
         {
-            return BadRequest(new BasketResponse
+            return BadRequest(new BasketOperationResultDto
             {
                 Success = false,
                 Message = "Product not found"
@@ -53,7 +60,7 @@ public class StorefrontApiController(
         // Check if product is available for purchase
         if (!product.AvailableForPurchase)
         {
-            return BadRequest(new BasketResponse
+            return BadRequest(new BasketOperationResultDto
             {
                 Success = false,
                 Message = "This product is currently out of stock"
@@ -118,7 +125,7 @@ public class StorefrontApiController(
         var itemCount = basket?.LineItems.Sum(li => li.Quantity) ?? 0;
         var total = basket?.Total ?? 0;
 
-        return Ok(new BasketResponse
+        return Ok(new BasketOperationResultDto
         {
             Success = true,
             Message = "Added to basket",
@@ -142,7 +149,7 @@ public class StorefrontApiController(
 
         if (basket == null || basket.LineItems.Count == 0)
         {
-            return Ok(new FullBasketResponse
+            return Ok(new StorefrontBasketDto
             {
                 IsEmpty = true,
                 CurrencySymbol = _settings.CurrencySymbol,
@@ -157,7 +164,7 @@ public class StorefrontApiController(
             var displayUnitPrice = currencyService.Round(li.Amount * rate, currencyContext.CurrencyCode);
             var displayLineTotal = currencyService.Round(li.Amount * li.Quantity * rate, currencyContext.CurrencyCode);
 
-            return new BasketLineItemDto
+            return new StorefrontLineItemDto
             {
                 Id = li.Id,
                 Sku = li.Sku ?? "",
@@ -183,7 +190,7 @@ public class StorefrontApiController(
         var displayShipping = currencyService.Round(basket.Shipping * rate, currencyContext.CurrencyCode);
         var displayTotal = currencyService.Round(basket.Total * rate, currencyContext.CurrencyCode);
 
-        return Ok(new FullBasketResponse
+        return Ok(new StorefrontBasketDto
         {
             Items = items,
             SubTotal = basket.SubTotal,
@@ -224,7 +231,7 @@ public class StorefrontApiController(
         var itemCount = basket?.LineItems.Sum(li => li.Quantity) ?? 0;
         var total = basket?.Total ?? 0;
 
-        return Ok(new BasketCountResponse
+        return Ok(new BasketCountDto
         {
             ItemCount = itemCount,
             Total = total,
@@ -236,7 +243,7 @@ public class StorefrontApiController(
     /// Update line item quantity
     /// </summary>
     [HttpPost("basket/update")]
-    public async Task<IActionResult> UpdateQuantity([FromBody] UpdateQuantityRequest request, CancellationToken ct)
+    public async Task<IActionResult> UpdateQuantity([FromBody] UpdateQuantityDto request, CancellationToken ct)
     {
         await checkoutService.UpdateLineItemQuantity(request.LineItemId, request.Quantity, null, ct);
 
@@ -244,7 +251,7 @@ public class StorefrontApiController(
         var itemCount = basket?.LineItems.Sum(li => li.Quantity) ?? 0;
         var total = basket?.Total ?? 0;
 
-        return Ok(new BasketResponse
+        return Ok(new BasketOperationResultDto
         {
             Success = true,
             Message = "Quantity updated",
@@ -266,7 +273,7 @@ public class StorefrontApiController(
         var itemCount = basket?.LineItems.Sum(li => li.Quantity) ?? 0;
         var total = basket?.Total ?? 0;
 
-        return Ok(new BasketResponse
+        return Ok(new BasketOperationResultDto
         {
             Success = true,
             Message = "Item removed",
@@ -298,21 +305,21 @@ public class StorefrontApiController(
         var current = await storefrontContext.GetShippingLocationAsync(ct);
         var currency = await storefrontContext.GetCurrencyAsync(ct);
 
-        return Ok(new ShippingCountriesResponse
+        return Ok(new ShippingCountriesDto
         {
-            Countries = countries.Select(c => new CountryResponse
+            Countries = countries.Select(c => new StorefrontCountryDto
             {
                 CountryCode = c.Code,
                 CountryName = c.Name
             }).ToList(),
-            Current = new CountryResponse
+            Current = new StorefrontCountryDto
             {
                 CountryCode = current.CountryCode,
                 CountryName = current.CountryName
             },
             CurrentRegionCode = current.RegionCode,
             CurrentRegionName = current.RegionName,
-            Currency = new StorefrontCurrencyResponse
+            Currency = new StorefrontCurrencyDto
             {
                 CurrencyCode = currency.CurrencyCode,
                 CurrencySymbol = currency.CurrencySymbol,
@@ -329,7 +336,7 @@ public class StorefrontApiController(
     {
         var location = await storefrontContext.GetShippingLocationAsync(ct);
 
-        return Ok(new CountryResponse
+        return Ok(new StorefrontCountryDto
         {
             CountryCode = location.CountryCode,
             CountryName = location.CountryName
@@ -340,7 +347,7 @@ public class StorefrontApiController(
     /// Set shipping country preference (also updates currency automatically)
     /// </summary>
     [HttpPost("shipping/country")]
-    public async Task<IActionResult> SetCurrentCountry([FromBody] SetCountryRequest request, CancellationToken ct)
+    public async Task<IActionResult> SetCurrentCountry([FromBody] SetCountryDto request, CancellationToken ct)
     {
         // Validate the country code
         var countries = await locationsService.GetAvailableCountriesAsync(ct);
@@ -358,7 +365,7 @@ public class StorefrontApiController(
         // Get the new currency to return
         var currency = await storefrontContext.GetCurrencyAsync(ct);
 
-        return Ok(new SetCountryResponse
+        return Ok(new SetCountryResultDto
         {
             CountryCode = country.Code,
             CountryName = country.Name,
@@ -375,7 +382,7 @@ public class StorefrontApiController(
     {
         var currency = await storefrontContext.GetCurrencyAsync(ct);
 
-        return Ok(new StorefrontCurrencyResponse
+        return Ok(new StorefrontCurrencyDto
         {
             CurrencyCode = currency.CurrencyCode,
             CurrencySymbol = currency.CurrencySymbol,
@@ -387,13 +394,13 @@ public class StorefrontApiController(
     /// Override storefront currency (for testing different currencies)
     /// </summary>
     [HttpPost("currency")]
-    public IActionResult SetCurrency([FromBody] SetCurrencyRequest request)
+    public IActionResult SetCurrency([FromBody] SetCurrencyDto request)
     {
         storefrontContext.SetCurrency(request.CurrencyCode);
 
         var currencyInfo = currencyService.GetCurrency(request.CurrencyCode);
 
-        return Ok(new StorefrontCurrencyResponse
+        return Ok(new StorefrontCurrencyDto
         {
             CurrencyCode = currencyInfo.Code,
             CurrencySymbol = currencyInfo.Symbol,
@@ -409,7 +416,7 @@ public class StorefrontApiController(
     {
         var regions = await locationsService.GetAvailableRegionsAsync(countryCode, ct);
 
-        return Ok(regions.Select(r => new RegionResponse
+        return Ok(regions.Select(r => new StorefrontRegionDto
         {
             RegionCode = r.RegionCode,
             RegionName = r.Name
@@ -450,7 +457,7 @@ public class StorefrontApiController(
                 Quantity = quantity
             }, ct);
 
-        return Ok(new ProductAvailabilityResponse
+        return Ok(new ProductAvailabilityDto
         {
             CanShipToCountry = availability.CanShipToLocation,
             HasStock = availability.HasStock,
@@ -471,10 +478,10 @@ public class StorefrontApiController(
     {
         var availability = await storefrontContext.GetBasketAvailabilityAsync(countryCode, regionCode, ct);
 
-        return Ok(new BasketAvailabilityResponse
+        return Ok(new BasketAvailabilityDto
         {
             AllItemsAvailable = availability.AllItemsAvailable,
-            Items = availability.Items.Select(item => new BasketItemAvailability
+            Items = availability.Items.Select(item => new BasketItemAvailabilityDetailDto
             {
                 LineItemId = item.LineItemId,
                 ProductId = item.ProductId,
@@ -482,6 +489,88 @@ public class StorefrontApiController(
                 HasStock = item.HasStock,
                 Message = item.StatusMessage
             }).ToList()
+        });
+    }
+
+    /// <summary>
+    /// Get estimated shipping cost for the basket based on country/region.
+    /// Auto-selects the cheapest shipping option per warehouse group.
+    /// </summary>
+    [HttpGet("basket/estimated-shipping")]
+    public async Task<IActionResult> GetEstimatedShipping(
+        [FromQuery] string? countryCode,
+        [FromQuery] string? regionCode,
+        CancellationToken ct = default)
+    {
+        // Use current storefront location if not specified
+        if (string.IsNullOrWhiteSpace(countryCode))
+        {
+            var location = await storefrontContext.GetShippingLocationAsync(ct);
+            countryCode = location.CountryCode;
+            regionCode ??= location.RegionCode;
+        }
+
+        if (string.IsNullOrWhiteSpace(countryCode))
+        {
+            return Ok(new EstimatedShippingDto
+            {
+                Success = false,
+                Message = "No shipping location available"
+            });
+        }
+
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
+        if (basket == null || basket.LineItems.Count == 0)
+        {
+            return Ok(new EstimatedShippingDto
+            {
+                Success = false,
+                Message = "Basket is empty"
+            });
+        }
+
+        // Create minimal checkout session with shipping address
+        var session = new CheckoutSession
+        {
+            BasketId = basket.Id,
+            ShippingAddress = new Address
+            {
+                CountryCode = countryCode,
+                CountyState = new CountyState
+                {
+                    RegionCode = regionCode
+                }
+            }
+        };
+
+        // Get order groups with shipping options
+        var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, session, ct);
+        if (!groupingResult.Success || groupingResult.Groups.Count == 0)
+        {
+            return Ok(new EstimatedShippingDto
+            {
+                Success = false,
+                Message = groupingResult.Errors.FirstOrDefault() ?? "Unable to calculate shipping"
+            });
+        }
+
+        // Auto-select cheapest option for each group
+        var selections = ShippingAutoSelector.SelectOptions(groupingResult.Groups, ShippingAutoSelectStrategy.Cheapest);
+        var estimatedShipping = ShippingAutoSelector.CalculateCombinedTotal(groupingResult.Groups, selections);
+
+        // Get currency context for display conversion
+        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
+        var rate = currencyContext.ExchangeRate;
+        var displayEstimatedShipping = currencyService.Round(estimatedShipping * rate, currencyContext.CurrencyCode);
+
+        return Ok(new EstimatedShippingDto
+        {
+            Success = true,
+            EstimatedShipping = estimatedShipping,
+            FormattedEstimatedShipping = FormatPrice(estimatedShipping),
+            DisplayEstimatedShipping = displayEstimatedShipping,
+            FormattedDisplayEstimatedShipping = FormatDisplayPrice(displayEstimatedShipping, currencyContext.CurrencySymbol),
+            GroupCount = groupingResult.Groups.Count
         });
     }
 

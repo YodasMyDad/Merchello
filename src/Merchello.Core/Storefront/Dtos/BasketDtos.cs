@@ -1,6 +1,9 @@
-namespace Merchello.Site.Storefront.Models;
+namespace Merchello.Core.Storefront.Dtos;
 
-public class BasketResponse
+/// <summary>
+/// Result of a basket operation (add, update, remove)
+/// </summary>
+public class BasketOperationResultDto
 {
     public bool Success { get; set; }
     public string? Message { get; set; }
@@ -9,16 +12,22 @@ public class BasketResponse
     public string? FormattedTotal { get; set; }
 }
 
-public class BasketCountResponse
+/// <summary>
+/// Simple basket count response
+/// </summary>
+public class BasketCountDto
 {
     public int ItemCount { get; set; }
     public decimal Total { get; set; }
     public string? FormattedTotal { get; set; }
 }
 
-public class FullBasketResponse
+/// <summary>
+/// Full basket response with line items and multi-currency support
+/// </summary>
+public class StorefrontBasketDto
 {
-    public List<BasketLineItemDto> Items { get; set; } = [];
+    public List<StorefrontLineItemDto> Items { get; set; } = [];
 
     // Store currency amounts (internal)
     public decimal SubTotal { get; set; }
@@ -57,14 +66,10 @@ public class FullBasketResponse
     public Dictionary<string, BasketItemAvailabilityDto> ItemAvailability { get; set; } = [];
 }
 
-public class BasketItemAvailabilityDto
-{
-    public bool CanShipToCountry { get; set; }
-    public bool HasStock { get; set; }
-    public string? Message { get; set; }
-}
-
-public class BasketLineItemDto
+/// <summary>
+/// Line item in basket with multi-currency support
+/// </summary>
+public class StorefrontLineItemDto
 {
     public Guid Id { get; set; }
     public string Sku { get; set; } = "";
@@ -85,4 +90,28 @@ public class BasketLineItemDto
 
     public string LineItemType { get; set; } = "";
     public string? DependantLineItemSku { get; set; }
+}
+
+/// <summary>
+/// Availability status for a basket item
+/// </summary>
+public class BasketItemAvailabilityDto
+{
+    public bool CanShipToCountry { get; set; }
+    public bool HasStock { get; set; }
+    public string? Message { get; set; }
+}
+
+/// <summary>
+/// Estimated shipping calculation result
+/// </summary>
+public class EstimatedShippingDto
+{
+    public bool Success { get; set; }
+    public decimal EstimatedShipping { get; set; }
+    public string FormattedEstimatedShipping { get; set; } = "";
+    public decimal DisplayEstimatedShipping { get; set; }
+    public string FormattedDisplayEstimatedShipping { get; set; } = "";
+    public int GroupCount { get; set; }
+    public string? Message { get; set; }
 }

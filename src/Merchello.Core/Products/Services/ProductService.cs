@@ -3292,6 +3292,17 @@ public class ProductService(
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.Products
                 .Include(p => p.ProductRoot)
+                    .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
+                        .ThenInclude(prw => prw.Warehouse)
+                            .ThenInclude(w => w!.ServiceRegions)
+                .Include(p => p.ProductRoot)
+                    .ThenInclude(pr => pr!.ProductRootWarehouses)
+                        .ThenInclude(prw => prw.Warehouse)
+                            .ThenInclude(w => w!.ShippingOptions)
+                                .ThenInclude(so => so.ShippingCosts)
+                .Include(p => p.ProductWarehouses)
+                    .ThenInclude(pw => pw.Warehouse)
+                .AsSplitQuery()
                 .Where(p => idList.Contains(p.Id))
                 .ToListAsync(cancellationToken));
         scope.Complete();

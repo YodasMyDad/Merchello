@@ -4,7 +4,7 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Services;
 using Merchello.Site.Shared.Controllers;
-using Merchello.Site.Storefront.Models;
+using Merchello.Core.Storefront.Dtos;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Cache;
@@ -42,7 +42,7 @@ public class BasketController(
 
         if (basket == null || basket.LineItems.Count == 0)
         {
-            ViewBag.BasketData = new FullBasketResponse
+            ViewBag.BasketData = new StorefrontBasketDto
             {
                 IsEmpty = true,
                 CurrencySymbol = _settings.CurrencySymbol,
@@ -58,7 +58,7 @@ public class BasketController(
                 var displayUnitPrice = currencyService.Round(li.Amount * rate, currencyContext.CurrencyCode);
                 var displayLineTotal = currencyService.Round(li.Amount * li.Quantity * rate, currencyContext.CurrencyCode);
 
-                return new BasketLineItemDto
+                return new StorefrontLineItemDto
                 {
                     Id = li.Id,
                     Sku = li.Sku ?? "",
@@ -95,7 +95,7 @@ public class BasketController(
                     Message = i.StatusMessage
                 });
 
-            ViewBag.BasketData = new FullBasketResponse
+            ViewBag.BasketData = new StorefrontBasketDto
             {
                 Items = items,
                 SubTotal = basket.SubTotal,

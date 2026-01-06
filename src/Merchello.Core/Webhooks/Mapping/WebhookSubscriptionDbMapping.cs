@@ -1,6 +1,5 @@
-using System.Text.Json;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Webhooks.Models;
-using Merchello.Core.Webhooks.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -30,8 +29,7 @@ public class WebhookSubscriptionDbMapping : IEntityTypeConfiguration<WebhookSubs
             .HasMaxLength(500);
 
         builder.Property(x => x.AuthType)
-            .HasConversion<int>()
-            .HasDefaultValue(WebhookAuthType.HmacSha256);
+            .HasConversion<int>();
 
         builder.Property(x => x.AuthHeaderName)
             .HasMaxLength(100);
@@ -40,8 +38,7 @@ public class WebhookSubscriptionDbMapping : IEntityTypeConfiguration<WebhookSubs
             .HasMaxLength(1000);
 
         builder.Property(x => x.Format)
-            .HasConversion<int>()
-            .HasDefaultValue(WebhookFormat.Json);
+            .HasConversion<int>();
 
         builder.Property(x => x.ApiVersion)
             .HasMaxLength(20);
@@ -49,11 +46,7 @@ public class WebhookSubscriptionDbMapping : IEntityTypeConfiguration<WebhookSubs
         builder.Property(x => x.FilterExpression)
             .HasMaxLength(2000);
 
-        builder.Property(x => x.Headers)
-            .HasConversion(
-                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => JsonSerializer.Deserialize<Dictionary<string, string>>(v, (JsonSerializerOptions?)null) ?? new Dictionary<string, string>())
-            .HasMaxLength(4000);
+        builder.Property(x => x.Headers).ToJsonConversion(4000);
 
         builder.Property(x => x.LastErrorMessage)
             .HasMaxLength(2000);
@@ -79,11 +72,7 @@ public class WebhookSubscriptionDbMapping : IEntityTypeConfiguration<WebhookSubs
                 v => v,
                 v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : null);
 
-        builder.Property(x => x.ExtendedData)
-            .HasConversion(
-                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null) ?? new Dictionary<string, object>())
-            .HasMaxLength(4000);
+        builder.Property(x => x.ExtendedData).ToJsonConversion(4000);
 
         builder.HasMany(x => x.Deliveries)
             .WithOne(x => x.Subscription)

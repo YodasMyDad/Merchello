@@ -6,6 +6,7 @@ using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Parameters;
 using Microsoft.Extensions.Logging;
@@ -22,6 +23,7 @@ public class DefaultOrderGroupingStrategy(
     IWarehouseService warehouseService,
     IExchangeRateCache exchangeRateCache,
     ICurrencyService currencyService,
+    IShippingCostResolver shippingCostResolver,
     IOptions<MerchelloSettings> settings,
     ILogger<DefaultOrderGroupingStrategy> logger) : IOrderGroupingStrategy
 {
@@ -231,7 +233,7 @@ public class DefaultOrderGroupingStrategy(
                         DaysTo = so.DaysTo,
                         IsNextDay = so.IsNextDay,
                         Cost = ConvertShippingCostToBasketCurrency(
-                            ResolveShippingCostForDestination(so, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode),
+                            shippingCostResolver.GetTotalShippingCost(so, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode) ?? 0,
                             basketCurrency,
                             storeToBasketRate),
                         ProviderKey = so.ProviderKey
@@ -273,7 +275,7 @@ public class DefaultOrderGroupingStrategy(
                             DaysTo = selectedOption.DaysTo,
                             IsNextDay = selectedOption.IsNextDay,
                             Cost = ConvertShippingCostToBasketCurrency(
-                                ResolveShippingCostForDestination(selectedOption, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode),
+                                shippingCostResolver.GetTotalShippingCost(selectedOption, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode) ?? 0,
                                 basketCurrency,
                                 storeToBasketRate),
                             ProviderKey = selectedOption.ProviderKey
@@ -307,7 +309,7 @@ public class DefaultOrderGroupingStrategy(
                             DaysTo = so.DaysTo,
                             IsNextDay = so.IsNextDay,
                             Cost = ConvertShippingCostToBasketCurrency(
-                                ResolveShippingCostForDestination(so, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode),
+                                shippingCostResolver.GetTotalShippingCost(so, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode) ?? 0,
                                 basketCurrency,
                                 storeToBasketRate),
                             ProviderKey = so.ProviderKey
@@ -342,37 +344,6 @@ public class DefaultOrderGroupingStrategy(
         }
 
         return Math.Max(0, storeCost);
-    }
-
-    private static decimal ResolveShippingCostForDestination(ShippingOption shippingOption, string countryCode, string? stateOrProvinceCode)
-    {
-        if (shippingOption.FixedCost.HasValue)
-        {
-            return shippingOption.FixedCost.Value;
-        }
-
-        if (shippingOption.ShippingCosts?.Any() != true)
-        {
-            return 0;
-        }
-
-        var stateCost = shippingOption.ShippingCosts
-            .FirstOrDefault(sc =>
-                string.Equals(sc.CountryCode, countryCode, StringComparison.OrdinalIgnoreCase) &&
-                !string.IsNullOrEmpty(sc.StateOrProvinceCode) &&
-                string.Equals(sc.StateOrProvinceCode, stateOrProvinceCode, StringComparison.OrdinalIgnoreCase));
-
-        if (stateCost != null)
-        {
-            return stateCost.Cost;
-        }
-
-        var countryCost = shippingOption.ShippingCosts
-            .FirstOrDefault(sc =>
-                string.Equals(sc.CountryCode, countryCode, StringComparison.OrdinalIgnoreCase) &&
-                string.IsNullOrEmpty(sc.StateOrProvinceCode));
-
-        return countryCost?.Cost ?? 0;
     }
 
     /// <summary>

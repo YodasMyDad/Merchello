@@ -43,6 +43,7 @@ FACTORIES → All object creation, stateless singletons
 #### Shipping & Fulfillment
 | Operation | Service.Method |
 |-----------|----------------|
+| **Shipping cost resolution** | `IShippingCostResolver.ResolveBaseCost()` / `GetTotalShippingCost()` |
 | Shipping quotes | `IShippingQuoteService.GetQuotesAsync()` |
 | Shipping for basket | `IShippingService.GetShippingOptionsForBasket()` |
 | Required warehouses | `IShippingService.GetRequiredWarehouses()` |
@@ -50,6 +51,8 @@ FACTORIES → All object creation, stateless singletons
 | Product fulfillment options | `IShippingService.GetFulfillmentOptionsForProductAsync()` |
 | Default fulfilling warehouse | `IShippingService.GetDefaultFulfillingWarehouseAsync()` |
 | Shipping for product | `IShippingService.GetShippingOptionsForProductAsync()` |
+
+**Shipping Cost Priority**: State > Country > Universal (`*`) > FixedCost fallback. Use `IShippingCostResolver` - never duplicate this logic.
 
 #### Locality & Regions
 | Operation | Service.Method |
@@ -503,6 +506,7 @@ All webhook payloads are wrapped in a standard envelope:
 | `IProductService` | Product CRUD, variants, options |
 | `IShippingService` | Provider config |
 | `IShippingQuoteService` | Rate quotes |
+| `IShippingCostResolver` | Cost resolution (State > Country > Universal > Fixed) |
 | `IPaymentService` | Transactions, refunds, status |
 | `ISupplierService` | Supplier mgmt |
 | `IWarehouseService` | Selection, regions |
@@ -516,6 +520,7 @@ All webhook payloads are wrapped in a standard envelope:
 | `IWebhookService` | Webhook subscription CRUD, delivery queue, retry logic |
 | `IWebhookDispatcher` | HTTP delivery with HMAC signing |
 | `IWebhookTopicRegistry` | Topic discovery and metadata |
+| `IStorefrontContextService` | Shipping location, currency context, availability |
 
 **Principles**: DbContext in services only, RORO params, CrudResult<T>, async+CancellationToken, factories for creation
 
@@ -540,7 +545,73 @@ All webhook payloads are wrapped in a standard envelope:
 
 **ExtendedData**: All entities have `Dictionary` for custom metadata: `entity.ExtendedData["Key"] = "value";`
 
-## 12. Limitations & Planned
+## 12. Storefront & Checkout APIs
+
+Built-in APIs for storefront development. All endpoints are part of the NuGet package.
+
+### Storefront API (`/api/merchello/storefront`)
+
+Pre-checkout operations: basket management, location/currency, availability.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/basket/add` | POST | Add item to basket (with add-ons) |
+| `/basket` | GET | Get full basket with multi-currency |
+| `/basket/count` | GET | Get basket item count |
+| `/basket/update` | POST | Update line item quantity |
+| `/basket/{lineItemId}` | DELETE | Remove item from basket |
+| `/shipping/countries` | GET | Available shipping countries |
+| `/shipping/country` | GET | Current shipping country |
+| `/shipping/country` | POST | Set shipping country (auto-updates currency) |
+| `/shipping/countries/{code}/regions` | GET | Regions for country |
+| `/currency` | GET | Current storefront currency |
+| `/currency` | POST | Override currency |
+| `/products/{id}/availability` | GET | Product availability for location |
+| `/basket/availability` | GET | Basket items availability |
+| `/basket/estimated-shipping` | GET | Estimated shipping (cheapest option) |
+
+### Checkout API (`/api/merchello/checkout`)
+
+Checkout flow: addresses, shipping selection, payment.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/basket` | GET | Get checkout basket |
+| `/shipping/countries` | GET | Available shipping countries |
+| `/shipping/regions/{countryCode}` | GET | Regions for shipping |
+| `/billing/countries` | GET | All billing countries |
+| `/billing/regions/{countryCode}` | GET | Regions for billing |
+| `/addresses` | POST | Save billing/shipping addresses |
+| `/initialize` | POST | Initialize single-page checkout |
+| `/shipping-groups` | GET | Get shipping groups with options |
+| `/shipping` | POST | Save shipping selections |
+| `/discount/apply` | POST | Apply discount code |
+| `/discount/{discountId}` | DELETE | Remove discount |
+| `/payment-methods` | GET | Available payment methods |
+| `/pay` | POST | Initiate payment |
+| `/process-payment` | POST | Process payment with token |
+| `/return` | GET | Handle payment return |
+| `/cancel` | GET | Handle payment cancel |
+| `/express-methods` | GET | Express checkout methods |
+| `/express-config` | GET | Express checkout SDK config |
+| `/express` | POST | Process express checkout |
+
+### DTOs
+
+**Storefront** (`Merchello.Core.Storefront.Dtos`):
+- `AddToBasketDto`, `UpdateQuantityDto` - Request DTOs
+- `StorefrontBasketDto`, `StorefrontLineItemDto` - Basket response
+- `ShippingCountriesDto`, `StorefrontCountryDto`, `StorefrontRegionDto` - Location
+- `ProductAvailabilityDto`, `BasketAvailabilityDto` - Availability
+- `EstimatedShippingDto` - Shipping estimate
+
+**Checkout** (`Merchello.Core.Checkout.Dtos`):
+- `CheckoutBasketDto`, `CheckoutLineItemDto` - Checkout basket
+- `SaveAddressesRequestDto`, `InitializeCheckoutRequestDto` - Address/init
+- `ShippingGroupDto`, `ShippingOptionDto` - Shipping
+- `PaymentMethodDto`, `PaymentSessionResultDto` - Payment
+
+## 13. Limitations & Planned
 
 **Current**: Orders require sufficient stock (no backorder), refunds don't restock
 
