@@ -231,4 +231,18 @@ public interface ICheckoutService
     Task<OrderConfirmationDto?> GetOrderConfirmationAsync(
         Guid invoiceId,
         CancellationToken cancellationToken = default);
+
+    // Single-page checkout methods
+
+    /// <summary>
+    /// Initializes checkout with a pre-selected shipping location, calculates shipping groups,
+    /// and optionally auto-selects the cheapest shipping option for each group.
+    /// Used for single-page checkout and express checkout flows.
+    /// </summary>
+    /// <param name="parameters">Parameters for initialization</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result with initialized checkout data including basket and shipping groups.</returns>
+    Task<CrudResult<InitializeCheckoutResult>> InitializeCheckoutAsync(
+        InitializeCheckoutParameters parameters,
+        CancellationToken cancellationToken = default);
 }

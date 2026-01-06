@@ -5,162 +5,161 @@
         ? (model?.BillingCountries ?? [])
         : (model?.ShippingCountries ?? []);
     var requirePhone = model?.Settings?.RequirePhone ?? false;
+    var compact = model?.IsSinglePageCheckout == true;
+    var showRequired = ViewData["ShowRequired"] as bool? ?? false;
+    var onBlurCallback = ViewData["OnBlurCallback"]?.ToString() ?? "";
+    var hasBlurCallback = !string.IsNullOrEmpty(onBlurCallback);
+
+    // Use checkout-input classes from CSS
+    var inputClass = compact ? "checkout-input-compact w-full" : "checkout-input w-full";
+    var selectClass = compact ? "checkout-input-compact w-full" : "checkout-input w-full";
+    var labelClass = compact
+        ? "block text-xs font-medium text-gray-700 mb-0.5"
+        : "block text-sm font-medium text-gray-700 mb-1";
+    var spaceClass = compact ? "space-y-2" : "space-y-4";
+    var gapClass = compact ? "gap-2" : "gap-4";
+    var gridClass = compact ? "grid grid-cols-3" : "grid grid-cols-1 md:grid-cols-3";
 }
 
-<div class="space-y-4">
+<div class="@spaceClass">
     <!-- Name -->
     <div>
-        <label for="@(prefix)_name" class="block text-sm font-medium text-gray-700 mb-1">
-            Full name
+        <label for="@(prefix)-name" class="@labelClass">
+            Full name @if (showRequired) { <span class="text-red-500">*</span> }
         </label>
         <input type="text"
-               id="@(prefix)_name"
-               name="@(prefix).name"
+               id="@(prefix)-name"
                x-model="form.@(prefix).name"
                required
-               autocomplete="name"
-               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
-               placeholder="John Doe" />
-        <p x-show="errors['@(prefix).name']" x-text="errors['@(prefix).name']" class="mt-1 text-sm text-red-600" x-cloak></p>
-    </div>
-
-    <!-- Company (Optional) -->
-    <div>
-        <label for="@(prefix)_company" class="block text-sm font-medium text-gray-700 mb-1">
-            Company <span class="text-gray-400">(optional)</span>
-        </label>
-        <input type="text"
-               id="@(prefix)_company"
-               name="@(prefix).company"
-               x-model="form.@(prefix).company"
-               autocomplete="organization"
-               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
-               placeholder="Company name" />
+               autocomplete="@prefix name"
+               @if (hasBlurCallback) { <text>@@blur="validateField('@(prefix).name'); @(onBlurCallback)"</text> }
+               :class="errors['@(prefix).name'] ? 'checkout-input-error' : ''"
+               class="@inputClass" />
+        <p x-show="errors['@(prefix).name']" x-text="errors['@(prefix).name']" class="checkout-error" x-cloak></p>
     </div>
 
     <!-- Address Line 1 -->
     <div>
-        <label for="@(prefix)_address1" class="block text-sm font-medium text-gray-700 mb-1">
-            Address
+        <label for="@(prefix)-address1" class="@labelClass">
+            Address @if (showRequired) { <span class="text-red-500">*</span> }
         </label>
         <input type="text"
-               id="@(prefix)_address1"
-               name="@(prefix).address1"
+               id="@(prefix)-address1"
                x-model="form.@(prefix).address1"
                required
-               autocomplete="address-line1"
-               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
-               placeholder="123 Main Street" />
-        <p x-show="errors['@(prefix).address1']" x-text="errors['@(prefix).address1']" class="mt-1 text-sm text-red-600" x-cloak></p>
+               autocomplete="@prefix address-line1"
+               @if (hasBlurCallback) { <text>@@blur="validateField('@(prefix).address1'); @(onBlurCallback)"</text> }
+               :class="errors['@(prefix).address1'] ? 'checkout-input-error' : ''"
+               class="@inputClass" />
+        <p x-show="errors['@(prefix).address1']" x-text="errors['@(prefix).address1']" class="checkout-error" x-cloak></p>
     </div>
 
     <!-- Address Line 2 (Optional) -->
     <div>
+        <label for="@(prefix)-address2" class="@labelClass">
+            Apartment, suite, etc. <span class="text-gray-400">(optional)</span>
+        </label>
         <input type="text"
-               id="@(prefix)_address2"
-               name="@(prefix).address2"
+               id="@(prefix)-address2"
                x-model="form.@(prefix).address2"
-               autocomplete="address-line2"
-               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
-               placeholder="Apt 4B" />
+               autocomplete="@prefix address-line2"
+               class="@inputClass" />
     </div>
 
     <!-- City, State, Postal Code -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="@gridClass @gapClass">
         <div>
-            <label for="@(prefix)_city" class="block text-sm font-medium text-gray-700 mb-1">
-                City
+            <label for="@(prefix)-city" class="@labelClass">
+                City @if (showRequired) { <span class="text-red-500">*</span> }
             </label>
             <input type="text"
-                   id="@(prefix)_city"
-                   name="@(prefix).city"
+                   id="@(prefix)-city"
                    x-model="form.@(prefix).city"
                    required
-                   autocomplete="address-level2"
-                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
-                   placeholder="London" />
-            <p x-show="errors['@(prefix).city']" x-text="errors['@(prefix).city']" class="mt-1 text-sm text-red-600" x-cloak></p>
+                   autocomplete="@prefix address-level2"
+                   @if (hasBlurCallback) { <text>@@blur="validateField('@(prefix).city'); @(onBlurCallback)"</text> }
+                   :class="errors['@(prefix).city'] ? 'checkout-input-error' : ''"
+                   class="@inputClass" />
+            <p x-show="errors['@(prefix).city']" x-text="errors['@(prefix).city']" class="checkout-error" x-cloak></p>
         </div>
 
         <div>
-            <label for="@(prefix)_state" class="block text-sm font-medium text-gray-700 mb-1">
-                State / County
+            <label for="@(prefix)-state" class="@labelClass">
+                State/Region
             </label>
             <!-- Show dropdown if regions are loaded, otherwise show text input -->
-            <template x-if="@(prefix)Regions && @(prefix)Regions.length > 0">
-                <select id="@(prefix)_state"
-                        name="@(prefix).stateCode"
+            <template x-if="@(prefix)Regions.length > 0">
+                <select id="@(prefix)-state"
                         x-model="form.@(prefix).stateCode"
-                        @@change="form.@(prefix).state = @(prefix)Regions.find(r => r.code === form.@(prefix).stateCode)?.name || ''"
-                        autocomplete="address-level1"
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors bg-white">
-                    <option value="">Select a region</option>
+                        @@change="on@(prefix.Substring(0,1).ToUpper())@(prefix.Substring(1))StateChange()@(hasBlurCallback ? $"; {onBlurCallback}" : "")"
+                        autocomplete="@prefix address-level1"
+                        class="@selectClass">
+                    <option value="">Select...</option>
                     <template x-for="region in @(prefix)Regions" :key="region.code">
                         <option :value="region.code" x-text="region.name"></option>
                     </template>
                 </select>
             </template>
-            <template x-if="!@(prefix)Regions || @(prefix)Regions.length === 0">
+            <template x-if="@(prefix)Regions.length === 0">
                 <input type="text"
-                       id="@(prefix)_state"
-                       name="@(prefix).state"
+                       id="@(prefix)-state"
                        x-model="form.@(prefix).state"
-                       autocomplete="address-level1"
-                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
-                       placeholder="Greater London" />
+                       autocomplete="@prefix address-level1"
+                       class="@inputClass" />
             </template>
         </div>
 
         <div>
-            <label for="@(prefix)_postalCode" class="block text-sm font-medium text-gray-700 mb-1">
-                Postal code
+            <label for="@(prefix)-postal" class="@labelClass">
+                Postal code @if (showRequired) { <span class="text-red-500">*</span> }
             </label>
             <input type="text"
-                   id="@(prefix)_postalCode"
-                   name="@(prefix).postalCode"
+                   id="@(prefix)-postal"
                    x-model="form.@(prefix).postalCode"
                    required
-                   autocomplete="postal-code"
-                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
-                   placeholder="SW1A 1AA" />
-            <p x-show="errors['@(prefix).postalCode']" x-text="errors['@(prefix).postalCode']" class="mt-1 text-sm text-red-600" x-cloak></p>
+                   autocomplete="@prefix postal-code"
+                   @if (hasBlurCallback) { <text>@@blur="validateField('@(prefix).postalCode'); @(onBlurCallback)"</text> }
+                   :class="errors['@(prefix).postalCode'] ? 'checkout-input-error' : ''"
+                   class="@inputClass" />
+            <p x-show="errors['@(prefix).postalCode']" x-text="errors['@(prefix).postalCode']" class="checkout-error" x-cloak></p>
         </div>
     </div>
 
     <!-- Country -->
     <div>
-        <label for="@(prefix)_country" class="block text-sm font-medium text-gray-700 mb-1">
-            Country
+        <label for="@(prefix)-country" class="@labelClass">
+            Country @if (showRequired) { <span class="text-red-500">*</span> }
         </label>
-        <select id="@(prefix)_country"
-                name="@(prefix).countryCode"
+        <select id="@(prefix)-country"
                 x-model="form.@(prefix).countryCode"
-                @@change="onCountryChange@(prefix.Substring(0,1).ToUpper())@(prefix.Substring(1))()"
+                @@change="on@(prefix.Substring(0,1).ToUpper())@(prefix.Substring(1))CountryChange()"
                 required
-                autocomplete="country"
-                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors bg-white">
-            <option value="">Select a country</option>
+                autocomplete="@prefix country"
+                :class="errors['@(prefix).countryCode'] ? 'checkout-input-error' : ''"
+                class="@selectClass">
+            <option value="">Select country...</option>
             @foreach (var country in countries)
             {
                 <option value="@country.Code">@country.Name</option>
             }
         </select>
-        <p x-show="errors['@(prefix).countryCode']" x-text="errors['@(prefix).countryCode']" class="mt-1 text-sm text-red-600" x-cloak></p>
+        <p x-show="errors['@(prefix).countryCode']" x-text="errors['@(prefix).countryCode']" class="checkout-error" x-cloak></p>
     </div>
 
     <!-- Phone -->
     <div>
-        <label for="@(prefix)_phone" class="block text-sm font-medium text-gray-700 mb-1">
+        <label for="@(prefix)-phone" class="@labelClass">
             Phone @if (!requirePhone) { <span class="text-gray-400">(optional)</span> }
         </label>
         <input type="tel"
-               id="@(prefix)_phone"
-               name="@(prefix).phone"
+               id="@(prefix)-phone"
                x-model="form.@(prefix).phone"
                @if (requirePhone) { <text>required</text> }
-               autocomplete="tel"
-               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
-               placeholder="+44 123 456 7890" />
-        <p x-show="errors['@(prefix).phone']" x-text="errors['@(prefix).phone']" class="mt-1 text-sm text-red-600" x-cloak></p>
+               autocomplete="@prefix tel"
+               class="@inputClass" />
+        @if (requirePhone)
+        {
+            <p x-show="errors['@(prefix).phone']" x-text="errors['@(prefix).phone']" class="checkout-error" x-cloak></p>
+        }
     </div>
 </div>

@@ -1,0 +1,756 @@
+@model CheckoutViewModel
+@using System.Text.Json
+@using System.Text.Encodings.Web
+@{
+    Layout = "~/Views/Checkout/_Layout.cshtml";
+    var basket = Model.Basket;
+    var session = Model.Session;
+    var currencySymbol = basket?.CurrencySymbol ?? "£";
+
+    // Get default country/state from ViewModel (set by controller from basket or MerchelloSettings)
+    var defaultCountry = Model.DefaultCountryCode ?? "";
+    var defaultState = Model.DefaultStateCode ?? "";
+
+    // Serialize shipping groups if available
+    var jsonOptions = new JsonSerializerOptions { Encoder = JavaScriptEncoder.Default };
+    var hasShippingGroups = Model.ShippingGroups?.Count > 0;
+    var groupsJson = hasShippingGroups
+        ? JsonSerializer.Serialize(Model.ShippingGroups!.Select(g => new {
+            groupId = g.GroupId.ToString(),
+            groupName = g.GroupName,
+            lineItems = g.LineItems.Select(li => new { li.Name, li.Quantity, li.FormattedAmount }),
+            shippingOptions = g.ShippingOptions.Select(o => new {
+                id = o.Id.ToString(),
+                name = o.Name,
+                deliveryDescription = o.DeliveryDescription,
+                formattedCost = o.FormattedCost,
+                cost = o.Cost,
+                isNextDay = o.IsNextDay
+            }),
+            selectedOptionId = g.SelectedShippingOptionId?.ToString()
+        }), jsonOptions)
+        : "[]";
+}
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-0 checkout-compact" x-data="singlePageCheckout()">
+    <!-- Screen reader announcements -->
+    <div aria-live="polite" aria-atomic="true" class="sr-only" x-text="announcement"></div>
+
+    <!-- Left Column: Form -->
+    <div class="pt-6 lg:pr-12 pb-32 lg:pb-8">
+
+        @if (Model.Settings.ShowExpressCheckout)
+        {
+            <!-- Express Checkout Section with Skeleton -->
+            <div class="mb-6">
+                @await Html.PartialAsync("~/Views/Checkout/_ExpressCheckout.cshtml")
+            </div>
+        }
+
+        <!-- Main Checkout Form -->
+        <form x-on:submit.prevent="submitOrder" class="space-y-4" :aria-busy="isSubmitting">
+            <!-- General Error Message -->
+            <div x-show="generalError" x-cloak role="alert" class="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                <p x-text="generalError"></p>
+            </div>
+
+            <!-- Contact Section -->
+            <div class="checkout-section">
+                <h2 class="font-heading text-lg font-normal mb-3">Contact</h2>
+                <div>
+                    <label for="email" class="block text-xs font-medium text-gray-700 mb-1">
+                        Email address <span class="text-red-500" aria-hidden="true">*</span>
+                    </label>
+                    <input type="email"
+                           id="email"
+                           name="email"
+                           x-model="form.email"
+                           required
+                           autocomplete="email"
+                           @@blur="validateField('email')"
+                           :aria-invalid="errors.email ? 'true' : 'false'"
+                           :class="errors.email ? 'checkout-input-error' : ''"
+                           class="checkout-input w-full"
+                           placeholder="you@example.com" />
+                    <p x-show="errors.email" x-cloak class="checkout-error" x-text="errors.email"></p>
+                </div>
+            </div>
+
+            <!-- Shipping Address Section -->
+            <div class="checkout-section">
+                <h2 class="font-heading text-lg font-normal mb-3">Shipping address</h2>
+                @await Html.PartialAsync("_AddressForm", Model, new ViewDataDictionary(ViewData) {
+                    { "Prefix", "shipping" },
+                    { "OnBlurCallback", "debouncedCalculateShipping()" },
+                    { "ShowRequired", true }
+                })
+            </div>
+
+            <!-- Billing Address Section (Collapsed by default) -->
+            <div class="checkout-section">
+                <label class="inline-flex items-center gap-2 cursor-pointer checkout-touch-target">
+                    <input type="checkbox"
+                           id="same-as-shipping"
+                           x-model="sameAsShipping"
+                           class="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent" />
+                    <span class="text-sm text-gray-700">Billing address same as shipping</span>
+                </label>
+
+                <div x-show="!sameAsShipping" x-cloak x-transition class="mt-3">
+                    <h3 class="font-heading text-base font-normal mb-2">Billing address</h3>
+                    @await Html.PartialAsync("_AddressForm", Model, new ViewDataDictionary(ViewData) {
+                        { "Prefix", "billing" },
+                        { "ShowRequired", true }
+                    })
+                </div>
+            </div>
+
+            <!-- Shipping Options Section -->
+            <div class="checkout-section">
+                <h2 class="font-heading text-lg font-normal mb-3">Shipping method</h2>
+
+                <!-- Loading state -->
+                <div x-show="shippingLoading" class="space-y-2">
+                    <div class="h-16 checkout-skeleton rounded-lg"></div>
+                    <div class="h-16 checkout-skeleton rounded-lg"></div>
+                </div>
+
+                <!-- No shipping address yet -->
+                <div x-show="!shippingLoading && !canCalculateShipping" x-cloak class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <p class="text-sm text-gray-600">Enter your shipping address to see available shipping options.</p>
+                </div>
+
+                <!-- Shipping error -->
+                <div x-show="!shippingLoading && shippingError" x-cloak class="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p class="text-sm text-red-700" x-text="shippingError"></p>
+                </div>
+
+                <!-- Shipping options -->
+                <div x-show="!shippingLoading && !shippingError && shippingGroups.length > 0" x-cloak class="space-y-3">
+                    <template x-for="group in shippingGroups" :key="group.groupId">
+                        <div class="border border-gray-200 rounded-lg overflow-hidden">
+                            <!-- Group header (only show if multiple groups) -->
+                            <template x-if="shippingGroups.length > 1">
+                                <div class="bg-gray-50 px-3 py-2 border-b border-gray-200">
+                                    <span class="text-sm font-medium text-gray-700" x-text="group.groupName"></span>
+                                </div>
+                            </template>
+
+                            <!-- Shipping options for this group -->
+                            <div class="p-2 space-y-2">
+                                <template x-for="option in group.shippingOptions" :key="option.id">
+                                    <label class="flex items-center gap-3 p-2 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
+                                           :class="{ 'border-accent bg-accent/5': shippingSelections[group.groupId] === option.id }">
+                                        <input type="radio"
+                                               :name="'shipping-' + group.groupId"
+                                               :value="option.id"
+                                               x-model="shippingSelections[group.groupId]"
+                                               @@change="onShippingOptionChange(group.groupId, option)"
+                                               class="w-4 h-4 text-accent focus:ring-accent" />
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-medium text-gray-900">
+                                                <span x-text="option.name"></span>
+                                                <template x-if="option.isNextDay">
+                                                    <span class="ml-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-800 rounded">Next Day</span>
+                                                </template>
+                                            </p>
+                                            <p class="text-xs text-gray-500" x-text="option.deliveryDescription"></p>
+                                        </div>
+                                        <span class="text-sm font-medium" :class="option.cost === 0 ? 'text-green-600' : 'text-gray-900'">
+                                            <template x-if="option.cost === 0">FREE</template>
+                                            <template x-if="option.cost > 0"><span x-text="option.formattedCost"></span></template>
+                                        </span>
+                                    </label>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Payment Section -->
+            <div class="checkout-section border-b-0 pb-0">
+                <h2 class="font-heading text-lg font-normal mb-3">Payment</h2>
+
+                <!-- Loading state -->
+                <div x-show="paymentLoading" class="space-y-2">
+                    <div class="h-12 checkout-skeleton rounded-lg"></div>
+                    <div class="h-32 checkout-skeleton rounded-lg"></div>
+                </div>
+
+                <!-- Payment methods -->
+                <div x-show="!paymentLoading && paymentMethods.length > 0" x-cloak>
+                    <!-- Payment method selector -->
+                    <div class="space-y-2 mb-4">
+                        <template x-for="method in paymentMethods" :key="method.providerAlias + ':' + (method.methodAlias || '')">
+                            <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
+                                   :class="{ 'border-accent bg-accent/5': selectedPaymentMethod?.providerAlias === method.providerAlias && selectedPaymentMethod?.methodAlias === method.methodAlias }">
+                                <input type="radio"
+                                       name="payment-method"
+                                       :value="method.providerAlias + ':' + (method.methodAlias || '')"
+                                       x-model="selectedPaymentMethodKey"
+                                       @@change="onPaymentMethodChange(method)"
+                                       class="w-4 h-4 text-accent focus:ring-accent" />
+                                <div class="flex items-center gap-2 flex-1">
+                                    <span x-html="getPaymentMethodIcon(method)" class="flex-shrink-0"></span>
+                                    <span class="text-sm font-medium text-gray-900" x-text="method.displayName"></span>
+                                </div>
+                            </label>
+                        </template>
+                    </div>
+
+                    <!-- Payment form container (for hosted fields/widget integrations) -->
+                    <div id="payment-form-container" x-show="selectedPaymentMethod" x-cloak class="mt-4">
+                        <div id="hosted-fields-container" class="min-h-[100px]"></div>
+                        <div id="widget-container"></div>
+                        <div id="direct-form-container"></div>
+                    </div>
+                </div>
+
+                <!-- No payment methods available -->
+                <div x-show="!paymentLoading && paymentMethods.length === 0" x-cloak class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <p class="text-sm text-gray-600">No payment methods available. Please contact support.</p>
+                </div>
+
+                <!-- Payment error -->
+                <div x-show="paymentError" x-cloak role="alert" class="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p class="text-sm text-red-700" x-text="paymentError"></p>
+                </div>
+            </div>
+
+            <!-- Complete Order Button (Desktop) -->
+            <div class="mt-6 hidden lg:block">
+                <button type="submit"
+                        class="w-full checkout-button-primary"
+                        :disabled="!canSubmit || isSubmitting"
+                        :aria-busy="isSubmitting">
+                    <span x-show="!isSubmitting">Complete Order</span>
+                    <span x-show="isSubmitting" x-cloak class="flex items-center justify-center gap-2">
+                        <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Processing...</span>
+                    </span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Right Column: Order Summary (Sticky) -->
+    <div class="relative lg:border-l lg:border-gray-200">
+        <div class="hidden lg:block absolute inset-y-0 left-0 w-[200vw] bg-[#fafafa] -z-10"></div>
+        <div class="lg:pl-8 lg:pt-6 lg:pr-8 lg:sticky lg:top-0">
+            @await Html.PartialAsync("~/Views/Checkout/_OrderSummary.cshtml")
+        </div>
+    </div>
+
+    <!-- Mobile Sticky Action Bar -->
+    <div class="checkout-sticky-actions lg:hidden">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-gray-600">Total</span>
+            <span class="text-lg font-semibold" x-text="formattedTotal">@currencySymbol@(basket?.Total.ToString("N2") ?? "0.00")</span>
+        </div>
+        <button type="button"
+                @@click="submitOrder"
+                class="w-full checkout-button-primary"
+                :disabled="!canSubmit || isSubmitting"
+                :aria-busy="isSubmitting">
+            <span x-show="!isSubmitting">Complete Order</span>
+            <span x-show="isSubmitting" x-cloak class="flex items-center justify-center gap-2">
+                <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Processing...</span>
+            </span>
+        </button>
+    </div>
+</div>
+
+@section Scripts {
+    <!-- Single-page checkout analytics helper -->
+    <script src="/js/checkout/single-page-analytics.js"></script>
+    <script>
+        function singlePageCheckout() {
+            // Initial shipping groups from server
+            const initialGroups = @Html.Raw(groupsJson);
+
+            // Build initial selections from server data
+            const initialSelections = {};
+            initialGroups.forEach(g => {
+                if (g.selectedOptionId) {
+                    initialSelections[g.groupId] = g.selectedOptionId;
+                }
+            });
+
+            return {
+                // Form data
+                form: {
+                    email: '@(basket?.BillingAddress?.Email ?? "")',
+                    shipping: {
+                        name: '@(basket?.ShippingAddress?.Name ?? "")',
+                        company: '@(basket?.ShippingAddress?.Company ?? "")',
+                        address1: '@(basket?.ShippingAddress?.AddressOne ?? "")',
+                        address2: '@(basket?.ShippingAddress?.AddressTwo ?? "")',
+                        city: '@(basket?.ShippingAddress?.TownCity ?? "")',
+                        state: '@(basket?.ShippingAddress?.CountyState?.Name ?? "")',
+                        stateCode: '@(basket?.ShippingAddress?.CountyState?.RegionCode ?? defaultState)',
+                        postalCode: '@(basket?.ShippingAddress?.PostalCode ?? "")',
+                        country: '@(basket?.ShippingAddress?.Country ?? "")',
+                        countryCode: '@(basket?.ShippingAddress?.CountryCode ?? defaultCountry)',
+                        phone: '@(basket?.ShippingAddress?.Phone ?? "")'
+                    },
+                    billing: {
+                        name: '@(basket?.BillingAddress?.Name ?? "")',
+                        company: '@(basket?.BillingAddress?.Company ?? "")',
+                        address1: '@(basket?.BillingAddress?.AddressOne ?? "")',
+                        address2: '@(basket?.BillingAddress?.AddressTwo ?? "")',
+                        city: '@(basket?.BillingAddress?.TownCity ?? "")',
+                        state: '@(basket?.BillingAddress?.CountyState?.Name ?? "")',
+                        stateCode: '@(basket?.BillingAddress?.CountyState?.RegionCode ?? "")',
+                        postalCode: '@(basket?.BillingAddress?.PostalCode ?? "")',
+                        country: '@(basket?.BillingAddress?.Country ?? "")',
+                        countryCode: '@(basket?.BillingAddress?.CountryCode ?? "")',
+                        phone: '@(basket?.BillingAddress?.Phone ?? "")'
+                    }
+                },
+
+                // Address handling
+                sameAsShipping: true,
+                shippingRegions: [],
+                billingRegions: [],
+
+                // Shipping
+                shippingGroups: initialGroups,
+                shippingSelections: initialSelections,
+                shippingLoading: false,
+                shippingError: null,
+
+                // Payment
+                paymentLoading: true,
+                paymentError: null,
+                paymentMethods: [],
+                selectedPaymentMethod: null,
+                selectedPaymentMethodKey: '',
+                paymentSession: null,
+                invoiceId: null,
+
+                // Validation
+                errors: {},
+                generalError: '',
+
+                // UI State
+                isSubmitting: false,
+                announcement: '',
+                _debounceTimers: {},
+                _shippingCalculated: @(hasShippingGroups ? "true" : "false"),
+
+                // Basket totals
+                basketTotal: @(basket?.Total ?? 0),
+                currencySymbol: '@currencySymbol',
+
+                // Computed properties
+                get canCalculateShipping() {
+                    return this.form.shipping.countryCode &&
+                           this.form.shipping.postalCode &&
+                           this.form.shipping.postalCode.length >= 3;
+                },
+
+                get allShippingSelected() {
+                    if (this.shippingGroups.length === 0) return false;
+                    return this.shippingGroups.every(g =>
+                        g.shippingOptions.length === 0 || this.shippingSelections[g.groupId]
+                    );
+                },
+
+                get canSubmit() {
+                    return this.allShippingSelected &&
+                           !this.shippingLoading &&
+                           !this.paymentLoading &&
+                           this.selectedPaymentMethod !== null &&
+                           this.form.email &&
+                           this.form.shipping.name &&
+                           this.form.shipping.address1 &&
+                           this.form.shipping.city &&
+                           this.form.shipping.countryCode &&
+                           this.form.shipping.postalCode;
+                },
+
+                get formattedTotal() {
+                    return this.currencySymbol + this.basketTotal.toFixed(2);
+                },
+
+                // Lifecycle
+                async init() {
+                    // Load regions for pre-selected countries
+                    if (this.form.shipping.countryCode) {
+                        await this.loadRegions('shipping', this.form.shipping.countryCode);
+                    }
+                    if (this.form.billing.countryCode) {
+                        await this.loadRegions('billing', this.form.billing.countryCode);
+                    }
+
+                    // If we have a country but no shipping groups yet, calculate shipping
+                    if (this.form.shipping.countryCode && !this._shippingCalculated) {
+                        await this.calculateShipping();
+                    }
+
+                    // Load payment methods
+                    await this.loadPaymentMethods();
+
+                    // Emit checkout begin event (with deduplication)
+                    if (window.MerchelloSinglePageAnalytics) {
+                        window.MerchelloSinglePageAnalytics.trackBegin();
+                    }
+                },
+
+                // Helpers
+                debounce(key, fn, delay = 300) {
+                    if (this._debounceTimers[key]) {
+                        clearTimeout(this._debounceTimers[key]);
+                    }
+                    this._debounceTimers[key] = setTimeout(fn, delay);
+                },
+
+                announce(message) {
+                    this.announcement = '';
+                    setTimeout(() => { this.announcement = message; }, 100);
+                },
+
+                // Region loading
+                async loadRegions(addressType, countryCode) {
+                    if (!countryCode) {
+                        if (addressType === 'billing') this.billingRegions = [];
+                        else this.shippingRegions = [];
+                        return;
+                    }
+
+                    try {
+                        const endpoint = addressType === 'billing'
+                            ? `/api/merchello/checkout/billing/regions/${countryCode}`
+                            : `/api/merchello/checkout/shipping/regions/${countryCode}`;
+                        const response = await fetch(endpoint);
+                        if (!response.ok) throw new Error('Failed to load regions');
+                        const regions = await response.json();
+                        if (addressType === 'billing') this.billingRegions = regions;
+                        else this.shippingRegions = regions;
+                    } catch (error) {
+                        console.error('Failed to load regions:', error);
+                    }
+                },
+
+                // Country/State change handlers
+                async onShippingCountryChange() {
+                    this.form.shipping.state = '';
+                    this.form.shipping.stateCode = '';
+                    await this.loadRegions('shipping', this.form.shipping.countryCode);
+                    this.debouncedCalculateShipping();
+                },
+
+                onShippingStateChange() {
+                    const region = this.shippingRegions.find(r => r.code === this.form.shipping.stateCode);
+                    if (region) this.form.shipping.state = region.name;
+                },
+
+                async onBillingCountryChange() {
+                    this.form.billing.state = '';
+                    this.form.billing.stateCode = '';
+                    await this.loadRegions('billing', this.form.billing.countryCode);
+                },
+
+                onBillingStateChange() {
+                    const region = this.billingRegions.find(r => r.code === this.form.billing.stateCode);
+                    if (region) this.form.billing.state = region.name;
+                },
+
+                // Shipping calculation
+                debouncedCalculateShipping() {
+                    if (!this.canCalculateShipping) return;
+                    this.debounce('shipping', () => this.calculateShipping(), 500);
+                },
+
+                async calculateShipping() {
+                    if (!this.canCalculateShipping) return;
+
+                    this.shippingLoading = true;
+                    this.shippingError = null;
+
+                    try {
+                        const response = await fetch('/api/merchello/checkout/initialize', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                countryCode: this.form.shipping.countryCode,
+                                stateCode: this.form.shipping.stateCode,
+                                autoSelectCheapestShipping: true,
+                                email: this.form.email
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            this.shippingGroups = data.shippingGroups || [];
+
+                            // Apply auto-selected options
+                            this.shippingGroups.forEach(g => {
+                                if (g.selectedShippingOptionId) {
+                                    this.shippingSelections[g.groupId] = g.selectedShippingOptionId;
+                                }
+                            });
+
+                            // Update basket total
+                            if (data.basket) {
+                                this.basketTotal = data.basket.total;
+                            }
+
+                            this._shippingCalculated = true;
+                            this.announce('Shipping options loaded');
+                        } else {
+                            this.shippingError = data.message || 'Unable to calculate shipping.';
+                        }
+                    } catch (error) {
+                        console.error('Failed to calculate shipping:', error);
+                        this.shippingError = 'An error occurred while calculating shipping.';
+                    } finally {
+                        this.shippingLoading = false;
+                    }
+                },
+
+                onShippingOptionChange(groupId, option) {
+                    this.announce(`Selected ${option.name} shipping`);
+
+                    // Emit analytics event (with deduplication per group)
+                    if (window.MerchelloSinglePageAnalytics) {
+                        window.MerchelloSinglePageAnalytics.trackShippingSelected(groupId, option.name, option.cost);
+                    }
+                },
+
+                // Payment methods
+                async loadPaymentMethods() {
+                    this.paymentLoading = true;
+                    this.paymentError = null;
+                    try {
+                        const response = await fetch('/api/merchello/checkout/payment-methods');
+                        if (!response.ok) throw new Error('Failed to load payment methods');
+                        const methods = await response.json();
+                        this.paymentMethods = methods || [];
+
+                        // Auto-select first method if only one available
+                        if (this.paymentMethods.length === 1) {
+                            const method = this.paymentMethods[0];
+                            this.selectedPaymentMethodKey = method.providerAlias + ':' + (method.methodAlias || '');
+                            this.selectedPaymentMethod = method;
+                        }
+                    } catch (error) {
+                        console.error('Failed to load payment methods:', error);
+                        this.paymentError = 'Unable to load payment methods. Please refresh the page.';
+                    } finally {
+                        this.paymentLoading = false;
+                    }
+                },
+
+                onPaymentMethodChange(method) {
+                    this.selectedPaymentMethod = method;
+                    this.paymentError = null;
+
+                    // Track analytics
+                    if (window.MerchelloSinglePageAnalytics) {
+                        window.MerchelloSinglePageAnalytics.trackPaymentSelected(method.displayName);
+                    }
+
+                    this.announce(`Selected ${method.displayName} payment`);
+                },
+
+                getPaymentMethodIcon(method) {
+                    // Use MerchelloPayment helper if available
+                    if (window.MerchelloPayment && typeof window.MerchelloPayment.getMethodIcon === 'function') {
+                        return window.MerchelloPayment.getMethodIcon(method);
+                    }
+                    // Fallback: simple card icon
+                    return '<svg class="w-6 h-5" viewBox="0 0 24 20" fill="currentColor"><rect x="1" y="1" width="22" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="5" width="22" height="4" fill="currentColor" opacity="0.3"/></svg>';
+                },
+
+                // Validation
+                validateField(field) {
+                    delete this.errors[field];
+
+                    if (field === 'email') {
+                        if (!this.form.email) {
+                            this.errors.email = 'Email is required.';
+                        } else if (!/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/.test(this.form.email)) {
+                            this.errors.email = 'Please enter a valid email address.';
+                        } else {
+                            // Valid email - track contact info
+                            if (window.MerchelloSinglePageAnalytics) {
+                                window.MerchelloSinglePageAnalytics.trackContactInfo(this.form.email);
+                            }
+                        }
+                    } else if (field.startsWith('shipping.')) {
+                        const key = field.replace('shipping.', '');
+                        const requiredFields = ['name', 'address1', 'city', 'countryCode', 'postalCode'];
+                        if (requiredFields.includes(key) && !this.form.shipping[key]) {
+                            this.errors[field] = 'This field is required.';
+                        }
+                    }
+                },
+
+                validate() {
+                    this.errors = {};
+                    this.generalError = '';
+
+                    // Email
+                    this.validateField('email');
+
+                    // Shipping address
+                    ['name', 'address1', 'city', 'countryCode', 'postalCode'].forEach(field => {
+                        this.validateField('shipping.' + field);
+                    });
+
+                    // Billing address (if different)
+                    if (!this.sameAsShipping) {
+                        ['name', 'address1', 'city', 'countryCode', 'postalCode'].forEach(field => {
+                            if (!this.form.billing[field]) {
+                                this.errors['billing.' + field] = 'This field is required.';
+                            }
+                        });
+                    }
+
+                    // Shipping selection
+                    if (!this.allShippingSelected) {
+                        this.generalError = 'Please select a shipping method.';
+                    }
+
+                    // Payment method selection
+                    if (!this.selectedPaymentMethod) {
+                        this.generalError = this.generalError || 'Please select a payment method.';
+                    }
+
+                    return Object.keys(this.errors).length === 0 && !this.generalError;
+                },
+
+                // Submit order
+                async submitOrder() {
+                    if (!this.validate()) {
+                        const errorCount = Object.keys(this.errors).length;
+                        this.announce(`Form has ${errorCount} error${errorCount !== 1 ? 's' : ''}. Please correct and try again.`);
+                        return;
+                    }
+
+                    // Validate payment method selection
+                    if (!this.selectedPaymentMethod) {
+                        this.generalError = 'Please select a payment method.';
+                        this.announce('Please select a payment method.');
+                        return;
+                    }
+
+                    this.isSubmitting = true;
+                    this.generalError = '';
+                    this.announce('Processing your order...');
+
+                    try {
+                        // 1. Save addresses
+                        const addressResponse = await fetch('/api/merchello/checkout/addresses', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                email: this.form.email,
+                                billingAddress: this.sameAsShipping ? this.form.shipping : this.form.billing,
+                                shippingAddress: this.form.shipping,
+                                shippingSameAsBilling: false
+                            })
+                        });
+
+                        const addressData = await addressResponse.json();
+                        if (!addressData.success) {
+                            throw new Error(addressData.message || 'Failed to save addresses');
+                        }
+
+                        // 2. Save shipping selections
+                        const shippingResponse = await fetch('/api/merchello/checkout/shipping', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ selections: this.shippingSelections })
+                        });
+
+                        const shippingData = await shippingResponse.json();
+                        if (!shippingData.success) {
+                            throw new Error(shippingData.message || 'Failed to save shipping');
+                        }
+
+                        // 3. Initiate payment with selected method
+                        const returnUrl = window.location.origin + '/checkout/return';
+                        const cancelUrl = window.location.origin + '/checkout/cancel';
+
+                        const payResponse = await fetch('/api/merchello/checkout/pay', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                providerAlias: this.selectedPaymentMethod.providerAlias,
+                                methodAlias: this.selectedPaymentMethod.methodAlias || null,
+                                returnUrl: returnUrl,
+                                cancelUrl: cancelUrl
+                            })
+                        });
+
+                        const payData = await payResponse.json();
+                        if (!payData.success) {
+                            throw new Error(payData.errorMessage || 'Failed to initiate payment');
+                        }
+
+                        this.invoiceId = payData.invoiceId;
+                        this.paymentSession = payData;
+
+                        // 4. Handle payment flow based on integration type
+                        // IntegrationType: 0=Redirect, 10=HostedFields, 20=Widget, 30=DirectForm
+                        if (payData.integrationType === 0 && payData.redirectUrl) {
+                            // Redirect to external payment page
+                            window.location.href = payData.redirectUrl;
+                            return;
+                        }
+
+                        // For hosted fields/widget/direct form, use payment adapter
+                        if (window.MerchelloPayment) {
+                            await window.MerchelloPayment.handlePaymentFlow(payData, {
+                                containerId: 'hosted-fields-container',
+                                onReady: () => {
+                                    this.announce('Payment form ready. Please complete your payment details.');
+                                },
+                                onError: (err) => {
+                                    this.paymentError = err.message || 'Payment setup failed';
+                                    this.isSubmitting = false;
+                                }
+                            });
+
+                            // For non-redirect flows, submit payment
+                            if (payData.integrationType !== 0) {
+                                const paymentResult = await window.MerchelloPayment.submitPayment(payData.invoiceId);
+                                if (paymentResult.success) {
+                                    window.location.href = `/checkout/confirmation/${payData.invoiceId}`;
+                                } else {
+                                    throw new Error(paymentResult.errorMessage || 'Payment failed');
+                                }
+                            }
+                        } else {
+                            // Fallback: redirect to confirmation if no adapter needed
+                            window.location.href = `/checkout/confirmation/${payData.invoiceId}`;
+                        }
+
+                    } catch (error) {
+                        console.error('Order submission failed:', error);
+                        this.generalError = error.message || 'An error occurred. Please try again.';
+                        this.announce(this.generalError);
+                    } finally {
+                        this.isSubmitting = false;
+                    }
+                }
+            };
+        }
+    </script>
+}
+
+@@section Scripts {
+    <!-- Payment module for handling payment method adapters -->
+    <script src="/js/checkout/payment.js"></script>
+}

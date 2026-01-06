@@ -47,10 +47,9 @@ public class MerchelloCheckoutController(
         }
 
         // Handle confirmation step - load confirmation data once and reuse
-        OrderConfirmationDto? confirmation = null;
         if (checkoutPage.Step == CheckoutStep.Confirmation && checkoutPage.InvoiceId.HasValue)
         {
-            confirmation = await checkoutService.GetOrderConfirmationAsync(checkoutPage.InvoiceId.Value, ct);
+            var confirmation = await checkoutService.GetOrderConfirmationAsync(checkoutPage.InvoiceId.Value, ct);
 
             // Check if we should redirect to custom confirmation URL
             if (confirmation != null && !string.IsNullOrWhiteSpace(_settings.ConfirmationRedirectUrl))
@@ -65,28 +64,8 @@ public class MerchelloCheckoutController(
             {
                 Response.Cookies.Delete(Core.Constants.Cookies.BasketId);
             }
-        }
 
-        var viewModel = await CreateViewModelAsync(checkoutPage, confirmation, ct);
-        var viewPath = ResolveViewPath(checkoutPage.Step);
-
-        logger.LogDebug("Rendering checkout step {Step} with view {ViewPath}", checkoutPage.Step, viewPath);
-
-        return View(viewPath, viewModel);
-    }
-
-    /// <summary>
-    /// Creates the view model for the checkout page.
-    /// </summary>
-    private async Task<CheckoutViewModel> CreateViewModelAsync(
-        MerchelloCheckoutPage checkoutPage,
-        OrderConfirmationDto? confirmation,
-        CancellationToken ct)
-    {
-        // For confirmation step, use pre-loaded confirmation data
-        if (checkoutPage.Step == CheckoutStep.Confirmation)
-        {
-            return new CheckoutViewModel(
+            var confirmationViewModel = new CheckoutViewModel(
                 checkoutPage.Step,
                 _settings,
                 basket: null,
@@ -95,17 +74,41 @@ public class MerchelloCheckoutController(
                 shippingCountries: null,
                 shippingGroups: null,
                 confirmation: confirmation);
+
+            return View("~/Views/Checkout/Confirmation.cshtml", confirmationViewModel);
         }
 
+        // Handle payment return/cancel steps
+        if (checkoutPage.Step == CheckoutStep.PaymentReturn)
+        {
+            return View("~/Views/Checkout/Return.cshtml", new CheckoutViewModel(checkoutPage.Step, _settings));
+        }
+
+        if (checkoutPage.Step == CheckoutStep.PaymentCancelled)
+        {
+            return View("~/Views/Checkout/Cancel.cshtml", new CheckoutViewModel(checkoutPage.Step, _settings));
+        }
+
+        // For all other steps (Information, Shipping, Payment), render single-page checkout
+        return await RenderSinglePageCheckoutAsync(ct);
+    }
+
+    /// <summary>
+    /// Renders the single-page checkout view.
+    /// </summary>
+    private async Task<IActionResult> RenderSinglePageCheckoutAsync(CancellationToken ct)
+    {
         // Load basket
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
 
-        // Load checkout session if basket exists
-        CheckoutSession? session = null;
-        if (basket != null)
+        if (basket == null || basket.LineItems.Count == 0)
         {
-            session = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
+            // Redirect to cart or home if no basket
+            return Redirect("/");
         }
+
+        // Load checkout session if basket exists
+        var session = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
 
         // Load available countries for billing (all countries) and shipping (restricted by warehouse regions)
         var billingCountriesResult = await checkoutService.GetAllCountriesAsync(ct);
@@ -114,26 +117,58 @@ public class MerchelloCheckoutController(
         var shippingCountriesResult = await checkoutService.GetAvailableCountriesAsync(ct);
         var shippingCountries = shippingCountriesResult.Select(c => new CountryDto(c.Code, c.Name)).ToList();
 
-        // Load shipping groups if on shipping step
+        // Determine default country from basket or settings
+        var defaultCountryCode = session?.ShippingAddress?.CountryCode
+            ?? basket.ShippingAddress?.CountryCode
+            ?? _merchelloSettings.DefaultShippingCountry
+            ?? "US";
+
+        var defaultStateCode = session?.ShippingAddress?.CountyState?.RegionCode
+            ?? basket.ShippingAddress?.CountyState?.RegionCode;
+
+        // Initialize checkout with default country to get shipping groups
         List<ShippingGroupDto>? shippingGroups = null;
-        if (checkoutPage.Step == CheckoutStep.Shipping && basket != null && session != null)
+        if (!string.IsNullOrEmpty(defaultCountryCode))
         {
-            var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, session, ct);
-            if (groupingResult.Success)
+            var initResult = await checkoutService.InitializeCheckoutAsync(
+                new InitializeCheckoutParameters
+                {
+                    Basket = basket,
+                    CountryCode = defaultCountryCode,
+                    StateCode = defaultStateCode,
+                    AutoSelectCheapestShipping = true,
+                    Email = session?.BillingAddress.Email
+                }, ct);
+
+            if (initResult.Successful && initResult.ResultObject != null)
             {
+                // Update basket with calculated totals
+                basket = initResult.ResultObject.Basket;
+
+                // Get shipping groups with selections
                 var currencySymbol = basket.CurrencySymbol ?? _merchelloSettings.CurrencySymbol;
-                shippingGroups = MapOrderGroupsToDto(groupingResult, currencySymbol, session.SelectedShippingOptions);
+                shippingGroups = MapOrderGroupsToDto(initResult.ResultObject.GroupingResult, currencySymbol, initResult.ResultObject.AutoSelectedShippingOptions);
             }
         }
 
-        return new CheckoutViewModel(
-            checkoutPage.Step,
+        // Reload session after initialization (may have been updated)
+        session = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
+
+        var viewModel = new CheckoutViewModel(
+            CheckoutStep.Information,
             _settings,
             basket,
             session,
             billingCountries,
             shippingCountries,
-            shippingGroups);
+            shippingGroups)
+        {
+            DefaultCountryCode = defaultCountryCode,
+            DefaultStateCode = defaultStateCode,
+            IsSinglePageCheckout = true
+        };
+
+        return View("~/Views/Checkout/SinglePage.cshtml", viewModel);
     }
 
     private static List<ShippingGroupDto> MapOrderGroupsToDto(
@@ -178,23 +213,4 @@ public class MerchelloCheckoutController(
         return $"{currencySymbol}{price:N2}";
     }
 
-    /// <summary>
-    /// Resolves the view path for the checkout step.
-    /// Views are served from the Merchello RCL.
-    /// </summary>
-    private static string ResolveViewPath(CheckoutStep step)
-    {
-        var viewName = step switch
-        {
-            CheckoutStep.Information => "Information",
-            CheckoutStep.Shipping => "Shipping",
-            CheckoutStep.Payment => "Payment",
-            CheckoutStep.Confirmation => "Confirmation",
-            CheckoutStep.PaymentReturn => "Return",
-            CheckoutStep.PaymentCancelled => "Cancel",
-            _ => "Information"
-        };
-
-        return $"~/Views/Checkout/{viewName}.cshtml";
-    }
 }

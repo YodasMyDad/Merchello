@@ -84,4 +84,19 @@ public class CheckoutViewModel
         LogoPosition.Right => "justify-end",
         _ => "justify-start"
     };
+
+    /// <summary>
+    /// Default country code for single-page checkout initialization.
+    /// </summary>
+    public string? DefaultCountryCode { get; init; }
+
+    /// <summary>
+    /// Default state/region code for single-page checkout initialization.
+    /// </summary>
+    public string? DefaultStateCode { get; init; }
+
+    /// <summary>
+    /// Whether this is a single-page checkout view.
+    /// </summary>
+    public bool IsSinglePageCheckout { get; init; }
 }

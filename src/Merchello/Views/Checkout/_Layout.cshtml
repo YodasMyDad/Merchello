@@ -68,55 +68,67 @@
                         @settings.CompanyName
                     </a>
                 }
+                else
+                {
+                    <!-- Merchello logo fallback when no custom logo or company name is configured -->
+                    <a href="/" class="block">
+                        <img src="/img/merchello-tag.png"
+                             alt="Powered by Merchello"
+                             class="h-8 w-auto" />
+                    </a>
+                }
             </div>
         </div>
     </header>
 
-    <!-- Breadcrumb Navigation -->
-    <nav class="bg-gray-50 border-b border-gray-200">
-        <div class="max-w-6xl mx-auto px-4 py-3">
-            <ol class="flex items-center space-x-2 text-sm">
-                @{
-                    var steps = new[] {
-                        (Step: CheckoutStep.Information, Label: "Information", Url: "/checkout/information"),
-                        (Step: CheckoutStep.Shipping, Label: "Shipping", Url: "/checkout/shipping"),
-                        (Step: CheckoutStep.Payment, Label: "Payment", Url: "/checkout/payment")
-                    };
+    @if (!Model.IsSinglePageCheckout)
+    {
+        <!-- Breadcrumb Navigation (multi-page checkout only) -->
+        <nav class="bg-gray-50 border-b border-gray-200">
+            <div class="max-w-6xl mx-auto px-4 py-3">
+                <ol class="flex items-center space-x-2 text-sm">
+                    @{
+                        var steps = new[] {
+                            (Step: CheckoutStep.Information, Label: "Information", Url: "/checkout/information"),
+                            (Step: CheckoutStep.Shipping, Label: "Shipping", Url: "/checkout/shipping"),
+                            (Step: CheckoutStep.Payment, Label: "Payment", Url: "/checkout/payment")
+                        };
 
-                    for (var i = 0; i < steps.Length; i++)
-                    {
-                        var step = steps[i];
-                        var isCurrentOrPast = Model.Step >= step.Step;
-                        var isCurrent = Model.Step == step.Step;
-
-                        if (i > 0)
+                        for (var i = 0; i < steps.Length; i++)
                         {
-                            <li class="text-gray-400">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                                </svg>
+                            var step = steps[i];
+                            var isCurrentOrPast = Model.Step >= step.Step;
+                            var isCurrent = Model.Step == step.Step;
+
+                            if (i > 0)
+                            {
+                                <li class="text-gray-400">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                    </svg>
+                                </li>
+                            }
+
+                            <li>
+                                @if (isCurrent)
+                                {
+                                    <span class="font-medium text-primary">@step.Label</span>
+                                }
+                                else if (isCurrentOrPast)
+                                {
+                                    <a href="@step.Url" class="text-accent hover:underline">@step.Label</a>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-400">@step.Label</span>
+                                }
                             </li>
                         }
-
-                        <li>
-                            @if (isCurrent)
-                            {
-                                <span class="font-medium text-primary">@step.Label</span>
-                            }
-                            else if (isCurrentOrPast)
-                            {
-                                <a href="@step.Url" class="text-accent hover:underline">@step.Label</a>
-                            }
-                            else
-                            {
-                                <span class="text-gray-400">@step.Label</span>
-                            }
-                        </li>
                     }
-                }
-            </ol>
-        </div>
-    </nav>
+                </ol>
+            </div>
+        </nav>
+    }
 
     <!-- Main Content -->
     <main class="flex-1 overflow-x-hidden">

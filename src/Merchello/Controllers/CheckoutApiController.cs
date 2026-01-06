@@ -234,6 +234,80 @@ public class CheckoutApiController(
     }
 
     /// <summary>
+    /// Initialize single-page checkout with pre-selected country/state.
+    /// Auto-calculates shipping and selects the cheapest option for each group.
+    /// Used for single-page checkout and express checkout flows.
+    /// </summary>
+    [HttpPost("initialize")]
+    public async Task<IActionResult> InitializeCheckout(
+        [FromBody] InitializeCheckoutRequestDto request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.CountryCode))
+        {
+            return BadRequest(new InitializeCheckoutResponseDto
+            {
+                Success = false,
+                Message = "Country code is required."
+            });
+        }
+
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
+        if (basket == null || basket.LineItems.Count == 0)
+        {
+            return BadRequest(new InitializeCheckoutResponseDto
+            {
+                Success = false,
+                Message = "No items in basket."
+            });
+        }
+
+        var result = await checkoutService.InitializeCheckoutAsync(new InitializeCheckoutParameters
+        {
+            Basket = basket,
+            CountryCode = request.CountryCode,
+            StateCode = request.StateCode,
+            AutoSelectCheapestShipping = request.AutoSelectCheapestShipping,
+            Email = request.Email
+        }, ct);
+
+        if (!result.Successful)
+        {
+            var errorMessage = result.Messages
+                .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
+                ?? "Failed to initialize checkout.";
+
+            return Ok(new InitializeCheckoutResponseDto
+            {
+                Success = false,
+                Message = errorMessage,
+                Errors = result.Messages
+                    .Where(m => m.ResultMessageType == ResultMessageType.Error)
+                    .Select((m, i) => new { Key = $"error{i}", Value = m.Message ?? "Unknown error" })
+                    .ToDictionary(x => x.Key, x => x.Value)
+            });
+        }
+
+        var initResult = result.ResultObject!;
+        var currencySymbol = initResult.Basket.CurrencySymbol ?? _settings.CurrencySymbol;
+
+        var shippingGroups = MapOrderGroupsToDto(
+            initResult.GroupingResult,
+            currencySymbol,
+            initResult.AutoSelectedShippingOptions);
+
+        return Ok(new InitializeCheckoutResponseDto
+        {
+            Success = true,
+            Basket = MapBasketToDto(initResult.Basket),
+            ShippingGroups = shippingGroups,
+            CombinedShippingTotal = initResult.CombinedShippingTotal,
+            FormattedCombinedShippingTotal = FormatPrice(initResult.CombinedShippingTotal, currencySymbol),
+            ShippingAutoSelected = initResult.ShippingAutoSelected
+        });
+    }
+
+    /// <summary>
     /// Get shipping groups with available shipping options.
     /// Groups items by warehouse/fulfillment source with shipping options for each.
     /// </summary>

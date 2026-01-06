@@ -1351,6 +1351,136 @@ public class CheckoutService(
         };
     }
 
+    // Single-page checkout methods
+
+    /// <inheritdoc />
+    public async Task<CrudResult<InitializeCheckoutResult>> InitializeCheckoutAsync(
+        InitializeCheckoutParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var basket = parameters.Basket;
+        var result = new CrudResult<InitializeCheckoutResult>();
+
+        // Validate country code
+        if (string.IsNullOrWhiteSpace(parameters.CountryCode))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Country code is required",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        // Create minimal shipping address with country/state for calculation
+        var shippingAddress = new Locality.Models.Address
+        {
+            CountryCode = parameters.CountryCode,
+            CountyState = !string.IsNullOrEmpty(parameters.StateCode)
+                ? new Locality.Models.CountyState { RegionCode = parameters.StateCode }
+                : new Locality.Models.CountyState(),
+            Email = parameters.Email ?? string.Empty
+        };
+
+        // Update basket with shipping address for calculation purposes
+        basket.ShippingAddress = shippingAddress;
+        basket.DateUpdated = DateTime.UtcNow;
+
+        // Calculate basket with shipping country
+        await CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = parameters.CountryCode
+        }, cancellationToken);
+
+        // Get or create checkout session
+        var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+        session.ShippingAddress = shippingAddress;
+
+        // Get order groups with shipping options
+        var groupingResult = await GetOrderGroupsAsync(basket, session, cancellationToken);
+
+        if (!groupingResult.Success)
+        {
+            foreach (var error in groupingResult.Errors)
+            {
+                result.Messages.Add(new ResultMessage { Message = error, ResultMessageType = ResultMessageType.Error });
+            }
+            return result;
+        }
+
+        // Auto-select cheapest shipping if requested
+        var autoSelectedOptions = new Dictionary<Guid, Guid>();
+        decimal combinedShippingTotal = 0;
+
+        if (parameters.AutoSelectCheapestShipping && groupingResult.Groups.Count > 0)
+        {
+            // Use the auto-selector utility
+            autoSelectedOptions = ShippingAutoSelector.SelectOptions(
+                groupingResult.Groups,
+                ShippingAutoSelectStrategy.Cheapest);
+
+            // Apply selections to groups
+            ShippingAutoSelector.ApplySelectionsToGroups(groupingResult.Groups, autoSelectedOptions);
+
+            // Calculate combined shipping total
+            combinedShippingTotal = ShippingAutoSelector.CalculateCombinedTotal(
+                groupingResult.Groups,
+                autoSelectedOptions);
+
+            // Update basket shipping total
+            basket.Shipping = combinedShippingTotal;
+
+            // Recalculate totals with shipping
+            await CalculateBasketAsync(new CalculateBasketParameters
+            {
+                Basket = basket,
+                CountryCode = parameters.CountryCode
+            }, cancellationToken);
+
+            // Save auto-selections to session
+            await checkoutSessionService.SaveShippingSelectionsAsync(
+                basket.Id,
+                autoSelectedOptions,
+                null,
+                cancellationToken);
+        }
+
+        // Refresh automatic discounts (may include free shipping based on threshold)
+        basket = await RefreshAutomaticDiscountsAsync(basket, parameters.CountryCode, cancellationToken);
+
+        // Save basket to database
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            db.Baskets.Update(basket);
+            await db.SaveChangesAsync(cancellationToken);
+        });
+        scope.Complete();
+
+        // Update HTTP session
+        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
+
+        // Update checkout session with shipping address
+        await checkoutSessionService.SaveAddressesAsync(
+            basket.Id,
+            shippingAddress,
+            shippingAddress,
+            true,
+            cancellationToken);
+
+        result.ResultObject = new InitializeCheckoutResult
+        {
+            Basket = basket,
+            GroupingResult = groupingResult,
+            AutoSelectedShippingOptions = autoSelectedOptions,
+            CombinedShippingTotal = combinedShippingTotal,
+            ShippingAutoSelected = parameters.AutoSelectCheapestShipping && autoSelectedOptions.Count > 0
+        };
+
+        return result;
+    }
+
     private static string FormatPrice(decimal price, string currencySymbol)
     {
         return $"{currencySymbol}{price:N2}";

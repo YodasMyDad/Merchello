@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
@@ -676,6 +677,55 @@ public class CheckoutPaymentsApiController(
 
             // Get the updated session
             var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+
+            // Auto-select shipping for express checkout (shipping selections are cleared when addresses change)
+            var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, session, cancellationToken);
+
+            if (!groupingResult.Success || groupingResult.Groups.Count == 0)
+            {
+                logger.LogWarning(
+                    "Express checkout: Unable to calculate shipping options for basket {BasketId}",
+                    basket.Id);
+
+                return BadRequest(new ExpressCheckoutResponseDto
+                {
+                    Success = false,
+                    ErrorMessage = "Unable to calculate shipping for your address. Please try a different address or use standard checkout."
+                });
+            }
+
+            // Auto-select cheapest shipping option for each group
+            var autoSelectedShipping = ShippingAutoSelector.SelectOptions(
+                groupingResult.Groups,
+                ShippingAutoSelectStrategy.Cheapest);
+
+            if (autoSelectedShipping.Count == 0)
+            {
+                logger.LogWarning(
+                    "Express checkout: No shipping options available for basket {BasketId}",
+                    basket.Id);
+
+                return BadRequest(new ExpressCheckoutResponseDto
+                {
+                    Success = false,
+                    ErrorMessage = "No shipping methods available for your location."
+                });
+            }
+
+            // Save shipping selections to session
+            await checkoutSessionService.SaveShippingSelectionsAsync(
+                basket.Id,
+                autoSelectedShipping,
+                null,
+                cancellationToken);
+
+            // Refresh session with shipping selections
+            session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+
+            logger.LogInformation(
+                "Express checkout: Auto-selected shipping for {GroupCount} groups, combined total: {Total}",
+                autoSelectedShipping.Count,
+                ShippingAutoSelector.CalculateCombinedTotal(groupingResult.Groups, autoSelectedShipping));
 
             // Create invoice from basket with the populated session
             var invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, cancellationToken);

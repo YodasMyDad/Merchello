@@ -154,3 +154,122 @@
 .checkout-input-error {
   @apply border-error focus:ring-error focus:border-error;
 }
+
+/* ============================================
+ * Single-Page Checkout Styles
+ * ============================================ */
+
+/* Compact mode - smaller inputs and tighter spacing for single-page checkout */
+@layer components {
+  .checkout-input-compact {
+    @apply w-full px-3 py-2 text-sm border border-gray-300 rounded-lg
+           focus:ring-2 focus:ring-accent focus:border-accent
+           focus-visible:outline-none
+           transition-colors;
+  }
+
+  .checkout-label-compact {
+    @apply block text-xs font-medium text-gray-700 mb-0.5;
+  }
+
+  /* Section styling for single-page checkout */
+  .checkout-section {
+    @apply border-b border-gray-200 pb-6 mb-6;
+  }
+
+  .checkout-section:last-child {
+    @apply border-b-0 mb-0;
+  }
+
+  .checkout-section-header {
+    @apply text-lg font-semibold text-gray-900 mb-4;
+  }
+
+  /* Collapsible section for billing address */
+  .checkout-collapsible {
+    @apply overflow-hidden transition-all duration-300;
+  }
+
+  /* Order summary card - sticky on desktop */
+  .checkout-summary-card {
+    @apply bg-gray-50 rounded-lg border border-gray-200 p-6;
+  }
+
+  @screen lg {
+    .checkout-summary-sticky {
+      @apply sticky top-4;
+    }
+  }
+
+  /* Shipping option card - compact version */
+  .checkout-shipping-option {
+    @apply flex items-start gap-3 p-3 border border-gray-200 rounded-lg
+           cursor-pointer hover:border-accent transition-colors;
+  }
+
+  .checkout-shipping-option-selected {
+    @apply border-accent bg-accent/5 ring-1 ring-accent;
+  }
+
+  .checkout-shipping-option-disabled {
+    @apply opacity-50 cursor-not-allowed hover:border-gray-200;
+  }
+
+  /* Loading overlay for async operations */
+  .checkout-loading-overlay {
+    @apply absolute inset-0 bg-white/80 flex items-center justify-center z-10;
+  }
+
+  /* Success indicator */
+  .checkout-success-indicator {
+    @apply inline-flex items-center gap-1 text-green-600 text-sm;
+  }
+
+  /* Mobile order summary toggle */
+  .checkout-mobile-summary-toggle {
+    @apply flex items-center justify-between w-full p-4 bg-gray-50
+           border border-gray-200 rounded-lg text-left;
+  }
+
+  /* Price display */
+  .checkout-price {
+    @apply font-medium text-gray-900;
+  }
+
+  .checkout-price-strikethrough {
+    @apply text-gray-400 line-through text-sm;
+  }
+
+  .checkout-price-discount {
+    @apply text-green-600 font-medium;
+  }
+}
+
+/* Animations for single-page checkout */
+@keyframes checkout-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes checkout-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.checkout-animate-slide-down {
+  animation: checkout-slide-down 0.3s ease-out;
+}
+
+.checkout-animate-fade-in {
+  animation: checkout-fade-in 0.2s ease-out;
+}
