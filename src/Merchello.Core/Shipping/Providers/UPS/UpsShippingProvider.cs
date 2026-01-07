@@ -30,7 +30,7 @@ public class UpsShippingProvider(
     {
         Key = "ups",
         DisplayName = "UPS",
-        Icon = "icon-truck",
+        Icon = Constants.ShippingProviders.Icons.Truck,
         Description = "Real-time UPS shipping rates via UPS REST API",
         SupportsRealTimeRates = true,
         SupportsTracking = true,
@@ -129,7 +129,7 @@ public class UpsShippingProvider(
         [
             new ShippingProviderConfigurationField
             {
-                Key = "clientId",
+                Key = Constants.ShippingProviders.ConfigKeys.ClientId,
                 Label = "Client ID",
                 Description = "Your UPS API Client ID from the Developer Portal",
                 FieldType = ConfigurationFieldType.Text,
@@ -138,7 +138,7 @@ public class UpsShippingProvider(
             },
             new ShippingProviderConfigurationField
             {
-                Key = "clientSecret",
+                Key = Constants.ShippingProviders.ConfigKeys.ClientSecret,
                 Label = "Client Secret",
                 Description = "Your UPS API Client Secret from the Developer Portal",
                 FieldType = ConfigurationFieldType.Password,
@@ -147,7 +147,7 @@ public class UpsShippingProvider(
             },
             new ShippingProviderConfigurationField
             {
-                Key = "accountNumber",
+                Key = Constants.ShippingProviders.ConfigKeys.AccountNumber,
                 Label = "Account Number",
                 Description = "Your UPS Account/Shipper Number (6 digits)",
                 FieldType = ConfigurationFieldType.Text,
@@ -156,21 +156,21 @@ public class UpsShippingProvider(
             },
             new ShippingProviderConfigurationField
             {
-                Key = "environment",
+                Key = Constants.ShippingProviders.ConfigKeys.Environment,
                 Label = "Environment",
                 Description = "Use Sandbox for testing, Production for live rates",
                 FieldType = ConfigurationFieldType.Select,
                 IsRequired = true,
-                DefaultValue = "sandbox",
+                DefaultValue = Constants.ShippingProviders.Environments.Sandbox,
                 Options =
                 [
-                    new SelectOption { Value = "sandbox", Label = "Sandbox (Testing)" },
-                    new SelectOption { Value = "production", Label = "Production (Live)" }
+                    new SelectOption { Value = Constants.ShippingProviders.Environments.Sandbox, Label = "Sandbox (Testing)" },
+                    new SelectOption { Value = Constants.ShippingProviders.Environments.Production, Label = "Production (Live)" }
                 ]
             },
             new ShippingProviderConfigurationField
             {
-                Key = "useNegotiatedRates",
+                Key = Constants.ShippingProviders.ConfigKeys.UseNegotiatedRates,
                 Label = "Use Negotiated Rates",
                 Description = "Enable to use your negotiated/contract rates (requires valid account)",
                 FieldType = ConfigurationFieldType.Checkbox,
@@ -192,7 +192,7 @@ public class UpsShippingProvider(
         [
             new ShippingProviderConfigurationField
             {
-                Key = "name",
+                Key = Constants.ShippingProviders.ConfigKeys.Name,
                 Label = "Method Name",
                 Description = "Display name shown to customers (optional, defaults to service type name)",
                 FieldType = ConfigurationFieldType.Text,
@@ -201,7 +201,7 @@ public class UpsShippingProvider(
             },
             new ShippingProviderConfigurationField
             {
-                Key = "markup",
+                Key = Constants.ShippingProviders.ConfigKeys.Markup,
                 Label = "Markup %",
                 Description = "Percentage to add to UPS rates (e.g., 10 for 10%)",
                 FieldType = ConfigurationFieldType.Percentage,
@@ -234,11 +234,11 @@ public class UpsShippingProvider(
                 return;
             }
 
-            var clientId = settings.GetValueOrDefault("clientId");
-            var clientSecret = settings.GetValueOrDefault("clientSecret");
-            var accountNumber = settings.GetValueOrDefault("accountNumber");
-            var environment = settings.GetValueOrDefault("environment") ?? "sandbox";
-            var useNegotiatedRates = settings.GetValueOrDefault("useNegotiatedRates")?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
+            var clientId = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.ClientId);
+            var clientSecret = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.ClientSecret);
+            var accountNumber = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.AccountNumber);
+            var environment = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.Environment) ?? Constants.ShippingProviders.Environments.Sandbox;
+            var useNegotiatedRates = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.UseNegotiatedRates)?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
 
             if (string.IsNullOrEmpty(clientId) ||
                 string.IsNullOrEmpty(clientSecret) ||
@@ -247,7 +247,7 @@ public class UpsShippingProvider(
                 return;
             }
 
-            var useSandbox = environment.Equals("sandbox", StringComparison.OrdinalIgnoreCase);
+            var useSandbox = environment.Equals(Constants.ShippingProviders.Environments.Sandbox, StringComparison.OrdinalIgnoreCase);
 
             // Create API client
             _apiClient = new UpsApiClient(

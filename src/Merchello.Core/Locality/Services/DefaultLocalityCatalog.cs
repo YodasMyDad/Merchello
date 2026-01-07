@@ -7,20 +7,20 @@ using System.Threading.Tasks;
 using Merchello.Core.Locality.Data;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Locality.Services.Interfaces;
-using Merchello.Core.Shared.Models;
-using Merchello.Core.Caching.Models;
 using Merchello.Core.Caching.Services.Interfaces;
-using Microsoft.Extensions.Options;
 
 namespace Merchello.Core.Locality.Services;
 
 public class DefaultLocalityCatalog(
-    IOptions<CacheOptions> cacheOptions,
     ICacheService cacheService)
     : ILocalityCatalog
 {
     private readonly Lazy<IReadOnlyDictionary<string, string>> _countries = new(BuildCountryMap, isThreadSafe: true);
-    private readonly CacheOptions _cacheOptions = cacheOptions.Value;
+
+    /// <summary>
+    /// Cache TTL for locality data. Long TTL since countries/regions rarely change.
+    /// </summary>
+    private static readonly TimeSpan LocalityTtl = TimeSpan.FromHours(24);
 
     public Task<IReadOnlyCollection<CountryInfo>> GetCountriesAsync(CancellationToken ct = default)
     {
@@ -53,9 +53,8 @@ public class DefaultLocalityCatalog(
         }
 
         var cc = countryCode.ToUpperInvariant();
-        var key = $"locality:regions:{cc}";
-        var ttl = TimeSpan.FromSeconds(_cacheOptions.LocalityRegionsTtlSeconds);
-        var tags = new[] { CacheTags.LocalityRegions, CacheTags.LocalityRegionsCountry(cc) };
+        var key = $"{Constants.CacheKeys.LocalityRegionsPrefix}{cc}";
+        var tags = new[] { Constants.CacheTags.Locality };
         var list = await cacheService.GetOrCreateAsync(key, cancel =>
         {
             var map = GetRegionMapFor(cc);
@@ -69,7 +68,7 @@ public class DefaultLocalityCatalog(
                 .ToList()
                 .AsReadOnly();
             return Task.FromResult<IReadOnlyCollection<SubdivisionInfo>>(items);
-        }, ttl, tags, ct);
+        }, LocalityTtl, tags, ct);
 
         return list;
     }

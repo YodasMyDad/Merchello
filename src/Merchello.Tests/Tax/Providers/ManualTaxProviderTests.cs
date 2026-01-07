@@ -1,5 +1,6 @@
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Tax.Providers.BuiltIn;
 using Merchello.Core.Tax.Providers.Models;
 using Moq;
@@ -14,11 +15,17 @@ namespace Merchello.Tests.Tax.Providers;
 public class ManualTaxProviderTests
 {
     private readonly Mock<ITaxService> _taxServiceMock = new();
+    private readonly Mock<ICurrencyService> _currencyServiceMock = new();
     private readonly ManualTaxProvider _provider;
 
     public ManualTaxProviderTests()
     {
-        _provider = new ManualTaxProvider(_taxServiceMock.Object);
+        // Setup currency service to round to 2 decimal places by default
+        _currencyServiceMock
+            .Setup(x => x.Round(It.IsAny<decimal>(), It.IsAny<string>()))
+            .Returns((decimal value, string _) => Math.Round(value, 2, MidpointRounding.AwayFromZero));
+
+        _provider = new ManualTaxProvider(_taxServiceMock.Object, _currencyServiceMock.Object);
     }
 
     [Fact]

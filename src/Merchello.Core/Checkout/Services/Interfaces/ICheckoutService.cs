@@ -1,6 +1,7 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Notifications;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Discounts.Models;
@@ -101,6 +102,18 @@ public interface ICheckoutService
     /// <param name="customerId">Optional customer ID for logged-in users</param>
     /// <returns>A new basket instance</returns>
     Basket CreateBasket(string? currency = null, string? currencySymbol = null, Guid? customerId = null);
+
+    /// <summary>
+    /// Converts all line item amounts in the basket to a new currency using exchange rates.
+    /// Fires <see cref="Notifications.BasketCurrencyChangingNotification"/> before conversion (cancellable)
+    /// and <see cref="Notifications.BasketCurrencyChangedNotification"/> after conversion.
+    /// </summary>
+    /// <param name="parameters">Parameters for the currency conversion.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result with updated basket or error if exchange rate unavailable or operation cancelled.</returns>
+    Task<CrudResult<Basket>> ConvertBasketCurrencyAsync(
+        ConvertBasketCurrencyParameters parameters,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates a line item for a product

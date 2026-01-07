@@ -2,7 +2,7 @@
 
 Guide for third-party developers creating custom payment providers.
 
-> **Note:** Merchello includes built-in providers for Manual Payment and Stripe. The examples in this guide use Stripe/Braintree patterns to demonstrate how to build similar integrations for other gateways (PayPal, Square, Adyen, etc.).
+> **Note:** Merchello includes built-in providers for Purchase Order, Stripe, PayPal, and Braintree. The examples in this guide demonstrate how to build similar integrations for other gateways (Square, Adyen, etc.).
 
 ## Quick Start
 
@@ -380,17 +380,17 @@ public class BraintreePaymentProvider : PaymentProviderBase
 
 ---
 
-## Example 3: Manual Payment (DirectForm)
+## Example 3: Purchase Order (DirectForm)
 
 ```csharp
-public class ManualPaymentProvider : PaymentProviderBase
+public class ManualPaymentProvider(IInvoiceService invoiceService) : PaymentProviderBase
 {
     public override PaymentProviderMetadata Metadata => new()
     {
         Alias = "manual",
-        DisplayName = "Manual Payment",
-        Icon = "icon-wallet",
-        Description = "Record offline payments",
+        DisplayName = "Purchase Order",
+        Icon = "icon-document",
+        Description = "Pay using a purchase order number",
         SupportsRefunds = true,
         SupportsPartialRefunds = true,
         RequiresWebhook = false
@@ -400,14 +400,15 @@ public class ManualPaymentProvider : PaymentProviderBase
     [
         new PaymentMethodDefinition
         {
-            Alias = "manual",
-            DisplayName = "Manual Payment",
-            Icon = "icon-wallet",
-            Description = "Record cash, check, or bank transfer payments",
+            Alias = "purchaseorder",
+            DisplayName = "Purchase Order",
+            Icon = "icon-document",
+            Description = "Enter your purchase order number to complete the order",
             MethodType = PaymentMethodType.Manual,
             IntegrationType = PaymentIntegrationType.DirectForm,
             IsExpressCheckout = false,
-            DefaultSortOrder = 100
+            DefaultSortOrder = 50,
+            ShowInCheckoutByDefault = true
         }
     ];
 
@@ -419,29 +420,33 @@ public class ManualPaymentProvider : PaymentProviderBase
             [
                 new()
                 {
-                    Key = "paymentMethod",
-                    Label = "Payment Method",
-                    FieldType = CheckoutFieldType.Select,
+                    Key = "purchaseOrderNumber",
+                    Label = "Purchase Order Number",
+                    Description = "Enter your company's purchase order number",
+                    FieldType = CheckoutFieldType.Text,
                     IsRequired = true,
-                    Options =
-                    [
-                        new SelectOption { Value = "cash", Label = "Cash" },
-                        new SelectOption { Value = "check", Label = "Check" },
-                        new SelectOption { Value = "bank_transfer", Label = "Bank Transfer" }
-                    ]
-                },
-                new() { Key = "reference", Label = "Reference Number", FieldType = CheckoutFieldType.Text },
-                new() { Key = "notes", Label = "Notes", FieldType = CheckoutFieldType.Textarea }
+                    Placeholder = "e.g., PO-12345",
+                    ValidationMessage = "Purchase order number is required"
+                }
             ],
             sessionId: Guid.NewGuid().ToString()));
     }
 
-    public override Task<PaymentResult> ProcessPaymentAsync(
+    public override async Task<PaymentResult> ProcessPaymentAsync(
         ProcessPaymentRequest request, CancellationToken ct = default)
     {
         var formData = request.FormData ?? [];
-        var transactionId = $"manual_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}";
-        return Task.FromResult(PaymentResult.Completed(transactionId, request.Amount ?? 0));
+        var poNumber = formData.GetValueOrDefault("purchaseOrderNumber", "").Trim();
+
+        // Validate PO number
+        if (string.IsNullOrWhiteSpace(poNumber))
+            return PaymentResult.Failed("Purchase order number is required.");
+
+        // Save PO to invoice
+        await invoiceService.UpdatePurchaseOrderAsync(request.InvoiceId, poNumber, ct);
+
+        var transactionId = $"po_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}";
+        return PaymentResult.Completed(transactionId, request.Amount ?? 0);
     }
 }
 ```

@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
+using Merchello.Core.Data;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Payments.Services;
 
@@ -10,12 +12,15 @@ namespace Merchello.Core.Payments.Services;
 /// Implementation of webhook security service providing rate limiting,
 /// idempotency tracking, and audit logging for payment webhooks.
 ///
+/// Deduplication uses the Payment table (WebhookEventId column) for reliable,
+/// distributed tracking that survives restarts.
+///
 /// Note: Timestamp/replay attack prevention is handled by each provider's
 /// ValidateWebhookAsync method, as signature validation inherently includes
 /// timestamp verification (e.g., Stripe's HMAC includes timestamp in signature).
 /// </summary>
 public class WebhookSecurityService(
-    IMemoryCache memoryCache,
+    IEFCoreScopeProvider<MerchelloDbContext> scopeProvider,
     IRateLimiter rateLimiter,
     ILogger<WebhookSecurityService> logger) : IWebhookSecurityService
 {
@@ -30,20 +35,16 @@ public class WebhookSecurityService(
     private static readonly TimeSpan RateLimitWindow = TimeSpan.FromMinutes(1);
 
     /// <summary>
-    /// Duration to remember processed webhook IDs (24 hours).
-    /// </summary>
-    private static readonly TimeSpan ProcessedWebhookTtl = TimeSpan.FromHours(24);
-
-    /// <summary>
-    /// Concurrent set for webhook processing markers - provides atomic TryAdd.
-    /// Used to prevent duplicate processing of webhooks with the same event ID.
-    /// </summary>
-    private static readonly ConcurrentDictionary<string, DateTime> _processingMarkers = new();
-
-    /// <summary>
     /// Duration to hold processing marker (5 minutes max for webhook processing).
     /// </summary>
     private static readonly TimeSpan ProcessingMarkerTtl = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Concurrent set for webhook processing markers - provides atomic TryAdd.
+    /// Used to prevent duplicate processing of webhooks with the same event ID
+    /// while processing is in-flight (before the Payment record is created).
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, DateTime> _processingMarkers = new();
 
     /// <inheritdoc />
     public bool IsRateLimited(string providerAlias, string? remoteIpAddress)
@@ -94,17 +95,28 @@ public class WebhookSecurityService(
     }
 
     /// <inheritdoc />
-    public bool HasBeenProcessed(string providerAlias, string webhookEventId)
+    /// <remarks>
+    /// Checks if a Payment with this WebhookEventId exists in the database.
+    /// This provides reliable, distributed deduplication that survives restarts.
+    /// </remarks>
+    public async Task<bool> HasBeenProcessedAsync(string providerAlias, string webhookEventId, CancellationToken ct = default)
     {
-        var cacheKey = $"webhook_processed_{providerAlias}_{webhookEventId}";
-        return memoryCache.TryGetValue(cacheKey, out _);
+        using var scope = scopeProvider.CreateScope();
+        var exists = await scope.ExecuteWithContextAsync(async db =>
+            await db.Payments.AnyAsync(p => p.WebhookEventId == webhookEventId, ct));
+        scope.Complete();
+        return exists;
     }
 
     /// <inheritdoc />
-    public bool TryMarkAsProcessing(string providerAlias, string webhookEventId)
+    /// <remarks>
+    /// Uses in-memory markers for in-flight request coordination.
+    /// The permanent record is the Payment.WebhookEventId column.
+    /// </remarks>
+    public async Task<bool> TryMarkAsProcessingAsync(string providerAlias, string webhookEventId, CancellationToken ct = default)
     {
-        // First check if already permanently processed
-        if (HasBeenProcessed(providerAlias, webhookEventId))
+        // First check if already permanently processed in database
+        if (await HasBeenProcessedAsync(providerAlias, webhookEventId, ct))
         {
             logger.LogInformation(
                 "Webhook {EventId} for provider {Provider} has already been processed",
@@ -143,12 +155,14 @@ public class WebhookSecurityService(
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The Payment record with WebhookEventId serves as the permanent "processed" marker.
+    /// This method clears the in-flight processing marker.
+    /// </remarks>
     public void MarkAsProcessed(string providerAlias, string webhookEventId)
     {
-        var cacheKey = $"webhook_processed_{providerAlias}_{webhookEventId}";
-        memoryCache.Set(cacheKey, true, ProcessedWebhookTtl);
-
-        // Clear the processing marker since we're done
+        // The Payment.WebhookEventId column is the permanent record.
+        // Just clear the in-flight processing marker.
         ClearProcessingMarker(providerAlias, webhookEventId);
     }
 

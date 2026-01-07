@@ -5,32 +5,6 @@ namespace Merchello.Core.Shared.Extensions;
 public static class TaxExtensions
 {
     /// <summary>
-    /// Returns the amount to add/remove from a figure from a %
-    /// </summary>
-    /// <param name="amount">Amount to tax</param>
-    /// <param name="taxRate">The tax rate</param>
-    /// <param name="rounding">Type of rounding (defaults to AwayFromZero for commerce)</param>
-    /// <param name="round">Round the result</param>
-    /// <returns></returns>
-    /// <remarks>Uses hardcoded 2 decimal places. For multi-currency support, use the overload with ICurrencyService.</remarks>
-    public static decimal PercentageAmount(this decimal amount, decimal taxRate, MidpointRounding rounding = MidpointRounding.AwayFromZero, bool round = true)
-    {
-        if (taxRate <= 0)
-        {
-            return amount;
-        }
-
-        var calculatedAmount = (amount / 100) * taxRate;
-
-        if (!round)
-        {
-            return calculatedAmount;
-        }
-
-        return Math.Round(calculatedAmount, 2, rounding);
-    }
-
-    /// <summary>
     /// Returns the amount to add/remove from a figure from a % with currency-aware rounding.
     /// </summary>
     /// <param name="amount">Amount to tax</param>

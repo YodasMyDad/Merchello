@@ -278,7 +278,6 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       if (!this.#isConnected) return;
       this._errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
       this.#notificationContext?.peek("danger", { data: { headline: "Error", message: this._errorMessage } });
-      console.error("Variant save failed:", error);
     } finally {
       this._isSaving = false;
     }

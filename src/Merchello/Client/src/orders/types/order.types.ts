@@ -156,6 +156,14 @@ export interface OrderListItemDto {
   itemCount: number;
   deliveryStatus: string;
   deliveryMethod: string;
+  /** Due date for payment (null = due immediately) */
+  dueDate?: string | null;
+  /** Whether this invoice is overdue (calculated from DueDate) */
+  isOverdue?: boolean;
+  /** Days until due (negative if overdue) */
+  daysUntilDue?: number | null;
+  /** Outstanding balance due on this invoice */
+  balanceDue?: number;
 }
 
 export interface OrderDetailDto {
@@ -308,6 +316,14 @@ export interface OrderStatsDto {
   itemsOrderedToday: number;
   ordersFulfilledToday: number;
   ordersDeliveredToday: number;
+  /** Total outstanding value across all unpaid invoices */
+  totalOutstandingValue: number;
+  /** Number of outstanding (unpaid) invoices */
+  outstandingInvoiceCount: number;
+  /** Number of overdue invoices */
+  overdueInvoiceCount: number;
+  /** Currency code for the outstanding values */
+  currencyCode: string;
 }
 
 export interface DashboardStatsDto {
@@ -788,6 +804,8 @@ export interface CreateDraftOrderResultDto {
 
 /** Result DTO for customer lookup, containing customer info and their past shipping addresses */
 export interface CustomerLookupResultDto {
+  /** Customer ID if this is a registered customer, null for guests */
+  customerId: string | null;
   /** Customer name from billing address */
   name: string;
   /** Customer email from billing address */
@@ -798,6 +816,10 @@ export interface CustomerLookupResultDto {
   billingAddress: AddressDto;
   /** De-duplicated list of past shipping addresses from this customer's orders */
   pastShippingAddresses: AddressDto[];
+  /** Whether the customer has account terms enabled */
+  hasAccountTerms: boolean;
+  /** Optional credit limit for account customers */
+  creditLimit: number | null;
 }
 
 // ============================================

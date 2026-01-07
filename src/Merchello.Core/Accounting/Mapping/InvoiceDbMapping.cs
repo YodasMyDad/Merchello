@@ -92,6 +92,10 @@ public class InvoiceDbMapping : IEntityTypeConfiguration<Invoice>
         builder.Property(x => x.CancellationReason).HasMaxLength(1000);
         builder.Property(x => x.CancelledBy).HasMaxLength(200);
 
+        // Payment due date for account customers
+        builder.Property(x => x.DueDate).IsRequired(false);
+        builder.HasIndex(x => x.DueDate).HasFilter("[DueDate] IS NOT NULL");
+
         // Indexes for efficient filtering
         builder.HasIndex(x => x.IsDeleted);
         builder.HasIndex(x => x.IsCancelled);
@@ -99,5 +103,8 @@ public class InvoiceDbMapping : IEntityTypeConfiguration<Invoice>
         builder.HasIndex(x => x.DateCreated);
         builder.HasIndex(x => x.CustomerId);
         builder.HasIndex(x => x.Channel);
+
+        // Composite index for time-series analytics queries
+        builder.HasIndex(x => new { x.IsDeleted, x.DateCreated });
     }
 }

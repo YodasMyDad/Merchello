@@ -1,6 +1,7 @@
 using Braintree;
 using Braintree.Exceptions;
 using Merchello.Core.Payments.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Merchello.Core.Payments.Providers.Braintree;
 
@@ -18,7 +19,7 @@ namespace Merchello.Core.Payments.Providers.Braintree;
 /// Webhook endpoint: /umbraco/merchello/webhooks/payments/braintree
 /// Required webhook events: TransactionSettled, TransactionSettlementDeclined, DisputeOpened
 /// </remarks>
-public class BraintreePaymentProvider : PaymentProviderBase
+public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) : PaymentProviderBase
 {
     private BraintreeGateway? _gateway;
     private string? _merchantId;
@@ -760,9 +761,10 @@ public class BraintreePaymentProvider : PaymentProviderBase
                 IsAvailable = true
             };
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // If token generation fails, express checkout is not available
+            logger.LogWarning(ex, "Failed to generate Braintree client token for express checkout method {MethodAlias}", methodAlias);
             return null;
         }
     }
@@ -989,10 +991,12 @@ public class BraintreePaymentProvider : PaymentProviderBase
         }
         catch (InvalidSignatureException)
         {
+            // Invalid signature is an expected case - return false without logging
             return Task.FromResult(false);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger.LogWarning(ex, "Unexpected error validating Braintree webhook signature");
             return Task.FromResult(false);
         }
     }

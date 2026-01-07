@@ -84,7 +84,7 @@ export class MerchelloOrdersWorkspaceContext
     this.#orderId = unique;
     const { data, error } = await MerchelloApi.getOrder(unique);
     if (error) {
-      console.error("Failed to load order:", error);
+      // Error already handled by API response - silently skip
       return;
     }
     this.#order.setValue(data);

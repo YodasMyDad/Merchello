@@ -21,11 +21,10 @@ public class ExchangeRateCache(
     IOptions<ExchangeRateOptions> exchangeRateOptions,
     ILogger<ExchangeRateCache> logger) : IExchangeRateCache
 {
-    private const string CacheTag = "merchello-exchange-rates";
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
     private readonly ExchangeRateOptions _options = exchangeRateOptions.Value;
 
-    private string CacheKey => $"merchello:exchange-rates:{_settings.StoreCurrencyCode.ToUpperInvariant()}";
+    private string CacheKey => $"{Constants.CacheKeys.ExchangeRatesPrefix}{_settings.StoreCurrencyCode.ToUpperInvariant()}";
 
     public async Task<decimal?> GetRateAsync(
         string fromCurrency,
@@ -84,7 +83,7 @@ public class ExchangeRateCache(
                        ?? new ExchangeRateSnapshot("none", _settings.StoreCurrencyCode.ToUpperInvariant(), new(), DateTime.UtcNow);
             },
             ttl,
-            tags: [CacheTag],
+            tags: [Constants.CacheTags.ExchangeRates],
             cancellationToken: cancellationToken);
     }
 
@@ -130,7 +129,7 @@ public class ExchangeRateCache(
     }
 
     public Task InvalidateAsync(CancellationToken cancellationToken = default)
-        => cache.RemoveByTagAsync(CacheTag, cancellationToken);
+        => cache.RemoveByTagAsync(Constants.CacheTags.ExchangeRates, cancellationToken);
 
     private static decimal? CalculateCrossRate(ExchangeRateSnapshot snapshot, string fromCurrency, string toCurrency)
     {

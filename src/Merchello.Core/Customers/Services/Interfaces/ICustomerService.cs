@@ -56,9 +56,14 @@ public interface ICustomerService
     /// </summary>
     /// <param name="email">Customer's email address</param>
     /// <param name="billingAddress">Optional billing address to extract name for new customers</param>
+    /// <param name="acceptsMarketing">Whether the customer accepts marketing communications. For new customers, sets the value directly. For existing customers, only upgrades from false to true (never downgrades).</param>
     /// <param name="ct">Cancellation token</param>
     /// <returns>Existing or newly created Customer</returns>
-    Task<Customer> GetOrCreateByEmailAsync(string email, Address? billingAddress = null, CancellationToken ct = default);
+    Task<Customer> GetOrCreateByEmailAsync(
+        string email,
+        Address? billingAddress = null,
+        bool acceptsMarketing = false,
+        CancellationToken ct = default);
 
     // =====================================================
     // Search & Query

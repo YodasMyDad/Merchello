@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Dtos;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Accounting.Handlers.Interfaces;
@@ -54,7 +55,6 @@ public class InvoiceService(
     IInventoryService inventoryService,
     IOrderStatusHandler statusHandler,
     IPaymentService paymentService,
-    IProductService productService,
     ICustomerService customerService,
     Lazy<ICheckoutService> checkoutService,
     IOrderGroupingStrategyResolver strategyResolver,
@@ -67,7 +67,6 @@ public class InvoiceService(
     ITaxProviderManager taxProviderManager,
     InvoiceFactory invoiceFactory,
     OrderFactory orderFactory,
-    ShipmentFactory shipmentFactory,
     LineItemFactory lineItemFactory,
     IOptions<MerchelloSettings> settings,
     ILogger<InvoiceService> logger) : IInvoiceService
@@ -90,6 +89,7 @@ public class InvoiceService(
         var customer = await customerService.GetOrCreateByEmailAsync(
             billingEmail,
             checkoutSession.BillingAddress,
+            checkoutSession.AcceptsMarketing,
             cancellationToken);
 
         // Set customer on basket for discount eligibility
@@ -524,204 +524,6 @@ public class InvoiceService(
         return 0;
     }
 
-    public async Task<List<Shipment>> CreateShipmentsFromOrderAsync(
-        CreateShipmentsParameters parameters,
-        CancellationToken cancellationToken = default)
-    {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var shipments = await scope.ExecuteWithContextAsync(async db =>
-        {
-            // Load the order with its line items and shipments
-            // Note: Shipment.LineItems is a JSON column, loaded automatically with Shipment
-            var order = await db.Orders
-                .Include(o => o.LineItems)
-                .Include(o => o.Shipments)
-                .FirstOrDefaultAsync(o => o.Id == parameters.OrderId, cancellationToken);
-
-            if (order == null)
-            {
-                throw new InvalidOperationException($"Order {parameters.OrderId} not found");
-            }
-
-            // Validate order can be shipped
-            if (order.Status == OrderStatus.Cancelled)
-            {
-                throw new InvalidOperationException("Cannot create shipment for cancelled order");
-            }
-
-            if (order.Status == OrderStatus.Shipped || order.Status == OrderStatus.Completed)
-            {
-                throw new InvalidOperationException("Order has already been fully shipped");
-            }
-
-            // Load products separately for line items
-            var productIds = order.LineItems?
-                .Where(li => li.ProductId.HasValue)
-                .Select(li => li.ProductId!.Value)
-                .Distinct()
-                .ToList() ?? [];
-
-            var products = await db.Products
-                .Include(p => p.ShippingOptions)
-                .Where(p => productIds.Contains(p.Id))
-                .ToDictionaryAsync(p => p.Id, cancellationToken);
-
-            var lineItemsToShip = order.LineItems?.ToList() ?? [];
-
-            // Filter by specific line items if requested
-            if (parameters.LineItemsToShip?.Any() == true)
-            {
-                lineItemsToShip = lineItemsToShip
-                    .Where(li => parameters.LineItemsToShip.ContainsKey(li.Id))
-                    .ToList();
-            }
-
-            // Group by warehouse
-            Dictionary<Guid, List<LineItem>> warehouseGroups = [];
-
-            foreach (var lineItem in lineItemsToShip.Where(li => li.ProductId.HasValue))
-            {
-                if (!products.TryGetValue(lineItem.ProductId!.Value, out var product))
-                {
-                    logger.LogWarning("Product {ProductId} not found for line item {LineItemId}",
-                        lineItem.ProductId, lineItem.Id);
-                    continue;
-                }
-
-                if (product.ShippingOptions == null || !product.ShippingOptions.Any())
-                {
-                    logger.LogWarning("No shipping options found for product {ProductId} in line item {LineItemId}",
-                        lineItem.ProductId, lineItem.Id);
-                    continue;
-                }
-
-                // Determine warehouse - use first shipping option's warehouse
-                var warehouseId = product.ShippingOptions.First().WarehouseId;
-
-                // If specific warehouse requested, filter
-                if (parameters.WarehouseId.HasValue && warehouseId != parameters.WarehouseId.Value)
-                {
-                    continue;
-                }
-
-                if (!warehouseGroups.ContainsKey(warehouseId))
-                {
-                    warehouseGroups[warehouseId] = [];
-                }
-
-                // Adjust quantity if partial shipment
-                var quantityToShip = lineItem.Quantity;
-                if (parameters.LineItemsToShip?.ContainsKey(lineItem.Id) == true)
-                {
-                    quantityToShip = Math.Min(parameters.LineItemsToShip[lineItem.Id], lineItem.Quantity);
-                }
-
-                var shipmentLineItem = new LineItem
-                {
-                    ProductId = lineItem.ProductId,
-                    Name = lineItem.Name,
-                    Sku = lineItem.Sku,
-                    Quantity = quantityToShip,
-                    Amount = lineItem.Amount,
-                    OriginalAmount = lineItem.OriginalAmount,
-                    LineItemType = lineItem.LineItemType,
-                    IsTaxable = lineItem.IsTaxable,
-                    TaxRate = lineItem.TaxRate,
-                    DependantLineItemSku = lineItem.DependantLineItemSku,
-                    ExtendedData = lineItem.ExtendedData
-                };
-
-                warehouseGroups[warehouseId].Add(shipmentLineItem);
-            }
-
-            // Create shipments and allocate stock
-            List<Shipment> newShipments = [];
-
-            foreach (var (warehouseId, lineItems) in warehouseGroups)
-            {
-                var shipment = shipmentFactory.Create(
-                    order,
-                    warehouseId,
-                    parameters.ShippingAddress,
-                    lineItems,
-                    parameters.TrackingNumber,
-                    parameters.TrackingUrl,
-                    parameters.Carrier);
-
-                db.Shipments.Add(shipment);
-                newShipments.Add(shipment);
-
-                // Allocate stock for shipped items
-                foreach (var lineItem in lineItems.Where(li => li.ProductId.HasValue))
-                {
-                    var allocationResult = await inventoryService.AllocateStockAsync(
-                        lineItem.ProductId!.Value,
-                        warehouseId,
-                        lineItem.Quantity,
-                        cancellationToken);
-
-                    if (!allocationResult.ResultObject)
-                    {
-                        logger.LogWarning("Failed to allocate stock for line item {LineItemId} in order {OrderId}: {Error}",
-                            lineItem.Id, order.Id, allocationResult.Messages.FirstOrDefault()?.Message);
-                    }
-                }
-            }
-
-            // Update order status based on shipment completion (exclude discount line items)
-            var totalOrderQuantity = order.LineItems?
-                .Where(li => li.LineItemType != LineItemType.Discount)
-                .Sum(li => li.Quantity) ?? 0;
-            var previouslyShippedQuantity = order.Shipments?
-                .SelectMany(s => s.LineItems ?? [])
-                .Where(li => li.LineItemType != LineItemType.Discount)
-                .Sum(li => li.Quantity) ?? 0;
-            var nowShippedQuantity = newShipments
-                .SelectMany(s => s.LineItems ?? [])
-                .Where(li => li.LineItemType != LineItemType.Discount)
-                .Sum(li => li.Quantity);
-            var totalShippedQuantity = previouslyShippedQuantity + nowShippedQuantity;
-
-            OrderStatus newStatus;
-            if (totalShippedQuantity >= totalOrderQuantity)
-            {
-                // All items shipped
-                newStatus = OrderStatus.Shipped;
-            }
-            else if (previouslyShippedQuantity > 0 || nowShippedQuantity > 0)
-            {
-                // Some items shipped
-                newStatus = OrderStatus.PartiallyShipped;
-            }
-            else
-            {
-                newStatus = order.Status; // No change
-            }
-
-            if (newStatus != order.Status)
-            {
-                var canTransition = await statusHandler.CanTransitionAsync(order, newStatus, cancellationToken);
-                if (canTransition)
-                {
-                    var oldStatus = order.Status;
-                    await statusHandler.OnStatusChangingAsync(order, oldStatus, newStatus, cancellationToken);
-                    order.Status = newStatus;
-                    await statusHandler.OnStatusChangedAsync(order, oldStatus, newStatus, cancellationToken);
-                }
-            }
-
-            await db.SaveChangesAsync(cancellationToken);
-
-            logger.LogInformation("Created {ShipmentCount} shipments for order {OrderId}. Order status: {Status}",
-                newShipments.Count, order.Id, order.Status);
-
-            return newShipments;
-        });
-
-        scope.Complete();
-        return shipments;
-    }
-
     public async Task<CrudResult<bool>> UpdateOrderStatusAsync(
         Guid orderId,
         OrderStatus newStatus,
@@ -1076,6 +878,7 @@ public class InvoiceService(
                 .Include(o => o.Invoice)
                 .Include(o => o.LineItems)
                 .Include(o => o.Shipments)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken));
         scope.Complete();
         return result;
@@ -1339,200 +1142,6 @@ public class InvoiceService(
     }
 
     /// <inheritdoc />
-    public async Task<OrderStatsDto> GetOrderStatsAsync(CancellationToken cancellationToken = default)
-    {
-        var today = DateTime.UtcNow.Date;
-        var tomorrow = today.AddDays(1);
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        var stats = await scope.ExecuteWithContextAsync(async db =>
-        {
-            var todaysInvoices = await db.Invoices
-                .AsNoTracking()
-                .Include(i => i.Orders)!
-                    .ThenInclude(o => o.LineItems)
-                .Include(i => i.Orders)!
-                    .ThenInclude(o => o.Shipments)
-                .Where(i => !i.IsDeleted && i.DateCreated >= today && i.DateCreated < tomorrow)
-                .ToListAsync(cancellationToken);
-
-            var ordersToday = todaysInvoices.Count;
-
-            var itemsOrderedToday = todaysInvoices
-                .SelectMany(i => i.Orders ?? [])
-                .SelectMany(o => o.LineItems ?? [])
-                .Sum(li => li.Quantity);
-
-            var ordersFulfilledToday = todaysInvoices
-                .Where(i => i.Orders != null && i.Orders.Any() &&
-                            i.Orders.All(o => o.Status == OrderStatus.Shipped || o.Status == OrderStatus.Completed))
-                .Count();
-
-            var ordersDeliveredToday = todaysInvoices
-                .Where(i => i.Orders != null &&
-                            i.Orders.Any(o => o.Shipments != null &&
-                                              o.Shipments.Any(s => s.ActualDeliveryDate != null &&
-                                                                   s.ActualDeliveryDate.Value.Date == today)))
-                .Count();
-
-            return new OrderStatsDto
-            {
-                OrdersToday = ordersToday,
-                ItemsOrderedToday = itemsOrderedToday,
-                OrdersFulfilledToday = ordersFulfilledToday,
-                OrdersDeliveredToday = ordersDeliveredToday
-            };
-        });
-        scope.Complete();
-
-        return stats;
-    }
-
-    /// <inheritdoc />
-    public async Task<DashboardStatsDto> GetDashboardStatsAsync(CancellationToken cancellationToken = default)
-    {
-        var now = DateTime.UtcNow;
-        var thisMonthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-        var lastMonthStart = thisMonthStart.AddMonths(-1);
-        var lastMonthEnd = thisMonthStart;
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        var stats = await scope.ExecuteWithContextAsync(async db =>
-        {
-            var thisMonthInvoices = await db.Invoices
-                .AsNoTracking()
-                .Where(i => !i.IsDeleted && i.DateCreated >= thisMonthStart)
-                .ToListAsync(cancellationToken);
-
-            var lastMonthInvoices = await db.Invoices
-                .AsNoTracking()
-                .Where(i => !i.IsDeleted && i.DateCreated >= lastMonthStart && i.DateCreated < lastMonthEnd)
-                .ToListAsync(cancellationToken);
-
-            // Orders stats
-            var ordersThisMonth = thisMonthInvoices.Count;
-            var ordersLastMonth = lastMonthInvoices.Count;
-            var ordersChangePercent = ordersLastMonth > 0
-                ? Math.Round(((decimal)(ordersThisMonth - ordersLastMonth) / ordersLastMonth) * 100, 1)
-                : (ordersThisMonth > 0 ? 100m : 0m);
-
-            // Revenue stats
-            var revenueThisMonth = thisMonthInvoices.Sum(i => i.TotalInStoreCurrency ?? i.Total);
-            var revenueLastMonth = lastMonthInvoices.Sum(i => i.TotalInStoreCurrency ?? i.Total);
-            var revenueChangePercent = revenueLastMonth > 0
-                ? Math.Round(((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100, 1)
-                : (revenueThisMonth > 0 ? 100m : 0m);
-
-            // Product count
-            var productCount = await db.RootProducts.CountAsync(cancellationToken);
-            var productCountChange = 0;
-
-            // Customer count (unique billing emails)
-            var allEmails = await db.Invoices
-                .AsNoTracking()
-                .Where(i => !i.IsDeleted && i.BillingAddress.Email != null)
-                .Select(i => i.BillingAddress.Email)
-                .Distinct()
-                .ToListAsync(cancellationToken);
-            var customerCount = allEmails.Count;
-
-            // New customers this month
-            var emailsBeforeThisMonth = await db.Invoices
-                .AsNoTracking()
-                .Where(i => !i.IsDeleted && i.DateCreated < thisMonthStart && i.BillingAddress.Email != null)
-                .Select(i => i.BillingAddress.Email)
-                .Distinct()
-                .ToListAsync(cancellationToken);
-            var emailsThisMonth = thisMonthInvoices
-                .Where(i => i.BillingAddress?.Email != null)
-                .Select(i => i.BillingAddress!.Email)
-                .Distinct()
-                .ToList();
-            var newCustomersThisMonth = emailsThisMonth.Count(e => !emailsBeforeThisMonth.Contains(e));
-
-            return new DashboardStatsDto
-            {
-                StoreCurrencyCode = _settings.StoreCurrencyCode,
-                StoreCurrencySymbol = currencyService.GetCurrency(_settings.StoreCurrencyCode).Symbol,
-                OrdersThisMonth = ordersThisMonth,
-                OrdersChangePercent = ordersChangePercent,
-                RevenueThisMonth = revenueThisMonth,
-                RevenueChangePercent = revenueChangePercent,
-                ProductCount = productCount,
-                ProductCountChange = productCountChange,
-                CustomerCount = customerCount,
-                CustomerCountChange = newCustomersThisMonth
-            };
-        });
-        scope.Complete();
-
-        return stats;
-    }
-
-    /// <inheritdoc />
-    public async Task<List<OrderExportItemDto>> GetOrdersForExportAsync(
-        DateTime fromDate,
-        DateTime toDate,
-        CancellationToken cancellationToken = default)
-    {
-        // Ensure toDate includes the entire day
-        var toDateEndOfDay = toDate.Date.AddDays(1).AddTicks(-1);
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        var exportItems = await scope.ExecuteWithContextAsync(async db =>
-        {
-            var invoices = await db.Invoices
-                .AsNoTracking()
-                .AsSplitQuery()
-                .Include(i => i.Orders)
-                .Include(i => i.Payments)
-                .Where(i => !i.IsDeleted
-                    && i.DateCreated >= fromDate.Date
-                    && i.DateCreated <= toDateEndOfDay)
-                .OrderBy(i => i.DateCreated)
-                .ToListAsync(cancellationToken);
-
-            List<OrderExportItemDto> result = [];
-
-            foreach (var invoice in invoices)
-            {
-                var payments = invoice.Payments?.ToList() ?? [];
-                var paymentDetails = paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
-                {
-                    Payments = payments,
-                    InvoiceTotal = invoice.Total,
-                    CurrencyCode = invoice.CurrencyCode
-                });
-                var shippingTotal = invoice.Orders?.Sum(o => o.ShippingCost) ?? 0;
-                var shippingTotalInStoreCurrency = invoice.Orders?.Sum(o => o.ShippingCostInStoreCurrency ?? o.ShippingCost) ?? 0;
-
-                result.Add(new OrderExportItemDto
-                {
-                    InvoiceNumber = invoice.InvoiceNumber,
-                    InvoiceDate = invoice.DateCreated,
-                    PaymentStatus = paymentDetails.StatusDisplay,
-                    BillingName = invoice.BillingAddress?.Name ?? string.Empty,
-                    SubTotal = invoice.SubTotal,
-                    Tax = invoice.Tax,
-                    Shipping = shippingTotal,
-                    Total = invoice.Total,
-                    CurrencyCode = invoice.CurrencyCode,
-                    StoreCurrencyCode = invoice.StoreCurrencyCode,
-                    SubTotalInStoreCurrency = invoice.SubTotalInStoreCurrency,
-                    TaxInStoreCurrency = invoice.TaxInStoreCurrency,
-                    ShippingInStoreCurrency = shippingTotalInStoreCurrency,
-                    TotalInStoreCurrency = invoice.TotalInStoreCurrency
-                });
-            }
-
-            return result;
-        });
-        scope.Complete();
-
-        return exportItems;
-    }
-
-    /// <inheritdoc />
     public async Task<CrudResult<InvoiceNote>> AddNoteAsync(
         AddInvoiceNoteParameters parameters,
         CancellationToken cancellationToken = default)
@@ -1680,445 +1289,6 @@ public class InvoiceService(
     }
 
     /// <inheritdoc />
-    public async Task<FulfillmentSummaryDto?> GetFulfillmentSummaryAsync(
-        Guid invoiceId,
-        CancellationToken cancellationToken = default)
-    {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var invoice = await scope.ExecuteWithContextAsync(async db =>
-        {
-            return await db.Invoices
-                .AsNoTracking()
-                .Include(i => i.Orders)!
-                    .ThenInclude(o => o.LineItems)
-                .Include(i => i.Orders)!
-                    .ThenInclude(o => o.Shipments)
-                .FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
-        });
-
-        if (invoice == null)
-        {
-            scope.Complete();
-            return null;
-        }
-
-        // Load warehouse names
-        var warehouseNames = await scope.ExecuteWithContextAsync(async db =>
-        {
-            var warehouseIds = invoice.Orders?.Select(o => o.WarehouseId).Distinct().ToList() ?? [];
-            return await db.Warehouses
-                .AsNoTracking()
-                .Where(w => warehouseIds.Contains(w.Id))
-                .ToDictionaryAsync(w => w.Id, w => w.Name ?? "Unknown Warehouse", cancellationToken);
-        });
-
-        // Load shipping option names
-        var shippingOptionNames = await scope.ExecuteWithContextAsync(async db =>
-        {
-            var shippingOptionIds = invoice.Orders?.Select(o => o.ShippingOptionId).Distinct().ToList() ?? [];
-            return await db.ShippingOptions
-                .AsNoTracking()
-                .Where(so => shippingOptionIds.Contains(so.Id))
-                .ToDictionaryAsync(so => so.Id, so => so.Name ?? "Unknown", cancellationToken);
-        });
-
-        // Load product images
-        var productIds = invoice.Orders?
-            .SelectMany(o => o.LineItems ?? [])
-            .Where(li => li.ProductId.HasValue)
-            .Select(li => li.ProductId!.Value)
-            .Distinct() ?? [];
-        var productImages = await productService.GetProductImagesAsync(productIds, cancellationToken);
-
-        scope.Complete();
-        return MapToFulfillmentSummary(invoice, warehouseNames, shippingOptionNames, productImages);
-    }
-
-    /// <inheritdoc />
-    public async Task<CrudResult<Shipment>> CreateShipmentAsync(
-        CreateShipmentParameters parameters,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<Shipment>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var order = await db.Orders
-                .Include(o => o.LineItems)
-                .Include(o => o.Shipments)
-                .Include(o => o.Invoice)
-                .FirstOrDefaultAsync(o => o.Id == parameters.OrderId, cancellationToken);
-
-            if (order == null)
-            {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Order not found",
-                    ResultMessageType = ResultMessageType.Error
-                });
-                return;
-            }
-
-            // Validate quantities
-            foreach (var (lineItemId, quantity) in parameters.LineItems)
-            {
-                var lineItem = order.LineItems?.FirstOrDefault(li => li.Id == lineItemId);
-                if (lineItem == null)
-                {
-                    result.Messages.Add(new ResultMessage
-                    {
-                        Message = $"Line item {lineItemId} not found in order",
-                        ResultMessageType = ResultMessageType.Error
-                    });
-                    return;
-                }
-
-                var alreadyShipped = order.Shipments?
-                    .SelectMany(s => s.LineItems ?? [])
-                    .Where(li => li.Id == lineItemId)
-                    .Sum(li => li.Quantity) ?? 0;
-
-                var remaining = lineItem.Quantity - alreadyShipped;
-                if (quantity > remaining)
-                {
-                    result.Messages.Add(new ResultMessage
-                    {
-                        Message = $"Cannot ship {quantity} of {lineItem.Name}. Only {remaining} remaining",
-                        ResultMessageType = ResultMessageType.Error
-                    });
-                    return;
-                }
-            }
-
-            // Create shipment line items (skip discount line items - they shouldn't be shipped)
-            List<LineItem> shipmentLineItems = [];
-            foreach (var (lineItemId, quantity) in parameters.LineItems)
-            {
-                var sourceLineItem = order.LineItems!.First(li => li.Id == lineItemId);
-
-                // Skip discount line items - they shouldn't be shipped
-                if (sourceLineItem.LineItemType == LineItemType.Discount)
-                    continue;
-
-                shipmentLineItems.Add(new LineItem
-                {
-                    Id = sourceLineItem.Id,
-                    Sku = sourceLineItem.Sku,
-                    Name = sourceLineItem.Name,
-                    Quantity = quantity,
-                    Amount = sourceLineItem.Amount,
-                    LineItemType = sourceLineItem.LineItemType,
-                });
-            }
-
-            // Create shipment
-            var shipment = shipmentFactory.Create(
-                order,
-                order.WarehouseId,
-                order.Invoice?.ShippingAddress ?? new Address(),
-                shipmentLineItems,
-                parameters.TrackingNumber,
-                parameters.TrackingUrl,
-                parameters.Carrier);
-
-            // Publish "Before" notification - handlers can modify shipment or cancel
-            var creatingNotification = new ShipmentCreatingNotification(shipment);
-            if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
-            {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = creatingNotification.CancelReason ?? "Shipment creation cancelled",
-                    ResultMessageType = ResultMessageType.Error
-                });
-                return;
-            }
-
-            db.Shipments.Add(shipment);
-
-            // Update order status (exclude discount line items from calculations)
-            var totalOrdered = order.LineItems?
-                .Where(li => li.LineItemType != LineItemType.Discount)
-                .Sum(li => li.Quantity) ?? 0;
-            var totalShipped = (order.Shipments?
-                .SelectMany(s => s.LineItems ?? [])
-                .Where(li => li.LineItemType != LineItemType.Discount)
-                .Sum(li => li.Quantity) ?? 0)
-                + shipmentLineItems.Sum(li => li.Quantity);
-
-            if (totalShipped >= totalOrdered)
-            {
-                order.Status = OrderStatus.Shipped;
-                order.ShippedDate = DateTime.UtcNow;
-            }
-            else if (totalShipped > 0)
-            {
-                order.Status = OrderStatus.PartiallyShipped;
-            }
-
-            order.DateUpdated = DateTime.UtcNow;
-
-            await db.SaveChangesAsync(cancellationToken);
-
-            // Publish "After" notification
-            await notificationPublisher.PublishAsync(new ShipmentCreatedNotification(shipment), cancellationToken);
-
-            // Publish aggregate notification
-            if (order.Invoice != null)
-            {
-                await notificationPublisher.PublishAsync(
-                    new InvoiceAggregateChangedNotification(order.Invoice, AggregateChangeType.Created, AggregateChangeSource.Shipment, shipment),
-                    cancellationToken);
-            }
-
-            result.ResultObject = shipment;
-        });
-        scope.Complete();
-
-        return result;
-    }
-
-    /// <inheritdoc />
-    public async Task<CrudResult<Shipment>> UpdateShipmentAsync(
-        UpdateShipmentParameters parameters,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<Shipment>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            // Load shipment with order and all sibling shipments for delivery status check
-            var shipment = await db.Shipments
-                .Include(s => s.Order)
-                    .ThenInclude(o => o!.Shipments)
-                .FirstOrDefaultAsync(s => s.Id == parameters.ShipmentId, cancellationToken);
-
-            if (shipment == null)
-            {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Shipment not found",
-                    ResultMessageType = ResultMessageType.Error
-                });
-                return;
-            }
-
-            if (parameters.Carrier != null) shipment.Carrier = parameters.Carrier;
-            if (parameters.TrackingNumber != null) shipment.TrackingNumber = parameters.TrackingNumber;
-            if (parameters.TrackingUrl != null) shipment.TrackingUrl = parameters.TrackingUrl;
-            if (parameters.ActualDeliveryDate != null) shipment.ActualDeliveryDate = parameters.ActualDeliveryDate;
-
-            await db.SaveChangesAsync(cancellationToken);
-
-            // Auto-complete/uncomplete order based on delivery status
-            var order = shipment.Order;
-            if (order != null && order.Shipments?.Any() == true)
-            {
-                var allDelivered = order.Shipments.All(s => s.ActualDeliveryDate.HasValue);
-
-                if (allDelivered && order.Status == OrderStatus.Shipped)
-                {
-                    // All shipments delivered - transition to Completed
-                    var oldStatus = order.Status;
-                    await statusHandler.OnStatusChangingAsync(order, oldStatus, OrderStatus.Completed, cancellationToken);
-                    order.Status = OrderStatus.Completed;
-                    await db.SaveChangesAsync(cancellationToken);
-                    await statusHandler.OnStatusChangedAsync(order, oldStatus, OrderStatus.Completed, cancellationToken);
-
-                    logger.LogInformation("Order {OrderId} auto-completed: all shipments delivered", order.Id);
-                }
-                else if (!allDelivered && order.Status == OrderStatus.Completed)
-                {
-                    // Delivery status changed - revert to Shipped
-                    var oldStatus = order.Status;
-                    await statusHandler.OnStatusChangingAsync(order, oldStatus, OrderStatus.Shipped, cancellationToken);
-                    order.Status = OrderStatus.Shipped;
-                    await db.SaveChangesAsync(cancellationToken);
-                    await statusHandler.OnStatusChangedAsync(order, oldStatus, OrderStatus.Shipped, cancellationToken);
-
-                    logger.LogInformation("Order {OrderId} reverted to Shipped: shipment delivery status changed", order.Id);
-                }
-            }
-
-            result.ResultObject = shipment;
-        });
-        scope.Complete();
-
-        return result;
-    }
-
-    /// <inheritdoc />
-    public async Task<bool> DeleteShipmentAsync(
-        Guid shipmentId,
-        CancellationToken cancellationToken = default)
-    {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var success = await scope.ExecuteWithContextAsync(async db =>
-        {
-            var shipment = await db.Shipments
-                .Include(s => s.Order)
-                    .ThenInclude(o => o.Shipments)
-                .Include(s => s.Order)
-                    .ThenInclude(o => o.LineItems)
-                .FirstOrDefaultAsync(s => s.Id == shipmentId, cancellationToken);
-
-            if (shipment == null)
-            {
-                return false;
-            }
-
-            var order = shipment.Order;
-            var wasCompleted = order.Status == OrderStatus.Completed;
-            db.Shipments.Remove(shipment);
-
-            // Recalculate order status (exclude discount line items)
-            var remainingShipments = order.Shipments?.Where(s => s.Id != shipmentId).ToList() ?? [];
-            var totalOrdered = order.LineItems?
-                .Where(li => li.LineItemType != LineItemType.Discount)
-                .Sum(li => li.Quantity) ?? 0;
-            var totalShipped = remainingShipments
-                .SelectMany(s => s.LineItems ?? [])
-                .Where(li => li.LineItemType != LineItemType.Discount)
-                .Sum(li => li.Quantity);
-
-            if (totalShipped >= totalOrdered)
-            {
-                order.Status = OrderStatus.Shipped;
-            }
-            else if (totalShipped > 0)
-            {
-                order.Status = OrderStatus.PartiallyShipped;
-            }
-            else
-            {
-                order.Status = OrderStatus.ReadyToFulfill;
-                order.ShippedDate = null;
-            }
-
-            // Clear CompletedDate if order was Completed and is now reverting
-            if (wasCompleted && order.Status != OrderStatus.Completed)
-            {
-                order.CompletedDate = null;
-            }
-
-            order.DateUpdated = DateTime.UtcNow;
-
-            await db.SaveChangesAsync(cancellationToken);
-            return true;
-        });
-        scope.Complete();
-
-        return success;
-    }
-
-    private static FulfillmentSummaryDto MapToFulfillmentSummary(Invoice invoice, Dictionary<Guid, string> warehouseNames, Dictionary<Guid, string> shippingOptionNames, Dictionary<Guid, string?> productImages)
-    {
-        var orders = invoice.Orders?.ToList() ?? [];
-
-        return new FulfillmentSummaryDto
-        {
-            InvoiceId = invoice.Id,
-            InvoiceNumber = invoice.InvoiceNumber,
-            OverallStatus = GetFulfillmentStatus(orders),
-            Orders = orders.Select(o => MapToOrderFulfillment(o, warehouseNames, shippingOptionNames, productImages)).ToList()
-        };
-    }
-
-    private static OrderFulfillmentDto MapToOrderFulfillment(Order order, Dictionary<Guid, string> warehouseNames, Dictionary<Guid, string> shippingOptionNames, Dictionary<Guid, string?> productImages)
-    {
-        var lineItems = order.LineItems?
-            .Where(li => li.LineItemType == LineItemType.Product)
-            .ToList() ?? [];
-        var shipments = order.Shipments?.ToList() ?? [];
-
-        // Calculate shipped quantities per line item
-        Dictionary<Guid, int> shippedQuantities = [];
-        foreach (var shipment in shipments)
-        {
-            foreach (var li in shipment.LineItems ?? [])
-            {
-                if (!shippedQuantities.ContainsKey(li.Id))
-                {
-                    shippedQuantities[li.Id] = 0;
-                }
-                shippedQuantities[li.Id] += li.Quantity;
-            }
-        }
-
-        var deliveryMethod = shippingOptionNames.TryGetValue(order.ShippingOptionId, out var shippingName)
-            ? shippingName
-            : "Unknown";
-
-        return new OrderFulfillmentDto
-        {
-            OrderId = order.Id,
-            WarehouseId = order.WarehouseId,
-            WarehouseName = warehouseNames.TryGetValue(order.WarehouseId, out var name) ? name : "Unknown Warehouse",
-            Status = order.Status,
-            DeliveryMethod = deliveryMethod,
-            LineItems = lineItems.Select(li => new FulfillmentLineItemDto
-            {
-                Id = li.Id,
-                Sku = li.Sku,
-                Name = li.Name,
-                OrderedQuantity = li.Quantity,
-                ShippedQuantity = shippedQuantities.TryGetValue(li.Id, out var shipped) ? shipped : 0,
-                ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null,
-                Amount = li.Amount
-            }).ToList(),
-            Shipments = shipments.Select(s => MapToShipmentDetail(s, productImages)).ToList()
-        };
-    }
-
-    private static ShipmentDetailDto MapToShipmentDetail(Shipment shipment, Dictionary<Guid, string?> productImages)
-    {
-        return new ShipmentDetailDto
-        {
-            Id = shipment.Id,
-            OrderId = shipment.OrderId,
-            Carrier = shipment.Carrier,
-            TrackingNumber = shipment.TrackingNumber,
-            TrackingUrl = shipment.TrackingUrl,
-            DateCreated = shipment.DateCreated,
-            ActualDeliveryDate = shipment.ActualDeliveryDate,
-            LineItems = shipment.LineItems?
-                .Where(li => li.LineItemType != LineItemType.Discount)
-                .Select(li => new ShipmentLineItemDto
-                {
-                    Id = Guid.NewGuid(),
-                    LineItemId = li.Id,
-                    Sku = li.Sku,
-                    Name = li.Name,
-                    Quantity = li.Quantity,
-                    ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null
-                }).ToList() ?? []
-        };
-    }
-
-    private static string GetFulfillmentStatus(List<Order> orders)
-    {
-        if (!orders.Any())
-            return "Unfulfilled";
-
-        var allShipped = orders.All(o => o.Status == OrderStatus.Shipped || o.Status == OrderStatus.Completed);
-        if (allShipped)
-            return "Fulfilled";
-
-        var anyShipped = orders.Any(o =>
-            o.Status == OrderStatus.Shipped ||
-            o.Status == OrderStatus.PartiallyShipped ||
-            o.Status == OrderStatus.Completed);
-
-        return anyShipped ? "Partial" : "Unfulfilled";
-    }
-
-    private static string GetFulfillmentStatusCssClass(List<Order> orders)
-    {
-        return GetFulfillmentStatus(orders).ToLowerInvariant();
-    }
-
-    /// <inheritdoc />
     public async Task<int> GetInvoiceCountByBillingEmailAsync(
         string email,
         CancellationToken cancellationToken = default)
@@ -2168,6 +1338,7 @@ public class InvoiceService(
                 .Include(i => i.Orders!)
                     .ThenInclude(o => o.LineItems)
                 .Include(i => i.Payments)
+                .AsSplitQuery()
                 .Where(i => !i.IsDeleted && i.BillingAddress.Email == email)
                 .OrderByDescending(i => i.DateCreated)
                 .ToListAsync(cancellationToken));
@@ -2211,6 +1382,7 @@ public class InvoiceService(
                 .Include(i => i.Orders)!
                 .ThenInclude(o => o.Shipments)
                 .AsNoTracking()
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(i => i.Id == invoiceId && !i.IsDeleted, cancellationToken);
 
             if (invoice == null)
@@ -2279,8 +1451,8 @@ public class InvoiceService(
             {
                 Id = invoice.Id,
                 InvoiceNumber = invoice.InvoiceNumber,
-                FulfillmentStatus = GetFulfillmentStatus(orders),
-                FulfillmentStatusCssClass = GetFulfillmentStatusCssClass(orders),
+                FulfillmentStatus = orders.GetFulfillmentStatus(),
+                FulfillmentStatusCssClass = orders.GetFulfillmentStatusCssClass(),
                 CanEdit = canEdit,
                 CannotEditReason = cannotEditReason,
                 CurrencySymbol = invoice.CurrencySymbol,
@@ -3577,7 +2749,7 @@ public class InvoiceService(
 
         // Get or create customer from billing email (outside scope to avoid nesting)
         var billingAddress = MapDtoToAddress(request.BillingAddress);
-        var customer = await customerService.GetOrCreateByEmailAsync(billingEmail, billingAddress, cancellationToken);
+        var customer = await customerService.GetOrCreateByEmailAsync(billingEmail, billingAddress, acceptsMarketing: false, cancellationToken);
 
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync<OperationResult<CreateDraftOrderResultDto>>(async db =>
@@ -3799,7 +2971,9 @@ public class InvoiceService(
                         .Where(a => !string.IsNullOrWhiteSpace(a.AddressOne))
                         .DistinctBy(NormalizeAddressKey)
                         .Select(MapAddressToDto)
-                        .ToList()
+                        .ToList(),
+                    HasAccountTerms = customer.HasAccountTerms,
+                    CreditLimit = customer.CreditLimit
                 };
 
                 if (mostRecentInvoice != null)
@@ -4188,16 +3362,9 @@ public class InvoiceService(
             isTaxable = taxRate > 0;
         }
 
-        // Get product image
-        string? imageUrl = null;
-        if (product.Images.Any())
-        {
-            imageUrl = product.Images.First();
-        }
-        else if (product.ProductRoot?.RootImages.Any() == true)
-        {
-            imageUrl = product.ProductRoot.RootImages.First();
-        }
+        // Get product image (use first available from variant or root)
+        var imageUrl = product.Images.FirstOrDefault()
+            ?? product.ProductRoot?.RootImages.FirstOrDefault();
 
         // Create parent product line item
         var parentSku = product.Sku ?? $"PROD-{product.Id:N}"[..20];

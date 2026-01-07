@@ -36,6 +36,11 @@ public class CustomerDbMapping : IEntityTypeConfiguration<Customer>
         builder.Property(x => x.DateUpdated);
         builder.HasIndex(x => x.DateCreated);
 
+        // Account terms for B2B customers
+        builder.Property(x => x.HasAccountTerms).HasDefaultValue(false);
+        builder.Property(x => x.PaymentTermsDays);
+        builder.Property(x => x.CreditLimit).HasPrecision(18, 4);
+
         // Navigation: One Customer -> Many Invoices
         builder.HasMany(x => x.Invoices)
             .WithOne()

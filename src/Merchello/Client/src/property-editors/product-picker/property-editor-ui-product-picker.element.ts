@@ -151,7 +151,6 @@ export class MerchelloPropertyEditorUiProductPickerElement
     this._isLoading = false;
 
     if (error) {
-      console.error("Failed to load product variants:", error);
       // Still try to show the IDs as not found
       this._selection = ids.map((id) => ({
         id,

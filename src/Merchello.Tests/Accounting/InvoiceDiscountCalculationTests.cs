@@ -58,7 +58,6 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var inventoryService = new Mock<IInventoryService>().Object;
         var statusHandler = _fixture.GetService<IOrderStatusHandler>();
         var paymentService = new Mock<IPaymentService>().Object;
-        var productService = new Mock<IProductService>().Object;
         var customerService = new Mock<ICustomerService>().Object;
         var checkoutService = new Lazy<ICheckoutService>(() => new Mock<ICheckoutService>().Object);
         var notificationPublisher = new Mock<IMerchelloNotificationPublisher>().Object;
@@ -79,7 +78,6 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Factories
         var invoiceFactory = new InvoiceFactory(currencyService);
         var orderFactory = new OrderFactory();
-        var shipmentFactory = new ShipmentFactory();
         var lineItemFactory = new LineItemFactory();
 
         return new InvoiceService(
@@ -88,7 +86,6 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             inventoryService,
             statusHandler,
             paymentService,
-            productService,
             customerService,
             checkoutService,
             strategyResolver,
@@ -101,7 +98,6 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             taxProviderManager,
             invoiceFactory,
             orderFactory,
-            shipmentFactory,
             lineItemFactory,
             settings,
             logger);

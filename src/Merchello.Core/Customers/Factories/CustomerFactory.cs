@@ -13,7 +13,10 @@ public class CustomerFactory
     /// <summary>
     /// Creates a new Customer from an email address (minimal creation during checkout).
     /// </summary>
-    public Customer CreateFromEmail(string email, Address? billingAddress = null)
+    /// <param name="email">Customer email address.</param>
+    /// <param name="billingAddress">Optional billing address to extract name from.</param>
+    /// <param name="acceptsMarketing">Whether the customer accepts marketing communications.</param>
+    public Customer CreateFromEmail(string email, Address? billingAddress = null, bool acceptsMarketing = false)
     {
         var now = DateTime.UtcNow;
         return new Customer
@@ -22,6 +25,7 @@ public class CustomerFactory
             Email = email.Trim().ToLowerInvariant(),
             FirstName = ExtractFirstName(billingAddress?.Name),
             LastName = ExtractLastName(billingAddress?.Name),
+            AcceptsMarketing = acceptsMarketing,
             DateCreated = now,
             DateUpdated = now
         };

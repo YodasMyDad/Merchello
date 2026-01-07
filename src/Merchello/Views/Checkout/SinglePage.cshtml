@@ -105,6 +105,17 @@
                 </div>
             </div>
 
+            <!-- Marketing Opt-in -->
+            <div class="checkout-section">
+                <label class="inline-flex items-center gap-2 cursor-pointer checkout-touch-target">
+                    <input type="checkbox"
+                           id="accepts-marketing"
+                           x-model="form.acceptsMarketing"
+                           class="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent" />
+                    <span class="text-sm text-gray-700">Keep me updated with news and exclusive offers</span>
+                </label>
+            </div>
+
             <!-- Shipping Options Section -->
             <div class="checkout-section">
                 <h2 class="font-heading text-lg font-normal mb-3">Shipping method</h2>
@@ -367,7 +378,8 @@
                         country: '@(basket?.BillingAddress?.Country ?? "")',
                         countryCode: '@(basket?.BillingAddress?.CountryCode ?? "")',
                         phone: '@(basket?.BillingAddress?.Phone ?? "")'
-                    }
+                    },
+                    acceptsMarketing: false
                 },
 
                 // Address handling
@@ -879,7 +891,8 @@
                                 email: this.form.email,
                                 billingAddress: this.sameAsShipping ? this.form.shipping : this.form.billing,
                                 shippingAddress: this.form.shipping,
-                                shippingSameAsBilling: false
+                                shippingSameAsBilling: false,
+                                acceptsMarketing: this.form.acceptsMarketing
                             })
                         });
 

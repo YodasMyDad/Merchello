@@ -120,9 +120,7 @@ public class MerchelloDataTypeInitializer : IDisposable
         }
 
         // Check if a DataType with our name already exists
-#pragma warning disable CS0618 // Using obsolete GetAll - will update when GetAllAsync is available
-        var allDataTypes = _dataTypeService.GetAll();
-#pragma warning restore CS0618
+        var allDataTypes = await _dataTypeService.GetAllAsync();
         var dataType = allDataTypes.FirstOrDefault(dt =>
             dt.Name?.Equals(PRODUCT_DESCRIPTION_DATATYPE_NAME, StringComparison.OrdinalIgnoreCase) == true);
 
@@ -185,9 +183,7 @@ public class MerchelloDataTypeInitializer : IDisposable
 
         // Fallback: try to find existing DataType synchronously
         // This should rarely be hit if startup initialization worked correctly
-#pragma warning disable CS0618 // Using obsolete GetAll - will update when GetAllAsync is available
-        var allDataTypes = _dataTypeService.GetAll();
-#pragma warning restore CS0618
+        var allDataTypes = _dataTypeService.GetAllAsync().GetAwaiter().GetResult();
         var dataType = allDataTypes.FirstOrDefault(dt =>
             dt.Name?.Equals(PRODUCT_DESCRIPTION_DATATYPE_NAME, StringComparison.OrdinalIgnoreCase) == true);
 

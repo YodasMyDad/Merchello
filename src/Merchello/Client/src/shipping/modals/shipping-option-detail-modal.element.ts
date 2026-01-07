@@ -105,8 +105,8 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
       if (data) {
         this._availableProviders = data;
       }
-    } catch (err) {
-      console.error("Failed to load providers:", err);
+    } catch {
+      // Provider loading failed - continue with empty list
     }
     this._isLoadingProviders = false;
   }
@@ -124,8 +124,8 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
         if (data) {
           this._methodConfig = data;
         }
-      } catch (err) {
-        console.error("Failed to load method config:", err);
+      } catch {
+        // Method config loading failed - continue without config
       }
     }
   }

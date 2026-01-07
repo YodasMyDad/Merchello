@@ -120,4 +120,16 @@ public interface IPaymentService
     Task<CrudResult<Payment>> RecordManualRefundAsync(
         RecordManualRefundParameters parameters,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Mark multiple invoices as paid in a single batch operation.
+    /// Creates one payment per invoice for its outstanding balance.
+    /// Used for recording offline payments received (bank transfers, cheques, etc.).
+    /// </summary>
+    /// <param name="parameters">Batch payment parameters including invoice IDs and payment details.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result containing list of created payments, or errors if any invoices failed.</returns>
+    Task<CrudResult<List<Payment>>> BatchMarkAsPaidAsync(
+        BatchMarkAsPaidParameters parameters,
+        CancellationToken cancellationToken = default);
 }

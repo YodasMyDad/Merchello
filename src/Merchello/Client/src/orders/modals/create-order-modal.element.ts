@@ -9,6 +9,7 @@ import type {
   AddressDto,
   CustomerLookupResultDto,
 } from "@orders/types/order.types.js";
+import { formatCurrency } from "@shared/utils/formatting.js";
 import type { CreateOrderModalData, CreateOrderModalValue } from "./create-order-modal.token.js";
 
 function createEmptyAddress(): AddressDto {
@@ -41,6 +42,15 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
   @state() private _selectedCustomer: CustomerLookupResultDto | null = null;
   @state() private _isSearchingCustomer: boolean = false;
   @state() private _showCustomerDropdown: boolean = false;
+
+  // Credit warning state
+  @state() private _creditWarning: {
+    type: "warning" | "danger";
+    message: string;
+    outstanding: number;
+    creditLimit: number;
+    currencyCode: string;
+  } | null = null;
 
   // Loading state
   @state() private _isSaving: boolean = false;
@@ -113,7 +123,6 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
       this._isSearchingCustomer = false;
 
       if (error) {
-        console.error("Customer search error:", error);
         return;
       }
 
@@ -122,17 +131,48 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     }, 300);
   }
 
-  private _selectCustomer(customer: CustomerLookupResultDto): void {
+  private async _selectCustomer(customer: CustomerLookupResultDto): Promise<void> {
     this._selectedCustomer = customer;
     this._showCustomerDropdown = false;
+    this._creditWarning = null;
 
     // Populate billing address from customer
     this._billingAddress = { ...customer.billingAddress };
+
+    // Check credit status if customer has account terms
+    if (customer.hasAccountTerms && customer.customerId && customer.creditLimit != null) {
+      const { data, error } = await MerchelloApi.getCustomerOutstandingBalance(customer.customerId);
+
+      if (!error && data) {
+        const utilization = customer.creditLimit > 0
+          ? (data.totalOutstanding / customer.creditLimit) * 100
+          : 0;
+
+        if (data.totalOutstanding >= customer.creditLimit) {
+          this._creditWarning = {
+            type: "danger",
+            message: `Credit limit exceeded: ${formatCurrency(data.totalOutstanding, data.currencyCode)} outstanding exceeds ${formatCurrency(customer.creditLimit, data.currencyCode)} limit`,
+            outstanding: data.totalOutstanding,
+            creditLimit: customer.creditLimit,
+            currencyCode: data.currencyCode,
+          };
+        } else if (utilization >= 80) {
+          this._creditWarning = {
+            type: "warning",
+            message: `Customer has ${formatCurrency(data.totalOutstanding, data.currencyCode)} outstanding of ${formatCurrency(customer.creditLimit, data.currencyCode)} limit (${Math.round(utilization)}% utilized)`,
+            outstanding: data.totalOutstanding,
+            creditLimit: customer.creditLimit,
+            currencyCode: data.currencyCode,
+          };
+        }
+      }
+    }
   }
 
   private _clearSelectedCustomer(): void {
     this._selectedCustomer = null;
     this._customerSearchResults = [];
+    this._creditWarning = null;
   }
 
   private _selectPastShippingAddress(address: AddressDto): void {
@@ -411,6 +451,13 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
               <uui-button compact look="secondary" @click=${this._clearSelectedCustomer}>
                 <uui-icon name="icon-delete"></uui-icon>
               </uui-button>
+            </div>
+          ` : nothing}
+
+          ${this._creditWarning ? html`
+            <div class="credit-warning credit-warning--${this._creditWarning.type}">
+              <uui-icon name="icon-alert"></uui-icon>
+              <span>${this._creditWarning.message}</span>
             </div>
           ` : nothing}
         </div>
@@ -696,6 +743,41 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
       display: flex;
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
+    }
+
+    /* Credit Warning Banners */
+    .credit-warning {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+      padding: var(--uui-size-space-3) var(--uui-size-space-4);
+      border-radius: var(--uui-border-radius);
+      margin-top: var(--uui-size-space-3);
+      font-size: 0.875rem;
+    }
+
+    .credit-warning uui-icon {
+      flex-shrink: 0;
+    }
+
+    .credit-warning--warning {
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      color: #92400e;
+    }
+
+    .credit-warning--warning uui-icon {
+      color: #f59e0b;
+    }
+
+    .credit-warning--danger {
+      background: #fee2e2;
+      border: 1px solid #ef4444;
+      color: #991b1b;
+    }
+
+    .credit-warning--danger uui-icon {
+      color: #ef4444;
     }
   `;
 }

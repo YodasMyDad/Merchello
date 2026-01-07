@@ -29,7 +29,7 @@ public class FedExShippingProvider(
     {
         Key = "fedex",
         DisplayName = "FedEx",
-        Icon = "icon-truck",
+        Icon = Constants.ShippingProviders.Icons.Truck,
         Description = "Real-time FedEx shipping rates via FedEx REST API",
         SupportsRealTimeRates = true,
         SupportsTracking = true,
@@ -127,7 +127,7 @@ public class FedExShippingProvider(
         [
             new ShippingProviderConfigurationField
             {
-                Key = "clientId",
+                Key = Constants.ShippingProviders.ConfigKeys.ClientId,
                 Label = "API Key (Client ID)",
                 Description = "Your FedEx API Key from the Developer Portal",
                 FieldType = ConfigurationFieldType.Text,
@@ -136,7 +136,7 @@ public class FedExShippingProvider(
             },
             new ShippingProviderConfigurationField
             {
-                Key = "clientSecret",
+                Key = Constants.ShippingProviders.ConfigKeys.ClientSecret,
                 Label = "Secret Key",
                 Description = "Your FedEx Secret Key from the Developer Portal",
                 FieldType = ConfigurationFieldType.Password,
@@ -145,7 +145,7 @@ public class FedExShippingProvider(
             },
             new ShippingProviderConfigurationField
             {
-                Key = "accountNumber",
+                Key = Constants.ShippingProviders.ConfigKeys.AccountNumber,
                 Label = "Account Number",
                 Description = "Your FedEx Account Number",
                 FieldType = ConfigurationFieldType.Text,
@@ -154,16 +154,16 @@ public class FedExShippingProvider(
             },
             new ShippingProviderConfigurationField
             {
-                Key = "environment",
+                Key = Constants.ShippingProviders.ConfigKeys.Environment,
                 Label = "Environment",
                 Description = "Use Sandbox for testing, Production for live rates",
                 FieldType = ConfigurationFieldType.Select,
                 IsRequired = true,
-                DefaultValue = "sandbox",
+                DefaultValue = Constants.ShippingProviders.Environments.Sandbox,
                 Options =
                 [
-                    new SelectOption { Value = "sandbox", Label = "Sandbox (Testing)" },
-                    new SelectOption { Value = "production", Label = "Production (Live)" }
+                    new SelectOption { Value = Constants.ShippingProviders.Environments.Sandbox, Label = "Sandbox (Testing)" },
+                    new SelectOption { Value = Constants.ShippingProviders.Environments.Production, Label = "Production (Live)" }
                 ]
             }
         ]);
@@ -181,7 +181,7 @@ public class FedExShippingProvider(
         [
             new ShippingProviderConfigurationField
             {
-                Key = "name",
+                Key = Constants.ShippingProviders.ConfigKeys.Name,
                 Label = "Method Name",
                 Description = "Display name shown to customers (optional, defaults to service type name)",
                 FieldType = ConfigurationFieldType.Text,
@@ -190,7 +190,7 @@ public class FedExShippingProvider(
             },
             new ShippingProviderConfigurationField
             {
-                Key = "markup",
+                Key = Constants.ShippingProviders.ConfigKeys.Markup,
                 Label = "Markup %",
                 Description = "Percentage to add to FedEx rates (e.g., 10 for 10%)",
                 FieldType = ConfigurationFieldType.Percentage,
@@ -223,10 +223,10 @@ public class FedExShippingProvider(
                 return;
             }
 
-            var clientId = settings.GetValueOrDefault("clientId");
-            var clientSecret = settings.GetValueOrDefault("clientSecret");
-            var accountNumber = settings.GetValueOrDefault("accountNumber");
-            var environment = settings.GetValueOrDefault("environment") ?? "sandbox";
+            var clientId = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.ClientId);
+            var clientSecret = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.ClientSecret);
+            var accountNumber = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.AccountNumber);
+            var environment = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.Environment) ?? Constants.ShippingProviders.Environments.Sandbox;
 
             if (string.IsNullOrEmpty(clientId) ||
                 string.IsNullOrEmpty(clientSecret) ||
@@ -235,7 +235,7 @@ public class FedExShippingProvider(
                 return;
             }
 
-            var useSandbox = environment.Equals("sandbox", StringComparison.OrdinalIgnoreCase);
+            var useSandbox = environment.Equals(Constants.ShippingProviders.Environments.Sandbox, StringComparison.OrdinalIgnoreCase);
 
             // Create API client with its own HttpClient configured for gzip decompression
             // (FedEx API returns gzip-compressed responses)

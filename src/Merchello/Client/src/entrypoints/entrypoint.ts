@@ -8,8 +8,6 @@ import { preloadSettings } from "@api/store-settings.js";
 
 // load up the manifests here
 export const onInit: UmbEntryPointOnInit = (_host, _extensionRegistry) => {
-  console.log("Hello from my extension 🎉");
-
   _host.consumeContext(UMB_AUTH_CONTEXT, async (authContext) => {
     const config = authContext?.getOpenApiConfiguration();
 
@@ -25,5 +23,5 @@ export const onInit: UmbEntryPointOnInit = (_host, _extensionRegistry) => {
 };
 
 export const onUnload: UmbEntryPointOnUnload = (_host, _extensionRegistry) => {
-  console.log("Goodbye from my extension 👋");
+  // Cleanup if needed
 };

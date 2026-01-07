@@ -34,6 +34,7 @@
       "@filters/*": [ "src/filters/*" ],
       "@marketing/*": [ "src/marketing/*" ],
       "@orders/*": [ "src/orders/*" ],
+      "@outstanding/*": [ "src/outstanding/*" ],
       "@payment-providers/*": [ "src/payment-providers/*" ],
       "@product-feed/*": [ "src/product-feed/*" ],
       "@product-types/*": [ "src/product-types/*" ],

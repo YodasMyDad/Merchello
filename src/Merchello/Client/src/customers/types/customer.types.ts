@@ -10,6 +10,12 @@ export interface CustomerListItemDto {
   tags: string[];
   isFlagged: boolean;
   acceptsMarketing: boolean;
+  /** Whether this customer can order on account with payment terms */
+  hasAccountTerms: boolean;
+  /** Payment terms in days (e.g., 30 for Net 30) */
+  paymentTermsDays: number | null;
+  /** Optional credit limit for the customer */
+  creditLimit: number | null;
 }
 
 // Paginated response for customer list
@@ -38,4 +44,14 @@ export interface UpdateCustomerDto {
   tags?: string[];
   isFlagged?: boolean;
   acceptsMarketing?: boolean;
+  /** Whether this customer can order on account with payment terms */
+  hasAccountTerms?: boolean;
+  /** Payment terms in days (e.g., 30 for Net 30) */
+  paymentTermsDays?: number | null;
+  /** When true, clears the PaymentTermsDays */
+  clearPaymentTermsDays?: boolean;
+  /** Credit limit for the customer */
+  creditLimit?: number | null;
+  /** When true, clears the CreditLimit */
+  clearCreditLimit?: boolean;
 }

@@ -16,7 +16,8 @@ import type { OrderSelectionChangeEventDetail } from "./order-table.element.js";
 import { MERCHELLO_EXPORT_MODAL } from "@orders/modals/export-modal.token.js";
 import { MERCHELLO_CREATE_ORDER_MODAL } from "@orders/modals/create-order-modal.token.js";
 import { MERCHELLO_EDIT_ORDER_MODAL } from "@orders/modals/edit-order-modal.token.js";
-import { navigateToOrderDetail } from "@shared/utils/navigation.js";
+import { navigateToOrderDetail, navigateToOutstandingList } from "@shared/utils/navigation.js";
+import { formatCurrency } from "@shared/utils/formatting.js";
 
 @customElement("merchello-orders-list")
 export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
@@ -377,14 +378,15 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
               </div>
             </div>
           </uui-box>
-          <uui-box>
-            <div class="stat-content">
-              <div class="stat-icon stat-icon--delivered">
-                <uui-icon name="icon-truck"></uui-icon>
+          <uui-box class="stat-box--outstanding" @click=${() => navigateToOutstandingList()}>
+            <div class="stat-content stat-content--clickable">
+              <div class="stat-icon stat-icon--outstanding">
+                <uui-icon name="icon-timer"></uui-icon>
               </div>
               <div class="stat-details">
-                <div class="stat-number">${this._stats?.ordersDeliveredToday ?? 0}</div>
-                <div class="stat-label">Orders Delivered</div>
+                <div class="stat-number">${formatCurrency(this._stats?.totalOutstandingValue ?? 0, this._stats?.currencyCode ?? "USD")}</div>
+                <div class="stat-label">Outstanding${this._stats?.outstandingInvoiceCount ? ` (${this._stats.outstandingInvoiceCount})` : ""}</div>
+                ${this._stats?.overdueInvoiceCount ? html`<div class="stat-overdue">${this._stats.overdueInvoiceCount} overdue</div>` : ""}
               </div>
             </div>
           </uui-box>
@@ -524,9 +526,29 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       color: #22c55e;
     }
 
-    .stat-icon--delivered {
-      background: rgba(249, 115, 22, 0.15);
-      color: #f97316;
+    .stat-icon--outstanding {
+      background: rgba(245, 158, 11, 0.15);
+      color: #f59e0b;
+    }
+
+    .stat-box--outstanding {
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .stat-box--outstanding:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-content--clickable {
+      position: relative;
+    }
+
+    .stat-overdue {
+      font-size: 0.75rem;
+      color: var(--uui-color-danger);
+      font-weight: 600;
     }
 
     .stat-details {

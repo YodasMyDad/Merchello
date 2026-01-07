@@ -101,7 +101,6 @@ export class MerchelloWarehousesWorkspaceContext
     this.#warehouseId = unique;
     const { data, error } = await MerchelloApi.getWarehouseDetail(unique);
     if (error) {
-      console.error("Failed to load warehouse:", error);
       return;
     }
     this.#warehouse.setValue(data);

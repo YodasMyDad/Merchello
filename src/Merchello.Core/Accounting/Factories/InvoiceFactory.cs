@@ -14,6 +14,15 @@ public class InvoiceFactory(ICurrencyService currencyService)
     /// <summary>
     /// Creates an invoice from a basket during checkout.
     /// </summary>
+    /// <param name="basket">The basket to create an invoice from.</param>
+    /// <param name="invoiceNumber">The invoice number to assign.</param>
+    /// <param name="billingAddress">The billing address.</param>
+    /// <param name="shippingAddress">The shipping address.</param>
+    /// <param name="presentmentCurrency">The presentment currency code.</param>
+    /// <param name="storeCurrency">The store currency code.</param>
+    /// <param name="customerId">The customer ID.</param>
+    /// <param name="hasAccountTerms">Whether the customer has account terms enabled.</param>
+    /// <param name="paymentTermsDays">Payment terms in days (e.g., 30 for Net 30).</param>
     public Invoice CreateFromBasket(
         Basket basket,
         string invoiceNumber,
@@ -21,9 +30,17 @@ public class InvoiceFactory(ICurrencyService currencyService)
         Address shippingAddress,
         string presentmentCurrency,
         string storeCurrency,
-        Guid customerId)
+        Guid customerId,
+        bool hasAccountTerms = false,
+        int? paymentTermsDays = null)
     {
         var now = DateTime.UtcNow;
+
+        // Calculate due date for account customers
+        DateTime? dueDate = hasAccountTerms && paymentTermsDays.HasValue
+            ? now.AddDays(paymentTermsDays.Value)
+            : null;
+
         return new Invoice
         {
             Id = GuidExtensions.NewSequentialGuid,
@@ -39,6 +56,7 @@ public class InvoiceFactory(ICurrencyService currencyService)
             AdjustedSubTotal = basket.AdjustedSubTotal,
             Tax = basket.Tax,
             Total = basket.Total,
+            DueDate = dueDate,
             // Note: Discounts are now stored as LineItem with LineItemType.Discount on the Order,
             // not as Adjustments on the Invoice. The basket's discount line items will flow
             // through to the Order.LineItems during order creation.
@@ -50,6 +68,18 @@ public class InvoiceFactory(ICurrencyService currencyService)
     /// <summary>
     /// Creates a draft invoice for admin-created orders.
     /// </summary>
+    /// <param name="invoiceNumber">The invoice number to assign.</param>
+    /// <param name="customerId">The customer ID.</param>
+    /// <param name="billingAddress">The billing address.</param>
+    /// <param name="shippingAddress">The shipping address.</param>
+    /// <param name="currencyCode">The currency code.</param>
+    /// <param name="subTotal">The sub total amount.</param>
+    /// <param name="tax">The tax amount.</param>
+    /// <param name="total">The total amount.</param>
+    /// <param name="authorName">Optional author name for the note.</param>
+    /// <param name="authorId">Optional author ID for the note.</param>
+    /// <param name="hasAccountTerms">Whether the customer has account terms enabled.</param>
+    /// <param name="paymentTermsDays">Payment terms in days (e.g., 30 for Net 30).</param>
     public Invoice CreateDraft(
         string invoiceNumber,
         Guid customerId,
@@ -60,9 +90,17 @@ public class InvoiceFactory(ICurrencyService currencyService)
         decimal tax,
         decimal total,
         string? authorName = null,
-        Guid? authorId = null)
+        Guid? authorId = null,
+        bool hasAccountTerms = false,
+        int? paymentTermsDays = null)
     {
         var now = DateTime.UtcNow;
+
+        // Calculate due date for account customers
+        DateTime? dueDate = hasAccountTerms && paymentTermsDays.HasValue
+            ? now.AddDays(paymentTermsDays.Value)
+            : null;
+
         return new Invoice
         {
             Id = GuidExtensions.NewSequentialGuid,
@@ -79,6 +117,7 @@ public class InvoiceFactory(ICurrencyService currencyService)
             AdjustedSubTotal = currencyService.Round(subTotal, currencyCode),
             Tax = currencyService.Round(tax, currencyCode),
             Total = currencyService.Round(total, currencyCode),
+            DueDate = dueDate,
             DateCreated = now,
             DateUpdated = now,
             Notes =

@@ -143,6 +143,13 @@ public class Invoice
     public DateTime DateUpdated { get; set; } = DateTime.UtcNow;
 
     /// <summary>
+    /// Payment due date for account customers with payment terms.
+    /// Null means payment is due immediately (standard customer).
+    /// Set automatically from Customer.PaymentTermsDays when invoice is created.
+    /// </summary>
+    public DateTime? DueDate { get; set; }
+
+    /// <summary>
     /// Whether the invoice has been soft-deleted
     /// </summary>
     public bool IsDeleted { get; set; }

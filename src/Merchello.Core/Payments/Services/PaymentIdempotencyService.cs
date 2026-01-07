@@ -1,97 +1,157 @@
 using System.Collections.Concurrent;
+using Merchello.Core.Data;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Payments.Services;
 
 /// <summary>
-/// Implementation of payment idempotency service using memory cache.
+/// Implementation of payment idempotency service using database-backed deduplication.
+/// Uses the Payment.IdempotencyKey column for reliable, distributed tracking that survives restarts.
 /// Prevents duplicate payment/refund processing on network retries.
 /// </summary>
 public class PaymentIdempotencyService(
-    IMemoryCache memoryCache,
+    IEFCoreScopeProvider<MerchelloDbContext> scopeProvider,
     ILogger<PaymentIdempotencyService> logger) : IPaymentIdempotencyService
 {
-    /// <summary>
-    /// Duration to cache payment results (24 hours).
-    /// </summary>
-    private static readonly TimeSpan ResultCacheTtl = TimeSpan.FromHours(24);
-
     /// <summary>
     /// Duration to hold the processing marker (5 minutes max).
     /// </summary>
     private static readonly TimeSpan ProcessingMarkerTtl = TimeSpan.FromMinutes(5);
 
-    private const string PaymentResultPrefix = "payment_idempotency_";
-    private const string RefundResultPrefix = "refund_idempotency_";
-
     /// <summary>
     /// Concurrent dictionary for processing markers - provides true atomic TryAdd.
-    /// Entries are cleaned up when results are cached or explicitly cleared.
+    /// Used to prevent concurrent duplicate processing while payment is in-flight
+    /// (before the Payment record is created).
     /// </summary>
     private static readonly ConcurrentDictionary<string, DateTime> _processingMarkers = new();
 
     /// <inheritdoc />
-    public PaymentResult? GetCachedPaymentResult(string idempotencyKey)
+    /// <remarks>
+    /// Queries the Payment table by IdempotencyKey and converts to PaymentResult.
+    /// This provides reliable, distributed deduplication that survives restarts.
+    /// </remarks>
+    public async Task<PaymentResult?> GetCachedPaymentResultAsync(string idempotencyKey, CancellationToken ct = default)
     {
-        var cacheKey = $"{PaymentResultPrefix}{idempotencyKey}";
-        if (memoryCache.TryGetValue(cacheKey, out PaymentResult? cachedResult))
+        using var scope = scopeProvider.CreateScope();
+        var payment = await scope.ExecuteWithContextAsync(async db => await db.Payments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.IdempotencyKey == idempotencyKey && p.PaymentType == PaymentType.Payment, ct));
+        scope.Complete();
+
+        if (payment == null)
         {
-            logger.LogInformation(
-                "Returning cached payment result for idempotency key {Key}. Success: {Success}",
-                idempotencyKey, cachedResult?.Success);
-            return cachedResult;
+            return null;
         }
-        return null;
+
+        logger.LogInformation(
+            "Returning existing payment for idempotency key {Key}. Success: {Success}",
+            idempotencyKey, payment.PaymentSuccess);
+
+        // Convert Payment to PaymentResult
+        return new PaymentResult
+        {
+            Success = payment.PaymentSuccess,
+            TransactionId = payment.TransactionId,
+            Amount = payment.Amount,
+            Status = payment.PaymentSuccess ? PaymentResultStatus.Completed : PaymentResultStatus.Failed,
+            SettlementCurrency = payment.SettlementCurrencyCode,
+            SettlementExchangeRate = payment.SettlementExchangeRate,
+            SettlementAmount = payment.SettlementAmount,
+            RiskScore = payment.RiskScore,
+            RiskScoreSource = payment.RiskScoreSource
+        };
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The Payment record with IdempotencyKey is the permanent "cached" record.
+    /// This method just clears the in-flight processing marker.
+    /// </remarks>
     public void CachePaymentResult(string idempotencyKey, PaymentResult result)
     {
-        var cacheKey = $"{PaymentResultPrefix}{idempotencyKey}";
-        memoryCache.Set(cacheKey, result, ResultCacheTtl);
-
-        // Clear the processing marker since we're done
+        // The Payment record is created by the caller (PaymentService).
+        // The IdempotencyKey on the Payment record serves as the permanent deduplication marker.
+        // Just clear the in-flight processing marker.
         ClearProcessingMarker(idempotencyKey);
 
         logger.LogDebug(
-            "Cached payment result for idempotency key {Key}. Success: {Success}",
+            "Payment with idempotency key {Key} completed. Success: {Success}",
             idempotencyKey, result.Success);
     }
 
     /// <inheritdoc />
-    public RefundResult? GetCachedRefundResult(string idempotencyKey)
+    /// <remarks>
+    /// Queries the Payment table for refund records by IdempotencyKey.
+    /// </remarks>
+    public async Task<RefundResult?> GetCachedRefundResultAsync(string idempotencyKey, CancellationToken ct = default)
     {
-        var cacheKey = $"{RefundResultPrefix}{idempotencyKey}";
-        if (memoryCache.TryGetValue(cacheKey, out RefundResult? cachedResult))
+        using var scope = scopeProvider.CreateScope();
+        var payment = await scope.ExecuteWithContextAsync(async db => await db.Payments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.IdempotencyKey == idempotencyKey &&
+                (p.PaymentType == PaymentType.Refund || p.PaymentType == PaymentType.PartialRefund), ct));
+        scope.Complete();
+
+        if (payment == null)
         {
-            logger.LogInformation(
-                "Returning cached refund result for idempotency key {Key}. Success: {Success}",
-                idempotencyKey, cachedResult?.Success);
-            return cachedResult;
+            return null;
         }
-        return null;
+
+        logger.LogInformation(
+            "Returning existing refund for idempotency key {Key}. Success: {Success}",
+            idempotencyKey, payment.PaymentSuccess);
+
+        // Convert Payment to RefundResult (refunds have negative amounts, use absolute value)
+        return new RefundResult
+        {
+            Success = payment.PaymentSuccess,
+            RefundTransactionId = payment.TransactionId,
+            AmountRefunded = Math.Abs(payment.Amount)
+        };
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The Payment record with IdempotencyKey is the permanent "cached" record.
+    /// This method just clears the in-flight processing marker.
+    /// </remarks>
     public void CacheRefundResult(string idempotencyKey, RefundResult result)
     {
-        var cacheKey = $"{RefundResultPrefix}{idempotencyKey}";
-        memoryCache.Set(cacheKey, result, ResultCacheTtl);
-
-        // Clear the processing marker since we're done
+        // The Payment record is created by the caller (PaymentService).
+        // The IdempotencyKey on the Payment record serves as the permanent deduplication marker.
+        // Just clear the in-flight processing marker.
         ClearProcessingMarker(idempotencyKey);
 
         logger.LogDebug(
-            "Cached refund result for idempotency key {Key}. Success: {Success}",
+            "Refund with idempotency key {Key} completed. Success: {Success}",
             idempotencyKey, result.Success);
     }
 
     /// <inheritdoc />
-    public bool TryMarkAsProcessing(string idempotencyKey)
+    /// <remarks>
+    /// First checks database for existing payment/refund with this idempotency key,
+    /// then uses in-memory markers for in-flight request coordination.
+    /// </remarks>
+    public async Task<bool> TryMarkAsProcessingAsync(string idempotencyKey, CancellationToken ct = default)
     {
+        // First check if already permanently processed in database
+        using var scope = scopeProvider.CreateScope();
+        var exists = await scope.ExecuteWithContextAsync(async db =>
+            await db.Payments.AnyAsync(p => p.IdempotencyKey == idempotencyKey, ct));
+        scope.Complete();
+
+        if (exists)
+        {
+            logger.LogInformation(
+                "Payment/refund with idempotency key {Key} already exists in database",
+                idempotencyKey);
+            return false;
+        }
+
         var now = DateTime.UtcNow;
         var expiry = now.Add(ProcessingMarkerTtl);
 

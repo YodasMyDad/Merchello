@@ -388,7 +388,6 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     this._isSavingAddress = false;
 
     if (result.error) {
-      console.error('Failed to save address:', result.error);
       this.#notificationContext?.peek("danger", {
         data: { headline: "Failed to save", message: result.error.message || "Could not save address changes" }
       });
@@ -434,7 +433,6 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     this._isSavingPurchaseOrder = false;
 
     if (error) {
-      console.error('Failed to save purchase order:', error);
       this.#notificationContext?.peek("danger", {
         data: { headline: "Failed to save", message: error.message || "Could not save purchase order" }
       });
@@ -641,7 +639,6 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     if (error) {
       this._noteError = error.message || "Failed to post note";
-      console.error("Failed to post note:", error);
       this.#notificationContext?.peek("danger", {
         data: { headline: "Failed to post note", message: error.message || "Could not save the note" }
       });

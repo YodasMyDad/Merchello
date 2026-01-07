@@ -5,9 +5,27 @@ namespace Merchello.Core.Shared.Models;
 public class MerchelloSettings
 {
     /// <summary>
+    /// When true, seeds sample data (products, warehouses, customers, invoices) on startup.
+    /// Essential items like data types are always installed regardless of this setting.
+    /// Default: false
+    /// </summary>
+    public bool InstallSeedData { get; set; }
+
+    /// <summary>
     /// Prefix for invoice numbers (e.g., "INV-")
     /// </summary>
     public string InvoiceNumberPrefix { get; set; } = "INV-";
+
+    /// <summary>
+    /// Store name displayed on invoices, statements, and emails.
+    /// </summary>
+    public string? StoreName { get; set; }
+
+    /// <summary>
+    /// Store address displayed on invoices, statements, and emails.
+    /// Can include multiple lines separated by newlines.
+    /// </summary>
+    public string? StoreAddress { get; set; }
 
     /// <summary>
     /// Default store currency code (ISO 4217), e.g., "GBP", "USD", "EUR".

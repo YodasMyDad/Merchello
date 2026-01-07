@@ -131,7 +131,6 @@ export class MerchelloDiscountsWorkspaceContext
     const { data, error } = await MerchelloApi.getDiscount(unique);
 
     if (error) {
-      console.error("Failed to load discount:", error);
       this.#isLoading.setValue(false);
       return;
     }

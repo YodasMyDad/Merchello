@@ -27,6 +27,7 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Caching.Models;
+using Merchello.Core.Caching.Refreshers;
 using Merchello.Core.Shared.Reflection;
 using Merchello.Core.Caching.Services;
 using Merchello.Core.Caching.Services.Interfaces;
@@ -97,13 +98,10 @@ public static class Startup
         // =====================================================
 
         // Register MerchelloDbContext with Umbraco's database provider (automatically uses same DB as Umbraco)
-        // TODO: Update to new overload when upgrading to Umbraco 18
-#pragma warning disable CS0618 // Type or member is obsolete
-        builder.Services.AddUmbracoDbContext<MerchelloDbContext>((serviceProvider, options) =>
+        builder.Services.AddUmbracoDbContext<MerchelloDbContext>((serviceProvider, options, connectionString, providerName) =>
         {
             options.UseUmbracoDatabaseProvider(serviceProvider);
         });
-#pragma warning restore CS0618
 
         builder.Services.Configure<MerchelloSettings>(builder.Config.GetSection("Merchello"));
         builder.Services.Configure<CheckoutSettings>(builder.Config.GetSection("Merchello:Checkout"));
@@ -116,8 +114,10 @@ public static class Startup
         // =====================================================
 
         builder.Services.AddMemoryCache();
-        builder.Services.AddHybridCache();
         builder.Services.AddHttpClient();
+
+        // Register Merchello cache refresher for distributed cache invalidation
+        builder.CacheRefreshers().Add<MerchelloCacheRefresher>();
 
         builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
         builder.Services.AddSingleton<ICacheService, CacheService>();
@@ -195,8 +195,8 @@ public static class Startup
         builder.Services.AddScoped<IPaymentProviderManager, PaymentProviderManager>();
         builder.Services.AddScoped<IPaymentService, PaymentService>();
         builder.Services.AddScoped<IPaymentLinkService, PaymentLinkService>();
-        builder.Services.AddSingleton<IWebhookSecurityService, WebhookSecurityService>();
-        builder.Services.AddSingleton<IPaymentIdempotencyService, PaymentIdempotencyService>();
+        builder.Services.AddScoped<IWebhookSecurityService, WebhookSecurityService>();
+        builder.Services.AddScoped<IPaymentIdempotencyService, PaymentIdempotencyService>();
 
         // Shared Services
         builder.Services.AddSingleton<IRateLimiter, AtomicRateLimiter>();
@@ -206,6 +206,7 @@ public static class Startup
         builder.Services.AddScoped<IShippingQuoteService, ShippingQuoteService>();
         builder.Services.AddScoped<IShippingService, ShippingService>();
         builder.Services.AddScoped<IShippingOptionService, ShippingOptionService>();
+        builder.Services.AddScoped<IShipmentService, ShipmentService>();
         builder.Services.AddSingleton<IShippingCostResolver, ShippingCostResolver>();
 
         // Tax
@@ -234,6 +235,10 @@ public static class Startup
         builder.Services.AddSingleton<IWebhookTopicRegistry, WebhookTopicRegistry>();
         builder.Services.AddScoped<IWebhookDispatcher, WebhookDispatcher>();
         builder.Services.AddScoped<IWebhookService, WebhookService>();
+
+        // PDF & Statements
+        builder.Services.AddSingleton<IPdfService, PdfService>();
+        builder.Services.AddScoped<IStatementService, StatementService>();
 
         // Other Scoped
         builder.Services.AddScoped<DbSeeder>();

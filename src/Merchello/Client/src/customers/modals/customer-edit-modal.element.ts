@@ -20,6 +20,11 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
   @state() private _allTags: string[] = [];
   @state() private _isFlagged: boolean = false;
   @state() private _acceptsMarketing: boolean = false;
+  @state() private _hasAccountTerms: boolean = false;
+  @state() private _paymentTermsDays: string = "";
+  @state() private _originalPaymentTermsDays: string = "";
+  @state() private _creditLimit: string = "";
+  @state() private _originalCreditLimit: string = "";
   @state() private _isSaving: boolean = false;
   @state() private _errors: Record<string, string> = {};
 
@@ -35,6 +40,11 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
       this._tags = this.data.customer.tags ?? [];
       this._isFlagged = this.data.customer.isFlagged ?? false;
       this._acceptsMarketing = this.data.customer.acceptsMarketing ?? false;
+      this._hasAccountTerms = this.data.customer.hasAccountTerms ?? false;
+      this._paymentTermsDays = this.data.customer.paymentTermsDays?.toString() ?? "";
+      this._originalPaymentTermsDays = this._paymentTermsDays;
+      this._creditLimit = this.data.customer.creditLimit?.toString() ?? "";
+      this._originalCreditLimit = this._creditLimit;
     }
     // Load all unique tags for autocomplete
     this._loadAllTags();
@@ -60,6 +70,24 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
       return;
     }
 
+    // Validate payment terms (must be a positive whole number if provided)
+    if (this._paymentTermsDays) {
+      const terms = parseInt(this._paymentTermsDays, 10);
+      if (isNaN(terms) || terms < 1 || terms > 365 || !Number.isInteger(Number(this._paymentTermsDays))) {
+        this._errors = { paymentTermsDays: "Payment terms must be a whole number between 1 and 365" };
+        return;
+      }
+    }
+
+    // Validate credit limit (must be a positive number if provided)
+    if (this._creditLimit) {
+      const limit = parseFloat(this._creditLimit);
+      if (isNaN(limit) || limit < 0) {
+        this._errors = { creditLimit: "Credit limit must be a valid positive number" };
+        return;
+      }
+    }
+
     this._isSaving = true;
 
     const customerId = this.data?.customer?.id;
@@ -73,6 +101,20 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
     const memberKeyChanged = this._memberKey !== this._originalMemberKey;
     const clearMemberKey = memberKeyChanged && !this._memberKey;
 
+    // Determine if payment terms changed
+    const paymentTermsChanged = this._paymentTermsDays !== this._originalPaymentTermsDays;
+    const clearPaymentTermsDays = paymentTermsChanged && !this._paymentTermsDays;
+    const paymentTermsDays = paymentTermsChanged && this._paymentTermsDays
+      ? parseInt(this._paymentTermsDays, 10)
+      : undefined;
+
+    // Determine if credit limit changed
+    const creditLimitChanged = this._creditLimit !== this._originalCreditLimit;
+    const clearCreditLimit = creditLimitChanged && !this._creditLimit;
+    const creditLimit = creditLimitChanged && this._creditLimit
+      ? parseFloat(this._creditLimit)
+      : undefined;
+
     const { data, error } = await MerchelloApi.updateCustomer(customerId, {
       email: this._email.trim(),
       firstName: this._firstName.trim() || null,
@@ -82,6 +124,11 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
       tags: this._tags,
       isFlagged: this._isFlagged,
       acceptsMarketing: this._acceptsMarketing,
+      hasAccountTerms: this._hasAccountTerms,
+      paymentTermsDays,
+      clearPaymentTermsDays,
+      creditLimit,
+      clearCreditLimit,
     });
 
     this._isSaving = false;
@@ -199,6 +246,57 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
               <span class="hint">Customer has opted in to receive marketing communications</span>
             </div>
           </div>
+
+          <div class="section-divider"></div>
+          <h4 class="section-header">Account Settings</h4>
+
+          <div class="form-row toggle-row">
+            <uui-toggle
+              .checked=${this._hasAccountTerms}
+              @change=${(e: Event) => this._hasAccountTerms = (e.target as HTMLInputElement).checked}
+              label="Account Customer">
+            </uui-toggle>
+            <div class="toggle-info">
+              <label>Account Customer</label>
+              <span class="hint">Allow this customer to order on account with payment terms</span>
+            </div>
+          </div>
+
+          ${this._hasAccountTerms ? html`
+            <div class="form-row ${this._errors.paymentTermsDays ? 'has-error' : ''}">
+              <label for="payment-terms">Payment Terms (Days)</label>
+              <uui-input
+                id="payment-terms"
+                type="number"
+                min="1"
+                max="365"
+                .value=${this._paymentTermsDays}
+                @input=${(e: Event) => this._paymentTermsDays = (e.target as HTMLInputElement).value}
+                placeholder="e.g., 30"
+                label="Payment terms in days">
+              </uui-input>
+              ${this._errors.paymentTermsDays
+                ? html`<span class="field-error">${this._errors.paymentTermsDays}</span>`
+                : html`<span class="hint">e.g., 30 for Net 30, 60 for Net 60</span>`}
+            </div>
+
+            <div class="form-row ${this._errors.creditLimit ? 'has-error' : ''}">
+              <label for="credit-limit">Credit Limit (Optional)</label>
+              <uui-input
+                id="credit-limit"
+                type="number"
+                min="0"
+                step="0.01"
+                .value=${this._creditLimit}
+                @input=${(e: Event) => this._creditLimit = (e.target as HTMLInputElement).value}
+                placeholder="e.g., 5000.00"
+                label="Credit limit">
+              </uui-input>
+              ${this._errors.creditLimit
+                ? html`<span class="field-error">${this._errors.creditLimit}</span>`
+                : html`<span class="hint">Leave blank for no limit. Soft warning only - orders still proceed if exceeded.</span>`}
+            </div>
+          ` : nothing}
         </div>
 
         <div slot="actions">
@@ -284,6 +382,18 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
       display: flex;
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
+    }
+
+    .section-divider {
+      border-top: 1px solid var(--uui-color-border);
+      margin: var(--uui-size-space-2) 0;
+    }
+
+    .section-header {
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin: 0 0 var(--uui-size-space-2) 0;
+      color: var(--uui-color-text);
     }
   `;
 }

@@ -42,5 +42,10 @@ public class CheckoutSession
     /// Current step in checkout process
     /// </summary>
     public CheckoutStep CurrentStep { get; set; } = CheckoutStep.Information;
+
+    /// <summary>
+    /// Whether the customer has opted in to marketing communications.
+    /// </summary>
+    public bool AcceptsMarketing { get; set; }
 }
 

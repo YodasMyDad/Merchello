@@ -1,5 +1,6 @@
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Tax.Providers.Models;
 
 namespace Merchello.Core.Tax.Providers.BuiltIn;
@@ -8,7 +9,7 @@ namespace Merchello.Core.Tax.Providers.BuiltIn;
 /// Manual tax provider that uses TaxGroup/TaxGroupRate for location-based tax calculation.
 /// This is the default provider and wraps the existing tax rate system.
 /// </summary>
-public class ManualTaxProvider(ITaxService taxService) : TaxProviderBase
+public class ManualTaxProvider(ITaxService taxService, ICurrencyService currencyService) : TaxProviderBase
 {
     public override TaxProviderMetadata Metadata => new(
         Alias: "manual",
@@ -55,9 +56,9 @@ public class ManualTaxProvider(ITaxService taxService) : TaxProviderBase
                     stateCode,
                     cancellationToken);
 
-                // Calculate tax using the extension method
+                // Calculate tax using currency-aware rounding
                 var lineTotal = item.Amount * item.Quantity;
-                taxAmount = lineTotal.PercentageAmount(taxRate);
+                taxAmount = lineTotal.PercentageAmount(taxRate, request.CurrencyCode, currencyService);
             }
 
             lineResults.Add(new LineTaxResult

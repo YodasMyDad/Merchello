@@ -7,6 +7,7 @@ using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
@@ -131,7 +132,7 @@ public class StorefrontApiController(
             Message = "Added to basket",
             ItemCount = itemCount,
             Total = total,
-            FormattedTotal = FormatPrice(total)
+            FormattedTotal = total.FormatWithSymbol(_settings.CurrencySymbol)
         });
     }
 
@@ -172,12 +173,12 @@ public class StorefrontApiController(
                 Quantity = li.Quantity,
                 UnitPrice = li.Amount,
                 LineTotal = li.Amount * li.Quantity,
-                FormattedUnitPrice = FormatPrice(li.Amount),
-                FormattedLineTotal = FormatPrice(li.Amount * li.Quantity),
+                FormattedUnitPrice = li.Amount.FormatWithSymbol(_settings.CurrencySymbol),
+                FormattedLineTotal = (li.Amount * li.Quantity).FormatWithSymbol(_settings.CurrencySymbol),
                 DisplayUnitPrice = displayUnitPrice,
                 DisplayLineTotal = displayLineTotal,
-                FormattedDisplayUnitPrice = FormatDisplayPrice(displayUnitPrice, currencyContext.CurrencySymbol),
-                FormattedDisplayLineTotal = FormatDisplayPrice(displayLineTotal, currencyContext.CurrencySymbol),
+                FormattedDisplayUnitPrice = displayUnitPrice.FormatWithSymbol(currencyContext.CurrencySymbol),
+                FormattedDisplayLineTotal = displayLineTotal.FormatWithSymbol(currencyContext.CurrencySymbol),
                 LineItemType = li.LineItemType.ToString(),
                 DependantLineItemSku = li.DependantLineItemSku
             };
@@ -198,21 +199,21 @@ public class StorefrontApiController(
             Tax = basket.Tax,
             Shipping = basket.Shipping,
             Total = basket.Total,
-            FormattedSubTotal = FormatPrice(basket.SubTotal),
-            FormattedDiscount = FormatPrice(basket.Discount),
-            FormattedTax = FormatPrice(basket.Tax),
-            FormattedTotal = FormatPrice(basket.Total),
+            FormattedSubTotal = basket.SubTotal.FormatWithSymbol(_settings.CurrencySymbol),
+            FormattedDiscount = basket.Discount.FormatWithSymbol(_settings.CurrencySymbol),
+            FormattedTax = basket.Tax.FormatWithSymbol(_settings.CurrencySymbol),
+            FormattedTotal = basket.Total.FormatWithSymbol(_settings.CurrencySymbol),
             CurrencySymbol = _settings.CurrencySymbol,
             DisplaySubTotal = displaySubTotal,
             DisplayDiscount = displayDiscount,
             DisplayTax = displayTax,
             DisplayShipping = displayShipping,
             DisplayTotal = displayTotal,
-            FormattedDisplaySubTotal = FormatDisplayPrice(displaySubTotal, currencyContext.CurrencySymbol),
-            FormattedDisplayDiscount = FormatDisplayPrice(displayDiscount, currencyContext.CurrencySymbol),
-            FormattedDisplayTax = FormatDisplayPrice(displayTax, currencyContext.CurrencySymbol),
-            FormattedDisplayShipping = FormatDisplayPrice(displayShipping, currencyContext.CurrencySymbol),
-            FormattedDisplayTotal = FormatDisplayPrice(displayTotal, currencyContext.CurrencySymbol),
+            FormattedDisplaySubTotal = displaySubTotal.FormatWithSymbol(currencyContext.CurrencySymbol),
+            FormattedDisplayDiscount = displayDiscount.FormatWithSymbol(currencyContext.CurrencySymbol),
+            FormattedDisplayTax = displayTax.FormatWithSymbol(currencyContext.CurrencySymbol),
+            FormattedDisplayShipping = displayShipping.FormatWithSymbol(currencyContext.CurrencySymbol),
+            FormattedDisplayTotal = displayTotal.FormatWithSymbol(currencyContext.CurrencySymbol),
             DisplayCurrencyCode = currencyContext.CurrencyCode,
             DisplayCurrencySymbol = currencyContext.CurrencySymbol,
             ExchangeRate = rate,
@@ -235,7 +236,7 @@ public class StorefrontApiController(
         {
             ItemCount = itemCount,
             Total = total,
-            FormattedTotal = FormatPrice(total)
+            FormattedTotal = total.FormatWithSymbol(_settings.CurrencySymbol)
         });
     }
 
@@ -257,7 +258,7 @@ public class StorefrontApiController(
             Message = "Quantity updated",
             ItemCount = itemCount,
             Total = total,
-            FormattedTotal = FormatPrice(total)
+            FormattedTotal = total.FormatWithSymbol(_settings.CurrencySymbol)
         });
     }
 
@@ -279,19 +280,10 @@ public class StorefrontApiController(
             Message = "Item removed",
             ItemCount = itemCount,
             Total = total,
-            FormattedTotal = FormatPrice(total)
+            FormattedTotal = total.FormatWithSymbol(_settings.CurrencySymbol)
         });
     }
 
-    private string FormatPrice(decimal price)
-    {
-        return $"{_settings.CurrencySymbol}{price:N2}";
-    }
-
-    private static string FormatDisplayPrice(decimal price, string currencySymbol)
-    {
-        return $"{currencySymbol}{price:N2}";
-    }
 
     #region Shipping Country Endpoints
 
@@ -344,7 +336,7 @@ public class StorefrontApiController(
     }
 
     /// <summary>
-    /// Set shipping country preference (also updates currency automatically)
+    /// Set shipping country preference. Also updates currency automatically and converts basket amounts.
     /// </summary>
     [HttpPost("shipping/country")]
     public async Task<IActionResult> SetCurrentCountry([FromBody] SetCountryDto request, CancellationToken ct)
@@ -359,11 +351,21 @@ public class StorefrontApiController(
             return BadRequest(new { message = "Invalid country code" });
         }
 
-        // This also sets the currency cookie automatically
+        // This sets the currency cookie automatically based on country-to-currency mapping
         storefrontContext.SetShippingCountry(request.CountryCode, request.RegionCode);
 
-        // Get the new currency to return
+        // Get the new currency that was set
         var currency = await storefrontContext.GetCurrencyAsync(ct);
+
+        // Convert basket to new currency (if basket exists and has items)
+        var conversionResult = await checkoutService.ConvertBasketCurrencyAsync(
+            new ConvertBasketCurrencyParameters { NewCurrencyCode = currency.CurrencyCode },
+            ct);
+
+        if (!conversionResult.Successful)
+        {
+            return BadRequest(new { message = conversionResult.Messages.FirstOrDefault()?.Message ?? "Currency change failed" });
+        }
 
         return Ok(new SetCountryResultDto
         {
@@ -391,11 +393,22 @@ public class StorefrontApiController(
     }
 
     /// <summary>
-    /// Override storefront currency (for testing different currencies)
+    /// Override storefront currency. If basket has items, converts all amounts to the new currency.
     /// </summary>
     [HttpPost("currency")]
-    public IActionResult SetCurrency([FromBody] SetCurrencyDto request)
+    public async Task<IActionResult> SetCurrency([FromBody] SetCurrencyDto request, CancellationToken ct)
     {
+        // Convert basket to new currency (if basket exists and has items)
+        var conversionResult = await checkoutService.ConvertBasketCurrencyAsync(
+            new ConvertBasketCurrencyParameters { NewCurrencyCode = request.CurrencyCode },
+            ct);
+
+        if (!conversionResult.Successful)
+        {
+            return BadRequest(new { message = conversionResult.Messages.FirstOrDefault()?.Message ?? "Currency change failed" });
+        }
+
+        // Set the currency cookie for future requests
         storefrontContext.SetCurrency(request.CurrencyCode);
 
         var currencyInfo = currencyService.GetCurrency(request.CurrencyCode);
@@ -567,9 +580,9 @@ public class StorefrontApiController(
         {
             Success = true,
             EstimatedShipping = estimatedShipping,
-            FormattedEstimatedShipping = FormatPrice(estimatedShipping),
+            FormattedEstimatedShipping = estimatedShipping.FormatWithSymbol(_settings.CurrencySymbol),
             DisplayEstimatedShipping = displayEstimatedShipping,
-            FormattedDisplayEstimatedShipping = FormatDisplayPrice(displayEstimatedShipping, currencyContext.CurrencySymbol),
+            FormattedDisplayEstimatedShipping = displayEstimatedShipping.FormatWithSymbol(currencyContext.CurrencySymbol),
             GroupCount = groupingResult.Groups.Count
         });
     }

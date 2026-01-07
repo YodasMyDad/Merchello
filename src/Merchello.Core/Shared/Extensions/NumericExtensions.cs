@@ -71,4 +71,13 @@ public static class NumericExtensions
         }
         return 0M;
     }
+
+    /// <summary>
+    /// Formats a decimal price with a currency symbol.
+    /// </summary>
+    /// <param name="price">The price to format</param>
+    /// <param name="currencySymbol">The currency symbol (e.g., "$", "£", "€")</param>
+    /// <returns>Formatted price string (e.g., "$19.99")</returns>
+    public static string FormatWithSymbol(this decimal price, string currencySymbol)
+        => $"{currencySymbol}{price:N2}";
 }

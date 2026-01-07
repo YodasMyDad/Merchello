@@ -1,3 +1,4 @@
+using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Reporting.Dtos;
 
@@ -70,5 +71,31 @@ public interface IReportingService
         int take = 8,
         DateTime? fromDate = null,
         DateTime? toDate = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets order statistics for today (orders, items, fulfilled, outstanding).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Today's order statistics.</returns>
+    Task<OrderStatsDto> GetOrderStatsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets dashboard statistics with monthly metrics and percentage changes.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Dashboard statistics with comparisons.</returns>
+    Task<DashboardStatsDto> GetDashboardStatsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets orders for export within a date range.
+    /// </summary>
+    /// <param name="fromDate">Start date (inclusive).</param>
+    /// <param name="toDate">End date (inclusive).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>List of order export items for CSV generation.</returns>
+    Task<List<OrderExportItemDto>> GetOrdersForExportAsync(
+        DateTime fromDate,
+        DateTime toDate,
         CancellationToken cancellationToken = default);
 }

@@ -1,5 +1,7 @@
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers.Braintree;
+using Microsoft.Extensions.Logging;
+using Moq;
 using Shouldly;
 using Xunit;
 
@@ -7,14 +9,21 @@ namespace Merchello.Tests.Payments.Providers;
 
 public class BraintreePaymentProviderTests
 {
+    private readonly BraintreePaymentProvider _provider;
+
+    public BraintreePaymentProviderTests()
+    {
+        var loggerMock = new Mock<ILogger<BraintreePaymentProvider>>();
+        _provider = new BraintreePaymentProvider(loggerMock.Object);
+    }
+
     [Fact]
     public void GetAvailablePaymentMethods_ReturnsAllMethods()
     {
-        // Arrange
-        var provider = new BraintreePaymentProvider();
+        // Arrange - using _provider from constructor
 
         // Act
-        var methods = provider.GetAvailablePaymentMethods().ToList();
+        var methods = _provider.GetAvailablePaymentMethods().ToList();
 
         // Assert - 10 methods: cards, paypal, applepay, googlepay, venmo, ideal, bancontact, sepa, eps, p24
         methods.Count.ShouldBe(10);
@@ -59,11 +68,8 @@ public class BraintreePaymentProviderTests
     [Fact]
     public async Task GetConfigurationFieldsAsync_ReturnsExpectedFields()
     {
-        // Arrange
-        var provider = new BraintreePaymentProvider();
-
         // Act
-        var fields = (await provider.GetConfigurationFieldsAsync()).ToList();
+        var fields = (await _provider.GetConfigurationFieldsAsync()).ToList();
 
         // Assert
         fields.Count.ShouldBe(4);
@@ -91,7 +97,6 @@ public class BraintreePaymentProviderTests
     public async Task CreatePaymentSessionAsync_WhenNotConfigured_ReturnsFailure()
     {
         // Arrange
-        var provider = new BraintreePaymentProvider();
         var request = new PaymentRequest
         {
             InvoiceId = Guid.NewGuid(),
@@ -102,7 +107,7 @@ public class BraintreePaymentProviderTests
         };
 
         // Act
-        var result = await provider.CreatePaymentSessionAsync(request);
+        var result = await _provider.CreatePaymentSessionAsync(request);
 
         // Assert
         result.Success.ShouldBeFalse();
@@ -114,7 +119,6 @@ public class BraintreePaymentProviderTests
     public async Task ProcessPaymentAsync_WhenNotConfigured_ReturnsFailure()
     {
         // Arrange
-        var provider = new BraintreePaymentProvider();
         var request = new ProcessPaymentRequest
         {
             InvoiceId = Guid.NewGuid(),
@@ -124,7 +128,7 @@ public class BraintreePaymentProviderTests
         };
 
         // Act
-        var result = await provider.ProcessPaymentAsync(request);
+        var result = await _provider.ProcessPaymentAsync(request);
 
         // Assert
         result.Success.ShouldBeFalse();
@@ -135,7 +139,6 @@ public class BraintreePaymentProviderTests
     public async Task RefundPaymentAsync_WhenNotConfigured_ReturnsFailure()
     {
         // Arrange
-        var provider = new BraintreePaymentProvider();
         var request = new RefundRequest
         {
             PaymentId = Guid.NewGuid(),
@@ -145,7 +148,7 @@ public class BraintreePaymentProviderTests
         };
 
         // Act
-        var result = await provider.RefundPaymentAsync(request);
+        var result = await _provider.RefundPaymentAsync(request);
 
         // Assert
         result.Success.ShouldBeFalse();
@@ -156,12 +159,11 @@ public class BraintreePaymentProviderTests
     public async Task ValidateWebhookAsync_WithMissingSignature_ReturnsFalse()
     {
         // Arrange
-        var provider = new BraintreePaymentProvider();
         var payload = "test_payload";
         var headers = new Dictionary<string, string>();
 
         // Act
-        var result = await provider.ValidateWebhookAsync(payload, headers);
+        var result = await _provider.ValidateWebhookAsync(payload, headers);
 
         // Assert
         result.ShouldBeFalse();
@@ -171,12 +173,11 @@ public class BraintreePaymentProviderTests
     public async Task ProcessWebhookAsync_WhenNotConfigured_ReturnsFailure()
     {
         // Arrange
-        var provider = new BraintreePaymentProvider();
         var payload = "test_payload";
         var headers = new Dictionary<string, string>();
 
         // Act
-        var result = await provider.ProcessWebhookAsync(payload, headers);
+        var result = await _provider.ProcessWebhookAsync(payload, headers);
 
         // Assert
         result.Success.ShouldBeFalse();
@@ -188,7 +189,6 @@ public class BraintreePaymentProviderTests
     public async Task ProcessExpressCheckoutAsync_WhenNotConfigured_ReturnsFailure()
     {
         // Arrange
-        var provider = new BraintreePaymentProvider();
         var request = new ExpressCheckoutRequest
         {
             BasketId = Guid.NewGuid(),
@@ -212,7 +212,7 @@ public class BraintreePaymentProviderTests
         };
 
         // Act
-        var result = await provider.ProcessExpressCheckoutAsync(request);
+        var result = await _provider.ProcessExpressCheckoutAsync(request);
 
         // Assert
         result.Success.ShouldBeFalse();
@@ -221,24 +221,18 @@ public class BraintreePaymentProviderTests
     [Fact]
     public void Metadata_HasCorrectValues()
     {
-        // Arrange
-        var provider = new BraintreePaymentProvider();
-
         // Assert
-        provider.Metadata.Alias.ShouldBe("braintree");
-        provider.Metadata.DisplayName.ShouldBe("Braintree");
-        provider.Metadata.SupportsRefunds.ShouldBeTrue();
-        provider.Metadata.SupportsPartialRefunds.ShouldBeTrue();
+        _provider.Metadata.Alias.ShouldBe("braintree");
+        _provider.Metadata.DisplayName.ShouldBe("Braintree");
+        _provider.Metadata.SupportsRefunds.ShouldBeTrue();
+        _provider.Metadata.SupportsPartialRefunds.ShouldBeTrue();
     }
 
     [Fact]
     public void GetAvailablePaymentMethods_CardsMethod_UsesHostedFieldsIntegrationType()
     {
-        // Arrange
-        var provider = new BraintreePaymentProvider();
-
         // Act
-        var methods = provider.GetAvailablePaymentMethods().ToList();
+        var methods = _provider.GetAvailablePaymentMethods().ToList();
         var cardsMethod = methods.FirstOrDefault(m => m.Alias == "cards");
 
         // Assert - Verify cards uses HostedFields (not Drop-in)
@@ -251,11 +245,8 @@ public class BraintreePaymentProviderTests
     [Fact]
     public void GetAvailablePaymentMethods_ExpressMethods_UseWidgetIntegrationType()
     {
-        // Arrange
-        var provider = new BraintreePaymentProvider();
-
         // Act
-        var methods = provider.GetAvailablePaymentMethods().ToList();
+        var methods = _provider.GetAvailablePaymentMethods().ToList();
 
         // Assert - PayPal uses Widget and is express checkout
         var paypal = methods.FirstOrDefault(m => m.Alias == "paypal");
@@ -285,11 +276,8 @@ public class BraintreePaymentProviderTests
     [InlineData("googlepay")]
     public async Task GetExpressCheckoutClientConfigAsync_WhenNotConfigured_ReturnsNull(string methodAlias)
     {
-        // Arrange
-        var provider = new BraintreePaymentProvider();
-
         // Act - Without credentials, should return null
-        var result = await provider.GetExpressCheckoutClientConfigAsync(
+        var result = await _provider.GetExpressCheckoutClientConfigAsync(
             methodAlias,
             amount: 100m,
             currency: "USD");
@@ -304,11 +292,8 @@ public class BraintreePaymentProviderTests
     [InlineData("")]
     public async Task GetExpressCheckoutClientConfigAsync_ForNonExpressMethods_ReturnsNull(string methodAlias)
     {
-        // Arrange
-        var provider = new BraintreePaymentProvider();
-
         // Act
-        var result = await provider.GetExpressCheckoutClientConfigAsync(
+        var result = await _provider.GetExpressCheckoutClientConfigAsync(
             methodAlias,
             amount: 100m,
             currency: "USD");
@@ -320,11 +305,8 @@ public class BraintreePaymentProviderTests
     [Fact]
     public async Task GetWebhookEventTemplatesAsync_ReturnsExpectedEvents()
     {
-        // Arrange
-        var provider = new BraintreePaymentProvider();
-
         // Act
-        var templates = await provider.GetWebhookEventTemplatesAsync();
+        var templates = await _provider.GetWebhookEventTemplatesAsync();
 
         // Assert
         templates.ShouldNotBeNull();
@@ -364,7 +346,6 @@ public class BraintreePaymentProviderTests
     public async Task GenerateTestWebhookPayloadAsync_GeneratesValidPayload(string eventType)
     {
         // Arrange
-        var provider = new BraintreePaymentProvider();
         var parameters = new TestWebhookParameters
         {
             EventType = eventType,
@@ -374,7 +355,7 @@ public class BraintreePaymentProviderTests
         };
 
         // Act
-        var (payload, headers) = await provider.GenerateTestWebhookPayloadAsync(parameters);
+        var (payload, headers) = await _provider.GenerateTestWebhookPayloadAsync(parameters);
 
         // Assert
         payload.ShouldNotBeNullOrEmpty();

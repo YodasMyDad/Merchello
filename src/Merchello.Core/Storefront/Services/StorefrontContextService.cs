@@ -28,11 +28,7 @@ public class StorefrontContextService(
     ICheckoutService checkoutService,
     IProductService productService) : IStorefrontContextService
 {
-    private const string CountryCookieName = "Merchello.ShippingCountry";
-    private const string RegionCookieName = "Merchello.ShippingRegion";
-    private const string CurrencyCookieName = "Merchello.Currency";
     private const int CookieExpiryDays = 30;
-    private const string FallbackCountryCode = "US";
 
     private readonly MerchelloSettings _settings = settings.Value;
 
@@ -43,10 +39,10 @@ public class StorefrontContextService(
         string? regionCode = null;
 
         // Try to read from cookie
-        if (httpContext?.Request.Cookies.TryGetValue(CountryCookieName, out var cookieCountry) == true)
+        if (httpContext?.Request.Cookies.TryGetValue(Constants.Cookies.ShippingCountry, out var cookieCountry) == true)
         {
             countryCode = cookieCountry;
-            httpContext.Request.Cookies.TryGetValue(RegionCookieName, out regionCode);
+            httpContext.Request.Cookies.TryGetValue(Constants.Cookies.ShippingRegion, out regionCode);
         }
 
         // Validate country code against available countries
@@ -62,9 +58,9 @@ public class StorefrontContextService(
         // If settings default is invalid, use fallback
         if (string.IsNullOrWhiteSpace(countryCode) || !availableCountryCodes.Contains(countryCode))
         {
-            countryCode = availableCountryCodes.Contains(FallbackCountryCode)
-                ? FallbackCountryCode
-                : availableCountries.FirstOrDefault()?.Code ?? FallbackCountryCode;
+            countryCode = availableCountryCodes.Contains(Constants.FallbackCountryCode)
+                ? Constants.FallbackCountryCode
+                : availableCountries.FirstOrDefault()?.Code ?? Constants.FallbackCountryCode;
         }
 
         // Get country name
@@ -104,15 +100,15 @@ public class StorefrontContextService(
             SameSite = SameSiteMode.Lax
         };
 
-        httpContext.Response.Cookies.Append(CountryCookieName, countryCode.ToUpperInvariant(), cookieOptions);
+        httpContext.Response.Cookies.Append(Constants.Cookies.ShippingCountry, countryCode.ToUpperInvariant(), cookieOptions);
 
         if (!string.IsNullOrWhiteSpace(regionCode))
         {
-            httpContext.Response.Cookies.Append(RegionCookieName, regionCode.ToUpperInvariant(), cookieOptions);
+            httpContext.Response.Cookies.Append(Constants.Cookies.ShippingRegion, regionCode.ToUpperInvariant(), cookieOptions);
         }
         else
         {
-            httpContext.Response.Cookies.Delete(RegionCookieName);
+            httpContext.Response.Cookies.Delete(Constants.Cookies.ShippingRegion);
         }
 
         // Automatically update currency based on the new country
@@ -126,7 +122,7 @@ public class StorefrontContextService(
         string? currencyCode = null;
 
         // Try to read from cookie first
-        if (httpContext?.Request.Cookies.TryGetValue(CurrencyCookieName, out var cookieCurrency) == true
+        if (httpContext?.Request.Cookies.TryGetValue(Constants.Cookies.Currency, out var cookieCurrency) == true
             && !string.IsNullOrWhiteSpace(cookieCurrency))
         {
             currencyCode = cookieCurrency;
@@ -158,7 +154,7 @@ public class StorefrontContextService(
             SameSite = SameSiteMode.Lax
         };
 
-        httpContext.Response.Cookies.Append(CurrencyCookieName, currencyCode.ToUpperInvariant(), cookieOptions);
+        httpContext.Response.Cookies.Append(Constants.Cookies.Currency, currencyCode.ToUpperInvariant(), cookieOptions);
     }
 
     public async Task<int> GetAvailableStockAsync(Product product, CancellationToken ct = default)

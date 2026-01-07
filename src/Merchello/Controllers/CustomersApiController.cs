@@ -1,9 +1,14 @@
 using Asp.Versioning;
+using Merchello.Core.Accounting.Dtos;
+using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Customers.Dtos;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Customers.Services.Parameters;
+using Merchello.Core.Shared.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Merchello.Controllers;
 
@@ -11,7 +16,9 @@ namespace Merchello.Controllers;
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class CustomersApiController(
     ICustomerService customerService,
-    ICustomerSegmentService segmentService) : MerchelloApiControllerBase
+    ICustomerSegmentService segmentService,
+    IStatementService statementService,
+    IOptions<MerchelloSettings> settings) : MerchelloApiControllerBase
 {
     /// <summary>
     /// Get paginated list of customers with optional search
@@ -61,7 +68,14 @@ public class CustomersApiController(
             LastName = dto.LastName,
             MemberKey = dto.MemberKey,
             ClearMemberKey = dto.ClearMemberKey,
-            Tags = dto.Tags
+            Tags = dto.Tags,
+            IsFlagged = dto.IsFlagged,
+            AcceptsMarketing = dto.AcceptsMarketing,
+            HasAccountTerms = dto.HasAccountTerms,
+            PaymentTermsDays = dto.PaymentTermsDays,
+            ClearPaymentTermsDays = dto.ClearPaymentTermsDays,
+            CreditLimit = dto.CreditLimit,
+            ClearCreditLimit = dto.ClearCreditLimit
         };
 
         var result = await customerService.UpdateAsync(parameters, ct);
@@ -157,5 +171,79 @@ public class CustomersApiController(
         }
 
         return Ok(badges);
+    }
+
+    /// <summary>
+    /// Get outstanding balance summary for a customer
+    /// </summary>
+    [HttpGet("customers/{id:guid}/outstanding")]
+    [ProducesResponseType<OutstandingBalanceDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetOutstandingBalance(Guid id, CancellationToken ct)
+    {
+        var customer = await customerService.GetByIdAsync(id, ct);
+        if (customer == null)
+        {
+            return NotFound("Customer not found");
+        }
+
+        var balance = await statementService.GetOutstandingBalanceAsync(id, ct);
+        return Ok(balance);
+    }
+
+    /// <summary>
+    /// Get outstanding (unpaid) invoices for a customer
+    /// </summary>
+    [HttpGet("customers/{id:guid}/outstanding/invoices")]
+    [ProducesResponseType<List<OrderListItemDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetOutstandingInvoices(Guid id, CancellationToken ct)
+    {
+        var customer = await customerService.GetByIdAsync(id, ct);
+        if (customer == null)
+        {
+            return NotFound("Customer not found");
+        }
+
+        var invoices = await statementService.GetOutstandingInvoicesForCustomerAsync(id, ct);
+        return Ok(invoices);
+    }
+
+    /// <summary>
+    /// Generate a PDF statement for a customer
+    /// </summary>
+    [HttpGet("customers/{id:guid}/statement")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GenerateStatement(
+        Guid id,
+        [FromQuery] DateTime? periodStart,
+        [FromQuery] DateTime? periodEnd,
+        CancellationToken ct)
+    {
+        var customer = await customerService.GetByIdAsync(id, ct);
+        if (customer == null)
+        {
+            return NotFound("Customer not found");
+        }
+
+        var merchelloSettings = settings.Value;
+        var parameters = new GenerateStatementParameters
+        {
+            CustomerId = id,
+            PeriodStart = periodStart,
+            PeriodEnd = periodEnd,
+            CompanyName = merchelloSettings.StoreName,
+            CompanyAddress = merchelloSettings.StoreAddress
+        };
+
+        var pdf = await statementService.GenerateStatementPdfAsync(parameters, ct);
+
+        var customerName = string.IsNullOrEmpty(customer.FirstName)
+            ? customer.Email
+            : $"{customer.FirstName}-{customer.LastName}";
+        var fileName = $"Statement-{customerName}-{DateTime.UtcNow:yyyy-MM-dd}.pdf";
+
+        return File(pdf, "application/pdf", fileName);
     }
 }

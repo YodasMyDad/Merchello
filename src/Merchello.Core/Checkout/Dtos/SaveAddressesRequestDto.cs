@@ -24,4 +24,9 @@ public class SaveAddressesRequestDto
     /// Whether shipping address is the same as billing address.
     /// </summary>
     public bool ShippingSameAsBilling { get; set; } = true;
+
+    /// <summary>
+    /// Whether the customer accepts marketing communications.
+    /// </summary>
+    public bool AcceptsMarketing { get; set; }
 }

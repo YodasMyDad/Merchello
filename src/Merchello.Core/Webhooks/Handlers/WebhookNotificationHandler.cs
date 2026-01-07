@@ -61,7 +61,7 @@ public class WebhookNotificationHandler(
         }, notification.Order.Id, "Order", ct);
 
     public Task HandleAsync(OrderSavedNotification notification, CancellationToken ct)
-        => DispatchAsync("order.updated", new
+        => DispatchAsync(Constants.WebhookTopics.OrderUpdated, new
         {
             notification.Order.Id,
             notification.Order.InvoiceId,
@@ -188,7 +188,7 @@ public class WebhookNotificationHandler(
     #region Shipments
 
     public Task HandleAsync(ShipmentCreatedNotification notification, CancellationToken ct)
-        => DispatchAsync("shipment.created", new
+        => DispatchAsync(Constants.WebhookTopics.ShipmentCreated, new
         {
             notification.Shipment.Id,
             notification.Shipment.OrderId,
@@ -198,7 +198,7 @@ public class WebhookNotificationHandler(
         }, notification.Shipment.Id, "Shipment", ct);
 
     public Task HandleAsync(ShipmentSavedNotification notification, CancellationToken ct)
-        => DispatchAsync("shipment.updated", new
+        => DispatchAsync(Constants.WebhookTopics.ShipmentUpdated, new
         {
             notification.Shipment.Id,
             notification.Shipment.OrderId,

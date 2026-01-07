@@ -24,7 +24,6 @@ public class ShippingQuoteService(
     ILogger<ShippingQuoteService> logger) : IShippingQuoteService
 {
     private static readonly TimeSpan _quoteCacheTtl = TimeSpan.FromMinutes(10);
-    private const string CacheTag = "shipping-quotes";
 
     public async Task<IReadOnlyCollection<ShippingRateQuote>> GetQuotesAsync(
         Basket basket,
@@ -51,7 +50,7 @@ public class ShippingQuoteService(
             cacheKey,
             async ct => await FetchQuotesFromProvidersAsync(request, ct),
             _quoteCacheTtl,
-            [CacheTag],
+            [Constants.CacheTags.ShippingQuotes],
             cancellationToken);
 
         return quotes;
@@ -81,7 +80,7 @@ public class ShippingQuoteService(
         var contentHash = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes($"{productIds}|{addonIds}")))[..16];
 
-        return $"shipping-quote:{basket.Id}:{destination}:{currency}:{contentHash}";
+        return $"{Constants.CacheKeys.ShippingQuotePrefix}{basket.Id}:{destination}:{currency}:{contentHash}";
     }
 
     private async Task<List<ShippingRateQuote>> FetchQuotesFromProvidersAsync(
