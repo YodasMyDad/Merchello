@@ -1,6 +1,8 @@
 using Merchello.Core.Data;
+using Merchello.Core.Shared.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 
@@ -12,11 +14,18 @@ namespace Merchello.Core.Accounting.Handlers;
 /// </summary>
 public class SeedDataNotificationHandler(
     IServiceProvider serviceProvider,
-    ILogger<SeedDataNotificationHandler> logger)
+    ILogger<SeedDataNotificationHandler> logger,
+    IOptions<MerchelloSettings> settings)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
     public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
+        if (!settings.Value.InstallSeedData)
+        {
+            logger.LogDebug("Seed data installation disabled via configuration");
+            return;
+        }
+
         try
         {
             // Create a scope to resolve scoped services

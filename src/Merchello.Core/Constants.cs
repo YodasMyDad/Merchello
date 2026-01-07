@@ -1,35 +1,296 @@
-﻿namespace Merchello.Core;
+namespace Merchello.Core;
 
-    public static class Constants
+public static class Constants
+{
+    public const string DefaultPagingVariable = "p";
+    public const string ApiName = "merchello";
+    public const string FallbackCountryCode = "US";
+
+    public static class Cookies
     {
-        public const string DefaultPagingVariable = "p";
-        public const string ApiName = "merchello";
+        public const string BasketId = "MerchBasketId";
+        public const string ShippingCountry = "Merchello.ShippingCountry";
+        public const string ShippingRegion = "Merchello.ShippingRegion";
+        public const string Currency = "Merchello.Currency";
+    }
 
-        public static class Cookies
+    public static class ExtendedDataKeys
+    {
+        public const string DiscountValueType = "DiscountValueType";
+        public const string DiscountValue = "DiscountValue";
+        public const string Reason = "Reason";
+        public const string VisibleToCustomer = "VisibleToCustomer";
+        public const string IsPhysicalProduct = "IsPhysicalProduct";
+
+        // Promotional discount keys
+        public const string DiscountId = "DiscountId";
+        public const string DiscountCode = "DiscountCode";
+        public const string DiscountName = "DiscountName";
+        public const string DiscountCategory = "DiscountCategory";
+        public const string ApplyAfterTax = "ApplyAfterTax";
+
+        // Product metadata for discount matching
+        public const string ProductRootId = "ProductRootId";
+        public const string ProductTypeId = "ProductTypeId";
+        public const string SupplierId = "SupplierId";
+        public const string CollectionIds = "CollectionIds";
+        public const string FilterIds = "FilterIds";
+
+        // Product options and add-ons
+        public const string OptionId = "OptionId";
+        public const string OptionValueId = "OptionValueId";
+        public const string CostAdjustment = "CostAdjustment";
+        public const string IsAddon = "IsAddon";
+        public const string ImageUrl = "ImageUrl";
+
+        // Tax
+        public const string TaxGroupId = "TaxGroupId";
+        public const string TaxGroupName = "TaxGroupName";
+
+        // Physical dimensions
+        public const string WeightKg = "WeightKg";
+        public const string LengthCm = "LengthCm";
+        public const string WidthCm = "WidthCm";
+        public const string HeightCm = "HeightCm";
+
+        // Currency conversion audit trail
+        public const string OriginalCurrency = "OriginalCurrency";
+        public const string OriginalAmount = "OriginalAmount";
+    }
+
+    public static class CacheKeys
+    {
+        public const string ExchangeRatesPrefix = "merchello:exchange-rates:";
+        public const string ShippingQuotePrefix = "shipping-quote:";
+        public const string LocalityPrefix = "merchello:locality:";
+        public const string LocalityRegionsPrefix = "merchello:locality:regions:";
+        public const string CheckoutSessionPrefix = "MerchelloCheckout_";
+        public const string BasketSessionKey = "Basket";
+    }
+
+    public static class CacheTags
+    {
+        public const string ExchangeRates = "merchello-exchange-rates";
+        public const string ShippingQuotes = "shipping-quotes";
+        public const string Locality = "merchello:locality:";
+    }
+
+    public static class PaymentProviders
+    {
+        public static class Aliases
         {
-            public const string BasketId = "MerchBasketId";
+            public const string Manual = "manual";
+            public const string PurchaseOrder = "purchaseorder";
+            public const string Stripe = "stripe";
+            public const string PayPal = "paypal";
+            public const string Braintree = "braintree";
         }
 
-        public static class ExtendedDataKeys
+        public static class MethodAliases
         {
-            public const string DiscountValueType = "DiscountValueType";
-            public const string DiscountValue = "DiscountValue";
-            public const string Reason = "Reason";
-            public const string VisibleToCustomer = "VisibleToCustomer";
-            public const string IsPhysicalProduct = "IsPhysicalProduct";
+            public const string Cards = "cards";
+            public const string CardsElements = "cards-elements";
+            public const string ApplePay = "applepay";
+            public const string GooglePay = "googlepay";
+            public const string Link = "link";
+            public const string PayLater = "paylater";
+            public const string Venmo = "venmo";
+            public const string Ideal = "ideal";
+            public const string Bancontact = "bancontact";
+            public const string Sepa = "sepa";
+            public const string Eps = "eps";
+            public const string P24 = "p24";
+        }
 
-            // Promotional discount keys
-            public const string DiscountId = "DiscountId";
-            public const string DiscountCode = "DiscountCode";
-            public const string DiscountName = "DiscountName";
-            public const string DiscountCategory = "DiscountCategory";
-            public const string ApplyAfterTax = "ApplyAfterTax";
+        public static class ConfigKeys
+        {
+            public const string SecretKey = "secretKey";
+            public const string PublishableKey = "publishableKey";
+            public const string WebhookSecret = "webhookSecret";
+            public const string ClientId = "clientId";
+            public const string ClientSecret = "clientSecret";
+            public const string WebhookId = "webhookId";
+            public const string BrandName = "brandName";
+            public const string MerchantId = "merchantId";
+            public const string PublicKey = "publicKey";
+            public const string PrivateKey = "privateKey";
+            public const string MerchantAccountId = "merchantAccountId";
+        }
 
-            // Product metadata for discount matching
-            public const string ProductRootId = "ProductRootId";
-            public const string ProductTypeId = "ProductTypeId";
-            public const string SupplierId = "SupplierId";
-            public const string CollectionIds = "CollectionIds";
-            public const string FilterIds = "FilterIds";
+        public static class MetadataKeys
+        {
+            public const string InvoiceId = "invoiceId";
+            public const string Amount = "amount";
+            public const string Currency = "currency";
+            public const string ReturnUrl = "returnUrl";
+            public const string MethodAlias = "methodAlias";
+            public const string Source = "source";
+            public const string Mode = "mode";
+        }
+
+        public static class Icons
+        {
+            public const string Wallet = "icon-wallet";
+            public const string Document = "icon-document";
+            public const string CreditCard = "icon-credit-card";
+            public const string PayPal = "icon-paypal";
+            public const string Apple = "icon-apple";
+            public const string Google = "icon-google";
+            public const string Venmo = "icon-venmo";
+            public const string Bank = "icon-bank";
+        }
+
+        public static class Modes
+        {
+            public const string Payment = "payment";
         }
     }
+
+    public static class ShippingProviders
+    {
+        public static class ConfigKeys
+        {
+            public const string ClientId = "clientId";
+            public const string ClientSecret = "clientSecret";
+            public const string AccountNumber = "accountNumber";
+            public const string Environment = "environment";
+            public const string UseNegotiatedRates = "useNegotiatedRates";
+            public const string Markup = "markup";
+            public const string Name = "name";
+        }
+
+        public static class Environments
+        {
+            public const string Sandbox = "sandbox";
+            public const string Production = "production";
+        }
+
+        public static class Aliases
+        {
+            public const string FlatRate = "flat-rate";
+        }
+
+        public static class Icons
+        {
+            public const string Truck = "icon-truck";
+        }
+    }
+
+    public static class WebhookTopics
+    {
+        public const string OrderUpdated = "order.updated";
+        public const string ShipmentCreated = "shipment.created";
+        public const string ShipmentUpdated = "shipment.updated";
+    }
+
+    public static class StatusLabels
+    {
+        public static class Fulfillment
+        {
+            public const string Unfulfilled = "Unfulfilled";
+            public const string Fulfilled = "Fulfilled";
+            public const string Partial = "Partial";
+        }
+
+        public static class Payment
+        {
+            public const string Paid = "Paid";
+            public const string PartiallyPaid = "Partially Paid";
+            public const string PartiallyRefunded = "Partially Refunded";
+            public const string Refunded = "Refunded";
+            public const string AwaitingPayment = "Awaiting Payment";
+            public const string Unpaid = "Unpaid";
+        }
+
+        public static class Order
+        {
+            public const string Pending = "Pending";
+            public const string AwaitingStock = "Awaiting Stock";
+            public const string ReadyToFulfill = "Ready to Fulfill";
+            public const string Processing = "Processing";
+            public const string PartiallyShipped = "Partially Shipped";
+            public const string Shipped = "Shipped";
+            public const string Completed = "Completed";
+            public const string Cancelled = "Cancelled";
+            public const string OnHold = "On Hold";
+        }
+
+        public static class Balance
+        {
+            public const string Balanced = "Balanced";
+        }
+
+        public static class CssClasses
+        {
+            public const string Positive = "positive";
+            public const string Warning = "warning";
+            public const string Default = "default";
+            public const string Cancelled = "cancelled";
+            public const string Shipped = "shipped";
+            public const string Unfulfilled = "unfulfilled";
+        }
+
+        public static class RiskLevel
+        {
+            public const string High = "high";
+            public const string Medium = "medium";
+            public const string Low = "low";
+            public const string Minimal = "minimal";
+        }
+    }
+
+    public static class QueryFilters
+    {
+        public static class PaymentStatus
+        {
+            public const string Paid = "paid";
+            public const string Unpaid = "unpaid";
+        }
+
+        public static class FulfillmentStatus
+        {
+            public const string Fulfilled = "fulfilled";
+            public const string Unfulfilled = "unfulfilled";
+        }
+
+        public static class CancellationStatus
+        {
+            public const string Cancelled = "cancelled";
+            public const string Active = "active";
+        }
+
+        public static class SortDirection
+        {
+            public const string Ascending = "asc";
+            public const string Descending = "desc";
+        }
+
+        public static class SortBy
+        {
+            public const string Date = "date";
+            public const string Total = "total";
+            public const string Customer = "customer";
+            public const string InvoiceNumber = "invoicenumber";
+        }
+    }
+
+    public static class FormFields
+    {
+        public const string PurchaseOrderNumber = "purchaseOrderNumber";
+        public const string PaymentMethod = "paymentMethod";
+        public const string Reference = "reference";
+        public const string Notes = "notes";
+        public const string DeviceData = "deviceData";
+    }
+
+    public static class LineItemTypes
+    {
+        public const string Product = "Product";
+        public const string Shipping = "shipping";
+    }
+
+    public static class InvoiceChannels
+    {
+        public const string DraftOrder = "Draft order";
+    }
+}

@@ -51,5 +51,19 @@ public class PaymentDbMapping : IEntityTypeConfiguration<Payment>
         builder.HasIndex(x => x.TransactionId)
             .IsUnique()
             .HasFilter("[TransactionId] IS NOT NULL");
+
+        // Idempotency support columns
+        builder.Property(x => x.IdempotencyKey).HasMaxLength(100);
+        builder.Property(x => x.WebhookEventId).HasMaxLength(255);
+
+        // Unique index on IdempotencyKey for deduplication (filtered to exclude NULLs)
+        builder.HasIndex(x => x.IdempotencyKey)
+            .IsUnique()
+            .HasFilter("[IdempotencyKey] IS NOT NULL");
+
+        // Unique index on WebhookEventId for webhook deduplication (filtered to exclude NULLs)
+        builder.HasIndex(x => x.WebhookEventId)
+            .IsUnique()
+            .HasFilter("[WebhookEventId] IS NOT NULL");
     }
 }

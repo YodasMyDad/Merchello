@@ -44,4 +44,39 @@ public static class AccountingExtensions
 
         return list;
     }
+
+    /// <summary>
+    /// Gets the overall fulfillment status for a collection of orders.
+    /// </summary>
+    public static string GetFulfillmentStatus(this IEnumerable<Order> orders)
+    {
+        var orderList = orders.ToList();
+        if (!orderList.Any())
+            return Constants.StatusLabels.Fulfillment.Unfulfilled;
+
+        var allShipped = orderList.All(o => o.Status == OrderStatus.Shipped || o.Status == OrderStatus.Completed);
+        if (allShipped)
+            return Constants.StatusLabels.Fulfillment.Fulfilled;
+
+        var anyShipped = orderList.Any(o =>
+            o.Status == OrderStatus.Shipped ||
+            o.Status == OrderStatus.PartiallyShipped ||
+            o.Status == OrderStatus.Completed);
+
+        return anyShipped ? Constants.StatusLabels.Fulfillment.Partial : Constants.StatusLabels.Fulfillment.Unfulfilled;
+    }
+
+    /// <summary>
+    /// Gets the CSS class for the fulfillment status badge.
+    /// </summary>
+    public static string GetFulfillmentStatusCssClass(this IEnumerable<Order> orders)
+    {
+        var status = orders.GetFulfillmentStatus();
+        return status switch
+        {
+            Constants.StatusLabels.Fulfillment.Fulfilled => Constants.StatusLabels.CssClasses.Positive,
+            Constants.StatusLabels.Fulfillment.Partial => Constants.StatusLabels.CssClasses.Warning,
+            _ => Constants.StatusLabels.CssClasses.Default
+        };
+    }
 }

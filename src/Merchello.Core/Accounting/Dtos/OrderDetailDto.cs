@@ -119,4 +119,22 @@ public class OrderDetailDto
     /// Calculated by backend to avoid frontend logic duplication.
     /// </summary>
     public bool CanFulfill { get; set; }
+
+    /// <summary>
+    /// Payment due date for account customers with payment terms.
+    /// Null means payment is due immediately.
+    /// </summary>
+    public DateTime? DueDate { get; set; }
+
+    /// <summary>
+    /// Whether the invoice is overdue (DueDate has passed and balance is outstanding).
+    /// Computed at mapping time.
+    /// </summary>
+    public bool IsOverdue { get; set; }
+
+    /// <summary>
+    /// Days until due date (negative if overdue).
+    /// Computed at mapping time.
+    /// </summary>
+    public int? DaysUntilDue { get; set; }
 }

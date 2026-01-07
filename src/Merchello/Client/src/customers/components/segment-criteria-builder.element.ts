@@ -57,7 +57,6 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
     if (!this.#isConnected) return;
 
     if (error) {
-      console.error("Failed to load criteria fields:", error);
       this._isLoadingFields = false;
       return;
     }

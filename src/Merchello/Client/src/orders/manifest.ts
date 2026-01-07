@@ -89,6 +89,14 @@ export const manifests: Array<UmbExtensionManifest> = [
     js: () => import("./modals/customer-orders-modal.element.js"),
   },
 
+  // Generate statement modal for downloading customer statement PDFs
+  {
+    type: "modal",
+    alias: "Merchello.GenerateStatement.Modal",
+    name: "Merchello Generate Statement Modal",
+    js: () => import("./modals/generate-statement-modal.element.js"),
+  },
+
   // Workspace for orders list (when clicking "Orders" in tree)
   {
     type: "workspace",

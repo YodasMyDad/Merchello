@@ -78,6 +78,9 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<DateTime?>("DueDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("ExtendedData")
                         .IsRequired()
                         .HasMaxLength(3000)
@@ -157,9 +160,14 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.HasIndex("DateCreated");
 
+                    b.HasIndex("DueDate")
+                        .HasFilter("[DueDate] IS NOT NULL");
+
                     b.HasIndex("IsCancelled");
 
                     b.HasIndex("IsDeleted");
+
+                    b.HasIndex("IsDeleted", "DateCreated");
 
                     b.ToTable("merchelloInvoices", (string)null);
                 });
@@ -327,6 +335,8 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.HasIndex("WarehouseId");
 
+                    b.HasIndex("Status", "CompletedDate");
+
                     b.ToTable("merchelloOrders", (string)null);
                 });
 
@@ -359,6 +369,10 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<string>("FraudResponse")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<Guid>("InvoiceId")
                         .HasColumnType("uniqueidentifier");
@@ -414,13 +428,25 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasMaxLength(350)
                         .HasColumnType("nvarchar(350)");
 
+                    b.Property<string>("WebhookEventId")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasFilter("[IdempotencyKey] IS NOT NULL");
 
                     b.HasIndex("ParentPaymentId");
 
                     b.HasIndex("TransactionId")
                         .IsUnique()
                         .HasFilter("[TransactionId] IS NOT NULL");
+
+                    b.HasIndex("WebhookEventId")
+                        .IsUnique()
+                        .HasFilter("[WebhookEventId] IS NOT NULL");
 
                     b.HasIndex("InvoiceId", "PaymentSuccess");
 
@@ -565,6 +591,10 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<bool>("AcceptsMarketing")
                         .HasColumnType("bit");
 
+                    b.Property<decimal?>("CreditLimit")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("datetime2");
 
@@ -580,6 +610,11 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<bool>("HasAccountTerms")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsFlagged")
                         .HasColumnType("bit");
 
@@ -589,6 +624,9 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<Guid?>("MemberKey")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("PaymentTermsDays")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 

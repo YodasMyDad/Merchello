@@ -673,6 +673,7 @@ public class CheckoutPaymentsApiController(
                 billingAddress,
                 sameAsBilling ? null : shippingAddress,
                 sameAsBilling,
+                acceptsMarketing: false, // Express checkout doesn't include marketing consent
                 cancellationToken);
 
             // Get the updated session

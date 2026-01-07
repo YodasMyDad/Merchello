@@ -39,5 +39,8 @@ public class OrderDbMapping : IEntityTypeConfiguration<Order>
 
         // Index for reporting queries on completed orders
         builder.HasIndex(x => x.CompletedDate);
+
+        // Composite index for analytics queries on completed orders
+        builder.HasIndex(x => new { x.Status, x.CompletedDate });
     }
 }

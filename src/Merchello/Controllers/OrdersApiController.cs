@@ -1,16 +1,21 @@
 using Asp.Versioning;
+using Merchello.Core;
 using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Locality.Dtos;
+using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Core.Reporting.Services.Interfaces;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Products.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -24,6 +29,9 @@ namespace Merchello.Controllers;
 public class OrdersApiController(
     IPaymentService paymentService,
     IInvoiceService invoiceService,
+    IShipmentService shipmentService,
+    IReportingService reportingService,
+    IStatementService statementService,
     IProductService productService,
     ICurrencyService currencyService,
     IOptions<MerchelloSettings> merchelloSettings,
@@ -52,8 +60,8 @@ public class OrdersApiController(
         {
             parameters.PaymentStatusFilter = query.PaymentStatus.ToLower() switch
             {
-                "paid" => InvoicePaymentStatusFilter.Paid,
-                "unpaid" => InvoicePaymentStatusFilter.Unpaid,
+                Constants.QueryFilters.PaymentStatus.Paid => InvoicePaymentStatusFilter.Paid,
+                Constants.QueryFilters.PaymentStatus.Unpaid => InvoicePaymentStatusFilter.Unpaid,
                 _ => InvoicePaymentStatusFilter.All
             };
         }
@@ -63,8 +71,8 @@ public class OrdersApiController(
         {
             parameters.FulfillmentStatusFilter = query.FulfillmentStatus.ToLower() switch
             {
-                "fulfilled" => InvoiceFulfillmentStatusFilter.Fulfilled,
-                "unfulfilled" => InvoiceFulfillmentStatusFilter.Unfulfilled,
+                Constants.QueryFilters.FulfillmentStatus.Fulfilled => InvoiceFulfillmentStatusFilter.Fulfilled,
+                Constants.QueryFilters.FulfillmentStatus.Unfulfilled => InvoiceFulfillmentStatusFilter.Unfulfilled,
                 _ => InvoiceFulfillmentStatusFilter.All
             };
         }
@@ -74,8 +82,8 @@ public class OrdersApiController(
         {
             parameters.CancellationStatusFilter = query.CancellationStatus.ToLower() switch
             {
-                "cancelled" => InvoiceCancellationStatusFilter.Cancelled,
-                "active" => InvoiceCancellationStatusFilter.Active,
+                Constants.QueryFilters.CancellationStatus.Cancelled => InvoiceCancellationStatusFilter.Cancelled,
+                Constants.QueryFilters.CancellationStatus.Active => InvoiceCancellationStatusFilter.Active,
                 _ => InvoiceCancellationStatusFilter.All
             };
         }
@@ -106,12 +114,12 @@ public class OrdersApiController(
 
     private static InvoiceOrderBy MapOrderBy(string? sortBy, string? sortDir)
     {
-        var isAsc = sortDir?.ToLower() == "asc";
+        var isAsc = sortDir?.ToLower() == Constants.QueryFilters.SortDirection.Ascending;
         return sortBy?.ToLower() switch
         {
-            "total" => isAsc ? InvoiceOrderBy.TotalAsc : InvoiceOrderBy.TotalDesc,
-            "customer" => isAsc ? InvoiceOrderBy.CustomerAsc : InvoiceOrderBy.CustomerDesc,
-            "invoicenumber" => isAsc ? InvoiceOrderBy.InvoiceNumberAsc : InvoiceOrderBy.InvoiceNumberDesc,
+            Constants.QueryFilters.SortBy.Total => isAsc ? InvoiceOrderBy.TotalAsc : InvoiceOrderBy.TotalDesc,
+            Constants.QueryFilters.SortBy.Customer => isAsc ? InvoiceOrderBy.CustomerAsc : InvoiceOrderBy.CustomerDesc,
+            Constants.QueryFilters.SortBy.InvoiceNumber => isAsc ? InvoiceOrderBy.InvoiceNumberAsc : InvoiceOrderBy.InvoiceNumberDesc,
             _ => isAsc ? InvoiceOrderBy.DateAsc : InvoiceOrderBy.DateDesc
         };
     }
@@ -123,7 +131,7 @@ public class OrdersApiController(
     [ProducesResponseType<OrderStatsDto>(StatusCodes.Status200OK)]
     public async Task<OrderStatsDto> GetOrderStats()
     {
-        return await invoiceService.GetOrderStatsAsync();
+        return await reportingService.GetOrderStatsAsync();
     }
 
     /// <summary>
@@ -133,7 +141,7 @@ public class OrdersApiController(
     [ProducesResponseType<DashboardStatsDto>(StatusCodes.Status200OK)]
     public async Task<DashboardStatsDto> GetDashboardStats()
     {
-        return await invoiceService.GetDashboardStatsAsync();
+        return await reportingService.GetDashboardStatsAsync();
     }
 
     /// <summary>
@@ -151,7 +159,7 @@ public class OrdersApiController(
             return BadRequest("From date must be before or equal to To date");
         }
 
-        var exportItems = await invoiceService.GetOrdersForExportAsync(
+        var exportItems = await reportingService.GetOrdersForExportAsync(
             request.FromDate,
             request.ToDate,
             cancellationToken);
@@ -531,7 +539,10 @@ public class OrdersApiController(
             IsCancelled = invoice.IsCancelled,
             ItemCount = itemCount,
             DeliveryStatus = deliveryStatus,
-            DeliveryMethod = deliveryMethod
+            DeliveryMethod = deliveryMethod,
+            DueDate = invoice.DueDate,
+            IsOverdue = invoice.DueDate.HasValue && invoice.DueDate.Value < DateTime.UtcNow && paymentDetails.BalanceDue > 0,
+            DaysUntilDue = invoice.DueDate.HasValue ? (int)(invoice.DueDate.Value.Date - DateTime.UtcNow.Date).TotalDays : null
         };
     }
 
@@ -641,7 +652,10 @@ public class OrdersApiController(
                           || li.LineItemType == LineItemType.Custom
                           || li.LineItemType == LineItemType.Addon)
                 .Sum(li => li.Quantity),
-            CanFulfill = !invoice.IsCancelled && GetFulfillmentStatus(orders) != "Fulfilled"
+            CanFulfill = !invoice.IsCancelled && GetFulfillmentStatus(orders) != "Fulfilled",
+            DueDate = invoice.DueDate,
+            IsOverdue = invoice.DueDate.HasValue && invoice.DueDate.Value < DateTime.UtcNow && paymentDetails.BalanceDue > 0,
+            DaysUntilDue = invoice.DueDate.HasValue ? (int)(invoice.DueDate.Value.Date - DateTime.UtcNow.Date).TotalDays : null
         };
     }
 
@@ -743,7 +757,7 @@ public class OrdersApiController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetFulfillmentSummary(Guid invoiceId)
     {
-        var summary = await invoiceService.GetFulfillmentSummaryAsync(invoiceId);
+        var summary = await shipmentService.GetFulfillmentSummaryAsync(invoiceId);
 
         if (summary == null)
         {
@@ -776,7 +790,7 @@ public class OrdersApiController(
             TrackingUrl = request.TrackingUrl
         };
 
-        var result = await invoiceService.CreateShipmentAsync(parameters);
+        var result = await shipmentService.CreateShipmentAsync(parameters);
 
         if (result.ResultObject == null)
         {
@@ -805,7 +819,7 @@ public class OrdersApiController(
             ActualDeliveryDate = request.ActualDeliveryDate
         };
 
-        var result = await invoiceService.UpdateShipmentAsync(parameters);
+        var result = await shipmentService.UpdateShipmentAsync(parameters);
 
         if (result.ResultObject == null)
         {
@@ -824,7 +838,7 @@ public class OrdersApiController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteShipment(Guid shipmentId)
     {
-        var success = await invoiceService.DeleteShipmentAsync(shipmentId);
+        var success = await shipmentService.DeleteShipmentAsync(shipmentId);
 
         if (!success)
         {
@@ -1020,4 +1034,122 @@ public class OrdersApiController(
             }).ToList() ?? []
         };
     }
+
+    /// <summary>
+    /// Get paginated list of outstanding (unpaid) invoices across all account customers
+    /// </summary>
+    [HttpGet("orders/outstanding")]
+    [ProducesResponseType<OutstandingOrdersPageDto>(StatusCodes.Status200OK)]
+    public async Task<OutstandingOrdersPageDto> GetOutstandingOrders(
+        [FromQuery] Guid? customerId = null,
+        [FromQuery] bool accountCustomersOnly = true,
+        [FromQuery] bool? overdueOnly = null,
+        [FromQuery] int? dueWithinDays = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string sortBy = "dueDate",
+        [FromQuery] string sortDirection = "asc",
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        var parameters = new OutstandingInvoicesQueryParameters
+        {
+            CustomerId = customerId,
+            AccountCustomersOnly = accountCustomersOnly,
+            OverdueOnly = overdueOnly,
+            DueWithinDays = dueWithinDays,
+            Search = search,
+            SortBy = sortBy,
+            SortDirection = sortDirection,
+            Page = page,
+            PageSize = pageSize
+        };
+
+        var result = await statementService.GetOutstandingInvoicesPagedAsync(parameters, ct);
+
+        return new OutstandingOrdersPageDto
+        {
+            Items = result.Items.ToList(),
+            Page = result.PageIndex,
+            PageSize = pageSize,
+            TotalItems = result.TotalItems,
+            TotalPages = result.TotalPages
+        };
+    }
+
+    /// <summary>
+    /// Mark multiple invoices as paid (batch operation for offline payments)
+    /// </summary>
+    [HttpPost("orders/batch-mark-paid")]
+    [ProducesResponseType<BatchMarkAsPaidResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> BatchMarkAsPaid([FromBody] BatchMarkAsPaidDto dto, CancellationToken ct)
+    {
+        if (dto.InvoiceIds == null || dto.InvoiceIds.Count == 0)
+        {
+            return BadRequest("No invoice IDs provided.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.PaymentMethod))
+        {
+            return BadRequest("Payment method is required.");
+        }
+
+        var parameters = new BatchMarkAsPaidParameters
+        {
+            InvoiceIds = dto.InvoiceIds,
+            PaymentMethod = dto.PaymentMethod,
+            Reference = dto.Reference,
+            DateReceived = dto.DateReceived
+        };
+
+        var result = await paymentService.BatchMarkAsPaidAsync(parameters, ct);
+
+        var response = new BatchMarkAsPaidResultDto
+        {
+            SuccessCount = result.ResultObject?.Count ?? 0,
+            Messages = result.Messages.Select(m => m.Message ?? "").ToList(),
+            PaymentIds = result.ResultObject?.Select(p => p.Id).ToList() ?? []
+        };
+
+        if (!result.Successful)
+        {
+            return BadRequest(response);
+        }
+
+        return Ok(response);
+    }
+}
+
+/// <summary>
+/// DTO for outstanding orders page response
+/// </summary>
+public record OutstandingOrdersPageDto
+{
+    public List<OrderListItemDto> Items { get; init; } = [];
+    public int Page { get; init; }
+    public int PageSize { get; init; }
+    public int TotalItems { get; init; }
+    public int TotalPages { get; init; }
+}
+
+/// <summary>
+/// DTO for batch mark as paid request
+/// </summary>
+public record BatchMarkAsPaidDto
+{
+    public List<Guid> InvoiceIds { get; init; } = [];
+    public string PaymentMethod { get; init; } = string.Empty;
+    public string? Reference { get; init; }
+    public DateTime? DateReceived { get; init; }
+}
+
+/// <summary>
+/// DTO for batch mark as paid response
+/// </summary>
+public record BatchMarkAsPaidResultDto
+{
+    public int SuccessCount { get; init; }
+    public List<string> Messages { get; init; } = [];
+    public List<Guid> PaymentIds { get; init; } = [];
 }

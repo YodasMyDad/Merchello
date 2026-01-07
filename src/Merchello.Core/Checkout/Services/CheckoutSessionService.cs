@@ -49,6 +49,7 @@ public class CheckoutSessionService(IHttpContextAccessor httpContextAccessor) : 
         Address billing,
         Address? shipping,
         bool sameAsBilling,
+        bool acceptsMarketing = false,
         CancellationToken ct = default)
     {
         var checkoutSession = await GetSessionAsync(basketId, ct);
@@ -68,6 +69,7 @@ public class CheckoutSessionService(IHttpContextAccessor httpContextAccessor) : 
         checkoutSession.BillingAddress = billing;
         checkoutSession.ShippingAddress = newShippingAddress;
         checkoutSession.ShippingSameAsBilling = sameAsBilling;
+        checkoutSession.AcceptsMarketing = acceptsMarketing;
 
         SaveSession(basketId, checkoutSession);
     }

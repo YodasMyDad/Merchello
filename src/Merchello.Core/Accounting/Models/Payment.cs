@@ -124,4 +124,16 @@ public class Payment
     /// Date created
     /// </summary>
     public DateTime DateCreated { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Idempotency key for preventing duplicate payments.
+    /// Provided by the client during payment creation.
+    /// </summary>
+    public string? IdempotencyKey { get; set; }
+
+    /// <summary>
+    /// Webhook event ID for deduplication.
+    /// Set when the payment is created/updated via a provider webhook.
+    /// </summary>
+    public string? WebhookEventId { get; set; }
 }

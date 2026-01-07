@@ -17,6 +17,7 @@ using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Suppliers.Services.Interfaces;
 using Merchello.Core.Suppliers.Services.Parameters;
@@ -36,6 +37,7 @@ namespace Merchello.Core.Data;
 public class DbSeeder(
     IProductService productService,
     IShippingService shippingService,
+    IShipmentService shipmentService,
     IInvoiceService invoiceService,
     IPaymentService paymentService,
     ICheckoutService checkoutService,
@@ -492,7 +494,7 @@ public class DbSeeder(
             if (string.IsNullOrEmpty(billing.Email)) continue;
 
             var customer = await customerService.GetOrCreateByEmailAsync(
-                billing.Email, billing, cancellationToken);
+                billing.Email, billing, acceptsMarketing: false, cancellationToken);
             customers.Add(customer);
         }
 
@@ -1339,7 +1341,7 @@ public class DbSeeder(
                 TrackingUrl = GetTrackingUrl(carrier, trackingNumber)
             };
 
-            var result = await invoiceService.CreateShipmentAsync(shipmentParams, cancellationToken);
+            var result = await shipmentService.CreateShipmentAsync(shipmentParams, cancellationToken);
             return result.Successful;
         }
         catch (Exception ex)

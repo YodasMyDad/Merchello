@@ -228,8 +228,8 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
   private async _copyToClipboard(text: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
-    } catch (e) {
-      console.error("Failed to copy to clipboard", e);
+    } catch {
+      // Clipboard API may not be available in all contexts
     }
   }
 

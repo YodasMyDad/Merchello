@@ -73,6 +73,9 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("DueDate")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ExtendedData")
                         .IsRequired()
                         .HasMaxLength(3000)
@@ -152,9 +155,14 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasIndex("DateCreated");
 
+                    b.HasIndex("DueDate")
+                        .HasFilter("[DueDate] IS NOT NULL");
+
                     b.HasIndex("IsCancelled");
 
                     b.HasIndex("IsDeleted");
+
+                    b.HasIndex("IsDeleted", "DateCreated");
 
                     b.ToTable("merchelloInvoices", (string)null);
                 });
@@ -322,6 +330,8 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasIndex("WarehouseId");
 
+                    b.HasIndex("Status", "CompletedDate");
+
                     b.ToTable("merchelloOrders", (string)null);
                 });
 
@@ -353,6 +363,10 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("FraudResponse")
                         .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("InvoiceId")
@@ -409,13 +423,25 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(350)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("WebhookEventId")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasFilter("[IdempotencyKey] IS NOT NULL");
 
                     b.HasIndex("ParentPaymentId");
 
                     b.HasIndex("TransactionId")
                         .IsUnique()
                         .HasFilter("[TransactionId] IS NOT NULL");
+
+                    b.HasIndex("WebhookEventId")
+                        .IsUnique()
+                        .HasFilter("[WebhookEventId] IS NOT NULL");
 
                     b.HasIndex("InvoiceId", "PaymentSuccess");
 
@@ -559,6 +585,10 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<bool>("AcceptsMarketing")
                         .HasColumnType("INTEGER");
 
+                    b.Property<decimal?>("CreditLimit")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("TEXT");
 
@@ -574,6 +604,11 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("HasAccountTerms")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsFlagged")
                         .HasColumnType("INTEGER");
 
@@ -583,6 +618,9 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<Guid?>("MemberKey")
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("PaymentTermsDays")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 

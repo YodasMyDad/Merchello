@@ -73,66 +73,43 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         foreach (var discount in beforeTaxDiscounts)
         {
             var discountAmount = discount.Amount; // Already negative for fixed amounts
+            var (discountType, discountValue) = ExtractDiscountData(discount);
 
-            // Check if this is a percentage or free discount (stored in ExtendedData)
-            if (discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var typeObj))
+            if (discountType == nameof(DiscountValueType.Percentage))
             {
-                var typeStr = typeObj switch
+                // Calculate percentage of relevant base
+                if (!string.IsNullOrEmpty(discount.DependantLineItemSku))
                 {
-                    string s => s,
-                    System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString(),
-                    _ => null
-                };
-
-                if (typeStr == nameof(DiscountValueType.Percentage) &&
-                    discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValue, out var valueObj))
-                {
-                    var percentageValue = valueObj switch
+                    // Linked to specific product - calculate percentage of that product's total
+                    var linkedItem = productItems.FirstOrDefault(p => p.Sku == discount.DependantLineItemSku);
+                    if (linkedItem != null)
                     {
-                        decimal dec => dec,
-                        double dbl => (decimal)dbl,
-                        int i => i,
-                        long l => l,
-                        string s when decimal.TryParse(s, out var parsed) => parsed,
-                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number =>
-                            je.TryGetDecimal(out var d) ? d : 0,
-                        _ => 0m
-                    };
-
-                    // Calculate percentage of relevant base
-                    if (!string.IsNullOrEmpty(discount.DependantLineItemSku))
-                    {
-                        // Linked to specific product - calculate percentage of that product's total
-                        var linkedItem = productItems.FirstOrDefault(p => p.Sku == discount.DependantLineItemSku);
-                        if (linkedItem != null)
-                        {
-                            var linkedTotal = currencyService.Round(linkedItem.Amount * linkedItem.Quantity, currencyCode);
-                            discountAmount = -currencyService.Round(linkedTotal * (percentageValue / 100m), currencyCode);
-                        }
-                    }
-                    else
-                    {
-                        // Order-level percentage - calculate percentage of subtotal
-                        discountAmount = -currencyService.Round(subTotal * (percentageValue / 100m), currencyCode);
+                        var linkedTotal = currencyService.Round(linkedItem.Amount * linkedItem.Quantity, currencyCode);
+                        discountAmount = -currencyService.Round(linkedTotal * (discountValue / 100m), currencyCode);
                     }
                 }
-                else if (typeStr == nameof(DiscountValueType.Free))
+                else
                 {
-                    // Free means 100% off the linked item
-                    if (!string.IsNullOrEmpty(discount.DependantLineItemSku))
+                    // Order-level percentage - calculate percentage of subtotal
+                    discountAmount = -currencyService.Round(subTotal * (discountValue / 100m), currencyCode);
+                }
+            }
+            else if (discountType == nameof(DiscountValueType.Free))
+            {
+                // Free means 100% off the linked item
+                if (!string.IsNullOrEmpty(discount.DependantLineItemSku))
+                {
+                    var linkedItem = productItems.FirstOrDefault(p => p.Sku == discount.DependantLineItemSku);
+                    if (linkedItem != null)
                     {
-                        var linkedItem = productItems.FirstOrDefault(p => p.Sku == discount.DependantLineItemSku);
-                        if (linkedItem != null)
-                        {
-                            var linkedTotal = currencyService.Round(linkedItem.Amount * linkedItem.Quantity, currencyCode);
-                            discountAmount = -linkedTotal;
-                        }
+                        var linkedTotal = currencyService.Round(linkedItem.Amount * linkedItem.Quantity, currencyCode);
+                        discountAmount = -linkedTotal;
                     }
-                    else
-                    {
-                        // Order-level free - full subtotal off (unusual but supported)
-                        discountAmount = -subTotal;
-                    }
+                }
+                else
+                {
+                    // Order-level free - full subtotal off (unusual but supported)
+                    discountAmount = -subTotal;
                 }
             }
 
@@ -188,45 +165,25 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         {
             // Recalculate before-tax discount amounts (same logic as above)
             var discountAmount = d.Amount;
-            if (d.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var typeObj))
+            var (discountType, discountValue) = ExtractDiscountData(d);
+
+            if (discountType == nameof(DiscountValueType.Percentage))
             {
-                var typeStr = typeObj switch
+                if (!string.IsNullOrEmpty(d.DependantLineItemSku))
                 {
-                    string s => s,
-                    System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString(),
-                    _ => null
-                };
-
-                if (typeStr == nameof(DiscountValueType.Percentage) &&
-                    d.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValue, out var valueObj))
-                {
-                    var percentageValue = valueObj switch
+                    var linkedItem = productItems.FirstOrDefault(p => p.Sku == d.DependantLineItemSku);
+                    if (linkedItem != null)
                     {
-                        decimal dec => dec,
-                        double dbl => (decimal)dbl,
-                        int i => i,
-                        long l => l,
-                        string s when decimal.TryParse(s, out var parsed) => parsed,
-                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number =>
-                            je.TryGetDecimal(out var dec) ? dec : 0,
-                        _ => 0m
-                    };
-
-                    if (!string.IsNullOrEmpty(d.DependantLineItemSku))
-                    {
-                        var linkedItem = productItems.FirstOrDefault(p => p.Sku == d.DependantLineItemSku);
-                        if (linkedItem != null)
-                        {
-                            var linkedTotal = currencyService.Round(linkedItem.Amount * linkedItem.Quantity, currencyCode);
-                            discountAmount = -currencyService.Round(linkedTotal * (percentageValue / 100m), currencyCode);
-                        }
-                    }
-                    else
-                    {
-                        discountAmount = -currencyService.Round(subTotal * (percentageValue / 100m), currencyCode);
+                        var linkedTotal = currencyService.Round(linkedItem.Amount * linkedItem.Quantity, currencyCode);
+                        discountAmount = -currencyService.Round(linkedTotal * (discountValue / 100m), currencyCode);
                     }
                 }
+                else
+                {
+                    discountAmount = -currencyService.Round(subTotal * (discountValue / 100m), currencyCode);
+                }
             }
+
             return discountAmount;
         });
 
@@ -370,37 +327,16 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         foreach (var discount in discountItems.Where(d => string.IsNullOrEmpty(d.DependantLineItemSku)))
         {
             var discountAmount = discount.Amount;
+            var (discountType, discountValue) = ExtractDiscountData(discount);
 
-            if (discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var typeObj))
+            if (discountType == nameof(DiscountValueType.Percentage))
             {
-                var typeStr = typeObj switch
-                {
-                    string s => s,
-                    System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString(),
-                    _ => null
-                };
-
-                if (typeStr == nameof(DiscountValueType.Percentage) &&
-                    discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValue, out var valueObj))
-                {
-                    var percentageValue = valueObj switch
-                    {
-                        decimal dec => dec,
-                        double dbl => (decimal)dbl,
-                        int i => i,
-                        long l => l,
-                        string s when decimal.TryParse(s, out var parsed) => parsed,
-                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number =>
-                            je.TryGetDecimal(out var d) ? d : 0,
-                        _ => 0m
-                    };
-                    discountAmount = -currencyService.Round(subTotal * (percentageValue / 100m), currencyCode);
-                }
-                else if (typeStr == nameof(DiscountValueType.Free))
-                {
-                    // Order-level free - full subtotal off
-                    discountAmount = -subTotal;
-                }
+                discountAmount = -currencyService.Round(subTotal * (discountValue / 100m), currencyCode);
+            }
+            else if (discountType == nameof(DiscountValueType.Free))
+            {
+                // Order-level free - full subtotal off
+                discountAmount = -subTotal;
             }
 
             total += discountAmount;
@@ -417,39 +353,18 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         foreach (var discount in linkedDiscounts.Where(d => d.DependantLineItemSku == lineItem.Sku))
         {
             var discountAmount = discount.Amount;
+            var (discountType, discountValue) = ExtractDiscountData(discount);
 
-            if (discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var typeObj))
+            if (discountType == nameof(DiscountValueType.Percentage))
             {
-                var typeStr = typeObj switch
-                {
-                    string s => s,
-                    System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString(),
-                    _ => null
-                };
-
-                if (typeStr == nameof(DiscountValueType.Percentage) &&
-                    discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValue, out var valueObj))
-                {
-                    var percentageValue = valueObj switch
-                    {
-                        decimal dec => dec,
-                        double dbl => (decimal)dbl,
-                        int i => i,
-                        long l => l,
-                        string s when decimal.TryParse(s, out var parsed) => parsed,
-                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number =>
-                            je.TryGetDecimal(out var d) ? d : 0,
-                        _ => 0m
-                    };
-                    var itemTotal = currencyService.Round(lineItem.Amount * lineItem.Quantity, currencyCode);
-                    discountAmount = -currencyService.Round(itemTotal * (percentageValue / 100m), currencyCode);
-                }
-                else if (typeStr == nameof(DiscountValueType.Free))
-                {
-                    // Free means 100% off the linked item
-                    var itemTotal = currencyService.Round(lineItem.Amount * lineItem.Quantity, currencyCode);
-                    discountAmount = -itemTotal;
-                }
+                var itemTotal = currencyService.Round(lineItem.Amount * lineItem.Quantity, currencyCode);
+                discountAmount = -currencyService.Round(itemTotal * (discountValue / 100m), currencyCode);
+            }
+            else if (discountType == nameof(DiscountValueType.Free))
+            {
+                // Free means 100% off the linked item
+                var itemTotal = currencyService.Round(lineItem.Amount * lineItem.Quantity, currencyCode);
+                discountAmount = -itemTotal;
             }
 
             total += discountAmount;
@@ -635,6 +550,44 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
     }
 
     /// <summary>
+    /// Extracts discount type and value from a discount line item's ExtendedData.
+    /// Handles both direct values and JSON-serialized values from the database.
+    /// </summary>
+    private static (string? DiscountType, decimal DiscountValue) ExtractDiscountData(LineItem discount)
+    {
+        string? typeStr = null;
+        decimal value = 0m;
+
+        if (discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var typeObj))
+        {
+            typeStr = typeObj switch
+            {
+                string s => s,
+                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String
+                    => je.GetString(),
+                _ => null
+            };
+        }
+
+        if (discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValue, out var valueObj))
+        {
+            value = valueObj switch
+            {
+                decimal dec => dec,
+                double dbl => (decimal)dbl,
+                int i => i,
+                long l => l,
+                string s when decimal.TryParse(s, out var parsed) => parsed,
+                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number
+                    => je.TryGetDecimal(out var d) ? d : 0,
+                _ => 0m
+            };
+        }
+
+        return (typeStr, value);
+    }
+
+    /// <summary>
     /// Calculates the after-tax discount amount for a given discount applied to after-tax total.
     /// Takes into account any before-tax discounts already applied.
     /// </summary>
@@ -686,42 +639,21 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         }
 
         // Now calculate the discount amount based on the after-tax total
-        if (discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var typeObj))
+        var (discountType, discountValue) = ExtractDiscountData(discount);
+
+        if (discountType == nameof(DiscountValueType.Percentage))
         {
-            var typeStr = typeObj switch
-            {
-                string s => s,
-                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString(),
-                _ => null
-            };
-
-            if (typeStr == nameof(DiscountValueType.Percentage) &&
-                discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValue, out var valueObj))
-            {
-                var percentageValue = valueObj switch
-                {
-                    decimal dec => dec,
-                    double dbl => (decimal)dbl,
-                    int i => i,
-                    long l => l,
-                    string s when decimal.TryParse(s, out var parsed) => parsed,
-                    System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number =>
-                        je.TryGetDecimal(out var d) ? d : 0,
-                    _ => 0m
-                };
-
-                return currencyService.Round(afterTaxTotal * (percentageValue / 100m), currencyCode);
-            }
-            else if (typeStr == nameof(DiscountValueType.FixedAmount))
-            {
-                // For fixed amount, the discount.Amount already contains the after-tax amount
-                return Math.Abs(discount.Amount);
-            }
-            else if (typeStr == nameof(DiscountValueType.Free))
-            {
-                // Free = 100% off after tax
-                return afterTaxTotal;
-            }
+            return currencyService.Round(afterTaxTotal * (discountValue / 100m), currencyCode);
+        }
+        else if (discountType == nameof(DiscountValueType.FixedAmount))
+        {
+            // For fixed amount, the discount.Amount already contains the after-tax amount
+            return Math.Abs(discount.Amount);
+        }
+        else if (discountType == nameof(DiscountValueType.Free))
+        {
+            // Free = 100% off after tax
+            return afterTaxTotal;
         }
 
         return Math.Abs(discount.Amount);

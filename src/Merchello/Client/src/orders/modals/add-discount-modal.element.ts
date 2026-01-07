@@ -119,7 +119,6 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
         });
 
         if (error) {
-          console.error("Failed to preview discount:", error);
           // Clear preview - UI will show "Calculating..." until retry succeeds
           this._discountPreview = null;
         } else if (data) {
@@ -127,8 +126,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
             discountAmount: data.discountAmount,
           };
         }
-      } catch (err) {
-        console.error("Unexpected error previewing discount:", err);
+      } catch {
         this._discountPreview = null;
       } finally {
         this._isLoadingPreview = false;

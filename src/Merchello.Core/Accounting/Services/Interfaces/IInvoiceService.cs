@@ -5,7 +5,6 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared;
 using Merchello.Core.Shared.Models;
-using Merchello.Core.Shipping.Models;
 
 namespace Merchello.Core.Accounting.Services.Interfaces;
 
@@ -22,7 +21,6 @@ public interface IInvoiceService
     Task<Invoice?> GetInvoiceAsync(Guid invoiceId, CancellationToken cancellationToken = default);
 
     Task<Invoice> CreateOrderFromBasketAsync(Basket basket, CheckoutSession checkoutSession, CancellationToken cancellationToken = default);
-    Task<List<Shipment>> CreateShipmentsFromOrderAsync(CreateShipmentsParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> UpdateOrderStatusAsync(Guid orderId, OrderStatus newStatus, string? reason = null, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> CancelOrderAsync(Guid orderId, string reason, CancellationToken cancellationToken = default);
 
@@ -51,28 +49,6 @@ public interface IInvoiceService
     Task<bool> InvoiceExistsAsync(Guid invoiceId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Get order statistics for today (orders, items, fulfilled, delivered)
-    /// </summary>
-    Task<OrderStatsDto> GetOrderStatsAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Get dashboard statistics with monthly metrics and percentage changes
-    /// </summary>
-    Task<DashboardStatsDto> GetDashboardStatsAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Get orders for export within a date range
-    /// </summary>
-    /// <param name="fromDate">Start date (inclusive)</param>
-    /// <param name="toDate">End date (inclusive)</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>List of order export items for CSV generation</returns>
-    Task<List<OrderExportItemDto>> GetOrdersForExportAsync(
-        DateTime fromDate,
-        DateTime toDate,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Add a note to an invoice
     /// </summary>
     /// <param name="parameters">Parameters for adding the note</param>
@@ -93,26 +69,6 @@ public interface IInvoiceService
     /// Update the purchase order number for an invoice
     /// </summary>
     Task<CrudResult<string?>> UpdatePurchaseOrderAsync(Guid invoiceId, string? purchaseOrder, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Get fulfillment summary for an invoice including warehouse names
-    /// </summary>
-    Task<FulfillmentSummaryDto?> GetFulfillmentSummaryAsync(Guid invoiceId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Create a shipment for an order
-    /// </summary>
-    Task<CrudResult<Shipment>> CreateShipmentAsync(CreateShipmentParameters parameters, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Update shipment tracking information
-    /// </summary>
-    Task<CrudResult<Shipment>> UpdateShipmentAsync(UpdateShipmentParameters parameters, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Delete a shipment (releases items back to unfulfilled)
-    /// </summary>
-    Task<bool> DeleteShipmentAsync(Guid shipmentId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Get count of invoices by billing email address

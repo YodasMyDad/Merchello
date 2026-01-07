@@ -15,10 +15,13 @@ using Merchello.Core.Data;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services;
 using Merchello.Core.Discounts.Services.Interfaces;
+using Merchello.Core.Checkout.Notifications;
+using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.BasketNotifications;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.CheckoutNotifications;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
@@ -52,6 +55,8 @@ public class CheckoutService(
     ILocalityCatalog localityCatalog,
     ICheckoutSessionService checkoutSessionService,
     IRateLimiter rateLimiter,
+    IExchangeRateCache exchangeRateCache,
+    ICurrencyService currencyService,
     IDiscountEngine? discountEngine = null,
     IDiscountService? discountService = null,
     ILocationsService? locationsService = null) : ICheckoutService
@@ -227,12 +232,14 @@ public class CheckoutService(
             });
         }
 
+        // Sum the cheapest service level from each warehouse quote
+        // (not the single cheapest across all warehouses)
         var shippingCost = parameters.ShippingAmountOverride
             ?? shippingQuotes
-                .SelectMany(q => q.ServiceLevels)
-                .OrderBy(level => level.TotalCost)
-                .Select(level => level.TotalCost)
-                .FirstOrDefault();
+                .Sum(q => q.ServiceLevels
+                    .OrderBy(level => level.TotalCost)
+                    .Select(level => level.TotalCost)
+                    .FirstOrDefault());
 
         var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
 
@@ -597,6 +604,111 @@ public class CheckoutService(
     }
 
     /// <summary>
+    /// Converts all line item amounts in the basket to a new currency using exchange rates.
+    /// </summary>
+    public async Task<CrudResult<Basket>> ConvertBasketCurrencyAsync(
+        ConvertBasketCurrencyParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<Basket>();
+        var newCurrencyCode = parameters.NewCurrencyCode;
+
+        // Get the current basket
+        var basket = await GetBasket(new GetBasketParameters(), cancellationToken);
+
+        // If basket is empty or null, nothing to convert - just return success
+        if (basket == null || basket.LineItems.Count == 0)
+        {
+            result.ResultObject = basket;
+            return result;
+        }
+
+        var oldCurrencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
+
+        // If currency is the same, no conversion needed
+        if (string.Equals(oldCurrencyCode, newCurrencyCode, StringComparison.OrdinalIgnoreCase))
+        {
+            result.ResultObject = basket;
+            return result;
+        }
+
+        // Get exchange rate: old currency → new currency
+        var rate = await exchangeRateCache.GetRateAsync(oldCurrencyCode, newCurrencyCode, cancellationToken);
+
+        if (rate == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Exchange rate unavailable: {oldCurrencyCode} → {newCurrencyCode}. Unable to change currency.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        // Publish "Before" notification - handlers can cancel
+        var changingNotification = new BasketCurrencyChangingNotification(
+            basket, oldCurrencyCode, newCurrencyCode, rate.Value);
+
+        if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = changingNotification.CancelReason ?? "Currency change cancelled.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        // Convert each line item amount
+        foreach (var lineItem in basket.LineItems)
+        {
+            // Store original amount for audit trail
+            lineItem.ExtendedData["OriginalCurrency"] = oldCurrencyCode;
+            lineItem.ExtendedData["OriginalAmount"] = lineItem.Amount.ToString("G");
+
+            // Convert amount using exchange rate and round appropriately
+            lineItem.Amount = currencyService.Round(lineItem.Amount * rate.Value, newCurrencyCode);
+        }
+
+        // Update basket currency
+        basket.Currency = newCurrencyCode;
+        basket.CurrencySymbol = parameters.NewCurrencySymbol
+            ?? currencyService.GetCurrency(newCurrencyCode).Symbol;
+        basket.DateUpdated = DateTime.UtcNow;
+
+        // Recalculate totals
+        var countryCode = !string.IsNullOrWhiteSpace(basket.ShippingAddress.CountryCode)
+            ? basket.ShippingAddress.CountryCode
+            : _settings.DefaultShippingCountry ?? "US";
+
+        await CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = countryCode
+        }, cancellationToken);
+
+        // Save to database
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            db.Baskets.Update(basket);
+            await db.SaveChangesAsync(cancellationToken);
+        });
+        scope.Complete();
+
+        // Update session
+        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
+
+        // Publish "After" notification
+        await notificationPublisher.PublishAsync(
+            new BasketCurrencyChangedNotification(basket, oldCurrencyCode, newCurrencyCode, rate.Value),
+            cancellationToken);
+
+        result.ResultObject = basket;
+        return result;
+    }
+
+    /// <summary>
     /// Creates a line item for a product with metadata for discount matching
     /// </summary>
     public LineItem CreateLineItem(Products.Models.Product product, int quantity = 1)
@@ -730,6 +842,10 @@ public class CheckoutService(
         }
 
         await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
+
+        // Refresh automatic discounts - the applied code may conflict with existing automatic discounts
+        // This is done here (not in controller) to ensure consistent behavior across all code paths
+        basket = await RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
         basket.DateUpdated = DateTime.UtcNow;
 
         // Publish "After" notification
@@ -882,6 +998,10 @@ public class CheckoutService(
         basket.LineItems.Remove(discountLineItem);
 
         await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
+
+        // Refresh automatic discounts - a removed code may have been blocking automatic discounts
+        // This is done here (not in controller) to ensure consistent behavior across all code paths
+        basket = await RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
         basket.DateUpdated = DateTime.UtcNow;
 
         result.ResultObject = basket;
@@ -1094,6 +1214,7 @@ public class CheckoutService(
             billingAddress,
             shippingAddress,
             parameters.ShippingSameAsBilling,
+            parameters.AcceptsMarketing,
             cancellationToken);
 
         await checkoutSessionService.SetCurrentStepAsync(basket.Id, CheckoutStep.Shipping, cancellationToken);
@@ -1465,7 +1586,8 @@ public class CheckoutService(
             basket.Id,
             shippingAddress,
             shippingAddress,
-            true,
+            sameAsBilling: true,
+            acceptsMarketing: false,
             cancellationToken);
 
         result.ResultObject = new InitializeCheckoutResult

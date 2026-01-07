@@ -9,6 +9,7 @@ import type { MerchelloTreeItemModel } from '@tree/types/tree.types.js';
 import {
   MERCHELLO_ROOT_ENTITY_TYPE,
   MERCHELLO_ORDERS_ENTITY_TYPE,
+  MERCHELLO_OUTSTANDING_ENTITY_TYPE,
   MERCHELLO_PRODUCTS_ENTITY_TYPE,
   MERCHELLO_CUSTOMERS_ENTITY_TYPE,
   MERCHELLO_COLLECTIONS_ENTITY_TYPE,
@@ -32,6 +33,15 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
         hasChildren: false,
         isFolder: false,
         icon: "icon-receipt-dollar",
+        parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
+      },
+      {
+        entityType: MERCHELLO_OUTSTANDING_ENTITY_TYPE,
+        unique: "outstanding",
+        name: "Outstanding",
+        hasChildren: false,
+        isFolder: false,
+        icon: "icon-timer",
         parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
       },
       {

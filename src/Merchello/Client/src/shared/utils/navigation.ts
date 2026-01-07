@@ -65,6 +65,23 @@ export function navigateToOrdersList(): void {
   navigateToMerchelloWorkspace(ORDERS_ENTITY_TYPE, "edit/orders");
 }
 
+/** Entity type for outstanding workspace */
+export const OUTSTANDING_ENTITY_TYPE = "merchello-outstanding";
+
+/**
+ * Generate the URL to the outstanding invoices list.
+ */
+export function getOutstandingListHref(): string {
+  return getMerchelloWorkspaceHref(OUTSTANDING_ENTITY_TYPE, "edit/outstanding");
+}
+
+/**
+ * Navigate programmatically to the outstanding invoices list using SPA routing.
+ */
+export function navigateToOutstandingList(): void {
+  navigateToMerchelloWorkspace(OUTSTANDING_ENTITY_TYPE, "edit/outstanding");
+}
+
 /** Entity type for products workspace (list and detail share same type for tree selection) */
 export const PRODUCTS_ENTITY_TYPE = "merchello-products";
 

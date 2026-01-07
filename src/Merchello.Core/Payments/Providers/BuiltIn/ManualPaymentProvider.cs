@@ -1,20 +1,23 @@
+using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Payments.Models;
 
 namespace Merchello.Core.Payments.Providers.BuiltIn;
 
 /// <summary>
-/// Built-in payment provider for recording manual/offline payments.
-/// Supports cash, check, bank transfer, purchase order, and other offline payment methods.
+/// Built-in payment provider for manual/offline payments and purchase orders.
+/// Offers two payment methods:
+/// - Manual Payment: For backoffice recording of cash, check, bank transfer (hidden from checkout)
+/// - Purchase Order: For checkout, allows customers to pay via PO number
 /// </summary>
-public class ManualPaymentProvider : PaymentProviderBase
+public class ManualPaymentProvider(IInvoiceService invoiceService) : PaymentProviderBase
 {
     /// <inheritdoc />
     public override PaymentProviderMetadata Metadata => new()
     {
-        Alias = "manual",
+        Alias = Constants.PaymentProviders.Aliases.Manual,
         DisplayName = "Manual Payment",
-        Description = "Record offline payments (cash, check, bank transfer, purchase order)",
-        Icon = "icon-wallet",
+        Description = "Record offline payments and purchase orders",
+        Icon = Constants.PaymentProviders.Icons.Wallet,
         SupportsRefunds = true,
         SupportsPartialRefunds = true,
         SupportsAuthAndCapture = false,
@@ -22,30 +25,29 @@ public class ManualPaymentProvider : PaymentProviderBase
         SetupInstructions = """
             ## Manual Payment Provider
 
-            This provider is used to record offline/manual payments from the backoffice. It does not process actual payments through any gateway.
+            This provider supports two payment methods:
 
-            ### Use Cases
+            ### 1. Manual Payment (Backoffice Only)
+            Record offline payments from the order detail screen in the backoffice.
 
+            **Use Cases:**
             - **Cash payments** - Record cash received in-store
             - **Check payments** - Record check payments with check numbers
             - **Bank transfers** - Record wire transfers or direct deposits
-            - **Purchase orders** - Record B2B purchase order payments
-            - **Other** - Any other offline payment method
 
-            ### How It Works
+            ### 2. Purchase Order (Checkout)
+            Allow customers to complete checkout using a purchase order number.
 
-            1. **Backoffice Only**: This provider is hidden from customer checkout by default
-            2. **Manual Recording**: Staff can record payments from the order detail screen
-            3. **Reference Tracking**: Add check numbers, PO numbers, or transaction references
-            4. **Notes**: Add any relevant notes about the payment
+            **Use Cases:**
+            - **B2B Orders** - Allow business customers to pay via purchase order
+            - **Net Terms** - Customers with established credit can order on account
+            - **Government/Education** - Institutions that require PO-based purchasing
 
             ### Configuration
-
-            No configuration is required for this provider. It is automatically enabled on startup.
+            No configuration is required. This provider is automatically enabled on startup.
 
             ### Refunds
-
-            Manual refunds can be recorded for any payment. These are tracked in the system but no actual refund is processed (since the original payment was offline).
+            Refunds can be recorded for any payment. These are tracked in the system for accounting purposes.
             """
     };
 
@@ -54,14 +56,26 @@ public class ManualPaymentProvider : PaymentProviderBase
     [
         new PaymentMethodDefinition
         {
-            Alias = "manual",
+            Alias = Constants.PaymentProviders.Aliases.Manual,
             DisplayName = "Manual Payment",
-            Icon = "icon-wallet",
-            Description = "Record offline payments (cash, check, bank transfer, purchase order)",
+            Icon = Constants.PaymentProviders.Icons.Wallet,
+            Description = "Record offline payments (cash, check, bank transfer)",
             IntegrationType = PaymentIntegrationType.DirectForm,
             IsExpressCheckout = false,
             DefaultSortOrder = 100,
-            ShowInCheckoutByDefault = false,  // Hidden from customer checkout
+            ShowInCheckoutByDefault = false,  // Hidden from checkout - backoffice only
+            MethodType = PaymentMethodType.Manual
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = Constants.PaymentProviders.Aliases.PurchaseOrder,
+            DisplayName = "Purchase Order",
+            Icon = Constants.PaymentProviders.Icons.Document,
+            Description = "Enter your purchase order number to complete the order",
+            IntegrationType = PaymentIntegrationType.DirectForm,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 50,
+            ShowInCheckoutByDefault = true,  // Visible in checkout
             MethodType = PaymentMethodType.Manual
         }
     ];
@@ -71,65 +85,116 @@ public class ManualPaymentProvider : PaymentProviderBase
         PaymentRequest request,
         CancellationToken cancellationToken = default)
     {
+        var methodAlias = request.MethodAlias ?? Constants.PaymentProviders.Aliases.Manual;
+
         var result = new PaymentSessionResult
         {
             Success = true,
             SessionId = Guid.NewGuid().ToString("N"),
             IntegrationType = PaymentIntegrationType.DirectForm,
-            FormFields =
-            [
-                new CheckoutFormField
-                {
-                    Key = "paymentMethod",
-                    Label = "Payment Method",
-                    FieldType = CheckoutFieldType.Select,
-                    IsRequired = true,
-                    Options =
-                    [
-                        new SelectOption { Value = "cash", Label = "Cash" },
-                        new SelectOption { Value = "check", Label = "Check" },
-                        new SelectOption { Value = "bank_transfer", Label = "Bank Transfer" },
-                        new SelectOption { Value = "purchase_order", Label = "Purchase Order" },
-                        new SelectOption { Value = "other", Label = "Other" }
-                    ]
-                },
-                new CheckoutFormField
-                {
-                    Key = "reference",
-                    Label = "Reference Number",
-                    Description = "Check number, PO number, or transaction reference",
-                    FieldType = CheckoutFieldType.Text,
-                    IsRequired = false,
-                    Placeholder = "e.g., PO-12345"
-                },
-                new CheckoutFormField
-                {
-                    Key = "notes",
-                    Label = "Notes",
-                    FieldType = CheckoutFieldType.Textarea,
-                    IsRequired = false
-                }
-            ]
+            FormFields = methodAlias == Constants.PaymentProviders.Aliases.PurchaseOrder
+                ? GetPurchaseOrderFormFields()
+                : GetManualPaymentFormFields()
         };
 
         return Task.FromResult(result);
     }
 
+    private static List<CheckoutFormField> GetPurchaseOrderFormFields() =>
+    [
+        new CheckoutFormField
+        {
+            Key = Constants.FormFields.PurchaseOrderNumber,
+            Label = "Purchase Order Number",
+            Description = "Enter your company's purchase order number",
+            FieldType = CheckoutFieldType.Text,
+            IsRequired = true,
+            Placeholder = "e.g., PO-12345",
+            ValidationMessage = "Purchase order number is required"
+        }
+    ];
+
+    private static List<CheckoutFormField> GetManualPaymentFormFields() =>
+    [
+        new CheckoutFormField
+        {
+            Key = Constants.FormFields.PaymentMethod,
+            Label = "Payment Method",
+            FieldType = CheckoutFieldType.Select,
+            IsRequired = true,
+            Options =
+            [
+                new SelectOption { Value = "cash", Label = "Cash" },
+                new SelectOption { Value = "check", Label = "Check" },
+                new SelectOption { Value = "bank_transfer", Label = "Bank Transfer" },
+                new SelectOption { Value = "other", Label = "Other" }
+            ]
+        },
+        new CheckoutFormField
+        {
+            Key = Constants.FormFields.Reference,
+            Label = "Reference Number",
+            Description = "Check number, transaction reference, etc.",
+            FieldType = CheckoutFieldType.Text,
+            IsRequired = false,
+            Placeholder = "e.g., CHK-12345"
+        },
+        new CheckoutFormField
+        {
+            Key = Constants.FormFields.Notes,
+            Label = "Notes",
+            FieldType = CheckoutFieldType.Textarea,
+            IsRequired = false
+        }
+    ];
+
     /// <inheritdoc />
-    public override Task<PaymentResult> ProcessPaymentAsync(
+    public override async Task<PaymentResult> ProcessPaymentAsync(
         ProcessPaymentRequest request,
         CancellationToken cancellationToken = default)
     {
+        var methodAlias = request.MethodAlias ?? Constants.PaymentProviders.Aliases.Manual;
+
+        return methodAlias == Constants.PaymentProviders.Aliases.PurchaseOrder
+            ? await ProcessPurchaseOrderAsync(request, cancellationToken)
+            : ProcessManualPayment(request);
+    }
+
+    private async Task<PaymentResult> ProcessPurchaseOrderAsync(
+        ProcessPaymentRequest request,
+        CancellationToken cancellationToken)
+    {
         var formData = request.FormData ?? [];
+        var poNumber = formData.GetValueOrDefault(Constants.FormFields.PurchaseOrderNumber, "").Trim();
 
-        var paymentMethod = formData.GetValueOrDefault("paymentMethod", "manual");
-        var reference = formData.GetValueOrDefault("reference", "");
-        var notes = formData.GetValueOrDefault("notes", "");
+        // Validate PO number is not empty
+        if (string.IsNullOrWhiteSpace(poNumber))
+        {
+            return new PaymentResult
+            {
+                Success = false,
+                ErrorMessage = "Purchase order number is required."
+            };
+        }
 
-        // Generate a transaction ID for tracking
-        var transactionId = $"manual_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}";
+        // Save PO number to invoice
+        var updateResult = await invoiceService.UpdatePurchaseOrderAsync(
+            request.InvoiceId,
+            poNumber,
+            cancellationToken);
 
-        var result = new PaymentResult
+        if (!updateResult.Successful)
+        {
+            return new PaymentResult
+            {
+                Success = false,
+                ErrorMessage = "Failed to save purchase order number."
+            };
+        }
+
+        var transactionId = $"po_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}";
+
+        return new PaymentResult
         {
             Success = true,
             TransactionId = transactionId,
@@ -137,13 +202,34 @@ public class ManualPaymentProvider : PaymentProviderBase
             Amount = request.Amount,
             ProviderData = new Dictionary<string, object>
             {
-                ["paymentMethod"] = paymentMethod,
-                ["reference"] = reference,
-                ["notes"] = notes
+                ["purchaseOrderNumber"] = poNumber
             }
         };
+    }
 
-        return Task.FromResult(result);
+    private static PaymentResult ProcessManualPayment(ProcessPaymentRequest request)
+    {
+        var formData = request.FormData ?? [];
+
+        var paymentMethod = formData.GetValueOrDefault(Constants.FormFields.PaymentMethod, Constants.PaymentProviders.Aliases.Manual);
+        var reference = formData.GetValueOrDefault(Constants.FormFields.Reference, "");
+        var notes = formData.GetValueOrDefault(Constants.FormFields.Notes, "");
+
+        var transactionId = $"manual_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}";
+
+        return new PaymentResult
+        {
+            Success = true,
+            TransactionId = transactionId,
+            Status = PaymentResultStatus.Completed,
+            Amount = request.Amount,
+            ProviderData = new Dictionary<string, object>
+            {
+                [Constants.FormFields.PaymentMethod] = paymentMethod,
+                [Constants.FormFields.Reference] = reference,
+                [Constants.FormFields.Notes] = notes
+            }
+        };
     }
 
     /// <inheritdoc />
@@ -151,7 +237,6 @@ public class ManualPaymentProvider : PaymentProviderBase
         RefundRequest request,
         CancellationToken cancellationToken = default)
     {
-        // Manual refunds are just recorded, no external API call needed
         var refundTransactionId = $"manual_refund_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}";
 
         return Task.FromResult(new RefundResult

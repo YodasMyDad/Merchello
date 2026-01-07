@@ -86,14 +86,8 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     this._isLoadingWarehouses = true;
     try {
       const { data, error } = await MerchelloApi.getWarehousesList();
-      if (error) {
-        console.error("Failed to load warehouses:", error);
-        this._warehouses = [];
-      } else {
-        this._warehouses = data ?? [];
-      }
-    } catch (error) {
-      console.error("Failed to load warehouses:", error);
+      this._warehouses = error ? [] : (data ?? []);
+    } catch {
       this._warehouses = [];
     } finally {
       this._isLoadingWarehouses = false;
@@ -122,7 +116,6 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
       );
 
       if (error || !data) {
-        console.error("Failed to load shipping options:", error);
         this._shippingError = "Failed to load shipping options";
         return;
       }
@@ -139,8 +132,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
         // Auto-select if only one option
         this._selectedShippingOptionId = this._shippingOptions[0].id;
       }
-    } catch (error) {
-      console.error("Failed to load shipping options:", error);
+    } catch {
       this._shippingError = "Failed to load shipping options";
     } finally {
       this._isLoadingShippingOptions = false;
@@ -264,7 +256,6 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
         });
 
         if (error) {
-          console.error("Failed to preview tax:", error);
           // Fall back to local calculation on error
           this._taxPreview = null;
         } else if (data) {
@@ -275,8 +266,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
             total: data.total,
           };
         }
-      } catch (err) {
-        console.error("Unexpected error previewing tax:", err);
+      } catch {
         this._taxPreview = null;
       } finally {
         this._isLoadingTaxPreview = false;

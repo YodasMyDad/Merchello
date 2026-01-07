@@ -16,11 +16,18 @@ public interface ICheckoutSessionService
     /// <summary>
     /// Saves billing and shipping addresses to the session.
     /// </summary>
+    /// <param name="basketId">The basket ID.</param>
+    /// <param name="billing">Billing address.</param>
+    /// <param name="shipping">Shipping address (null if same as billing).</param>
+    /// <param name="sameAsBilling">Whether shipping is same as billing.</param>
+    /// <param name="acceptsMarketing">Whether customer accepts marketing communications.</param>
+    /// <param name="ct">Cancellation token.</param>
     Task SaveAddressesAsync(
         Guid basketId,
         Address billing,
         Address? shipping,
         bool sameAsBilling,
+        bool acceptsMarketing = false,
         CancellationToken ct = default);
 
     /// <summary>

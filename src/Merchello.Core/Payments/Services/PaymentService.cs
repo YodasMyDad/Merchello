@@ -130,7 +130,7 @@ public class PaymentService(
         // Check idempotency if key provided
         if (!string.IsNullOrEmpty(request.IdempotencyKey))
         {
-            var cachedResult = idempotencyService.GetCachedPaymentResult(request.IdempotencyKey);
+            var cachedResult = await idempotencyService.GetCachedPaymentResultAsync(request.IdempotencyKey, cancellationToken);
             if (cachedResult != null)
             {
                 logger.LogInformation(
@@ -157,7 +157,7 @@ public class PaymentService(
             }
 
             // Mark as processing to prevent concurrent duplicates
-            if (!idempotencyService.TryMarkAsProcessing(request.IdempotencyKey))
+            if (!await idempotencyService.TryMarkAsProcessingAsync(request.IdempotencyKey, cancellationToken))
             {
                 result.Messages.Add(new ResultMessage
                 {
@@ -402,7 +402,7 @@ public class PaymentService(
         // Check idempotency if key provided
         if (!string.IsNullOrEmpty(idempotencyKey))
         {
-            var cachedResult = idempotencyService.GetCachedRefundResult(idempotencyKey);
+            var cachedResult = await idempotencyService.GetCachedRefundResultAsync(idempotencyKey, cancellationToken);
             if (cachedResult != null)
             {
                 logger.LogInformation(
@@ -429,7 +429,7 @@ public class PaymentService(
             }
 
             // Mark as processing to prevent concurrent duplicates
-            if (!idempotencyService.TryMarkAsProcessing(idempotencyKey))
+            if (!await idempotencyService.TryMarkAsProcessingAsync(idempotencyKey, cancellationToken))
             {
                 result.Messages.Add(new ResultMessage
                 {
@@ -1029,5 +1029,143 @@ public class PaymentService(
         {
             idempotencyService.ClearProcessingMarker(idempotencyKey);
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<CrudResult<List<Payment>>> BatchMarkAsPaidAsync(
+        BatchMarkAsPaidParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<List<Payment>>();
+        var createdPayments = new List<Payment>();
+
+        if (parameters.InvoiceIds.Count == 0)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "No invoice IDs provided.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            // Load all invoices with their payments
+            var invoices = await db.Invoices
+                .Include(i => i.Payments)
+                .Where(i => parameters.InvoiceIds.Contains(i.Id) && !i.IsDeleted && !i.IsCancelled)
+                .ToListAsync(cancellationToken);
+
+            // Track which invoices weren't found
+            var foundIds = invoices.Select(i => i.Id).ToHashSet();
+            var missingIds = parameters.InvoiceIds.Where(id => !foundIds.Contains(id)).ToList();
+
+            foreach (var missingId in missingIds)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = $"Invoice {missingId} not found, deleted, or cancelled.",
+                    ResultMessageType = ResultMessageType.Warning
+                });
+            }
+
+            var paymentDate = parameters.DateReceived ?? DateTime.UtcNow;
+
+            foreach (var invoice in invoices)
+            {
+                // Calculate outstanding balance
+                var status = CalculatePaymentStatus(new CalculatePaymentStatusParameters
+                {
+                    Payments = invoice.Payments ?? [],
+                    InvoiceTotal = invoice.Total,
+                    CurrencyCode = invoice.CurrencyCode
+                });
+
+                if (status.BalanceDue <= 0)
+                {
+                    result.Messages.Add(new ResultMessage
+                    {
+                        Message = $"Invoice {invoice.InvoiceNumber} has no outstanding balance.",
+                        ResultMessageType = ResultMessageType.Warning
+                    });
+                    continue;
+                }
+
+                // Create payment for outstanding balance
+                var description = !string.IsNullOrEmpty(parameters.Reference)
+                    ? $"{parameters.PaymentMethod} - Ref: {parameters.Reference}"
+                    : parameters.PaymentMethod;
+
+                var payment = paymentFactory.CreateManualPayment(
+                    invoiceId: invoice.Id,
+                    amount: status.BalanceDue,
+                    currencyCode: invoice.CurrencyCode,
+                    storeCurrencyCode: invoice.StoreCurrencyCode,
+                    pricingExchangeRate: invoice.PricingExchangeRate,
+                    paymentMethod: parameters.PaymentMethod,
+                    description: description);
+
+                // Override the date created if custom date provided
+                if (parameters.DateReceived.HasValue)
+                {
+                    payment.DateCreated = paymentDate;
+                }
+
+                // Publish "Before" notification - handlers can cancel or modify
+                var creatingNotification = new PaymentCreatingNotification(payment);
+                if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
+                {
+                    result.Messages.Add(new ResultMessage
+                    {
+                        Message = $"Payment for invoice {invoice.InvoiceNumber} cancelled: {creatingNotification.CancelReason}",
+                        ResultMessageType = ResultMessageType.Warning
+                    });
+                    continue;
+                }
+
+                db.Payments.Add(payment);
+                createdPayments.Add(payment);
+
+                logger.LogInformation(
+                    "Batch payment created: {PaymentId} for invoice {InvoiceId} ({InvoiceNumber}), amount {Amount}",
+                    payment.Id, invoice.Id, invoice.InvoiceNumber, status.BalanceDue);
+            }
+
+            if (createdPayments.Count > 0)
+            {
+                await db.SaveChangesAsync(cancellationToken);
+
+                // Publish "After" notifications for all created payments
+                foreach (var payment in createdPayments)
+                {
+                    await notificationPublisher.PublishAsync(new PaymentCreatedNotification(payment), cancellationToken);
+                }
+            }
+        });
+        scope.Complete();
+
+        result.ResultObject = createdPayments;
+
+        if (createdPayments.Count > 0)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Successfully marked {createdPayments.Count} invoice(s) as paid.",
+                ResultMessageType = ResultMessageType.Success
+            });
+        }
+        else if (result.Messages.All(m => m.ResultMessageType == ResultMessageType.Warning))
+        {
+            // If we only have warnings and no payments created, it's an error overall
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "No invoices were marked as paid.",
+                ResultMessageType = ResultMessageType.Error
+            });
+        }
+
+        return result;
     }
 }

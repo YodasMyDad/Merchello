@@ -1,18 +1,29 @@
+using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Reporting.Dtos;
 using Merchello.Core.Reporting.Models;
 using Merchello.Core.Reporting.Services.Interfaces;
+using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Reporting.Services;
 
 public class ReportingService(
-    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider) : IReportingService
+    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    IPaymentService paymentService,
+    ICurrencyService currencyService,
+    IOptions<MerchelloSettings> settings) : IReportingService
 {
+    private readonly MerchelloSettings _settings = settings.Value;
+
     public async Task<AnalyticsSummaryDto> GetAnalyticsSummaryAsync(
         DateTime startDate,
         DateTime endDate,
@@ -539,5 +550,228 @@ public class ReportingService(
         }
 
         return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<OrderStatsDto> GetOrderStatsAsync(CancellationToken cancellationToken = default)
+    {
+        var today = DateTime.UtcNow.Date;
+        var tomorrow = today.AddDays(1);
+        var now = DateTime.UtcNow;
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var stats = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var todaysInvoices = await db.Invoices
+                .AsNoTracking()
+                .Include(i => i.Orders)!
+                    .ThenInclude(o => o.LineItems)
+                .Include(i => i.Orders)!
+                    .ThenInclude(o => o.Shipments)
+                .Where(i => !i.IsDeleted && i.DateCreated >= today && i.DateCreated < tomorrow)
+                .ToListAsync(cancellationToken);
+
+            var ordersToday = todaysInvoices.Count;
+
+            var itemsOrderedToday = todaysInvoices
+                .SelectMany(i => i.Orders ?? [])
+                .SelectMany(o => o.LineItems ?? [])
+                .Sum(li => li.Quantity);
+
+            var ordersFulfilledToday = todaysInvoices
+                .Where(i => i.Orders != null && i.Orders.Any() &&
+                            i.Orders.All(o => o.Status == OrderStatus.Shipped || o.Status == OrderStatus.Completed))
+                .Count();
+
+            // Calculate outstanding values across all unpaid invoices
+            var unpaidInvoices = await db.Invoices
+                .AsNoTracking()
+                .Include(i => i.Payments)
+                .Where(i => !i.IsDeleted && !i.IsCancelled)
+                .ToListAsync(cancellationToken);
+
+            decimal totalOutstanding = 0;
+            int outstandingCount = 0;
+            int overdueCount = 0;
+
+            foreach (var invoice in unpaidInvoices)
+            {
+                var paymentStatus = paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+                {
+                    Payments = invoice.Payments ?? [],
+                    InvoiceTotal = invoice.Total,
+                    CurrencyCode = invoice.CurrencyCode
+                });
+
+                if (paymentStatus.BalanceDue > 0)
+                {
+                    totalOutstanding += paymentStatus.BalanceDue;
+                    outstandingCount++;
+
+                    if (invoice.DueDate.HasValue && invoice.DueDate.Value < now)
+                    {
+                        overdueCount++;
+                    }
+                }
+            }
+
+            return new OrderStatsDto
+            {
+                OrdersToday = ordersToday,
+                ItemsOrderedToday = itemsOrderedToday,
+                OrdersFulfilledToday = ordersFulfilledToday,
+                TotalOutstandingValue = totalOutstanding,
+                OutstandingInvoiceCount = outstandingCount,
+                OverdueInvoiceCount = overdueCount,
+                CurrencyCode = _settings.StoreCurrencyCode
+            };
+        });
+        scope.Complete();
+
+        return stats;
+    }
+
+    /// <inheritdoc />
+    public async Task<DashboardStatsDto> GetDashboardStatsAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        var thisMonthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var lastMonthStart = thisMonthStart.AddMonths(-1);
+        var lastMonthEnd = thisMonthStart;
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var stats = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var thisMonthInvoices = await db.Invoices
+                .AsNoTracking()
+                .Where(i => !i.IsDeleted && i.DateCreated >= thisMonthStart)
+                .ToListAsync(cancellationToken);
+
+            var lastMonthInvoices = await db.Invoices
+                .AsNoTracking()
+                .Where(i => !i.IsDeleted && i.DateCreated >= lastMonthStart && i.DateCreated < lastMonthEnd)
+                .ToListAsync(cancellationToken);
+
+            // Orders stats
+            var ordersThisMonth = thisMonthInvoices.Count;
+            var ordersLastMonth = lastMonthInvoices.Count;
+            var ordersChangePercent = ordersLastMonth > 0
+                ? Math.Round(((decimal)(ordersThisMonth - ordersLastMonth) / ordersLastMonth) * 100, 1)
+                : (ordersThisMonth > 0 ? 100m : 0m);
+
+            // Revenue stats
+            var revenueThisMonth = thisMonthInvoices.Sum(i => i.TotalInStoreCurrency ?? i.Total);
+            var revenueLastMonth = lastMonthInvoices.Sum(i => i.TotalInStoreCurrency ?? i.Total);
+            var revenueChangePercent = revenueLastMonth > 0
+                ? Math.Round(((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100, 1)
+                : (revenueThisMonth > 0 ? 100m : 0m);
+
+            // Product count
+            var productCount = await db.RootProducts.CountAsync(cancellationToken);
+            var productCountChange = 0;
+
+            // Customer count (unique billing emails)
+            var allEmails = await db.Invoices
+                .AsNoTracking()
+                .Where(i => !i.IsDeleted && i.BillingAddress.Email != null)
+                .Select(i => i.BillingAddress.Email)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            var customerCount = allEmails.Count;
+
+            // New customers this month
+            var emailsBeforeThisMonth = await db.Invoices
+                .AsNoTracking()
+                .Where(i => !i.IsDeleted && i.DateCreated < thisMonthStart && i.BillingAddress.Email != null)
+                .Select(i => i.BillingAddress.Email)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            var emailsThisMonth = thisMonthInvoices
+                .Where(i => i.BillingAddress?.Email != null)
+                .Select(i => i.BillingAddress!.Email)
+                .Distinct()
+                .ToList();
+            var newCustomersThisMonth = emailsThisMonth.Count(e => !emailsBeforeThisMonth.Contains(e));
+
+            return new DashboardStatsDto
+            {
+                StoreCurrencyCode = _settings.StoreCurrencyCode,
+                StoreCurrencySymbol = currencyService.GetCurrency(_settings.StoreCurrencyCode).Symbol,
+                OrdersThisMonth = ordersThisMonth,
+                OrdersChangePercent = ordersChangePercent,
+                RevenueThisMonth = revenueThisMonth,
+                RevenueChangePercent = revenueChangePercent,
+                ProductCount = productCount,
+                ProductCountChange = productCountChange,
+                CustomerCount = customerCount,
+                CustomerCountChange = newCustomersThisMonth
+            };
+        });
+        scope.Complete();
+
+        return stats;
+    }
+
+    /// <inheritdoc />
+    public async Task<List<OrderExportItemDto>> GetOrdersForExportAsync(
+        DateTime fromDate,
+        DateTime toDate,
+        CancellationToken cancellationToken = default)
+    {
+        // Ensure toDate includes the entire day
+        var toDateEndOfDay = toDate.Date.AddDays(1).AddTicks(-1);
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var exportItems = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var invoices = await db.Invoices
+                .AsNoTracking()
+                .AsSplitQuery()
+                .Include(i => i.Orders)
+                .Include(i => i.Payments)
+                .Where(i => !i.IsDeleted
+                    && i.DateCreated >= fromDate.Date
+                    && i.DateCreated <= toDateEndOfDay)
+                .OrderBy(i => i.DateCreated)
+                .ToListAsync(cancellationToken);
+
+            List<OrderExportItemDto> result = [];
+
+            foreach (var invoice in invoices)
+            {
+                var payments = invoice.Payments?.ToList() ?? [];
+                var paymentDetails = paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+                {
+                    Payments = payments,
+                    InvoiceTotal = invoice.Total,
+                    CurrencyCode = invoice.CurrencyCode
+                });
+                var shippingTotal = invoice.Orders?.Sum(o => o.ShippingCost) ?? 0;
+                var shippingTotalInStoreCurrency = invoice.Orders?.Sum(o => o.ShippingCostInStoreCurrency ?? o.ShippingCost) ?? 0;
+
+                result.Add(new OrderExportItemDto
+                {
+                    InvoiceNumber = invoice.InvoiceNumber,
+                    InvoiceDate = invoice.DateCreated,
+                    PaymentStatus = paymentDetails.StatusDisplay,
+                    BillingName = invoice.BillingAddress?.Name ?? string.Empty,
+                    SubTotal = invoice.SubTotal,
+                    Tax = invoice.Tax,
+                    Shipping = shippingTotal,
+                    Total = invoice.Total,
+                    CurrencyCode = invoice.CurrencyCode,
+                    StoreCurrencyCode = invoice.StoreCurrencyCode,
+                    SubTotalInStoreCurrency = invoice.SubTotalInStoreCurrency,
+                    TaxInStoreCurrency = invoice.TaxInStoreCurrency,
+                    ShippingInStoreCurrency = shippingTotalInStoreCurrency,
+                    TotalInStoreCurrency = invoice.TotalInStoreCurrency
+                });
+            }
+
+            return result;
+        });
+        scope.Complete();
+
+        return exportItems;
     }
 }

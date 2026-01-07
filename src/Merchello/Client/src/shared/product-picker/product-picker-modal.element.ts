@@ -169,7 +169,6 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
 
     const { data, error } = await MerchelloApi.getProductDetail(rootId);
     if (error || !data) {
-      console.error("Failed to load product variants:", error);
       return;
     }
 
@@ -300,7 +299,6 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       );
 
       if (error) {
-        console.error("Failed to get fulfillment options:", error);
         return { canAddToOrder: false, warehouseId: null, warehouseName: null, blockedReason: "Unable to check fulfillment", aggregateStockStatus: "OutOfStock" };
       }
 
@@ -313,8 +311,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
         blockedReason: data?.blockedReason ?? null,
         aggregateStockStatus: data?.aggregateStockStatus ?? "InStock",
       };
-    } catch (err) {
-      console.error("Unexpected error getting fulfillment options:", err);
+    } catch {
       return { canAddToOrder: false, warehouseId: null, warehouseName: null, blockedReason: "Unable to check fulfillment", aggregateStockStatus: "OutOfStock" };
     }
   }
@@ -330,7 +327,6 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       const { data, error } = await MerchelloApi.getDefaultFulfillingWarehouse(variantId);
 
       if (error) {
-        console.error("Failed to get default warehouse:", error);
         return { canAddToOrder: false, warehouseId: null, warehouseName: null, blockedReason: "Unable to check fulfillment", aggregateStockStatus: "OutOfStock" };
       }
 
@@ -342,8 +338,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
         blockedReason: data?.blockedReason ?? null,
         aggregateStockStatus: data?.aggregateStockStatus ?? "InStock",
       };
-    } catch (err) {
-      console.error("Unexpected error getting default warehouse:", err);
+    } catch {
       return { canAddToOrder: false, warehouseId: null, warehouseName: null, blockedReason: "Unable to check fulfillment", aggregateStockStatus: "OutOfStock" };
     }
   }
@@ -552,7 +547,6 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     }
 
     if (error) {
-      console.error("Failed to fetch addon price preview:", error);
       // Do NOT fall back to local calculation - show error state instead
       // Backend is single source of truth for pricing
       this._addonPricePreview = null;
@@ -606,7 +600,6 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
 
     if (!warehouseId || !warehouseName) {
       // No warehouse - this shouldn't happen for selectable variants
-      console.error("No warehouse for variant", variant);
       return;
     }
 
@@ -651,7 +644,6 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     }
 
     if (error || !data) {
-      console.error("Failed to load shipping options:", error);
       this._pendingShippingSelection = {
         ...this._pendingShippingSelection,
         isLoadingOptions: false,

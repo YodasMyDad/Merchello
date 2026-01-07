@@ -166,9 +166,10 @@ PaymentProvider (Stripe)
 
 #### Manual Payment
 - Location: `Providers/BuiltIn/ManualPaymentProvider.cs`
-- Records offline payments (cash, cheque, bank transfer)
 - Auto-enabled on every startup via `EnsureBuiltInPaymentProvidersHandler`
-- Hidden from checkout by default (`ShowInCheckoutByDefault = false`)
+- Offers two methods:
+  - **Manual Payment** (`manual`): Hidden from checkout, for backoffice recording of cash, check, bank transfer
+  - **Purchase Order** (`purchaseorder`): Visible in checkout, customer enters PO number which is saved to `Invoice.PurchaseOrder`
 
 #### Stripe
 - Location: `Providers/Stripe/StripePaymentProvider.cs`

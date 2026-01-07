@@ -56,7 +56,10 @@ public class CustomerService(
                     OrderCount = c.Invoices != null ? c.Invoices.Count : 0,
                     Tags = c.CustomerTags.Select(t => t.Tag).ToList(),
                     IsFlagged = c.IsFlagged,
-                    AcceptsMarketing = c.AcceptsMarketing
+                    AcceptsMarketing = c.AcceptsMarketing,
+                    HasAccountTerms = c.HasAccountTerms,
+                    PaymentTermsDays = c.PaymentTermsDays,
+                    CreditLimit = c.CreditLimit
                 })
                 .FirstOrDefaultAsync(ct));
         scope.Complete();
@@ -178,7 +181,11 @@ public class CustomerService(
     }
 
     /// <inheritdoc />
-    public async Task<Customer> GetOrCreateByEmailAsync(string email, Address? billingAddress = null, CancellationToken ct = default)
+    public async Task<Customer> GetOrCreateByEmailAsync(
+        string email,
+        Address? billingAddress = null,
+        bool acceptsMarketing = false,
+        CancellationToken ct = default)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();
 
@@ -191,32 +198,41 @@ public class CustomerService(
 
             if (existing != null)
             {
+                var updated = false;
+
                 // Update name if we have newer info from billing address and current is empty
-                if (billingAddress != null)
+                if (billingAddress != null && string.IsNullOrEmpty(existing.FirstName) && !string.IsNullOrEmpty(billingAddress.Name))
                 {
-                    var updated = false;
-                    if (string.IsNullOrEmpty(existing.FirstName) && !string.IsNullOrEmpty(billingAddress.Name))
-                    {
-                        var parts = billingAddress.Name.Trim().Split(' ', 2);
-                        existing.FirstName = parts.Length > 0 ? parts[0] : null;
-                        existing.LastName = parts.Length > 1 ? parts[1] : null;
-                        updated = true;
-                    }
-                    if (updated)
-                    {
-                        existing.DateUpdated = DateTime.UtcNow;
-                        await db.SaveChangesAsync(ct);
-                    }
+                    var parts = billingAddress.Name.Trim().Split(' ', 2);
+                    existing.FirstName = parts.Length > 0 ? parts[0] : null;
+                    existing.LastName = parts.Length > 1 ? parts[1] : null;
+                    updated = true;
                 }
+
+                // Ratchet up marketing preference: only upgrade from false to true, never downgrade
+                if (acceptsMarketing && !existing.AcceptsMarketing)
+                {
+                    existing.AcceptsMarketing = true;
+                    updated = true;
+                    logger.LogInformation("Customer {CustomerId} opted in to marketing", existing.Id);
+                }
+
+                if (updated)
+                {
+                    existing.DateUpdated = DateTime.UtcNow;
+                    await db.SaveChangesAsync(ct);
+                }
+
                 return existing;
             }
 
             // Create new customer
-            var newCustomer = customerFactory.CreateFromEmail(normalizedEmail, billingAddress);
+            var newCustomer = customerFactory.CreateFromEmail(normalizedEmail, billingAddress, acceptsMarketing);
             db.Customers.Add(newCustomer);
             await db.SaveChangesAsync(ct);
 
-            logger.LogInformation("Auto-created customer {CustomerId} for email {Email}", newCustomer.Id, normalizedEmail);
+            logger.LogInformation("Auto-created customer {CustomerId} for email {Email}, AcceptsMarketing={AcceptsMarketing}",
+                newCustomer.Id, normalizedEmail, acceptsMarketing);
             return newCustomer;
         });
 
@@ -302,6 +318,27 @@ public class CustomerService(
             else if (parameters.MemberKey.HasValue)
             {
                 toUpdate.MemberKey = parameters.MemberKey;
+            }
+
+            // Handle account terms fields
+            if (parameters.HasAccountTerms.HasValue) toUpdate.HasAccountTerms = parameters.HasAccountTerms.Value;
+
+            if (parameters.ClearPaymentTermsDays)
+            {
+                toUpdate.PaymentTermsDays = null;
+            }
+            else if (parameters.PaymentTermsDays.HasValue)
+            {
+                toUpdate.PaymentTermsDays = parameters.PaymentTermsDays;
+            }
+
+            if (parameters.ClearCreditLimit)
+            {
+                toUpdate.CreditLimit = null;
+            }
+            else if (parameters.CreditLimit.HasValue)
+            {
+                toUpdate.CreditLimit = parameters.CreditLimit;
             }
 
             toUpdate.DateUpdated = DateTime.UtcNow;
@@ -422,7 +459,10 @@ public class CustomerService(
                     // Use subquery for tags instead of navigation property to avoid N+1
                     Tags = db.CustomerTags.Where(t => t.CustomerId == c.Id).Select(t => t.Tag).ToList(),
                     IsFlagged = c.IsFlagged,
-                    AcceptsMarketing = c.AcceptsMarketing
+                    AcceptsMarketing = c.AcceptsMarketing,
+                    HasAccountTerms = c.HasAccountTerms,
+                    PaymentTermsDays = c.PaymentTermsDays,
+                    CreditLimit = c.CreditLimit
                 })
                 .ToListAsync(ct);
 
@@ -498,7 +538,10 @@ public class CustomerService(
                     OrderCount = c.Invoices != null ? c.Invoices.Count : 0,
                     Tags = c.CustomerTags.Select(t => t.Tag).ToList(),
                     IsFlagged = c.IsFlagged,
-                    AcceptsMarketing = c.AcceptsMarketing
+                    AcceptsMarketing = c.AcceptsMarketing,
+                    HasAccountTerms = c.HasAccountTerms,
+                    PaymentTermsDays = c.PaymentTermsDays,
+                    CreditLimit = c.CreditLimit
                 })
                 .ToListAsync(ct));
         scope.Complete();

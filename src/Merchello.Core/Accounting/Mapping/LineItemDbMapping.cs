@@ -32,5 +32,8 @@ public class LineItemDbMapping : IEntityTypeConfiguration<LineItem>
 
         // Index for addon/discount line item lookups
         builder.HasIndex(x => x.DependantLineItemSku);
+
+        // Index for order lookups - best sellers, order detail loading
+        builder.HasIndex(x => x.OrderId);
     }
 }

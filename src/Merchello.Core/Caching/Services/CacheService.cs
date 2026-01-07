@@ -1,44 +1,50 @@
 using Merchello.Core.Caching.Models;
 using Merchello.Core.Caching.Services.Interfaces;
-using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Cache;
+using Umbraco.Extensions;
 
 namespace Merchello.Core.Caching.Services;
 
 /// <summary>
-/// Service for caching operations using HybridCache.
+/// Cache service using Umbraco's AppCaches for automatic distributed cache support.
 /// </summary>
-public class CacheService(HybridCache cache, IOptions<CacheOptions> options) : ICacheService
+public class CacheService(AppCaches appCaches, IOptions<CacheOptions> options) : ICacheService
 {
     private readonly CacheOptions _options = options.Value;
 
     /// <inheritdoc />
-    public async Task<T> GetOrCreateAsync<T>(
+    public Task<T> GetOrCreateAsync<T>(
         string key,
         Func<CancellationToken, Task<T>> factory,
         TimeSpan? ttl = null,
         IEnumerable<string>? tags = null,
         CancellationToken cancellationToken = default)
     {
-        var entryOptions = new HybridCacheEntryOptions
-        {
-            Expiration = ttl ?? TimeSpan.FromSeconds(_options.DefaultTtlSeconds),
-            LocalCacheExpiration = ttl ?? TimeSpan.FromSeconds(_options.DefaultTtlSeconds)
-        };
-        var value = await cache.GetOrCreateAsync(
+        var timeout = ttl ?? TimeSpan.FromSeconds(_options.DefaultTtlSeconds);
+
+        // Umbraco's cache is synchronous, so we need to handle the async factory
+        var result = appCaches.RuntimeCache.GetCacheItem<T>(
             key,
-            async cancel => await factory(cancel),
-            entryOptions,
-            tags,
-            cancellationToken);
-        return value;
+            () => factory(cancellationToken).GetAwaiter().GetResult(),
+            timeout,
+            isSliding: false);
+
+        return Task.FromResult(result)!;
     }
 
     /// <inheritdoc />
     public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
-        => cache.RemoveAsync(key, cancellationToken).AsTask();
+    {
+        appCaches.RuntimeCache.ClearByKey(key);
+        return Task.CompletedTask;
+    }
 
     /// <inheritdoc />
     public Task RemoveByTagAsync(string tag, CancellationToken cancellationToken = default)
-        => cache.RemoveByTagAsync(tag, cancellationToken).AsTask();
+    {
+        // Tags become regex patterns - clear all keys starting with the tag
+        appCaches.RuntimeCache.ClearByRegex($"^{System.Text.RegularExpressions.Regex.Escape(tag)}");
+        return Task.CompletedTask;
+    }
 }

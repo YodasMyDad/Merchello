@@ -86,7 +86,6 @@ export class MerchelloSegmentPreviewElement extends UmbElementMixin(LitElement) 
     if (!this.#isConnected) return;
 
     if (error) {
-      console.error("Failed to load statistics:", error);
       this._isLoadingStats = false;
       return;
     }

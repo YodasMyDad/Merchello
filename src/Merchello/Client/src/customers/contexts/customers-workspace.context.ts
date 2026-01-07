@@ -101,7 +101,6 @@ export class MerchelloCustomersWorkspaceContext
     this.#segmentId = unique;
     const { data, error } = await MerchelloApi.getCustomerSegment(unique);
     if (error) {
-      console.error("Failed to load segment:", error);
       return;
     }
     this.#segment.setValue(data);

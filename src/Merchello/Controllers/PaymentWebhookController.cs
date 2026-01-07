@@ -161,7 +161,7 @@ public class PaymentWebhookController(
         // Atomically mark as processing to prevent concurrent duplicate handling
         // Uses provider alias + transaction ID as the unique key
         var webhookEventId = result.TransactionId ?? Guid.NewGuid().ToString();
-        if (!webhookSecurityService.TryMarkAsProcessing(providerAlias, webhookEventId))
+        if (!await webhookSecurityService.TryMarkAsProcessingAsync(providerAlias, webhookEventId, cancellationToken))
         {
             webhookSecurityService.LogSecurityEvent(
                 WebhookSecurityEventType.DuplicateWebhook,

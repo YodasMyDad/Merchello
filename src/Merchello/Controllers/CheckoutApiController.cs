@@ -6,6 +6,7 @@ using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Microsoft.AspNetCore.Mvc;
@@ -137,7 +138,8 @@ public class CheckoutApiController(
             Email = request.Email,
             BillingAddress = request.BillingAddress,
             ShippingAddress = request.ShippingAddress,
-            ShippingSameAsBilling = request.ShippingSameAsBilling
+            ShippingSameAsBilling = request.ShippingSameAsBilling,
+            AcceptsMarketing = request.AcceptsMarketing
         }, ct);
 
         if (!result.Successful)
@@ -207,17 +209,8 @@ public class CheckoutApiController(
             });
         }
 
-        // Refresh automatic discounts - the applied code may conflict with existing automatic discounts
+        // Update session with the updated basket (automatic discounts already refreshed in service)
         var updatedBasket = result.ResultObject;
-        if (updatedBasket != null)
-        {
-            updatedBasket = await checkoutService.RefreshAutomaticDiscountsAsync(
-                updatedBasket,
-                updatedBasket.ShippingAddress?.CountryCode,
-                ct);
-        }
-
-        // Update session with the updated basket
         if (updatedBasket != null)
         {
             checkoutSessionService.SaveBasketToSession(updatedBasket);
@@ -302,7 +295,7 @@ public class CheckoutApiController(
             Basket = MapBasketToDto(initResult.Basket),
             ShippingGroups = shippingGroups,
             CombinedShippingTotal = initResult.CombinedShippingTotal,
-            FormattedCombinedShippingTotal = FormatPrice(initResult.CombinedShippingTotal, currencySymbol),
+            FormattedCombinedShippingTotal = initResult.CombinedShippingTotal.FormatWithSymbol(currencySymbol),
             ShippingAutoSelected = initResult.ShippingAutoSelected
         });
     }
@@ -492,17 +485,8 @@ public class CheckoutApiController(
             });
         }
 
-        // Refresh automatic discounts - a removed code may have been blocking automatic discounts
+        // Update session with the updated basket (automatic discounts already refreshed in service)
         var updatedBasket = result.ResultObject;
-        if (updatedBasket != null)
-        {
-            updatedBasket = await checkoutService.RefreshAutomaticDiscountsAsync(
-                updatedBasket,
-                updatedBasket.ShippingAddress?.CountryCode,
-                ct);
-        }
-
-        // Update session with the updated basket
         if (updatedBasket != null)
         {
             checkoutSessionService.SaveBasketToSession(updatedBasket);
@@ -536,8 +520,8 @@ public class CheckoutApiController(
                 Quantity = li.Quantity,
                 UnitPrice = li.Amount,
                 LineTotal = li.Amount * li.Quantity,
-                FormattedUnitPrice = FormatPrice(li.Amount, currencySymbol),
-                FormattedLineTotal = FormatPrice(li.Amount * li.Quantity, currencySymbol),
+                FormattedUnitPrice = li.Amount.FormatWithSymbol(currencySymbol),
+                FormattedLineTotal = (li.Amount * li.Quantity).FormatWithSymbol(currencySymbol),
                 LineItemType = li.LineItemType
             })
             .ToList();
@@ -557,7 +541,7 @@ public class CheckoutApiController(
                     Name = li.Name ?? "Discount",
                     Code = discountCodeObj?.ToString(),
                     Amount = Math.Abs(li.Amount * li.Quantity),
-                    FormattedAmount = FormatPrice(Math.Abs(li.Amount * li.Quantity), currencySymbol),
+                    FormattedAmount = Math.Abs(li.Amount * li.Quantity).FormatWithSymbol(currencySymbol),
                     IsAutomatic = discountCodeObj == null
                 };
             })
@@ -573,12 +557,12 @@ public class CheckoutApiController(
             Tax = basket.Tax,
             Shipping = basket.Shipping,
             Total = basket.Total,
-            FormattedSubTotal = FormatPrice(basket.SubTotal, currencySymbol),
-            FormattedDiscount = FormatPrice(basket.Discount, currencySymbol),
-            FormattedAdjustedSubTotal = FormatPrice(basket.AdjustedSubTotal, currencySymbol),
-            FormattedTax = FormatPrice(basket.Tax, currencySymbol),
-            FormattedShipping = FormatPrice(basket.Shipping, currencySymbol),
-            FormattedTotal = FormatPrice(basket.Total, currencySymbol),
+            FormattedSubTotal = basket.SubTotal.FormatWithSymbol(currencySymbol),
+            FormattedDiscount = basket.Discount.FormatWithSymbol(currencySymbol),
+            FormattedAdjustedSubTotal = basket.AdjustedSubTotal.FormatWithSymbol(currencySymbol),
+            FormattedTax = basket.Tax.FormatWithSymbol(currencySymbol),
+            FormattedShipping = basket.Shipping.FormatWithSymbol(currencySymbol),
+            FormattedTotal = basket.Total.FormatWithSymbol(currencySymbol),
             Currency = basket.Currency ?? _settings.StoreCurrencyCode,
             CurrencySymbol = currencySymbol,
             BillingAddress = MapAddressToDto(basket.BillingAddress),
@@ -611,10 +595,6 @@ public class CheckoutApiController(
         };
     }
 
-    private static string FormatPrice(decimal price, string currencySymbol)
-    {
-        return $"{currencySymbol}{price:N2}";
-    }
 
     private static List<ShippingGroupDto> MapOrderGroupsToDto(
         OrderGroupingResult result,
@@ -633,7 +613,7 @@ public class CheckoutApiController(
                 Name = li.Name,
                 Quantity = li.Quantity,
                 Amount = li.Amount * li.Quantity,
-                FormattedAmount = FormatPrice(li.Amount * li.Quantity, currencySymbol)
+                FormattedAmount = (li.Amount * li.Quantity).FormatWithSymbol(currencySymbol)
             }).ToList(),
             ShippingOptions = group.AvailableShippingOptions.Select(opt => new ShippingOptionDto
             {
@@ -643,7 +623,7 @@ public class CheckoutApiController(
                 DaysTo = opt.DaysTo,
                 IsNextDay = opt.IsNextDay,
                 Cost = opt.Cost,
-                FormattedCost = FormatPrice(opt.Cost, currencySymbol),
+                FormattedCost = opt.Cost.FormatWithSymbol(currencySymbol),
                 DeliveryDescription = opt.DeliveryTimeDescription,
                 ProviderKey = opt.ProviderKey
             }).ToList(),

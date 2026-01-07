@@ -141,6 +141,8 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
       data: {
         email: customer.email,
         customerName,
+        customerId: customer.id,
+        hasAccountTerms: customer.hasAccountTerms,
       },
     });
   }

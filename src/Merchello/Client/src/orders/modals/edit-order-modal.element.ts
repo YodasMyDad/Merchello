@@ -646,7 +646,6 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       this._previewLoading = false;
 
       if (error) {
-        console.error("Preview calculation failed:", error);
         // Keep showing old preview on error
         return;
       }

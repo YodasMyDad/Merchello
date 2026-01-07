@@ -12,8 +12,9 @@ public interface IPaymentIdempotencyService
     /// Checks if a payment request with the given idempotency key has been processed.
     /// </summary>
     /// <param name="idempotencyKey">The idempotency key to check.</param>
+    /// <param name="ct">Cancellation token.</param>
     /// <returns>The cached result if already processed, null otherwise.</returns>
-    PaymentResult? GetCachedPaymentResult(string idempotencyKey);
+    Task<PaymentResult?> GetCachedPaymentResultAsync(string idempotencyKey, CancellationToken ct = default);
 
     /// <summary>
     /// Caches the result of a payment request for idempotency.
@@ -26,8 +27,9 @@ public interface IPaymentIdempotencyService
     /// Checks if a refund request with the given idempotency key has been processed.
     /// </summary>
     /// <param name="idempotencyKey">The idempotency key to check.</param>
+    /// <param name="ct">Cancellation token.</param>
     /// <returns>The cached result if already processed, null otherwise.</returns>
-    RefundResult? GetCachedRefundResult(string idempotencyKey);
+    Task<RefundResult?> GetCachedRefundResultAsync(string idempotencyKey, CancellationToken ct = default);
 
     /// <summary>
     /// Caches the result of a refund request for idempotency.
@@ -40,8 +42,9 @@ public interface IPaymentIdempotencyService
     /// Marks a key as being processed (in-flight) to prevent concurrent duplicate requests.
     /// </summary>
     /// <param name="idempotencyKey">The idempotency key.</param>
+    /// <param name="ct">Cancellation token.</param>
     /// <returns>True if the key was successfully marked, false if already in-flight.</returns>
-    bool TryMarkAsProcessing(string idempotencyKey);
+    Task<bool> TryMarkAsProcessingAsync(string idempotencyKey, CancellationToken ct = default);
 
     /// <summary>
     /// Clears the in-flight marker for a key (used if processing fails before caching result).

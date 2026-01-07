@@ -57,6 +57,24 @@ public class Customer
     public bool AcceptsMarketing { get; set; }
 
     /// <summary>
+    /// Whether this customer can order on account with payment terms.
+    /// When true, invoices will have DueDate set based on PaymentTermsDays.
+    /// </summary>
+    public bool HasAccountTerms { get; set; }
+
+    /// <summary>
+    /// Payment terms in days (e.g., 30 for Net 30, 60 for Net 60).
+    /// Only applies when HasAccountTerms is true.
+    /// </summary>
+    public int? PaymentTermsDays { get; set; }
+
+    /// <summary>
+    /// Optional credit limit for the customer's outstanding balance.
+    /// Soft warning only - orders still proceed if exceeded.
+    /// </summary>
+    public decimal? CreditLimit { get; set; }
+
+    /// <summary>
     /// Navigation property: Tags assigned to this customer.
     /// Used for categorization and segment criteria matching.
     /// </summary>

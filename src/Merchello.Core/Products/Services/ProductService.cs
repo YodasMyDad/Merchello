@@ -1009,6 +1009,7 @@ public class ProductService(
                 .Include(pr => pr.Products)
                     .ThenInclude(p => p.ExcludedShippingOptions)
                 .AsNoTracking()
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
 
             if (productRoot == null) return null;
@@ -1521,7 +1522,7 @@ public class ProductService(
             }
 
             // Use split query when including multiple collection navigations to avoid Cartesian explosion
-            if (parameters.IncludeProductWarehouses || parameters.IncludeProductRootWarehouses)
+            if (parameters.IncludeProductWarehouses || parameters.IncludeProductRootWarehouses || parameters.IncludeShippingRestrictions)
             {
                 query = query.AsSplitQuery();
             }

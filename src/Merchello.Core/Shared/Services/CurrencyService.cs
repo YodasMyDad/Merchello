@@ -110,6 +110,15 @@ public class CurrencyService(IOptions<MerchelloSettings> settings) : ICurrencySe
         _ => throw new ArgumentOutOfRangeException(nameof(decimals), decimals, "Unsupported currency decimal places")
     };
 
+    /// <summary>
+    /// Gets the culture associated with a currency code, with caching.
+    /// </summary>
+    /// <remarks>
+    /// Exceptions are intentionally swallowed here because:
+    /// 1. RegionInfo constructor throws for some valid culture names (expected behavior)
+    /// 2. This is a best-effort lookup - returning null is acceptable
+    /// 3. Logging every failed lookup would be extremely noisy
+    /// </remarks>
     private static CultureInfo? GetCulture(string currencyCode)
         => CurrencyCultureCache.GetOrAdd(currencyCode, static code =>
         {
@@ -125,16 +134,27 @@ public class CurrencyService(IOptions<MerchelloSettings> settings) : ICurrencySe
                         }
                         catch
                         {
+                            // RegionInfo throws for some culture names - expected behavior
                             return false;
                         }
                     });
             }
             catch
             {
+                // Fallback for any unexpected culture enumeration errors
                 return null;
             }
         });
 
+    /// <summary>
+    /// Attempts to get the currency symbol from regional information.
+    /// </summary>
+    /// <remarks>
+    /// Exceptions are intentionally swallowed here because:
+    /// 1. RegionInfo constructor throws for some valid culture names (expected behavior)
+    /// 2. This is a best-effort lookup - returning null falls back to using the currency code
+    /// 3. Logging every failed lookup would be extremely noisy
+    /// </remarks>
     private static string? GetCurrencySymbolFromRegion(string currencyCode)
     {
         try
@@ -143,7 +163,7 @@ public class CurrencyService(IOptions<MerchelloSettings> settings) : ICurrencySe
                 .Select(c =>
                 {
                     try { return new RegionInfo(c.Name); }
-                    catch { return null; }
+                    catch { return null; } // RegionInfo throws for some culture names
                 })
                 .FirstOrDefault(r => r?.ISOCurrencySymbol.Equals(currencyCode, StringComparison.OrdinalIgnoreCase) == true);
 
@@ -151,6 +171,7 @@ public class CurrencyService(IOptions<MerchelloSettings> settings) : ICurrencySe
         }
         catch
         {
+            // Fallback for any unexpected culture enumeration errors
             return null;
         }
     }

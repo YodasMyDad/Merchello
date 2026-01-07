@@ -1,6 +1,11 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Reporting.Services;
+using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Tests.TestInfrastructure;
+using Microsoft.Extensions.Options;
+using Moq;
 using Shouldly;
 using Xunit;
 
@@ -22,7 +27,10 @@ public class ReportingServiceTests : IClassFixture<ServiceTestFixture>
         _fixture.ResetDatabase();
 
         var scopeProvider = _fixture.GetService<Umbraco.Cms.Persistence.EFCore.Scoping.IEFCoreScopeProvider<Merchello.Core.Data.MerchelloDbContext>>();
-        _reportingService = new ReportingService(scopeProvider);
+        var paymentService = new Mock<IPaymentService>().Object;
+        var currencyService = new Mock<ICurrencyService>().Object;
+        var settings = Options.Create(new MerchelloSettings { StoreCurrencyCode = "GBP" });
+        _reportingService = new ReportingService(scopeProvider, paymentService, currencyService, settings);
     }
 
     #region GetSalesBreakdownAsync - Profit Calculation Tests

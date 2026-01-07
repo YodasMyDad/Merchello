@@ -568,6 +568,104 @@ export const MerchelloApi = {
     apiDelete(`shipments/${shipmentId}`),
 
   // ============================================
+  // Outstanding Invoices API
+  // ============================================
+
+  /** Get paginated outstanding invoices across all customers */
+  getOutstandingInvoices: (params?: {
+    page?: number;
+    pageSize?: number;
+    accountCustomersOnly?: boolean;
+    overdueOnly?: boolean;
+    dueWithinDays?: number;
+    sortBy?: string;
+    sortDir?: string;
+  }) => {
+    const queryString = buildQueryString(params as Record<string, unknown>);
+    return apiGet<{
+      items: OrderListItemDto[];
+      page: number;
+      pageSize: number;
+      totalItems: number;
+      totalPages: number;
+    }>(`orders/outstanding${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Batch mark multiple invoices as paid */
+  batchMarkAsPaid: (data: {
+    invoiceIds: string[];
+    paymentMethod: string;
+    reference?: string | null;
+    dateReceived?: string | null;
+  }) => apiPost<{
+    successCount: number;
+    failureCount: number;
+    errors: Array<{ invoiceId: string; errorMessage: string }>;
+  }>('orders/batch-mark-paid', data),
+
+  /** Get outstanding balance summary for a customer */
+  getCustomerOutstandingBalance: (customerId: string) =>
+    apiGet<{
+      totalOutstanding: number;
+      totalOverdue: number;
+      invoiceCount: number;
+      overdueCount: number;
+      nextDueDate: string | null;
+      currencyCode: string;
+      creditLimit: number | null;
+      creditLimitExceeded: boolean;
+      availableCredit: number | null;
+      creditUtilizationPercent: number | null;
+    }>(`customers/${customerId}/outstanding`),
+
+  /** Get outstanding invoices for a specific customer */
+  getCustomerOutstandingInvoices: (customerId: string) =>
+    apiGet<OrderListItemDto[]>(`customers/${customerId}/outstanding/invoices`),
+
+  /** Download a customer statement PDF */
+  downloadCustomerStatement: async (
+    customerId: string,
+    periodStart?: string,
+    periodEnd?: string
+  ): Promise<{ blob?: Blob; filename?: string; error?: Error }> => {
+    try {
+      const headers = await getHeaders();
+      const baseUrl = apiConfig.baseUrl || '';
+      const params = new URLSearchParams();
+      if (periodStart) params.append('periodStart', periodStart);
+      if (periodEnd) params.append('periodEnd', periodEnd);
+      const queryString = params.toString();
+      const url = `${baseUrl}${API_BASE}/customers/${customerId}/statement${queryString ? `?${queryString}` : ''}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        credentials: apiConfig.credentials,
+        headers: { ...headers, 'Content-Type': '' }, // Remove content-type for file download
+      });
+
+      if (!response.ok) {
+        return { error: new Error(`HTTP ${response.status}: ${response.statusText}`) };
+      }
+
+      const blob = await response.blob();
+
+      // Extract filename from Content-Disposition header if available
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = 'statement.pdf';
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (match && match[1]) {
+          filename = match[1].replace(/['"]/g, '');
+        }
+      }
+
+      return { blob, filename };
+    } catch (error) {
+      return { error: error instanceof Error ? error : new Error(String(error)) };
+    }
+  },
+
+  // ============================================
   // Payment Providers API
   // ============================================
 

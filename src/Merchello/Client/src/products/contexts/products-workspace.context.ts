@@ -134,7 +134,6 @@ export class MerchelloProductsWorkspaceContext
     this.#productRootId = unique;
     const { data, error } = await MerchelloApi.getProductDetail(unique);
     if (error) {
-      console.error("Failed to load product:", error);
       return;
     }
     this.#product.setValue(data);
@@ -162,7 +161,6 @@ export class MerchelloProductsWorkspaceContext
   async loadElementType(): Promise<void> {
     const { data, error } = await MerchelloApi.getProductElementType();
     if (error) {
-      console.error("Failed to load element type:", error);
       return;
     }
     this.#elementType.setValue(data ?? null);
@@ -177,7 +175,6 @@ export class MerchelloProductsWorkspaceContext
     const { data, error } = await MerchelloApi.getFilterGroups();
     if (error) {
       this.#filterGroupsLoaded = false;
-      console.error("Failed to load filter groups:", error);
       return;
     }
 

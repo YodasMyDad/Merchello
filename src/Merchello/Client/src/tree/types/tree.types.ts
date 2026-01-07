@@ -34,3 +34,4 @@ export const MERCHELLO_DISCOUNTS_ENTITY_TYPE = "merchello-discounts";
 export const MERCHELLO_SUPPLIERS_ENTITY_TYPE = "merchello-suppliers";
 export const MERCHELLO_WAREHOUSES_ENTITY_TYPE = "merchello-warehouses";
 export const MERCHELLO_PROVIDERS_ENTITY_TYPE = "merchello-providers";
+export const MERCHELLO_OUTSTANDING_ENTITY_TYPE = "merchello-outstanding";

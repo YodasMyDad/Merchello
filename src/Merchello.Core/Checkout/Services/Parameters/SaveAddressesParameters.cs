@@ -32,4 +32,9 @@ public class SaveAddressesParameters
     /// Whether shipping address is the same as billing
     /// </summary>
     public bool ShippingSameAsBilling { get; init; }
+
+    /// <summary>
+    /// Whether the customer accepts marketing communications.
+    /// </summary>
+    public bool AcceptsMarketing { get; init; }
 }

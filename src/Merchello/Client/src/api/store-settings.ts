@@ -31,7 +31,7 @@ export async function getStoreSettings(): Promise<StoreSettingsDto> {
   loadingPromise = (async () => {
     const { data, error } = await MerchelloApi.getSettings();
     if (error || !data) {
-      console.warn('Failed to load store settings, using defaults:', error);
+      // Settings unavailable - use defaults silently
       cachedSettings = defaultSettings;
     } else {
       cachedSettings = data;

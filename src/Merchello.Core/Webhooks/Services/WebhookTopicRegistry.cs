@@ -19,9 +19,9 @@ public class WebhookTopicRegistry : IWebhookTopicRegistry
             Category = "Orders",
             SamplePayload = """{"id":"...","invoiceNumber":"INV-0001","status":"Pending","total":99.99}"""
         },
-        ["order.updated"] = new WebhookTopic
+        [Constants.WebhookTopics.OrderUpdated] = new WebhookTopic
         {
-            Key = "order.updated",
+            Key = Constants.WebhookTopics.OrderUpdated,
             DisplayName = "Order Updated",
             Description = "Triggered when an order is modified",
             Category = "Orders"
@@ -142,16 +142,16 @@ public class WebhookTopicRegistry : IWebhookTopicRegistry
         },
 
         // Shipments
-        ["shipment.created"] = new WebhookTopic
+        [Constants.WebhookTopics.ShipmentCreated] = new WebhookTopic
         {
-            Key = "shipment.created",
+            Key = Constants.WebhookTopics.ShipmentCreated,
             DisplayName = "Shipment Created",
             Description = "Triggered when a shipment is created",
             Category = "Shipments"
         },
-        ["shipment.updated"] = new WebhookTopic
+        [Constants.WebhookTopics.ShipmentUpdated] = new WebhookTopic
         {
-            Key = "shipment.updated",
+            Key = Constants.WebhookTopics.ShipmentUpdated,
             DisplayName = "Shipment Updated",
             Description = "Triggered when a shipment is modified",
             Category = "Shipments"

@@ -36,4 +36,14 @@ public class CustomerLookupResultDto
     /// De-duplicated list of past shipping addresses from this customer's orders
     /// </summary>
     public List<AddressDto> PastShippingAddresses { get; set; } = [];
+
+    /// <summary>
+    /// Whether this customer has account terms (can order on account)
+    /// </summary>
+    public bool HasAccountTerms { get; set; }
+
+    /// <summary>
+    /// Credit limit for the customer, if set
+    /// </summary>
+    public decimal? CreditLimit { get; set; }
 }

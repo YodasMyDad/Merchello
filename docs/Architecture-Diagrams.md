@@ -8,6 +8,8 @@ Opinionated enterprise ecommerce plugin for Umbraco v17+, which will be installe
 - **Factories** - All domain objects via factories
 - **Multi-warehouse** - Variant-level stock with priority-based selection
 
+Site note. We only add new database tables if they are absolutely necessary!
+
 ## 1. Architecture Layers
 
 ```
@@ -51,6 +53,11 @@ FACTORIES → All object creation, stateless singletons
 | Product fulfillment options | `IShippingService.GetFulfillmentOptionsForProductAsync()` |
 | Default fulfilling warehouse | `IShippingService.GetDefaultFulfillingWarehouseAsync()` |
 | Shipping for product | `IShippingService.GetShippingOptionsForProductAsync()` |
+| **Create shipment** | `IShipmentService.CreateShipmentAsync()` - single shipment with tracking |
+| Batch create shipments | `IShipmentService.CreateShipmentsFromOrderAsync()` - warehouse-grouped |
+| Update shipment | `IShipmentService.UpdateShipmentAsync()` - tracking, carrier, delivery date |
+| Delete shipment | `IShipmentService.DeleteShipmentAsync()` - releases inventory |
+| Fulfillment summary | `IShipmentService.GetFulfillmentSummaryAsync()` - warehouse-grouped summary |
 
 **Shipping Cost Priority**: State > Country > Universal (`*`) > FixedCost fallback. Use `IShippingCostResolver` - never duplicate this logic.
 
@@ -80,6 +87,7 @@ To regenerate: `node scripts/generate-locality-data.js`
 | Calculate basket | `ICheckoutService.CalculateBasketAsync()` |
 | Apply discount code | `ICheckoutService.ApplyDiscountCodeAsync()` |
 | Refresh auto discounts | `ICheckoutService.RefreshAutomaticDiscountsAsync()` |
+| Save addresses | `ICheckoutService.SaveAddressesAsync()` (stores marketing opt-in in `CheckoutSession.AcceptsMarketing`) |
 
 #### Invoice & Order
 | Operation | Service.Method |
@@ -95,6 +103,7 @@ To regenerate: `node scripts/generate-locality-data.js`
 | Operation | Service.Method |
 |-----------|----------------|
 | Customer get/create | `ICustomerService.GetOrCreateByEmailAsync()` |
+| Marketing opt-in | `ICustomerService.GetOrCreateByEmailAsync()` with `acceptsMarketing` parameter (ratchet-up: only upgrades false→true) |
 | Segment membership | `ICustomerSegmentService.IsCustomerInSegmentAsync()` |
 
 #### Discounts
@@ -139,8 +148,32 @@ To regenerate: `node scripts/generate-locality-data.js`
 |-----------|----------------|
 | Sales breakdown | `IReportingService.GetSalesBreakdownAsync()` - includes TotalCost, GrossProfit, GrossProfitMargin |
 | Best sellers | `IReportingService.GetBestSellersAsync()` |
+| Order stats (today) | `IReportingService.GetOrderStatsAsync()` - orders, items, fulfilled, outstanding |
+| Dashboard stats | `IReportingService.GetDashboardStatsAsync()` - monthly metrics with % changes |
+| Export orders | `IReportingService.GetOrdersForExportAsync()` - CSV export data |
 
 **Cost Tracking**: `LineItem.Cost` is captured at order creation time for historical profit accuracy. Add-on costs are extracted from `ExtendedData["CostAdjustment"]`.
+
+#### Subscriptions
+| Operation | Service.Method |
+|-----------|----------------|
+| Create subscription | `ISubscriptionService.CreateSubscriptionAsync()` |
+| Cancel subscription | `ISubscriptionService.CancelSubscriptionAsync()` |
+| Pause subscription | `ISubscriptionService.PauseSubscriptionAsync()` |
+| Resume subscription | `ISubscriptionService.ResumeSubscriptionAsync()` |
+| Process renewal | `ISubscriptionService.ProcessRenewalAsync()` |
+| Update from webhook | `ISubscriptionService.UpdateStatusFromProviderAsync()` |
+| Subscription metrics | `ISubscriptionService.GetMetricsAsync()` |
+
+**Subscription Products**: Products with `IsSubscriptionProduct = true` can only be purchased alone (one per basket).
+
+#### Account Management & Statements
+| Operation | Service.Method |
+|-----------|----------------|
+| Outstanding invoices (customer) | `IStatementService.GetOutstandingInvoicesForCustomerAsync()` |
+| Outstanding balance summary | `IStatementService.GetOutstandingBalanceAsync()` - totals, overdue, credit status |
+| Outstanding invoices (paged) | `IStatementService.GetOutstandingInvoicesPagedAsync()` - with filtering |
+| Generate PDF statement | `IStatementService.GenerateStatementPdfAsync()` |
 
 ### Factories
 
@@ -159,6 +192,7 @@ To regenerate: `node scripts/generate-locality-data.js`
 | `CustomerFactory` | Customer from email/params |
 | `CustomerSegmentFactory` | CustomerSegment, CustomerSegmentMember |
 | `DiscountFactory` | Discount, TargetRules, BuyXGetYConfig, FreeShippingConfig |
+| `SubscriptionFactory` | Subscription from provider response |
 
 ### Rules
 ```csharp
@@ -196,7 +230,7 @@ Feature/
 └── ExtensionMethods/
 ```
 
-**Modules**: Accounting, Checkout, Customers, Discounts, Products, Shipping, Payments, Suppliers, Warehouses, Locality, Notifications, Stores, Webhooks
+**Modules**: Accounting, Checkout, Customers, Discounts, Products, Shipping, Payments, Subscriptions, Suppliers, Warehouses, Locality, Notifications, Stores, Webhooks
 
 ## 3. Entity Relationships
 
@@ -223,11 +257,15 @@ Discount →1:N→ DiscountTargetRule
         →1:1→ DiscountFreeShippingConfig (optional, for FreeShipping category)
 
 Invoice →1:N→ Order →1:N→ Shipment (N:1 Warehouse)
-       →1:N→ Payment
+       →1:N→ Payment (IdempotencyKey, WebhookEventId for deduplication)
 
 Order →1:N→ LineItems
 
 WebhookSubscription →1:N→ WebhookDelivery (cascade delete)
+
+Subscription →1:1→ Customer
+            →1:1→ ProductRoot (IsSubscriptionProduct=true only)
+            →1:N→ SubscriptionInvoice →1:1→ Invoice
 ```
 
 ## 4. Provider Systems
@@ -370,14 +408,29 @@ public class AuditHandler : INotificationAsyncHandler<OrderStatusChangedNotifica
 ### Events
 | Domain | Before | After |
 |--------|--------|-------|
-| Invoice | Saving, Deleting | Saved, Deleted |
+| Basket | Clearing, ItemAdding, ItemRemoving, QuantityChanging | Cleared, ItemAdded, ItemRemoved, QuantityChanged |
+| BasketCurrency | Changing | Changed |
+| Checkout | AddressesChanging, DiscountCodeApplying, ShippingSelectionChanging | AddressesChanged, DiscountCodeApplied, DiscountCodeRemoved, ShippingSelectionChanged |
+| Customer | Creating, Saving, Deleting | Created, Saved, Deleted |
+| CustomerSegment | Creating, Saving, Deleting | Created, Saved, Deleted |
+| Discount | Creating, Saving, Deleting, StatusChanging | Created, Saved, Deleted, StatusChanged |
+| ExchangeRate | - | Refreshed, FetchFailed |
+| Inventory | StockReserving, StockReleasing, StockAllocating | StockReserved, StockReleased, StockAllocated, StockAdjusted, LowStock |
+| Invoice | Saving, Deleting, Cancelling | Saved, Deleted, Cancelled |
 | Order | Creating, Saving, StatusChanging | Created, Saved, StatusChanged |
-| Payment | Creating | Created, Refunded |
-| Shipment | Creating, Saving | Created, Saved |
-| Inventory | StockReserving, Releasing, Allocating | StockReserved, Released, Allocated |
+| OrderGrouping | Modifying | Completed |
+| Payment | Creating, Refunding | Created, Refunded |
 | Product | Creating, Saving, Deleting | Created, Saved, Deleted |
+| ProductOption | Creating, Deleting | Created, Deleted |
+| Shipment | Creating, Saving | Created, Saved |
+| ShippingOption | Creating, Saving, Deleting | Created, Saved, Deleted |
+| Supplier | Creating, Saving, Deleting | Created, Saved, Deleted |
+| TaxGroup | Creating, Saving, Deleting | Created, Saved, Deleted |
+| Warehouse | Creating, Saving, Deleting | Created, Saved, Deleted |
 
 **Aggregate**: `InvoiceAggregateChangedNotification` fires on any Invoice/child change.
+
+**Caching**: `MerchelloCacheRefresherNotification` for distributed cache invalidation.
 
 **Priority** `[NotificationHandlerPriority(n)]`: 100=validation, 500=modification, 1000=default, 2000=external sync
 
@@ -507,6 +560,7 @@ All webhook payloads are wrapped in a standard envelope:
 | `IShippingService` | Provider config |
 | `IShippingQuoteService` | Rate quotes |
 | `IShippingCostResolver` | Cost resolution (State > Country > Universal > Fixed) |
+| `IShipmentService` | Shipment CRUD, fulfillment tracking, inventory allocation |
 | `IPaymentService` | Transactions, refunds, status |
 | `ISupplierService` | Supplier mgmt |
 | `IWarehouseService` | Selection, regions |
@@ -521,6 +575,9 @@ All webhook payloads are wrapped in a standard envelope:
 | `IWebhookDispatcher` | HTTP delivery with HMAC signing |
 | `IWebhookTopicRegistry` | Topic discovery and metadata |
 | `IStorefrontContextService` | Shipping location, currency context, availability |
+| `ISubscriptionService` | Subscription CRUD, lifecycle, invoice linking, metrics |
+| `IReportingService` | Sales breakdown, best sellers, order stats, dashboard metrics, exports |
+| `IStatementService` | PDF statements, outstanding balance, unpaid invoices query |
 
 **Principles**: DbContext in services only, RORO params, CrudResult<T>, async+CancellationToken, factories for creation
 
@@ -530,6 +587,21 @@ All webhook payloads are wrapped in a standard envelope:
 |-----|----------------|
 | `DiscountStatusJob` | Updates discount status (Scheduled→Active, Active→Expired) on schedule |
 | `WebhookDeliveryJob` | Processes pending webhook retries with exponential backoff |
+
+### Caching
+
+Merchello uses `ICacheService` as the caching abstraction. Under the hood, it uses Umbraco's `AppCaches` for automatic distributed cache support.
+
+| Operation | Method |
+|-----------|--------|
+| Get/set with TTL | `cacheService.GetOrCreateAsync(key, factory, ttl, tags)` |
+| Clear single key | `cacheService.RemoveAsync(key)` |
+| Clear by tag | `cacheService.RemoveByTagAsync(tag)` |
+| Clear across servers | `distributedCache.ClearMerchelloCache("prefix")` |
+
+**Key Prefixes**: `merchello:exchange-rates:*`, `merchello:locality:*`, `merchello:shipping:*`
+
+**Deduplication**: `Payment.IdempotencyKey` and `Payment.WebhookEventId` columns (database-based, not cache-based)
 
 ## 11. Extension Points
 

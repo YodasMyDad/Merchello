@@ -36,4 +36,19 @@ public class CustomerListItemDto
     /// Whether the customer has opted in to receive marketing communications
     /// </summary>
     public bool AcceptsMarketing { get; set; }
+
+    /// <summary>
+    /// Whether this customer can order on account with payment terms
+    /// </summary>
+    public bool HasAccountTerms { get; set; }
+
+    /// <summary>
+    /// Payment terms in days (e.g., 30 for Net 30)
+    /// </summary>
+    public int? PaymentTermsDays { get; set; }
+
+    /// <summary>
+    /// Optional credit limit for the customer
+    /// </summary>
+    public decimal? CreditLimit { get; set; }
 }

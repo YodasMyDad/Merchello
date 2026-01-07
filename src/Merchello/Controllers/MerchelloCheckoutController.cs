@@ -2,6 +2,7 @@ using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -188,7 +189,7 @@ public class MerchelloCheckoutController(
                 Name = li.Name,
                 Quantity = li.Quantity,
                 Amount = li.Amount * li.Quantity,
-                FormattedAmount = FormatPrice(li.Amount * li.Quantity, currencySymbol)
+                FormattedAmount = (li.Amount * li.Quantity).FormatWithSymbol(currencySymbol)
             }).ToList(),
             ShippingOptions = group.AvailableShippingOptions.Select(opt => new ShippingOptionDto
             {
@@ -198,7 +199,7 @@ public class MerchelloCheckoutController(
                 DaysTo = opt.DaysTo,
                 IsNextDay = opt.IsNextDay,
                 Cost = opt.Cost,
-                FormattedCost = FormatPrice(opt.Cost, currencySymbol),
+                FormattedCost = opt.Cost.FormatWithSymbol(currencySymbol),
                 DeliveryDescription = opt.DeliveryTimeDescription,
                 ProviderKey = opt.ProviderKey
             }).ToList(),
@@ -207,10 +208,4 @@ public class MerchelloCheckoutController(
                 : group.SelectedShippingOptionId
         }).ToList();
     }
-
-    private static string FormatPrice(decimal price, string currencySymbol)
-    {
-        return $"{currencySymbol}{price:N2}";
-    }
-
 }

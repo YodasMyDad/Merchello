@@ -36,8 +36,9 @@ public interface IWebhookSecurityService
     /// </summary>
     /// <param name="providerAlias">The payment provider alias.</param>
     /// <param name="webhookEventId">The unique webhook event ID from the provider.</param>
+    /// <param name="ct">Cancellation token.</param>
     /// <returns>True if the webhook has already been processed.</returns>
-    bool HasBeenProcessed(string providerAlias, string webhookEventId);
+    Task<bool> HasBeenProcessedAsync(string providerAlias, string webhookEventId, CancellationToken ct = default);
 
     /// <summary>
     /// Atomically attempts to mark a webhook as being processed.
@@ -45,11 +46,12 @@ public interface IWebhookSecurityService
     /// </summary>
     /// <param name="providerAlias">The payment provider alias.</param>
     /// <param name="webhookEventId">The unique webhook event ID from the provider.</param>
+    /// <param name="ct">Cancellation token.</param>
     /// <returns>
     /// True if this call successfully claimed processing rights.
     /// False if the webhook is already being processed or has been processed.
     /// </returns>
-    bool TryMarkAsProcessing(string providerAlias, string webhookEventId);
+    Task<bool> TryMarkAsProcessingAsync(string providerAlias, string webhookEventId, CancellationToken ct = default);
 
     /// <summary>
     /// Marks a webhook as processed for idempotency tracking.
