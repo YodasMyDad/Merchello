@@ -2,11 +2,18 @@ using Merchello.Core;
 using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Customers.Factories;
 using Merchello.Core.Customers.Models;
+using Merchello.Core.Customers.Services.Parameters;
 using Merchello.Core.Data;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Payments.Factories;
+using Merchello.Core.Payments.Models;
 using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Suppliers.Factories;
 using Merchello.Core.Suppliers.Models;
@@ -18,13 +25,34 @@ namespace Merchello.Tests.TestInfrastructure;
 /// <summary>
 /// Fluent builder for creating test data with sensible defaults.
 /// Automatically tracks entities in DbContext for persistence.
+/// Uses domain factories to ensure consistency with production code.
 /// </summary>
-public class TestDataBuilder(MerchelloDbContext dbContext)
+public class TestDataBuilder
 {
+    private readonly MerchelloDbContext _dbContext;
+
+    // Simple factories (no dependencies)
     private readonly SupplierFactory _supplierFactory = new();
     private readonly WarehouseFactory _warehouseFactory = new();
     private readonly TaxGroupFactory _taxGroupFactory = new();
     private readonly ProductTypeFactory _productTypeFactory = new();
+    private readonly CustomerFactory _customerFactory = new();
+    private readonly OrderFactory _orderFactory = new();
+    private readonly AddressFactory _addressFactory = new();
+    private readonly LineItemFactory _lineItemFactory = new();
+    private readonly ShipmentFactory _shipmentFactory = new();
+    private readonly CustomerSegmentFactory _customerSegmentFactory = new();
+
+    // Factories requiring ICurrencyService
+    private readonly InvoiceFactory _invoiceFactory;
+    private readonly PaymentFactory _paymentFactory;
+
+    public TestDataBuilder(MerchelloDbContext dbContext, ICurrencyService currencyService)
+    {
+        _dbContext = dbContext;
+        _invoiceFactory = new InvoiceFactory(currencyService);
+        _paymentFactory = new PaymentFactory(currencyService);
+    }
 
     /// <summary>
     /// Creates a Supplier with the specified name
@@ -34,7 +62,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
         var supplier = _supplierFactory.Create(name);
         supplier.Id = Guid.NewGuid(); // Pre-generate ID for FK relationships
         supplier.Code = code;
-        dbContext.Suppliers.Add(supplier);
+        _dbContext.Suppliers.Add(supplier);
         return supplier;
     }
 
@@ -45,7 +73,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
     {
         var taxGroup = _taxGroupFactory.Create(name, percentage);
         taxGroup.Id = Guid.NewGuid(); // Pre-generate ID for FK relationships
-        dbContext.TaxGroups.Add(taxGroup);
+        _dbContext.TaxGroups.Add(taxGroup);
         return taxGroup;
     }
 
@@ -56,7 +84,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
     {
         var productType = _productTypeFactory.Create(name, alias);
         productType.Id = Guid.NewGuid(); // Pre-generate ID for FK relationships
-        dbContext.ProductTypes.Add(productType);
+        _dbContext.ProductTypes.Add(productType);
         return productType;
     }
 
@@ -75,7 +103,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             supplier.Warehouses.Add(warehouse);
         }
 
-        dbContext.Warehouses.Add(warehouse);
+        _dbContext.Warehouses.Add(warehouse);
         return warehouse;
     }
 
@@ -100,7 +128,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             ProductType = productType
         };
 
-        dbContext.RootProducts.Add(productRoot);
+        _dbContext.RootProducts.Add(productRoot);
         return productRoot;
     }
 
@@ -126,7 +154,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             Sku = $"SKU-{Guid.NewGuid():N}"[..12]
         };
 
-        dbContext.Products.Add(product);
+        _dbContext.Products.Add(product);
         productRoot.Products.Add(product);
         return product;
     }
@@ -155,7 +183,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             IsNextDay = isNextDay
         };
 
-        dbContext.ShippingOptions.Add(shippingOption);
+        _dbContext.ShippingOptions.Add(shippingOption);
         warehouse.ShippingOptions.Add(shippingOption);
         return shippingOption;
     }
@@ -177,7 +205,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             PriorityOrder = priorityOrder
         };
 
-        dbContext.ProductRootWarehouses.Add(association);
+        _dbContext.ProductRootWarehouses.Add(association);
         productRoot.ProductRootWarehouses.Add(association);
         return association;
     }
@@ -208,7 +236,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             RowVersion = BitConverter.GetBytes(DateTime.UtcNow.Ticks)
         };
 
-        dbContext.ProductWarehouses.Add(productWarehouse);
+        _dbContext.ProductWarehouses.Add(productWarehouse);
         product.ProductWarehouses.Add(productWarehouse);
         warehouse.ProductWarehouses.Add(productWarehouse);
         return productWarehouse;
@@ -231,7 +259,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             IsExcluded = isExcluded
         };
 
-        dbContext.WarehouseServiceRegions.Add(region);
+        _dbContext.WarehouseServiceRegions.Add(region);
         warehouse.ServiceRegions.Add(region);
         return region;
     }
@@ -247,84 +275,195 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
 
         };
 
-        dbContext.ProductCollections.Add(collection);
+        _dbContext.ProductCollections.Add(collection);
         return collection;
     }
 
     /// <summary>
-    /// Creates an Order with the specified status and warehouse
+    /// Creates an Order using OrderFactory with the specified status and warehouse
     /// </summary>
     public Order CreateOrder(
         Invoice? invoice = null,
         Warehouse? warehouse = null,
+        ShippingOption? shippingOption = null,
         OrderStatus status = OrderStatus.Pending)
     {
         invoice ??= CreateInvoice();
         warehouse ??= CreateWarehouse();
+        shippingOption ??= CreateShippingOption(warehouse: warehouse);
 
-        var order = new Order
-        {
-            Id = Guid.NewGuid(), // Pre-generate ID for FK relationships
-            InvoiceId = invoice.Id,
-            Invoice = invoice,
-            WarehouseId = warehouse.Id,
-            Status = status
-        };
+        var order = _orderFactory.Create(
+            invoice: invoice,
+            warehouseId: warehouse.Id,
+            shippingOptionId: shippingOption.Id,
+            status: status);
 
-        dbContext.Orders.Add(order);
+        _dbContext.Orders.Add(order);
         invoice.Orders ??= [];
         invoice.Orders.Add(order);
         return order;
     }
 
     /// <summary>
-    /// Creates a Customer
+    /// Creates a Customer using CustomerFactory
     /// </summary>
     public Customer CreateCustomer(
-        string email = "test@example.com",
+        string? email = null,
         string? firstName = "Test",
         string? lastName = "Customer")
     {
-        var customer = new Customer
-        {
-            Id = Guid.NewGuid(), // Pre-generate ID for FK relationships
-            Email = email.Trim().ToLowerInvariant(),
-            FirstName = firstName,
-            LastName = lastName,
-            DateCreated = DateTime.UtcNow,
-            DateUpdated = DateTime.UtcNow
-        };
+        var customerEmail = email ?? $"test-{Guid.NewGuid():N}@example.com";
+        var customer = _customerFactory.CreateFromEmail(customerEmail);
+        customer.FirstName = firstName;
+        customer.LastName = lastName;
 
-        dbContext.Customers.Add(customer);
+        _dbContext.Customers.Add(customer);
         return customer;
     }
 
     /// <summary>
-    /// Creates an Invoice (auto-creates a Customer if not provided)
+    /// Creates an Invoice using InvoiceFactory (auto-creates a Customer if not provided)
     /// </summary>
     public Invoice CreateInvoice(
-        string? customerEmail = "test@example.com",
+        string? customerEmail = null,
         decimal total = 100m,
         Customer? customer = null)
     {
-        customer ??= CreateCustomer(customerEmail ?? "test@example.com");
+        customer ??= CreateCustomer(customerEmail);
 
-        var invoice = new Invoice
-        {
-            Id = Guid.NewGuid(), // Pre-generate ID for FK relationships
-            CustomerId = customer.Id,
-            BillingAddress = new Address { Email = customerEmail },
-            Total = total,
-            SubTotal = total * 0.8m,
-            Tax = total * 0.2m
-        };
+        var billingAddress = CreateTestAddress(customer.Email);
+        var shippingAddress = CreateTestAddress(customer.Email);
+        var subTotal = Math.Round(total / 1.2m, 2); // Reverse calculate from total assuming 20% VAT
+        var tax = total - subTotal;
 
-        dbContext.Invoices.Add(invoice);
+        var invoice = _invoiceFactory.CreateDraft(
+            invoiceNumber: $"INV-{Guid.NewGuid():N}"[..12],
+            customerId: customer.Id,
+            billingAddress: billingAddress,
+            shippingAddress: shippingAddress,
+            currencyCode: "GBP",
+            subTotal: subTotal,
+            tax: tax,
+            total: total);
+
+        _dbContext.Invoices.Add(invoice);
         return invoice;
     }
 
     /// <summary>
-    /// Creates a LineItem for an order
+    /// Creates a test Address using AddressFactory
+    /// </summary>
+    public Address CreateTestAddress(
+        string? email = null,
+        string countryCode = "GB",
+        string firstName = "Test",
+        string lastName = "User")
+    {
+        return _addressFactory.CreateFromFormData(
+            firstName: firstName,
+            lastName: lastName,
+            address1: "123 Test Street",
+            address2: null,
+            city: "London",
+            postalCode: "SW1A 1AA",
+            countryCode: countryCode,
+            phone: null,
+            email: email);
+    }
+
+    /// <summary>
+    /// Creates a Payment for an invoice using PaymentFactory
+    /// </summary>
+    public Payment CreatePayment(
+        Invoice invoice,
+        decimal? amount = null,
+        string currencyCode = "GBP",
+        string paymentMethod = "Bank Transfer",
+        string? description = null)
+    {
+        var payment = _paymentFactory.CreateManualPayment(
+            invoiceId: invoice.Id,
+            amount: amount ?? invoice.Total,
+            currencyCode: currencyCode,
+            storeCurrencyCode: invoice.StoreCurrencyCode ?? "GBP",
+            pricingExchangeRate: null,
+            paymentMethod: paymentMethod,
+            description: description);
+
+        payment.Invoice = invoice;
+        _dbContext.Payments.Add(payment);
+        invoice.Payments ??= [];
+        invoice.Payments.Add(payment);
+        return payment;
+    }
+
+    /// <summary>
+    /// Creates a Shipment for an order using ShipmentFactory
+    /// </summary>
+    public Shipment CreateShipment(
+        Order order,
+        Warehouse? warehouse = null,
+        string? trackingNumber = null,
+        string? carrier = null)
+    {
+        warehouse ??= CreateWarehouse();
+        var shippingAddress = order.Invoice?.ShippingAddress ?? CreateTestAddress();
+
+        var shipment = _shipmentFactory.Create(
+            order: order,
+            warehouseId: warehouse.Id,
+            shippingAddress: shippingAddress,
+            trackingNumber: trackingNumber,
+            carrier: carrier ?? "Test Carrier");
+
+        shipment.Warehouse = warehouse;
+        _dbContext.Shipments.Add(shipment);
+        order.Shipments ??= [];
+        order.Shipments.Add(shipment);
+        return shipment;
+    }
+
+    /// <summary>
+    /// Creates a complete invoice structure with orders and line items using factories
+    /// </summary>
+    public Invoice CreateInvoiceWithOrders(
+        int orderCount = 1,
+        int lineItemsPerOrder = 2,
+        decimal itemPrice = 10m,
+        Customer? customer = null)
+    {
+        var warehouse = CreateWarehouse();
+        var shippingOption = CreateShippingOption(warehouse: warehouse);
+        customer ??= CreateCustomer();
+
+        var subTotal = orderCount * lineItemsPerOrder * itemPrice;
+        var tax = subTotal * 0.2m;
+        var total = subTotal + tax;
+
+        // Use factory-based CreateInvoice (which uses InvoiceFactory)
+        var invoice = CreateInvoice(customer.Email, total, customer);
+
+        for (var i = 0; i < orderCount; i++)
+        {
+            // Use factory-based CreateOrder (which uses OrderFactory)
+            var order = CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Pending);
+
+            for (var j = 0; j < lineItemsPerOrder; j++)
+            {
+                CreateLineItem(
+                    order,
+                    name: $"Test Item {i + 1}-{j + 1}",
+                    amount: itemPrice,
+                    quantity: 1,
+                    taxRate: 20m);
+            }
+        }
+
+        return invoice;
+    }
+
+    /// <summary>
+    /// Creates a LineItem for an order using LineItemFactory when a product is provided
     /// </summary>
     public LineItem CreateLineItem(
         Order order,
@@ -339,24 +478,39 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
         string? dependantLineItemSku = null,
         Dictionary<string, object>? extendedData = null)
     {
-        var lineItem = new LineItem
-        {
-            OrderId = order.Id,
-            Order = order,
-            ProductId = product?.Id,
-            Name = name,
-            Quantity = quantity,
-            Amount = amount,
-            Cost = cost,
-            Sku = product?.Sku ?? $"LINE-{Guid.NewGuid():N}"[..12],
-            LineItemType = lineItemType,
-            IsTaxable = isTaxable,
-            TaxRate = taxRate,
-            DependantLineItemSku = dependantLineItemSku,
-            ExtendedData = extendedData ?? []
-        };
+        LineItem lineItem;
 
-        dbContext.LineItems.Add(lineItem);
+        if (product != null)
+        {
+            // Use factory when product is provided
+            lineItem = _lineItemFactory.CreateFromProduct(product, quantity);
+            // Override any test-specific values
+            if (amount != 10m) lineItem.Amount = amount;
+            if (cost != 0m) lineItem.Cost = cost;
+        }
+        else
+        {
+            // For test-only line items without a product (synthetic test data)
+            lineItem = new LineItem
+            {
+                ProductId = null,
+                Name = name,
+                Quantity = quantity,
+                Amount = amount,
+                Cost = cost,
+                Sku = $"LINE-{Guid.NewGuid():N}"[..12],
+                LineItemType = lineItemType,
+                IsTaxable = isTaxable,
+                TaxRate = taxRate,
+                DependantLineItemSku = dependantLineItemSku,
+                ExtendedData = extendedData ?? []
+            };
+        }
+
+        lineItem.OrderId = order.Id;
+        lineItem.Order = order;
+
+        _dbContext.LineItems.Add(lineItem);
         order.LineItems ??= [];
         order.LineItems.Add(lineItem);
         return lineItem;
@@ -397,7 +551,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             ExtendedData = extendedData
         };
 
-        dbContext.LineItems.Add(lineItem);
+        _dbContext.LineItems.Add(lineItem);
         order.LineItems ??= [];
         order.LineItems.Add(lineItem);
         return lineItem;
@@ -443,7 +597,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             ExtendedData = extendedData
         };
 
-        dbContext.LineItems.Add(discountLineItem);
+        _dbContext.LineItems.Add(discountLineItem);
         order.LineItems ??= [];
         order.LineItems.Add(discountLineItem);
         return discountLineItem;
@@ -488,7 +642,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
             ExtendedData = extendedData
         };
 
-        dbContext.LineItems.Add(discountLineItem);
+        _dbContext.LineItems.Add(discountLineItem);
         order.LineItems ??= [];
         order.LineItems.Add(discountLineItem);
         return discountLineItem;
@@ -497,7 +651,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
     #region Customer Segments
 
     /// <summary>
-    /// Creates a manual CustomerSegment
+    /// Creates a manual CustomerSegment using CustomerSegmentFactory
     /// </summary>
     public CustomerSegment CreateCustomerSegment(
         string name = "Test Segment",
@@ -505,25 +659,22 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
         bool isActive = true,
         bool isSystemSegment = false)
     {
-        var segment = new CustomerSegment
+        var segment = _customerSegmentFactory.Create(new CreateSegmentParameters
         {
-            Id = Guid.NewGuid(),
             Name = name,
             Description = description,
             SegmentType = CustomerSegmentType.Manual,
-            IsActive = isActive,
-            IsSystemSegment = isSystemSegment,
             MatchMode = SegmentMatchMode.All,
-            DateCreated = DateTime.UtcNow,
-            DateUpdated = DateTime.UtcNow
-        };
+            IsSystemSegment = isSystemSegment
+        });
+        segment.IsActive = isActive;
 
-        dbContext.CustomerSegments.Add(segment);
+        _dbContext.CustomerSegments.Add(segment);
         return segment;
     }
 
     /// <summary>
-    /// Creates an automated CustomerSegment with criteria
+    /// Creates an automated CustomerSegment with criteria using CustomerSegmentFactory
     /// </summary>
     public CustomerSegment CreateAutomatedSegment(
         string name,
@@ -532,26 +683,23 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
         string? description = null,
         bool isActive = true)
     {
-        var segment = new CustomerSegment
+        var segment = _customerSegmentFactory.Create(new CreateSegmentParameters
         {
-            Id = Guid.NewGuid(),
             Name = name,
             Description = description,
             SegmentType = CustomerSegmentType.Automated,
-            CriteriaJson = System.Text.Json.JsonSerializer.Serialize(criteria),
+            Criteria = criteria,
             MatchMode = matchMode,
-            IsActive = isActive,
-            IsSystemSegment = false,
-            DateCreated = DateTime.UtcNow,
-            DateUpdated = DateTime.UtcNow
-        };
+            IsSystemSegment = false
+        });
+        segment.IsActive = isActive;
 
-        dbContext.CustomerSegments.Add(segment);
+        _dbContext.CustomerSegments.Add(segment);
         return segment;
     }
 
     /// <summary>
-    /// Adds a customer to a manual segment
+    /// Adds a customer to a manual segment using CustomerSegmentFactory
     /// </summary>
     public CustomerSegmentMember AddCustomerToSegment(
         CustomerSegment segment,
@@ -559,17 +707,13 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
         string? notes = null,
         Guid? addedBy = null)
     {
-        var member = new CustomerSegmentMember
-        {
-            Id = Guid.NewGuid(),
-            SegmentId = segment.Id,
-            CustomerId = customer.Id,
-            DateAdded = DateTime.UtcNow,
-            AddedBy = addedBy,
-            Notes = notes
-        };
+        var member = _customerSegmentFactory.CreateMember(
+            segmentId: segment.Id,
+            customerId: customer.Id,
+            addedBy: addedBy,
+            notes: notes);
 
-        dbContext.CustomerSegmentMembers.Add(member);
+        _dbContext.CustomerSegmentMembers.Add(member);
         segment.Members.Add(member);
         return member;
     }
@@ -596,7 +740,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
                     Tag = tag
                 };
                 customer.CustomerTags.Add(customerTag);
-                dbContext.CustomerTags.Add(customerTag);
+                _dbContext.CustomerTags.Add(customerTag);
             }
         }
 
@@ -618,7 +762,7 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
     /// </summary>
     public async Task SaveChangesAsync()
     {
-        await dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync();
     }
 
     /// <summary>
@@ -626,6 +770,6 @@ public class TestDataBuilder(MerchelloDbContext dbContext)
     /// </summary>
     public void SaveChanges()
     {
-        dbContext.SaveChanges();
+        _dbContext.SaveChanges();
     }
 }

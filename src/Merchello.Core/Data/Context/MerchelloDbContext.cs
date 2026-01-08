@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Customers.Models;
 using Merchello.Core.Discounts.Models;
+using Merchello.Core.Email.Models;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Products.Models;
@@ -86,7 +87,10 @@ public class MerchelloDbContext : DbContext
 
     // Webhook DbSets
     public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();
-    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
+    public DbSet<OutboundDelivery> OutboundDeliveries => Set<OutboundDelivery>();
+
+    // Email DbSets
+    public DbSet<EmailConfiguration> EmailConfigurations => Set<EmailConfiguration>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

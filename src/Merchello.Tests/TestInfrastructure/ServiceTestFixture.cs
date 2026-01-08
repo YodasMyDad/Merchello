@@ -1,17 +1,31 @@
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
+using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Factories;
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Accounting.Handlers.Interfaces;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Checkout.Factories;
+using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Services;
+using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Checkout.Strategies.Interfaces;
+using Merchello.Core.Checkout.Strategies.Models;
+using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Customers.Factories;
 using Merchello.Core.Customers.Models;
 using Merchello.Core.Customers.Services;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
+using Merchello.Core.Email;
+using Merchello.Core.Email.Models;
+using Merchello.Core.Email.Services;
+using Merchello.Core.Email.Services.Interfaces;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Services;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
@@ -31,10 +45,32 @@ using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Tax.Services;
+using Merchello.Core.Tax.Services.Interfaces;
+using Merchello.Core.Tax.Providers;
+using Merchello.Core.Tax.Providers.Interfaces;
+using Merchello.Core.Discounts.Factories;
+using Merchello.Core.Discounts.Models;
+using Merchello.Core.Discounts.Services;
+using Merchello.Core.Discounts.Services.Interfaces;
+using Merchello.Core.Payments.Factories;
+using Merchello.Core.Payments.Services;
+using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Providers;
+using Merchello.Core.Payments.Providers.Interfaces;
+using Merchello.Core.Shared.RateLimiting.Interfaces;
 using Merchello.Core.Warehouses.Factories;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services;
 using Merchello.Core.Warehouses.Services.Interfaces;
+using Merchello.Core.Locality.Models;
+using Merchello.Core.Locality.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
+using Merchello.Core.Webhooks.Models;
+using Merchello.Core.Webhooks.Services;
+using Merchello.Core.Webhooks.Services.Interfaces;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,6 +88,102 @@ using Umbraco.Cms.Persistence.EFCore.Scoping;
 namespace Merchello.Tests.TestInfrastructure;
 
 /// <summary>
+/// Mock HTTP message handler for testing webhook delivery.
+/// Allows tests to configure expected responses.
+/// </summary>
+public class MockHttpMessageHandler : HttpMessageHandler
+{
+    public HttpStatusCode ResponseStatusCode { get; set; } = HttpStatusCode.OK;
+    public string ResponseContent { get; set; } = "{}";
+    public Exception? ExceptionToThrow { get; set; }
+    public List<HttpRequestMessage> ReceivedRequests { get; } = [];
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        ReceivedRequests.Add(request);
+
+        if (ExceptionToThrow != null)
+        {
+            throw ExceptionToThrow;
+        }
+
+        var response = new HttpResponseMessage(ResponseStatusCode)
+        {
+            Content = new StringContent(ResponseContent)
+        };
+        return Task.FromResult(response);
+    }
+
+    public void Reset()
+    {
+        ResponseStatusCode = HttpStatusCode.OK;
+        ResponseContent = "{}";
+        ExceptionToThrow = null;
+        ReceivedRequests.Clear();
+    }
+}
+
+/// <summary>
+/// Mock HTTP context accessor for testing checkout flows that require session storage.
+/// Provides an in-memory session implementation for test isolation.
+/// </summary>
+public class MockHttpContextAccessor : IHttpContextAccessor
+{
+    private readonly DefaultHttpContext _httpContext;
+    private readonly MockSession _session;
+
+    public MockHttpContextAccessor()
+    {
+        _session = new MockSession();
+        _httpContext = new DefaultHttpContext();
+        _httpContext.Features.Set<ISessionFeature>(new MockSessionFeature(_session));
+    }
+
+    public HttpContext? HttpContext
+    {
+        get => _httpContext;
+        set { }
+    }
+
+    /// <summary>
+    /// Clears all session data. Call this in test setup for isolation.
+    /// </summary>
+    public void ClearSession() => _session.Clear();
+
+    /// <summary>
+    /// Gets the mock session for direct access in tests.
+    /// </summary>
+    public ISession Session => _session;
+
+    private class MockSessionFeature : ISessionFeature
+    {
+        public MockSessionFeature(ISession session) => Session = session;
+        public ISession Session { get; set; }
+    }
+
+    private class MockSession : ISession
+    {
+        private readonly Dictionary<string, byte[]> _store = new(StringComparer.OrdinalIgnoreCase);
+
+        public bool IsAvailable => true;
+        public string Id { get; } = Guid.NewGuid().ToString();
+        public IEnumerable<string> Keys => _store.Keys;
+
+        public void Clear() => _store.Clear();
+
+        public Task CommitAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task LoadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public void Remove(string key) => _store.Remove(key);
+
+        public void Set(string key, byte[] value) => _store[key] = value;
+
+        public bool TryGetValue(string key, out byte[]? value) => _store.TryGetValue(key, out value);
+    }
+}
+
+/// <summary>
 /// Shared test fixture providing DI container and in-memory database for integration tests.
 /// Uses SQLite in-memory mode for fast, isolated test execution.
 /// Uses Moq to create scope provider that forwards calls to real DbContext.
@@ -64,6 +196,7 @@ public class ServiceTestFixture : IDisposable
     // Keep a master connection open so the shared database persists while tests run
     private SqliteConnection _keepAliveConnection;
     private readonly ServiceProvider _serviceProvider;
+    private MockHttpContextAccessor _mockHttpContextAccessor = null!;
 
     // Track all connections created by CreateDbContext for proper disposal
     private readonly List<SqliteConnection> _trackedConnections = [];
@@ -71,6 +204,12 @@ public class ServiceTestFixture : IDisposable
 
     public MerchelloDbContext DbContext { get; private set; } = null!;
     public IServiceProvider ServiceProvider => _serviceProvider;
+
+    /// <summary>
+    /// Gets the mock HTTP context accessor for test configuration.
+    /// Use this to set up session data before tests that require HTTP context.
+    /// </summary>
+    public MockHttpContextAccessor MockHttpContext => _mockHttpContextAccessor;
 
     public ServiceTestFixture()
     {
@@ -205,6 +344,174 @@ public class ServiceTestFixture : IDisposable
         services.AddSingleton<IShippingCostResolver, ShippingCostResolver>();
         services.AddScoped<IShippingService, ShippingService>();
         services.AddScoped<ITaxService, TaxService>();
+
+        // Tax calculation service (P1 tests)
+        services.AddScoped<ITaxCalculationService, TaxCalculationService>();
+
+        // Webhook settings
+        var webhookSettings = new WebhookSettings
+        {
+            Enabled = true,
+            MaxRetries = 3,
+            RetryDelaysSeconds = [60, 300, 900],
+            DefaultTimeoutSeconds = 30
+        };
+        services.AddSingleton(Options.Create(webhookSettings));
+
+        // Mock HTTP client factory for webhook delivery
+        var httpClientFactoryMock = new Mock<IHttpClientFactory>();
+        var mockHandler = new MockHttpMessageHandler();
+        var httpClient = new HttpClient(mockHandler) { BaseAddress = new Uri("https://test.example.com") };
+        httpClientFactoryMock.Setup(x => x.CreateClient(It.IsAny<string>())).Returns(httpClient);
+        services.AddSingleton(httpClientFactoryMock.Object);
+        services.AddSingleton(mockHandler); // Expose for test configuration
+
+        // Webhook services (P4 tests)
+        services.AddScoped<IWebhookTopicRegistry, WebhookTopicRegistry>();
+        services.AddScoped<IWebhookDispatcher, WebhookDispatcher>();
+        services.AddScoped<Core.Webhooks.Services.Interfaces.IWebhookService, Core.Webhooks.Services.WebhookService>();
+
+        // Email settings
+        var emailSettings = new EmailSettings
+        {
+            Enabled = true,
+            DefaultFromAddress = "test@example.com",
+            MaxRetries = 3,
+            RetryDelaysSeconds = [60, 300, 900]
+        };
+        services.AddSingleton(Options.Create(emailSettings));
+
+        // Mock IEmailSender for email delivery (using non-obsolete overload with expires parameter)
+        var emailSenderMock = new Mock<Umbraco.Cms.Core.Mail.IEmailSender>();
+        emailSenderMock.Setup(x => x.SendAsync(
+                It.IsAny<Umbraco.Cms.Core.Models.Email.EmailMessage>(),
+                It.IsAny<string>(),
+                It.IsAny<bool>(),
+                It.IsAny<TimeSpan?>()))
+            .Returns(Task.CompletedTask);
+        services.AddSingleton(emailSenderMock.Object);
+
+        // Email services (P5 tests)
+        services.AddSingleton<IEmailTopicRegistry, EmailTopicRegistry>();
+        services.AddScoped<IEmailTokenResolver, EmailTokenResolver>();
+        services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
+        services.AddScoped<IEmailService, EmailService>();
+
+        // Invoice/Checkout service dependencies (P2/P3 tests)
+
+        // Additional factories
+        services.AddSingleton<InvoiceFactory>();
+        services.AddSingleton<OrderFactory>();
+        services.AddSingleton<CustomerFactory>();
+        services.AddSingleton<PaymentFactory>();
+        services.AddSingleton<DiscountFactory>();
+
+        // Additional services
+        services.AddScoped<ILineItemService, LineItemService>();
+        services.AddScoped<ICustomerService, CustomerService>();
+        services.AddScoped<IDiscountService, DiscountService>();
+
+        // Mock rate limiter (always allows requests for tests)
+        var rateLimiterMock = new Mock<IRateLimiter>();
+        rateLimiterMock.Setup(x => x.TryAcquire(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TimeSpan>()))
+            .Returns(RateLimitResult.Allowed(1, 10));
+        services.AddSingleton(rateLimiterMock.Object);
+
+        // Mock tax provider manager (returns null to use default percentage-based tax)
+        var taxProviderManagerMock = new Mock<ITaxProviderManager>();
+        taxProviderManagerMock
+            .Setup(x => x.GetActiveProviderAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((RegisteredTaxProvider?)null);
+        services.AddSingleton(taxProviderManagerMock.Object);
+
+        // Mock payment provider manager (returns empty list - no payment providers configured)
+        var paymentProviderManagerMock = new Mock<IPaymentProviderManager>();
+        paymentProviderManagerMock
+            .Setup(x => x.GetAvailableProvidersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<RegisteredPaymentProvider>());
+        paymentProviderManagerMock
+            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<RegisteredPaymentProvider>());
+        services.AddSingleton(paymentProviderManagerMock.Object);
+
+        // Mock payment idempotency service (returns null - no cached results)
+        var paymentIdempotencyMock = new Mock<IPaymentIdempotencyService>();
+        paymentIdempotencyMock
+            .Setup(x => x.GetCachedPaymentResultAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PaymentResult?)null);
+        services.AddSingleton(paymentIdempotencyMock.Object);
+
+        // Payment service
+        services.AddScoped<IPaymentService, PaymentService>();
+
+        // Invoice service (uses Lazy<ICheckoutService> to break circular dependency)
+        services.AddScoped<IInvoiceService, InvoiceService>();
+
+        // ============================================
+        // CheckoutService Dependencies (Part B of Plan)
+        // ============================================
+
+        // Mock HTTP Context with session support for checkout tests
+        _mockHttpContextAccessor = new MockHttpContextAccessor();
+        services.AddSingleton<IHttpContextAccessor>(_mockHttpContextAccessor);
+
+        // Checkout-specific factories
+        services.AddSingleton<BasketFactory>();
+
+        // CheckoutSessionService (uses IHttpContextAccessor)
+        services.AddScoped<ICheckoutSessionService, CheckoutSessionService>();
+
+        // Mock locality catalog (returns list of shippable countries)
+        var localityCatalogMock = new Mock<ILocalityCatalog>();
+        localityCatalogMock.Setup(x => x.GetCountriesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new CountryInfo("GB", "United Kingdom"),
+                new CountryInfo("US", "United States"),
+                new CountryInfo("DE", "Germany")
+            ]);
+        localityCatalogMock.Setup(x => x.GetRegionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        services.AddSingleton(localityCatalogMock.Object);
+
+        // Mock shipping quote service
+        var shippingQuoteServiceMock = new Mock<IShippingQuoteService>();
+        shippingQuoteServiceMock.Setup(x => x.GetQuotesAsync(
+                It.IsAny<Basket>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<ShippingRateQuote>());
+        services.AddSingleton(shippingQuoteServiceMock.Object);
+
+        // Mock shipping cost resolver (synchronous methods)
+        var shippingCostResolverMock = new Mock<IShippingCostResolver>();
+        shippingCostResolverMock.Setup(x => x.ResolveBaseCost(
+                It.IsAny<IReadOnlyCollection<ShippingCost>>(), It.IsAny<string>(),
+                It.IsAny<string?>(), It.IsAny<decimal?>()))
+            .Returns(5m);
+        shippingCostResolverMock.Setup(x => x.ResolveWeightTierSurcharge(
+                It.IsAny<IReadOnlyCollection<ShippingWeightTier>>(), It.IsAny<decimal>(),
+                It.IsAny<string>(), It.IsAny<string?>()))
+            .Returns(0m);
+        shippingCostResolverMock.Setup(x => x.GetTotalShippingCost(
+                It.IsAny<ShippingOption>(), It.IsAny<string>(),
+                It.IsAny<string?>(), It.IsAny<decimal?>()))
+            .Returns(5m);
+        services.AddSingleton(shippingCostResolverMock.Object);
+
+        // Mock locations service
+        var locationsServiceMock = new Mock<ILocationsService>();
+        locationsServiceMock.Setup(x => x.GetAvailableCountriesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<CountryAvailability>());
+        locationsServiceMock.Setup(x => x.GetAvailableRegionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<RegionAvailability>());
+        services.AddSingleton(locationsServiceMock.Object);
+
+        // Mock checkout member service
+        var checkoutMemberServiceMock = new Mock<ICheckoutMemberService>();
+        services.AddSingleton(checkoutMemberServiceMock.Object);
+
+        // Register CheckoutService
+        // Important: This creates a proper Lazy<ICheckoutService> that resolves to the real service
+        services.AddScoped<ICheckoutService, CheckoutService>();
+        services.AddScoped(sp => new Lazy<ICheckoutService>(() => sp.GetRequiredService<ICheckoutService>()));
 
         _serviceProvider = services.BuildServiceProvider();
     }
@@ -383,6 +690,98 @@ public class ServiceTestFixture : IDisposable
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Core.Reporting.Dtos.TimeSeriesDataPointDto>>>>()))
                     .Returns((Func<MerchelloDbContext, Task<List<Core.Reporting.Dtos.TimeSeriesDataPointDto>>> func) => func(dbContext));
 
+                // Webhook service return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<WebhookSubscription?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<WebhookSubscription?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<WebhookSubscription>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<WebhookSubscription>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<OutboundDelivery?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<OutboundDelivery?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<OutboundDelivery>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<OutboundDelivery>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<PaginatedList<OutboundDelivery>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<PaginatedList<OutboundDelivery>>> func) => func(dbContext));
+
+                // Email service return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Core.Email.Models.EmailConfiguration?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Core.Email.Models.EmailConfiguration?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Core.Email.Models.EmailConfiguration>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<Core.Email.Models.EmailConfiguration>>> func) => func(dbContext));
+
+                // Invoice service return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Invoice?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Invoice?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Invoice>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<Invoice>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<PaginatedList<Invoice>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<PaginatedList<Invoice>>> func) => func(dbContext));
+
+                // Order return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Order?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Order?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Order>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<Order>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<PaginatedList<Order>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<PaginatedList<Order>>> func) => func(dbContext));
+
+                // Payment return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Payment?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Payment?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Payment>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<Payment>>> func) => func(dbContext));
+
+                // Discount return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Discount?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Discount?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Discount>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<Discount>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<PaginatedList<Discount>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<PaginatedList<Discount>>> func) => func(dbContext));
+
+                // Shipment return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Shipment?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Shipment?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Shipment>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<Shipment>>> func) => func(dbContext));
+
+                // Customer lookup DTO for InvoiceService.SearchCustomersAsync
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<CustomerLookupResultDto>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<CustomerLookupResultDto>>> func) => func(dbContext));
+
                 scopeMock.Setup(s => s.Complete()).Returns(true);
                 scopeMock.Setup(s => s.Dispose()).Callback(dbContext.Dispose);
 
@@ -426,7 +825,7 @@ public class ServiceTestFixture : IDisposable
     /// <summary>
     /// Creates a new TestDataBuilder for the current DbContext
     /// </summary>
-    public TestDataBuilder CreateDataBuilder() => new(DbContext);
+    public TestDataBuilder CreateDataBuilder() => new(DbContext, GetService<ICurrencyService>());
 
     /// <summary>
     /// Gets a service from the DI container

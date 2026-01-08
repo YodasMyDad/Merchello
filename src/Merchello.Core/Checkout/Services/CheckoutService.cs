@@ -74,6 +74,12 @@ public class CheckoutService(
     private const int MaxDiscountCodeAttemptsPerMinute = 5;
     private static readonly TimeSpan DiscountCodeRateLimitWindow = TimeSpan.FromMinutes(1);
 
+    // JSON serialization options - must match CheckoutSessionService for session interop
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     /// <summary>
     /// Add line item to the basket
     /// </summary>
@@ -282,7 +288,7 @@ public class CheckoutService(
         var basketInSession = httpContext?.Session.GetString("Basket");
         if (!string.IsNullOrEmpty(basketInSession))
         {
-            basket = JsonSerializer.Deserialize<Basket>(basketInSession);
+            basket = JsonSerializer.Deserialize<Basket>(basketInSession, JsonOptions);
             if (basket != null) return basket;
         }
 
@@ -353,7 +359,7 @@ public class CheckoutService(
         // If we retrieved a basket, cache it in the session for subsequent requests
         if (basket != null)
         {
-            httpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
+            httpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
         }
 
         return basket;
@@ -423,7 +429,7 @@ public class CheckoutService(
             // 5. Update the basket stored in the session for immediate reflection on the UI
             if (basket != null)
             {
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
+                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
             }
         }
     }
@@ -453,7 +459,7 @@ public class CheckoutService(
                 scope.Complete();
 
                 // Update session with modified basket
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
+                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
             }
         }
     }
@@ -479,7 +485,7 @@ public class CheckoutService(
             scope.Complete();
 
             // Update session with modified basket
-            httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
+            httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
         }
     }
 
@@ -703,7 +709,7 @@ public class CheckoutService(
         scope.Complete();
 
         // Update session
-        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
+        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
 
         // Publish "After" notification
         await notificationPublisher.PublishAsync(
@@ -1212,7 +1218,7 @@ public class CheckoutService(
         scope.Complete();
 
         // Update HTTP session
-        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
+        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
 
         // Update checkout session
         await checkoutSessionService.SaveAddressesAsync(
@@ -1380,7 +1386,7 @@ public class CheckoutService(
         scope.Complete();
 
         // Update HTTP session
-        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
+        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
 
         // Persist shipping selections to checkout session
         await checkoutSessionService.SaveShippingSelectionsAsync(
@@ -1621,7 +1627,7 @@ public class CheckoutService(
         scope.Complete();
 
         // Update HTTP session
-        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket));
+        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
 
         // Update checkout session with shipping address
         await checkoutSessionService.SaveAddressesAsync(

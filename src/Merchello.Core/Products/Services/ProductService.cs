@@ -271,23 +271,46 @@ public class ProductService(
     }
 
     /// <summary>
-    /// Update a product
+    /// Update a product. Triggers default variant reassignment if:
+    /// - A default variant becomes unavailable (to find a replacement)
+    /// - A non-default variant becomes available (in case current default is unavailable)
     /// </summary>
     public async Task<CrudResult<Product>> Update(Product product)
     {
         var result = new CrudResult<Product>();
         using var scope = efCoreScopeProvider.CreateScope();
 
+        var shouldCheckDefaultReassignment = false;
+        Guid? productRootId = null;
+
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var productDb = await db.Products
+                .Include(p => p.ProductWarehouses)
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(x => x.Id == product.Id);
 
             if (productDb == null)
             {
-                result.AddErrorMessage("Unable to find the product root with the same id");
+                result.AddErrorMessage("Unable to find the product with the same id");
                 return;
+            }
+
+            var wasAvailable = productDb.AvailableForPurchase && productDb.CanPurchase;
+            var willBeAvailable = product.AvailableForPurchase && product.CanPurchase;
+
+            // Check if default variant becoming unavailable OR non-default becoming available
+            if (productDb.Default && wasAvailable && !willBeAvailable)
+            {
+                // Default variant became unavailable - find a replacement
+                shouldCheckDefaultReassignment = true;
+                productRootId = productDb.ProductRootId;
+            }
+            else if (!productDb.Default && !wasAvailable && willBeAvailable)
+            {
+                // Non-default variant became available - check if current default is unavailable
+                shouldCheckDefaultReassignment = true;
+                productRootId = productDb.ProductRootId;
             }
 
             productDb.CopyFrom(product);
@@ -295,6 +318,13 @@ public class ProductService(
         });
 
         scope.Complete();
+
+        // After scope completes, check if we need to reassign default
+        if (shouldCheckDefaultReassignment && productRootId.HasValue)
+        {
+            await EnsureDefaultVariantIsAvailableAsync(productRootId.Value);
+        }
+
         result.ResultObject = product;
         return result;
     }
@@ -470,7 +500,9 @@ public class ProductService(
     }
 
     /// <summary>
-    /// Updates stock levels for a variant at a specific warehouse
+    /// Updates stock levels for a variant at a specific warehouse.
+    /// If stock changes affect availability (goes to 0 or becomes available from 0),
+    /// triggers automatic reassignment to ensure the default variant is available.
     /// </summary>
     public async Task<CrudResult<bool>> UpdateVariantStock(
         UpdateVariantStockParameters parameters,
@@ -479,13 +511,20 @@ public class ProductService(
         var result = new CrudResult<bool>();
         using var scope = efCoreScopeProvider.CreateScope();
 
+        var shouldCheckDefaultReassignment = false;
+        Guid? productRootId = null;
+
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var productWarehouse = await db.ProductWarehouses
+                .Include(pw => pw.Product)
                 .FirstOrDefaultAsync(pw => pw.ProductId == parameters.VariantId && pw.WarehouseId == parameters.WarehouseId, cancellationToken);
 
             if (productWarehouse == null)
             {
+                // Need to check the product separately for new warehouse assignments
+                var product = await db.Products.FirstOrDefaultAsync(p => p.Id == parameters.VariantId, cancellationToken);
+
                 productWarehouse = new ProductWarehouse
                 {
                     ProductId = parameters.VariantId,
@@ -495,12 +534,49 @@ public class ProductService(
                     TrackStock = parameters.TrackStock
                 };
                 db.ProductWarehouses.Add(productWarehouse);
+
+                if (product != null && parameters.TrackStock)
+                {
+                    // Check if this is setting a default variant to 0 stock
+                    if (product.Default && parameters.Stock == 0)
+                    {
+                        shouldCheckDefaultReassignment = true;
+                        productRootId = product.ProductRootId;
+                    }
+                    // Check if a non-default variant is becoming available (new record with stock > 0)
+                    else if (!product.Default && parameters.Stock > 0)
+                    {
+                        shouldCheckDefaultReassignment = true;
+                        productRootId = product.ProductRootId;
+                    }
+                }
             }
             else
             {
+                var oldStock = productWarehouse.Stock;
+                var oldAvailable = oldStock - productWarehouse.ReservedStock;
+
                 productWarehouse.Stock = parameters.Stock;
                 productWarehouse.ReorderPoint = parameters.ReorderPoint;
                 productWarehouse.TrackStock = parameters.TrackStock;
+
+                if (parameters.TrackStock && productWarehouse.Product != null)
+                {
+                    var newAvailable = parameters.Stock - productWarehouse.ReservedStock;
+
+                    // Check if default variant becoming unavailable (stock going to 0)
+                    if (productWarehouse.Product.Default && newAvailable <= 0)
+                    {
+                        shouldCheckDefaultReassignment = true;
+                        productRootId = productWarehouse.Product.ProductRootId;
+                    }
+                    // Check if non-default variant becoming available (was 0, now > 0)
+                    else if (!productWarehouse.Product.Default && oldAvailable <= 0 && newAvailable > 0)
+                    {
+                        shouldCheckDefaultReassignment = true;
+                        productRootId = productWarehouse.Product.ProductRootId;
+                    }
+                }
             }
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
@@ -513,6 +589,13 @@ public class ProductService(
         });
 
         scope.Complete();
+
+        // After scope completes, check if we need to reassign default
+        if (shouldCheckDefaultReassignment && productRootId.HasValue)
+        {
+            await EnsureDefaultVariantIsAvailableAsync(productRootId.Value, cancellationToken);
+        }
+
         return result;
     }
 
@@ -1100,6 +1183,7 @@ public class ProductService(
 
     /// <summary>
     /// Sets the default variant for a product root, ensuring only one default is set.
+    /// Validates that the target variant is available before setting as default.
     /// </summary>
     public async Task<CrudResult<bool>> SetDefaultVariant(
         Guid variantId,
@@ -1110,16 +1194,24 @@ public class ProductService(
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
-            // Find the variant to get its ProductRootId
+            // Find the variant with warehouse stock data for availability check
             var targetVariant = await db.Products
+                .Include(p => p.ProductWarehouses)
                 .FirstOrDefaultAsync(p => p.Id == variantId, cancellationToken);
-            
+
             if (targetVariant == null)
             {
                 result.AddErrorMessage("Variant not found");
                 return;
             }
-            
+
+            // Validate the variant is available before setting as default
+            if (!IsVariantAvailable(targetVariant))
+            {
+                result.AddErrorMessage("Cannot set an unavailable variant as the default. The variant must be available for purchase and have stock (if tracked).");
+                return;
+            }
+
             // Fetch all variants for that product root
             var siblings = await db.Products
                 .Where(p => p.ProductRootId == targetVariant.ProductRootId)
@@ -1137,6 +1229,96 @@ public class ProductService(
 
         scope.Complete();
         return result;
+    }
+
+    /// <summary>
+    /// Checks if the current default variant is available. If not, reassigns to the
+    /// cheapest available variant. Called automatically when stock or availability changes.
+    /// </summary>
+    public async Task<CrudResult<bool>> EnsureDefaultVariantIsAvailableAsync(
+        Guid productRootId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<bool>();
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            // Get all variants with their warehouse stock
+            var variants = await db.Products
+                .Include(p => p.ProductWarehouses)
+                .Where(p => p.ProductRootId == productRootId)
+                .ToListAsync(cancellationToken);
+
+            if (variants.Count <= 1)
+            {
+                // Single product or no variants - nothing to reassign
+                result.ResultObject = true;
+                return;
+            }
+
+            var currentDefault = variants.FirstOrDefault(v => v.Default);
+            if (currentDefault == null)
+            {
+                result.ResultObject = true;
+                return;
+            }
+
+            // Check if current default is available
+            if (IsVariantAvailable(currentDefault))
+            {
+                result.ResultObject = true;
+                return;
+            }
+
+            // Find cheapest available variant
+            var newDefault = variants
+                .Where(v => v.Id != currentDefault.Id && IsVariantAvailable(v))
+                .OrderBy(v => v.Price)
+                .FirstOrDefault();
+
+            if (newDefault == null)
+            {
+                // No available variants - keep current default
+                logger.LogInformation(
+                    "Default variant {VariantId} is unavailable but no alternatives exist for product {ProductRootId}",
+                    currentDefault.Id, productRootId);
+                result.ResultObject = true;
+                return;
+            }
+
+            // Reassign default
+            currentDefault.Default = false;
+            newDefault.Default = true;
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+
+            logger.LogInformation(
+                "Reassigned default variant from {OldVariantId} to {NewVariantId} for product {ProductRootId}",
+                currentDefault.Id, newDefault.Id, productRootId);
+
+            result.ResultObject = true;
+        });
+
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Checks if a variant is available for purchase based on availability flags and stock.
+    /// </summary>
+    private static bool IsVariantAvailable(Product variant)
+    {
+        if (!variant.AvailableForPurchase || !variant.CanPurchase)
+            return false;
+
+        var trackedWarehouses = variant.ProductWarehouses?.Where(pw => pw.TrackStock).ToList();
+
+        // If no tracked warehouses, variant is available (untracked inventory)
+        if (trackedWarehouses == null || trackedWarehouses.Count == 0)
+            return true;
+
+        // Check if any tracked warehouse has available stock
+        return trackedWarehouses.Any(pw => pw.Stock - pw.ReservedStock > 0);
     }
 
     /// <summary>

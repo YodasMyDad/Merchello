@@ -324,3 +324,53 @@ export function getDiscountsListHref(): string {
 export function navigateToDiscountsList(): void {
   navigateToMerchelloWorkspace(DISCOUNTS_ENTITY_TYPE, "edit/discounts");
 }
+
+// ============================================
+// Email Navigation
+// ============================================
+
+/** Entity type for emails workspace (list and detail share same type for tree selection) */
+export const EMAILS_ENTITY_TYPE = "merchello-emails";
+
+/**
+ * Generate the URL to view/edit an email configuration detail.
+ * Use this in href attributes on links/buttons.
+ */
+export function getEmailDetailHref(emailId: string): string {
+  return getMerchelloWorkspaceHref(EMAILS_ENTITY_TYPE, `edit/emails/${emailId}`);
+}
+
+/**
+ * Generate the URL to create a new email configuration.
+ */
+export function getEmailCreateHref(): string {
+  return getMerchelloWorkspaceHref(EMAILS_ENTITY_TYPE, "edit/emails/create");
+}
+
+/**
+ * Navigate programmatically to an email configuration detail page using SPA routing.
+ */
+export function navigateToEmailDetail(emailId: string): void {
+  navigateToMerchelloWorkspace(EMAILS_ENTITY_TYPE, `edit/emails/${emailId}`);
+}
+
+/**
+ * Navigate programmatically to create a new email configuration.
+ */
+export function navigateToEmailCreate(): void {
+  navigateToMerchelloWorkspace(EMAILS_ENTITY_TYPE, "edit/emails/create");
+}
+
+/**
+ * Generate the URL to the emails list.
+ */
+export function getEmailsListHref(): string {
+  return getMerchelloWorkspaceHref(EMAILS_ENTITY_TYPE, "edit/emails");
+}
+
+/**
+ * Navigate programmatically to the emails list using SPA routing.
+ */
+export function navigateToEmailsList(): void {
+  navigateToMerchelloWorkspace(EMAILS_ENTITY_TYPE, "edit/emails");
+}

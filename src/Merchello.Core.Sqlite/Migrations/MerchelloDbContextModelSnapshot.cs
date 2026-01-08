@@ -1009,6 +1009,87 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.ToTable("merchelloDiscountUsages", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.Email.Models.EmailConfiguration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BccExpression")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CcExpression")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateModified")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ExtendedData")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FromExpression")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastSentUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SubjectExpression")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TemplatePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ToExpression")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TotalFailed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TotalSent")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Enabled");
+
+                    b.HasIndex("Topic");
+
+                    b.HasIndex("Topic", "Enabled");
+
+                    b.ToTable("merchelloEmailConfigurations", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.ExchangeRates.Models.ExchangeRateProviderSetting", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1928,7 +2009,7 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.ToTable("merchelloWarehouseServiceRegions", (string)null);
                 });
 
-            modelBuilder.Entity("Merchello.Core.Webhooks.Models.WebhookDelivery", b =>
+            modelBuilder.Entity("Merchello.Core.Webhooks.Models.OutboundDelivery", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1936,6 +2017,9 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<int>("AttemptNumber")
                         .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("ConfigurationId")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DateCompleted")
                         .HasColumnType("TEXT");
@@ -1946,8 +2030,28 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<DateTime?>("DateSent")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("DeliveryType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
                     b.Property<int>("DurationMs")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("EmailBody")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EmailFrom")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EmailRecipients")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EmailSubject")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
 
                     b.Property<Guid?>("EntityId")
                         .HasColumnType("TEXT");
@@ -1960,15 +2064,18 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ExtendedData")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("NextRetryUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("RequestBody")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("RequestHeaders")
-                        .IsRequired()
                         .HasMaxLength(4000)
                         .HasColumnType("TEXT");
 
@@ -1988,11 +2095,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(0);
 
-                    b.Property<Guid>("SubscriptionId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("TargetUrl")
-                        .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("TEXT");
 
@@ -2003,17 +2106,21 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ConfigurationId");
+
                     b.HasIndex("DateCreated");
+
+                    b.HasIndex("DeliveryType");
 
                     b.HasIndex("NextRetryUtc");
 
                     b.HasIndex("Status");
 
-                    b.HasIndex("SubscriptionId");
+                    b.HasIndex("DeliveryType", "Status");
 
                     b.HasIndex("Status", "NextRetryUtc");
 
-                    b.ToTable("merchelloWebhookDeliveries", (string)null);
+                    b.ToTable("merchelloOutboundDeliveries", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.Webhooks.Models.WebhookSubscription", b =>
@@ -2771,11 +2878,11 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("Warehouse");
                 });
 
-            modelBuilder.Entity("Merchello.Core.Webhooks.Models.WebhookDelivery", b =>
+            modelBuilder.Entity("Merchello.Core.Webhooks.Models.OutboundDelivery", b =>
                 {
                     b.HasOne("Merchello.Core.Webhooks.Models.WebhookSubscription", "Subscription")
                         .WithMany("Deliveries")
-                        .HasForeignKey("SubscriptionId")
+                        .HasForeignKey("ConfigurationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

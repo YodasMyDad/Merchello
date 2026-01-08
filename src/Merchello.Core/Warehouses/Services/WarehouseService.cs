@@ -1,6 +1,7 @@
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Models;
@@ -18,6 +19,7 @@ namespace Merchello.Core.Warehouses.Services;
 public class WarehouseService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     WarehouseFactory warehouseFactory,
+    IProductService productService,
     ILogger<WarehouseService> logger) : IWarehouseService
 {
     /// <summary>
@@ -660,7 +662,9 @@ public class WarehouseService(
     #region Stock Management
 
     /// <summary>
-    /// Sets or updates stock for a product at a warehouse
+    /// Sets or updates stock for a product at a warehouse.
+    /// If stock changes affect availability (goes to 0 or becomes available from 0),
+    /// triggers automatic reassignment to ensure the default variant is available.
     /// </summary>
     public async Task<CrudResult<bool>> SetProductStock(
         SetProductStockParameters parameters,
@@ -684,14 +688,17 @@ public class WarehouseService(
             return result;
         }
 
+        var shouldCheckDefaultReassignment = false;
+        Guid? productRootId = null;
+
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
-            // Validate product exists
-            var productExists = await db.Products
-                .AnyAsync(p => p.Id == productId, cancellationToken);
+            // Validate product exists and get default status
+            var product = await db.Products
+                .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken);
 
-            if (!productExists)
+            if (product == null)
             {
                 result.Messages.Add(new Shared.Models.ResultMessage
                 {
@@ -730,14 +737,52 @@ public class WarehouseService(
                     ReorderQuantity = reorderQuantity
                 };
                 db.ProductWarehouses.Add(productWarehouse);
+
+                // New record with tracking
+                if (productWarehouse.TrackStock)
+                {
+                    // Check if this is setting a default variant to 0 stock
+                    if (product.Default && stock == 0)
+                    {
+                        shouldCheckDefaultReassignment = true;
+                        productRootId = product.ProductRootId;
+                    }
+                    // Check if a non-default variant is becoming available (new record with stock > 0)
+                    else if (!product.Default && stock > 0)
+                    {
+                        shouldCheckDefaultReassignment = true;
+                        productRootId = product.ProductRootId;
+                    }
+                }
             }
             else
             {
+                var oldStock = productWarehouse.Stock;
+                var oldAvailable = oldStock - productWarehouse.ReservedStock;
+
                 productWarehouse.Stock = stock;
                 if (reorderPoint.HasValue)
                     productWarehouse.ReorderPoint = reorderPoint;
                 if (reorderQuantity.HasValue)
                     productWarehouse.ReorderQuantity = reorderQuantity;
+
+                if (productWarehouse.TrackStock)
+                {
+                    var newAvailable = stock - productWarehouse.ReservedStock;
+
+                    // Check if default variant becoming unavailable (stock going to 0)
+                    if (product.Default && newAvailable <= 0)
+                    {
+                        shouldCheckDefaultReassignment = true;
+                        productRootId = product.ProductRootId;
+                    }
+                    // Check if non-default variant becoming available (was 0, now > 0)
+                    else if (!product.Default && oldAvailable <= 0 && newAvailable > 0)
+                    {
+                        shouldCheckDefaultReassignment = true;
+                        productRootId = product.ProductRootId;
+                    }
+                }
             }
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
@@ -746,11 +791,19 @@ public class WarehouseService(
         });
         scope.Complete();
 
+        // After scope completes, check if we need to reassign default
+        if (shouldCheckDefaultReassignment && productRootId.HasValue)
+        {
+            await productService.EnsureDefaultVariantIsAvailableAsync(productRootId.Value, cancellationToken);
+        }
+
         return result;
     }
 
     /// <summary>
-    /// Adjusts stock level by a positive or negative amount
+    /// Adjusts stock level by a positive or negative amount.
+    /// If adjustment affects availability (goes to 0 or becomes available from 0),
+    /// triggers automatic reassignment to ensure the default variant is available.
     /// </summary>
     public async Task<CrudResult<bool>> AdjustStock(
         StockAdjustmentParameters parameters,
@@ -758,10 +811,14 @@ public class WarehouseService(
     {
         var result = new CrudResult<bool>();
 
+        var shouldCheckDefaultReassignment = false;
+        Guid? productRootId = null;
+
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             var productWarehouse = await db.ProductWarehouses
+                .Include(pw => pw.Product)
                 .FirstOrDefaultAsync(
                     pw => pw.ProductId == parameters.ProductId && pw.WarehouseId == parameters.WarehouseId,
                     cancellationToken);
@@ -776,7 +833,9 @@ public class WarehouseService(
                 return;
             }
 
-            var newStock = productWarehouse.Stock + parameters.Adjustment;
+            var oldStock = productWarehouse.Stock;
+            var oldAvailable = oldStock - productWarehouse.ReservedStock;
+            var newStock = oldStock + parameters.Adjustment;
 
             if (newStock < 0)
             {
@@ -790,12 +849,30 @@ public class WarehouseService(
 
             productWarehouse.Stock = newStock;
 
+            if (productWarehouse.TrackStock && productWarehouse.Product != null)
+            {
+                var newAvailable = newStock - productWarehouse.ReservedStock;
+
+                // Check if default variant becoming unavailable (stock going to 0)
+                if (productWarehouse.Product.Default && newAvailable <= 0)
+                {
+                    shouldCheckDefaultReassignment = true;
+                    productRootId = productWarehouse.Product.ProductRootId;
+                }
+                // Check if non-default variant becoming available (was 0, now > 0)
+                else if (!productWarehouse.Product.Default && oldAvailable <= 0 && newAvailable > 0)
+                {
+                    shouldCheckDefaultReassignment = true;
+                    productRootId = productWarehouse.Product.ProductRootId;
+                }
+            }
+
             logger.LogInformation(
                 "Stock adjusted for product {ProductId} at warehouse {WarehouseId}: {OldStock} -> {NewStock} (adjustment: {Adjustment}, reason: {Reason})",
                 parameters.ProductId,
                 parameters.WarehouseId,
-                productWarehouse.Stock - parameters.Adjustment,
-                productWarehouse.Stock,
+                oldStock,
+                newStock,
                 parameters.Adjustment,
                 parameters.Reason ?? "Not specified");
 
@@ -804,6 +881,12 @@ public class WarehouseService(
             result.ResultObject = true;
         });
         scope.Complete();
+
+        // After scope completes, check if we need to reassign default
+        if (shouldCheckDefaultReassignment && productRootId.HasValue)
+        {
+            await productService.EnsureDefaultVariantIsAvailableAsync(productRootId.Value, cancellationToken);
+        }
 
         return result;
     }

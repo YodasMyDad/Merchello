@@ -1,6 +1,8 @@
 using Asp.Versioning;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Webhooks.Dtos;
+using Merchello.Core.Webhooks.Models;
 using Merchello.Core.Webhooks.Models.Enums;
 using Merchello.Core.Webhooks.Services.Interfaces;
 using Merchello.Core.Webhooks.Services.Parameters;
@@ -153,12 +155,12 @@ public class WebhooksApiController(
     /// Send a test webhook to a subscription.
     /// </summary>
     [HttpPost("webhooks/{id:guid}/test")]
-    [ProducesResponseType<WebhookDeliveryResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<OutboundDeliveryResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SendTest(Guid id, CancellationToken ct)
     {
         var result = await webhookService.SendTestAsync(id, ct);
-        return Ok(new WebhookDeliveryResultDto
+        return Ok(new OutboundDeliveryResultDto
         {
             Success = result.Success,
             StatusCode = result.StatusCode,
@@ -238,31 +240,32 @@ public class WebhooksApiController(
     /// Get deliveries for a subscription.
     /// </summary>
     [HttpGet("webhooks/{id:guid}/deliveries")]
-    [ProducesResponseType<PaginatedList<WebhookDeliveryDto>>(StatusCodes.Status200OK)]
-    public async Task<PaginatedList<WebhookDeliveryDto>> GetDeliveries(
+    [ProducesResponseType<PaginatedList<OutboundDeliveryDto>>(StatusCodes.Status200OK)]
+    public async Task<PaginatedList<OutboundDeliveryDto>> GetDeliveries(
         Guid id,
-        [FromQuery] WebhookDeliveryStatus? status,
+        [FromQuery] OutboundDeliveryStatus? status,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var result = await webhookService.QueryDeliveriesAsync(new WebhookDeliveryQueryParameters
+        var result = await webhookService.QueryDeliveriesAsync(new OutboundDeliveryQueryParameters
         {
-            SubscriptionId = id,
+            ConfigurationId = id,
+            DeliveryType = OutboundDeliveryType.Webhook,
             Status = status,
             Page = page,
             PageSize = pageSize
         }, ct);
 
         var items = result.Items.Select(d => MapToDto(d));
-        return new PaginatedList<WebhookDeliveryDto>(items, result.TotalItems, result.PageIndex, pageSize);
+        return new PaginatedList<OutboundDeliveryDto>(items, result.TotalItems, result.PageIndex, pageSize);
     }
 
     /// <summary>
     /// Get a delivery by ID.
     /// </summary>
     [HttpGet("webhooks/deliveries/{id:guid}")]
-    [ProducesResponseType<WebhookDeliveryDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<OutboundDeliveryDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetDelivery(Guid id, CancellationToken ct)
     {
@@ -318,11 +321,11 @@ public class WebhooksApiController(
     /// Ping a URL to test connectivity.
     /// </summary>
     [HttpPost("webhooks/ping")]
-    [ProducesResponseType<WebhookDeliveryResultDto>(StatusCodes.Status200OK)]
-    public async Task<WebhookDeliveryResultDto> Ping([FromBody] PingWebhookDto dto, CancellationToken ct)
+    [ProducesResponseType<OutboundDeliveryResultDto>(StatusCodes.Status200OK)]
+    public async Task<OutboundDeliveryResultDto> Ping([FromBody] PingWebhookDto dto, CancellationToken ct)
     {
         var result = await webhookService.PingAsync(dto.Url, ct);
-        return new WebhookDeliveryResultDto
+        return new OutboundDeliveryResultDto
         {
             Success = result.Success,
             StatusCode = result.StatusCode,
@@ -336,7 +339,7 @@ public class WebhooksApiController(
 
     #region Mapping
 
-    private WebhookSubscriptionDto MapToDto(Core.Webhooks.Models.WebhookSubscription subscription)
+    private WebhookSubscriptionDto MapToDto(WebhookSubscription subscription)
     {
         var topic = topicRegistry.GetTopic(subscription.Topic);
         return new WebhookSubscriptionDto
@@ -359,8 +362,8 @@ public class WebhooksApiController(
     }
 
     private WebhookSubscriptionDetailDto MapToDetailDto(
-        Core.Webhooks.Models.WebhookSubscription subscription,
-        IEnumerable<Core.Webhooks.Models.WebhookDelivery> deliveries)
+        WebhookSubscription subscription,
+        IEnumerable<OutboundDelivery> deliveries)
     {
         var topic = topicRegistry.GetTopic(subscription.Topic);
         return new WebhookSubscriptionDetailDto
@@ -387,10 +390,12 @@ public class WebhooksApiController(
         };
     }
 
-    private static WebhookDeliveryDto MapToDto(Core.Webhooks.Models.WebhookDelivery delivery) => new()
+    private static OutboundDeliveryDto MapToDto(OutboundDelivery delivery) => new()
     {
         Id = delivery.Id,
-        SubscriptionId = delivery.SubscriptionId,
+        DeliveryType = delivery.DeliveryType,
+        DeliveryTypeDisplay = GetDeliveryTypeDisplay(delivery.DeliveryType),
+        ConfigurationId = delivery.ConfigurationId,
         Topic = delivery.Topic,
         EntityId = delivery.EntityId,
         EntityType = delivery.EntityType,
@@ -404,10 +409,12 @@ public class WebhooksApiController(
         AttemptNumber = delivery.AttemptNumber
     };
 
-    private static WebhookDeliveryDetailDto MapToDetailDto(Core.Webhooks.Models.WebhookDelivery delivery) => new()
+    private static OutboundDeliveryDetailDto MapToDetailDto(OutboundDelivery delivery) => new()
     {
         Id = delivery.Id,
-        SubscriptionId = delivery.SubscriptionId,
+        DeliveryType = delivery.DeliveryType,
+        DeliveryTypeDisplay = GetDeliveryTypeDisplay(delivery.DeliveryType),
+        ConfigurationId = delivery.ConfigurationId,
         Topic = delivery.Topic,
         EntityId = delivery.EntityId,
         EntityType = delivery.EntityType,
@@ -423,7 +430,11 @@ public class WebhooksApiController(
         RequestBody = delivery.RequestBody,
         RequestHeaders = delivery.RequestHeaders,
         ResponseBody = delivery.ResponseBody,
-        ResponseHeaders = delivery.ResponseHeaders
+        ResponseHeaders = delivery.ResponseHeaders,
+        EmailRecipients = delivery.EmailRecipients,
+        EmailSubject = delivery.EmailSubject,
+        EmailFrom = delivery.EmailFrom,
+        EmailBody = delivery.EmailBody
     };
 
     private static string GetAuthTypeDisplay(WebhookAuthType authType) => authType switch
@@ -437,15 +448,22 @@ public class WebhooksApiController(
         _ => authType.ToString()
     };
 
-    private static string GetStatusDisplay(WebhookDeliveryStatus status) => status switch
+    private static string GetStatusDisplay(OutboundDeliveryStatus status) => status switch
     {
-        WebhookDeliveryStatus.Pending => "Pending",
-        WebhookDeliveryStatus.Sending => "Sending",
-        WebhookDeliveryStatus.Succeeded => "Succeeded",
-        WebhookDeliveryStatus.Failed => "Failed",
-        WebhookDeliveryStatus.Retrying => "Retrying",
-        WebhookDeliveryStatus.Abandoned => "Abandoned",
+        OutboundDeliveryStatus.Pending => "Pending",
+        OutboundDeliveryStatus.Sending => "Sending",
+        OutboundDeliveryStatus.Succeeded => "Succeeded",
+        OutboundDeliveryStatus.Failed => "Failed",
+        OutboundDeliveryStatus.Retrying => "Retrying",
+        OutboundDeliveryStatus.Abandoned => "Abandoned",
         _ => status.ToString()
+    };
+
+    private static string GetDeliveryTypeDisplay(OutboundDeliveryType type) => type switch
+    {
+        OutboundDeliveryType.Webhook => "Webhook",
+        OutboundDeliveryType.Email => "Email",
+        _ => type.ToString()
     };
 
     #endregion

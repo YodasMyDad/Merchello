@@ -10,6 +10,7 @@ export default defineConfig({
       "@customers": resolve(__dirname, "src/customers"),
       "@dashboards": resolve(__dirname, "src/dashboards"),
       "@discounts": resolve(__dirname, "src/discounts"),
+      "@email": resolve(__dirname, "src/email"),
       "@entrypoints": resolve(__dirname, "src/entrypoints"),
       "@exchange-rate-providers": resolve(__dirname, "src/exchange-rate-providers"),
       "@filters": resolve(__dirname, "src/filters"),

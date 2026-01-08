@@ -29,6 +29,7 @@
       "@customers/*": [ "src/customers/*" ],
       "@dashboards/*": [ "src/dashboards/*" ],
       "@discounts/*": [ "src/discounts/*" ],
+      "@email/*": [ "src/email/*" ],
       "@entrypoints/*": [ "src/entrypoints/*" ],
       "@exchange-rate-providers/*": [ "src/exchange-rate-providers/*" ],
       "@filters/*": [ "src/filters/*" ],

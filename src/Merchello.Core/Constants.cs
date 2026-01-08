@@ -178,9 +178,88 @@ public static class Constants
 
     public static class WebhookTopics
     {
+        // Orders
+        public const string OrderCreated = "order.created";
         public const string OrderUpdated = "order.updated";
+        public const string OrderStatusChanged = "order.status_changed";
+        public const string OrderCancelled = "order.cancelled";
+
+        // Invoices
+        public const string InvoiceCreated = "invoice.created";
+        public const string InvoicePaid = "invoice.paid";
+        public const string InvoiceRefunded = "invoice.refunded";
+        public const string InvoiceDeleted = "invoice.deleted";
+
+        // Products
+        public const string ProductCreated = "product.created";
+        public const string ProductUpdated = "product.updated";
+        public const string ProductDeleted = "product.deleted";
+
+        // Inventory
+        public const string InventoryAdjusted = "inventory.adjusted";
+        public const string InventoryLowStock = "inventory.low_stock";
+        public const string InventoryReserved = "inventory.reserved";
+        public const string InventoryAllocated = "inventory.allocated";
+
+        // Customers
+        public const string CustomerCreated = "customer.created";
+        public const string CustomerUpdated = "customer.updated";
+        public const string CustomerDeleted = "customer.deleted";
+
+        // Shipments
         public const string ShipmentCreated = "shipment.created";
         public const string ShipmentUpdated = "shipment.updated";
+
+        // Discounts
+        public const string DiscountCreated = "discount.created";
+        public const string DiscountUpdated = "discount.updated";
+        public const string DiscountDeleted = "discount.deleted";
+
+        // Checkout
+        public const string CheckoutAbandoned = "checkout.abandoned";
+        public const string CheckoutRecovered = "checkout.recovered";
+
+        // Baskets
+        public const string BasketCreated = "basket.created";
+        public const string BasketUpdated = "basket.updated";
+
+        // Test
+        public const string TestPing = "test.ping";
+    }
+
+    public static class EmailTopics
+    {
+        // Orders
+        public const string OrderCreated = "order.created";
+        public const string OrderStatusChanged = "order.status_changed";
+        public const string OrderCancelled = "order.cancelled";
+
+        // Invoices
+        public const string InvoiceCreated = "invoice.created";
+        public const string InvoicePaid = "invoice.paid";
+        public const string InvoiceRefunded = "invoice.refunded";
+        public const string InvoiceDeleted = "invoice.deleted";
+
+        // Payments
+        public const string PaymentCreated = "payment.created";
+        public const string PaymentRefunded = "payment.refunded";
+
+        // Shipments
+        public const string ShipmentCreated = "shipment.created";
+        public const string ShipmentUpdated = "shipment.updated";
+
+        // Customers
+        public const string CustomerCreated = "customer.created";
+        public const string CustomerUpdated = "customer.updated";
+        public const string CustomerPasswordReset = "customer.password_reset";
+
+        // Inventory
+        public const string InventoryLowStock = "inventory.low_stock";
+
+        // Checkout
+        public const string CheckoutAbandoned = "checkout.abandoned";
+        public const string CheckoutRecovered = "checkout.recovered";
+        public const string CheckoutConverted = "checkout.converted";
     }
 
     public static class StatusLabels

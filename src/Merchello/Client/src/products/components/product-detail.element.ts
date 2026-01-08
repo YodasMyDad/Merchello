@@ -1466,16 +1466,43 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     `;
   }
 
+  /**
+   * Checks if a variant can be set as the default.
+   * A variant must be available for purchase, can be purchased, and have stock (if tracked).
+   */
+  private _canBeDefault(variant: ProductVariantDto): boolean {
+    if (!variant.availableForPurchase || !variant.canPurchase) {
+      return false;
+    }
+
+    const trackedWarehouses = variant.warehouseStock?.filter(w => w.trackStock) ?? [];
+    if (trackedWarehouses.length === 0) {
+      return true; // Untracked = available
+    }
+
+    // Must have available stock in at least one tracked warehouse
+    return trackedWarehouses.some(w => w.availableStock > 0);
+  }
+
   private _renderVariantRow(variant: ProductVariantDto): unknown {
     const variantHref = this._product ? getVariantDetailHref(this._product.id, variant.id) : "";
     const optionDescription = this._getVariantOptionDescription(variant);
+    const canBeDefault = this._canBeDefault(variant);
+    const disabledTitle = !canBeDefault ? "Cannot set as default: variant is unavailable or out of stock" : "";
     return html`
       <uui-table-row>
         <uui-table-cell>
           <uui-radio
             name="default-variant-${variant.productRootId}"
             ?checked=${variant.default}
-            @click=${(e: Event) => { e.preventDefault(); this._handleSetDefaultVariant(variant.id); }}>
+            ?disabled=${!canBeDefault}
+            title=${disabledTitle}
+            @click=${(e: Event) => {
+              e.preventDefault();
+              if (canBeDefault) {
+                this._handleSetDefaultVariant(variant.id);
+              }
+            }}>
           </uui-radio>
         </uui-table-cell>
         <uui-table-cell>
