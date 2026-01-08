@@ -174,61 +174,60 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
     }
   }
 
-  private _renderTabs() {
+  private _renderFilterRow() {
     return html`
-      <div class="tabs">
-        <button
-          class="tab ${this._activeTab === "all" ? "active" : ""}"
-          @click=${() => this._handleTabClick("all")}>
-          All Outstanding
-        </button>
-        <button
-          class="tab ${this._activeTab === "overdue" ? "active" : ""}"
-          @click=${() => this._handleTabClick("overdue")}>
-          Overdue
-        </button>
-        <button
-          class="tab ${this._activeTab === "dueThisWeek" ? "active" : ""}"
-          @click=${() => this._handleTabClick("dueThisWeek")}>
-          Due This Week
-        </button>
-        <button
-          class="tab ${this._activeTab === "dueThisMonth" ? "active" : ""}"
-          @click=${() => this._handleTabClick("dueThisMonth")}>
-          Due This Month
-        </button>
+      <div class="filter-row">
+        <label class="account-toggle">
+          <uui-toggle
+            .checked=${this._accountCustomersOnly}
+            @change=${this._handleAccountToggle}
+            label="Account customers only">
+          </uui-toggle>
+          <span>Account customers only</span>
+        </label>
+        <uui-tab-group>
+          <uui-tab
+            label="All Outstanding"
+            ?active=${this._activeTab === "all"}
+            @click=${() => this._handleTabClick("all")}>
+            All Outstanding
+          </uui-tab>
+          <uui-tab
+            label="Overdue"
+            ?active=${this._activeTab === "overdue"}
+            @click=${() => this._handleTabClick("overdue")}>
+            Overdue
+          </uui-tab>
+          <uui-tab
+            label="Due This Week"
+            ?active=${this._activeTab === "dueThisWeek"}
+            @click=${() => this._handleTabClick("dueThisWeek")}>
+            Due This Week
+          </uui-tab>
+          <uui-tab
+            label="Due This Month"
+            ?active=${this._activeTab === "dueThisMonth"}
+            @click=${() => this._handleTabClick("dueThisMonth")}>
+            Due This Month
+          </uui-tab>
+        </uui-tab-group>
       </div>
     `;
   }
 
-  private _renderToolbar() {
+  private _renderActionBar() {
     const hasSelection = this._selectedInvoices.size > 0;
+    if (!hasSelection) return nothing;
 
     return html`
-      <div class="toolbar">
-        <div class="toolbar-left">
-          <label class="account-toggle">
-            <uui-toggle
-              .checked=${this._accountCustomersOnly}
-              @change=${this._handleAccountToggle}
-              label="Account customers only">
-            </uui-toggle>
-            <span>Account customers only</span>
-          </label>
-        </div>
-        <div class="toolbar-right">
-          ${hasSelection
-            ? html`
-                <span class="selection-count">${this._selectedInvoices.size} selected</span>
-                <uui-button
-                  look="primary"
-                  color="positive"
-                  @click=${this._handleMarkAsPaid}>
-                  Mark as Paid
-                </uui-button>
-              `
-            : nothing}
-        </div>
+      <div class="action-bar">
+        <span class="selection-count">${this._selectedInvoices.size} selected</span>
+        <uui-button
+          look="primary"
+          color="positive"
+          @click=${this._handleMarkAsPaid}>
+          Mark as Paid
+        </uui-button>
       </div>
     `;
   }
@@ -250,27 +249,23 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
 
     return html`
       <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th class="checkbox-col">
-                <uui-checkbox
-                  .checked=${allSelected}
-                  @change=${this._handleSelectAll}
-                  label="Select all outstanding invoices">
-                </uui-checkbox>
-              </th>
-              <th>Invoice</th>
-              <th>Customer</th>
-              <th>Amount</th>
-              <th>Due Date</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${this._invoices.map((invoice) => this._renderRow(invoice))}
-          </tbody>
-        </table>
+        <uui-table class="outstanding-table">
+          <uui-table-head>
+            <uui-table-head-cell class="checkbox-col">
+              <uui-checkbox
+                .checked=${allSelected}
+                @change=${this._handleSelectAll}
+                label="Select all outstanding invoices">
+              </uui-checkbox>
+            </uui-table-head-cell>
+            <uui-table-head-cell>Invoice</uui-table-head-cell>
+            <uui-table-head-cell>Customer</uui-table-head-cell>
+            <uui-table-head-cell>Amount</uui-table-head-cell>
+            <uui-table-head-cell>Due Date</uui-table-head-cell>
+            <uui-table-head-cell>Status</uui-table-head-cell>
+          </uui-table-head>
+          ${this._invoices.map((invoice) => this._renderRow(invoice))}
+        </uui-table>
       </div>
     `;
   }
@@ -280,54 +275,46 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
     const amount = invoice.balanceDue ?? invoice.total;
 
     return html`
-      <tr
-        class="${isSelected ? "selected" : ""} ${invoice.isOverdue ? "overdue" : ""}"
-        tabindex="0"
-        role="row"
-        @click=${() => this._handleRowClick(invoice)}
-        @keydown=${(e: KeyboardEvent) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            this._handleRowClick(invoice);
-          }
-        }}>
-        <td class="checkbox-col" @click=${(e: Event) => e.stopPropagation()}>
+      <uui-table-row
+        class="clickable ${isSelected ? "selected" : ""} ${invoice.isOverdue ? "overdue" : ""}"
+        @click=${() => this._handleRowClick(invoice)}>
+        <uui-table-cell class="checkbox-col" @click=${(e: Event) => e.stopPropagation()}>
           <uui-checkbox
             .checked=${isSelected}
             @change=${() => this._handleSelectInvoice(invoice.id)}
             label="Select ${invoice.invoiceNumber}">
           </uui-checkbox>
-        </td>
-        <td>
+        </uui-table-cell>
+        <uui-table-cell>
           <span class="invoice-number">${invoice.invoiceNumber}</span>
-        </td>
-        <td>
+        </uui-table-cell>
+        <uui-table-cell>
           <span class="customer-name">${invoice.customerName}</span>
-        </td>
-        <td>
+        </uui-table-cell>
+        <uui-table-cell>
           <span class="amount">${formatCurrency(amount, this._currencyCode)}</span>
-        </td>
-        <td>
+        </uui-table-cell>
+        <uui-table-cell>
           ${invoice.dueDate
             ? html`<span class="due-date ${invoice.isOverdue ? "overdue" : ""}">${formatRelativeDate(invoice.dueDate)}</span>`
             : html`<span class="no-due-date">-</span>`}
-        </td>
-        <td>
+        </uui-table-cell>
+        <uui-table-cell>
           ${invoice.isOverdue
             ? html`<span class="badge badge-danger">Overdue</span>`
             : invoice.daysUntilDue != null && invoice.daysUntilDue <= 7
               ? html`<span class="badge badge-warning">Due Soon</span>`
               : html`<span class="badge badge-default">Unpaid</span>`}
-        </td>
-      </tr>
+        </uui-table-cell>
+      </uui-table-row>
     `;
   }
 
   override render() {
     return html`
       <div class="outstanding-list">
-        ${this._renderTabs()}
-        ${this._renderToolbar()}
+        ${this._renderFilterRow()}
+        ${this._renderActionBar()}
 
         ${this._errorMessage
           ? html`<div class="error-banner">${this._errorMessage}</div>`
@@ -364,46 +351,11 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
       gap: var(--uui-size-space-4);
     }
 
-    .tabs {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      border-bottom: 1px solid var(--uui-color-border);
-      padding-bottom: var(--uui-size-space-2);
-    }
-
-    .tab {
-      padding: var(--uui-size-space-2) var(--uui-size-space-4);
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      font-size: 0.875rem;
-      color: var(--uui-color-text-alt);
-      border-radius: var(--uui-border-radius);
-      transition: all 0.15s ease;
-    }
-
-    .tab:hover {
-      background: var(--uui-color-surface-alt);
-      color: var(--uui-color-text);
-    }
-
-    .tab.active {
-      background: var(--uui-color-current);
-      color: var(--uui-color-current-contrast);
-    }
-
-    .toolbar {
+    .filter-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: var(--uui-size-space-4);
-    }
-
-    .toolbar-left,
-    .toolbar-right {
-      display: flex;
-      align-items: center;
-      gap: var(--uui-size-space-3);
     }
 
     .account-toggle {
@@ -414,6 +366,12 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
       cursor: pointer;
     }
 
+    .action-bar {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+    }
+
     .selection-count {
       font-size: 0.875rem;
       color: var(--uui-color-text-alt);
@@ -421,55 +379,41 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
 
     .table-container {
       overflow-x: auto;
+      background: var(--uui-color-surface);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
     }
 
-    table {
+    .outstanding-table {
       width: 100%;
-      border-collapse: collapse;
     }
 
-    th,
-    td {
-      padding: var(--uui-size-space-3) var(--uui-size-space-4);
-      text-align: left;
-      border-bottom: 1px solid var(--uui-color-border);
-    }
-
-    th {
-      font-weight: 600;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      color: var(--uui-color-text-alt);
-      background: var(--uui-color-surface-alt);
+    uui-table-head-cell,
+    uui-table-cell {
+      white-space: nowrap;
     }
 
     .checkbox-col {
       width: 40px;
     }
 
-    tr {
+    uui-table-row.clickable {
       cursor: pointer;
-      transition: background 0.15s ease;
     }
 
-    tr:hover {
-      background: var(--uui-color-surface-alt);
+    uui-table-row.clickable:hover {
+      background: var(--uui-color-surface-emphasis);
     }
 
-    tr:focus-visible {
-      outline: 2px solid var(--uui-color-current);
-      outline-offset: -2px;
-    }
-
-    tr.selected {
+    uui-table-row.selected {
       background: color-mix(in srgb, var(--uui-color-current) 10%, transparent);
     }
 
-    tr.overdue {
+    uui-table-row.overdue {
       background: color-mix(in srgb, var(--uui-color-danger) 5%, transparent);
     }
 
-    tr.overdue:hover {
+    uui-table-row.overdue:hover {
       background: color-mix(in srgb, var(--uui-color-danger) 10%, transparent);
     }
 

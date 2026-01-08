@@ -191,6 +191,7 @@ import type {
   CreatePaymentLinkDto,
   PaymentLinkInfoDto,
   PaymentLinkProviderDto,
+  CheckoutFormFieldDto,
 } from '@payment-providers/types/payment-providers.types.js';
 
 // Import shipping provider types
@@ -768,6 +769,10 @@ export const MerchelloApi = {
   /** Record a manual/offline payment */
   recordManualPayment: (invoiceId: string, data: RecordManualPaymentDto) =>
     apiPost<PaymentDto>(`invoices/${invoiceId}/payments/manual`, data),
+
+  /** Get form fields for manual payments (payment method options, etc.) */
+  getManualPaymentFormFields: () =>
+    apiGet<CheckoutFormFieldDto[]>('payments/manual/form-fields'),
 
   /** Process a refund */
   processRefund: (paymentId: string, data: ProcessRefundDto) =>

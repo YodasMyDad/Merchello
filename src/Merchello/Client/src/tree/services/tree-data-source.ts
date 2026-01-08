@@ -30,18 +30,9 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
         entityType: MERCHELLO_ORDERS_ENTITY_TYPE,
         unique: "orders",
         name: "Orders",
-        hasChildren: false,
+        hasChildren: true,
         isFolder: false,
         icon: "icon-receipt-dollar",
-        parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
-      },
-      {
-        entityType: MERCHELLO_OUTSTANDING_ENTITY_TYPE,
-        unique: "outstanding",
-        name: "Outstanding",
-        hasChildren: false,
-        isFolder: false,
-        icon: "icon-timer",
         parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
       },
       {
@@ -148,8 +139,21 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
     return { data: { items: rootItems, total: rootItems.length } };
   }
 
-  async getChildrenOf(_args: UmbTreeChildrenOfRequestArgs) {
-    // No nested children in the new tree structure
+  async getChildrenOf(args: UmbTreeChildrenOfRequestArgs) {
+    if (args.parent.unique === "orders") {
+      const children: MerchelloTreeItemModel[] = [
+        {
+          entityType: MERCHELLO_OUTSTANDING_ENTITY_TYPE,
+          unique: "outstanding",
+          name: "Outstanding",
+          hasChildren: false,
+          isFolder: false,
+          icon: "icon-timer",
+          parent: { unique: "orders", entityType: MERCHELLO_ORDERS_ENTITY_TYPE },
+        },
+      ];
+      return { data: { items: children, total: children.length } };
+    }
     return { data: { items: [], total: 0 } };
   }
 

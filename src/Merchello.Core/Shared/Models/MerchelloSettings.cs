@@ -140,4 +140,17 @@ public class MerchelloSettings
     /// Default: ["~/Views/Products/"]
     /// </summary>
     public string[] ProductViewLocations { get; set; } = ["~/Views/Products/"];
+
+    /// <summary>
+    /// Default member group for customers who create accounts during checkout.
+    /// The group will be created automatically if it doesn't exist.
+    /// Default: "MerchelloCustomer"
+    /// </summary>
+    public string DefaultMemberGroup { get; set; } = "MerchelloCustomer";
+
+    /// <summary>
+    /// Member type alias used when creating members during checkout.
+    /// Default: "Member" (Umbraco's default member type)
+    /// </summary>
+    public string DefaultMemberTypeAlias { get; set; } = "Member";
 }

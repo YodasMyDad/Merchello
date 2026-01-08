@@ -29,4 +29,10 @@ public class SaveAddressesRequestDto
     /// Whether the customer accepts marketing communications.
     /// </summary>
     public bool AcceptsMarketing { get; set; }
+
+    /// <summary>
+    /// Optional password for creating an Umbraco member account.
+    /// When provided, a member account will be created and linked to the customer.
+    /// </summary>
+    public string? Password { get; set; }
 }

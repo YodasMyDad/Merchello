@@ -31,8 +31,11 @@ using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
+using Merchello.Core.Customers.Services.Interfaces;
+using Merchello.Core.Customers.Services.Parameters;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
@@ -57,9 +60,12 @@ public class CheckoutService(
     IRateLimiter rateLimiter,
     IExchangeRateCache exchangeRateCache,
     ICurrencyService currencyService,
+    ILogger<CheckoutService> logger,
     IDiscountEngine? discountEngine = null,
     IDiscountService? discountService = null,
-    ILocationsService? locationsService = null) : ICheckoutService
+    ILocationsService? locationsService = null,
+    ICheckoutMemberService? checkoutMemberService = null,
+    ICustomerService? customerService = null) : ICheckoutService
 {
     private readonly ILocationsService _locationsService = locationsService ?? new NoopLocationsService();
     private readonly MerchelloSettings _settings = settings.Value;
@@ -1223,6 +1229,42 @@ public class CheckoutService(
         await notificationPublisher.PublishAsync(
             new CheckoutAddressesChangedNotification(basket, billingAddress, shippingAddress, parameters.ShippingSameAsBilling),
             cancellationToken);
+
+        // Create member account if password provided
+        if (!string.IsNullOrWhiteSpace(parameters.Password) && checkoutMemberService != null && customerService != null)
+        {
+            try
+            {
+                var memberKey = await checkoutMemberService.CreateMemberAsync(
+                    new CreateCheckoutMemberParameters
+                    {
+                        Email = parameters.Email,
+                        Password = parameters.Password,
+                        Name = billingAddress.Name ?? parameters.Email
+                    }, cancellationToken);
+
+                if (memberKey.HasValue)
+                {
+                    // Get or create customer and link to member
+                    var customer = await customerService.GetOrCreateByEmailAsync(parameters.Email, ct: cancellationToken);
+                    if (customer != null && !customer.MemberKey.HasValue)
+                    {
+                        await customerService.UpdateAsync(new UpdateCustomerParameters
+                        {
+                            Id = customer.Id,
+                            MemberKey = memberKey
+                        }, cancellationToken);
+                        logger.LogInformation("Created member account and linked to customer {CustomerId} for email {Email}",
+                            customer.Id, parameters.Email);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log but don't fail checkout - account creation is optional
+                logger.LogWarning(ex, "Failed to create member account for {Email} during checkout", parameters.Email);
+            }
+        }
 
         result.ResultObject = basket;
         return result;

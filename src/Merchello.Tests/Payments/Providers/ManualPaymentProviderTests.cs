@@ -79,7 +79,7 @@ public class ManualPaymentProviderTests
         paymentMethodField.FieldType.ShouldBe(CheckoutFieldType.Select);
         paymentMethodField.IsRequired.ShouldBeTrue();
         paymentMethodField.Options.ShouldNotBeNull();
-        paymentMethodField.Options!.Count().ShouldBe(4);
+        paymentMethodField.Options!.Count().ShouldBe(6); // cash, check, bank_transfer, credit_card_manual, paypal_manual, other
 
         // Reference field
         var referenceField = fields.First(f => f.Key == "reference");

@@ -73,6 +73,93 @@
                            class="checkout-input-compact w-full"
                            placeholder="you@example.com" />
                     <p x-show="errors.email" x-cloak class="checkout-error" x-text="errors.email"></p>
+
+                    <!-- Create Account Option -->
+                    <div class="mt-2">
+                        <!-- Toggle link (hidden when account section is shown) -->
+                        <button type="button"
+                                x-show="!showAccountSection"
+                                @@click="showAccountSection = true; checkEmailForAccount()"
+                                class="text-sm text-accent hover:underline">
+                            Create an account for faster checkout next time
+                        </button>
+
+                        <!-- Account Section (login or create) -->
+                        <div x-show="showAccountSection" x-cloak x-transition class="mt-2 space-y-2">
+                            <!-- Header with mode indicator -->
+                            <div class="flex items-center justify-between">
+                                <label for="password" class="block text-xs font-medium text-gray-700">
+                                    <span x-show="hasExistingAccount">Sign in to your account</span>
+                                    <span x-show="!hasExistingAccount">Create a password</span>
+                                </label>
+                                <button type="button"
+                                        @@click="cancelAccountSection()"
+                                        class="text-xs text-gray-500 hover:text-gray-700">
+                                    Cancel
+                                </button>
+                            </div>
+
+                            <!-- Existing account notice -->
+                            <p x-show="hasExistingAccount" class="text-xs text-blue-600">
+                                An account exists with this email. Enter your password to sign in.
+                            </p>
+
+                            <!-- Password input -->
+                            <input type="password"
+                                   id="password"
+                                   name="password"
+                                   x-model="form.password"
+                                   @@input.debounce.500ms="hasExistingAccount ? null : validatePassword()"
+                                   :class="passwordErrors.length > 0 ? 'checkout-input-error' : (passwordValid ? 'border-green-500' : '')"
+                                   class="checkout-input-compact w-full"
+                                   :placeholder="hasExistingAccount ? 'Enter your password' : 'Create a password'" />
+
+                            <!-- Loading state -->
+                            <div x-show="validatingPassword" class="text-xs text-gray-500">
+                                Checking password requirements...
+                            </div>
+
+                            <!-- Password validation errors (for new accounts) -->
+                            <template x-if="!hasExistingAccount">
+                                <div>
+                                    <template x-for="error in passwordErrors" :key="error">
+                                        <p class="checkout-error text-xs" x-text="error"></p>
+                                    </template>
+                                    <p x-show="passwordValid && form.password" x-cloak class="text-xs text-green-600">
+                                        Password meets requirements
+                                    </p>
+                                </div>
+                            </template>
+
+                            <!-- Sign-in error (for existing accounts) -->
+                            <template x-if="hasExistingAccount">
+                                <div>
+                                    <p x-show="signInError" class="checkout-error text-xs" x-text="signInError"></p>
+                                    <button type="button"
+                                            x-show="showForgotPassword"
+                                            @@click="openForgotPassword()"
+                                            class="text-xs text-accent hover:underline mt-1">
+                                        Forgot your password?
+                                    </button>
+                                </div>
+                            </template>
+
+                            <!-- Sign-in button for existing accounts -->
+                            <button type="button"
+                                    x-show="hasExistingAccount && form.password"
+                                    @@click="attemptSignIn()"
+                                    :disabled="signingIn"
+                                    class="checkout-button-secondary text-sm py-1.5 px-3">
+                                <span x-show="!signingIn">Sign In</span>
+                                <span x-show="signingIn">Signing in...</span>
+                            </button>
+
+                            <!-- Signed in success -->
+                            <p x-show="isSignedIn" class="text-xs text-green-600">
+                                Signed in successfully
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -379,8 +466,21 @@
                         countryCode: '@(basket?.BillingAddress?.CountryCode ?? "")',
                         phone: '@(basket?.BillingAddress?.Phone ?? "")'
                     },
-                    acceptsMarketing: false
+                    acceptsMarketing: false,
+                    password: ''
                 },
+
+                // Account creation/sign-in
+                showAccountSection: false,
+                hasExistingAccount: false,
+                checkingEmail: false,
+                passwordValid: false,
+                passwordErrors: [],
+                validatingPassword: false,
+                signInError: '',
+                showForgotPassword: false,
+                signingIn: false,
+                isSignedIn: false,
 
                 // Address handling
                 sameAsShipping: true,
@@ -829,6 +929,96 @@
                     }
                 },
 
+                // Account creation/sign-in methods
+                async checkEmailForAccount() {
+                    if (!this.form.email) return;
+
+                    this.checkingEmail = true;
+                    try {
+                        const response = await fetch('/api/merchello/checkout/check-email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email: this.form.email })
+                        });
+                        const data = await response.json();
+                        this.hasExistingAccount = data.hasExistingAccount;
+                    } catch (e) {
+                        this.hasExistingAccount = false;
+                    } finally {
+                        this.checkingEmail = false;
+                    }
+                },
+
+                async validatePassword() {
+                    if (!this.form.password) {
+                        this.passwordErrors = [];
+                        this.passwordValid = false;
+                        return;
+                    }
+
+                    this.validatingPassword = true;
+                    try {
+                        const response = await fetch('/api/merchello/checkout/validate-password', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ password: this.form.password })
+                        });
+                        const data = await response.json();
+                        this.passwordErrors = data.errors || [];
+                        this.passwordValid = data.isValid;
+                    } catch (e) {
+                        this.passwordErrors = ['Unable to validate password'];
+                        this.passwordValid = false;
+                    } finally {
+                        this.validatingPassword = false;
+                    }
+                },
+
+                async attemptSignIn() {
+                    this.signingIn = true;
+                    this.signInError = '';
+
+                    try {
+                        const response = await fetch('/api/merchello/checkout/sign-in', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                email: this.form.email,
+                                password: this.form.password
+                            })
+                        });
+                        const data = await response.json();
+
+                        if (data.success) {
+                            this.isSignedIn = true;
+                            this.signInError = '';
+                            this.showForgotPassword = false;
+                        } else {
+                            this.signInError = data.errorMessage || 'Sign in failed';
+                            this.showForgotPassword = data.showForgotPassword;
+                        }
+                    } catch (e) {
+                        this.signInError = 'Unable to sign in. Please try again.';
+                    } finally {
+                        this.signingIn = false;
+                    }
+                },
+
+                cancelAccountSection() {
+                    this.showAccountSection = false;
+                    this.form.password = '';
+                    this.passwordErrors = [];
+                    this.passwordValid = false;
+                    this.signInError = '';
+                    this.showForgotPassword = false;
+                    this.isSignedIn = false;
+                    this.hasExistingAccount = false;
+                },
+
+                openForgotPassword() {
+                    window.open('/forgot-password?email=' + encodeURIComponent(this.form.email), '_blank');
+                },
+
                 validate() {
                     this.errors = {};
                     this.generalError = '';
@@ -883,7 +1073,7 @@
                     this.announce('Processing your order...');
 
                     try {
-                        // 1. Save addresses
+                        // 1. Save addresses (and optionally create member account)
                         const addressResponse = await fetch('/api/merchello/checkout/addresses', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -892,7 +1082,11 @@
                                 billingAddress: this.sameAsShipping ? this.form.shipping : this.form.billing,
                                 shippingAddress: this.form.shipping,
                                 shippingSameAsBilling: false,
-                                acceptsMarketing: this.form.acceptsMarketing
+                                acceptsMarketing: this.form.acceptsMarketing,
+                                // Include password only for new account creation (not for existing accounts signing in)
+                                password: this.showAccountSection && !this.hasExistingAccount && this.form.password && this.passwordValid
+                                    ? this.form.password
+                                    : null
                             })
                         });
 

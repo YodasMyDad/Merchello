@@ -775,6 +775,144 @@ html`<uui-select .options=${options} @change=${this.handleChange}></uui-select>`
 - Colors: `--uui-color-text`, `--uui-color-background`
 - Text classes: `uui-h1`, `uui-h2`, `uui-text`, `uui-lead` (import `UmbTextStyles` from `@umbraco-cms/backoffice/style`)
 
+### Filter Tabs (List Views)
+
+For filtering list views (e.g., Orders, Outstanding invoices), use `<uui-tab-group>` with `<uui-tab>` components. This provides consistent styling, accessibility, and matches Umbraco's design language.
+
+```typescript
+type FilterTab = "all" | "pending" | "completed";
+
+@state() private _activeTab: FilterTab = "all";
+
+private _handleTabClick(tab: FilterTab): void {
+  this._activeTab = tab;
+  this._page = 1;
+  this._loadData();
+}
+
+private _renderTabs() {
+  return html`
+    <uui-tab-group>
+      <uui-tab
+        label="All"
+        ?active=${this._activeTab === "all"}
+        @click=${() => this._handleTabClick("all")}>
+        All
+      </uui-tab>
+      <uui-tab
+        label="Pending"
+        ?active=${this._activeTab === "pending"}
+        @click=${() => this._handleTabClick("pending")}>
+        Pending
+      </uui-tab>
+      <uui-tab
+        label="Completed"
+        ?active=${this._activeTab === "completed"}
+        @click=${() => this._handleTabClick("completed")}>
+        Completed
+      </uui-tab>
+    </uui-tab-group>
+  `;
+}
+```
+
+**Key Points:**
+- Use `?active` binding for active state (not CSS classes)
+- Set both `label` attribute (accessibility) and inner text (display)
+- Reset pagination when changing tabs
+- No custom CSS needed - UUI handles styling
+
+**Do NOT use custom button-based tabs** - this creates inconsistent styling across the application.
+
+### Data Tables (List Views)
+
+For displaying tabular data (e.g., orders, invoices, customers), use `<uui-table>` with UUI table components. This provides consistent styling with a white background container, borders, and hover states.
+
+```typescript
+private _renderTable() {
+  return html`
+    <div class="table-container">
+      <uui-table class="my-table">
+        <uui-table-head>
+          <uui-table-head-cell class="checkbox-col">
+            <uui-checkbox
+              .checked=${this._allSelected}
+              @change=${this._handleSelectAll}
+              label="Select all">
+            </uui-checkbox>
+          </uui-table-head-cell>
+          <uui-table-head-cell>Name</uui-table-head-cell>
+          <uui-table-head-cell>Date</uui-table-head-cell>
+          <uui-table-head-cell>Status</uui-table-head-cell>
+        </uui-table-head>
+        ${this._items.map((item) => this._renderRow(item))}
+      </uui-table>
+    </div>
+  `;
+}
+
+private _renderRow(item: MyItem) {
+  return html`
+    <uui-table-row
+      class="clickable"
+      @click=${() => this._handleRowClick(item)}>
+      <uui-table-cell class="checkbox-col" @click=${(e: Event) => e.stopPropagation()}>
+        <uui-checkbox
+          .checked=${this._selectedIds.has(item.id)}
+          @change=${() => this._handleSelect(item.id)}
+          label="Select ${item.name}">
+        </uui-checkbox>
+      </uui-table-cell>
+      <uui-table-cell>${item.name}</uui-table-cell>
+      <uui-table-cell>${formatRelativeDate(item.date)}</uui-table-cell>
+      <uui-table-cell>
+        <span class="badge badge-positive">${item.status}</span>
+      </uui-table-cell>
+    </uui-table-row>
+  `;
+}
+```
+
+**Required CSS for table container:**
+```css
+.table-container {
+  overflow-x: auto;
+  background: var(--uui-color-surface);
+  border: 1px solid var(--uui-color-border);
+  border-radius: var(--uui-border-radius);
+}
+
+.my-table {
+  width: 100%;
+}
+
+uui-table-head-cell,
+uui-table-cell {
+  white-space: nowrap;
+}
+
+.checkbox-col {
+  width: 40px;
+}
+
+uui-table-row.clickable {
+  cursor: pointer;
+}
+
+uui-table-row.clickable:hover {
+  background: var(--uui-color-surface-emphasis);
+}
+```
+
+**Key Points:**
+- Always wrap `<uui-table>` in a `.table-container` div with white background, border, and radius
+- Use `<uui-table-head>` for header row, `<uui-table-head-cell>` for header cells
+- Use `<uui-table-row>` for data rows, `<uui-table-cell>` for data cells
+- Add `.clickable` class to rows that navigate on click
+- Stop propagation on checkbox clicks to prevent row click
+
+**Do NOT use raw HTML `<table>` elements** - they lack consistent styling and the white card background.
+
 ## Key Imports
 ```typescript
 // Core

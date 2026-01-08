@@ -24,6 +24,7 @@ public class CheckoutApiController(
     ICheckoutService checkoutService,
     ICheckoutSessionService checkoutSessionService,
     ICheckoutValidator checkoutValidator,
+    ICheckoutMemberService checkoutMemberService,
     IOptions<MerchelloSettings> merchelloSettings,
     ILogger<CheckoutApiController> logger) : ControllerBase
 {
@@ -139,7 +140,8 @@ public class CheckoutApiController(
             BillingAddress = request.BillingAddress,
             ShippingAddress = request.ShippingAddress,
             ShippingSameAsBilling = request.ShippingSameAsBilling,
-            AcceptsMarketing = request.AcceptsMarketing
+            AcceptsMarketing = request.AcceptsMarketing,
+            Password = request.Password
         }, ct);
 
         if (!result.Successful)
@@ -501,6 +503,71 @@ public class CheckoutApiController(
             Basket = updatedBasket != null ? MapBasketToDto(updatedBasket) : null
         });
     }
+
+    #region Member Account Endpoints
+
+    /// <summary>
+    /// Check if an email has an existing member account.
+    /// Used to determine if checkout should show login vs create account flow.
+    /// </summary>
+    [HttpPost("check-email")]
+    public async Task<IActionResult> CheckEmail([FromBody] CheckEmailRequestDto request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return BadRequest(new CheckEmailResultDto { HasExistingAccount = false });
+        }
+
+        var result = await checkoutMemberService.CheckEmailAsync(request.Email, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Validate a password against Umbraco's configured password requirements.
+    /// Used for real-time validation during account creation.
+    /// </summary>
+    [HttpPost("validate-password")]
+    public async Task<IActionResult> ValidatePassword([FromBody] ValidatePasswordRequestDto request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            return Ok(new ValidatePasswordResultDto
+            {
+                IsValid = false,
+                Errors = ["Password is required"]
+            });
+        }
+
+        var result = await checkoutMemberService.ValidatePasswordAsync(request.Password, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Sign in with an existing member account during checkout.
+    /// </summary>
+    [HttpPost("sign-in")]
+    public async Task<IActionResult> SignIn([FromBody] SignInRequestDto request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            return Ok(new SignInResultDto
+            {
+                Success = false,
+                ErrorMessage = "Email and password are required"
+            });
+        }
+
+        var result = await checkoutMemberService.SignInAsync(request.Email, request.Password, ct);
+
+        if (result.Success)
+        {
+            logger.LogInformation("Member signed in during checkout: {Email}", request.Email);
+        }
+
+        return Ok(result);
+    }
+
+    #endregion
 
     #region Private Helpers
 

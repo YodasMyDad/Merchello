@@ -154,6 +154,30 @@ export interface TestCheckoutFormFieldDto {
   isRequired: boolean;
 }
 
+/** Checkout form field with full configuration for DirectForm providers */
+export interface CheckoutFormFieldDto {
+  /** Field key */
+  key: string;
+  /** Field label */
+  label: string;
+  /** Field description */
+  description?: string;
+  /** Field type (text, select, textarea, date, email, phone) */
+  fieldType: string;
+  /** Whether the field is required */
+  isRequired: boolean;
+  /** Default value */
+  defaultValue?: string;
+  /** Placeholder text */
+  placeholder?: string;
+  /** Validation pattern (regex) */
+  validationPattern?: string;
+  /** Validation error message */
+  validationMessage?: string;
+  /** Options for select fields */
+  options?: SelectOptionDto[];
+}
+
 // ============================================
 // Checkout Preview Types
 // ============================================

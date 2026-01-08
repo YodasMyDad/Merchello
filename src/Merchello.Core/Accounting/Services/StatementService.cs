@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Dtos;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
@@ -315,18 +316,18 @@ public class StatementService(
 
         // Opening Balance box
         DrawSummaryBox(graphics, startX, y, boxWidth, boxHeight, "Opening Balance",
-            FormatCurrency(statement.OpeningBalance, statement.CurrencyCode));
+            currencyService.FormatAmount(statement.OpeningBalance, statement.CurrencyCode));
 
         // Closing Balance box
         DrawSummaryBox(graphics, startX + boxWidth + boxSpacing, y, boxWidth, boxHeight, "Closing Balance",
-            FormatCurrency(statement.ClosingBalance, statement.CurrencyCode),
+            currencyService.FormatAmount(statement.ClosingBalance, statement.CurrencyCode),
             statement.ClosingBalance > 0 ? XBrushes.DarkRed : XBrushes.DarkGreen);
 
         // Credit Limit box (if applicable)
         if (statement.CreditLimit.HasValue)
         {
             DrawSummaryBox(graphics, startX + (boxWidth + boxSpacing) * 2, y, boxWidth, boxHeight, "Credit Limit",
-                FormatCurrency(statement.CreditLimit.Value, statement.CurrencyCode));
+                currencyService.FormatAmount(statement.CreditLimit.Value, statement.CurrencyCode));
         }
 
         return y + boxHeight + 5;
@@ -368,7 +369,7 @@ public class StatementService(
             "Opening Balance",
             "",
             "",
-            FormatCurrency(statement.OpeningBalance, statement.CurrencyCode)
+            currencyService.FormatAmount(statement.OpeningBalance, statement.CurrencyCode)
         ]);
 
         // Transaction rows
@@ -379,9 +380,9 @@ public class StatementService(
                 line.Type,
                 line.Reference,
                 TruncateText(line.Description, 25),
-                line.Debit.HasValue ? FormatCurrency(line.Debit.Value, statement.CurrencyCode) : "",
-                line.Credit.HasValue ? FormatCurrency(line.Credit.Value, statement.CurrencyCode) : "",
-                FormatCurrency(line.Balance, statement.CurrencyCode)
+                line.Debit.HasValue ? currencyService.FormatAmount(line.Debit.Value, statement.CurrencyCode) : "",
+                line.Credit.HasValue ? currencyService.FormatAmount(line.Credit.Value, statement.CurrencyCode) : "",
+                currencyService.FormatAmount(line.Balance, statement.CurrencyCode)
             ]);
         }
 
@@ -408,11 +409,11 @@ public class StatementService(
         {
             new[]
             {
-                FormatCurrency(statement.Aging.Current, statement.CurrencyCode),
-                FormatCurrency(statement.Aging.ThirtyPlus, statement.CurrencyCode),
-                FormatCurrency(statement.Aging.SixtyPlus, statement.CurrencyCode),
-                FormatCurrency(statement.Aging.NinetyPlus, statement.CurrencyCode),
-                FormatCurrency(statement.Aging.Total, statement.CurrencyCode)
+                currencyService.FormatAmount(statement.Aging.Current, statement.CurrencyCode),
+                currencyService.FormatAmount(statement.Aging.ThirtyPlus, statement.CurrencyCode),
+                currencyService.FormatAmount(statement.Aging.SixtyPlus, statement.CurrencyCode),
+                currencyService.FormatAmount(statement.Aging.NinetyPlus, statement.CurrencyCode),
+                currencyService.FormatAmount(statement.Aging.Total, statement.CurrencyCode)
             }
         };
 
@@ -477,21 +478,6 @@ public class StatementService(
         return string.IsNullOrEmpty(name) ? email : name;
     }
 
-    private static string FormatCurrency(decimal amount, string currencyCode)
-    {
-        var symbol = currencyCode switch
-        {
-            "GBP" => "£",
-            "EUR" => "€",
-            "USD" => "$",
-            "CAD" => "C$",
-            "AUD" => "A$",
-            "JPY" => "¥",
-            _ => currencyCode + " "
-        };
-        return $"{symbol}{amount:N2}";
-    }
-
     private static string TruncateText(string text, int maxLength)
     {
         if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
@@ -534,9 +520,7 @@ public class StatementService(
                 if (paymentStatus.BalanceDue <= 0) continue;
 
                 var isOverdue = invoice.DueDate.HasValue && invoice.DueDate.Value < now && paymentStatus.BalanceDue > 0;
-                var daysUntilDue = invoice.DueDate.HasValue
-                    ? (int)(invoice.DueDate.Value.Date - now.Date).TotalDays
-                    : (int?)null;
+                var daysUntilDue = CalculateDaysUntilDue(invoice.DueDate, now);
 
                 outstandingInvoices.Add(new OrderListItemDto
                 {
@@ -554,7 +538,7 @@ public class StatementService(
                     IsMultiCurrency = invoice.CurrencyCode != invoice.StoreCurrencyCode,
                     PaymentStatus = paymentStatus.Status,
                     PaymentStatusDisplay = paymentStatus.StatusDisplay,
-                    FulfillmentStatus = GetFulfillmentStatus(invoice.Orders),
+                    FulfillmentStatus = (invoice.Orders ?? []).GetFulfillmentStatus(),
                     IsCancelled = invoice.IsCancelled,
                     ItemCount = invoice.Orders?.SelectMany(o => o.LineItems ?? []).Sum(li => li.Quantity) ?? 0,
                     DueDate = invoice.DueDate,
@@ -718,9 +702,7 @@ public class StatementService(
                 if (paymentStatus.BalanceDue <= 0) continue;
 
                 var isOverdue = invoice.DueDate.HasValue && invoice.DueDate.Value < now;
-                var daysUntilDue = invoice.DueDate.HasValue
-                    ? (int)(invoice.DueDate.Value.Date - now.Date).TotalDays
-                    : (int?)null;
+                var daysUntilDue = CalculateDaysUntilDue(invoice.DueDate, now);
 
                 // Filter by overdue only if specified
                 if (parameters.OverdueOnly == true && !isOverdue) continue;
@@ -768,7 +750,7 @@ public class StatementService(
                     IsMultiCurrency = x.Invoice.CurrencyCode != x.Invoice.StoreCurrencyCode,
                     PaymentStatus = x.Status.Status,
                     PaymentStatusDisplay = x.Status.StatusDisplay,
-                    FulfillmentStatus = GetFulfillmentStatus(x.Invoice.Orders),
+                    FulfillmentStatus = (x.Invoice.Orders ?? []).GetFulfillmentStatus(),
                     IsCancelled = x.Invoice.IsCancelled,
                     ItemCount = x.Invoice.Orders?.SelectMany(o => o.LineItems ?? []).Sum(li => li.Quantity) ?? 0,
                     DueDate = x.Invoice.DueDate,
@@ -784,18 +766,11 @@ public class StatementService(
         return result;
     }
 
-    private static string GetFulfillmentStatus(ICollection<Order>? orders)
-    {
-        if (orders == null || !orders.Any())
-            return "Unfulfilled";
-
-        var allFulfilled = orders.All(o => o.Status == OrderStatus.Shipped || o.Status == OrderStatus.Completed);
-        var anyFulfilled = orders.Any(o => o.Status == OrderStatus.Shipped || o.Status == OrderStatus.Completed);
-
-        if (allFulfilled) return "Fulfilled";
-        if (anyFulfilled) return "Partial";
-        return "Unfulfilled";
-    }
+    /// <summary>
+    /// Calculates days until due date from now.
+    /// </summary>
+    private static int? CalculateDaysUntilDue(DateTime? dueDate, DateTime now)
+        => dueDate.HasValue ? (int)(dueDate.Value.Date - now.Date).TotalDays : null;
 
     #endregion
 }

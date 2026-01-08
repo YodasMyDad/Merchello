@@ -8,6 +8,7 @@ using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.CustomerNotifications;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -103,11 +104,7 @@ public class CustomerService(
         var creatingNotification = new CustomerCreatingNotification(newCustomer);
         if (await notificationPublisher.PublishCancelableAsync(creatingNotification, ct))
         {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = creatingNotification.CancelReason ?? "Customer creation cancelled",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage(creatingNotification.CancelReason ?? "Customer creation cancelled");
             return result;
         }
 
@@ -124,11 +121,7 @@ public class CustomerService(
 
                 if (existing != null)
                 {
-                    result.Messages.Add(new ResultMessage
-                    {
-                        Message = $"Customer with email '{parameters.Email}' already exists",
-                        ResultMessageType = ResultMessageType.Error
-                    });
+                    result.AddErrorMessage($"Customer with email '{parameters.Email}' already exists");
                     return null;
                 }
 
@@ -150,11 +143,7 @@ public class CustomerService(
                 new CustomerCreatedNotification(customer), ct);
 
             result.ResultObject = customer;
-            result.Messages.Add(new ResultMessage
-            {
-                Message = "Customer created successfully",
-                ResultMessageType = ResultMessageType.Success
-            });
+            result.AddSuccessMessage("Customer created successfully");
 
             logger.LogInformation("Created customer {CustomerId} with email {Email}", customer.Id, customer.Email);
             return result;
@@ -163,11 +152,7 @@ public class CustomerService(
         {
             // Race condition: another request created the customer concurrently
             logger.LogWarning(ex, "Concurrent customer creation detected for email {Email}", parameters.Email);
-            result.Messages.Add(new ResultMessage
-            {
-                Message = $"Customer with email '{parameters.Email}' already exists",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage($"Customer with email '{parameters.Email}' already exists");
             return result;
         }
     }
@@ -256,11 +241,7 @@ public class CustomerService(
 
         if (existing == null)
         {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = "Customer not found",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage("Customer not found");
             return result;
         }
 
@@ -268,11 +249,7 @@ public class CustomerService(
         var savingNotification = new CustomerSavingNotification(existing);
         if (await notificationPublisher.PublishCancelableAsync(savingNotification, ct))
         {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = savingNotification.CancelReason ?? "Customer update cancelled",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage(savingNotification.CancelReason ?? "Customer update cancelled");
             return result;
         }
 
@@ -293,11 +270,7 @@ public class CustomerService(
                         c => c.Email == normalizedEmail && c.Id != parameters.Id, ct);
                     if (emailExists)
                     {
-                        result.Messages.Add(new ResultMessage
-                        {
-                            Message = $"A customer with email '{parameters.Email}' already exists",
-                            ResultMessageType = ResultMessageType.Error
-                        });
+                        result.AddErrorMessage($"A customer with email '{parameters.Email}' already exists");
                         return null;
                     }
                     toUpdate.Email = normalizedEmail;
@@ -377,11 +350,7 @@ public class CustomerService(
             await notificationPublisher.PublishAsync(new CustomerSavedNotification(customer), ct);
 
             result.ResultObject = customer;
-            result.Messages.Add(new ResultMessage
-            {
-                Message = "Customer updated successfully",
-                ResultMessageType = ResultMessageType.Success
-            });
+            result.AddSuccessMessage("Customer updated successfully");
         }
 
         return result;

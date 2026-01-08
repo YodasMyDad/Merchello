@@ -9,6 +9,7 @@ using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
@@ -139,19 +140,11 @@ public class PaymentService(
 
                 if (cachedResult.Success)
                 {
-                    result.Messages.Add(new ResultMessage
-                    {
-                        Message = "Payment already processed (idempotent request).",
-                        ResultMessageType = ResultMessageType.Success
-                    });
+                    result.AddSuccessMessage("Payment already processed (idempotent request).");
                 }
                 else
                 {
-                    result.Messages.Add(new ResultMessage
-                    {
-                        Message = cachedResult.ErrorMessage ?? "Payment previously failed.",
-                        ResultMessageType = ResultMessageType.Error
-                    });
+                    result.AddErrorMessage(cachedResult.ErrorMessage ?? "Payment previously failed.");
                 }
                 return result;
             }
@@ -159,11 +152,7 @@ public class PaymentService(
             // Mark as processing to prevent concurrent duplicates
             if (!await idempotencyService.TryMarkAsProcessingAsync(request.IdempotencyKey, cancellationToken))
             {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Payment is already being processed. Please wait.",
-                    ResultMessageType = ResultMessageType.Error
-                });
+                result.AddErrorMessage("Payment is already being processed. Please wait.");
                 return result;
             }
         }
@@ -178,11 +167,7 @@ public class PaymentService(
                 idempotencyService.ClearProcessingMarker(request.IdempotencyKey);
             }
 
-            result.Messages.Add(new ResultMessage
-            {
-                Message = $"Payment provider '{request.ProviderAlias}' is not available or not enabled.",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage($"Payment provider '{request.ProviderAlias}' is not available or not enabled.");
             return result;
         }
 
@@ -199,11 +184,7 @@ public class PaymentService(
 
             if (!paymentResult.Success)
             {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = paymentResult.ErrorMessage ?? "Payment processing failed.",
-                    ResultMessageType = ResultMessageType.Error
-                });
+                result.AddErrorMessage(paymentResult.ErrorMessage ?? "Payment processing failed.");
                 return result;
             }
 
@@ -235,19 +216,14 @@ public class PaymentService(
                     "Payment pending for invoice {InvoiceId} via {Provider}. Awaiting webhook confirmation. TransactionId: {TransactionId}",
                     request.InvoiceId, request.ProviderAlias, paymentResult.TransactionId);
 
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Payment is pending confirmation.",
-                    ResultMessageType = ResultMessageType.Success
-                });
+                result.AddSuccessMessage("Payment is pending confirmation.");
                 return result;
             }
 
-            result.Messages.Add(new ResultMessage
-            {
-                Message = $"Payment processing completed with status: {paymentResult.Status}",
-                ResultMessageType = paymentResult.Success ? ResultMessageType.Success : ResultMessageType.Error
-            });
+            if (paymentResult.Success)
+                result.AddSuccessMessage($"Payment processing completed with status: {paymentResult.Status}");
+            else
+                result.AddErrorMessage($"Payment processing completed with status: {paymentResult.Status}");
             return result;
         }
         catch (Exception ex)
@@ -260,11 +236,7 @@ public class PaymentService(
                 idempotencyService.ClearProcessingMarker(request.IdempotencyKey);
             }
 
-            result.Messages.Add(new ResultMessage
-            {
-                Message = $"Payment processing failed: {ex.Message}",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage($"Payment processing failed: {ex.Message}");
             return result;
         }
     }
@@ -284,11 +256,7 @@ public class PaymentService(
                 .FirstOrDefaultAsync(i => i.Id == parameters.InvoiceId, cancellationToken);
             if (invoice == null)
             {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Invoice not found.",
-                    ResultMessageType = ResultMessageType.Error
-                });
+                result.AddErrorMessage("Invoice not found.");
                 return;
             }
 
@@ -303,11 +271,7 @@ public class PaymentService(
 
                 // Return existing payment as success (idempotent)
                 result.ResultObject = existingPayment;
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Payment already recorded for this transaction.",
-                    ResultMessageType = ResultMessageType.Warning
-                });
+                result.AddWarningMessage("Payment already recorded for this transaction.");
                 return;
             }
 
@@ -332,11 +296,7 @@ public class PaymentService(
             var creatingNotification = new PaymentCreatingNotification(payment);
             if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
             {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = creatingNotification.CancelReason ?? "Payment creation cancelled",
-                    ResultMessageType = ResultMessageType.Error
-                });
+                result.AddErrorMessage(creatingNotification.CancelReason ?? "Payment creation cancelled");
                 return;
             }
 
@@ -369,11 +329,7 @@ public class PaymentService(
                         parameters.TransactionId, parameters.InvoiceId);
 
                     result.ResultObject = concurrentPayment;
-                    result.Messages.Add(new ResultMessage
-                    {
-                        Message = "Payment already recorded for this transaction.",
-                        ResultMessageType = ResultMessageType.Warning
-                    });
+                    result.AddWarningMessage("Payment already recorded for this transaction.");
                 }
                 else
                 {
@@ -411,19 +367,11 @@ public class PaymentService(
 
                 if (cachedResult.Success)
                 {
-                    result.Messages.Add(new ResultMessage
-                    {
-                        Message = "Refund already processed (idempotent request).",
-                        ResultMessageType = ResultMessageType.Success
-                    });
+                    result.AddSuccessMessage("Refund already processed (idempotent request).");
                 }
                 else
                 {
-                    result.Messages.Add(new ResultMessage
-                    {
-                        Message = cachedResult.ErrorMessage ?? "Refund previously failed.",
-                        ResultMessageType = ResultMessageType.Error
-                    });
+                    result.AddErrorMessage(cachedResult.ErrorMessage ?? "Refund previously failed.");
                 }
                 return result;
             }
@@ -431,11 +379,7 @@ public class PaymentService(
             // Mark as processing to prevent concurrent duplicates
             if (!await idempotencyService.TryMarkAsProcessingAsync(idempotencyKey, cancellationToken))
             {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Refund is already being processed. Please wait.",
-                    ResultMessageType = ResultMessageType.Error
-                });
+                result.AddErrorMessage("Refund is already being processed. Please wait.");
                 return result;
             }
         }
@@ -444,11 +388,7 @@ public class PaymentService(
         if (string.IsNullOrWhiteSpace(reason))
         {
             ClearRefundIdempotencyMarker(idempotencyKey);
-            result.Messages.Add(new ResultMessage
-            {
-                Message = "Refund reason is required.",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage("Refund reason is required.");
             return result;
         }
 
@@ -462,11 +402,7 @@ public class PaymentService(
         if (originalPayment == null)
         {
             ClearRefundIdempotencyMarker(idempotencyKey);
-            result.Messages.Add(new ResultMessage
-            {
-                Message = $"Payment '{paymentId}' not found.",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage($"Payment '{paymentId}' not found.");
             scope.Complete();
             return result;
         }
@@ -474,11 +410,7 @@ public class PaymentService(
         if (originalPayment.PaymentType != PaymentType.Payment)
         {
             ClearRefundIdempotencyMarker(idempotencyKey);
-            result.Messages.Add(new ResultMessage
-            {
-                Message = "Cannot refund a refund payment.",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage("Cannot refund a refund payment.");
             scope.Complete();
             return result;
         }
@@ -491,11 +423,7 @@ public class PaymentService(
         if (refundAmount <= 0)
         {
             ClearRefundIdempotencyMarker(idempotencyKey);
-            result.Messages.Add(new ResultMessage
-            {
-                Message = "Refund amount must be greater than zero.",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage("Refund amount must be greater than zero.");
             scope.Complete();
             return result;
         }
@@ -503,11 +431,7 @@ public class PaymentService(
         if (refundAmount > refundableAmount)
         {
             ClearRefundIdempotencyMarker(idempotencyKey);
-            result.Messages.Add(new ResultMessage
-            {
-                Message = $"Refund amount ({refundAmount:C}) exceeds refundable amount ({refundableAmount:C}).",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage($"Refund amount ({refundAmount:C}) exceeds refundable amount ({refundableAmount:C}).");
             scope.Complete();
             return result;
         }
@@ -516,11 +440,7 @@ public class PaymentService(
         if (string.IsNullOrEmpty(originalPayment.PaymentProviderAlias))
         {
             ClearRefundIdempotencyMarker(idempotencyKey);
-            result.Messages.Add(new ResultMessage
-            {
-                Message = "Payment has no provider alias. Use RecordManualRefundAsync instead.",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage("Payment has no provider alias. Use RecordManualRefundAsync instead.");
             scope.Complete();
             return result;
         }
@@ -530,11 +450,7 @@ public class PaymentService(
         if (await notificationPublisher.PublishCancelableAsync(refundingNotification, cancellationToken))
         {
             ClearRefundIdempotencyMarker(idempotencyKey);
-            result.Messages.Add(new ResultMessage
-            {
-                Message = refundingNotification.CancelReason ?? "Refund cancelled",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage(refundingNotification.CancelReason ?? "Refund cancelled");
             scope.Complete();
             return result;
         }
@@ -547,11 +463,7 @@ public class PaymentService(
         if (registeredProvider == null)
         {
             ClearRefundIdempotencyMarker(idempotencyKey);
-            result.Messages.Add(new ResultMessage
-            {
-                Message = $"Payment provider '{originalPayment.PaymentProviderAlias}' not found.",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage($"Payment provider '{originalPayment.PaymentProviderAlias}' not found.");
             scope.Complete();
             return result;
         }
@@ -559,11 +471,7 @@ public class PaymentService(
         if (!registeredProvider.Metadata.SupportsRefunds)
         {
             ClearRefundIdempotencyMarker(idempotencyKey);
-            result.Messages.Add(new ResultMessage
-            {
-                Message = $"Provider '{originalPayment.PaymentProviderAlias}' does not support refunds.",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage($"Provider '{originalPayment.PaymentProviderAlias}' does not support refunds.");
             scope.Complete();
             return result;
         }
@@ -571,11 +479,7 @@ public class PaymentService(
         if (refundAmount < refundableAmount && !registeredProvider.Metadata.SupportsPartialRefunds)
         {
             ClearRefundIdempotencyMarker(idempotencyKey);
-            result.Messages.Add(new ResultMessage
-            {
-                Message = $"Provider '{originalPayment.PaymentProviderAlias}' does not support partial refunds.",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage($"Provider '{originalPayment.PaymentProviderAlias}' does not support partial refunds.");
             scope.Complete();
             return result;
         }
@@ -605,22 +509,14 @@ public class PaymentService(
         {
             logger.LogError(ex, "Failed to process refund for payment {PaymentId}", paymentId);
             ClearRefundIdempotencyMarker(idempotencyKey);
-            result.Messages.Add(new ResultMessage
-            {
-                Message = $"Refund processing failed: {ex.Message}",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage($"Refund processing failed: {ex.Message}");
             scope.Complete();
             return result;
         }
 
         if (!refundResult.Success)
         {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = $"Provider refund failed: {refundResult.ErrorMessage}",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage($"Provider refund failed: {refundResult.ErrorMessage}");
             scope.Complete();
             return result;
         }
@@ -855,11 +751,7 @@ public class PaymentService(
 
         if (parameters.Amount <= 0)
         {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = "Payment amount must be greater than zero.",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage("Payment amount must be greater than zero.");
             return result;
         }
 
@@ -871,11 +763,7 @@ public class PaymentService(
                 .FirstOrDefaultAsync(i => i.Id == parameters.InvoiceId, cancellationToken);
             if (invoice == null)
             {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Invoice not found.",
-                    ResultMessageType = ResultMessageType.Error
-                });
+                result.AddErrorMessage("Invoice not found.");
                 return;
             }
 
@@ -892,11 +780,7 @@ public class PaymentService(
             var creatingNotification = new PaymentCreatingNotification(payment);
             if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
             {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = creatingNotification.CancelReason ?? "Payment creation cancelled",
-                    ResultMessageType = ResultMessageType.Error
-                });
+                result.AddErrorMessage(creatingNotification.CancelReason ?? "Payment creation cancelled");
                 return;
             }
 
@@ -929,22 +813,14 @@ public class PaymentService(
 
         if (amount <= 0)
         {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = "Refund amount must be greater than zero.",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage("Refund amount must be greater than zero.");
             return result;
         }
 
         // Validate refund reason (required business rule)
         if (string.IsNullOrWhiteSpace(reason))
         {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = "Refund reason is required.",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage("Refund reason is required.");
             return result;
         }
 
@@ -958,21 +834,13 @@ public class PaymentService(
 
             if (originalPayment == null)
             {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = $"Payment '{paymentId}' not found.",
-                    ResultMessageType = ResultMessageType.Error
-                });
+                result.AddErrorMessage($"Payment '{paymentId}' not found.");
                 return;
             }
 
             if (originalPayment.PaymentType != PaymentType.Payment)
             {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Cannot refund a refund payment.",
-                    ResultMessageType = ResultMessageType.Error
-                });
+                result.AddErrorMessage("Cannot refund a refund payment.");
                 return;
             }
 
@@ -982,11 +850,7 @@ public class PaymentService(
 
             if (amount > refundableAmount)
             {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = $"Refund amount ({amount:C}) exceeds refundable amount ({refundableAmount:C}).",
-                    ResultMessageType = ResultMessageType.Error
-                });
+                result.AddErrorMessage($"Refund amount ({amount:C}) exceeds refundable amount ({refundableAmount:C}).");
                 return;
             }
 
@@ -1041,11 +905,7 @@ public class PaymentService(
 
         if (parameters.InvoiceIds.Count == 0)
         {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = "No invoice IDs provided.",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage("No invoice IDs provided.");
             return result;
         }
 
@@ -1064,11 +924,7 @@ public class PaymentService(
 
             foreach (var missingId in missingIds)
             {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = $"Invoice {missingId} not found, deleted, or cancelled.",
-                    ResultMessageType = ResultMessageType.Warning
-                });
+                result.AddWarningMessage($"Invoice {missingId} not found, deleted, or cancelled.");
             }
 
             var paymentDate = parameters.DateReceived ?? DateTime.UtcNow;
@@ -1085,11 +941,7 @@ public class PaymentService(
 
                 if (status.BalanceDue <= 0)
                 {
-                    result.Messages.Add(new ResultMessage
-                    {
-                        Message = $"Invoice {invoice.InvoiceNumber} has no outstanding balance.",
-                        ResultMessageType = ResultMessageType.Warning
-                    });
+                    result.AddWarningMessage($"Invoice {invoice.InvoiceNumber} has no outstanding balance.");
                     continue;
                 }
 
@@ -1117,11 +969,7 @@ public class PaymentService(
                 var creatingNotification = new PaymentCreatingNotification(payment);
                 if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
                 {
-                    result.Messages.Add(new ResultMessage
-                    {
-                        Message = $"Payment for invoice {invoice.InvoiceNumber} cancelled: {creatingNotification.CancelReason}",
-                        ResultMessageType = ResultMessageType.Warning
-                    });
+                    result.AddWarningMessage($"Payment for invoice {invoice.InvoiceNumber} cancelled: {creatingNotification.CancelReason}");
                     continue;
                 }
 
@@ -1150,20 +998,12 @@ public class PaymentService(
 
         if (createdPayments.Count > 0)
         {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = $"Successfully marked {createdPayments.Count} invoice(s) as paid.",
-                ResultMessageType = ResultMessageType.Success
-            });
+            result.AddSuccessMessage($"Successfully marked {createdPayments.Count} invoice(s) as paid.");
         }
         else if (result.Messages.All(m => m.ResultMessageType == ResultMessageType.Warning))
         {
             // If we only have warnings and no payments created, it's an error overall
-            result.Messages.Add(new ResultMessage
-            {
-                Message = "No invoices were marked as paid.",
-                ResultMessageType = ResultMessageType.Error
-            });
+            result.AddErrorMessage("No invoices were marked as paid.");
         }
 
         return result;

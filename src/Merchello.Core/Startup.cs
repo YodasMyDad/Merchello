@@ -171,6 +171,8 @@ public static class Startup
         builder.Services.AddScoped(sp => new Lazy<ICheckoutService>(() => sp.GetRequiredService<ICheckoutService>()));
         builder.Services.AddScoped<ICheckoutSessionService, CheckoutSessionService>();
         builder.Services.AddScoped<ICheckoutValidator, CheckoutValidator>();
+        // Note: ICheckoutMemberService is registered in MerchelloComposer (web project)
+        // because it depends on Umbraco.Cms.Web.Common.Security (IMemberSignInManager)
         builder.Services.AddScoped<IInvoiceService, InvoiceService>();
         builder.Services.AddScoped<ILineItemService, LineItemService>();
         builder.Services.AddScoped<IOrderStatusHandler, DefaultOrderStatusHandler>();

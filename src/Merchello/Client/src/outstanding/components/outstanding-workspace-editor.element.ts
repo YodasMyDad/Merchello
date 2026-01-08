@@ -6,8 +6,7 @@ import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 export class MerchelloOutstandingWorkspaceEditorElement extends UmbElementMixin(LitElement) {
   override render() {
     return html`
-      <umb-workspace-editor>
-        <umb-workspace-header-name-editable slot="header" .name=${"Outstanding"} readonly></umb-workspace-header-name-editable>
+      <umb-workspace-editor headline="Outstanding">
         <umb-router-slot></umb-router-slot>
       </umb-workspace-editor>
     `;

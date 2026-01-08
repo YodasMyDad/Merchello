@@ -6,21 +6,72 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
 import { getCurrencyCode } from "@api/store-settings.js";
 
+interface UuiSelectOption {
+  name: string;
+  value: string;
+  selected?: boolean;
+}
+
 @customElement("merchello-mark-as-paid-modal")
 export class MerchelloMarkAsPaidModalElement extends UmbModalBaseElement<
   MarkAsPaidModalData,
   MarkAsPaidModalValue
 > {
-  @state() private _paymentMethod: string = "Bank Transfer";
+  @state() private _paymentMethod: string = "";
   @state() private _reference: string = "";
   @state() private _dateReceived: string = "";
   @state() private _isSaving: boolean = false;
+  @state() private _isLoadingOptions: boolean = true;
   @state() private _error: string | null = null;
+  @state() private _paymentMethodOptions: UuiSelectOption[] = [];
 
   override connectedCallback(): void {
     super.connectedCallback();
     // Default date to today
     this._dateReceived = new Date().toISOString().split("T")[0];
+    // Load payment method options from API
+    this._loadPaymentMethodOptions();
+  }
+
+  private async _loadPaymentMethodOptions(): Promise<void> {
+    this._isLoadingOptions = true;
+
+    const { data, error } = await MerchelloApi.getManualPaymentFormFields();
+
+    if (error || !data) {
+      // Fallback to default options if API fails
+      this._paymentMethodOptions = [
+        { name: "Cash", value: "cash" },
+        { name: "Check", value: "check" },
+        { name: "Bank Transfer", value: "bank_transfer", selected: true },
+        { name: "Other", value: "other" },
+      ];
+      this._paymentMethod = "bank_transfer";
+      this._isLoadingOptions = false;
+      return;
+    }
+
+    // Find the payment method field
+    const paymentMethodField = data.find(f => f.key === "paymentMethod");
+    if (paymentMethodField?.options?.length) {
+      this._paymentMethodOptions = paymentMethodField.options.map((opt, index) => ({
+        name: opt.label,
+        value: opt.value,
+        selected: index === 0, // Select first option by default
+      }));
+      this._paymentMethod = paymentMethodField.options[0].value;
+    } else {
+      // Fallback if no options
+      this._paymentMethodOptions = [
+        { name: "Cash", value: "cash" },
+        { name: "Check", value: "check" },
+        { name: "Bank Transfer", value: "bank_transfer", selected: true },
+        { name: "Other", value: "other" },
+      ];
+      this._paymentMethod = "bank_transfer";
+    }
+
+    this._isLoadingOptions = false;
   }
 
   private get _totalAmount(): number {
@@ -104,14 +155,10 @@ export class MerchelloMarkAsPaidModalElement extends UmbModalBaseElement<
               <label for="payment-method">Method</label>
               <uui-select
                 id="payment-method"
-                .value=${this._paymentMethod}
+                .options=${this._paymentMethodOptions}
+                ?disabled=${this._isLoadingOptions}
                 @change=${(e: Event) => this._paymentMethod = (e.target as HTMLSelectElement).value}
                 label="Payment method">
-                <uui-select-option value="Bank Transfer">Bank Transfer (BACS)</uui-select-option>
-                <uui-select-option value="Cheque">Cheque</uui-select-option>
-                <uui-select-option value="Cash">Cash</uui-select-option>
-                <uui-select-option value="Credit Card">Credit Card (Offline)</uui-select-option>
-                <uui-select-option value="Other">Other</uui-select-option>
               </uui-select>
             </div>
 

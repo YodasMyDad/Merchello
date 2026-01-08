@@ -8,14 +8,11 @@ import type {
   ManualPaymentModalValue,
 } from "./manual-payment-modal.token.js";
 
-const PAYMENT_METHODS = [
-  { value: "Cash", label: "Cash" },
-  { value: "Check", label: "Check" },
-  { value: "Bank Transfer", label: "Bank Transfer" },
-  { value: "Credit Card (Manual)", label: "Credit Card (Manual)" },
-  { value: "PayPal (Manual)", label: "PayPal (Manual)" },
-  { value: "Other", label: "Other" },
-];
+interface UuiSelectOption {
+  name: string;
+  value: string;
+  selected?: boolean;
+}
 
 @customElement("merchello-manual-payment-modal")
 export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
@@ -23,15 +20,60 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
   ManualPaymentModalValue
 > {
   @state() private _amount: number = 0;
-  @state() private _paymentMethod: string = "Cash";
+  @state() private _paymentMethod: string = "";
   @state() private _description: string = "";
   @state() private _isSaving: boolean = false;
+  @state() private _isLoadingOptions: boolean = true;
   @state() private _errorMessage: string | null = null;
+  @state() private _paymentMethodOptions: UuiSelectOption[] = [];
 
   override connectedCallback(): void {
     super.connectedCallback();
     // Default amount to balance due
     this._amount = this.data?.balanceDue ?? 0;
+    // Load payment method options from API
+    this._loadPaymentMethodOptions();
+  }
+
+  private async _loadPaymentMethodOptions(): Promise<void> {
+    this._isLoadingOptions = true;
+
+    const { data, error } = await MerchelloApi.getManualPaymentFormFields();
+
+    if (error || !data) {
+      // Fallback to default options if API fails
+      this._paymentMethodOptions = [
+        { name: "Cash", value: "cash", selected: true },
+        { name: "Check", value: "check" },
+        { name: "Bank Transfer", value: "bank_transfer" },
+        { name: "Other", value: "other" },
+      ];
+      this._paymentMethod = "cash";
+      this._isLoadingOptions = false;
+      return;
+    }
+
+    // Find the payment method field
+    const paymentMethodField = data.find(f => f.key === "paymentMethod");
+    if (paymentMethodField?.options?.length) {
+      this._paymentMethodOptions = paymentMethodField.options.map((opt, index) => ({
+        name: opt.label,
+        value: opt.value,
+        selected: index === 0, // Select first option by default
+      }));
+      this._paymentMethod = paymentMethodField.options[0].value;
+    } else {
+      // Fallback if no options
+      this._paymentMethodOptions = [
+        { name: "Cash", value: "cash", selected: true },
+        { name: "Check", value: "check" },
+        { name: "Bank Transfer", value: "bank_transfer" },
+        { name: "Other", value: "other" },
+      ];
+      this._paymentMethod = "cash";
+    }
+
+    this._isLoadingOptions = false;
   }
 
   private async _handleSave(): Promise<void> {
@@ -71,14 +113,6 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
 
   private _handleCancel(): void {
     this.modalContext?.reject();
-  }
-
-  private _getPaymentMethodOptions(): Array<{ name: string; value: string; selected: boolean }> {
-    return PAYMENT_METHODS.map(method => ({
-      name: method.label,
-      value: method.value,
-      selected: this._paymentMethod === method.value
-    }));
   }
 
   override render() {
@@ -125,7 +159,8 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
             <label for="paymentMethod">Payment Method *</label>
             <uui-select
               id="paymentMethod"
-              .options=${this._getPaymentMethodOptions()}
+              .options=${this._paymentMethodOptions}
+              ?disabled=${this._isLoadingOptions}
               required
               @change=${(e: Event) => {
                 this._paymentMethod = (e.target as HTMLSelectElement).value;

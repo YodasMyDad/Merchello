@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Merchello.Core;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Payments.Dtos;
@@ -6,6 +7,7 @@ using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -147,6 +149,55 @@ public class PaymentsApiController(
             MaxRiskScoreSource = details.MaxRiskScoreSource,
             RiskLevel = details.RiskLevel
         });
+    }
+
+    /// <summary>
+    /// Get the form fields for recording manual payments.
+    /// Used by backoffice modals to get payment method options from the provider.
+    /// </summary>
+    [HttpGet("payments/manual/form-fields")]
+    [ProducesResponseType<List<CheckoutFormFieldDto>>(StatusCodes.Status200OK)]
+    public IActionResult GetManualPaymentFormFields()
+    {
+        // Return the manual payment form fields
+        // These match what ManualPaymentProvider.GetManualPaymentFormFields() returns
+        var result = new List<CheckoutFormFieldDto>
+        {
+            new()
+            {
+                Key = Constants.FormFields.PaymentMethod,
+                Label = "Payment Method",
+                FieldType = "select",
+                IsRequired = true,
+                Options =
+                [
+                    new SelectOptionDto { Value = "cash", Label = "Cash" },
+                    new SelectOptionDto { Value = "check", Label = "Check" },
+                    new SelectOptionDto { Value = "bank_transfer", Label = "Bank Transfer" },
+                    new SelectOptionDto { Value = "credit_card_manual", Label = "Credit Card (Manual)" },
+                    new SelectOptionDto { Value = "paypal_manual", Label = "PayPal (Manual)" },
+                    new SelectOptionDto { Value = "other", Label = "Other" }
+                ]
+            },
+            new()
+            {
+                Key = Constants.FormFields.Reference,
+                Label = "Reference Number",
+                Description = "Check number, transaction reference, etc.",
+                FieldType = "text",
+                IsRequired = false,
+                Placeholder = "e.g., CHK-12345"
+            },
+            new()
+            {
+                Key = Constants.FormFields.Notes,
+                Label = "Notes",
+                FieldType = "textarea",
+                IsRequired = false
+            }
+        };
+
+        return Ok(result);
     }
 
     /// <summary>

@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Merchello.Core;
 using Merchello.Core.Accounting.Handlers;
+using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Data.Handlers;
 using Merchello.Core.Payments.Handlers;
@@ -31,6 +32,9 @@ namespace Merchello.Composers
         {
             // Register all Merchello services, DbContext, and dependencies
             builder.AddMerch();
+
+            // Register CheckoutMemberService (requires web-only IMemberSignInManager)
+            builder.Services.AddScoped<ICheckoutMemberService, CheckoutMemberService>();
 
             // Register Merchello EF Core migration handler
             builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, RunMerchMigration>();
