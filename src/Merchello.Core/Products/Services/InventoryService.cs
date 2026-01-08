@@ -14,6 +14,7 @@ namespace Merchello.Core.Products.Services;
 public class InventoryService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IMerchelloNotificationPublisher notificationPublisher,
+    IProductService productService,
     ILogger<InventoryService> logger) : IInventoryService
 {
     private const int MaxRetryAttempts = 3;
@@ -344,6 +345,18 @@ public class InventoryService(
                             new LowStockNotification(productId, warehouseId, productName, remainingStock, reorderPoint.Value),
                             cancellationToken);
                     }
+
+                    // Check if this was the default variant and stock is now 0
+                    // If so, reassign the default to another available variant
+                    if (remainingStock == 0)
+                    {
+                        var product = await GetProductByIdAsync(productId, cancellationToken);
+                        if (product?.Default == true)
+                        {
+                            await productService.EnsureDefaultVariantIsAvailableAsync(
+                                product.ProductRootId, cancellationToken);
+                        }
+                    }
                 }
 
                 return result;
@@ -573,5 +586,17 @@ public class InventoryService(
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Gets a product by its ID to check if it's the default variant.
+    /// </summary>
+    private async Task<Products.Models.Product?> GetProductByIdAsync(Guid productId, CancellationToken ct)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var product = await scope.ExecuteWithContextAsync(async db =>
+            await db.Products.FirstOrDefaultAsync(p => p.Id == productId, ct));
+        scope.Complete();
+        return product;
     }
 }

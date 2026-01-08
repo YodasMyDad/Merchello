@@ -1,0 +1,121 @@
+const d = "section/merchello";
+function t(e, n) {
+  return `${d}/workspace/${e}/${n}`;
+}
+function s(e, n) {
+  history.pushState({}, "", t(e, n));
+}
+const c = "merchello-orders";
+function T(e) {
+  return t(c, `edit/orders/${e}`);
+}
+function g(e) {
+  s(c, `edit/orders/${e}`);
+}
+function m() {
+  return t(c, "edit/orders");
+}
+const f = "merchello-outstanding";
+function h() {
+  s(f, "edit/outstanding");
+}
+const o = "merchello-products";
+function E(e) {
+  return t(o, `edit/products/${e}`);
+}
+function D(e) {
+  s(o, `edit/products/${e}`);
+}
+function H() {
+  return t(o, "edit/products");
+}
+function S(e, n) {
+  return t(o, `edit/products/${e}/variant/${n}`);
+}
+const i = "merchello-warehouses";
+function _(e) {
+  return t(i, `edit/warehouses/${e}`);
+}
+function $() {
+  return t(i, "edit/warehouses/create");
+}
+function v() {
+  s(i, "edit/warehouses/create");
+}
+function Y() {
+  return t(i, "edit/warehouses");
+}
+function p() {
+  s(i, "edit/warehouses");
+}
+const a = "merchello-customers";
+function L(e) {
+  return t(a, `edit/customers/segment/${e}`);
+}
+function O() {
+  return t(a, "edit/customers/segment/create");
+}
+function P(e) {
+  s(a, `edit/customers/segment/${e}`);
+}
+function I() {
+  return t(a, "edit/customers/view/segments");
+}
+const r = "merchello-discounts";
+function l(e) {
+  return t(r, `edit/discounts/${e}`);
+}
+function N(e) {
+  s(r, `edit/discounts/${e}`);
+}
+function C(e) {
+  history.replaceState({}, "", l(e));
+}
+function w(e) {
+  s(r, `edit/discounts/create?category=${e}`);
+}
+function W() {
+  return t(r, "edit/discounts");
+}
+function R() {
+  s(r, "edit/discounts");
+}
+const u = "merchello-emails";
+function M(e) {
+  s(u, `edit/emails/${e}`);
+}
+function U() {
+  s(u, "edit/emails/create");
+}
+function k() {
+  return t(u, "edit/emails");
+}
+export {
+  h as a,
+  E as b,
+  D as c,
+  O as d,
+  L as e,
+  l as f,
+  T as g,
+  w as h,
+  N as i,
+  U as j,
+  M as k,
+  v as l,
+  _ as m,
+  g as n,
+  $ as o,
+  m as p,
+  S as q,
+  H as r,
+  P as s,
+  I as t,
+  C as u,
+  R as v,
+  W as w,
+  k as x,
+  p as y,
+  Y as z
+};
+//# sourceMappingURL=navigation-Y0bwD8V1.js.map

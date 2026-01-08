@@ -32,7 +32,7 @@ public class WebhookSubscriptionDetailDto : WebhookSubscriptionDto
     public int TimeoutSeconds { get; set; }
     public string? FilterExpression { get; set; }
     public Dictionary<string, string> Headers { get; set; } = [];
-    public List<WebhookDeliveryDto> RecentDeliveries { get; set; } = [];
+    public List<OutboundDeliveryDto> RecentDeliveries { get; set; } = [];
 }
 
 /// <summary>

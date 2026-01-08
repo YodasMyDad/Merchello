@@ -1015,6 +1015,87 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.ToTable("merchelloDiscountUsages", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.Email.Models.EmailConfiguration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BccExpression")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("CcExpression")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DateModified")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ExtendedData")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("FromExpression")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("LastSentUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SubjectExpression")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("TemplatePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ToExpression")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("TotalFailed")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TotalSent")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Enabled");
+
+                    b.HasIndex("Topic");
+
+                    b.HasIndex("Topic", "Enabled");
+
+                    b.ToTable("merchelloEmailConfigurations", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.ExchangeRates.Models.ExchangeRateProviderSetting", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1935,7 +2016,7 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.ToTable("merchelloWarehouseServiceRegions", (string)null);
                 });
 
-            modelBuilder.Entity("Merchello.Core.Webhooks.Models.WebhookDelivery", b =>
+            modelBuilder.Entity("Merchello.Core.Webhooks.Models.OutboundDelivery", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1943,6 +2024,9 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<int>("AttemptNumber")
                         .HasColumnType("int");
+
+                    b.Property<Guid>("ConfigurationId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("DateCompleted")
                         .HasColumnType("datetime2");
@@ -1953,8 +2037,28 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<DateTime?>("DateSent")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("DeliveryType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<int>("DurationMs")
                         .HasColumnType("int");
+
+                    b.Property<string>("EmailBody")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EmailFrom")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("EmailRecipients")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("EmailSubject")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<Guid?>("EntityId")
                         .HasColumnType("uniqueidentifier");
@@ -1967,15 +2071,18 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<string>("ExtendedData")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
                     b.Property<DateTime?>("NextRetryUtc")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("RequestBody")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RequestHeaders")
-                        .IsRequired()
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
@@ -1995,11 +2102,7 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("int")
                         .HasDefaultValue(0);
 
-                    b.Property<Guid>("SubscriptionId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("TargetUrl")
-                        .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
@@ -2010,17 +2113,21 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ConfigurationId");
+
                     b.HasIndex("DateCreated");
+
+                    b.HasIndex("DeliveryType");
 
                     b.HasIndex("NextRetryUtc");
 
                     b.HasIndex("Status");
 
-                    b.HasIndex("SubscriptionId");
+                    b.HasIndex("DeliveryType", "Status");
 
                     b.HasIndex("Status", "NextRetryUtc");
 
-                    b.ToTable("merchelloWebhookDeliveries", (string)null);
+                    b.ToTable("merchelloOutboundDeliveries", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.Webhooks.Models.WebhookSubscription", b =>
@@ -2780,11 +2887,11 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Navigation("Warehouse");
                 });
 
-            modelBuilder.Entity("Merchello.Core.Webhooks.Models.WebhookDelivery", b =>
+            modelBuilder.Entity("Merchello.Core.Webhooks.Models.OutboundDelivery", b =>
                 {
                     b.HasOne("Merchello.Core.Webhooks.Models.WebhookSubscription", "Subscription")
                         .WithMany("Deliveries")
-                        .HasForeignKey("SubscriptionId")
+                        .HasForeignKey("ConfigurationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

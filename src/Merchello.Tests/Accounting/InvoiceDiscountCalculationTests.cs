@@ -156,7 +156,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         var lineItem = builder.CreateLineItem(order, name: "Test Product", quantity: 1, amount: itemPrice);
         builder.CreateDiscountLineItem(order, lineItem, discountAmount, DiscountValueType.FixedAmount, discountAmount, "Test discount");
         await builder.SaveChangesAsync();
@@ -183,7 +183,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         var lineItem = builder.CreateLineItem(order, name: "Test Product", quantity: 1, amount: itemPrice);
 
         // Calculate the discount amount for the percentage
@@ -211,7 +211,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem1 = builder.CreateLineItem(order, name: "Product 1", quantity: 1, amount: 60m);
         builder.CreateDiscountLineItem(order, lineItem1, 6m, DiscountValueType.Percentage, 10m, "10% off");
@@ -242,7 +242,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m);
         builder.CreateOrderLevelDiscount(order, 10m, DiscountValueType.FixedAmount, 10m, "SAVE10 Coupon");
@@ -270,7 +270,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         builder.CreateLineItem(order, name: "Product 1", quantity: 1, amount: 60m, taxRate: 20m);
         builder.CreateLineItem(order, name: "Product 2", quantity: 1, amount: 40m, taxRate: 20m);
@@ -298,7 +298,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m);
         builder.CreateOrderLevelDiscount(order, 5m, DiscountValueType.FixedAmount, 5m, "SAVE5");
@@ -328,7 +328,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         builder.CreateDiscountLineItem(order, lineItem, 10m, DiscountValueType.FixedAmount, 10m, "Manual discount");
@@ -360,7 +360,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         builder.CreateDiscountLineItem(order, lineItem, 20m, DiscountValueType.FixedAmount, 20m, "20 off");
@@ -385,7 +385,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem1 = builder.CreateLineItem(order, name: "Product 1", quantity: 1, amount: 50m, taxRate: 20m);
         builder.CreateDiscountLineItem(order, lineItem1, 5m, DiscountValueType.FixedAmount, 5m, "Discount 1");
@@ -411,7 +411,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Gift Card", quantity: 1, amount: 100m, isTaxable: false, taxRate: 0);
         builder.CreateDiscountLineItem(order, lineItem, 10m, DiscountValueType.FixedAmount, 10m, "Discount");
@@ -436,7 +436,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         builder.CreateLineItem(order, name: "Product 1", quantity: 1, amount: 60m, taxRate: 20m);
         builder.CreateLineItem(order, name: "Product 2", quantity: 1, amount: 40m, taxRate: 10m);
@@ -464,7 +464,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 50m);
         // Note: In practice, the service should cap this, but we test what happens
@@ -490,7 +490,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         builder.CreateDiscountLineItem(order, lineItem, 100m, DiscountValueType.Percentage, 100m, "Free item");
@@ -513,7 +513,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Free Gift", quantity: 1, amount: 0m);
         builder.CreateDiscountLineItem(order, lineItem, 10m, DiscountValueType.FixedAmount, 10m, "Discount on free item");
@@ -539,7 +539,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: itemPrice);
         var calculatedDiscount = Math.Round(itemPrice * (discountPercent / 100m), 2, MidpointRounding.AwayFromZero);
@@ -567,7 +567,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 3, amount: 20m);
         builder.CreateDiscountLineItem(order, lineItem, 15m, DiscountValueType.FixedAmount, 5m, "£5 per unit");
@@ -595,7 +595,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m);
         builder.CreateOrderLevelDiscount(order, 10m, DiscountValueType.FixedAmount, 10m, "HOLIDAY10");
@@ -620,7 +620,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         var discount = builder.CreateOrderLevelDiscount(order, 10m, DiscountValueType.FixedAmount, 10m, "Coupon");
@@ -676,7 +676,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         order.ShippingCost = 10m;
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
@@ -707,7 +707,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 2, amount: 50m, taxRate: 20m);
         builder.CreateDiscountLineItem(order, lineItem, 20m, DiscountValueType.FixedAmount, 10m, "Per-unit discount");
         await builder.SaveChangesAsync();
@@ -742,7 +742,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         await builder.SaveChangesAsync();
 
@@ -774,7 +774,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         await builder.SaveChangesAsync();
 
@@ -816,7 +816,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         var lineItem1 = builder.CreateLineItem(order, name: "Product 1", quantity: 1, amount: 60m, taxRate: 20m);
         var lineItem2 = builder.CreateLineItem(order, name: "Product 2", quantity: 1, amount: 40m, taxRate: 20m);
         await builder.SaveChangesAsync();
@@ -850,7 +850,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var taxGroup = builder.CreateTaxGroup("Standard VAT", 20m);
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         await builder.SaveChangesAsync();
 
@@ -888,7 +888,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         var discount = builder.CreateOrderLevelDiscount(order, 20m, DiscountValueType.FixedAmount, 20m, "Coupon");
         await builder.SaveChangesAsync();
@@ -923,7 +923,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         order.ShippingCost = 10m;
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         await builder.SaveChangesAsync();
@@ -957,7 +957,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         await builder.SaveChangesAsync();
 
@@ -989,7 +989,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 2, amount: 50m, taxRate: 20m);
         builder.CreateDiscountLineItem(order, lineItem, 20m, DiscountValueType.FixedAmount, 10m, "Per unit discount");
         await builder.SaveChangesAsync();
@@ -1024,7 +1024,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 50m, taxRate: 20m);
         await builder.SaveChangesAsync();
 
@@ -1086,7 +1086,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var taxGroup = builder.CreateTaxGroup("Reduced VAT", 10m);
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         order.ShippingCost = 10m;
 
         var lineItem1 = builder.CreateLineItem(order, name: "Product 1", quantity: 2, amount: 60m, taxRate: 20m);
@@ -1138,7 +1138,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         await builder.SaveChangesAsync();
 
@@ -1179,7 +1179,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         await builder.SaveChangesAsync();
 
@@ -1220,7 +1220,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         await builder.SaveChangesAsync();
 
@@ -1269,7 +1269,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         builder.CreateDiscountLineItem(order, lineItem, 10m, DiscountValueType.FixedAmount, 10m, "Line discount");
         await builder.SaveChangesAsync();
@@ -1310,7 +1310,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         builder.CreateLineItem(order, name: "Product 1", quantity: 1, amount: 60m, taxRate: 20m);
         builder.CreateLineItem(order, name: "Product 2", quantity: 1, amount: 40m, taxRate: 10m);
         await builder.SaveChangesAsync();
@@ -1353,7 +1353,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 50m, taxRate: 20m);
         await builder.SaveChangesAsync();
 
@@ -1393,7 +1393,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         await builder.SaveChangesAsync();
 
@@ -1431,7 +1431,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         await builder.SaveChangesAsync();
 
@@ -1490,7 +1490,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 80m, taxRate: 20m);
         await builder.SaveChangesAsync();
 
@@ -1538,7 +1538,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         order.ShippingCost = 10m;
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         await builder.SaveChangesAsync();
@@ -1579,7 +1579,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
         builder.CreateOrderLevelDiscount(order, 10m, DiscountValueType.FixedAmount, 10m, "Existing coupon");
         await builder.SaveChangesAsync();
@@ -1631,7 +1631,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
 
@@ -1674,7 +1674,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         builder.CreateLineItem(order, name: "Product A", quantity: 1, amount: 60m, taxRate: 20m);
         builder.CreateLineItem(order, name: "Product B", quantity: 1, amount: 40m, taxRate: 10m);
@@ -1715,7 +1715,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
 
@@ -1752,7 +1752,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 0m);
 
@@ -1789,7 +1789,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
 
@@ -1826,7 +1826,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Discounted Product", quantity: 1, amount: 50m, taxRate: 20m);
         builder.CreateLineItem(order, name: "Other Product", quantity: 1, amount: 30m, taxRate: 20m);
@@ -1868,7 +1868,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
 
@@ -1918,7 +1918,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         builder.CreateLineItem(order, name: "Taxable Product", quantity: 1, amount: 50m, taxRate: 20m);
         builder.CreateLineItem(order, name: "Gift Card", quantity: 1, amount: 50m, isTaxable: false, taxRate: 0m);
@@ -1964,7 +1964,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: subtotal, taxRate: taxRate);
 
@@ -2003,7 +2003,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         var builder = _fixture.CreateDataBuilder();
         var invoice = builder.CreateInvoice(total: 0);
         var warehouse = builder.CreateWarehouse();
-        var order = builder.CreateOrder(invoice, warehouse, OrderStatus.Pending);
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
 
         builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
 

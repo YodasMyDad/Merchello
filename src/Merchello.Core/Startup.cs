@@ -73,6 +73,11 @@ using Merchello.Core.Webhooks.Handlers;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Core.Webhooks.Services;
 using Merchello.Core.Webhooks.Services.Interfaces;
+using Merchello.Core.Email;
+using Merchello.Core.Email.Handlers;
+using Merchello.Core.Email.Services;
+using Merchello.Core.Email.Services.Interfaces;
+using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Suppliers.Services;
 using Merchello.Core.Suppliers.Services.Interfaces;
 using Merchello.Core.Accounting.Factories;
@@ -108,6 +113,7 @@ public static class Startup
         builder.Services.Configure<CacheOptions>(builder.Config.GetSection("Merchello:Cache"));
         builder.Services.Configure<ExchangeRateOptions>(builder.Config.GetSection("Merchello:ExchangeRates"));
         builder.Services.Configure<WebhookSettings>(builder.Config.GetSection("Merchello:Webhooks"));
+        builder.Services.Configure<EmailSettings>(builder.Config.GetSection("Merchello:Email"));
 
         // =====================================================
         // Infrastructure (Singletons)
@@ -238,6 +244,13 @@ public static class Startup
         builder.Services.AddScoped<IWebhookDispatcher, WebhookDispatcher>();
         builder.Services.AddScoped<IWebhookService, WebhookService>();
 
+        // Email
+        builder.Services.AddSingleton<IEmailTopicRegistry, EmailTopicRegistry>();
+        builder.Services.AddSingleton<IEmailTokenResolver, EmailTokenResolver>();
+        builder.Services.AddSingleton<IEmailTemplateDiscoveryService, EmailTemplateDiscoveryService>();
+        builder.Services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
+        builder.Services.AddScoped<IEmailService, EmailService>();
+
         // PDF & Statements
         builder.Services.AddSingleton<IPdfService, PdfService>();
         builder.Services.AddScoped<IStatementService, StatementService>();
@@ -253,7 +266,7 @@ public static class Startup
 
         builder.Services.AddHostedService<ExchangeRateRefreshJob>();
         builder.Services.AddHostedService<DiscountStatusJob>();
-        builder.Services.AddHostedService<WebhookDeliveryJob>();
+        builder.Services.AddHostedService<OutboundDeliveryJob>();
 
         // =====================================================
         // Notification Handlers
@@ -295,6 +308,27 @@ public static class Startup
         builder.AddNotificationAsyncHandler<LowStockNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<StockReservedNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<StockAllocatedNotification, WebhookNotificationHandler>();
+
+        // Email notification handlers (send emails based on configured email templates)
+        // Orders
+        builder.AddNotificationAsyncHandler<OrderCreatedNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<OrderStatusChangedNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<InvoiceCancelledNotification, EmailNotificationHandler>();
+        // Payments
+        builder.AddNotificationAsyncHandler<PaymentCreatedNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<PaymentRefundedNotification, EmailNotificationHandler>();
+        // Customers
+        builder.AddNotificationAsyncHandler<CustomerCreatedNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CustomerPasswordResetRequestedNotification, EmailNotificationHandler>();
+        // Shipments
+        builder.AddNotificationAsyncHandler<ShipmentCreatedNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<ShipmentSavedNotification, EmailNotificationHandler>();
+        // Inventory
+        builder.AddNotificationAsyncHandler<LowStockNotification, EmailNotificationHandler>();
+        // Checkout
+        builder.AddNotificationAsyncHandler<CheckoutAbandonedNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CheckoutRecoveredNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CheckoutRecoveryConvertedNotification, EmailNotificationHandler>();
 
         // =====================================================
         // Plugin Assembly Discovery

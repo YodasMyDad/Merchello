@@ -19,15 +19,15 @@ public interface IWebhookDispatcher
     /// <summary>
     /// Sends a webhook delivery with signing and retry logic.
     /// </summary>
-    Task<WebhookDeliveryResult> SendAsync(
-        WebhookDelivery delivery,
+    Task<OutboundDeliveryResult> SendAsync(
+        OutboundDelivery delivery,
         WebhookSubscription subscription,
         CancellationToken ct = default);
 
     /// <summary>
     /// Pings a URL to verify connectivity.
     /// </summary>
-    Task<WebhookDeliveryResult> PingAsync(
+    Task<OutboundDeliveryResult> PingAsync(
         string url,
         CancellationToken ct = default);
 }

@@ -123,5 +123,5 @@ public class WebhookSubscription
     /// <summary>
     /// Navigation property for deliveries.
     /// </summary>
-    public ICollection<WebhookDelivery>? Deliveries { get; set; }
+    public ICollection<OutboundDelivery>? Deliveries { get; set; }
 }

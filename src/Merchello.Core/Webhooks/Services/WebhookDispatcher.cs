@@ -28,8 +28,8 @@ public class WebhookDispatcher(
         logger.LogDebug("Dispatch called for topic {Topic}, entity {EntityId}", topic, entityId);
     }
 
-    public async Task<WebhookDeliveryResult> SendAsync(
-        WebhookDelivery delivery,
+    public async Task<OutboundDeliveryResult> SendAsync(
+        OutboundDelivery delivery,
         WebhookSubscription subscription,
         CancellationToken ct = default)
     {
@@ -40,17 +40,20 @@ public class WebhookDispatcher(
 
         if (subscription.Format == WebhookFormat.Json)
         {
-            request.Content = new StringContent(delivery.RequestBody, Encoding.UTF8, "application/json");
+            request.Content = new StringContent(delivery.RequestBody ?? string.Empty, Encoding.UTF8, "application/json");
         }
         else
         {
             // Form URL encoded
-            var dict = JsonSerializer.Deserialize<Dictionary<string, object>>(delivery.RequestBody);
-            if (dict != null)
+            if (!string.IsNullOrEmpty(delivery.RequestBody))
             {
-                var formContent = new FormUrlEncodedContent(
-                    dict.Select(kvp => new KeyValuePair<string, string>(kvp.Key, kvp.Value?.ToString() ?? "")));
-                request.Content = formContent;
+                var dict = JsonSerializer.Deserialize<Dictionary<string, object>>(delivery.RequestBody);
+                if (dict != null)
+                {
+                    var formContent = new FormUrlEncodedContent(
+                        dict.Select(kvp => new KeyValuePair<string, string>(kvp.Key, kvp.Value?.ToString() ?? "")));
+                    request.Content = formContent;
+                }
             }
         }
 
@@ -61,7 +64,7 @@ public class WebhookDispatcher(
         request.Headers.Add("User-Agent", "Merchello-Webhooks/1.0");
 
         // Add signature
-        AddSignature(request, delivery.RequestBody, subscription);
+        AddSignature(request, delivery.RequestBody ?? string.Empty, subscription);
 
         // Add custom headers
         foreach (var header in subscription.Headers)
@@ -88,7 +91,7 @@ public class WebhookDispatcher(
                 (int)response.StatusCode,
                 stopwatch.ElapsedMilliseconds);
 
-            return new WebhookDeliveryResult
+            return new OutboundDeliveryResult
             {
                 Success = response.IsSuccessStatusCode,
                 StatusCode = (int)response.StatusCode,
@@ -102,7 +105,7 @@ public class WebhookDispatcher(
             stopwatch.Stop();
             logger.LogWarning("Webhook to {Url} timed out after {Duration}ms", subscription.TargetUrl, stopwatch.ElapsedMilliseconds);
 
-            return new WebhookDeliveryResult
+            return new OutboundDeliveryResult
             {
                 Success = false,
                 ErrorMessage = "Request timed out",
@@ -114,7 +117,7 @@ public class WebhookDispatcher(
             stopwatch.Stop();
             logger.LogWarning(ex, "Webhook to {Url} failed: {Message}", subscription.TargetUrl, ex.Message);
 
-            return new WebhookDeliveryResult
+            return new OutboundDeliveryResult
             {
                 Success = false,
                 ErrorMessage = ex.Message,
@@ -126,7 +129,7 @@ public class WebhookDispatcher(
             stopwatch.Stop();
             logger.LogError(ex, "Unexpected error sending webhook to {Url}", subscription.TargetUrl);
 
-            return new WebhookDeliveryResult
+            return new OutboundDeliveryResult
             {
                 Success = false,
                 ErrorMessage = ex.Message,
@@ -135,7 +138,7 @@ public class WebhookDispatcher(
         }
     }
 
-    public async Task<WebhookDeliveryResult> PingAsync(string url, CancellationToken ct = default)
+    public async Task<OutboundDeliveryResult> PingAsync(string url, CancellationToken ct = default)
     {
         var client = httpClientFactory.CreateClient("Webhooks");
         client.Timeout = TimeSpan.FromSeconds(10);
@@ -158,7 +161,7 @@ public class WebhookDispatcher(
 
             var responseBody = await response.Content.ReadAsStringAsync(ct);
 
-            return new WebhookDeliveryResult
+            return new OutboundDeliveryResult
             {
                 Success = response.IsSuccessStatusCode,
                 StatusCode = (int)response.StatusCode,
@@ -169,7 +172,7 @@ public class WebhookDispatcher(
         catch (Exception ex)
         {
             stopwatch.Stop();
-            return new WebhookDeliveryResult
+            return new OutboundDeliveryResult
             {
                 Success = false,
                 ErrorMessage = ex.Message,

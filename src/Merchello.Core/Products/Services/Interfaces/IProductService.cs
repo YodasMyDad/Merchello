@@ -59,6 +59,13 @@ public interface IProductService
     /// </summary>
     Task<CrudResult<bool>> UpdateProductRootExcludedShippingOptionsAsync(Guid productRootId, List<Guid> excludedShippingOptionIds, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> SetDefaultVariant(Guid variantId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks if the current default variant is available. If not, reassigns to the
+    /// cheapest available variant. Called automatically when stock or availability changes.
+    /// </summary>
+    Task<CrudResult<bool>> EnsureDefaultVariantIsAvailableAsync(Guid productRootId, CancellationToken cancellationToken = default);
+
     Task<CrudResult<ProductType>> CreateProductType(string name, CancellationToken cancellationToken = default);
     Task<CrudResult<ProductType>> UpdateProductType(Guid id, string name, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> DeleteProductType(Guid id, CancellationToken cancellationToken = default);

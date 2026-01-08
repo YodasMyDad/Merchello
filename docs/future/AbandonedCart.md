@@ -58,9 +58,10 @@ Customer completes purchase (CreateOrderFromBasketAsync)  →  Auto-marked as Co
 
 ### What You Provide
 
-1. **Email sending** - Merchello fires events; you provide the email service:
-   - **Option A**: Implement `INotificationAsyncHandler<CheckoutAbandonedNotification>` with your email service (SendGrid, Mailgun, SMTP, etc.)
-   - **Option B**: Subscribe to `checkout.abandoned` webhook to trigger external platforms (Klaviyo, Mailchimp, etc.)
+1. **Email sending** - Choose one of the following approaches:
+   - **Option A (Recommended)**: Use the **Email Builder UI** in the Merchello backoffice to configure automated recovery emails. Create an email configuration for the `checkout.abandoned` topic with a Razor template - the system handles delivery automatically via the unified `OutboundDelivery` infrastructure.
+   - **Option B**: Implement `INotificationAsyncHandler<CheckoutAbandonedNotification>` for custom email logic (e.g., complex personalization, A/B testing, third-party service integration).
+   - **Option C**: Subscribe to `checkout.abandoned` webhook to trigger external platforms (Klaviyo, Mailchimp, etc.)
 2. **Configuration** - Set thresholds in `appsettings.json`
 
 ### What The System Handles Automatically
@@ -71,18 +72,21 @@ Customer completes purchase (CreateOrderFromBasketAsync)  →  Auto-marked as Co
 - Basket restoration from recovery link
 - Conversion tracking when order completes
 - Analytics and reporting
+- **Email delivery** via Email Builder configurations (if configured)
 - **Webhook delivery** (topics already registered)
+- **Unified delivery logging** in `merchelloOutboundDeliveries` table
 
-### Webhook Integration
+### Webhook & Email Integration
 
-Abandoned cart events integrate with the existing webhook system. Topics are already registered in `WebhookTopicRegistry`:
+Abandoned cart events integrate with both the webhook and email systems. Topics are registered in `WebhookTopicRegistry` and `EmailTopicRegistry`:
 
-| Topic | Trigger |
-|-------|---------|
-| `checkout.abandoned` | When checkout is detected as abandoned |
-| `checkout.recovered` | When customer returns via recovery link |
+| Topic | Trigger | Email Support |
+|-------|---------|---------------|
+| `checkout.abandoned` | When checkout is detected as abandoned | ✅ Yes |
+| `checkout.recovered` | When customer returns via recovery link | ✅ Yes |
+| `checkout.converted` | When recovered checkout completes purchase | ✅ Yes |
 
-External systems (Klaviyo, Mailchimp, custom CRM) can subscribe to these webhooks to trigger their own recovery flows.
+External systems (Klaviyo, Mailchimp, custom CRM) can subscribe to webhooks OR configure emails via the Email Builder to trigger recovery flows.
 
 ---
 
@@ -319,7 +323,9 @@ public class AbandonedCheckoutSettings
 
 ## Notifications
 
-### Location: `src/Merchello.Core/Checkout/Notifications/`
+### Location: `src/Merchello.Core/Notifications/CheckoutNotifications/`
+
+> **Status**: ✅ **IMPLEMENTED** - These notifications have been created and are handled by the Email System's `EmailNotificationHandler`.
 
 | Notification | Description | Use Case |
 |--------------|-------------|----------|
@@ -327,39 +333,65 @@ public class AbandonedCheckoutSettings
 | `CheckoutRecoveredNotification` | Customer returned via recovery link | Analytics tracking |
 | `CheckoutRecoveryConvertedNotification` | Recovered checkout completed purchase | Analytics tracking |
 
-### Example Handler (Email Integration)
+### Notification Properties
+
+**CheckoutAbandonedNotification**:
+- `AbandonedCheckoutId` (Guid) - ID of the abandoned checkout record
+- `BasketId` (Guid) - ID of the abandoned basket
+- `CustomerEmail` (string?) - Customer's email address
+- `CustomerName` (string?) - Customer's name
+- `BasketTotal` (decimal) - Total value of the abandoned basket
+- `CurrencyCode` (string?) - Currency code (e.g., "USD", "GBP")
+- `RecoveryLink` (string?) - Recovery link to restore the basket
+- `FormattedTotal` (string) - Formatted total with currency symbol
+
+**CheckoutRecoveredNotification**:
+- `AbandonedCheckoutId` (Guid) - ID of the abandoned checkout record
+- `BasketId` (Guid) - ID of the recovered basket
+- `CustomerEmail` (string?) - Customer's email address
+- `BasketTotal` (decimal) - Total value of the recovered basket
+- `OriginalAbandonmentDate` (DateTime) - When the checkout was originally abandoned
+- `RecoveredDate` (DateTime) - When the customer returned
+- `TimeToRecovery` (TimeSpan) - Time between abandonment and recovery
+
+**CheckoutRecoveryConvertedNotification**:
+- `AbandonedCheckoutId` (Guid) - ID of the abandoned checkout record
+- `InvoiceId` (Guid) - ID of the created invoice/order
+- `CustomerEmail` (string?) - Customer's email address
+- `OrderTotal` (decimal) - Final order total
+- `OriginalAbandonmentDate` (DateTime) - When the checkout was originally abandoned
+- `ConvertedDate` (DateTime) - When the order was placed
+- `TimeToConversion` (TimeSpan) - Total time from abandonment to conversion
+
+### Email Builder Configuration (Recommended)
+
+The simplest way to send recovery emails is via the Email Builder UI in the Merchello backoffice:
+
+1. Navigate to **Settings → Email** in the Merchello backoffice
+2. Create a new email configuration:
+   - **Topic**: `checkout.abandoned`
+   - **Template**: Select or create an `AbandonedCart.cshtml` template
+   - **To**: `{{customerEmail}}`
+   - **Subject**: `Complete your purchase - {{formattedTotal}} waiting`
+3. Enable the configuration
+
+The `EmailNotificationHandler` (priority 2000) automatically queues emails when `CheckoutAbandonedNotification` is fired.
+
+### Custom Handler (Advanced)
+
+For complex requirements (A/B testing, tiered emails, third-party integration), implement a custom handler:
 
 ```csharp
-public class AbandonedCheckoutEmailHandler(
-    IEmailService emailService,
-    IAbandonedCheckoutService abandonedService,
-    IOptions<AbandonedCheckoutSettings> settings,
-    ILogger<AbandonedCheckoutEmailHandler> logger)
+[NotificationHandlerPriority(1500)] // Before email handler
+public class CustomAbandonedCartHandler(
+    ILogger<CustomAbandonedCartHandler> logger)
     : INotificationAsyncHandler<CheckoutAbandonedNotification>
 {
     public async Task HandleAsync(CheckoutAbandonedNotification notification, CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(notification.CustomerEmail))
-            return;
-
-        // Check max recovery emails limit
-        if (notification.AbandonedCheckout.RecoveryEmailsSent >= settings.Value.MaxRecoveryEmails)
-        {
-            logger.LogDebug("Max recovery emails ({Max}) reached for checkout {Id}",
-                settings.Value.MaxRecoveryEmails, notification.AbandonedCheckout.Id);
-            return;
-        }
-
-        var recoveryLink = await abandonedService.GenerateRecoveryLinkAsync(
-            notification.AbandonedCheckout.Id, ct);
-
-        await emailService.SendAbandonedCartEmailAsync(
-            notification.CustomerEmail,
-            notification.BasketTotal,
-            recoveryLink,
-            ct);
-
-        // Note: Service should increment RecoveryEmailsSent after successful send
+        // Custom logic here - e.g., send to external platform, apply A/B testing
+        logger.LogInformation("Abandoned checkout detected: {Id}, Value: {Total}",
+            notification.AbandonedCheckoutId, notification.FormattedTotal);
     }
 }
 ```
@@ -580,11 +612,15 @@ public string GenerateRecoveryToken()
 
 8. **Add recovery endpoint** to `CheckoutApiController`
 
-### Phase 3: Background Processing & Webhooks
+### Phase 3: Background Processing & Notifications
 
 9. Create `AbandonedCheckoutDetectionJob` background service
-10. Create notifications: `CheckoutAbandonedNotification`, `CheckoutRecoveredNotification`, `CheckoutRecoveryConvertedNotification`
-11. **Update `WebhookNotificationHandler`** to dispatch `checkout.abandoned` and `checkout.recovered` topics (topics already registered in `WebhookTopicRegistry`)
+10. ✅ **COMPLETED**: Notifications already exist in `src/Merchello.Core/Notifications/CheckoutNotifications/`:
+    - `CheckoutAbandonedNotification`
+    - `CheckoutRecoveredNotification`
+    - `CheckoutRecoveryConvertedNotification`
+11. ✅ **COMPLETED**: `EmailNotificationHandler` handles `checkout.abandoned`, `checkout.recovered`, `checkout.converted` topics
+12. ✅ **COMPLETED**: `WebhookNotificationHandler` dispatches webhook deliveries for all checkout topics
 
 ### Phase 4: Configuration & Registration
 

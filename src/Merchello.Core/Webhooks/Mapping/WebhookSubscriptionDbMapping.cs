@@ -76,7 +76,7 @@ public class WebhookSubscriptionDbMapping : IEntityTypeConfiguration<WebhookSubs
 
         builder.HasMany(x => x.Deliveries)
             .WithOne(x => x.Subscription)
-            .HasForeignKey(x => x.SubscriptionId)
+            .HasForeignKey(x => x.ConfigurationId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(x => x.Topic);

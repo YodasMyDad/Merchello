@@ -2,61 +2,46 @@
 
 ## Basic Setup (Single Provider)
 
-For simple projects with a known database provider:
+For simple projects with known database provider:
 
 ```csharp
-// 1. Create DbContext
 public class MyDbContext : DbContext
 {
     public MyDbContext(DbContextOptions<MyDbContext> options) : base(options) { }
     public DbSet<MyEntity> MyEntities { get; set; }
 }
 
-// 2. Register in Startup/Program.cs
-builder.Services.AddUmbracoDbContext<MyDbContext>((serviceProvider, options) =>
-{
-    options.UseUmbracoDatabaseProvider(serviceProvider); // Auto-detects provider
-});
+// Startup/Program.cs
+builder.Services.AddUmbracoDbContext<MyDbContext>((sp, opts) =>
+    opts.UseUmbracoDatabaseProvider(sp));
 
-// 3. Create migration handler
+// Migration handler
 public class RunMyMigration(MyDbContext dbContext)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
     public async Task HandleAsync(...) => await dbContext.Database.MigrateAsync();
 }
 
-// 4. Register handler in Composer
+// Composer
 builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, RunMyMigration>();
 ```
 
-Generate migrations: `dotnet ef migrations add Initial --context MyDbContext`
+Generate: `dotnet ef migrations add Initial --context MyDbContext`
 
-## Multi-Provider Package Setup (SQL Server + SQLite)
+## Multi-Provider Setup (SQL Server + SQLite)
 
-For packages that must support multiple database providers, use **separate assemblies per provider** (Umbraco's pattern).
+For packages supporting multiple providers, use **separate assemblies per provider**.
 
-### Project Structure
+### Structure
 ```
 MyPackage.Core/                    # Shared DbContext & interfaces
   Data/
-    MyDbContext.cs
-    IMigrationProvider.cs
-    IMigrationProviderSetup.cs
-    RunMigration.cs
-MyPackage.Persistence.SqlServer/   # SQL Server provider
-  SqlServerMigrationProvider.cs
-  SqlServerDbContextFactory.cs     # IDesignTimeDbContextFactory
-  EFCoreSqlServerComposer.cs
-  Migrations/
-MyPackage.Persistence.Sqlite/      # SQLite provider
-  SqliteMigrationProvider.cs
-  SqliteDbContextFactory.cs
-  EFCoreSqliteComposer.cs
-  Migrations/
+    MyDbContext.cs, IMigrationProvider.cs, IMigrationProviderSetup.cs, RunMigration.cs
+MyPackage.Persistence.SqlServer/   # SQL Server: provider, factory, composer, Migrations/
+MyPackage.Persistence.Sqlite/      # SQLite: provider, factory, composer, Migrations/
 ```
 
 ### Core Interfaces
-
 ```csharp
 public interface IMigrationProvider
 {
@@ -71,8 +56,7 @@ public interface IMigrationProviderSetup
 }
 ```
 
-### Provider Implementation (e.g., SQLite)
-
+### Provider Implementation (SQLite example)
 ```csharp
 // Design-time factory for 'dotnet ef migrations add'
 public class SqliteDbContextFactory : IDesignTimeDbContextFactory<MyDbContext>
@@ -86,7 +70,7 @@ public class SqliteDbContextFactory : IDesignTimeDbContextFactory<MyDbContext>
     }
 }
 
-// Runtime migration provider - MUST create own DbContext with MigrationsAssembly
+// Runtime provider - creates own DbContext with MigrationsAssembly
 public class SqliteMigrationProvider(IOptions<ConnectionStrings> connStrings) : IMigrationProvider
 {
     public string ProviderName => "Microsoft.Data.Sqlite";
@@ -101,18 +85,15 @@ public class SqliteMigrationProvider(IOptions<ConnectionStrings> connStrings) : 
     }
 }
 
-// Auto-discovered composer registers services
+// Composer auto-discovered
 public class EFCoreSqliteComposer : IComposer
 {
-    public void Compose(IUmbracoBuilder builder)
-    {
+    public void Compose(IUmbracoBuilder builder) =>
         builder.Services.AddSingleton<IMigrationProvider, SqliteMigrationProvider>();
-    }
 }
 ```
 
 ### Migration Handler
-
 ```csharp
 public class RunMigration(
     IEnumerable<IMigrationProvider> providers,
@@ -122,43 +103,35 @@ public class RunMigration(
 {
     public async Task HandleAsync(...)
     {
-        var providerName = connStrings.Value.ProviderName;
         var provider = providers.FirstOrDefault(x =>
-            x.ProviderName.Equals(providerName, StringComparison.OrdinalIgnoreCase));
-
-        if (provider != null)
-            await provider.MigrateAsync(cancellationToken);
+            x.ProviderName.Equals(connStrings.Value.ProviderName, StringComparison.OrdinalIgnoreCase));
+        if (provider != null) await provider.MigrateAsync(cancellationToken);
     }
 }
 ```
 
 ### Generate Migrations
-
 ```bash
-# Each provider needs its own migration
-# IMPORTANT: Use the provider project as BOTH --project and --startup-project
+# Use provider project as BOTH --project and --startup-project
 dotnet ef migrations add Initial --project src/MyPackage.Persistence.SqlServer --startup-project src/MyPackage.Persistence.SqlServer
 dotnet ef migrations add Initial --project src/MyPackage.Persistence.Sqlite --startup-project src/MyPackage.Persistence.Sqlite
 ```
 
-For Merchello, use the helper script:
-```powershell
-.\scripts\add-migration.ps1
-# Prompts for migration name, then creates both SQLite and SQL Server migrations
-```
+Merchello: `.\scripts\add-migration.ps1` (prompts for name, creates both)
 
 ## Key Points
 
-1. **UseUmbracoDatabaseProvider** - Auto-detects provider from connection string, use for runtime DbContext registration
-2. **MigrationsAssembly** - Critical for multi-provider; tells EF Core where migrations live
-3. **IDesignTimeDbContextFactory** - Required in each provider assembly for `dotnet ef` CLI
-4. **Provider assemblies** - Must be referenced by main project so composers are discovered
-5. **ProviderName values**: `Microsoft.Data.SqlClient` (SQL Server), `Microsoft.Data.Sqlite` (SQLite)
+| Concept | Purpose |
+|---------|---------|
+| **UseUmbracoDatabaseProvider** | Auto-detects provider from connection string (runtime) |
+| **MigrationsAssembly** | Tells EF Core where migrations live (critical for multi-provider) |
+| **IDesignTimeDbContextFactory** | Required per provider assembly for `dotnet ef` CLI |
+| **Provider assemblies** | Must be referenced by main project for composer discovery |
+| **ProviderName** | `Microsoft.Data.SqlClient` (SQL Server), `Microsoft.Data.Sqlite` (SQLite) |
 
 ## Data Access
 
-Use `IEFCoreScopeProvider<T>` for transactional data access:
-
+Use `IEFCoreScopeProvider<T>` for transactional access:
 ```csharp
 public class MyService(IEFCoreScopeProvider<MyDbContext> scopeProvider)
 {

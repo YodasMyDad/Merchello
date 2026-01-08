@@ -81,26 +81,26 @@ public interface IWebhookService
     /// <summary>
     /// Executes a specific delivery attempt.
     /// </summary>
-    Task<WebhookDeliveryResult> DeliverAsync(
+    Task<OutboundDeliveryResult> DeliverAsync(
         Guid deliveryId,
         CancellationToken ct = default);
 
     /// <summary>
     /// Gets a delivery by ID.
     /// </summary>
-    Task<WebhookDelivery?> GetDeliveryAsync(Guid id, CancellationToken ct = default);
+    Task<OutboundDelivery?> GetDeliveryAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>
     /// Queries webhook deliveries with filtering and pagination.
     /// </summary>
-    Task<PaginatedList<WebhookDelivery>> QueryDeliveriesAsync(
-        WebhookDeliveryQueryParameters parameters,
+    Task<PaginatedList<OutboundDelivery>> QueryDeliveriesAsync(
+        OutboundDeliveryQueryParameters parameters,
         CancellationToken ct = default);
 
     /// <summary>
     /// Gets recent deliveries for a subscription.
     /// </summary>
-    Task<IEnumerable<WebhookDelivery>> GetRecentDeliveriesAsync(
+    Task<IEnumerable<OutboundDelivery>> GetRecentDeliveriesAsync(
         Guid subscriptionId,
         int count = 10,
         CancellationToken ct = default);
@@ -112,14 +112,14 @@ public interface IWebhookService
     /// <summary>
     /// Sends a test webhook to a subscription.
     /// </summary>
-    Task<WebhookDeliveryResult> SendTestAsync(
+    Task<OutboundDeliveryResult> SendTestAsync(
         Guid subscriptionId,
         CancellationToken ct = default);
 
     /// <summary>
     /// Pings a URL to verify connectivity.
     /// </summary>
-    Task<WebhookDeliveryResult> PingAsync(
+    Task<OutboundDeliveryResult> PingAsync(
         string url,
         CancellationToken ct = default);
 

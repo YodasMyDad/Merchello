@@ -28,6 +28,7 @@ public class WebhookNotificationHandler(
       INotificationAsyncHandler<OrderSavedNotification>,
       INotificationAsyncHandler<OrderStatusChangedNotification>,
       INotificationAsyncHandler<InvoiceSavedNotification>,
+      INotificationAsyncHandler<InvoiceDeletedNotification>,
       INotificationAsyncHandler<InvoiceCancelledNotification>,
       INotificationAsyncHandler<PaymentCreatedNotification>,
       INotificationAsyncHandler<PaymentRefundedNotification>,
@@ -52,7 +53,7 @@ public class WebhookNotificationHandler(
     #region Orders
 
     public Task HandleAsync(OrderCreatedNotification notification, CancellationToken ct)
-        => DispatchAsync("order.created", new
+        => DispatchAsync(Constants.WebhookTopics.OrderCreated, new
         {
             notification.Order.Id,
             notification.Order.InvoiceId,
@@ -70,7 +71,7 @@ public class WebhookNotificationHandler(
         }, notification.Order.Id, "Order", ct);
 
     public Task HandleAsync(OrderStatusChangedNotification notification, CancellationToken ct)
-        => DispatchAsync("order.status_changed", new
+        => DispatchAsync(Constants.WebhookTopics.OrderStatusChanged, new
         {
             Order = new
             {
@@ -88,7 +89,7 @@ public class WebhookNotificationHandler(
     #region Invoices
 
     public Task HandleAsync(InvoiceSavedNotification notification, CancellationToken ct)
-        => DispatchAsync("invoice.created", new
+        => DispatchAsync(Constants.WebhookTopics.InvoiceCreated, new
         {
             notification.Invoice.Id,
             notification.Invoice.InvoiceNumber,
@@ -96,8 +97,15 @@ public class WebhookNotificationHandler(
             notification.Invoice.DateCreated
         }, notification.Invoice.Id, "Invoice", ct);
 
+    public Task HandleAsync(InvoiceDeletedNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.InvoiceDeleted, new
+        {
+            notification.Invoice.Id,
+            notification.Invoice.InvoiceNumber
+        }, notification.Invoice.Id, "Invoice", ct);
+
     public Task HandleAsync(InvoiceCancelledNotification notification, CancellationToken ct)
-        => DispatchAsync("order.cancelled", new
+        => DispatchAsync(Constants.WebhookTopics.OrderCancelled, new
         {
             notification.Invoice.Id,
             notification.Invoice.InvoiceNumber,
@@ -109,7 +117,7 @@ public class WebhookNotificationHandler(
     #region Payments
 
     public Task HandleAsync(PaymentCreatedNotification notification, CancellationToken ct)
-        => DispatchAsync("invoice.paid", new
+        => DispatchAsync(Constants.WebhookTopics.InvoicePaid, new
         {
             notification.Payment.Id,
             notification.Payment.InvoiceId,
@@ -119,7 +127,7 @@ public class WebhookNotificationHandler(
         }, notification.Payment.InvoiceId, "Payment", ct);
 
     public Task HandleAsync(PaymentRefundedNotification notification, CancellationToken ct)
-        => DispatchAsync("invoice.refunded", new
+        => DispatchAsync(Constants.WebhookTopics.InvoiceRefunded, new
         {
             notification.RefundPayment.Id,
             notification.RefundPayment.InvoiceId,
@@ -132,21 +140,21 @@ public class WebhookNotificationHandler(
     #region Products
 
     public Task HandleAsync(ProductCreatedNotification notification, CancellationToken ct)
-        => DispatchAsync("product.created", new
+        => DispatchAsync(Constants.WebhookTopics.ProductCreated, new
         {
             notification.Product.Id,
             Name = notification.Product.RootName
         }, notification.Product.Id, "ProductRoot", ct);
 
     public Task HandleAsync(ProductSavedNotification notification, CancellationToken ct)
-        => DispatchAsync("product.updated", new
+        => DispatchAsync(Constants.WebhookTopics.ProductUpdated, new
         {
             notification.Product.Id,
             Name = notification.Product.RootName
         }, notification.Product.Id, "ProductRoot", ct);
 
     public Task HandleAsync(ProductDeletedNotification notification, CancellationToken ct)
-        => DispatchAsync("product.deleted", new
+        => DispatchAsync(Constants.WebhookTopics.ProductDeleted, new
         {
             Id = notification.ProductId,
             Name = notification.ProductName
@@ -157,7 +165,7 @@ public class WebhookNotificationHandler(
     #region Customers
 
     public Task HandleAsync(CustomerCreatedNotification notification, CancellationToken ct)
-        => DispatchAsync("customer.created", new
+        => DispatchAsync(Constants.WebhookTopics.CustomerCreated, new
         {
             notification.Customer.Id,
             notification.Customer.Email,
@@ -167,7 +175,7 @@ public class WebhookNotificationHandler(
         }, notification.Customer.Id, "Customer", ct);
 
     public Task HandleAsync(CustomerSavedNotification notification, CancellationToken ct)
-        => DispatchAsync("customer.updated", new
+        => DispatchAsync(Constants.WebhookTopics.CustomerUpdated, new
         {
             notification.Customer.Id,
             notification.Customer.Email,
@@ -177,7 +185,7 @@ public class WebhookNotificationHandler(
         }, notification.Customer.Id, "Customer", ct);
 
     public Task HandleAsync(CustomerDeletedNotification notification, CancellationToken ct)
-        => DispatchAsync("customer.deleted", new
+        => DispatchAsync(Constants.WebhookTopics.CustomerDeleted, new
         {
             notification.Customer.Id,
             notification.Customer.Email
@@ -212,7 +220,7 @@ public class WebhookNotificationHandler(
     #region Discounts
 
     public Task HandleAsync(DiscountCreatedNotification notification, CancellationToken ct)
-        => DispatchAsync("discount.created", new
+        => DispatchAsync(Constants.WebhookTopics.DiscountCreated, new
         {
             notification.Discount.Id,
             notification.Discount.Name,
@@ -222,7 +230,7 @@ public class WebhookNotificationHandler(
         }, notification.Discount.Id, "Discount", ct);
 
     public Task HandleAsync(DiscountSavedNotification notification, CancellationToken ct)
-        => DispatchAsync("discount.updated", new
+        => DispatchAsync(Constants.WebhookTopics.DiscountUpdated, new
         {
             notification.Discount.Id,
             notification.Discount.Name,
@@ -232,7 +240,7 @@ public class WebhookNotificationHandler(
         }, notification.Discount.Id, "Discount", ct);
 
     public Task HandleAsync(DiscountDeletedNotification notification, CancellationToken ct)
-        => DispatchAsync("discount.deleted", new
+        => DispatchAsync(Constants.WebhookTopics.DiscountDeleted, new
         {
             notification.Discount.Id,
             notification.Discount.Name,
@@ -244,7 +252,7 @@ public class WebhookNotificationHandler(
     #region Inventory
 
     public Task HandleAsync(StockAdjustedNotification notification, CancellationToken ct)
-        => DispatchAsync("inventory.adjusted", new
+        => DispatchAsync(Constants.WebhookTopics.InventoryAdjusted, new
         {
             notification.ProductId,
             notification.WarehouseId,
@@ -254,7 +262,7 @@ public class WebhookNotificationHandler(
         }, notification.ProductId, "Product", ct);
 
     public Task HandleAsync(LowStockNotification notification, CancellationToken ct)
-        => DispatchAsync("inventory.low_stock", new
+        => DispatchAsync(Constants.WebhookTopics.InventoryLowStock, new
         {
             notification.ProductId,
             notification.WarehouseId,
@@ -263,7 +271,7 @@ public class WebhookNotificationHandler(
         }, notification.ProductId, "Product", ct);
 
     public Task HandleAsync(StockReservedNotification notification, CancellationToken ct)
-        => DispatchAsync("inventory.reserved", new
+        => DispatchAsync(Constants.WebhookTopics.InventoryReserved, new
         {
             notification.ProductId,
             notification.WarehouseId,
@@ -272,7 +280,7 @@ public class WebhookNotificationHandler(
         }, notification.ProductId, "Product", ct);
 
     public Task HandleAsync(StockAllocatedNotification notification, CancellationToken ct)
-        => DispatchAsync("inventory.allocated", new
+        => DispatchAsync(Constants.WebhookTopics.InventoryAllocated, new
         {
             notification.ProductId,
             notification.WarehouseId,

@@ -11,9 +11,9 @@ public class WebhookTopicRegistry : IWebhookTopicRegistry
     private static readonly Dictionary<string, WebhookTopic> _topics = new()
     {
         // Orders
-        ["order.created"] = new WebhookTopic
+        [Constants.WebhookTopics.OrderCreated] = new WebhookTopic
         {
-            Key = "order.created",
+            Key = Constants.WebhookTopics.OrderCreated,
             DisplayName = "Order Created",
             Description = "Triggered when a new order is placed",
             Category = "Orders",
@@ -26,116 +26,123 @@ public class WebhookTopicRegistry : IWebhookTopicRegistry
             Description = "Triggered when an order is modified",
             Category = "Orders"
         },
-        ["order.status_changed"] = new WebhookTopic
+        [Constants.WebhookTopics.OrderStatusChanged] = new WebhookTopic
         {
-            Key = "order.status_changed",
+            Key = Constants.WebhookTopics.OrderStatusChanged,
             DisplayName = "Order Status Changed",
             Description = "Triggered when an order's status changes",
             Category = "Orders",
             SamplePayload = """{"order":{},"previousStatus":"Pending","newStatus":"ReadyToFulfill"}"""
         },
-        ["order.cancelled"] = new WebhookTopic
+        [Constants.WebhookTopics.OrderCancelled] = new WebhookTopic
         {
-            Key = "order.cancelled",
+            Key = Constants.WebhookTopics.OrderCancelled,
             DisplayName = "Order Cancelled",
             Description = "Triggered when an order is cancelled",
             Category = "Orders"
         },
 
         // Invoices
-        ["invoice.created"] = new WebhookTopic
+        [Constants.WebhookTopics.InvoiceCreated] = new WebhookTopic
         {
-            Key = "invoice.created",
+            Key = Constants.WebhookTopics.InvoiceCreated,
             DisplayName = "Invoice Created",
             Description = "Triggered when an invoice is created",
             Category = "Invoices"
         },
-        ["invoice.paid"] = new WebhookTopic
+        [Constants.WebhookTopics.InvoicePaid] = new WebhookTopic
         {
-            Key = "invoice.paid",
+            Key = Constants.WebhookTopics.InvoicePaid,
             DisplayName = "Invoice Paid",
             Description = "Triggered when an invoice is fully paid",
             Category = "Invoices"
         },
-        ["invoice.refunded"] = new WebhookTopic
+        [Constants.WebhookTopics.InvoiceRefunded] = new WebhookTopic
         {
-            Key = "invoice.refunded",
+            Key = Constants.WebhookTopics.InvoiceRefunded,
             DisplayName = "Invoice Refunded",
             Description = "Triggered when a refund is processed",
             Category = "Invoices"
         },
+        [Constants.WebhookTopics.InvoiceDeleted] = new WebhookTopic
+        {
+            Key = Constants.WebhookTopics.InvoiceDeleted,
+            DisplayName = "Invoice Deleted",
+            Description = "Triggered when an invoice is deleted",
+            Category = "Invoices"
+        },
 
         // Products
-        ["product.created"] = new WebhookTopic
+        [Constants.WebhookTopics.ProductCreated] = new WebhookTopic
         {
-            Key = "product.created",
+            Key = Constants.WebhookTopics.ProductCreated,
             DisplayName = "Product Created",
             Description = "Triggered when a new product is created",
             Category = "Products"
         },
-        ["product.updated"] = new WebhookTopic
+        [Constants.WebhookTopics.ProductUpdated] = new WebhookTopic
         {
-            Key = "product.updated",
+            Key = Constants.WebhookTopics.ProductUpdated,
             DisplayName = "Product Updated",
             Description = "Triggered when a product is modified",
             Category = "Products"
         },
-        ["product.deleted"] = new WebhookTopic
+        [Constants.WebhookTopics.ProductDeleted] = new WebhookTopic
         {
-            Key = "product.deleted",
+            Key = Constants.WebhookTopics.ProductDeleted,
             DisplayName = "Product Deleted",
             Description = "Triggered when a product is deleted",
             Category = "Products"
         },
 
         // Inventory
-        ["inventory.adjusted"] = new WebhookTopic
+        [Constants.WebhookTopics.InventoryAdjusted] = new WebhookTopic
         {
-            Key = "inventory.adjusted",
+            Key = Constants.WebhookTopics.InventoryAdjusted,
             DisplayName = "Inventory Adjusted",
             Description = "Triggered when stock levels are adjusted",
             Category = "Inventory"
         },
-        ["inventory.low_stock"] = new WebhookTopic
+        [Constants.WebhookTopics.InventoryLowStock] = new WebhookTopic
         {
-            Key = "inventory.low_stock",
+            Key = Constants.WebhookTopics.InventoryLowStock,
             DisplayName = "Low Stock Alert",
             Description = "Triggered when stock falls below threshold",
             Category = "Inventory"
         },
-        ["inventory.reserved"] = new WebhookTopic
+        [Constants.WebhookTopics.InventoryReserved] = new WebhookTopic
         {
-            Key = "inventory.reserved",
+            Key = Constants.WebhookTopics.InventoryReserved,
             DisplayName = "Stock Reserved",
             Description = "Triggered when stock is reserved for an order",
             Category = "Inventory"
         },
-        ["inventory.allocated"] = new WebhookTopic
+        [Constants.WebhookTopics.InventoryAllocated] = new WebhookTopic
         {
-            Key = "inventory.allocated",
+            Key = Constants.WebhookTopics.InventoryAllocated,
             DisplayName = "Stock Allocated",
             Description = "Triggered when stock is allocated for shipment",
             Category = "Inventory"
         },
 
         // Customers
-        ["customer.created"] = new WebhookTopic
+        [Constants.WebhookTopics.CustomerCreated] = new WebhookTopic
         {
-            Key = "customer.created",
+            Key = Constants.WebhookTopics.CustomerCreated,
             DisplayName = "Customer Created",
             Description = "Triggered when a new customer is created",
             Category = "Customers"
         },
-        ["customer.updated"] = new WebhookTopic
+        [Constants.WebhookTopics.CustomerUpdated] = new WebhookTopic
         {
-            Key = "customer.updated",
+            Key = Constants.WebhookTopics.CustomerUpdated,
             DisplayName = "Customer Updated",
             Description = "Triggered when a customer is modified",
             Category = "Customers"
         },
-        ["customer.deleted"] = new WebhookTopic
+        [Constants.WebhookTopics.CustomerDeleted] = new WebhookTopic
         {
-            Key = "customer.deleted",
+            Key = Constants.WebhookTopics.CustomerDeleted,
             DisplayName = "Customer Deleted",
             Description = "Triggered when a customer is deleted",
             Category = "Customers"
@@ -158,55 +165,55 @@ public class WebhookTopicRegistry : IWebhookTopicRegistry
         },
 
         // Discounts
-        ["discount.created"] = new WebhookTopic
+        [Constants.WebhookTopics.DiscountCreated] = new WebhookTopic
         {
-            Key = "discount.created",
+            Key = Constants.WebhookTopics.DiscountCreated,
             DisplayName = "Discount Created",
             Description = "Triggered when a discount is created",
             Category = "Discounts"
         },
-        ["discount.updated"] = new WebhookTopic
+        [Constants.WebhookTopics.DiscountUpdated] = new WebhookTopic
         {
-            Key = "discount.updated",
+            Key = Constants.WebhookTopics.DiscountUpdated,
             DisplayName = "Discount Updated",
             Description = "Triggered when a discount is modified",
             Category = "Discounts"
         },
-        ["discount.deleted"] = new WebhookTopic
+        [Constants.WebhookTopics.DiscountDeleted] = new WebhookTopic
         {
-            Key = "discount.deleted",
+            Key = Constants.WebhookTopics.DiscountDeleted,
             DisplayName = "Discount Deleted",
             Description = "Triggered when a discount is deleted",
             Category = "Discounts"
         },
 
         // Checkout
-        ["checkout.abandoned"] = new WebhookTopic
+        [Constants.WebhookTopics.CheckoutAbandoned] = new WebhookTopic
         {
-            Key = "checkout.abandoned",
+            Key = Constants.WebhookTopics.CheckoutAbandoned,
             DisplayName = "Checkout Abandoned",
             Description = "Triggered when a checkout session is abandoned",
             Category = "Checkout"
         },
-        ["checkout.recovered"] = new WebhookTopic
+        [Constants.WebhookTopics.CheckoutRecovered] = new WebhookTopic
         {
-            Key = "checkout.recovered",
+            Key = Constants.WebhookTopics.CheckoutRecovered,
             DisplayName = "Checkout Recovered",
             Description = "Triggered when an abandoned checkout is recovered",
             Category = "Checkout"
         },
 
         // Baskets
-        ["basket.created"] = new WebhookTopic
+        [Constants.WebhookTopics.BasketCreated] = new WebhookTopic
         {
-            Key = "basket.created",
+            Key = Constants.WebhookTopics.BasketCreated,
             DisplayName = "Basket Created",
             Description = "Triggered when a new basket is created",
             Category = "Baskets"
         },
-        ["basket.updated"] = new WebhookTopic
+        [Constants.WebhookTopics.BasketUpdated] = new WebhookTopic
         {
-            Key = "basket.updated",
+            Key = Constants.WebhookTopics.BasketUpdated,
             DisplayName = "Basket Updated",
             Description = "Triggered when a basket is modified",
             Category = "Baskets"

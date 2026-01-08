@@ -340,6 +340,23 @@ import type {
   DiscountPerformanceDto,
 } from '@discounts/types/discount.types.js';
 
+// Import email types
+import type {
+  EmailConfigurationDto,
+  EmailConfigurationDetailDto,
+  EmailConfigurationPageDto,
+  EmailConfigurationListParams,
+  CreateEmailConfigurationDto,
+  UpdateEmailConfigurationDto,
+  SendTestEmailDto,
+  EmailTopicDto,
+  EmailTopicCategoryDto,
+  TokenInfoDto,
+  EmailTemplateDto,
+  EmailPreviewDto,
+  EmailSendTestResultDto,
+} from '@email/types/email.types.js';
+
 // Import apply discount result from order types (for invoices)
 interface ApplyDiscountResultDto {
   success: boolean;
@@ -1395,4 +1412,66 @@ export const MerchelloApi = {
     const queryString = params.toString();
     return apiGet<DiscountPerformanceDto>(`discounts/${id}/performance${queryString ? `?${queryString}` : ''}`);
   },
+
+  // ============================================
+  // Email Configurations API
+  // ============================================
+
+  /** Get paginated list of email configurations */
+  getEmailConfigurations: (params?: EmailConfigurationListParams) => {
+    const queryString = buildQueryString(params as Record<string, unknown>);
+    return apiGet<EmailConfigurationPageDto>(`emails${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Get a single email configuration by ID with full detail */
+  getEmailConfiguration: (id: string) =>
+    apiGet<EmailConfigurationDetailDto>(`emails/${id}`),
+
+  /** Create a new email configuration */
+  createEmailConfiguration: (data: CreateEmailConfigurationDto) =>
+    apiPost<EmailConfigurationDto>('emails', data),
+
+  /** Update an existing email configuration */
+  updateEmailConfiguration: (id: string, data: UpdateEmailConfigurationDto) =>
+    apiPut<EmailConfigurationDto>(`emails/${id}`, data),
+
+  /** Delete an email configuration */
+  deleteEmailConfiguration: (id: string) =>
+    apiDelete(`emails/${id}`),
+
+  /** Toggle email configuration enabled status */
+  toggleEmailConfiguration: (id: string) =>
+    apiPost<EmailConfigurationDto>(`emails/${id}/toggle`),
+
+  /** Preview an email without sending */
+  previewEmail: (id: string) =>
+    apiGet<EmailPreviewDto>(`emails/${id}/preview`),
+
+  /** Send a test email */
+  sendTestEmail: (id: string, data: SendTestEmailDto) =>
+    apiPost<EmailSendTestResultDto>(`emails/${id}/test`, data),
+
+  // ============================================
+  // Email Metadata API
+  // ============================================
+
+  /** Get all available email topics */
+  getEmailTopics: () =>
+    apiGet<EmailTopicDto[]>('emails/topics'),
+
+  /** Get email topics grouped by category */
+  getEmailTopicsGrouped: () =>
+    apiGet<EmailTopicCategoryDto[]>('emails/topics/categories'),
+
+  /** Get available tokens for a specific topic */
+  getTopicTokens: (topic: string) =>
+    apiGet<TokenInfoDto[]>(`emails/topics/${encodeURIComponent(topic)}/tokens`),
+
+  /** Get all available email templates */
+  getEmailTemplates: () =>
+    apiGet<EmailTemplateDto[]>('emails/templates'),
+
+  /** Check if a template path exists */
+  checkTemplateExists: (path: string) =>
+    apiGet<boolean>(`emails/templates/exists?path=${encodeURIComponent(path)}`),
 };

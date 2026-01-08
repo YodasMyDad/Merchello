@@ -1,22 +1,30 @@
 using Merchello.Core.Shared.Extensions;
-using Merchello.Core.Webhooks.Models.Enums;
+using Merchello.Core.Shared.Models.Enums;
 
 namespace Merchello.Core.Webhooks.Models;
 
 /// <summary>
-/// Represents a webhook delivery attempt with full request/response details.
+/// Represents an outbound delivery attempt (webhook or email) with full details.
+/// Previously WebhookDelivery, now supports both delivery types.
 /// </summary>
-public class WebhookDelivery
+public class OutboundDelivery
 {
     public Guid Id { get; set; } = GuidExtensions.NewSequentialGuid;
 
     /// <summary>
-    /// The subscription this delivery is for.
+    /// The type of delivery (Webhook or Email).
     /// </summary>
-    public Guid SubscriptionId { get; set; }
+    public OutboundDeliveryType DeliveryType { get; set; } = OutboundDeliveryType.Webhook;
 
     /// <summary>
-    /// Navigation property to the subscription.
+    /// The configuration ID this delivery is for.
+    /// For webhooks: WebhookSubscription.Id
+    /// For emails: EmailConfiguration.Id
+    /// </summary>
+    public Guid ConfigurationId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the webhook subscription (for webhook deliveries).
     /// </summary>
     public WebhookSubscription? Subscription { get; set; }
 
@@ -35,25 +43,27 @@ public class WebhookDelivery
     /// </summary>
     public string? EntityType { get; set; }
 
-    /// <summary>
-    /// The URL the request was sent to.
-    /// </summary>
-    public string TargetUrl { get; set; } = string.Empty;
+    // ============ WEBHOOK-SPECIFIC FIELDS ============
 
     /// <summary>
-    /// The JSON request body.
+    /// [Webhook] The URL the request was sent to.
     /// </summary>
-    public string RequestBody { get; set; } = string.Empty;
+    public string? TargetUrl { get; set; }
 
     /// <summary>
-    /// Request headers as JSON.
+    /// [Webhook] The JSON request body.
     /// </summary>
-    public string RequestHeaders { get; set; } = string.Empty;
+    public string? RequestBody { get; set; }
+
+    /// <summary>
+    /// [Webhook] Request headers as JSON.
+    /// </summary>
+    public string? RequestHeaders { get; set; }
 
     /// <summary>
     /// Current delivery status.
     /// </summary>
-    public WebhookDeliveryStatus Status { get; set; } = WebhookDeliveryStatus.Pending;
+    public OutboundDeliveryStatus Status { get; set; } = OutboundDeliveryStatus.Pending;
 
     /// <summary>
     /// HTTP response status code.
@@ -104,4 +114,33 @@ public class WebhookDelivery
     /// When the next retry should be attempted.
     /// </summary>
     public DateTime? NextRetryUtc { get; set; }
+
+    // ============ EMAIL-SPECIFIC FIELDS ============
+
+    /// <summary>
+    /// [Email] The recipient email address(es).
+    /// </summary>
+    public string? EmailRecipients { get; set; }
+
+    /// <summary>
+    /// [Email] The email subject.
+    /// </summary>
+    public string? EmailSubject { get; set; }
+
+    /// <summary>
+    /// [Email] The from email address.
+    /// </summary>
+    public string? EmailFrom { get; set; }
+
+    /// <summary>
+    /// [Email] The rendered email body (HTML).
+    /// </summary>
+    public string? EmailBody { get; set; }
+
+    // ============ SHARED ============
+
+    /// <summary>
+    /// Additional type-specific data stored as JSON.
+    /// </summary>
+    public Dictionary<string, object> ExtendedData { get; set; } = [];
 }

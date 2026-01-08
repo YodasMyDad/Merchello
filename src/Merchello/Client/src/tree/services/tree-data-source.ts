@@ -20,6 +20,7 @@ import {
   MERCHELLO_DISCOUNTS_ENTITY_TYPE,
   MERCHELLO_SUPPLIERS_ENTITY_TYPE,
   MERCHELLO_WAREHOUSES_ENTITY_TYPE,
+  MERCHELLO_EMAILS_ENTITY_TYPE,
   MERCHELLO_PROVIDERS_ENTITY_TYPE,
 } from '@tree/types/tree.types.js';
 
@@ -123,6 +124,15 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
         hasChildren: false,
         isFolder: false,
         icon: "icon-store",
+        parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
+      },
+      {
+        entityType: MERCHELLO_EMAILS_ENTITY_TYPE,
+        unique: "emails",
+        name: "Emails",
+        hasChildren: false,
+        isFolder: false,
+        icon: "icon-mailbox",
         parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
       },
       {

@@ -26,9 +26,9 @@ public class PingWebhookDto
 }
 
 /// <summary>
-/// DTO for webhook delivery result returned by test/ping endpoints.
+/// DTO for outbound delivery result returned by test/ping endpoints.
 /// </summary>
-public class WebhookDeliveryResultDto
+public class OutboundDeliveryResultDto
 {
     public bool Success { get; set; }
     public int? StatusCode { get; set; }
