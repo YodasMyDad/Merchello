@@ -217,7 +217,11 @@ public static class Constants
 
         // Checkout
         public const string CheckoutAbandoned = "checkout.abandoned";
+        public const string CheckoutAbandonedFirst = "checkout.abandoned.first";
+        public const string CheckoutAbandonedReminder = "checkout.abandoned.reminder";
+        public const string CheckoutAbandonedFinal = "checkout.abandoned.final";
         public const string CheckoutRecovered = "checkout.recovered";
+        public const string CheckoutConverted = "checkout.converted";
 
         // Baskets
         public const string BasketCreated = "basket.created";
@@ -239,6 +243,8 @@ public static class Constants
         public const string InvoicePaid = "invoice.paid";
         public const string InvoiceRefunded = "invoice.refunded";
         public const string InvoiceDeleted = "invoice.deleted";
+        public const string InvoiceReminder = "invoice.reminder";
+        public const string InvoiceOverdue = "invoice.overdue";
 
         // Payments
         public const string PaymentCreated = "payment.created";
@@ -247,6 +253,10 @@ public static class Constants
         // Shipments
         public const string ShipmentCreated = "shipment.created";
         public const string ShipmentUpdated = "shipment.updated";
+        public const string ShipmentPreparing = "shipment.preparing";
+        public const string ShipmentShipped = "shipment.shipped";
+        public const string ShipmentDelivered = "shipment.delivered";
+        public const string ShipmentCancelled = "shipment.cancelled";
 
         // Customers
         public const string CustomerCreated = "customer.created";
@@ -258,6 +268,9 @@ public static class Constants
 
         // Checkout
         public const string CheckoutAbandoned = "checkout.abandoned";
+        public const string CheckoutAbandonedFirst = "checkout.abandoned.first";
+        public const string CheckoutAbandonedReminder = "checkout.abandoned.reminder";
+        public const string CheckoutAbandonedFinal = "checkout.abandoned.final";
         public const string CheckoutRecovered = "checkout.recovered";
         public const string CheckoutConverted = "checkout.converted";
     }

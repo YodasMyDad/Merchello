@@ -357,6 +357,74 @@ public class CustomerService(
     }
 
     /// <inheritdoc />
+    public async Task<CrudResult<bool>> DeleteAsync(Guid customerId, CancellationToken ct = default)
+    {
+        var result = new CrudResult<bool>();
+
+        // First, fetch the customer to validate and publish notification
+        Customer? customer;
+        using (var readScope = efCoreScopeProvider.CreateScope())
+        {
+            customer = await readScope.ExecuteWithContextAsync(async db =>
+                await db.Customers.FirstOrDefaultAsync(c => c.Id == customerId, ct));
+            readScope.Complete();
+        }
+
+        if (customer == null)
+        {
+            result.AddErrorMessage("Customer not found");
+            return result;
+        }
+
+        // Publish "Before" notification - handlers can cancel
+        var deletingNotification = new CustomerDeletingNotification(customer);
+        if (await notificationPublisher.PublishCancelableAsync(deletingNotification, ct))
+        {
+            result.AddErrorMessage(deletingNotification.CancelReason ?? "Customer deletion cancelled");
+            return result;
+        }
+
+        // Capture customer for after-notification (before deletion)
+        var deletedCustomer = customer;
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var deleted = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var toDelete = await db.Customers.FirstOrDefaultAsync(c => c.Id == customerId, ct);
+            if (toDelete == null) return false;
+
+            // Remove related tags first
+            var tags = await db.CustomerTags
+                .Where(t => t.CustomerId == customerId)
+                .ToListAsync(ct);
+            db.CustomerTags.RemoveRange(tags);
+
+            db.Customers.Remove(toDelete);
+            await db.SaveChangesAsync(ct);
+            return true;
+        });
+
+        scope.Complete();
+
+        if (deleted)
+        {
+            // Publish "After" notification
+            await notificationPublisher.PublishAsync(new CustomerDeletedNotification(deletedCustomer), ct);
+
+            result.ResultObject = true;
+            result.AddSuccessMessage("Customer deleted successfully");
+
+            logger.LogInformation("Deleted customer {CustomerId} with email {Email}", customerId, deletedCustomer.Email);
+        }
+        else
+        {
+            result.AddErrorMessage("Failed to delete customer");
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc />
     public async Task<List<Customer>> SearchAsync(string? searchTerm, int limit = 20, CancellationToken ct = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();

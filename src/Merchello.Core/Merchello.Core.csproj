@@ -46,6 +46,9 @@
     <!-- PDF Generation (MIT licensed, free for commercial use) -->
     <PackageReference Include="PDFsharp" Version="6.2.3" />
 
+    <!-- MJML Email Template Compilation -->
+    <PackageReference Include="Mjml.Net" Version="4.6.0" />
+
     <!-- Provider dependencies -->
     <PackageReference Include="Avalara.AvaTax" Version="25.9.0" />
     <PackageReference Include="Braintree" Version="5.38.0" />
@@ -54,6 +57,12 @@
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
   </ItemGroup>
 
+  <!-- Embedded Liberation Sans fonts for cross-platform PDF generation -->
+  <!-- Licensed under SIL Open Font License 1.1 - see Shared/Fonts/LICENSE -->
+  <ItemGroup>
+    <EmbeddedResource Include="Shared\Fonts\*.ttf" />
+    <None Include="Shared\Fonts\LICENSE" Pack="true" PackagePath="licenses\LiberationFonts-LICENSE.txt" />
+  </ItemGroup>
 
 </Project>
 

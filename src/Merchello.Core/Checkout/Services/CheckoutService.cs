@@ -65,7 +65,8 @@ public class CheckoutService(
     IDiscountService? discountService = null,
     ILocationsService? locationsService = null,
     ICheckoutMemberService? checkoutMemberService = null,
-    ICustomerService? customerService = null) : ICheckoutService
+    ICustomerService? customerService = null,
+    IAbandonedCheckoutService? abandonedCheckoutService = null) : ICheckoutService
 {
     private readonly ILocationsService _locationsService = locationsService ?? new NoopLocationsService();
     private readonly MerchelloSettings _settings = settings.Value;
@@ -89,6 +90,26 @@ public class CheckoutService(
     /// <param name="cancellationToken"></param>
     public async Task AddToBasketAsync(Basket basket, LineItem newLineItem, string countryCode, CancellationToken cancellationToken = default)
     {
+        // Load product for notification (only for product line items)
+        Products.Models.Product? product = null;
+        if (newLineItem.ProductId.HasValue)
+        {
+            product = await productService.GetProduct(
+                new Products.Services.Parameters.GetProductParameters { ProductId = newLineItem.ProductId.Value },
+                cancellationToken);
+        }
+
+        // Publish adding notification (cancelable) - only for product line items
+        if (product != null)
+        {
+            var addingNotification = new BasketItemAddingNotification(basket, newLineItem, product, newLineItem.Quantity);
+            if (await notificationPublisher.PublishCancelableAsync(addingNotification, cancellationToken))
+            {
+                basket.Errors.Add(new BasketError { Message = "Add to basket cancelled by notification handler", RelatedLineItemId = newLineItem.Id });
+                return;
+            }
+        }
+
         basket.Errors = lineItemService.AddLineItem(basket.LineItems, newLineItem)
             .Select(x => new BasketError { Message = x, RelatedLineItemId = newLineItem.Id}).ToList();
         if (basket.Errors.Any())
@@ -98,6 +119,12 @@ public class CheckoutService(
 
         await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
         basket.DateUpdated = DateTime.UtcNow;
+
+        // Publish added notification (informational) - only for product line items
+        if (product != null)
+        {
+            await notificationPublisher.PublishAsync(new BasketItemAddedNotification(basket, newLineItem, product, newLineItem.Quantity), cancellationToken);
+        }
     }
 
     /// <summary>
@@ -460,6 +487,12 @@ public class CheckoutService(
 
                 // Update session with modified basket
                 httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
+
+                // Track checkout activity for abandoned cart recovery (if checkout started)
+                if (abandonedCheckoutService != null)
+                {
+                    await abandonedCheckoutService.TrackCheckoutActivityAsync(basket.Id, cancellationToken);
+                }
             }
         }
     }
@@ -863,6 +896,12 @@ public class CheckoutService(
         // Publish "After" notification
         await notificationPublisher.PublishAsync(new DiscountCodeAppliedNotification(basket, discount), cancellationToken);
 
+        // Track checkout activity for abandoned cart recovery
+        if (abandonedCheckoutService != null)
+        {
+            await abandonedCheckoutService.TrackCheckoutActivityAsync(basket.Id, cancellationToken);
+        }
+
         result.ResultObject = basket;
         return result;
     }
@@ -1236,6 +1275,12 @@ public class CheckoutService(
             new CheckoutAddressesChangedNotification(basket, billingAddress, shippingAddress, parameters.ShippingSameAsBilling),
             cancellationToken);
 
+        // Track checkout activity for abandoned cart recovery (creates record on first email capture)
+        if (abandonedCheckoutService != null && !string.IsNullOrWhiteSpace(parameters.Email))
+        {
+            await abandonedCheckoutService.TrackCheckoutActivityAsync(basket, parameters.Email, cancellationToken);
+        }
+
         // Create member account if password provided
         if (!string.IsNullOrWhiteSpace(parameters.Password) && checkoutMemberService != null && customerService != null)
         {
@@ -1402,6 +1447,12 @@ public class CheckoutService(
         await notificationPublisher.PublishAsync(
             new ShippingSelectionChangedNotification(basket, selections),
             cancellationToken);
+
+        // Track checkout activity for abandoned cart recovery
+        if (abandonedCheckoutService != null)
+        {
+            await abandonedCheckoutService.TrackCheckoutActivityAsync(basket.Id, cancellationToken);
+        }
 
         return new CrudResult<Basket> { ResultObject = basket };
     }

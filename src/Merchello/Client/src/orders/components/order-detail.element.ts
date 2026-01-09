@@ -568,9 +568,6 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             >
               ${canFulfill ? "Fulfil" : "Fulfilled"}
             </uui-button>
-            <uui-button look="outline" label="Create shipping label">
-              Create shipping label
-            </uui-button>
           </div>
         </div>
       </div>

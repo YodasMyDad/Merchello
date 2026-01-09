@@ -8,6 +8,7 @@ using Merchello.Core.Notifications.Invoice;
 using Merchello.Core.Notifications.Order;
 using Merchello.Core.Notifications.Payment;
 using Merchello.Core.Notifications.Shipment;
+using Merchello.Core.Shipping.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Events;
@@ -29,14 +30,20 @@ public class EmailNotificationHandler(
       INotificationAsyncHandler<InvoiceSavedNotification>,
       INotificationAsyncHandler<InvoiceDeletedNotification>,
       INotificationAsyncHandler<InvoiceCancelledNotification>,
+      INotificationAsyncHandler<InvoiceReminderNotification>,
+      INotificationAsyncHandler<InvoiceOverdueNotification>,
       INotificationAsyncHandler<PaymentCreatedNotification>,
       INotificationAsyncHandler<PaymentRefundedNotification>,
       INotificationAsyncHandler<CustomerCreatedNotification>,
       INotificationAsyncHandler<CustomerPasswordResetRequestedNotification>,
       INotificationAsyncHandler<ShipmentCreatedNotification>,
       INotificationAsyncHandler<ShipmentSavedNotification>,
+      INotificationAsyncHandler<ShipmentStatusChangedNotification>,
       INotificationAsyncHandler<LowStockNotification>,
       INotificationAsyncHandler<CheckoutAbandonedNotification>,
+      INotificationAsyncHandler<CheckoutAbandonedFirstNotification>,
+      INotificationAsyncHandler<CheckoutAbandonedReminderNotification>,
+      INotificationAsyncHandler<CheckoutAbandonedFinalNotification>,
       INotificationAsyncHandler<CheckoutRecoveredNotification>,
       INotificationAsyncHandler<CheckoutRecoveryConvertedNotification>
 {
@@ -62,6 +69,12 @@ public class EmailNotificationHandler(
 
     public Task HandleAsync(InvoiceCancelledNotification notification, CancellationToken ct)
         => ProcessEmailsAsync(Constants.EmailTopics.OrderCancelled, notification, notification.Invoice.Id, "Invoice", ct);
+
+    public Task HandleAsync(InvoiceReminderNotification notification, CancellationToken ct)
+        => ProcessEmailsAsync(Constants.EmailTopics.InvoiceReminder, notification, notification.Invoice.Id, "Invoice", ct);
+
+    public Task HandleAsync(InvoiceOverdueNotification notification, CancellationToken ct)
+        => ProcessEmailsAsync(Constants.EmailTopics.InvoiceOverdue, notification, notification.Invoice.Id, "Invoice", ct);
 
     #endregion
 
@@ -96,10 +109,27 @@ public class EmailNotificationHandler(
     #region Shipments
 
     public Task HandleAsync(ShipmentCreatedNotification notification, CancellationToken ct)
-        => ProcessEmailsAsync(Constants.EmailTopics.ShipmentCreated, notification, notification.Shipment.Id, "Shipment", ct);
+        => ProcessEmailsAsync(Constants.EmailTopics.ShipmentPreparing, notification, notification.Shipment.Id, "Shipment", ct);
 
     public Task HandleAsync(ShipmentSavedNotification notification, CancellationToken ct)
         => ProcessEmailsAsync(Constants.EmailTopics.ShipmentUpdated, notification, notification.Shipment.Id, "Shipment", ct);
+
+    public async Task HandleAsync(ShipmentStatusChangedNotification notification, CancellationToken ct)
+    {
+        // Route to appropriate topic based on new status
+        var topic = notification.NewStatus switch
+        {
+            ShipmentStatus.Shipped => Constants.EmailTopics.ShipmentShipped,
+            ShipmentStatus.Delivered => Constants.EmailTopics.ShipmentDelivered,
+            ShipmentStatus.Cancelled => Constants.EmailTopics.ShipmentCancelled,
+            _ => null
+        };
+
+        if (topic != null)
+        {
+            await ProcessEmailsAsync(topic, notification, notification.Shipment.Id, "Shipment", ct);
+        }
+    }
 
     #endregion
 
@@ -114,6 +144,15 @@ public class EmailNotificationHandler(
 
     public Task HandleAsync(CheckoutAbandonedNotification notification, CancellationToken ct)
         => ProcessEmailsAsync(Constants.EmailTopics.CheckoutAbandoned, notification, notification.AbandonedCheckoutId, "AbandonedCheckout", ct);
+
+    public Task HandleAsync(CheckoutAbandonedFirstNotification notification, CancellationToken ct)
+        => ProcessEmailsAsync(Constants.EmailTopics.CheckoutAbandonedFirst, notification, notification.AbandonedCheckoutId, "AbandonedCheckout", ct);
+
+    public Task HandleAsync(CheckoutAbandonedReminderNotification notification, CancellationToken ct)
+        => ProcessEmailsAsync(Constants.EmailTopics.CheckoutAbandonedReminder, notification, notification.AbandonedCheckoutId, "AbandonedCheckout", ct);
+
+    public Task HandleAsync(CheckoutAbandonedFinalNotification notification, CancellationToken ct)
+        => ProcessEmailsAsync(Constants.EmailTopics.CheckoutAbandonedFinal, notification, notification.AbandonedCheckoutId, "AbandonedCheckout", ct);
 
     public Task HandleAsync(CheckoutRecoveredNotification notification, CancellationToken ct)
         => ProcessEmailsAsync(Constants.EmailTopics.CheckoutRecovered, notification, notification.AbandonedCheckoutId, "AbandonedCheckout", ct);

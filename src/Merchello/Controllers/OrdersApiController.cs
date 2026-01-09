@@ -712,9 +712,13 @@ public class OrdersApiController(
             Shipments = order.Shipments?.Select(s => new ShipmentDto
             {
                 Id = s.Id,
+                Status = s.Status,
+                StatusLabel = s.Status.ToLabel(),
+                StatusCssClass = s.Status.ToCssClass(),
                 TrackingNumber = s.TrackingNumber,
                 TrackingUrl = s.TrackingUrl,
                 Carrier = s.Carrier,
+                ShippedDate = s.ShippedDate,
                 ActualDeliveryDate = s.ActualDeliveryDate
             }).ToList() ?? []
         };
@@ -828,6 +832,40 @@ public class OrdersApiController(
 
         var productImages = await GetProductImagesForShipment(result.ResultObject);
         return Ok(MapToShipmentDetail(result.ResultObject, productImages));
+    }
+
+    /// <summary>
+    /// Update shipment status (e.g., Preparing -> Shipped -> Delivered)
+    /// </summary>
+    [HttpPut("shipments/{shipmentId:guid}/status")]
+    [ProducesResponseType<ShipmentDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateShipmentStatus(Guid shipmentId, [FromBody] UpdateShipmentStatusDto request)
+    {
+        var parameters = new UpdateShipmentStatusParameters
+        {
+            ShipmentId = shipmentId,
+            NewStatus = request.NewStatus,
+            Carrier = request.Carrier,
+            TrackingNumber = request.TrackingNumber,
+            TrackingUrl = request.TrackingUrl
+        };
+
+        var result = await shipmentService.UpdateShipmentStatusAsync(parameters);
+
+        if (!result.Successful)
+        {
+            if (result.ResultObject == null)
+            {
+                return NotFound();
+            }
+            var errorMessage = result.Messages.FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message;
+            return BadRequest(new { error = errorMessage ?? "Failed to update shipment status" });
+        }
+
+        var productImages = await GetProductImagesForShipment(result.ResultObject!);
+        return Ok(MapToShipmentDetail(result.ResultObject!, productImages));
     }
 
     /// <summary>
@@ -1018,11 +1056,18 @@ public class OrdersApiController(
         {
             Id = shipment.Id,
             OrderId = shipment.OrderId,
+            Status = shipment.Status,
+            StatusLabel = shipment.Status.ToLabel(),
+            StatusCssClass = shipment.Status.ToCssClass(),
             Carrier = shipment.Carrier,
             TrackingNumber = shipment.TrackingNumber,
             TrackingUrl = shipment.TrackingUrl,
             DateCreated = shipment.DateCreated,
+            ShippedDate = shipment.ShippedDate,
             ActualDeliveryDate = shipment.ActualDeliveryDate,
+            CanMarkAsShipped = shipment.Status == ShipmentStatus.Preparing,
+            CanMarkAsDelivered = shipment.Status == ShipmentStatus.Shipped,
+            CanCancel = shipment.Status != ShipmentStatus.Delivered && shipment.Status != ShipmentStatus.Cancelled,
             LineItems = shipment.LineItems?.Select(li => new ShipmentLineItemDto
             {
                 Id = Guid.NewGuid(), // Generate new ID for the shipment line item reference

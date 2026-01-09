@@ -34,9 +34,14 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
     private const string StripeJsSdkUrl = "https://js.stripe.com/clover/stripe.js";
 
     /// <summary>
-    /// URL to the Stripe payment adapter script.
+    /// URL to the Stripe payment adapter script (unified Payment Element).
     /// </summary>
     private const string StripePaymentAdapterUrl = "/js/checkout/adapters/stripe-payment-adapter.js";
+
+    /// <summary>
+    /// URL to the Stripe card elements adapter script (individual card fields).
+    /// </summary>
+    private const string StripeCardElementsAdapterUrl = "/js/checkout/adapters/stripe-card-elements-adapter.js";
 
     /// <summary>
     /// SVG icon for card payments (credit card symbol).
@@ -176,6 +181,18 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
         },
         new PaymentMethodDefinition
         {
+            Alias = "cards-hosted",
+            DisplayName = "Credit/Debit Card (Hosted Fields)",
+            Icon = "icon-credit-card",
+            IconHtml = CardIconSvg,
+            Description = "Individual hosted fields for card number, expiry, and CVC with per-field styling.",
+            IntegrationType = PaymentIntegrationType.HostedFields,
+            IsExpressCheckout = false,
+            DefaultSortOrder = 15,
+            MethodType = PaymentMethodType.Cards
+        },
+        new PaymentMethodDefinition
+        {
             Alias = "applepay",
             DisplayName = "Apple Pay",
             Icon = "icon-apple",
@@ -293,6 +310,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
         {
             "cards" => await CreateStripeCheckoutSessionAsync(request, cancellationToken),
             "cards-elements" => await CreatePaymentIntentSessionAsync(request, cancellationToken),
+            "cards-hosted" => await CreateCardElementsSessionAsync(request, cancellationToken),
             "applepay" or "googlepay" or "link" => await CreateExpressCheckoutSessionAsync(request, cancellationToken),
             _ => await CreatePaymentIntentSessionAsync(request, cancellationToken) // Default to Payment Element
         };
@@ -404,6 +422,64 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
                 providerAlias: Metadata.Alias,
                 methodAlias: request.MethodAlias ?? "cards-elements",
                 adapterUrl: StripePaymentAdapterUrl,
+                jsSdkUrl: StripeJsSdkUrl,
+                sdkConfig: new Dictionary<string, object>
+                {
+                    ["publishableKey"] = _publishableKey ?? string.Empty,
+                    ["paymentIntentId"] = paymentIntent.Id,
+                    ["returnUrl"] = request.ReturnUrl
+                },
+                clientSecret: paymentIntent.ClientSecret,
+                sessionId: paymentIntent.Id);
+        }
+        catch (StripeException ex)
+        {
+            return PaymentSessionResult.Failed(
+                errorMessage: ex.Message,
+                errorCode: ex.StripeError?.Code);
+        }
+    }
+
+    /// <summary>
+    /// Creates a PaymentIntent for individual Card Elements (cards-hosted method).
+    /// Returns configuration for the frontend with individual cardNumber, cardExpiry, cardCvc elements.
+    /// Equivalent to Braintree's Hosted Fields approach.
+    /// </summary>
+    private async Task<PaymentSessionResult> CreateCardElementsSessionAsync(
+        PaymentRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var paymentIntentService = new PaymentIntentService(_client);
+
+            var metadata = BuildMetadata(request);
+
+            var options = new PaymentIntentCreateOptions
+            {
+                Amount = ConvertToStripeAmount(request.Amount, request.Currency),
+                Currency = request.Currency.ToLowerInvariant(),
+                AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions
+                {
+                    Enabled = true
+                },
+                Metadata = metadata,
+                Description = request.Description ?? $"Invoice #{request.InvoiceId}"
+            };
+
+            // Add customer email if provided
+            if (!string.IsNullOrEmpty(request.CustomerEmail))
+            {
+                options.ReceiptEmail = request.CustomerEmail;
+            }
+
+            var paymentIntent = await paymentIntentService.CreateAsync(options, cancellationToken: cancellationToken);
+
+            // Return HostedFields result with adapter configuration for individual Card Elements
+            return PaymentSessionResult.HostedFields(
+                providerAlias: Metadata.Alias,
+                methodAlias: "cards-hosted",
+                adapterUrl: StripeCardElementsAdapterUrl,
                 jsSdkUrl: StripeJsSdkUrl,
                 sdkConfig: new Dictionary<string, object>
                 {

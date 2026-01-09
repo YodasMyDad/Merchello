@@ -283,9 +283,13 @@ export interface LineItemDto {
 
 export interface ShipmentDto {
   id: string;
+  status: number;
+  statusLabel: string;
+  statusCssClass: string;
   trackingNumber: string | null;
   trackingUrl: string | null;
   carrier: string | null;
+  shippedDate: string | null;
   actualDeliveryDate: string | null;
 }
 
@@ -390,6 +394,22 @@ export interface UpdateShipmentDto {
   actualDeliveryDate?: string;
 }
 
+/** Shipment status enum values matching backend */
+export enum ShipmentStatus {
+  Preparing = 0,
+  Shipped = 10,
+  Delivered = 20,
+  Cancelled = 30,
+}
+
+/** Request to update shipment status */
+export interface UpdateShipmentStatusDto {
+  newStatus: ShipmentStatus;
+  carrier?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
+}
+
 /** Summary of fulfillment state for the entire invoice (used in fulfillment dialog) */
 export interface FulfillmentSummaryDto {
   invoiceId: string;
@@ -425,12 +445,26 @@ export interface FulfillmentLineItemDto {
 export interface ShipmentDetailDto {
   id: string;
   orderId: string;
+  /** Current status of the shipment */
+  status: ShipmentStatus;
+  /** Human-readable status label (e.g., "Preparing", "Shipped") */
+  statusLabel: string;
+  /** CSS class for status badge styling */
+  statusCssClass: string;
   carrier: string | null;
   trackingNumber: string | null;
   trackingUrl: string | null;
   dateCreated: string;
+  /** Date the shipment was handed to the carrier */
+  shippedDate: string | null;
   actualDeliveryDate: string | null;
   lineItems: ShipmentLineItemDto[];
+  /** Whether the shipment can be marked as shipped (status is Preparing) */
+  canMarkAsShipped: boolean;
+  /** Whether the shipment can be marked as delivered (status is Shipped) */
+  canMarkAsDelivered: boolean;
+  /** Whether the shipment can be cancelled (not in terminal state) */
+  canCancel: boolean;
 }
 
 /** Line item within a shipment */

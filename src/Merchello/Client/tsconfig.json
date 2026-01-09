@@ -48,7 +48,8 @@
       "@suppliers/*": [ "src/suppliers/*" ],
       "@tax/*": [ "src/tax/*" ],
       "@tree/*": [ "src/tree/*" ],
-      "@warehouses/*": [ "src/warehouses/*" ]
+      "@warehouses/*": [ "src/warehouses/*" ],
+      "@webhooks/*": [ "src/webhooks/*" ]
     },
 
     "types": [ "@umbraco-cms/backoffice/extension-types" ]

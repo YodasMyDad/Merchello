@@ -180,45 +180,9 @@ public class ShipmentService(
                 }
             }
 
-            // Update order status based on shipment completion (exclude discount line items)
-            var totalOrderQuantity = order.LineItems?
-                .Where(li => li.LineItemType != LineItemType.Discount)
-                .Sum(li => li.Quantity) ?? 0;
-            var previouslyShippedQuantity = order.Shipments?
-                .SelectMany(s => s.LineItems ?? [])
-                .Where(li => li.LineItemType != LineItemType.Discount)
-                .Sum(li => li.Quantity) ?? 0;
-            var nowShippedQuantity = newShipments
-                .SelectMany(s => s.LineItems ?? [])
-                .Where(li => li.LineItemType != LineItemType.Discount)
-                .Sum(li => li.Quantity);
-            var totalShippedQuantity = previouslyShippedQuantity + nowShippedQuantity;
-
-            OrderStatus newStatus;
-            if (totalShippedQuantity >= totalOrderQuantity)
-            {
-                newStatus = OrderStatus.Shipped;
-            }
-            else if (previouslyShippedQuantity > 0 || nowShippedQuantity > 0)
-            {
-                newStatus = OrderStatus.PartiallyShipped;
-            }
-            else
-            {
-                newStatus = order.Status;
-            }
-
-            if (newStatus != order.Status)
-            {
-                var canTransition = await statusHandler.CanTransitionAsync(order, newStatus, cancellationToken);
-                if (canTransition)
-                {
-                    var oldStatus = order.Status;
-                    await statusHandler.OnStatusChangingAsync(order, oldStatus, newStatus, cancellationToken);
-                    order.Status = newStatus;
-                    await statusHandler.OnStatusChangedAsync(order, oldStatus, newStatus, cancellationToken);
-                }
-            }
+            // Shipments start in Preparing status - order status only changes when shipments are marked as Shipped
+            // via UpdateShipmentStatusAsync. This allows warehouse staff to prepare shipments before marking them shipped.
+            order.DateUpdated = DateTime.UtcNow;
 
             await db.SaveChangesAsync(cancellationToken);
 
@@ -335,26 +299,8 @@ public class ShipmentService(
 
             db.Shipments.Add(shipment);
 
-            // Update order status (exclude discount line items from calculations)
-            var totalOrdered = order.LineItems?
-                .Where(li => li.LineItemType != LineItemType.Discount)
-                .Sum(li => li.Quantity) ?? 0;
-            var totalShipped = (order.Shipments?
-                .SelectMany(s => s.LineItems ?? [])
-                .Where(li => li.LineItemType != LineItemType.Discount)
-                .Sum(li => li.Quantity) ?? 0)
-                + shipmentLineItems.Sum(li => li.Quantity);
-
-            if (totalShipped >= totalOrdered)
-            {
-                order.Status = OrderStatus.Shipped;
-                order.ShippedDate = DateTime.UtcNow;
-            }
-            else if (totalShipped > 0)
-            {
-                order.Status = OrderStatus.PartiallyShipped;
-            }
-
+            // Shipment starts in Preparing status - order status only changes when shipment is marked as Shipped
+            // via UpdateShipmentStatusAsync. This allows warehouse staff to prepare shipments before marking them shipped.
             order.DateUpdated = DateTime.UtcNow;
 
             await db.SaveChangesAsync(cancellationToken);
@@ -383,12 +329,13 @@ public class ShipmentService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<Shipment>();
+        Shipment? shipment = null;
 
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             // Load shipment with order and all sibling shipments for delivery status check
-            var shipment = await db.Shipments
+            shipment = await db.Shipments
                 .Include(s => s.Order)
                     .ThenInclude(o => o!.Shipments)
                 .FirstOrDefaultAsync(s => s.Id == parameters.ShipmentId, cancellationToken);
@@ -398,6 +345,18 @@ public class ShipmentService(
                 result.Messages.Add(new ResultMessage
                 {
                     Message = "Shipment not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            // Publish "Before" notification - handlers can modify shipment or cancel
+            var savingNotification = new ShipmentSavingNotification(shipment);
+            if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = savingNotification.CancelReason ?? "Shipment update cancelled",
                     ResultMessageType = ResultMessageType.Error
                 });
                 return;
@@ -444,7 +403,205 @@ public class ShipmentService(
         });
         scope.Complete();
 
+        // Publish "After" notification
+        if (result.ResultObject != null)
+        {
+            await notificationPublisher.PublishAsync(
+                new ShipmentSavedNotification(result.ResultObject),
+                cancellationToken);
+        }
+
         return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<CrudResult<Shipment>> UpdateShipmentStatusAsync(
+        UpdateShipmentStatusParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<Shipment>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            // Load shipment with order and all sibling shipments for status calculations
+            var shipment = await db.Shipments
+                .Include(s => s.Order)
+                    .ThenInclude(o => o!.Shipments)
+                .Include(s => s.Order)
+                    .ThenInclude(o => o!.LineItems)
+                .Include(s => s.Order)
+                    .ThenInclude(o => o!.Invoice)
+                .AsSplitQuery()
+                .FirstOrDefaultAsync(s => s.Id == parameters.ShipmentId, cancellationToken);
+
+            if (shipment == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Shipment not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            var oldStatus = shipment.Status;
+            var newStatus = parameters.NewStatus;
+
+            // No-op if same status
+            if (oldStatus == newStatus)
+            {
+                result.ResultObject = shipment;
+                return;
+            }
+
+            // Validate transition
+            if (!oldStatus.CanTransitionTo(newStatus))
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Cannot transition shipment from " + oldStatus.ToLabel() + " to " + newStatus.ToLabel(),
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            // Publish "Before" notification - handlers can modify shipment or cancel
+            var changingNotification = new ShipmentStatusChangingNotification(shipment, oldStatus, newStatus);
+            if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = changingNotification.CancelReason ?? "Shipment status change cancelled",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            // Update shipment status
+            shipment.Status = newStatus;
+
+            // Handle status-specific updates
+            switch (newStatus)
+            {
+                case ShipmentStatus.Shipped:
+                    shipment.ShippedDate = DateTime.UtcNow;
+                    // Update tracking info if provided
+                    if (parameters.Carrier != null) shipment.Carrier = parameters.Carrier;
+                    if (parameters.TrackingNumber != null) shipment.TrackingNumber = parameters.TrackingNumber;
+                    if (parameters.TrackingUrl != null) shipment.TrackingUrl = parameters.TrackingUrl;
+                    break;
+
+                case ShipmentStatus.Delivered:
+                    shipment.ActualDeliveryDate = DateTime.UtcNow;
+                    break;
+            }
+
+            // Update order status based on shipment statuses
+            var order = shipment.Order;
+            if (order != null)
+            {
+                await UpdateOrderStatusFromShipmentsAsync(order, db, cancellationToken);
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+
+            // Publish "After" notification
+            await notificationPublisher.PublishAsync(
+                new ShipmentStatusChangedNotification(shipment, oldStatus, newStatus),
+                cancellationToken);
+
+            // Publish aggregate notification
+            if (order?.Invoice != null)
+            {
+                await notificationPublisher.PublishAsync(
+                    new InvoiceAggregateChangedNotification(order.Invoice, AggregateChangeType.Updated, AggregateChangeSource.Shipment, shipment),
+                    cancellationToken);
+            }
+
+            logger.LogInformation("Shipment {ShipmentId} status changed from {OldStatus} to {NewStatus}",
+                shipment.Id, oldStatus.ToLabel(), newStatus.ToLabel());
+
+            result.ResultObject = shipment;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    /// <summary>
+    /// Updates order status based on the current state of all its shipments.
+    /// Called when shipment status changes.
+    /// </summary>
+    private async Task UpdateOrderStatusFromShipmentsAsync(
+        Order order,
+        MerchelloDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var shipments = order.Shipments?.ToList() ?? [];
+        if (!shipments.Any()) return;
+
+        // Calculate quantities (exclude discount line items)
+        var totalOrdered = order.LineItems?
+            .Where(li => li.LineItemType != LineItemType.Discount)
+            .Sum(li => li.Quantity) ?? 0;
+
+        // Count items in shipments that are Shipped or Delivered (not Preparing or Cancelled)
+        var totalShipped = shipments
+            .Where(s => s.Status == ShipmentStatus.Shipped || s.Status == ShipmentStatus.Delivered)
+            .SelectMany(s => s.LineItems ?? [])
+            .Where(li => li.LineItemType != LineItemType.Discount)
+            .Sum(li => li.Quantity);
+
+        // Check if all shipments are delivered
+        var allDelivered = shipments.All(s => s.Status == ShipmentStatus.Delivered);
+
+        // Determine target order status
+        OrderStatus targetStatus;
+        if (allDelivered && totalShipped >= totalOrdered)
+        {
+            targetStatus = OrderStatus.Completed;
+        }
+        else if (totalShipped >= totalOrdered)
+        {
+            targetStatus = OrderStatus.Shipped;
+        }
+        else if (totalShipped > 0)
+        {
+            targetStatus = OrderStatus.PartiallyShipped;
+        }
+        else
+        {
+            // No shipments are shipped yet - keep order in current status (Processing or ReadyToFulfill)
+            return;
+        }
+
+        if (targetStatus != order.Status)
+        {
+            var canTransition = await statusHandler.CanTransitionAsync(order, targetStatus, cancellationToken);
+            if (canTransition)
+            {
+                var oldStatus = order.Status;
+                await statusHandler.OnStatusChangingAsync(order, oldStatus, targetStatus, cancellationToken);
+                order.Status = targetStatus;
+                order.DateUpdated = DateTime.UtcNow;
+
+                // Set date fields
+                if (targetStatus == OrderStatus.Shipped && order.ShippedDate == null)
+                {
+                    order.ShippedDate = DateTime.UtcNow;
+                }
+                else if (targetStatus == OrderStatus.Completed)
+                {
+                    order.CompletedDate = DateTime.UtcNow;
+                }
+
+                await statusHandler.OnStatusChangedAsync(order, oldStatus, targetStatus, cancellationToken);
+
+                logger.LogInformation("Order {OrderId} status changed from {OldStatus} to {NewStatus} based on shipment statuses",
+                    order.Id, oldStatus.ToLabel(), targetStatus.ToLabel());
+            }
+        }
     }
 
     /// <inheritdoc />

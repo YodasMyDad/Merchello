@@ -81,4 +81,14 @@ public class Shipment
     /// Date the shipment was created
     /// </summary>
     public DateTime DateCreated { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Current status of this shipment
+    /// </summary>
+    public ShipmentStatus Status { get; set; } = ShipmentStatus.Preparing;
+
+    /// <summary>
+    /// Date the shipment was handed to the carrier (set when status transitions to Shipped)
+    /// </summary>
+    public DateTime? ShippedDate { get; set; }
 }

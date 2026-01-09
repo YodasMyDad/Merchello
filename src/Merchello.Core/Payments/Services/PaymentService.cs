@@ -552,6 +552,14 @@ public class PaymentService(
         });
         scope.Complete();
 
+        // Publish "After" notification
+        if (result.ResultObject != null)
+        {
+            await notificationPublisher.PublishAsync(
+                new PaymentRefundedNotification(originalPayment, result.ResultObject),
+                cancellationToken);
+        }
+
         return result;
     }
 
@@ -824,11 +832,12 @@ public class PaymentService(
             return result;
         }
 
+        Payment? originalPayment = null;
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             // Load original payment
-            var originalPayment = await db.Payments
+            originalPayment = await db.Payments
                 .Include(p => p.Refunds)
                 .FirstOrDefaultAsync(p => p.Id == paymentId, cancellationToken);
 
@@ -880,6 +889,14 @@ public class PaymentService(
                 refundPayment.Id, paymentId, amount, reason);
         });
         scope.Complete();
+
+        // Publish "After" notification
+        if (result.ResultObject != null && originalPayment != null)
+        {
+            await notificationPublisher.PublishAsync(
+                new PaymentRefundedNotification(originalPayment, result.ResultObject),
+                cancellationToken);
+        }
 
         return result;
     }

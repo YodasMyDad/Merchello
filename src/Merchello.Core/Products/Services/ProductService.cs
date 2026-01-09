@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
+using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Notifications.Product;
 using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
@@ -31,6 +33,7 @@ public class ProductService(
     IContentTypeService contentTypeService,
     ApplicationPartManager partManager,
     IWebHostEnvironment webHostEnvironment,
+    IMerchelloNotificationPublisher notificationPublisher,
     IOptions<MerchelloSettings> settings,
     ILogger<ProductService> logger) : IProductService
 {
@@ -439,11 +442,27 @@ public class ProductService(
             }
 
             option = productOptionFactory.Create(parameters);
+
+            // Publish creating notification (cancelable)
+            var creatingNotification = new ProductOptionCreatingNotification(option, parameters.ProductRootId);
+            if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
+            {
+                result.AddErrorMessage("Product option creation was cancelled by a notification handler");
+                return;
+            }
+
             productRoot.ProductOptions.Add(option);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
         });
 
         scope.Complete();
+
+        // Publish created notification (informational)
+        if (result.Successful && option != null)
+        {
+            await notificationPublisher.PublishAsync(new ProductOptionCreatedNotification(option, parameters.ProductRootId), cancellationToken);
+        }
+
         result.ResultObject = option;
         return result;
     }
@@ -457,6 +476,7 @@ public class ProductService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
+        string optionName = string.Empty;
         using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
@@ -477,12 +497,30 @@ public class ProductService(
                 return;
             }
 
+            // Publish deleting notification (cancelable)
+            var deletingNotification = new ProductOptionDeletingNotification(option, productRootId);
+            if (await notificationPublisher.PublishCancelableAsync(deletingNotification, cancellationToken))
+            {
+                result.AddErrorMessage("Product option deletion was cancelled by a notification handler");
+                return;
+            }
+
+            // Capture name for deleted notification (before entity is removed)
+            optionName = option.Name ?? string.Empty;
+
             productRoot.ProductOptions.Remove(option);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = true;
         });
 
         scope.Complete();
+
+        // Publish deleted notification (informational)
+        if (result.Successful)
+        {
+            await notificationPublisher.PublishAsync(new ProductOptionDeletedNotification(optionId, optionName, productRootId), cancellationToken);
+        }
+
         return result;
     }
 
@@ -2283,6 +2321,14 @@ public class ProductService(
                 RootImages = request.RootImages?.Select(g => g.ToString()).ToList() ?? []
             };
 
+            // Publish "Before" notification - handlers can modify or cancel
+            var creatingNotification = new ProductCreatingNotification(productRoot);
+            if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
+            {
+                result.AddErrorMessage(creatingNotification.CancelReason ?? "Product creation cancelled");
+                return;
+            }
+
             db.RootProducts.Add(productRoot);
 
             // Create default variant
@@ -2324,6 +2370,15 @@ public class ProductService(
 
         scope.Complete();
         result.ResultObject = productRoot;
+
+        // Publish "After" notification
+        if (result.ResultObject != null)
+        {
+            await notificationPublisher.PublishAsync(
+                new ProductCreatedNotification(result.ResultObject),
+                cancellationToken);
+        }
+
         return result;
     }
 
@@ -2347,6 +2402,14 @@ public class ProductService(
             if (productRoot == null)
             {
                 result.AddErrorMessage("Product root not found");
+                return;
+            }
+
+            // Publish "Before" notification - handlers can modify or cancel
+            var savingNotification = new ProductSavingNotification(productRoot);
+            if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
+            {
+                result.AddErrorMessage(savingNotification.CancelReason ?? "Product update cancelled");
                 return;
             }
 
@@ -2458,6 +2521,15 @@ public class ProductService(
 
         scope.Complete();
         result.ResultObject = productRoot;
+
+        // Publish "After" notification
+        if (result.ResultObject != null)
+        {
+            await notificationPublisher.PublishAsync(
+                new ProductSavedNotification(result.ResultObject),
+                cancellationToken);
+        }
+
         return result;
     }
 
@@ -2467,6 +2539,7 @@ public class ProductService(
     public async Task<CrudResult<bool>> DeleteProductRoot(Guid productRootId, CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
+        string? productName = null;
         using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
@@ -2478,6 +2551,17 @@ public class ProductService(
             if (productRoot == null)
             {
                 result.AddErrorMessage("Product root not found");
+                return;
+            }
+
+            // Capture name for notification before deletion
+            productName = productRoot.RootName;
+
+            // Publish "Before" notification - handlers can cancel
+            var deletingNotification = new ProductDeletingNotification(productRoot);
+            if (await notificationPublisher.PublishCancelableAsync(deletingNotification, cancellationToken))
+            {
+                result.AddErrorMessage(deletingNotification.CancelReason ?? "Product deletion cancelled");
                 return;
             }
 
@@ -2493,6 +2577,15 @@ public class ProductService(
         });
 
         scope.Complete();
+
+        // Publish "After" notification
+        if (result.ResultObject)
+        {
+            await notificationPublisher.PublishAsync(
+                new ProductDeletedNotification(productRootId, productName),
+                cancellationToken);
+        }
+
         return result;
     }
 

@@ -11,13 +11,15 @@ namespace Merchello.Core.Shared.Services;
 /// </summary>
 public class PdfService : IPdfService
 {
-    private const string FontFamily = "Arial";
+    // Liberation Sans is metrically compatible with Arial and embedded in the assembly
+    private const string FontFamily = "Liberation Sans";
 
     static PdfService()
     {
         if (GlobalFontSettings.FontResolver is null)
         {
-            GlobalFontSettings.FontResolver = new SystemFontResolver();
+            // Use embedded fonts for cross-platform compatibility (Windows, macOS, Linux, Docker)
+            GlobalFontSettings.FontResolver = new EmbeddedFontResolver();
         }
     }
 

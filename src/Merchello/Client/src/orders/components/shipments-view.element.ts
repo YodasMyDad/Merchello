@@ -9,11 +9,19 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatShortDate } from "@shared/utils/formatting.js";
 import type { FulfillmentSummaryDto, ShipmentDetailDto } from "@orders/types/order.types.js";
+import { ShipmentStatus } from "@orders/types/order.types.js";
 import type { MerchelloOrdersWorkspaceContext } from "@orders/contexts/orders-workspace.context.js";
 import { MERCHELLO_SHIPMENT_EDIT_MODAL } from "@orders/modals/shipment-edit-modal.token.js";
 
 // Import shared components
 import "@shared/components/product-image.element.js";
+
+/** Tracking info for the inline Mark as Shipped form */
+interface TrackingFormData {
+  carrier: string;
+  trackingNumber: string;
+  trackingUrl: string;
+}
 
 @customElement("merchello-shipments-view")
 export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
@@ -21,6 +29,12 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
   @state() private _fulfillmentData: FulfillmentSummaryDto | null = null;
   @state() private _isLoading: boolean = true;
   @state() private _errorMessage: string | null = null;
+  /** Shipment ID currently showing the Mark as Shipped inline form */
+  @state() private _expandedShipmentId: string | null = null;
+  /** Tracking form data for the expanded shipment */
+  @state() private _trackingForm: TrackingFormData = { carrier: "", trackingNumber: "", trackingUrl: "" };
+  /** Whether a status update is in progress */
+  @state() private _isUpdatingStatus: boolean = false;
 
   #workspaceContext?: MerchelloOrdersWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
@@ -122,16 +136,137 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     }
   }
 
+  private _toggleMarkAsShippedForm(shipmentId: string): void {
+    if (this._expandedShipmentId === shipmentId) {
+      this._expandedShipmentId = null;
+      this._trackingForm = { carrier: "", trackingNumber: "", trackingUrl: "" };
+    } else {
+      this._expandedShipmentId = shipmentId;
+      this._trackingForm = { carrier: "", trackingNumber: "", trackingUrl: "" };
+    }
+  }
+
+  private _handleTrackingFormChange(field: keyof TrackingFormData, value: string): void {
+    this._trackingForm = { ...this._trackingForm, [field]: value };
+  }
+
+  private async _handleMarkAsShipped(shipment: ShipmentDetailDto): Promise<void> {
+    this._isUpdatingStatus = true;
+
+    const { error } = await MerchelloApi.updateShipmentStatus(shipment.id, {
+      newStatus: ShipmentStatus.Shipped,
+      carrier: this._trackingForm.carrier || undefined,
+      trackingNumber: this._trackingForm.trackingNumber || undefined,
+      trackingUrl: this._trackingForm.trackingUrl || undefined,
+    });
+
+    if (!this.#isConnected) return;
+
+    this._isUpdatingStatus = false;
+
+    if (error) {
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to update status", message: error.message },
+      });
+      return;
+    }
+
+    this.#notificationContext?.peek("positive", {
+      data: { headline: "Shipment marked as shipped", message: "Status updated successfully" },
+    });
+
+    this._expandedShipmentId = null;
+    this._trackingForm = { carrier: "", trackingNumber: "", trackingUrl: "" };
+    this._loadShipments();
+
+    if (this._invoiceId) {
+      this.#workspaceContext?.load(this._invoiceId);
+    }
+  }
+
+  private async _handleMarkAsDelivered(shipment: ShipmentDetailDto): Promise<void> {
+    this._isUpdatingStatus = true;
+
+    const { error } = await MerchelloApi.updateShipmentStatus(shipment.id, {
+      newStatus: ShipmentStatus.Delivered,
+    });
+
+    if (!this.#isConnected) return;
+
+    this._isUpdatingStatus = false;
+
+    if (error) {
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to update status", message: error.message },
+      });
+      return;
+    }
+
+    this.#notificationContext?.peek("positive", {
+      data: { headline: "Shipment marked as delivered", message: "Status updated successfully" },
+    });
+
+    this._loadShipments();
+
+    if (this._invoiceId) {
+      this.#workspaceContext?.load(this._invoiceId);
+    }
+  }
+
+  private async _handleCancelShipment(shipment: ShipmentDetailDto): Promise<void> {
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Cancel Shipment",
+        content: "Are you sure you want to cancel this shipment? This will release the items back to unfulfilled.",
+        confirmLabel: "Cancel Shipment",
+        color: "danger",
+      },
+    });
+
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return;
+    if (!this.#isConnected) return;
+
+    this._isUpdatingStatus = true;
+
+    const { error } = await MerchelloApi.updateShipmentStatus(shipment.id, {
+      newStatus: ShipmentStatus.Cancelled,
+    });
+
+    if (!this.#isConnected) return;
+
+    this._isUpdatingStatus = false;
+
+    if (error) {
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to cancel shipment", message: error.message },
+      });
+      return;
+    }
+
+    this.#notificationContext?.peek("positive", {
+      data: { headline: "Shipment cancelled", message: "Items released back to unfulfilled" },
+    });
+
+    this._loadShipments();
+
+    if (this._invoiceId) {
+      this.#workspaceContext?.load(this._invoiceId);
+    }
+  }
+
   private _renderShipmentCard(shipment: ShipmentDetailDto, orderWarehouse: string): unknown {
     const carrierBadgeClass = this._getCarrierClass(shipment.carrier);
+    const isExpanded = this._expandedShipmentId === shipment.id;
 
     return html`
       <div class="shipment-card">
         <div class="shipment-header">
           <div class="header-left">
+            <span class="shipment-status-badge ${shipment.statusCssClass}">${shipment.statusLabel}</span>
             ${shipment.carrier
               ? html`<span class="carrier-badge ${carrierBadgeClass}">${shipment.carrier}</span>`
-              : html`<span class="carrier-badge">No carrier</span>`}
+              : nothing}
             <span class="shipment-date">Created ${formatShortDate(shipment.dateCreated)}</span>
           </div>
           <div class="header-right">
@@ -151,11 +286,21 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
           </div>
         </div>
 
+        ${this._renderStatusActions(shipment, isExpanded)}
+
         <div class="shipment-details">
           <div class="detail-row">
             <span class="label">Warehouse:</span>
             <span class="value">${orderWarehouse}</span>
           </div>
+          ${shipment.shippedDate
+            ? html`
+                <div class="detail-row">
+                  <span class="label">Shipped:</span>
+                  <span class="value">${formatShortDate(shipment.shippedDate)}</span>
+                </div>
+              `
+            : nothing}
           ${shipment.trackingNumber
             ? html`
                 <div class="detail-row">
@@ -209,6 +354,118 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
               </div>
             `
           )}
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderStatusActions(shipment: ShipmentDetailDto, isExpanded: boolean): unknown {
+    // Don't show actions for terminal states
+    if (!shipment.canMarkAsShipped && !shipment.canMarkAsDelivered && !shipment.canCancel) {
+      return nothing;
+    }
+
+    return html`
+      <div class="status-actions">
+        ${shipment.canMarkAsShipped
+          ? html`
+              <uui-button
+                look="primary"
+                compact
+                label="Mark as Shipped"
+                ?disabled=${this._isUpdatingStatus}
+                @click=${() => this._toggleMarkAsShippedForm(shipment.id)}
+              >
+                <uui-icon name="icon-truck"></uui-icon>
+                Mark as Shipped
+              </uui-button>
+            `
+          : nothing}
+        ${shipment.canMarkAsDelivered
+          ? html`
+              <uui-button
+                look="primary"
+                color="positive"
+                compact
+                label="Mark as Delivered"
+                ?disabled=${this._isUpdatingStatus}
+                @click=${() => this._handleMarkAsDelivered(shipment)}
+              >
+                <uui-icon name="icon-check"></uui-icon>
+                Mark as Delivered
+              </uui-button>
+            `
+          : nothing}
+        ${shipment.canCancel
+          ? html`
+              <uui-button
+                look="secondary"
+                color="danger"
+                compact
+                label="Cancel Shipment"
+                ?disabled=${this._isUpdatingStatus}
+                @click=${() => this._handleCancelShipment(shipment)}
+              >
+                Cancel
+              </uui-button>
+            `
+          : nothing}
+      </div>
+
+      ${isExpanded ? this._renderTrackingForm(shipment) : nothing}
+    `;
+  }
+
+  private _renderTrackingForm(shipment: ShipmentDetailDto): unknown {
+    return html`
+      <div class="tracking-form">
+        <h4>Add tracking information (optional)</h4>
+        <div class="form-row">
+          <uui-form-layout-item>
+            <uui-label slot="label">Carrier</uui-label>
+            <uui-input
+              placeholder="e.g., UPS, FedEx, DHL"
+              .value=${this._trackingForm.carrier}
+              @input=${(e: InputEvent) =>
+                this._handleTrackingFormChange("carrier", (e.target as HTMLInputElement).value)}
+            ></uui-input>
+          </uui-form-layout-item>
+          <uui-form-layout-item>
+            <uui-label slot="label">Tracking Number</uui-label>
+            <uui-input
+              placeholder="Tracking number"
+              .value=${this._trackingForm.trackingNumber}
+              @input=${(e: InputEvent) =>
+                this._handleTrackingFormChange("trackingNumber", (e.target as HTMLInputElement).value)}
+            ></uui-input>
+          </uui-form-layout-item>
+          <uui-form-layout-item>
+            <uui-label slot="label">Tracking URL</uui-label>
+            <uui-input
+              placeholder="https://..."
+              .value=${this._trackingForm.trackingUrl}
+              @input=${(e: InputEvent) =>
+                this._handleTrackingFormChange("trackingUrl", (e.target as HTMLInputElement).value)}
+            ></uui-input>
+          </uui-form-layout-item>
+        </div>
+        <div class="form-actions">
+          <uui-button
+            look="primary"
+            label="Confirm Shipped"
+            ?disabled=${this._isUpdatingStatus}
+            @click=${() => this._handleMarkAsShipped(shipment)}
+          >
+            ${this._isUpdatingStatus ? html`<uui-loader-circle></uui-loader-circle>` : "Confirm Shipped"}
+          </uui-button>
+          <uui-button
+            look="secondary"
+            label="Cancel"
+            ?disabled=${this._isUpdatingStatus}
+            @click=${() => this._toggleMarkAsShippedForm(shipment.id)}
+          >
+            Cancel
+          </uui-button>
         </div>
       </div>
     `;
@@ -415,6 +672,35 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
       gap: var(--uui-size-space-2);
     }
 
+    /* Shipment status badge styles */
+    .shipment-status-badge {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .shipment-status-badge.preparing {
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
+    }
+
+    .shipment-status-badge.shipped {
+      background: var(--uui-color-current-standalone);
+      color: var(--uui-color-current-contrast);
+    }
+
+    .shipment-status-badge.delivered {
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
+    }
+
+    .shipment-status-badge.cancelled {
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
+    }
+
     .carrier-badge {
       padding: 4px 12px;
       border-radius: 4px;
@@ -453,6 +739,45 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     .shipment-date {
       font-size: 0.875rem;
       color: var(--uui-color-text-alt);
+    }
+
+    /* Status actions section */
+    .status-actions {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      margin-bottom: var(--uui-size-space-3);
+      padding: var(--uui-size-space-3);
+      background: var(--uui-color-surface-alt);
+      border-radius: var(--uui-border-radius);
+    }
+
+    /* Tracking form styles */
+    .tracking-form {
+      margin-bottom: var(--uui-size-space-3);
+      padding: var(--uui-size-space-4);
+      background: var(--uui-color-surface-alt);
+      border-radius: var(--uui-border-radius);
+      border: 1px solid var(--uui-color-border);
+    }
+
+    .tracking-form h4 {
+      margin: 0 0 var(--uui-size-space-3);
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--uui-color-text);
+    }
+
+    .tracking-form .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: var(--uui-size-space-3);
+      margin-bottom: var(--uui-size-space-3);
+    }
+
+    .tracking-form .form-actions {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      justify-content: flex-end;
     }
 
     .shipment-details {
@@ -556,6 +881,12 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     .item-qty {
       font-weight: 600;
       font-size: 0.875rem;
+    }
+
+    @media (max-width: 768px) {
+      .tracking-form .form-row {
+        grid-template-columns: 1fr;
+      }
     }
   `;
 }

@@ -15,7 +15,9 @@ public class ShipmentDbMapping : IEntityTypeConfiguration<Shipment>
         builder.Property(x => x.Id).IsRequired();
         builder.Property(x => x.Address).ToJsonConversion(1500);
         builder.Property(x => x.LineItems).ToJsonConversion(3000);
+        builder.Property(x => x.Status).HasDefaultValue(ShipmentStatus.Preparing);
         // DateCreated uses C# default (DateTime.UtcNow) - no SQL default needed for cross-db compatibility
+        // ShippedDate is nullable, set when shipment status transitions to Shipped
 
         builder.HasOne(x => x.Order)
             .WithMany(x => x.Shipments)

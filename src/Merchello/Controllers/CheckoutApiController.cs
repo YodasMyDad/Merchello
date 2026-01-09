@@ -9,7 +9,9 @@ using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
+using Merchello.Core.Shared.RateLimiting.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -25,10 +27,14 @@ public class CheckoutApiController(
     ICheckoutSessionService checkoutSessionService,
     ICheckoutValidator checkoutValidator,
     ICheckoutMemberService checkoutMemberService,
+    IRateLimiter rateLimiter,
     IOptions<MerchelloSettings> merchelloSettings,
     ILogger<CheckoutApiController> logger) : ControllerBase
 {
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
+
+    private const int MaxRecoveryAttemptsPerMinute = 10;
+    private static readonly TimeSpan RecoveryRateLimitWindow = TimeSpan.FromMinutes(1);
 
     /// <summary>
     /// Get the current basket with formatted totals.
@@ -565,6 +571,123 @@ public class CheckoutApiController(
         }
 
         return Ok(result);
+    }
+
+    #endregion
+
+    #region Cart Recovery
+
+    /// <summary>
+    /// Restore a basket from an abandoned cart recovery token.
+    /// </summary>
+    [HttpGet("recover/{token}")]
+    public async Task<IActionResult> RecoverBasket(string token, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return BadRequest(new { success = false, message = "Recovery token is required." });
+        }
+
+        // Rate limit by IP address
+        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var rateLimitKey = $"cart-recovery:{clientIp}";
+        var rateLimitResult = rateLimiter.TryAcquire(rateLimitKey, MaxRecoveryAttemptsPerMinute, RecoveryRateLimitWindow);
+
+        if (!rateLimitResult.IsAllowed)
+        {
+            return StatusCode(429, new
+            {
+                success = false,
+                message = "Too many recovery attempts. Please try again later.",
+                retryAfterSeconds = rateLimitResult.RetryAfter?.TotalSeconds
+            });
+        }
+
+        var abandonedCheckoutService = HttpContext.RequestServices
+            .GetService<IAbandonedCheckoutService>();
+
+        if (abandonedCheckoutService == null)
+        {
+            return StatusCode(503, new { success = false, message = "Cart recovery service is not available." });
+        }
+
+        var result = await abandonedCheckoutService.RestoreBasketFromRecoveryAsync(token, ct);
+
+        if (result.ResultObject == null)
+        {
+            var errorMessage = result.Messages.FirstOrDefault()?.Message ?? "Unable to recover basket.";
+            return NotFound(new { success = false, message = errorMessage });
+        }
+
+        // Return the recovered basket as a checkout basket DTO
+        var basketDto = MapBasketToDto(result.ResultObject);
+        return Ok(new
+        {
+            success = true,
+            message = "Your basket has been restored.",
+            basket = basketDto
+        });
+    }
+
+    /// <summary>
+    /// Validate a recovery token without restoring the basket.
+    /// </summary>
+    [HttpGet("recover/{token}/validate")]
+    public async Task<IActionResult> ValidateRecoveryToken(string token, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return BadRequest(new { valid = false, message = "Recovery token is required." });
+        }
+
+        // Rate limit by IP address
+        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var rateLimitKey = $"cart-recovery:{clientIp}";
+        var rateLimitResult = rateLimiter.TryAcquire(rateLimitKey, MaxRecoveryAttemptsPerMinute, RecoveryRateLimitWindow);
+
+        if (!rateLimitResult.IsAllowed)
+        {
+            return StatusCode(429, new
+            {
+                valid = false,
+                message = "Too many recovery attempts. Please try again later.",
+                retryAfterSeconds = rateLimitResult.RetryAfter?.TotalSeconds
+            });
+        }
+
+        var abandonedCheckoutService = HttpContext.RequestServices
+            .GetService<IAbandonedCheckoutService>();
+
+        if (abandonedCheckoutService == null)
+        {
+            return StatusCode(503, new { valid = false, message = "Cart recovery service is not available." });
+        }
+
+        var abandonedCheckout = await abandonedCheckoutService.GetByRecoveryTokenAsync(token, ct);
+
+        if (abandonedCheckout == null)
+        {
+            return Ok(new { valid = false, message = "Invalid recovery link." });
+        }
+
+        if (abandonedCheckout.RecoveryTokenExpiresUtc < DateTime.UtcNow)
+        {
+            return Ok(new { valid = false, message = "This recovery link has expired." });
+        }
+
+        if (abandonedCheckout.Status == AbandonedCheckoutStatus.Converted)
+        {
+            return Ok(new { valid = false, message = "This checkout has already been completed." });
+        }
+
+        return Ok(new
+        {
+            valid = true,
+            basketTotal = abandonedCheckout.BasketTotal,
+            formattedTotal = (abandonedCheckout.CurrencySymbol ?? "") + abandonedCheckout.BasketTotal.ToString("N2"),
+            itemCount = abandonedCheckout.ItemCount,
+            customerEmail = abandonedCheckout.Email
+        });
     }
 
     #endregion

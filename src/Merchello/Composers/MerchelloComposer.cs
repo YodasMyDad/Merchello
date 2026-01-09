@@ -5,6 +5,7 @@ using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Data.Handlers;
 using Merchello.Core.Payments.Handlers;
+using Merchello.Email.Services;
 using Merchello.Factories;
 using Merchello.Routing;
 using Merchello.Services;
@@ -26,51 +27,99 @@ using Umbraco.Cms.Core.Routing;
 
 namespace Merchello.Composers
 {
+    /// <summary>
+    /// Main Merchello composer for Umbraco web applications.
+    /// </summary>
+    /// <remarks>
+    /// <para>This composer handles web-specific registrations that require Umbraco.Cms.Web.Common:</para>
+    /// <list type="bullet">
+    ///   <item><description>Calls AddMerch() to register all core Merchello services</description></item>
+    ///   <item><description>Registers web-specific services (e.g., CheckoutMemberService)</description></item>
+    ///   <item><description>Configures startup handlers (migrations, seeding, data types)</description></item>
+    ///   <item><description>Registers content finders for product and checkout URL routing</description></item>
+    ///   <item><description>Configures Swagger/OpenAPI for the backoffice API</description></item>
+    /// </list>
+    /// <para>
+    /// Database-specific composers (EFCoreSqlServerComposer, EFCoreSqliteComposer) handle
+    /// migration providers separately based on the configured database provider.
+    /// </para>
+    /// </remarks>
     public class MerchelloComposer : IComposer
     {
         public void Compose(IUmbracoBuilder builder)
         {
-            // Register all Merchello services, DbContext, and dependencies
+            // =====================================================
+            // Core Services
+            // =====================================================
+            // Registers all Merchello services, factories, and background jobs.
+            // See Merchello.Core.Startup.AddMerch() for full registration details.
+
             builder.AddMerch();
 
-            // Register CheckoutMemberService (requires web-only IMemberSignInManager)
+            // =====================================================
+            // Web-Specific Services
+            // =====================================================
+            // Services that require Umbraco.Cms.Web.Common (not available in Core project).
+
+            // CheckoutMemberService requires IMemberSignInManager for member authentication
             builder.Services.AddScoped<ICheckoutMemberService, CheckoutMemberService>();
 
-            // Register Merchello EF Core migration handler
+            // EmailRazorViewRenderer for rendering email templates with MJML support
+            builder.Services.AddScoped<IEmailRazorViewRenderer, EmailRazorViewRenderer>();
+
+            // =====================================================
+            // Startup Notification Handlers
+            // =====================================================
+            // These run once when Umbraco starts, in registration order.
+
+            // 1. Run EF Core migrations to ensure database schema is up to date
             builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, RunMerchMigration>();
 
-            // Register seed data handler (runs after migrations, only seeds if no data exists)
+            // 2. Seed initial data (countries, currencies, etc.) if database is empty
             builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, SeedDataNotificationHandler>();
 
-            // Ensure built-in payment providers (like Manual Payment) exist and are enabled
+            // 3. Ensure built-in payment providers (Manual Payment) exist and are enabled
             builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, EnsureBuiltInPaymentProvidersHandler>();
 
-            // Register DataType initializer (ensures Product Description TipTap DataType exists)
+            // 4. Initialize Merchello DataTypes (Product Description TipTap editor)
             builder.Services.AddSingleton<MerchelloDataTypeInitializer>();
             builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, InitializeMerchelloDataTypesHandler>();
 
-            // Register factories for front-end product rendering (Phase 4)
+            // =====================================================
+            // Front-End Rendering
+            // =====================================================
+            // Factories and services for rendering products on the public storefront.
+
             builder.Services.AddScoped<MerchelloPublishedElementFactory>();
             builder.Services.AddScoped<IMerchelloViewModelFactory, MerchelloViewModelFactory>();
-
-            // Register rich text renderer for TipTap content rendering
             builder.Services.AddSingleton<IRichTextRenderer, RichTextRenderer>();
 
-            // Register ProductContentFinder for front-end product URL routing
-            builder.ContentFinders().InsertAfter<ContentFinderByUrlNew, ProductContentFinder>();
+            // =====================================================
+            // Content Finders (URL Routing)
+            // =====================================================
+            // Custom content finders for product and checkout URL routing.
 
-            // Register CheckoutContentFinder for checkout URL routing
+            builder.ContentFinders().InsertAfter<ContentFinderByUrlNew, ProductContentFinder>();
             builder.ContentFinders().InsertAfter<ProductContentFinder, CheckoutContentFinder>();
 
-            // Configure Razor to find views in standard MVC locations
+            // =====================================================
+            // Razor & Swagger Configuration
+            // =====================================================
+
+            // Add standard MVC view locations for Razor views
             builder.Services.Configure<RazorViewEngineOptions>(options =>
             {
                 options.ViewLocationFormats.Add("/Views/{1}/{0}.cshtml");
                 options.ViewLocationFormats.Add("/Views/Shared/{0}.cshtml");
+                // Email template locations
+                options.ViewLocationFormats.Add("/Views/Emails/{0}.cshtml");
+                options.ViewLocationFormats.Add("/Views/Emails/Shared/{0}.cshtml");
             });
 
+            // Custom operation ID handler for cleaner Swagger method names
             builder.Services.AddSingleton<IOperationIdHandler, CustomOperationHandler>();
 
+            // Configure Swagger/OpenAPI documentation for the Merchello backoffice API
             builder.Services.Configure<SwaggerGenOptions>(opt =>
             {
                 // Related documentation:
