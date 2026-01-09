@@ -199,6 +199,12 @@ export class MerchelloSegmentPickerModalElement extends UmbModalBaseElement<
 
     uui-table-row[selected] {
       background: var(--uui-color-selected);
+      color: var(--uui-color-selected-contrast, #fff);
+      font-weight: 600;
+    }
+
+    uui-table-row[selected] uui-icon {
+      color: var(--uui-color-selected-contrast, #fff);
     }
 
     .segment-info {

@@ -4,6 +4,7 @@ import { resolve } from "path";
 export default defineConfig({
   resolve: {
     alias: {
+      "@abandoned-checkouts": resolve(__dirname, "src/abandoned-checkouts"),
       "@api": resolve(__dirname, "src/api"),
       "@analytics": resolve(__dirname, "src/analytics"),
       "@collections": resolve(__dirname, "src/collections"),

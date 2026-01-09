@@ -578,6 +578,41 @@ public class CheckoutApiController(
     #region Cart Recovery
 
     /// <summary>
+    /// Capture email early for abandoned cart recovery.
+    /// Call this on email field blur/change to start tracking immediately.
+    /// </summary>
+    [HttpPost("capture-email")]
+    public async Task<IActionResult> CaptureEmail([FromBody] CheckEmailRequestDto request, CancellationToken ct)
+    {
+        if (!checkoutValidator.IsValidEmail(request.Email))
+        {
+            return BadRequest(new { success = false, message = "Invalid email format." });
+        }
+
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
+        if (basket == null || basket.LineItems.Count == 0)
+        {
+            return BadRequest(new { success = false, message = "No items in basket." });
+        }
+
+        var abandonedCheckoutService = HttpContext.RequestServices
+            .GetService<IAbandonedCheckoutService>();
+
+        if (abandonedCheckoutService == null)
+        {
+            // Service not available - silently succeed (feature disabled)
+            return Ok(new { success = true });
+        }
+
+        await abandonedCheckoutService.TrackCheckoutActivityAsync(basket, request.Email.Trim(), ct);
+
+        logger.LogDebug("Email captured for abandoned cart recovery: {Email}, Basket: {BasketId}",
+            request.Email, basket.Id);
+
+        return Ok(new { success = true });
+    }
+
+    /// <summary>
     /// Restore a basket from an abandoned cart recovery token.
     /// </summary>
     [HttpGet("recover/{token}")]
