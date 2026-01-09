@@ -375,6 +375,15 @@ import type {
   OutboundDeliveryResultDto,
 } from '@webhooks/types/webhooks.types.js';
 
+// Import abandoned checkout types
+import type {
+  AbandonedCheckoutPageDto,
+  AbandonedCheckoutStatsDto,
+  AbandonedCheckoutQueryParams,
+  RegenerateRecoveryLinkResultDto,
+  ResendRecoveryEmailResultDto,
+} from '@abandoned-checkouts/types/abandoned-checkout.types.js';
+
 // Import apply discount result from order types (for invoices)
 interface ApplyDiscountResultDto {
   success: boolean;
@@ -1577,4 +1586,31 @@ export const MerchelloApi = {
     const queryString = buildQueryString(params);
     return apiGet<WebhookStatsDto>(`webhooks/stats${queryString ? `?${queryString}` : ''}`);
   },
+
+  // ============================================
+  // Abandoned Checkouts API
+  // ============================================
+
+  /** Get paginated list of abandoned checkouts */
+  getAbandonedCheckouts: (params?: AbandonedCheckoutQueryParams) => {
+    const queryString = buildQueryString(params as Record<string, unknown>);
+    return apiGet<AbandonedCheckoutPageDto>(`abandoned-checkouts${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Get abandoned checkout statistics */
+  getAbandonedCheckoutStats: (fromDate?: string, toDate?: string) => {
+    const params: Record<string, string> = {};
+    if (fromDate) params.fromDate = fromDate;
+    if (toDate) params.toDate = toDate;
+    const queryString = buildQueryString(params);
+    return apiGet<AbandonedCheckoutStatsDto>(`abandoned-checkouts/stats${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Resend recovery email for an abandoned checkout */
+  resendRecoveryEmail: (id: string) =>
+    apiPost<ResendRecoveryEmailResultDto>(`abandoned-checkouts/${id}/resend-email`),
+
+  /** Regenerate recovery link for an abandoned checkout */
+  regenerateRecoveryLink: (id: string) =>
+    apiPost<RegenerateRecoveryLinkResultDto>(`abandoned-checkouts/${id}/regenerate-link`),
 };

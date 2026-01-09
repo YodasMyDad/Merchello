@@ -10,6 +10,7 @@ import {
   MERCHELLO_ROOT_ENTITY_TYPE,
   MERCHELLO_ORDERS_ENTITY_TYPE,
   MERCHELLO_OUTSTANDING_ENTITY_TYPE,
+  MERCHELLO_ABANDONED_CHECKOUTS_ENTITY_TYPE,
   MERCHELLO_PRODUCTS_ENTITY_TYPE,
   MERCHELLO_CUSTOMERS_ENTITY_TYPE,
   MERCHELLO_COLLECTIONS_ENTITY_TYPE,
@@ -169,6 +170,15 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
           hasChildren: false,
           isFolder: false,
           icon: "icon-timer",
+          parent: { unique: "orders", entityType: MERCHELLO_ORDERS_ENTITY_TYPE },
+        },
+        {
+          entityType: MERCHELLO_ABANDONED_CHECKOUTS_ENTITY_TYPE,
+          unique: "abandoned-checkouts",
+          name: "Abandoned Checkouts",
+          hasChildren: false,
+          isFolder: false,
+          icon: "icon-shopping-basket-alt-2",
           parent: { unique: "orders", entityType: MERCHELLO_ORDERS_ENTITY_TYPE },
         },
       ];

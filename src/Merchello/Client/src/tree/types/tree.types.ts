@@ -37,3 +37,4 @@ export const MERCHELLO_EMAILS_ENTITY_TYPE = "merchello-emails";
 export const MERCHELLO_PROVIDERS_ENTITY_TYPE = "merchello-providers";
 export const MERCHELLO_WEBHOOKS_ENTITY_TYPE = "merchello-webhooks";
 export const MERCHELLO_OUTSTANDING_ENTITY_TYPE = "merchello-outstanding";
+export const MERCHELLO_ABANDONED_CHECKOUTS_ENTITY_TYPE = "merchello-abandoned-checkouts";
