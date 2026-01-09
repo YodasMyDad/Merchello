@@ -1,0 +1,29 @@
+@using Microsoft.Extensions.Options
+@inject IOptions<EmailSettings> EmailSettingsOptions
+@{
+    Layout = null;
+    var settings = EmailSettingsOptions.Value;
+    var theme = settings.Theme;
+}
+<mjml>
+  <mj-head>
+    <mj-title>@ViewBag.Title</mj-title>
+    @if (!string.IsNullOrEmpty(ViewBag.Preview as string))
+    {
+    <mj-preview>@ViewBag.Preview</mj-preview>
+    }
+    <mj-attributes>
+      <mj-all font-family="@theme.FontFamily" />
+      <mj-text font-size="14px" color="@theme.TextColor" line-height="1.6" />
+      <mj-section background-color="@theme.ContentBackgroundColor" padding="20px" />
+      <mj-button background-color="@theme.PrimaryColor" color="#ffffff" border-radius="4px" font-size="14px" />
+    </mj-attributes>
+    <mj-style>
+      a { color: @theme.PrimaryColor; }
+      .footer-text { color: @theme.SecondaryTextColor; font-size: 12px; }
+    </mj-style>
+  </mj-head>
+  <mj-body background-color="@theme.BackgroundColor">
+    @RenderBody()
+  </mj-body>
+</mjml>

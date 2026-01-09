@@ -30,6 +30,7 @@ export default defineConfig({
       "@tax": resolve(__dirname, "src/tax"),
       "@tree": resolve(__dirname, "src/tree"),
       "@warehouses": resolve(__dirname, "src/warehouses"),
+      "@webhooks": resolve(__dirname, "src/webhooks"),
     },
   },
   build: {

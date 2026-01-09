@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Accounting.Handlers.Interfaces;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Checkout;
 using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
@@ -80,6 +81,7 @@ using Merchello.Core.Email.Services.Interfaces;
 using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Suppliers.Services;
 using Merchello.Core.Suppliers.Services.Interfaces;
+using Merchello.Core.Accounting;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Locality.Factories;
 using Merchello.Core.Warehouses.Factories;
@@ -96,6 +98,21 @@ public static class Startup
     /// <summary>
     /// Adds Merchello services to the Umbraco builder.
     /// </summary>
+    /// <remarks>
+    /// <para>Registration is organized into sections:</para>
+    /// <list type="bullet">
+    ///   <item><description>Database &amp; Configuration - DbContext and appsettings bindings</description></item>
+    ///   <item><description>Infrastructure - Singletons for caching, currency, and locality services</description></item>
+    ///   <item><description>Factories - Stateless object creators for domain models</description></item>
+    ///   <item><description>Services - Scoped services organized by feature domain</description></item>
+    ///   <item><description>Background Services - Hosted services for scheduled tasks</description></item>
+    ///   <item><description>Notification Handlers - Event handlers for webhooks and emails</description></item>
+    /// </list>
+    /// <para>Web-specific services (requiring Umbraco.Cms.Web.Common) are registered in MerchelloComposer.</para>
+    /// </remarks>
+    /// <param name="builder">The Umbraco builder to add services to.</param>
+    /// <param name="pluginAssemblies">Optional assemblies containing payment/shipping provider plugins.</param>
+    /// <returns>The builder for method chaining.</returns>
     public static IUmbracoBuilder AddMerch(this IUmbracoBuilder builder, IEnumerable<Assembly>? pluginAssemblies = null)
     {
         // =====================================================
@@ -108,12 +125,22 @@ public static class Startup
             options.UseUmbracoDatabaseProvider(serviceProvider);
         });
 
+        // Core settings (currency, tax, store defaults)
         builder.Services.Configure<MerchelloSettings>(builder.Config.GetSection("Merchello"));
+        // Checkout flow configuration (guest checkout, session timeouts)
         builder.Services.Configure<CheckoutSettings>(builder.Config.GetSection("Merchello:Checkout"));
+        // Abandoned cart detection and recovery email timing
+        builder.Services.Configure<AbandonedCheckoutSettings>(builder.Config.GetSection("Merchello:Checkout:AbandonedCart"));
+        // Cache durations for products, customers, etc.
         builder.Services.Configure<CacheOptions>(builder.Config.GetSection("Merchello:Cache"));
+        // Currency exchange rate provider and refresh intervals
         builder.Services.Configure<ExchangeRateOptions>(builder.Config.GetSection("Merchello:ExchangeRates"));
+        // Outbound webhook delivery settings (retries, timeouts)
         builder.Services.Configure<WebhookSettings>(builder.Config.GetSection("Merchello:Webhooks"));
+        // Email provider configuration (SMTP, templates)
         builder.Services.Configure<EmailSettings>(builder.Config.GetSection("Merchello:Email"));
+        // Invoice payment reminder and overdue notification timing
+        builder.Services.Configure<InvoiceReminderSettings>(builder.Config.GetSection("Merchello:Invoices:Reminders"));
 
         // =====================================================
         // Infrastructure (Singletons)
@@ -180,10 +207,12 @@ public static class Startup
         // Note: ICheckoutMemberService is registered in MerchelloComposer (web project)
         // because it depends on Umbraco.Cms.Web.Common.Security (IMemberSignInManager)
         builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+        builder.Services.AddScoped<IInvoiceReminderService, InvoiceReminderService>();
         builder.Services.AddScoped<ILineItemService, LineItemService>();
         builder.Services.AddScoped<IOrderStatusHandler, DefaultOrderStatusHandler>();
         builder.Services.AddScoped<IOrderGroupingStrategyResolver, OrderGroupingStrategyResolver>();
         builder.Services.AddScoped<DefaultOrderGroupingStrategy>();
+        builder.Services.AddScoped<IAbandonedCheckoutService, AbandonedCheckoutService>();
 
         // Customers
         builder.Services.AddScoped<ICustomerService, CustomerService>();
@@ -248,6 +277,7 @@ public static class Startup
         builder.Services.AddSingleton<IEmailTopicRegistry, EmailTopicRegistry>();
         builder.Services.AddSingleton<IEmailTokenResolver, EmailTokenResolver>();
         builder.Services.AddSingleton<IEmailTemplateDiscoveryService, EmailTemplateDiscoveryService>();
+        builder.Services.AddSingleton<IMjmlCompiler, MjmlCompiler>();
         builder.Services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
         builder.Services.AddScoped<IEmailService, EmailService>();
 
@@ -261,23 +291,39 @@ public static class Startup
         builder.Services.AddScoped<IMerchelloNotificationPublisher, MerchelloNotificationPublisher>();
 
         // =====================================================
-        // Background Services
+        // Background Services (Hosted Services)
         // =====================================================
+        // These run on configurable intervals defined in appsettings.json.
+        // All jobs inherit from BackgroundService and run for the lifetime of the application.
 
-        builder.Services.AddHostedService<ExchangeRateRefreshJob>();
-        builder.Services.AddHostedService<DiscountStatusJob>();
-        builder.Services.AddHostedService<OutboundDeliveryJob>();
+        builder.Services.AddHostedService<ExchangeRateRefreshJob>();        // Refreshes currency exchange rates from configured provider
+        builder.Services.AddHostedService<DiscountStatusJob>();             // Marks expired discounts as inactive
+        builder.Services.AddHostedService<OutboundDeliveryJob>();           // Retries failed webhook/email deliveries, cleans up old logs
+        builder.Services.AddHostedService<InvoiceReminderJob>();            // Sends payment reminder and overdue notifications
+        builder.Services.AddHostedService<AbandonedCheckoutDetectionJob>(); // Detects abandoned carts and triggers recovery emails
 
         // =====================================================
         // Notification Handlers
         // =====================================================
+        // Handlers subscribe to internal events and trigger side effects.
+        // Multiple handlers can respond to the same notification.
+
+        // -----------------------------------------------------
+        // Invoice Timeline Handlers
+        // -----------------------------------------------------
+        // Updates the invoice activity timeline for order/payment events
 
         builder.AddNotificationAsyncHandler<OrderStatusChangedNotification, InvoiceTimelineHandler>();
         builder.AddNotificationAsyncHandler<ShipmentCreatedNotification, InvoiceTimelineHandler>();
         builder.AddNotificationAsyncHandler<PaymentCreatedNotification, InvoiceTimelineHandler>();
         builder.AddNotificationAsyncHandler<PaymentRefundedNotification, InvoiceTimelineHandler>();
 
-        // Webhook notification handlers (bridge internal events to external webhooks)
+        // -----------------------------------------------------
+        // Webhook Handlers
+        // -----------------------------------------------------
+        // Bridge internal events to external webhook endpoints.
+        // Configure webhooks in the backoffice under Settings > Webhooks.
+
         // Orders
         builder.AddNotificationAsyncHandler<OrderCreatedNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<OrderSavedNotification, WebhookNotificationHandler>();
@@ -308,8 +354,20 @@ public static class Startup
         builder.AddNotificationAsyncHandler<LowStockNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<StockReservedNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<StockAllocatedNotification, WebhookNotificationHandler>();
+        // Checkout
+        builder.AddNotificationAsyncHandler<CheckoutAbandonedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CheckoutAbandonedFirstNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CheckoutAbandonedReminderNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CheckoutAbandonedFinalNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CheckoutRecoveredNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CheckoutRecoveryConvertedNotification, WebhookNotificationHandler>();
 
-        // Email notification handlers (send emails based on configured email templates)
+        // -----------------------------------------------------
+        // Email Handlers
+        // -----------------------------------------------------
+        // Send emails based on configured email templates.
+        // Configure email templates in the backoffice under Settings > Email.
+
         // Orders
         builder.AddNotificationAsyncHandler<OrderCreatedNotification, EmailNotificationHandler>();
         builder.AddNotificationAsyncHandler<OrderStatusChangedNotification, EmailNotificationHandler>();
@@ -323,10 +381,19 @@ public static class Startup
         // Shipments
         builder.AddNotificationAsyncHandler<ShipmentCreatedNotification, EmailNotificationHandler>();
         builder.AddNotificationAsyncHandler<ShipmentSavedNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<ShipmentStatusChangedNotification, EmailNotificationHandler>();
+        // Invoices
+        builder.AddNotificationAsyncHandler<InvoiceSavedNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<InvoiceDeletedNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<InvoiceReminderNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<InvoiceOverdueNotification, EmailNotificationHandler>();
         // Inventory
         builder.AddNotificationAsyncHandler<LowStockNotification, EmailNotificationHandler>();
         // Checkout
         builder.AddNotificationAsyncHandler<CheckoutAbandonedNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CheckoutAbandonedFirstNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CheckoutAbandonedReminderNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CheckoutAbandonedFinalNotification, EmailNotificationHandler>();
         builder.AddNotificationAsyncHandler<CheckoutRecoveredNotification, EmailNotificationHandler>();
         builder.AddNotificationAsyncHandler<CheckoutRecoveryConvertedNotification, EmailNotificationHandler>();
 

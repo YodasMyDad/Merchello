@@ -31,7 +31,7 @@ FACTORIES → All object creation, stateless singletons
 - `IShippingCostResolver`: `.ResolveBaseCost()`, `.GetTotalShippingCost()` — Priority: State>Country>Universal(`*`)>FixedCost
 - `IShippingQuoteService`: `.GetQuotesAsync()`
 - `IShippingService`: `.GetShippingOptionsForBasket()`, `.GetRequiredWarehouses()`, `.GetShippingOptionsForWarehouseAsync()`, `.GetFulfillmentOptionsForProductAsync()`, `.GetDefaultFulfillingWarehouseAsync()`, `.GetShippingOptionsForProductAsync()`
-- `IShipmentService`: `.CreateShipmentAsync()` (single), `.CreateShipmentsFromOrderAsync()` (batch), `.UpdateShipmentAsync()`, `.DeleteShipmentAsync()` (releases inventory), `.GetFulfillmentSummaryAsync()`
+- `IShipmentService`: `.CreateShipmentAsync()` (single), `.CreateShipmentsFromOrderAsync()` (batch), `.UpdateShipmentAsync()`, `.UpdateShipmentStatusAsync()`, `.DeleteShipmentAsync()` (releases inventory), `.GetFulfillmentSummaryAsync()`
 
 ### Locality
 - `ILocationsService`: `.GetAvailableCountriesAsync()`, `.GetAvailableRegionsAsync()`, `.GetAvailableCountriesForWarehouseAsync()`, `.GetAvailableRegionsForWarehouseAsync()`
@@ -42,6 +42,7 @@ FACTORIES → All object creation, stateless singletons
 
 ### Checkout
 - `ICheckoutService`: `.CalculateBasketAsync()`, `.ApplyDiscountCodeAsync()`, `.RefreshAutomaticDiscountsAsync()`, `.SaveAddressesAsync()` (stores marketing opt-in in `CheckoutSession.AcceptsMarketing`)
+- `IAbandonedCheckoutService`: `.TrackCheckoutActivityAsync()`, `.DetectAbandonedCheckoutsAsync()`, `.SendScheduledRecoveryEmailsAsync()`, `.RestoreBasketFromRecoveryAsync()`, `.MarkAsConvertedAsync()`, `.GetStatsAsync()`
 
 ### Invoice & Order
 - `IInvoiceService`: `.RecalculateInvoiceTotals()`, `.CreateOrderFromBasketAsync()`, `.PreviewInvoiceEditAsync()`, `.EditInvoiceAsync()`, `.CreateDraftOrderAsync()`, `.CancelInvoiceAsync()`
@@ -216,6 +217,146 @@ Hook into CRUD for validation/modification/integration.
 **Caching**: `MerchelloCacheRefresherNotification` for distributed invalidation
 **Priority**: 100=validation, 500=modification, 1000=default, 2000=external sync
 
+### Implementation Status (Audit: Jan 2026)
+
+**Working**: Notifications that are published AND have handlers registered:
+- Order: Creating/Created, Saving/Saved, StatusChanging/Changed (`IInvoiceService`)
+- Invoice: Saving/Saved, Cancelling/Cancelled, Deleting/Deleted (`IInvoiceService`)
+- Payment: Creating/Created, Refunding/Refunded (`IPaymentService`)
+- Shipment: Creating/Created, Saving/Saved, StatusChanging/Changed (`IShipmentService`)
+- Customer: Creating/Created, Saving/Saved, Deleting/Deleted (`ICustomerService`)
+- Product: Creating/Created, Saving/Saved, Deleting/Deleted (`IProductService`)
+- ProductOption: Creating/Created, Deleting/Deleted (`IProductService`)
+- CustomerSegment: All 6 notifications (`ICustomerSegmentService`)
+- Discount: All 8 notifications (`IDiscountService`)
+- Supplier: All 6 notifications (`ISupplierService`)
+- Warehouse: Creating/Created, Saving/Saved, Deleting/Deleted (`IWarehouseService`)
+- TaxGroup: Creating/Created, Saving/Saved, Deleting/Deleted (`ITaxService`)
+- Inventory: All 8 notifications (Reserve/Release/Allocate/Adjust/LowStock) (`IInventoryService`)
+- ExchangeRate: Refreshed, FetchFailed (`ExchangeRateRefreshJob`)
+- Checkout: AddressesChanging/Changed, DiscountCodeApplying/Applied, ShippingSelectionChanging/Changed, BasketCurrencyChanging/Changed (`ICheckoutService`)
+- Basket: ItemAdding/Added, ItemRemoving/Removed, QuantityChanging/Changed, Clearing/Cleared (`ICheckoutService`)
+- Checkout (Abandoned): AbandonedFirst/Reminder/Final, Recovered, RecoveryConverted (`IAbandonedCheckoutService`)
+- Invoice (Reminders): Reminder, Overdue (`InvoiceReminderJob`)
+
+### Notification Reference
+
+| Category | Notification | Service | Cancelable |
+|----------|--------------|---------|------------|
+| **Basket** | `BasketItemAddingNotification` | `CheckoutService` | Yes |
+| | `BasketItemAddedNotification` | `CheckoutService` | No |
+| | `BasketItemRemovingNotification` | `CheckoutService` | Yes |
+| | `BasketItemRemovedNotification` | `CheckoutService` | No |
+| | `BasketItemQuantityChangingNotification` | `CheckoutService` | Yes |
+| | `BasketItemQuantityChangedNotification` | `CheckoutService` | No |
+| | `BasketClearingNotification` | `CheckoutService` | Yes |
+| | `BasketClearedNotification` | `CheckoutService` | No |
+| **Order** | `OrderCreatingNotification` | `InvoiceService` | Yes |
+| | `OrderCreatedNotification` | `InvoiceService` | No |
+| | `OrderSavingNotification` | `InvoiceService` | Yes |
+| | `OrderSavedNotification` | `InvoiceService` | No |
+| | `OrderStatusChangingNotification` | `InvoiceService` | Yes |
+| | `OrderStatusChangedNotification` | `InvoiceService` | No |
+| **Invoice** | `InvoiceSavingNotification` | `InvoiceService` | Yes |
+| | `InvoiceSavedNotification` | `InvoiceService` | No |
+| | `InvoiceCancellingNotification` | `InvoiceService` | Yes |
+| | `InvoiceCancelledNotification` | `InvoiceService` | No |
+| **Payment** | `PaymentCreatingNotification` | `PaymentService` | Yes |
+| | `PaymentCreatedNotification` | `PaymentService` | No |
+| | `PaymentRefundingNotification` | `PaymentService` | Yes |
+| | `PaymentRefundedNotification` | `PaymentService` | No |
+| **Shipment** | `ShipmentCreatingNotification` | `ShipmentService` | Yes |
+| | `ShipmentCreatedNotification` | `ShipmentService` | No |
+| | `ShipmentSavingNotification` | `ShipmentService` | Yes |
+| | `ShipmentSavedNotification` | `ShipmentService` | No |
+| | `ShipmentStatusChangingNotification` | `ShipmentService` | Yes |
+| | `ShipmentStatusChangedNotification` | `ShipmentService` | No |
+| **Product** | `ProductCreatingNotification` | `ProductService` | Yes |
+| | `ProductCreatedNotification` | `ProductService` | No |
+| | `ProductSavingNotification` | `ProductService` | Yes |
+| | `ProductSavedNotification` | `ProductService` | No |
+| | `ProductDeletingNotification` | `ProductService` | Yes |
+| | `ProductDeletedNotification` | `ProductService` | No |
+| | `ProductOptionCreatingNotification` | `ProductService` | Yes |
+| | `ProductOptionCreatedNotification` | `ProductService` | No |
+| | `ProductOptionDeletingNotification` | `ProductService` | Yes |
+| | `ProductOptionDeletedNotification` | `ProductService` | No |
+| **Customer** | `CustomerCreatingNotification` | `CustomerService` | Yes |
+| | `CustomerCreatedNotification` | `CustomerService` | No |
+| | `CustomerSavingNotification` | `CustomerService` | Yes |
+| | `CustomerSavedNotification` | `CustomerService` | No |
+| | `CustomerDeletingNotification` | `CustomerService` | Yes |
+| | `CustomerDeletedNotification` | `CustomerService` | No |
+| **Warehouse** | `WarehouseCreatingNotification` | `WarehouseService` | Yes |
+| | `WarehouseCreatedNotification` | `WarehouseService` | No |
+| | `WarehouseSavingNotification` | `WarehouseService` | Yes |
+| | `WarehouseSavedNotification` | `WarehouseService` | No |
+| | `WarehouseDeletingNotification` | `WarehouseService` | Yes |
+| | `WarehouseDeletedNotification` | `WarehouseService` | No |
+| **TaxGroup** | `TaxGroupCreatingNotification` | `TaxService` | Yes |
+| | `TaxGroupCreatedNotification` | `TaxService` | No |
+| | `TaxGroupSavingNotification` | `TaxService` | Yes |
+| | `TaxGroupSavedNotification` | `TaxService` | No |
+| | `TaxGroupDeletingNotification` | `TaxService` | Yes |
+| | `TaxGroupDeletedNotification` | `TaxService` | No |
+| **Inventory** | `StockReservingNotification` | `InventoryService` | Yes |
+| | `StockReservedNotification` | `InventoryService` | No |
+| | `StockReleasingNotification` | `InventoryService` | Yes |
+| | `StockReleasedNotification` | `InventoryService` | No |
+| | `StockAllocatingNotification` | `InventoryService` | Yes |
+| | `StockAllocatedNotification` | `InventoryService` | No |
+| | `StockAdjustedNotification` | `WarehouseService` | No |
+| | `LowStockNotification` | `InventoryService` | No |
+| **Checkout (Abandoned)** | `CheckoutAbandonedFirstNotification` | `AbandonedCheckoutService` | No |
+| | `CheckoutAbandonedReminderNotification` | `AbandonedCheckoutService` | No |
+| | `CheckoutAbandonedFinalNotification` | `AbandonedCheckoutService` | No |
+| | `CheckoutRecoveredNotification` | `AbandonedCheckoutService` | No |
+| | `CheckoutRecoveryConvertedNotification` | `AbandonedCheckoutService` | No |
+| **Invoice (Reminders)** | `InvoiceReminderNotification` | `InvoiceReminderJob` | No |
+| | `InvoiceOverdueNotification` | `InvoiceReminderJob` | No |
+
+### Handler Priority System
+
+Handlers execute in priority order (lower = earlier):
+- **100**: Validation handlers (can cancel operations)
+- **500**: Modification handlers (can adjust data)
+- **1000**: Default priority
+- **2000**: External integration handlers (email, webhooks, sync)
+
+```csharp
+// Example: Validation handler at priority 100
+[NotificationHandlerPriority(100)]
+public class OrderValidationHandler : INotificationAsyncHandler<OrderCreatingNotification>
+{
+    public async Task HandleAsync(OrderCreatingNotification notification, CancellationToken ct)
+    {
+        if (!IsValid(notification.Entity))
+            notification.CancelOperation("Validation failed");
+    }
+}
+
+// Example: External sync at priority 2000
+[NotificationHandlerPriority(2000)]
+public class OrderSyncHandler : INotificationAsyncHandler<OrderCreatedNotification>
+{
+    public async Task HandleAsync(OrderCreatedNotification notification, CancellationToken ct)
+    {
+        await externalService.SyncOrderAsync(notification.Order);
+    }
+}
+```
+
+### Integration Points
+
+- **Email**: `IEmailTopicRegistry` maps notifications to email topics (e.g., `order.created` → Order Confirmation email)
+- **Webhooks**: `IWebhookTopicRegistry` maps notifications to webhook topics (e.g., `order.created` webhook)
+- **Both**: Handlers at priority 2000 queue to `OutboundDelivery` table, processed by `OutboundDeliveryJob`
+
+**TODO - Future sprints** (handlers registered but notification not yet published):
+| Notification | Planned Implementation | Impact |
+|--------------|------------------------|--------|
+| `CustomerPasswordResetRequestedNotification` | Future sprint: Password reset flow | Password reset emails |
+
 ## Webhooks
 
 Outbound webhook system. Shares delivery infra with Email (`OutboundDelivery` in `merchelloOutboundDeliveries`, `DeliveryType`: Webhook=0, Email=1).
@@ -273,12 +414,12 @@ GET/ POST/ `{id}` GET/PUT/DELETE | `{id}/toggle` POST | `{id}/test` POST | `{id}
 
 ## Services Summary
 
-`ICheckoutService` (basket, discounts, shipping, grouping) | `ICustomerService` (CRUD, get-or-create) | `ICustomerSegmentService` (CRUD, membership) | `ISegmentCriteriaEvaluator` | `IInvoiceService` (CRUD, status, totals) | `IInventoryService` (reserve/allocate/release) | `IProductService` (CRUD, variants) | `IShippingService` (config) | `IShippingQuoteService` (rates) | `IShippingCostResolver` | `IShipmentService` (CRUD, tracking) | `IPaymentService` (transactions, refunds) | `ISupplierService` | `IWarehouseService` (selection, regions) | `ILineItemService` (calculations) | `ITaxService` | `ITaxProviderManager` | `ICurrencyService` | `IDiscountService` | `IDiscountEngine` | `IBuyXGetYCalculator` | `IWebhookService` | `IWebhookDispatcher` | `IWebhookTopicRegistry` | `IEmailService` | `IEmailConfigurationService` | `IEmailTopicRegistry` | `IEmailTokenResolver` | `IEmailTemplateDiscoveryService` | `IStorefrontContextService` | `ISubscriptionService` | `IReportingService` | `IStatementService`
+`ICheckoutService` (basket, discounts, shipping, grouping) | `IAbandonedCheckoutService` (tracking, recovery, conversion, stats) | `ICustomerService` (CRUD, get-or-create) | `ICustomerSegmentService` (CRUD, membership) | `ISegmentCriteriaEvaluator` | `IInvoiceService` (CRUD, status, totals) | `IInventoryService` (reserve/allocate/release) | `IProductService` (CRUD, variants) | `IShippingService` (config) | `IShippingQuoteService` (rates) | `IShippingCostResolver` | `IShipmentService` (CRUD, tracking, status) | `IPaymentService` (transactions, refunds) | `ISupplierService` | `IWarehouseService` (selection, regions) | `ILineItemService` (calculations) | `ITaxService` | `ITaxProviderManager` | `ICurrencyService` | `IDiscountService` | `IDiscountEngine` | `IBuyXGetYCalculator` | `IWebhookService` | `IWebhookDispatcher` | `IWebhookTopicRegistry` | `IEmailService` | `IEmailConfigurationService` | `IEmailTopicRegistry` | `IEmailTokenResolver` | `IEmailTemplateDiscoveryService` | `IStorefrontContextService` | `ISubscriptionService` | `IReportingService` | `IStatementService`
 
 **Principles**: DbContext in services only, RORO params, CrudResult<T>, async+CancellationToken, factories for creation
 
 ### Background Jobs
-`DiscountStatusJob` (Scheduled→Active→Expired) | `OutboundDeliveryJob` (webhook+email retry)
+`DiscountStatusJob` (Scheduled→Active→Expired) | `OutboundDeliveryJob` (webhook+email retry) | `AbandonedCheckoutDetectionJob` (detect, email sequence, expire) | `InvoiceReminderJob` (payment reminders, overdue notices)
 
 ### Caching
 `ICacheService` → Umbraco `AppCaches` (distributed)

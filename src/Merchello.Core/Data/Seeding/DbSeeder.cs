@@ -98,7 +98,11 @@ public class DbSeeder(
         var customers = await CreateCustomersAsync(cancellationToken);
         logger.LogDebug("Created {Count} customers", customers.Count);
 
-        // 9. Create VIP customer segment with first 5 customers
+        // 9. Setup account customers (B2B with payment terms and credit limits)
+        var accountCustomers = await SetupAccountCustomersAsync(customers, cancellationToken);
+        logger.LogDebug("Configured {Count} customers with account terms", accountCustomers.Count);
+
+        // 10. Create VIP customer segment with first 5 customers
         var vipSegment = await CreateVipSegmentAsync(customers, cancellationToken);
         if (vipSegment != null)
         {
@@ -138,21 +142,28 @@ public class DbSeeder(
             }
         }
 
-        // 10. Create automatic discounts (10% off T-Shirts)
+        // 11. Create automatic discounts (10% off T-Shirts)
         await CreateAutomaticDiscountsAsync(productTypes, cancellationToken);
         logger.LogDebug("Created automatic discounts");
 
-        // 11. Load products with TaxGroup for proper line item creation (via service)
+        // 12. Load products with TaxGroup for proper line item creation (via service)
         var products = await productService.GetAllProductsWithTaxGroupAsync(cancellationToken);
 
-        // 12. Seed explicit multi-warehouse test invoices FIRST to guarantee stock availability
+        // 13. Seed explicit multi-warehouse test invoices FIRST to guarantee stock availability
         await SeedMultiWarehouseTestInvoicesAsync(products, cancellationToken);
 
-        // 13. Seed random invoices (148 instead of 150 to leave room for explicit test cases)
+        // 14. Seed random invoices (148 instead of 150 to leave room for explicit test cases)
         // Discounts will be auto-applied during invoice creation
         await SeedInvoicesViaServicesAsync(products, 148, cancellationToken);
 
-        // 14. Get counts via services for final log
+        // 15. Seed invoices for account customers (tests Outstanding UI with varied due dates)
+        await SeedAccountCustomerInvoicesAsync(products, accountCustomers, cancellationToken);
+
+        // 16. Create "High Spenders" automated segment (after invoices so customers have order history)
+        await CreateHighSpendersSegmentAsync(cancellationToken);
+        logger.LogDebug("Created High Spenders automated segment");
+
+        // 17. Get counts via services for final log
         var invoiceCount = await invoiceService.GetInvoiceCountAsync(cancellationToken);
         var productCount = await productService.GetProductCountAsync(cancellationToken);
         var customerCount = await customerService.GetCountAsync(cancellationToken);
@@ -527,6 +538,47 @@ public class DbSeeder(
         await customerSegmentService.AddMembersAsync(segment.Id, vipCustomerIds, ct: cancellationToken);
 
         return segment;
+    }
+
+    /// <summary>
+    /// Configures account terms for selected B2B customers.
+    /// Returns the list of customers that were configured as account customers.
+    /// </summary>
+    private async Task<List<Customer>> SetupAccountCustomersAsync(
+        List<Customer> customers,
+        CancellationToken cancellationToken)
+    {
+        // B2B customers with varied payment terms and credit limits
+        var accountSettings = new Dictionary<string, (int terms, decimal? limit)>
+        {
+            ["sarah.j@example.com"] = (15, 5000m),      // Net 15, £5,000 limit
+            ["d.wilson@example.com"] = (30, 10000m),    // Net 30, £10,000 limit
+            ["j.vanderberg@example.com"] = (45, 7500m), // Net 45, €7,500 limit
+            ["s.tremblay@example.com"] = (60, null)     // Net 60, no limit
+        };
+
+        var accountCustomers = new List<Customer>();
+
+        foreach (var customer in customers.Where(c => accountSettings.ContainsKey(c.Email)))
+        {
+            var (terms, limit) = accountSettings[customer.Email];
+            var result = await customerService.UpdateAsync(new UpdateCustomerParameters
+            {
+                Id = customer.Id,
+                HasAccountTerms = true,
+                PaymentTermsDays = terms,
+                CreditLimit = limit
+            }, cancellationToken);
+
+            if (result.Successful && result.ResultObject != null)
+            {
+                accountCustomers.Add(result.ResultObject);
+                logger.LogDebug("Enabled account terms for {Email}: Net {Terms}, Limit {Limit}",
+                    customer.Email, terms, limit?.ToString("C") ?? "unlimited");
+            }
+        }
+
+        return accountCustomers;
     }
 
     private async Task CreateAutomaticDiscountsAsync(
@@ -1342,6 +1394,26 @@ public class DbSeeder(
             };
 
             var result = await shipmentService.CreateShipmentAsync(shipmentParams, cancellationToken);
+
+            // Update shipment status via service (simulating warehouse worker actions)
+            // Distribution: 20% Preparing (default), 40% Shipped, 40% Delivered
+            if (result.Successful && result.ResultObject != null)
+            {
+                var statusChance = random.Next(100);
+                if (statusChance >= 20) // 80% get status update
+                {
+                    var newStatus = statusChance < 60
+                        ? Shipping.Models.ShipmentStatus.Shipped
+                        : Shipping.Models.ShipmentStatus.Delivered;
+
+                    await shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
+                    {
+                        ShipmentId = result.ResultObject.Id,
+                        NewStatus = newStatus
+                    }, cancellationToken);
+                }
+            }
+
             return result.Successful;
         }
         catch (Exception ex)
@@ -1482,6 +1554,188 @@ public class DbSeeder(
         {
             logger.LogWarning(ex, "Failed to process refund for invoice {InvoiceId}", invoice.Id);
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Seeds invoices specifically for account customers to test the Outstanding UI.
+    /// Creates invoices with varied due dates (overdue, due soon, etc.) and payment states.
+    /// </summary>
+    private async Task SeedAccountCustomerInvoicesAsync(
+        List<Product> products,
+        List<Customer> accountCustomers,
+        CancellationToken cancellationToken)
+    {
+        if (accountCustomers.Count == 0)
+        {
+            logger.LogWarning("No account customers to seed invoices for");
+            return;
+        }
+
+        var random = new Random(43); // Different seed from main invoices
+        var now = DateTime.UtcNow;
+
+        // Get products by country for realistic ordering
+        var productsByCountry = await productService.GetProductIdsByCountryAvailabilityAsync(cancellationToken);
+
+        // Invoice scenarios for account customers
+        var scenarios = new (string name, int dueDaysOffset, bool unpaid, bool partialPay)[]
+        {
+            ("Overdue 35 days", -35, true, false),
+            ("Overdue 10 days", -10, true, false),
+            ("Due in 3 days", 3, true, false),
+            ("Due in 15 days", 15, true, false),
+            ("Partially paid, due in 5 days", 5, false, true)
+        };
+
+        var invoicesCreated = 0;
+
+        foreach (var customer in accountCustomers)
+        {
+            // Get customer's address from sample data
+            var sampleCustomers = GetSampleCustomers();
+            var (billing, shipping) = sampleCustomers.FirstOrDefault(c => c.billing.Email == customer.Email);
+            if (billing == null)
+            {
+                continue;
+            }
+
+            var billingAddress = billing;
+            var shippingAddress = shipping ?? billingAddress;
+            var countryCode = shippingAddress.CountryCode ?? "GB";
+
+            // Get products available for this country
+            if (!productsByCountry.TryGetValue(countryCode, out var availableProductIds))
+            {
+                continue;
+            }
+
+            var availableProducts = products.Where(p => availableProductIds.Contains(p.Id)).ToList();
+            if (availableProducts.Count == 0)
+            {
+                continue;
+            }
+
+            // Create an invoice for each scenario
+            foreach (var (scenarioName, dueDaysOffset, unpaid, partialPay) in scenarios)
+            {
+                try
+                {
+                    // Create basket
+                    var customerCurrency = GetCurrencyForCountry(countryCode);
+                    var currencySymbol = GetCurrencySymbol(customerCurrency);
+                    var basket = checkoutService.CreateBasket(customerCurrency, currencySymbol);
+
+                    // Add 1-3 random products
+                    var numItems = Math.Min(random.Next(1, 4), availableProducts.Count);
+                    var selectedProducts = availableProducts.OrderBy(_ => random.Next()).Take(numItems).ToList();
+
+                    foreach (var product in selectedProducts)
+                    {
+                        var lineItem = checkoutService.CreateLineItem(product, random.Next(1, 3));
+                        await checkoutService.AddToBasketAsync(basket, lineItem, countryCode, cancellationToken);
+                    }
+
+                    // Get shipping options
+                    var shippingResult = await shippingService.GetShippingOptionsForBasket(
+                        basket, shippingAddress, null, cancellationToken);
+
+                    if (shippingResult.WarehouseGroups.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    // Select first shipping option per group
+                    var selectedShippingOptions = shippingResult.WarehouseGroups
+                        .ToDictionary(g => g.GroupId, g => g.AvailableShippingOptions.First().ShippingOptionId);
+
+                    var checkoutSession = new CheckoutSession
+                    {
+                        BasketId = basket.Id,
+                        BillingAddress = CloneAddress(billingAddress),
+                        ShippingAddress = CloneAddress(shippingAddress),
+                        SelectedShippingOptions = selectedShippingOptions
+                    };
+
+                    // Create invoice (DueDate is set automatically from customer's PaymentTermsDays)
+                    var invoice = await invoiceService.CreateOrderFromBasketAsync(
+                        basket, checkoutSession, cancellationToken);
+
+                    // Adjust the DueDate to create the desired scenario
+                    var targetDueDate = now.AddDays(dueDaysOffset);
+                    await invoiceService.SetDueDateAsync(invoice.Id, targetDueDate, cancellationToken);
+
+                    // Handle payment scenarios
+                    if (partialPay)
+                    {
+                        // Pay 50% of the invoice
+                        await paymentService.RecordManualPaymentAsync(
+                            new RecordManualPaymentParameters
+                            {
+                                InvoiceId = invoice.Id,
+                                Amount = Math.Round(invoice.Total * 0.5m, 2),
+                                PaymentMethod = "Bank Transfer",
+                                Description = "Partial payment on account (seeded)"
+                            }, cancellationToken);
+                    }
+                    else if (!unpaid)
+                    {
+                        // Pay full amount
+                        await paymentService.RecordManualPaymentAsync(
+                            new RecordManualPaymentParameters
+                            {
+                                InvoiceId = invoice.Id,
+                                Amount = invoice.Total,
+                                PaymentMethod = "Bank Transfer",
+                                Description = "Full payment on account (seeded)"
+                            }, cancellationToken);
+                    }
+
+                    invoicesCreated++;
+                    logger.LogDebug("Created account invoice for {Customer}: {Scenario}",
+                        customer.Email, scenarioName);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to create account invoice for {Customer}: {Scenario}",
+                        customer.Email, scenarioName);
+                }
+            }
+        }
+
+        logger.LogInformation("Created {Count} invoices for account customers", invoicesCreated);
+    }
+
+    /// <summary>
+    /// Creates an automated "High Spenders" customer segment based on total spend criteria.
+    /// </summary>
+    private async Task CreateHighSpendersSegmentAsync(CancellationToken cancellationToken)
+    {
+        var createParams = new CreateSegmentParameters
+        {
+            Name = "High Spenders",
+            Description = "Customers who have spent over £500 total",
+            SegmentType = CustomerSegmentType.Automated,
+            MatchMode = SegmentMatchMode.All,
+            Criteria =
+            [
+                new SegmentCriteria
+                {
+                    Field = "TotalSpend",
+                    Operator = SegmentCriteriaOperator.GreaterThan,
+                    Value = 500m
+                }
+            ]
+        };
+
+        var result = await customerSegmentService.CreateAsync(createParams, cancellationToken);
+        if (result.ResultObject != null)
+        {
+            logger.LogDebug("Created automated segment: {Name}", result.ResultObject.Name);
+        }
+        else
+        {
+            logger.LogWarning("Failed to create High Spenders segment");
         }
     }
 

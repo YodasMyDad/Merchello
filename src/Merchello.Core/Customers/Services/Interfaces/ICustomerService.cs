@@ -45,6 +45,11 @@ public interface ICustomerService
     /// </summary>
     Task<CrudResult<Customer>> UpdateAsync(UpdateCustomerParameters parameters, CancellationToken ct = default);
 
+    /// <summary>
+    /// Deletes a customer by ID
+    /// </summary>
+    Task<CrudResult<bool>> DeleteAsync(Guid customerId, CancellationToken ct = default);
+
     // =====================================================
     // Checkout Integration (Primary Use Case)
     // =====================================================

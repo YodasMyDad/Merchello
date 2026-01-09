@@ -1,4 +1,5 @@
 using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Notifications.CustomerNotifications;
 using Merchello.Core.Notifications.DiscountNotifications;
 using Merchello.Core.Notifications.Inventory;
@@ -46,7 +47,13 @@ public class WebhookNotificationHandler(
       INotificationAsyncHandler<StockAdjustedNotification>,
       INotificationAsyncHandler<LowStockNotification>,
       INotificationAsyncHandler<StockReservedNotification>,
-      INotificationAsyncHandler<StockAllocatedNotification>
+      INotificationAsyncHandler<StockAllocatedNotification>,
+      INotificationAsyncHandler<CheckoutAbandonedNotification>,
+      INotificationAsyncHandler<CheckoutAbandonedFirstNotification>,
+      INotificationAsyncHandler<CheckoutAbandonedReminderNotification>,
+      INotificationAsyncHandler<CheckoutAbandonedFinalNotification>,
+      INotificationAsyncHandler<CheckoutRecoveredNotification>,
+      INotificationAsyncHandler<CheckoutRecoveryConvertedNotification>
 {
     private readonly WebhookSettings _settings = options.Value;
 
@@ -287,6 +294,81 @@ public class WebhookNotificationHandler(
             notification.Quantity,
             notification.RemainingStock
         }, notification.ProductId, "Product", ct);
+
+    #endregion
+
+    #region Checkout
+
+    public Task HandleAsync(CheckoutAbandonedNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.CheckoutAbandoned, new
+        {
+            notification.AbandonedCheckoutId,
+            notification.BasketId,
+            notification.CustomerEmail,
+            notification.CustomerName,
+            notification.BasketTotal,
+            notification.CurrencyCode
+        }, notification.AbandonedCheckoutId, "AbandonedCheckout", ct);
+
+    public Task HandleAsync(CheckoutAbandonedFirstNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.CheckoutAbandonedFirst, new
+        {
+            notification.AbandonedCheckoutId,
+            notification.BasketId,
+            notification.CustomerEmail,
+            notification.CustomerName,
+            notification.BasketTotal,
+            notification.RecoveryLink,
+            notification.EmailSequenceNumber,
+            notification.ItemCount
+        }, notification.AbandonedCheckoutId, "AbandonedCheckout", ct);
+
+    public Task HandleAsync(CheckoutAbandonedReminderNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.CheckoutAbandonedReminder, new
+        {
+            notification.AbandonedCheckoutId,
+            notification.BasketId,
+            notification.CustomerEmail,
+            notification.CustomerName,
+            notification.BasketTotal,
+            notification.RecoveryLink,
+            notification.EmailSequenceNumber,
+            notification.ItemCount
+        }, notification.AbandonedCheckoutId, "AbandonedCheckout", ct);
+
+    public Task HandleAsync(CheckoutAbandonedFinalNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.CheckoutAbandonedFinal, new
+        {
+            notification.AbandonedCheckoutId,
+            notification.BasketId,
+            notification.CustomerEmail,
+            notification.CustomerName,
+            notification.BasketTotal,
+            notification.RecoveryLink,
+            notification.EmailSequenceNumber,
+            notification.ItemCount
+        }, notification.AbandonedCheckoutId, "AbandonedCheckout", ct);
+
+    public Task HandleAsync(CheckoutRecoveredNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.CheckoutRecovered, new
+        {
+            notification.AbandonedCheckoutId,
+            notification.BasketId,
+            notification.CustomerEmail,
+            notification.BasketTotal,
+            notification.OriginalAbandonmentDate
+        }, notification.AbandonedCheckoutId, "AbandonedCheckout", ct);
+
+    public Task HandleAsync(CheckoutRecoveryConvertedNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.CheckoutConverted, new
+        {
+            notification.AbandonedCheckoutId,
+            notification.InvoiceId,
+            notification.CustomerEmail,
+            notification.OrderTotal,
+            notification.OriginalAbandonmentDate,
+            notification.RecoveredDate
+        }, notification.AbandonedCheckoutId, "AbandonedCheckout", ct);
 
     #endregion
 

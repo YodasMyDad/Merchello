@@ -1,5 +1,7 @@
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Notifications.Warehouse;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
@@ -20,6 +22,7 @@ public class WarehouseService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     WarehouseFactory warehouseFactory,
     IProductService productService,
+    IMerchelloNotificationPublisher notificationPublisher,
     ILogger<WarehouseService> logger) : IWarehouseService
 {
     /// <summary>
@@ -248,6 +251,14 @@ public class WarehouseService(
         warehouse.AutomationMethod = parameters.AutomationMethod;
         warehouse.ExtendedData = parameters.ExtendedData ?? [];
 
+        // Publish creating notification (cancelable)
+        var creatingNotification = new WarehouseCreatingNotification(warehouse);
+        if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
+        {
+            result.AddErrorMessage("Warehouse creation was cancelled by a notification handler");
+            return result;
+        }
+
         // Build service regions list
         List<WarehouseServiceRegion> serviceRegions = [];
         if (parameters.ServiceRegions != null)
@@ -331,6 +342,12 @@ public class WarehouseService(
         });
         scope.Complete();
 
+        // Publish created notification
+        if (result.Successful)
+        {
+            await notificationPublisher.PublishAsync(new WarehouseCreatedNotification(warehouse), cancellationToken);
+        }
+
         result.ResultObject = warehouse;
         return result;
     }
@@ -343,11 +360,12 @@ public class WarehouseService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<Warehouse>();
+        Warehouse? warehouse = null;
 
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
-            var warehouse = await db.Warehouses
+            warehouse = await db.Warehouses
                 .FirstOrDefaultAsync(w => w.Id == parameters.WarehouseId, cancellationToken);
 
             if (warehouse == null)
@@ -357,6 +375,14 @@ public class WarehouseService(
                     Message = "Warehouse not found",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
+                return;
+            }
+
+            // Publish saving notification (cancelable)
+            var savingNotification = new WarehouseSavingNotification(warehouse);
+            if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
+            {
+                result.AddErrorMessage("Warehouse update was cancelled by a notification handler");
                 return;
             }
 
@@ -388,6 +414,12 @@ public class WarehouseService(
         });
         scope.Complete();
 
+        // Publish saved notification
+        if (result.Successful && warehouse != null)
+        {
+            await notificationPublisher.PublishAsync(new WarehouseSavedNotification(warehouse), cancellationToken);
+        }
+
         return result;
     }
 
@@ -400,6 +432,7 @@ public class WarehouseService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
+        string? warehouseName = null;
 
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
@@ -447,6 +480,17 @@ public class WarehouseService(
                 return;
             }
 
+            // Publish deleting notification (cancelable)
+            var deletingNotification = new WarehouseDeletingNotification(warehouse);
+            if (await notificationPublisher.PublishCancelableAsync(deletingNotification, cancellationToken))
+            {
+                result.AddErrorMessage("Warehouse deletion was cancelled by a notification handler");
+                return;
+            }
+
+            // Capture name for deleted notification (before entity is removed)
+            warehouseName = warehouse.Name;
+
             // Force delete - cleanup dependencies
             if (force)
             {
@@ -475,6 +519,12 @@ public class WarehouseService(
             result.ResultObject = true;
         });
         scope.Complete();
+
+        // Publish deleted notification
+        if (result.Successful)
+        {
+            await notificationPublisher.PublishAsync(new WarehouseDeletedNotification(warehouseId, warehouseName), cancellationToken);
+        }
 
         return result;
     }

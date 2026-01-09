@@ -44,6 +44,7 @@ public class MerchelloDbContext : DbContext
 
     // Checkout DbSets
     public DbSet<Basket> Baskets => Set<Basket>();
+    public DbSet<AbandonedCheckout> AbandonedCheckouts => Set<AbandonedCheckout>();
 
     // Supplier DbSets
     public DbSet<Supplier> Suppliers => Set<Supplier>();

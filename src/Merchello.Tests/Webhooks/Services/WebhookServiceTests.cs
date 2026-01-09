@@ -143,7 +143,7 @@ public class WebhookServiceTests : IClassFixture<ServiceTestFixture>
 
         // Assert
         result.Messages.ShouldNotBeEmpty();
-        result.Messages.Any(m => m.Message.Contains("topic", StringComparison.OrdinalIgnoreCase)).ShouldBeTrue();
+        result.Messages.Any(m => m.Message?.Contains("topic", StringComparison.OrdinalIgnoreCase) == true).ShouldBeTrue();
     }
 
     [Fact]

@@ -1,0 +1,111 @@
+import { UmbContextBase } from "@umbraco-cms/backoffice/class-api";
+import { UmbEntityContext } from "@umbraco-cms/backoffice/entity";
+import type { UmbRoutableWorkspaceContext } from "@umbraco-cms/backoffice/workspace";
+import {
+  UMB_WORKSPACE_CONTEXT,
+  UmbWorkspaceRouteManager,
+} from "@umbraco-cms/backoffice/workspace";
+import type { UmbControllerHost } from "@umbraco-cms/backoffice/controller-api";
+import { UmbObjectState } from "@umbraco-cms/backoffice/observable-api";
+import { MERCHELLO_WEBHOOKS_ENTITY_TYPE } from "@tree/types/tree.types.js";
+import type { WebhookSubscriptionDetailDto } from "@webhooks/types/webhooks.types.js";
+import { MerchelloApi } from "@api/merchello-api.js";
+
+export const MERCHELLO_WEBHOOKS_WORKSPACE_ALIAS = "Merchello.Webhooks.Workspace";
+
+/**
+ * Workspace context for webhooks - handles both list and detail views.
+ * Uses single entity type for consistent tree selection.
+ */
+export class MerchelloWebhooksWorkspaceContext
+  extends UmbContextBase
+  implements UmbRoutableWorkspaceContext
+{
+  readonly workspaceAlias = MERCHELLO_WEBHOOKS_WORKSPACE_ALIAS;
+  readonly routes: UmbWorkspaceRouteManager;
+
+  #entityContext = new UmbEntityContext(this);
+
+  // Webhook subscription state
+  #subscriptionId?: string;
+  #subscription = new UmbObjectState<WebhookSubscriptionDetailDto | undefined>(undefined);
+  readonly subscription = this.#subscription.asObservable();
+
+  constructor(host: UmbControllerHost) {
+    super(host, UMB_WORKSPACE_CONTEXT.toString());
+
+    this.#entityContext.setEntityType(MERCHELLO_WEBHOOKS_ENTITY_TYPE);
+    this.#entityContext.setUnique("webhooks");
+
+    this.routes = new UmbWorkspaceRouteManager(host);
+
+    // Routes ordered by specificity (most specific first)
+    // All routes nested under "edit/webhooks" so tree item path matching works
+    this.routes.setRoutes([
+      // Webhook detail route (view deliveries)
+      {
+        path: "edit/webhooks/:id",
+        component: () => import("../components/webhook-detail.element.js"),
+        setup: (_component, info) => {
+          const id = info.match.params.id;
+          this.loadSubscription(id);
+        },
+      },
+      // Webhooks list route
+      {
+        path: "edit/webhooks",
+        component: () => import("../components/webhooks-workspace-editor.element.js"),
+        setup: () => {
+          // Reset subscription state when viewing list
+          this.#subscriptionId = undefined;
+          this.#subscription.setValue(undefined);
+        },
+      },
+      // Default redirect
+      {
+        path: "",
+        redirectTo: "edit/webhooks",
+      },
+    ]);
+  }
+
+  getEntityType(): string {
+    return MERCHELLO_WEBHOOKS_ENTITY_TYPE;
+  }
+
+  getUnique(): string | undefined {
+    return this.#subscriptionId ?? "webhooks";
+  }
+
+  // Subscription loading and management
+
+  async loadSubscription(unique: string): Promise<void> {
+    this.#subscriptionId = unique;
+    const { data, error } = await MerchelloApi.getWebhookSubscription(unique);
+    if (error) {
+      console.error("Failed to load webhook subscription:", error);
+      return;
+    }
+    this.#subscription.setValue(data);
+  }
+
+  async reloadSubscription(): Promise<void> {
+    if (this.#subscriptionId) {
+      await this.loadSubscription(this.#subscriptionId);
+    }
+  }
+
+  updateSubscription(subscription: WebhookSubscriptionDetailDto): void {
+    this.#subscription.setValue(subscription);
+    if (subscription.id) {
+      this.#subscriptionId = subscription.id;
+    }
+  }
+
+  clearSubscription(): void {
+    this.#subscriptionId = undefined;
+    this.#subscription.setValue(undefined);
+  }
+}
+
+export { MerchelloWebhooksWorkspaceContext as api };

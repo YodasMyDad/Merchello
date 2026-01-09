@@ -179,7 +179,7 @@ public class MockHttpContextAccessor : IHttpContextAccessor
 
         public void Set(string key, byte[] value) => _store[key] = value;
 
-        public bool TryGetValue(string key, out byte[]? value) => _store.TryGetValue(key, out value);
+        public bool TryGetValue(string key, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out byte[]? value) => _store.TryGetValue(key, out value);
     }
 }
 

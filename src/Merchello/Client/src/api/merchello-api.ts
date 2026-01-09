@@ -148,6 +148,7 @@ import type {
   FulfillmentSummaryDto,
   CreateShipmentDto,
   UpdateShipmentDto,
+  UpdateShipmentStatusDto,
   ShipmentDetailDto,
   PaymentDto,
   PaymentStatusDto,
@@ -356,6 +357,23 @@ import type {
   EmailPreviewDto,
   EmailSendTestResultDto,
 } from '@email/types/email.types.js';
+
+// Import webhook types
+import type {
+  WebhookSubscriptionDto,
+  WebhookSubscriptionDetailDto,
+  WebhookSubscriptionPageDto,
+  CreateWebhookSubscriptionDto,
+  UpdateWebhookSubscriptionDto,
+  WebhookSubscriptionQueryParams,
+  WebhookTopicDto,
+  WebhookTopicCategoryDto,
+  OutboundDeliveryDetailDto,
+  OutboundDeliveryPageDto,
+  OutboundDeliveryQueryParams,
+  WebhookStatsDto,
+  OutboundDeliveryResultDto,
+} from '@webhooks/types/webhooks.types.js';
 
 // Import apply discount result from order types (for invoices)
 interface ApplyDiscountResultDto {
@@ -580,6 +598,10 @@ export const MerchelloApi = {
   /** Update shipment tracking information */
   updateShipment: (shipmentId: string, request: UpdateShipmentDto) =>
     apiPut<ShipmentDetailDto>(`shipments/${shipmentId}`, request),
+
+  /** Update shipment status (e.g., Preparing -> Shipped -> Delivered) */
+  updateShipmentStatus: (shipmentId: string, request: UpdateShipmentStatusDto) =>
+    apiPut<ShipmentDetailDto>(`shipments/${shipmentId}/status`, request),
 
   /** Delete a shipment (releases items back to unfulfilled) */
   deleteShipment: (shipmentId: string) =>
@@ -1474,4 +1496,85 @@ export const MerchelloApi = {
   /** Check if a template path exists */
   checkTemplateExists: (path: string) =>
     apiGet<boolean>(`emails/templates/exists?path=${encodeURIComponent(path)}`),
+
+  // ============================================
+  // Webhooks API
+  // ============================================
+
+  /** Get paginated list of webhook subscriptions */
+  getWebhookSubscriptions: (params?: WebhookSubscriptionQueryParams) => {
+    const queryString = buildQueryString(params as Record<string, unknown>);
+    return apiGet<WebhookSubscriptionPageDto>(`webhooks${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Get a single webhook subscription by ID with full detail */
+  getWebhookSubscription: (id: string) =>
+    apiGet<WebhookSubscriptionDetailDto>(`webhooks/${id}`),
+
+  /** Create a new webhook subscription */
+  createWebhookSubscription: (data: CreateWebhookSubscriptionDto) =>
+    apiPost<WebhookSubscriptionDto>('webhooks', data),
+
+  /** Update an existing webhook subscription */
+  updateWebhookSubscription: (id: string, data: UpdateWebhookSubscriptionDto) =>
+    apiPut<WebhookSubscriptionDto>(`webhooks/${id}`, data),
+
+  /** Delete a webhook subscription */
+  deleteWebhookSubscription: (id: string) =>
+    apiDelete(`webhooks/${id}`),
+
+  /** Regenerate HMAC secret for a webhook subscription */
+  regenerateWebhookSecret: (id: string) =>
+    apiPost<{ secret: string }>(`webhooks/${id}/regenerate-secret`),
+
+  /** Send a test webhook */
+  testWebhookSubscription: (id: string) =>
+    apiPost<OutboundDeliveryResultDto>(`webhooks/${id}/test`),
+
+  /** Ping a webhook URL to test connectivity */
+  pingWebhookUrl: (url: string) =>
+    apiPost<OutboundDeliveryResultDto>('webhooks/ping', { url }),
+
+  // ============================================
+  // Webhook Topics API
+  // ============================================
+
+  /** Get all available webhook topics */
+  getWebhookTopics: () =>
+    apiGet<WebhookTopicDto[]>('webhooks/topics'),
+
+  /** Get webhook topics grouped by category */
+  getWebhookTopicsByCategory: () =>
+    apiGet<WebhookTopicCategoryDto[]>('webhooks/topics/by-category'),
+
+  // ============================================
+  // Webhook Deliveries API
+  // ============================================
+
+  /** Get paginated deliveries for a webhook subscription */
+  getWebhookDeliveries: (subscriptionId: string, params?: OutboundDeliveryQueryParams) => {
+    const queryString = buildQueryString(params as Record<string, unknown>);
+    return apiGet<OutboundDeliveryPageDto>(`webhooks/${subscriptionId}/deliveries${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Get a single delivery with full detail */
+  getDeliveryDetail: (id: string) =>
+    apiGet<OutboundDeliveryDetailDto>(`webhooks/deliveries/${id}`),
+
+  /** Retry a failed delivery */
+  retryDelivery: (id: string) =>
+    apiPost<void>(`webhooks/deliveries/${id}/retry`),
+
+  // ============================================
+  // Webhook Stats API
+  // ============================================
+
+  /** Get webhook delivery statistics */
+  getWebhookStats: (from?: string, to?: string) => {
+    const params: Record<string, string> = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
+    const queryString = buildQueryString(params);
+    return apiGet<WebhookStatsDto>(`webhooks/stats${queryString ? `?${queryString}` : ''}`);
+  },
 };

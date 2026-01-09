@@ -1,6 +1,8 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Data;
+using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Notifications.TaxGroup;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +13,7 @@ namespace Merchello.Core.Accounting.Services;
 
 public class TaxService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    IMerchelloNotificationPublisher notificationPublisher,
     ILogger<TaxService> logger) : ITaxService
 {
     /// <summary>
@@ -66,6 +69,14 @@ public class TaxService(
             TaxPercentage = rate
         };
 
+        // Publish creating notification (cancelable)
+        var creatingNotification = new TaxGroupCreatingNotification(taxGroup);
+        if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
+        {
+            result.AddErrorMessage("Tax group creation was cancelled by a notification handler");
+            return result;
+        }
+
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -73,6 +84,12 @@ public class TaxService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
         });
         scope.Complete();
+
+        // Publish created notification (informational)
+        if (result.Successful)
+        {
+            await notificationPublisher.PublishAsync(new TaxGroupCreatedNotification(taxGroup), cancellationToken);
+        }
 
         result.ResultObject = taxGroup;
         return result;
@@ -86,6 +103,14 @@ public class TaxService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<TaxGroup>();
+
+        // Publish saving notification (cancelable)
+        var savingNotification = new TaxGroupSavingNotification(taxGroup);
+        if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
+        {
+            result.AddErrorMessage("Tax group update was cancelled by a notification handler");
+            return result;
+        }
 
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
@@ -114,6 +139,12 @@ public class TaxService(
             result.ResultObject = existing;
         });
         scope.Complete();
+
+        // Publish saved notification (informational)
+        if (result.Successful && result.ResultObject != null)
+        {
+            await notificationPublisher.PublishAsync(new TaxGroupSavedNotification(result.ResultObject), cancellationToken);
+        }
 
         return result;
     }
@@ -148,6 +179,14 @@ public class TaxService(
                 return;
             }
 
+            // Publish saving notification (cancelable)
+            var savingNotification = new TaxGroupSavingNotification(existing);
+            if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
+            {
+                result.AddErrorMessage("Tax group update was cancelled by a notification handler");
+                return;
+            }
+
             existing.Name = name;
             existing.TaxPercentage = taxPercentage;
 
@@ -156,6 +195,12 @@ public class TaxService(
             result.ResultObject = existing;
         });
         scope.Complete();
+
+        // Publish saved notification (informational)
+        if (result.Successful && result.ResultObject != null)
+        {
+            await notificationPublisher.PublishAsync(new TaxGroupSavedNotification(result.ResultObject), cancellationToken);
+        }
 
         return result;
     }
@@ -168,6 +213,7 @@ public class TaxService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
+        string taxGroupName = string.Empty;
 
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
@@ -191,12 +237,29 @@ public class TaxService(
                 return;
             }
 
+            // Publish deleting notification (cancelable)
+            var deletingNotification = new TaxGroupDeletingNotification(taxGroup);
+            if (await notificationPublisher.PublishCancelableAsync(deletingNotification, cancellationToken))
+            {
+                result.AddErrorMessage("Tax group deletion was cancelled by a notification handler");
+                return;
+            }
+
+            // Capture name for deleted notification (before entity is removed)
+            taxGroupName = taxGroup.Name ?? string.Empty;
+
             db.TaxGroups.Remove(taxGroup);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = true;
         });
         scope.Complete();
+
+        // Publish deleted notification (informational)
+        if (result.Successful)
+        {
+            await notificationPublisher.PublishAsync(new TaxGroupDeletedNotification(taxGroupId, taxGroupName), cancellationToken);
+        }
 
         return result;
     }

@@ -1,0 +1,18 @@
+@using Microsoft.Extensions.Options
+@model EmailStoreContext
+@inject IOptions<EmailSettings> EmailSettingsOptions
+@{
+    var theme = EmailSettingsOptions.Value.Theme;
+}
+<mj-section background-color="@theme.PrimaryColor" padding="20px">
+  <mj-column>
+    @if (!string.IsNullOrEmpty(Model.LogoUrl))
+    {
+    <mj-image src="@Model.LogoUrl" alt="@Model.Name" width="150px" align="center" />
+    }
+    else
+    {
+    <mj-text font-size="24px" font-weight="bold" color="#ffffff" align="center">@Model.Name</mj-text>
+    }
+  </mj-column>
+</mj-section>

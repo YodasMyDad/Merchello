@@ -44,6 +44,18 @@ public interface IShipmentService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Update shipment status with optional tracking information.
+    /// Transitions: Preparing → Shipped → Delivered (or → Cancelled from any state).
+    /// Updates order status accordingly when shipments are shipped or delivered.
+    /// </summary>
+    /// <param name="parameters">Parameters for updating the shipment status</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Result containing the updated shipment or error</returns>
+    Task<CrudResult<Shipment>> UpdateShipmentStatusAsync(
+        UpdateShipmentStatusParameters parameters,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Delete a shipment, releasing items back to unfulfilled status.
     /// Reverts order status based on remaining shipments.
     /// </summary>

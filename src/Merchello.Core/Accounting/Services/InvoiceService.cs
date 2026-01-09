@@ -7,6 +7,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Checkout.Strategies.Interfaces;
@@ -69,7 +70,8 @@ public class InvoiceService(
     OrderFactory orderFactory,
     LineItemFactory lineItemFactory,
     IOptions<MerchelloSettings> settings,
-    ILogger<InvoiceService> logger) : IInvoiceService
+    ILogger<InvoiceService> logger,
+    IAbandonedCheckoutService? abandonedCheckoutService = null) : IInvoiceService
 {
     private readonly MerchelloSettings _settings = settings.Value;
 
@@ -493,6 +495,18 @@ public class InvoiceService(
         });
 
         scope.Complete();
+
+        // Track abandoned cart conversion (if this checkout was recovered)
+        if (abandonedCheckoutService != null)
+        {
+            var abandonedCheckout = await abandonedCheckoutService.GetByBasketIdAsync(basket.Id);
+            if (abandonedCheckout != null &&
+                (abandonedCheckout.Status == AbandonedCheckoutStatus.Abandoned ||
+                 abandonedCheckout.Status == AbandonedCheckoutStatus.Recovered))
+            {
+                await abandonedCheckoutService.MarkAsConvertedAsync(abandonedCheckout.Id, invoice.Id);
+            }
+        }
 
         return invoice;
     }
@@ -1109,12 +1123,52 @@ public class InvoiceService(
             return 0;
         }
 
+        // Load invoices before deletion for notifications
+        List<Invoice> invoicesToDelete;
+        using (var readScope = efCoreScopeProvider.CreateScope())
+        {
+            invoicesToDelete = await readScope.ExecuteWithContextAsync(async db =>
+                await db.Invoices
+                    .AsNoTracking()
+                    .Where(i => idList.Contains(i.Id) && !i.IsDeleted)
+                    .ToListAsync(cancellationToken));
+            readScope.Complete();
+        }
+
+        if (invoicesToDelete.Count == 0)
+        {
+            return 0;
+        }
+
+        // Publish "Before" notifications - handlers can cancel individual invoices
+        var idsToDelete = new List<Guid>();
+        var deletedInvoices = new List<Invoice>();
+
+        foreach (var invoice in invoicesToDelete)
+        {
+            var deletingNotification = new InvoiceDeletingNotification(invoice);
+            if (await notificationPublisher.PublishCancelableAsync(deletingNotification, cancellationToken))
+            {
+                logger.LogInformation("Invoice {InvoiceId} deletion cancelled: {Reason}",
+                    invoice.Id, deletingNotification.CancelReason);
+                continue;
+            }
+
+            idsToDelete.Add(invoice.Id);
+            deletedInvoices.Add(invoice);
+        }
+
+        if (idsToDelete.Count == 0)
+        {
+            return 0;
+        }
+
         using var scope = efCoreScopeProvider.CreateScope();
         var deletedCount = await scope.ExecuteWithContextAsync(async db =>
         {
             var now = DateTime.UtcNow;
             var count = await db.Invoices
-                .Where(i => idList.Contains(i.Id) && !i.IsDeleted)
+                .Where(i => idsToDelete.Contains(i.Id))
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(i => i.IsDeleted, true)
                     .SetProperty(i => i.DateDeleted, now)
@@ -1126,6 +1180,15 @@ public class InvoiceService(
         });
 
         scope.Complete();
+
+        // Publish "After" notifications
+        foreach (var invoice in deletedInvoices)
+        {
+            await notificationPublisher.PublishAsync(
+                new InvoiceDeletedNotification(invoice),
+                cancellationToken);
+        }
+
         return deletedCount;
     }
 
@@ -1282,6 +1345,39 @@ public class InvoiceService(
 
             await db.SaveChangesAsync(cancellationToken);
             result.ResultObject = purchaseOrder;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<CrudResult<Invoice>> SetDueDateAsync(
+        Guid invoiceId,
+        DateTime? dueDate,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<Invoice>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
+            if (invoice == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Invoice not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return;
+            }
+
+            invoice.DueDate = dueDate;
+            invoice.DateUpdated = DateTime.UtcNow;
+
+            await db.SaveChangesAsync(cancellationToken);
+            result.ResultObject = invoice;
         });
         scope.Complete();
 

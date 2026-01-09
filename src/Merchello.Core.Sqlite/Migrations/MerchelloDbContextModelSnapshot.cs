@@ -509,6 +509,104 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.ToTable("merchelloTaxGroupRates", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.Checkout.Models.AbandonedCheckout", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("BasketId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("BasketTotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CurrencyCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CurrencySymbol")
+                        .HasMaxLength(5)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CustomerName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DateAbandoned")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DateConverted")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DateExpired")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DateRecovered")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(254)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExtendedData")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ItemCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("LastActivityUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastRecoveryEmailSentUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("RecoveredInvoiceId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecoveryEmailsSent")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RecoveryToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RecoveryTokenExpiresUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BasketId");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("DateAbandoned");
+
+                    b.HasIndex("Email");
+
+                    b.HasIndex("LastActivityUtc");
+
+                    b.HasIndex("RecoveryToken")
+                        .IsUnique()
+                        .HasFilter("[RecoveryToken] IS NOT NULL");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("merchelloAbandonedCheckouts", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.Checkout.Models.Basket", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1625,6 +1723,14 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<DateTime?>("RequestedDeliveryDate")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("ShippedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("TrackingNumber")
                         .HasColumnType("TEXT");
 
@@ -2545,6 +2651,16 @@ namespace Merchello.Core.Sqlite.Migrations
                         .IsRequired();
 
                     b.Navigation("TaxGroup");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Checkout.Models.AbandonedCheckout", b =>
+                {
+                    b.HasOne("Merchello.Core.Checkout.Models.Basket", "Basket")
+                        .WithMany()
+                        .HasForeignKey("BasketId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Basket");
                 });
 
             modelBuilder.Entity("Merchello.Core.Customers.Models.CustomerSegmentMember", b =>

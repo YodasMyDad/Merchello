@@ -71,6 +71,16 @@ public interface IInvoiceService
     Task<CrudResult<string?>> UpdatePurchaseOrderAsync(Guid invoiceId, string? purchaseOrder, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Sets or clears the due date on an invoice.
+    /// Used for testing/seeding overdue scenarios.
+    /// </summary>
+    /// <param name="invoiceId">The invoice ID to update</param>
+    /// <param name="dueDate">The due date to set, or null to clear</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Result containing the updated invoice or error</returns>
+    Task<CrudResult<Invoice>> SetDueDateAsync(Guid invoiceId, DateTime? dueDate, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Get count of invoices by billing email address
     /// </summary>
     Task<int> GetInvoiceCountByBillingEmailAsync(string email, CancellationToken cancellationToken = default);

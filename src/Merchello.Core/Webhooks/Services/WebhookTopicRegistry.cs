@@ -195,11 +195,39 @@ public class WebhookTopicRegistry : IWebhookTopicRegistry
             Description = "Triggered when a checkout session is abandoned",
             Category = "Checkout"
         },
+        [Constants.WebhookTopics.CheckoutAbandonedFirst] = new WebhookTopic
+        {
+            Key = Constants.WebhookTopics.CheckoutAbandonedFirst,
+            DisplayName = "Cart Recovery - First Email",
+            Description = "Triggered when the first recovery email is due for an abandoned cart",
+            Category = "Checkout"
+        },
+        [Constants.WebhookTopics.CheckoutAbandonedReminder] = new WebhookTopic
+        {
+            Key = Constants.WebhookTopics.CheckoutAbandonedReminder,
+            DisplayName = "Cart Recovery - Reminder",
+            Description = "Triggered when the reminder email is due for an abandoned cart",
+            Category = "Checkout"
+        },
+        [Constants.WebhookTopics.CheckoutAbandonedFinal] = new WebhookTopic
+        {
+            Key = Constants.WebhookTopics.CheckoutAbandonedFinal,
+            DisplayName = "Cart Recovery - Final Notice",
+            Description = "Triggered when the final recovery email is due for an abandoned cart",
+            Category = "Checkout"
+        },
         [Constants.WebhookTopics.CheckoutRecovered] = new WebhookTopic
         {
             Key = Constants.WebhookTopics.CheckoutRecovered,
             DisplayName = "Checkout Recovered",
             Description = "Triggered when an abandoned checkout is recovered",
+            Category = "Checkout"
+        },
+        [Constants.WebhookTopics.CheckoutConverted] = new WebhookTopic
+        {
+            Key = Constants.WebhookTopics.CheckoutConverted,
+            DisplayName = "Recovery Converted",
+            Description = "Triggered when a recovered checkout is converted to an order",
             Category = "Checkout"
         },
 

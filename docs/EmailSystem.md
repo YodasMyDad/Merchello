@@ -19,7 +19,8 @@ A comprehensive email automation system for Merchello that allows users to creat
 11. [Backoffice UI](#backoffice-ui)
 12. [File Structure](#file-structure)
 13. [Sample Templates](#sample-templates)
-14. [Testing](#testing)
+14. [MJML Email Templates](#mjml-email-templates)
+15. [Testing](#testing)
 
 ---
 
@@ -173,11 +174,24 @@ The Email System provides:
 | Create token autocomplete component | ✅ | Expression builder with token support |
 | Create email preview modal | ✅ | `src/Merchello/Client/src/email/modals/email-preview-modal.element.ts` |
 
-### Phase 6: Sample Templates & Migration ⏳ PENDING
+### Phase 6: MJML Templates & Sample Templates ✅ COMPLETED
+
+| Task | Status | Files |
+|------|--------|-------|
+| Add Mjml.Net NuGet package | ✅ | `src/Merchello.Core/Merchello.Core.csproj` |
+| Create `IMjmlCompiler` interface | ✅ | `src/Merchello.Core/Email/Services/Interfaces/IMjmlCompiler.cs` |
+| Create `MjmlCompiler` service | ✅ | `src/Merchello.Core/Email/Services/MjmlCompiler.cs` |
+| Add `EmailThemeSettings` | ✅ | `src/Merchello.Core/Email/EmailSettings.cs` |
+| Update `EmailRazorViewRenderer` for MJML | ✅ | `src/Merchello/Email/EmailRazorViewRenderer.cs` |
+| Create `MjmlHtmlHelperExtensions` | ✅ | `src/Merchello/Email/MjmlHtmlHelperExtensions.cs` |
+| Create `MjmlHelper` | ✅ | `src/Merchello/Email/MjmlHelper.cs` |
+| Create RCL shared views | ✅ | `src/Merchello/Views/Emails/` |
+| Create sample OrderConfirmation template | ✅ | `src/Merchello.Site/Views/Emails/OrderConfirmation.cshtml` |
+
+### Phase 7: Database Migration ⏳ PENDING
 
 | Task | Status |
 |------|--------|
-| Create sample Razor templates | ⏳ |
 | Run database migration | ⏳ |
 
 ---
@@ -372,8 +386,11 @@ public interface IEmailTopicRegistry
 | **Customers** | `customer.created` | `CustomerCreatedNotification` | Welcome email |
 | | `customer.updated` | `CustomerSavedNotification` | Account updated |
 | | `customer.password_reset` | `CustomerPasswordResetRequestedNotification` | Password reset |
-| **Checkout** | `checkout.abandoned` | `CheckoutAbandonedNotification` | Cart recovery |
+| **Checkout** | `checkout.abandoned.first` | `CheckoutAbandonedFirstNotification` | First recovery email |
+| | `checkout.abandoned.reminder` | `CheckoutAbandonedReminderNotification` | Follow-up reminder |
+| | `checkout.abandoned.final` | `CheckoutAbandonedFinalNotification` | Last chance email |
 | | `checkout.recovered` | `CheckoutRecoveredNotification` | Recovery analytics |
+| | `checkout.converted` | `CheckoutRecoveryConvertedNotification` | Conversion tracking |
 | **Inventory** | `inventory.low_stock` | `LowStockNotification` | Low stock alert |
 
 ### IEmailTokenResolver ✅ IMPLEMENTED
@@ -491,12 +508,13 @@ The `EmailTokenResolver` uses reflection to:
 {{store.websiteUrl}}
 ```
 
-**Checkout Abandoned (`checkout.abandoned`):**
+**Checkout Abandoned (`checkout.abandoned.first`, `.reminder`, `.final`):**
 ```
 {{customerEmail}}
 {{basketTotal}}
 {{recoveryLink}}
 {{abandonedCheckout.id}}
+{{emailSequenceNumber}}
 {{store.name}}
 ```
 
@@ -647,19 +665,21 @@ src/Merchello.Core/
 │   │   │   ├── IEmailTokenResolver.cs     # ✅
 │   │   │   ├── IEmailTemplateDiscoveryService.cs  # ✅
 │   │   │   ├── IEmailConfigurationService.cs      # ✅
-│   │   │   └── IEmailService.cs           # ✅
+│   │   │   ├── IEmailService.cs           # ✅
+│   │   │   └── IMjmlCompiler.cs           # ✅ MJML compilation interface
 │   │   ├── EmailTopicRegistry.cs          # ✅
 │   │   ├── EmailTokenResolver.cs          # ✅
 │   │   ├── EmailTemplateDiscoveryService.cs  # ✅
 │   │   ├── EmailConfigurationService.cs   # ✅
 │   │   ├── EmailService.cs                # ✅
+│   │   ├── MjmlCompiler.cs                # ✅ Mjml.Net wrapper
 │   │   └── Parameters/                    # ✅
 │   │       ├── EmailConfigurationQueryParameters.cs
 │   │       ├── CreateEmailConfigurationParameters.cs
 │   │       └── UpdateEmailConfigurationParameters.cs
 │   ├── Handlers/                          # ✅ Complete
 │   │   └── EmailNotificationHandler.cs
-│   └── EmailSettings.cs                   # ✅
+│   └── EmailSettings.cs                   # ✅ (includes EmailThemeSettings)
 
 ├── Webhooks/
 │   ├── Models/
@@ -692,7 +712,17 @@ src/Merchello/
 │   ├── EmailConfigurationApiController.cs      # ✅
 │   └── EmailMetadataApiController.cs           # ✅
 ├── Email/
-│   └── EmailRazorViewRenderer.cs               # ✅
+│   ├── EmailRazorViewRenderer.cs               # ✅ (includes MJML compilation)
+│   ├── MjmlHtmlHelperExtensions.cs             # ✅ @Html.Mjml() extension
+│   └── MjmlHelper.cs                           # ✅ IMjmlHelper implementation
+├── Views/
+│   └── Emails/                                 # RCL embedded views (ships with package)
+│       ├── _ViewImports.cshtml                 # ✅ Shared imports
+│       ├── _EmailLayout.cshtml                 # ✅ Base MJML layout with theme
+│       └── Shared/
+│           ├── _EmailHeader.cshtml             # ✅ Header partial
+│           ├── _EmailFooter.cshtml             # ✅ Footer partial
+│           └── _OrderSummary.cshtml            # ✅ Order line items partial
 
 src/Merchello/Client/src/
 ├── email/                                 # ✅ Complete
@@ -707,6 +737,11 @@ src/Merchello/Client/src/
 │   ├── types/
 │   │   └── email.types.ts
 │   └── manifest.ts
+
+src/Merchello.Site/
+└── Views/
+    └── Emails/                                 # Example templates (developer reference)
+        └── OrderConfirmation.cshtml            # ✅ MJML example template
 ```
 
 ---
@@ -748,19 +783,19 @@ src/Merchello/Client/src/
 </html>
 ```
 
-### AbandonedCart.cshtml
+### AbandonedCart-First.cshtml
 
 ```html
-@model Merchello.Core.Email.Models.EmailModel<Merchello.Core.Notifications.CheckoutNotifications.CheckoutAbandonedNotification>
+@model Merchello.Core.Email.Models.EmailModel<Merchello.Core.Notifications.CheckoutNotifications.CheckoutAbandonedFirstNotification>
 
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Complete Your Purchase</title>
+    <title>You left something behind!</title>
 </head>
 <body>
     <h1>Don't forget your items!</h1>
-    <p>You left @Model.Notification.BasketTotal.ToString("C") worth of items in your cart.</p>
+    <p>You left @Model.Notification.FormattedTotal worth of items in your cart.</p>
 
     <a href="@Model.Notification.RecoveryLink" style="background: #007bff; color: white; padding: 12px 24px; text-decoration: none;">
         Complete Your Purchase
@@ -770,6 +805,275 @@ src/Merchello/Client/src/
 </body>
 </html>
 ```
+
+### AbandonedCart-Reminder.cshtml
+
+```html
+@model Merchello.Core.Email.Models.EmailModel<Merchello.Core.Notifications.CheckoutNotifications.CheckoutAbandonedReminderNotification>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Still thinking it over?</title>
+</head>
+<body>
+    <h1>Your cart is waiting</h1>
+    <p>We noticed you haven't completed your purchase of @Model.Notification.FormattedTotal.</p>
+    <p>Your items are still saved - just click below to pick up where you left off.</p>
+
+    <a href="@Model.Notification.RecoveryLink" style="background: #007bff; color: white; padding: 12px 24px; text-decoration: none;">
+        Return to Your Cart
+    </a>
+
+    <p>Questions? Reply to this email or contact @Model.Store.SupportEmail</p>
+</body>
+</html>
+```
+
+### AbandonedCart-Final.cshtml
+
+```html
+@model Merchello.Core.Email.Models.EmailModel<Merchello.Core.Notifications.CheckoutNotifications.CheckoutAbandonedFinalNotification>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Last chance!</title>
+</head>
+<body>
+    <h1>Last chance to complete your purchase</h1>
+    <p>Your cart with @Model.Notification.FormattedTotal worth of items will expire soon.</p>
+
+    <a href="@Model.Notification.RecoveryLink" style="background: #dc3545; color: white; padding: 12px 24px; text-decoration: none;">
+        Complete Purchase Now
+    </a>
+
+    <p>After this, your cart will be cleared and you'll need to start over.</p>
+    <p>Need help? Contact us at @Model.Store.SupportEmail</p>
+</body>
+</html>
+```
+
+---
+
+## MJML Email Templates
+
+Merchello includes built-in support for MJML (Mailjet Markup Language), which compiles to responsive HTML that works across all email clients. Templates can use `@Html.Mjml()` helpers, raw MJML, or a mix of both.
+
+### Getting Started
+
+1. Create a `.cshtml` file in `/Views/Emails/`
+2. Add the `@model` directive for your notification type
+3. Use MJML markup with optional `@Html.Mjml()` helpers
+4. The system automatically detects and compiles MJML to responsive HTML
+
+### Template Model Reference
+
+When creating email templates, use the correct `@model` directive for each notification topic:
+
+| Topic | Model Directive | Key Properties |
+|-------|----------------|----------------|
+| `order.created` | `@model EmailModel<OrderCreatedNotification>` | `Order`, `Order.Invoice`, `Order.Invoice.LineItems` |
+| `order.status_changed` | `@model EmailModel<OrderStatusChangedNotification>` | `Order`, `OldStatus`, `NewStatus` |
+| `order.cancelled` | `@model EmailModel<InvoiceCancelledNotification>` | `Invoice`, `Reason` |
+| `payment.created` | `@model EmailModel<PaymentCreatedNotification>` | `Payment`, `Invoice` |
+| `payment.refunded` | `@model EmailModel<PaymentRefundedNotification>` | `Payment`, `RefundAmount` |
+| `shipment.created` | `@model EmailModel<ShipmentCreatedNotification>` | `Shipment`, `TrackingNumber`, `Order` |
+| `shipment.updated` | `@model EmailModel<ShipmentSavedNotification>` | `Shipment` |
+| `shipment.status_changed` | `@model EmailModel<ShipmentStatusChangedNotification>` | `Shipment`, `OldStatus`, `NewStatus` |
+| `customer.created` | `@model EmailModel<CustomerCreatedNotification>` | `Customer` |
+| `customer.updated` | `@model EmailModel<CustomerSavedNotification>` | `Customer` |
+| `customer.password_reset` | `@model EmailModel<CustomerPasswordResetRequestedNotification>` | `Customer`, `ResetToken`, `ResetLink` |
+| `checkout.abandoned.first` | `@model EmailModel<CheckoutAbandonedFirstNotification>` | `RecoveryLink`, `BasketTotal`, `AbandonedCheckout` |
+| `checkout.abandoned.reminder` | `@model EmailModel<CheckoutAbandonedReminderNotification>` | `RecoveryLink`, `BasketTotal`, `AbandonedCheckout` |
+| `checkout.abandoned.final` | `@model EmailModel<CheckoutAbandonedFinalNotification>` | `RecoveryLink`, `BasketTotal`, `AbandonedCheckout` |
+| `checkout.recovered` | `@model EmailModel<CheckoutRecoveredNotification>` | `AbandonedCheckout`, `Order` |
+| `checkout.converted` | `@model EmailModel<CheckoutRecoveryConvertedNotification>` | `AbandonedCheckout`, `Order` |
+| `inventory.low_stock` | `@model EmailModel<LowStockNotification>` | `Product`, `CurrentStock`, `Threshold` |
+| `invoice.reminder` | `@model EmailModel<InvoiceReminderNotification>` | `Invoice`, `DaysOverdue` |
+| `invoice.overdue` | `@model EmailModel<InvoiceOverdueNotification>` | `Invoice`, `DaysOverdue` |
+
+**Note:** All models are wrapped in `EmailModel<TNotification>` which provides:
+- `Model.Notification` - The notification with event-specific data
+- `Model.Store` - Store context (name, logo, email, website URL, support email)
+- `Model.Configuration` - The email configuration that triggered this email
+
+### Required Using Statements
+
+Add these at the top of your template:
+
+```cshtml
+@using Merchello.Core.Email.Models
+@using Merchello.Core.Notifications.Order
+@using Merchello.Email
+```
+
+### MJML Helper Methods
+
+The `@Html.Mjml()` extension provides the following helpers:
+
+#### Structure Helpers
+
+| Helper | Description | Example |
+|--------|-------------|---------|
+| `EmailStart(title, preview?)` | Opens MJML document with `<mjml>`, `<mj-head>`, `<mj-body>` | `@Html.Mjml().EmailStart("Order Confirmed", "Thank you!")` |
+| `EmailEnd()` | Closes MJML document | `@Html.Mjml().EmailEnd()` |
+
+#### Component Helpers
+
+| Helper | Description | Parameters |
+|--------|-------------|------------|
+| `Header(store)` | Store logo and branding header | `EmailStoreContext` |
+| `Footer(store)` | Contact info, support links | `EmailStoreContext` |
+| `Button(text, url, bgColor?)` | Call-to-action button | Text, URL, optional background color |
+| `Text(content, bold?, fontSize?)` | Styled text block | Content, optional bold, optional font size |
+| `Heading(text, level?)` | Heading (H1-H4) | Text, level (1-4, default 1) |
+| `Divider()` | Horizontal divider line | - |
+| `Spacer(height?)` | Vertical spacing | Height in pixels (default 20) |
+
+#### E-commerce Helpers
+
+| Helper | Description | Parameters |
+|--------|-------------|------------|
+| `OrderSummary(invoice)` | Full order with line items, totals | `Invoice` |
+| `AddressBlock(address, title?)` | Formatted address | `Address`, optional title |
+| `LineItemsTable(items)` | Line items table only | `IEnumerable<LineItem>` |
+
+### Example: Order Confirmation Template
+
+```cshtml
+@using Merchello.Core.Email.Models
+@using Merchello.Core.Notifications.Order
+@using Merchello.Email
+@model EmailModel<OrderCreatedNotification>
+
+@Html.Mjml().EmailStart(
+    $"Order #{Model.Notification.Order.Invoice?.InvoiceNumber} Confirmed",
+    $"Thank you for your order!")
+
+@Html.Mjml().Header(Model.Store)
+
+<mj-section>
+  <mj-column>
+    @Html.Mjml().Heading("Order Confirmed")
+    @Html.Mjml().Text($"Hi {Model.Notification.Order.Invoice?.BillingAddress?.Name ?? "there"},")
+    <mj-text>
+      Thank you for your order! We've received it and will begin processing shortly.
+      You'll receive another email when your order ships.
+    </mj-text>
+    @Html.Mjml().Text($"Order #{Model.Notification.Order.Invoice?.InvoiceNumber}", bold: true)
+  </mj-column>
+</mj-section>
+
+@if (Model.Notification.Order.Invoice != null)
+{
+    @Html.Mjml().OrderSummary(Model.Notification.Order.Invoice)
+
+    <mj-section>
+      <mj-column>
+        @Html.Mjml().AddressBlock(Model.Notification.Order.Invoice.ShippingAddress, "Shipping Address")
+      </mj-column>
+      <mj-column>
+        @Html.Mjml().AddressBlock(Model.Notification.Order.Invoice.BillingAddress, "Billing Address")
+      </mj-column>
+    </mj-section>
+}
+
+<mj-section>
+  <mj-column>
+    @Html.Mjml().Button("View Order", $"{Model.Store.WebsiteUrl}/account/orders/{Model.Notification.Order.Id}")
+  </mj-column>
+</mj-section>
+
+@Html.Mjml().Footer(Model.Store)
+@Html.Mjml().EmailEnd()
+```
+
+### Example: Abandoned Cart Template
+
+```cshtml
+@using Merchello.Core.Email.Models
+@using Merchello.Core.Notifications.CheckoutNotifications
+@using Merchello.Email
+@model EmailModel<CheckoutAbandonedFirstNotification>
+
+@Html.Mjml().EmailStart("You left something behind!", "Complete your purchase")
+
+@Html.Mjml().Header(Model.Store)
+
+<mj-section>
+  <mj-column>
+    @Html.Mjml().Heading("Don't forget your items!")
+    @Html.Mjml().Text($"You left {Model.Notification.FormattedTotal} worth of items in your cart.")
+    @Html.Mjml().Spacer(20)
+    @Html.Mjml().Button("Complete Your Purchase", Model.Notification.RecoveryLink)
+  </mj-column>
+</mj-section>
+
+<mj-section>
+  <mj-column>
+    <mj-text>
+      If you have any questions, contact us at
+      <a href="mailto:@Model.Store.SupportEmail">@Model.Store.SupportEmail</a>
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+@Html.Mjml().Footer(Model.Store)
+@Html.Mjml().EmailEnd()
+```
+
+### Theme Configuration
+
+Customize email appearance via `appsettings.json`:
+
+```json
+{
+  "Merchello": {
+    "Email": {
+      "Theme": {
+        "PrimaryColor": "#007bff",
+        "TextColor": "#333333",
+        "SecondaryTextColor": "#666666",
+        "BackgroundColor": "#f4f4f4",
+        "ContentBackgroundColor": "#ffffff",
+        "FontFamily": "'Helvetica Neue', Helvetica, Arial, sans-serif"
+      }
+    }
+  }
+}
+```
+
+Theme settings are applied automatically to all MJML helpers and the shared layout.
+
+### Mixing Helpers with Raw MJML
+
+You can freely mix `@Html.Mjml()` helpers with raw MJML tags:
+
+```cshtml
+@Html.Mjml().EmailStart("My Email")
+
+<mj-section background-color="#f0f0f0">
+  <mj-column>
+    @* Use a helper for text *@
+    @Html.Mjml().Heading("Welcome!")
+
+    @* Use raw MJML for custom styling *@
+    <mj-text font-size="18px" color="#ff6600">
+      This is custom styled text with raw MJML.
+    </mj-text>
+
+    @* Back to helpers *@
+    @Html.Mjml().Button("Click Here", "https://example.com")
+  </mj-column>
+</mj-section>
+
+@Html.Mjml().EmailEnd()
+```
+
+### MJML Compilation
+
+The system automatically detects MJML content (by checking for `<mjml>` or `<mj-` tags) and compiles it to responsive HTML. If the template doesn't contain MJML, it's passed through unchanged, allowing plain HTML templates to work as before.
 
 ---
 
@@ -802,7 +1106,7 @@ src/Merchello/Client/src/
 
 ## Implementation Status
 
-### Completed (Phases 1-5)
+### Completed (Phases 1-6)
 
 - ✅ OutboundDelivery refactoring (unified webhook + email delivery infrastructure)
 - ✅ Email models, DTOs, and database mapping
@@ -814,8 +1118,13 @@ src/Merchello/Client/src/
 - ✅ API controllers (EmailConfigurationApiController, EmailMetadataApiController)
 - ✅ Backoffice UI (Email Builder workspace, list, editor, preview modal)
 - ✅ OutboundDeliveryJob processes both webhooks AND emails
+- ✅ MJML email template system with Mjml.Net
+- ✅ `@Html.Mjml()` HtmlHelper extensions (Header, Footer, Button, Text, OrderSummary, etc.)
+- ✅ Shared RCL views (_EmailLayout, _EmailHeader, _EmailFooter, _OrderSummary)
+- ✅ Theme configuration via EmailThemeSettings
+- ✅ Example OrderConfirmation.cshtml template using MJML
 
-### Remaining (Phase 6)
+### Remaining (Phase 7)
 
-1. **Create sample Razor templates** - Order confirmation, shipping notification, abandoned cart, etc.
-2. **Run database migration** - Create `merchelloEmailConfigurations` and update `merchelloOutboundDeliveries` tables
+1. **Run database migration** - Create `merchelloEmailConfigurations` and update `merchelloOutboundDeliveries` tables
+2. **Additional sample templates** - Shipping notification, abandoned cart, password reset, etc. (optional)
