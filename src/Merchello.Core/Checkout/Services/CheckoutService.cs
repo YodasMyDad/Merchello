@@ -256,8 +256,9 @@ public class CheckoutService(
 
         basket.Errors = basket.Errors.Where(error => !error.IsShippingError).ToList();
 
+        var stateCode = basket.ShippingAddress.CountyState.RegionCode;
         var shippingQuotes = (await shippingQuoteService
-            .GetQuotesAsync(basket, resolvedCountryCode, null, cancellationToken))
+            .GetQuotesAsync(basket, resolvedCountryCode, stateCode, cancellationToken))
             .ToList();
 
         basket.AvailableShippingQuotes = shippingQuotes;
@@ -271,14 +272,18 @@ public class CheckoutService(
             });
         }
 
-        // Sum the cheapest service level from each warehouse quote
-        // (not the single cheapest across all warehouses)
+        // Use shipping amount in this priority:
+        // 1. Explicit override (from order grouping selection)
+        // 2. Existing basket shipping (already calculated via order grouping)
+        // 3. Auto-calculate from quotes (fallback for initial basket creation)
         var shippingCost = parameters.ShippingAmountOverride
-            ?? shippingQuotes
-                .Sum(q => q.ServiceLevels
-                    .OrderBy(level => level.TotalCost)
-                    .Select(level => level.TotalCost)
-                    .FirstOrDefault());
+            ?? (basket.Shipping > 0
+                ? basket.Shipping
+                : shippingQuotes
+                    .Sum(q => q.ServiceLevels
+                        .OrderBy(level => level.TotalCost)
+                        .Select(level => level.TotalCost)
+                        .FirstOrDefault()));
 
         var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
 

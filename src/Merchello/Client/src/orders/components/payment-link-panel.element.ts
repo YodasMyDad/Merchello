@@ -254,16 +254,14 @@ export class MerchelloPaymentLinkPanelElement extends UmbElementMixin(LitElement
         <div class="generator-row">
           <uui-select
             label="Payment Provider"
-            .value=${this._selectedProvider}
+            .options=${this._providers.map(p => ({
+              name: p.displayName,
+              value: p.alias,
+              selected: this._selectedProvider === p.alias,
+            }))}
             @change=${this._onProviderChange}
             ?disabled=${this._isGenerating}
-          >
-            ${this._providers.map(p => html`
-              <uui-select-option value=${p.alias}>
-                ${p.displayName}
-              </uui-select-option>
-            `)}
-          </uui-select>
+          ></uui-select>
 
           <uui-button
             look="primary"

@@ -571,6 +571,15 @@ public class StorefrontApiController(
         var selections = ShippingAutoSelector.SelectOptions(groupingResult.Groups, ShippingAutoSelectStrategy.Cheapest);
         var estimatedShipping = ShippingAutoSelector.CalculateCombinedTotal(groupingResult.Groups, selections);
 
+        // Update basket with estimated shipping so basket.Total is consistent
+        // This ensures GetBasket and GetEstimatedShipping return aligned totals
+        await checkoutService.CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = countryCode,
+            ShippingAmountOverride = estimatedShipping
+        }, ct);
+
         // Get currency context for display conversion
         var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
         var rate = currencyContext.ExchangeRate;

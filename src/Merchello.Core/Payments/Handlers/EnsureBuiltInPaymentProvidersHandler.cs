@@ -2,8 +2,10 @@ using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Providers.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Core.Payments.Handlers;
 
@@ -13,11 +15,19 @@ namespace Merchello.Core.Payments.Handlers;
 /// </summary>
 public class EnsureBuiltInPaymentProvidersHandler(
     IServiceProvider serviceProvider,
-    ILogger<EnsureBuiltInPaymentProvidersHandler> logger)
+    ILogger<EnsureBuiltInPaymentProvidersHandler> logger,
+    IRuntimeState runtimeState)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
     public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
+        // Skip if Umbraco isn't fully installed/running (tables won't exist yet)
+        if (runtimeState.Level != RuntimeLevel.Run)
+        {
+            logger.LogDebug("Skipping payment providers setup - Umbraco runtime level is {Level}", runtimeState.Level);
+            return;
+        }
+
         try
         {
             // Create a scope to resolve scoped services

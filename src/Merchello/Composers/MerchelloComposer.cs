@@ -18,10 +18,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
+using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Api.Management.OpenApi;
 using Umbraco.Cms.Api.Common.OpenApi;
 using Umbraco.Cms.Core.Routing;
@@ -182,11 +184,19 @@ namespace Merchello.Composers
     /// </summary>
     public class InitializeMerchelloDataTypesHandler(
         MerchelloDataTypeInitializer initializer,
-        ILogger<InitializeMerchelloDataTypesHandler> logger)
+        ILogger<InitializeMerchelloDataTypesHandler> logger,
+        IRuntimeState runtimeState)
         : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
     {
         public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
         {
+            // Skip if Umbraco isn't fully installed/running
+            if (runtimeState.Level != RuntimeLevel.Run)
+            {
+                logger.LogDebug("Skipping DataType initialization - Umbraco runtime level is {Level}", runtimeState.Level);
+                return;
+            }
+
             try
             {
                 var dataTypeKey = await initializer.EnsureProductDescriptionDataTypeExistsAsync(cancellationToken);

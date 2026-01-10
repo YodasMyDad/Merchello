@@ -460,19 +460,15 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
               : nothing}
             <uui-select
               id="${field.key}"
-              .value=${value}
+              .options=${field.options?.map((o) => ({
+                name: o.label,
+                value: o.value,
+                selected: value === o.value,
+              })) ?? []}
               ?required=${field.isRequired}
               @change=${(e: Event) =>
                 this._handleValueChange(field.key, (e.target as HTMLSelectElement).value)}
-            >
-              ${field.options?.map(
-                (option) => html`
-                  <uui-select-option value="${option.value}" ?selected=${value === option.value}>
-                    ${option.label}
-                  </uui-select-option>
-                `
-              )}
-            </uui-select>
+            ></uui-select>
           </div>
         `;
 

@@ -2,8 +2,10 @@ using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Core.Tax.Handlers;
 
@@ -23,7 +25,8 @@ namespace Merchello.Core.Tax.Handlers;
 /// </remarks>
 public class EnsureShippingTaxOverridesHandler(
     IServiceProvider serviceProvider,
-    ILogger<EnsureShippingTaxOverridesHandler> logger)
+    ILogger<EnsureShippingTaxOverridesHandler> logger,
+    IRuntimeState runtimeState)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
     /// <summary>
@@ -53,6 +56,13 @@ public class EnsureShippingTaxOverridesHandler(
         UmbracoApplicationStartedNotification notification,
         CancellationToken cancellationToken)
     {
+        // Skip if Umbraco isn't fully installed/running (tables won't exist yet)
+        if (runtimeState.Level != RuntimeLevel.Run)
+        {
+            logger.LogDebug("Skipping shipping tax overrides - Umbraco runtime level is {Level}", runtimeState.Level);
+            return;
+        }
+
         try
         {
             using var scope = serviceProvider.CreateScope();
