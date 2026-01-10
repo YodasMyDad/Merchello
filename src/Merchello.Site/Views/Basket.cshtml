@@ -189,10 +189,6 @@
                                 <span class="text-success">Discount</span>
                                 <span class="text-success" x-text="'-' + formattedDisplayDiscount"></span>
                             </div>
-                            <div class="d-flex justify-content-between mb-2">
-                                <span>Tax</span>
-                                <span x-text="formattedDisplayTax"></span>
-                            </div>
                             <!-- Estimated Shipping -->
                             <div class="d-flex justify-content-between mb-2">
                                 <span>
@@ -210,6 +206,10 @@
                                 <template x-if="!hasShippingEstimate && !isLoadingShipping">
                                     <small class="text-muted">Calculated at checkout</small>
                                 </template>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Tax</span>
+                                <span x-text="formattedDisplayTax"></span>
                             </div>
                             <hr>
                             <div class="d-flex justify-content-between mb-3">

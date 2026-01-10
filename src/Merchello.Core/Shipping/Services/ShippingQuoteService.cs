@@ -326,11 +326,23 @@ public class ShippingQuoteService(
         // Get allowed shipping options based on product restrictions
         var allowedOptions = product.GetAllowedShippingOptions();
 
+        // Build lookup for warehouses from ProductRootWarehouses (used when option.Warehouse.ServiceRegions isn't loaded)
+        var warehouseLookup = product.ProductRoot?.ProductRootWarehouses
+            .Where(prw => prw.Warehouse != null)
+            .ToDictionary(prw => prw.Warehouse!.Id, prw => prw.Warehouse!)
+            ?? [];
+
         var options = allowedOptions
             .Select(option =>
             {
                 var destinationCost = costResolver.ResolveBaseCost(option.ShippingCosts.ToList(), countryCode, stateOrProvinceCode, option.FixedCost);
-                var canShip = option.Warehouse.CanServeRegion(countryCode, stateOrProvinceCode);
+
+                // Use warehouse with ServiceRegions loaded - option.Warehouse might not have ServiceRegions populated
+                // when loaded via ProductRootWarehouses.Warehouse.ShippingOptions path (no cyclic includes allowed)
+                var warehouse = option.Warehouse.ServiceRegions.Count > 0
+                    ? option.Warehouse
+                    : warehouseLookup.GetValueOrDefault(option.WarehouseId) ?? option.Warehouse;
+                var canShip = warehouse.CanServeRegion(countryCode, stateOrProvinceCode);
 
                 // For external providers, they're available if the warehouse can ship to the region
                 // For flat-rate, they need a destination cost configured
