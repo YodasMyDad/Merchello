@@ -15,6 +15,6 @@ export const MERCHELLO_TAX_PROVIDER_CONFIG_MODAL = new UmbModalToken<
 >("Merchello.TaxProviderConfig.Modal", {
   modal: {
     type: "sidebar",
-    size: "medium",
+    size: "large",
   },
 });

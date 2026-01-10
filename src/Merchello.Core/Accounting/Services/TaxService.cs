@@ -1,7 +1,9 @@
+using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Notifications.ShippingTaxOverride;
 using Merchello.Core.Notifications.TaxGroup;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
@@ -497,6 +499,287 @@ public class TaxService(
             result.ResultObject = true;
         });
         scope.Complete();
+
+        return result;
+    }
+
+    #endregion
+
+    #region Shipping Tax Overrides
+
+    /// <summary>
+    /// Gets a shipping tax override for a specific location.
+    /// Lookup priority: State-specific -> Country-level -> null (no override)
+    /// </summary>
+    public async Task<ShippingTaxOverride?> GetShippingTaxOverrideAsync(
+        string countryCode,
+        string? stateOrProvinceCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(countryCode))
+            return null;
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            // Priority 1: State-specific override
+            if (!string.IsNullOrWhiteSpace(stateOrProvinceCode))
+            {
+                var stateOverride = await db.ShippingTaxOverrides
+                    .AsNoTracking()
+                    .Include(o => o.ShippingTaxGroup)
+                    .FirstOrDefaultAsync(o =>
+                        o.CountryCode == countryCode &&
+                        o.StateOrProvinceCode == stateOrProvinceCode,
+                        cancellationToken);
+
+                if (stateOverride != null)
+                    return stateOverride;
+            }
+
+            // Priority 2: Country-level override
+            var countryOverride = await db.ShippingTaxOverrides
+                .AsNoTracking()
+                .Include(o => o.ShippingTaxGroup)
+                .FirstOrDefaultAsync(o =>
+                    o.CountryCode == countryCode &&
+                    o.StateOrProvinceCode == null,
+                    cancellationToken);
+
+            return countryOverride;
+        });
+
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Gets a shipping tax override by ID
+    /// </summary>
+    public async Task<ShippingTaxOverride?> GetShippingTaxOverrideByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.ShippingTaxOverrides
+                .AsNoTracking()
+                .Include(o => o.ShippingTaxGroup)
+                .FirstOrDefaultAsync(o => o.Id == id, cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Gets all shipping tax overrides
+    /// </summary>
+    public async Task<List<ShippingTaxOverride>> GetAllShippingTaxOverridesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.ShippingTaxOverrides
+                .AsNoTracking()
+                .Include(o => o.ShippingTaxGroup)
+                .OrderBy(o => o.CountryCode)
+                .ThenBy(o => o.StateOrProvinceCode)
+                .ToListAsync(cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Creates a new shipping tax override
+    /// </summary>
+    public async Task<CrudResult<ShippingTaxOverride>> CreateShippingTaxOverrideAsync(
+        CreateShippingTaxOverrideDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<ShippingTaxOverride>();
+
+        if (string.IsNullOrWhiteSpace(dto.CountryCode))
+        {
+            result.AddErrorMessage("Country code is required");
+            return result;
+        }
+
+        // Normalize empty string to null for state/province
+        var normalizedState = string.IsNullOrWhiteSpace(dto.StateOrProvinceCode)
+            ? null
+            : dto.StateOrProvinceCode.Trim();
+
+        var entity = new ShippingTaxOverride
+        {
+            CountryCode = dto.CountryCode.Trim(),
+            StateOrProvinceCode = normalizedState,
+            ShippingTaxGroupId = dto.ShippingTaxGroupId
+        };
+
+        // Publish creating notification (cancelable)
+        var creatingNotification = new ShippingTaxOverrideCreatingNotification(entity);
+        if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
+        {
+            result.AddErrorMessage("Shipping tax override creation was cancelled by a notification handler");
+            return result;
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            // Check for duplicate
+            var duplicateExists = await db.ShippingTaxOverrides
+                .AnyAsync(o =>
+                    o.CountryCode == entity.CountryCode &&
+                    o.StateOrProvinceCode == normalizedState,
+                    cancellationToken);
+
+            if (duplicateExists)
+            {
+                result.AddErrorMessage("A shipping tax override for this location already exists");
+                return;
+            }
+
+            // Validate tax group exists if specified
+            if (entity.ShippingTaxGroupId.HasValue)
+            {
+                var taxGroupExists = await db.TaxGroups
+                    .AnyAsync(tg => tg.Id == entity.ShippingTaxGroupId.Value, cancellationToken);
+
+                if (!taxGroupExists)
+                {
+                    result.AddErrorMessage("Tax group not found");
+                    return;
+                }
+            }
+
+            db.ShippingTaxOverrides.Add(entity);
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+
+            result.ResultObject = entity;
+        });
+        scope.Complete();
+
+        // Publish created notification (informational)
+        if (result.Successful)
+        {
+            await notificationPublisher.PublishAsync(
+                new ShippingTaxOverrideCreatedNotification(entity), cancellationToken);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Updates an existing shipping tax override
+    /// </summary>
+    public async Task<CrudResult<ShippingTaxOverride>> UpdateShippingTaxOverrideAsync(
+        Guid id,
+        UpdateShippingTaxOverrideDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<ShippingTaxOverride>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var existing = await db.ShippingTaxOverrides
+                .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+
+            if (existing == null)
+            {
+                result.AddErrorMessage("Shipping tax override not found");
+                return;
+            }
+
+            // Publish saving notification (cancelable)
+            var savingNotification = new ShippingTaxOverrideSavingNotification(existing);
+            if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
+            {
+                result.AddErrorMessage("Shipping tax override update was cancelled by a notification handler");
+                return;
+            }
+
+            // Validate tax group exists if specified
+            if (dto.ShippingTaxGroupId.HasValue)
+            {
+                var taxGroupExists = await db.TaxGroups
+                    .AnyAsync(tg => tg.Id == dto.ShippingTaxGroupId.Value, cancellationToken);
+
+                if (!taxGroupExists)
+                {
+                    result.AddErrorMessage("Tax group not found");
+                    return;
+                }
+            }
+
+            existing.ShippingTaxGroupId = dto.ShippingTaxGroupId;
+            existing.DateUpdated = DateTime.UtcNow;
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+
+            result.ResultObject = existing;
+        });
+        scope.Complete();
+
+        // Publish saved notification (informational)
+        if (result.Successful && result.ResultObject != null)
+        {
+            await notificationPublisher.PublishAsync(
+                new ShippingTaxOverrideSavedNotification(result.ResultObject), cancellationToken);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Deletes a shipping tax override
+    /// </summary>
+    public async Task<CrudResult<bool>> DeleteShippingTaxOverrideAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<bool>();
+        string countryCode = string.Empty;
+        string? stateOrProvinceCode = null;
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var entity = await db.ShippingTaxOverrides
+                .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+
+            if (entity == null)
+            {
+                result.AddErrorMessage("Shipping tax override not found");
+                return;
+            }
+
+            // Publish deleting notification (cancelable)
+            var deletingNotification = new ShippingTaxOverrideDeletingNotification(entity);
+            if (await notificationPublisher.PublishCancelableAsync(deletingNotification, cancellationToken))
+            {
+                result.AddErrorMessage("Shipping tax override deletion was cancelled by a notification handler");
+                return;
+            }
+
+            // Capture details for deleted notification
+            countryCode = entity.CountryCode;
+            stateOrProvinceCode = entity.StateOrProvinceCode;
+
+            db.ShippingTaxOverrides.Remove(entity);
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+
+            result.ResultObject = true;
+        });
+        scope.Complete();
+
+        // Publish deleted notification (informational)
+        if (result.Successful)
+        {
+            await notificationPublisher.PublishAsync(
+                new ShippingTaxOverrideDeletedNotification(id, countryCode, stateOrProvinceCode),
+                cancellationToken);
+        }
 
         return result;
     }

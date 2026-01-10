@@ -6,12 +6,15 @@ import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { TaxProviderFieldDto, TaxGroupDto } from "@tax/types/tax.types.js";
+import type { TaxProviderFieldDto, TaxGroupDto, ShippingTaxOverrideDto } from "@tax/types/tax.types.js";
 import type {
   TaxProviderConfigModalData,
   TaxProviderConfigModalValue,
 } from "./tax-provider-config-modal.token.js";
 import { MERCHELLO_TAX_GROUP_MODAL } from "./tax-group-modal.token.js";
+import { MERCHELLO_SHIPPING_TAX_OVERRIDE_MODAL } from "./shipping-tax-override-modal.token.js";
+
+type TabType = "product" | "shipping";
 
 @customElement("merchello-tax-provider-config-modal")
 export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
@@ -25,10 +28,18 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
 
+  // Tab state (for Manual provider)
+  @state() private _activeTab: TabType = "product";
+
   // Tax Groups (for Manual provider)
   @state() private _taxGroups: TaxGroupDto[] = [];
   @state() private _isLoadingTaxGroups = false;
   @state() private _isDeleting: string | null = null;
+
+  // Shipping Tax Overrides (for Manual provider)
+  @state() private _shippingOverrides: ShippingTaxOverrideDto[] = [];
+  @state() private _isLoadingOverrides = false;
+  @state() private _deletedOverrideIds: string[] = [];
 
   #isConnected = false;
   #modalManager?: UmbModalManagerContext;
@@ -94,9 +105,9 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
 
     this._isLoading = false;
 
-    // Load Tax Groups for Manual provider
+    // Load Tax Groups and Shipping Overrides for Manual provider
     if (this._isManualProvider) {
-      await this._loadTaxGroups();
+      await Promise.all([this._loadTaxGroups(), this._loadShippingOverrides()]);
     }
   }
 
@@ -119,6 +130,26 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     this._isLoadingTaxGroups = false;
   }
 
+  private async _loadShippingOverrides(): Promise<void> {
+    this._isLoadingOverrides = true;
+
+    const { data, error } = await MerchelloApi.getShippingTaxOverrides();
+
+    if (!this.#isConnected) return;
+
+    if (error) {
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Error loading shipping overrides", message: error.message },
+      });
+      this._isLoadingOverrides = false;
+      return;
+    }
+
+    this._shippingOverrides = data ?? [];
+    this._isLoadingOverrides = false;
+  }
+
+  // Tax Group Methods
   private async _handleAddTaxGroup(): Promise<void> {
     const modal = this.#modalManager?.open(this, MERCHELLO_TAX_GROUP_MODAL, {
       data: {},
@@ -193,6 +224,58 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     this._loadTaxGroups();
   }
 
+  // Shipping Override Methods
+  private async _handleAddOverride(): Promise<void> {
+    const modal = this.#modalManager?.open(this, MERCHELLO_SHIPPING_TAX_OVERRIDE_MODAL, {
+      data: {},
+    });
+
+    const result = await modal?.onSubmit().catch(() => undefined);
+    if (!this.#isConnected) return;
+    if (result?.isSaved) {
+      this._loadShippingOverrides();
+    }
+  }
+
+  private async _handleEditOverride(override: ShippingTaxOverrideDto): Promise<void> {
+    const modal = this.#modalManager?.open(this, MERCHELLO_SHIPPING_TAX_OVERRIDE_MODAL, {
+      data: { override },
+    });
+
+    const result = await modal?.onSubmit().catch(() => undefined);
+    if (!this.#isConnected) return;
+    if (result?.isSaved) {
+      this._loadShippingOverrides();
+    }
+  }
+
+  private async _handleDeleteOverride(e: Event, override: ShippingTaxOverrideDto): Promise<void> {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const regionLabel = override.regionName
+      ? `${override.countryName} - ${override.regionName}`
+      : override.countryName || override.countryCode;
+
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Shipping Tax Override",
+        content: `Are you sure you want to delete the shipping tax override for ${regionLabel}?`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    const result = await modalContext?.onSubmit().catch(() => undefined);
+    if (!result) return;
+    if (!this.#isConnected) return;
+
+    // Track deleted override to be saved with unified save
+    this._deletedOverrideIds = [...this._deletedOverrideIds, override.id];
+    this._shippingOverrides = this._shippingOverrides.filter((o) => o.id !== override.id);
+  }
+
+  // Config field handlers
   private _handleValueChange(key: string, value: string): void {
     this._values = { ...this._values, [key]: value };
   }
@@ -201,6 +284,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     this._values = { ...this._values, [key]: checked ? "true" : "false" };
   }
 
+  // Save handler
   private async _handleSave(): Promise<void> {
     const provider = this.data?.provider;
 
@@ -219,6 +303,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     }
 
     try {
+      // Save provider configuration
       const { error } = await MerchelloApi.saveTaxProviderSettings(provider.alias, {
         configuration: this._values,
       });
@@ -229,6 +314,17 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
         this._errorMessage = error.message;
         this._isSaving = false;
         return;
+      }
+
+      // Delete any pending shipping override deletions
+      if (this._isManualProvider && this._deletedOverrideIds.length > 0) {
+        for (const id of this._deletedOverrideIds) {
+          const deleteResult = await MerchelloApi.deleteShippingTaxOverride(id);
+          if (deleteResult.error) {
+            console.error("Failed to delete shipping override:", deleteResult.error);
+          }
+        }
+        this._deletedOverrideIds = [];
       }
 
       this._isSaving = false;
@@ -245,8 +341,37 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
+  // Tab handlers
+  private _handleTabClick(tab: TabType): void {
+    this._activeTab = tab;
+  }
+
+  // Format helpers
+  private _formatPercentage(value: number): string {
+    return `${value}%`;
+  }
+
+  private _formatRegion(override: ShippingTaxOverrideDto): string {
+    if (override.regionName && override.countryName) {
+      return `${override.countryName} - ${override.regionName}`;
+    }
+    if (override.countryName) {
+      return override.countryName;
+    }
+    if (override.stateOrProvinceCode) {
+      return `${override.countryCode}-${override.stateOrProvinceCode}`;
+    }
+    return override.countryCode;
+  }
+
+  // Render: Config field
   private _renderField(field: TaxProviderFieldDto): unknown {
     const value = this._values[field.key] ?? "";
+
+    // For Manual provider, shipping tax fields are rendered in the Shipping tab
+    if (this._isManualProvider && (field.key === "shippingTaxGroupId" || field.key === "isShippingTaxable")) {
+      return nothing;
+    }
 
     switch (field.fieldType) {
       case "Text":
@@ -356,8 +481,91 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     }
   }
 
-  private _formatPercentage(value: number): string {
-    return `${value}%`;
+  // Render: Tabs
+  private _renderTabs(): unknown {
+    return html`
+      <uui-tab-group class="tabs">
+        <uui-tab
+          label="Product Taxes"
+          ?active=${this._activeTab === "product"}
+          @click=${() => this._handleTabClick("product")}
+        >
+          Product Taxes
+        </uui-tab>
+        <uui-tab
+          label="Shipping Taxes"
+          ?active=${this._activeTab === "shipping"}
+          @click=${() => this._handleTabClick("shipping")}
+        >
+          Shipping Taxes
+          ${this._deletedOverrideIds.length > 0
+            ? html`<uui-badge slot="extra" color="warning" attention>Unsaved</uui-badge>`
+            : nothing}
+        </uui-tab>
+      </uui-tab-group>
+    `;
+  }
+
+  // Render: Product Taxes Tab
+  private _renderProductTaxesTab(): unknown {
+    return html`
+      <div class="tab-content">
+        <div class="info-box">
+          <uui-icon name="icon-info"></uui-icon>
+          <span>
+            Product taxes apply to the items customers purchase. Create tax groups to categorize
+            products by rate (e.g., Standard VAT, Reduced Rate, Zero Rated).
+          </span>
+        </div>
+
+        <div class="section">
+          <div class="section-header">
+            <h3>Tax Groups</h3>
+            <uui-button
+              look="primary"
+              color="positive"
+              compact
+              label="Add Tax Group"
+              @click=${this._handleAddTaxGroup}
+            >
+              <uui-icon name="icon-add"></uui-icon>
+              Add
+            </uui-button>
+          </div>
+
+          ${this._isLoadingTaxGroups
+            ? html`
+                <div class="loading-inline">
+                  <uui-loader-circle></uui-loader-circle>
+                  <span>Loading tax groups...</span>
+                </div>
+              `
+            : this._taxGroups.length === 0
+              ? html`
+                  <div class="empty-state">
+                    <uui-icon name="icon-calculator"></uui-icon>
+                    <p>No tax groups configured yet.</p>
+                    <p class="empty-hint">
+                      Create tax groups like "Standard VAT" or "Reduced Rate" to assign to products.
+                    </p>
+                  </div>
+                `
+              : html`
+                  <div class="table-container">
+                    <uui-table class="data-table">
+                      <uui-table-head>
+                        <uui-table-head-cell>Name</uui-table-head-cell>
+                        <uui-table-head-cell>Default Rate</uui-table-head-cell>
+                        <uui-table-head-cell class="actions-header">Actions</uui-table-head-cell>
+                      </uui-table-head>
+                      ${this._taxGroups.map((tg) => this._renderTaxGroupRow(tg))}
+                    </uui-table>
+                  </div>
+                  <p class="table-hint">Click a row to edit the tax group and manage regional rate overrides.</p>
+                `}
+        </div>
+      </div>
+    `;
   }
 
   private _renderTaxGroupRow(taxGroup: TaxGroupDto): unknown {
@@ -366,10 +574,10 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     return html`
       <uui-table-row class="clickable" @click=${() => this._handleEditTaxGroup(taxGroup)}>
         <uui-table-cell>
-          <span class="tax-group-name">${taxGroup.name}</span>
+          <span class="name-cell">${taxGroup.name}</span>
         </uui-table-cell>
         <uui-table-cell>
-          <span class="tax-rate">${this._formatPercentage(taxGroup.taxPercentage)}</span>
+          <span class="rate-cell">${this._formatPercentage(taxGroup.taxPercentage)}</span>
         </uui-table-cell>
         <uui-table-cell>
           <div class="actions-cell">
@@ -400,58 +608,188 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     `;
   }
 
-  private _renderTaxGroupsSection(): unknown {
+  // Render: Shipping Taxes Tab
+  private _renderShippingTaxesTab(): unknown {
+    const isShippingTaxable = this._values["isShippingTaxable"] === "true";
+    const shippingTaxGroupId = this._values["shippingTaxGroupId"] ?? "";
+
+    const taxGroupOptions = [
+      { name: "Use proportional rate (weighted average)", value: "", selected: !shippingTaxGroupId },
+      ...this._taxGroups.map((tg) => ({
+        name: `${tg.name} (${tg.taxPercentage}%)`,
+        value: tg.id,
+        selected: tg.id === shippingTaxGroupId,
+      })),
+    ];
+
     return html`
-      <div class="tax-groups-section">
-        <div class="section-header">
-          <h3>Tax Groups</h3>
-          <uui-button
-            look="primary"
-            color="positive"
-            compact
-            label="Add Tax Group"
-            @click=${this._handleAddTaxGroup}
-          >
-            <uui-icon name="icon-add"></uui-icon>
-            Add
-          </uui-button>
+      <div class="tab-content">
+        <div class="info-box">
+          <uui-icon name="icon-info"></uui-icon>
+          <span>
+            Configure how shipping costs are taxed. Regional overrides take precedence over
+            global settings below.
+          </span>
         </div>
 
-        <p class="section-description">
-          Tax groups define the tax rates applied to products. Click a row to edit, or use the
-          buttons to manage geographic rate overrides.
-        </p>
+        <!-- Global Settings -->
+        <div class="section">
+          <h4 class="section-title">Global Settings</h4>
 
-        ${this._isLoadingTaxGroups
-          ? html`
-              <div class="loading-inline">
-                <uui-loader-circle></uui-loader-circle>
-                <span>Loading tax groups...</span>
-              </div>
-            `
-          : this._taxGroups.length === 0
+          <div class="form-field checkbox-field">
+            <uui-checkbox
+              ?checked=${isShippingTaxable}
+              @change=${(e: Event) =>
+                this._handleCheckboxChange("isShippingTaxable", (e.target as HTMLInputElement).checked)}
+            >
+              Tax Shipping
+            </uui-checkbox>
+            <p class="field-description">Enable tax on shipping costs</p>
+          </div>
+
+          ${isShippingTaxable
             ? html`
-                <div class="empty-state">
-                  <uui-icon name="icon-calculator"></uui-icon>
-                  <p>No tax groups configured yet.</p>
-                  <p class="empty-hint">
-                    Create tax groups like "Standard VAT" or "Reduced Rate" to assign to products.
+                <div class="form-field">
+                  <label>Default Shipping Tax Group</label>
+                  <p class="field-description">
+                    Select a tax group for shipping, or leave empty to calculate shipping tax as a
+                    weighted average of line item tax rates (EU/UK compliant).
                   </p>
+                  ${this._isLoadingTaxGroups
+                    ? html`<uui-loader-circle></uui-loader-circle>`
+                    : html`
+                        <uui-select
+                          .options=${taxGroupOptions}
+                          @change=${(e: Event) =>
+                            this._handleValueChange("shippingTaxGroupId", (e.target as HTMLSelectElement).value)}
+                        ></uui-select>
+                      `}
                 </div>
               `
-            : html`
-                <div class="table-container">
-                  <uui-table class="tax-groups-table">
-                    <uui-table-head>
-                      <uui-table-head-cell>Name</uui-table-head-cell>
-                      <uui-table-head-cell>Default Rate</uui-table-head-cell>
-                      <uui-table-head-cell class="actions-header">Actions</uui-table-head-cell>
-                    </uui-table-head>
-                    ${this._taxGroups.map((tg) => this._renderTaxGroupRow(tg))}
-                  </uui-table>
+            : nothing}
+        </div>
+
+        <!-- Regional Overrides -->
+        <div class="section">
+          <div class="section-header">
+            <div>
+              <h4 class="section-title">Regional Overrides</h4>
+              <p class="section-description">
+                Define which regions tax shipping and which don't. Overrides apply regardless of
+                global settings above.
+              </p>
+            </div>
+            <uui-button
+              look="primary"
+              compact
+              label="Add Override"
+              @click=${this._handleAddOverride}
+              ?disabled=${this._isLoadingOverrides}
+            >
+              <uui-icon name="icon-add"></uui-icon>
+              Add
+            </uui-button>
+          </div>
+
+          ${this._isLoadingOverrides
+            ? html`
+                <div class="loading-inline">
+                  <uui-loader-circle></uui-loader-circle>
+                  <span>Loading overrides...</span>
                 </div>
-              `}
+              `
+            : this._shippingOverrides.length === 0
+              ? html`
+                  <div class="empty-state">
+                    <uui-icon name="icon-globe"></uui-icon>
+                    <p>No regional overrides configured.</p>
+                    <p class="empty-hint">
+                      Add overrides to customize shipping tax rules per country or state.
+                    </p>
+                  </div>
+                `
+              : html`
+                  <div class="table-container">
+                    <uui-table class="data-table">
+                      <uui-table-head>
+                        <uui-table-head-cell>Region</uui-table-head-cell>
+                        <uui-table-head-cell>Tax Group</uui-table-head-cell>
+                        <uui-table-head-cell class="actions-header">Actions</uui-table-head-cell>
+                      </uui-table-head>
+                      ${this._shippingOverrides.map((o) => this._renderOverrideRow(o))}
+                    </uui-table>
+                  </div>
+                `}
+        </div>
       </div>
+    `;
+  }
+
+  private _renderOverrideRow(override: ShippingTaxOverrideDto): unknown {
+    return html`
+      <uui-table-row>
+        <uui-table-cell>
+          <div class="region-cell">
+            <span class="name-cell">${this._formatRegion(override)}</span>
+            ${!override.stateOrProvinceCode
+              ? html`<span class="country-badge">Country-wide</span>`
+              : nothing}
+          </div>
+        </uui-table-cell>
+        <uui-table-cell>
+          ${override.shippingTaxGroupId && override.shippingTaxGroupName
+            ? html`<span class="name-cell">${override.shippingTaxGroupName}
+                <span class="rate-cell">(${override.shippingTaxGroupPercentage}%)</span></span>`
+            : html`<span class="no-tax">No shipping tax</span>`}
+        </uui-table-cell>
+        <uui-table-cell>
+          <div class="actions-cell">
+            <uui-button
+              look="secondary"
+              compact
+              label="Edit"
+              @click=${() => this._handleEditOverride(override)}
+            >
+              <uui-icon name="icon-edit"></uui-icon>
+            </uui-button>
+            <uui-button
+              look="secondary"
+              compact
+              label="Delete"
+              @click=${(e: Event) => this._handleDeleteOverride(e, override)}
+            >
+              <uui-icon name="icon-delete"></uui-icon>
+            </uui-button>
+          </div>
+        </uui-table-cell>
+      </uui-table-row>
+    `;
+  }
+
+  // Render: Non-Manual provider content
+  private _renderNonManualContent(): unknown {
+    const provider = this.data?.provider;
+
+    return html`
+      ${provider?.setupInstructions
+        ? html`
+            <div class="info-box">
+              <uui-icon name="icon-info"></uui-icon>
+              <span>${provider.setupInstructions}</span>
+            </div>
+          `
+        : nothing}
+
+      ${this._fields.length > 0
+        ? html`
+            <p class="section-description">
+              Configure the settings for ${provider?.displayName ?? "this provider"}.
+            </p>
+            ${this._fields.map((field) => this._renderField(field))}
+          `
+        : html`
+            <p class="no-fields">This provider does not require any configuration.</p>
+          `}
     `;
   }
 
@@ -478,31 +816,14 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
                     `
                   : nothing}
 
-                ${provider?.setupInstructions
+                ${this._isManualProvider
                   ? html`
-                      <div class="setup-instructions">
-                        <uui-icon name="icon-info"></uui-icon>
-                        <span>${provider.setupInstructions}</span>
-                      </div>
+                      ${this._renderTabs()}
+                      ${this._activeTab === "product"
+                        ? this._renderProductTaxesTab()
+                        : this._renderShippingTaxesTab()}
                     `
-                  : nothing}
-
-                ${this._fields.length > 0
-                  ? html`
-                      <p class="section-description">
-                        Configure the settings for ${provider?.displayName ?? "this provider"}.
-                      </p>
-                      ${this._fields.map((field) => this._renderField(field))}
-                    `
-                  : nothing}
-
-                ${this._isManualProvider ? this._renderTaxGroupsSection() : nothing}
-
-                ${!this._isManualProvider && this._fields.length === 0
-                  ? html`
-                      <p class="no-fields">This provider does not require any configuration.</p>
-                    `
-                  : nothing}
+                  : this._renderNonManualContent()}
               `}
         </div>
 
@@ -515,20 +836,16 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
           >
             Close
           </uui-button>
-          ${this._fields.length > 0
-            ? html`
-                <uui-button
-                  label="Save"
-                  look="primary"
-                  color="positive"
-                  @click=${this._handleSave}
-                  ?disabled=${this._isLoading || this._isSaving}
-                >
-                  ${this._isSaving ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
-                  Save
-                </uui-button>
-              `
-            : nothing}
+          <uui-button
+            label="Save"
+            look="primary"
+            color="positive"
+            @click=${this._handleSave}
+            ?disabled=${this._isLoading || this._isSaving}
+          >
+            ${this._isSaving ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
+            Save
+          </uui-button>
         </div>
       </umb-body-layout>
     `;
@@ -537,6 +854,11 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
   static override readonly styles = css`
     :host {
       display: block;
+    }
+
+    #main {
+      display: flex;
+      flex-direction: column;
     }
 
     .loading {
@@ -559,34 +881,72 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
       margin-bottom: var(--uui-size-space-4);
     }
 
-    .setup-instructions {
+    /* Tabs */
+    .tabs {
+      --uui-tab-divider: var(--uui-color-border);
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .tab-content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-5);
+    }
+
+    /* Info Box */
+    .info-box {
       display: flex;
       align-items: flex-start;
-      gap: var(--uui-size-space-2);
-      padding: var(--uui-size-space-3);
+      gap: var(--uui-size-space-3);
+      padding: var(--uui-size-space-4);
       background: var(--uui-color-surface-alt);
       border: 1px solid var(--uui-color-border);
       border-radius: var(--uui-border-radius);
-      margin-bottom: var(--uui-size-space-4);
       font-size: 0.875rem;
       color: var(--uui-color-text-alt);
+      line-height: 1.5;
     }
 
-    .setup-instructions uui-icon {
+    .info-box uui-icon {
       flex-shrink: 0;
       color: var(--uui-color-interactive);
     }
 
+    /* Sections */
+    .section {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-4);
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: var(--uui-size-space-4);
+    }
+
+    .section-header h3,
+    .section-header h4 {
+      margin: 0;
+    }
+
+    .section-title {
+      font-size: 0.875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--uui-color-text);
+      margin: 0;
+    }
+
     .section-description {
       color: var(--uui-color-text-alt);
-      margin-bottom: var(--uui-size-space-4);
+      font-size: 0.875rem;
+      margin: var(--uui-size-space-1) 0 0 0;
     }
 
-    .no-fields {
-      color: var(--uui-color-text-alt);
-      font-style: italic;
-    }
-
+    /* Form fields */
     .form-field {
       margin-bottom: var(--uui-size-space-4);
     }
@@ -620,32 +980,12 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
       width: 100%;
     }
 
-    [slot="actions"] {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      justify-content: flex-end;
+    .no-fields {
+      color: var(--uui-color-text-alt);
+      font-style: italic;
     }
 
-    /* Tax Groups Section */
-    .tax-groups-section {
-      margin-top: var(--uui-size-space-6);
-      padding-top: var(--uui-size-space-4);
-      border-top: 1px solid var(--uui-color-border);
-    }
-
-    .section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: var(--uui-size-space-3);
-    }
-
-    .section-header h3 {
-      margin: 0;
-      font-size: 1rem;
-      font-weight: 600;
-    }
-
+    /* Tables */
     .table-container {
       overflow-x: auto;
       background: var(--uui-color-surface);
@@ -653,7 +993,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
       border-radius: var(--uui-border-radius);
     }
 
-    .tax-groups-table {
+    .data-table {
       width: 100%;
     }
 
@@ -670,13 +1010,33 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
       background: var(--uui-color-surface-emphasis);
     }
 
-    .tax-group-name {
+    .name-cell {
       font-weight: 500;
       color: var(--uui-color-interactive);
     }
 
-    .tax-rate {
+    .rate-cell {
       font-family: var(--uui-font-family-monospace, monospace);
+      color: var(--uui-color-text-alt);
+    }
+
+    .region-cell {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+    }
+
+    .country-badge {
+      font-size: 0.6875rem;
+      padding: 2px 6px;
+      background: var(--uui-color-surface-alt);
+      border-radius: var(--uui-border-radius);
+      color: var(--uui-color-text-alt);
+    }
+
+    .no-tax {
+      color: var(--uui-color-text-alt);
+      font-style: italic;
     }
 
     .actions-header {
@@ -689,6 +1049,13 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
       justify-content: flex-end;
     }
 
+    .table-hint {
+      font-size: 0.8125rem;
+      color: var(--uui-color-text-alt);
+      margin: var(--uui-size-space-2) 0 0 0;
+    }
+
+    /* Loading and empty states */
     .loading-inline {
       display: flex;
       align-items: center;
@@ -701,9 +1068,12 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: var(--uui-size-space-5);
+      padding: var(--uui-size-space-6);
       text-align: center;
       color: var(--uui-color-text-alt);
+      background: var(--uui-color-surface-alt);
+      border: 1px dashed var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
     }
 
     .empty-state uui-icon {
@@ -719,6 +1089,13 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     .empty-hint {
       font-size: 0.875rem;
       margin-top: var(--uui-size-space-2) !important;
+    }
+
+    /* Actions slot */
+    [slot="actions"] {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      justify-content: flex-end;
     }
   `;
 }

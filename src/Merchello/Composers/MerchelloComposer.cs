@@ -5,6 +5,7 @@ using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Data.Handlers;
 using Merchello.Core.Payments.Handlers;
+using Merchello.Core.Tax.Handlers;
 using Merchello.Email.Services;
 using Merchello.Factories;
 using Merchello.Routing;
@@ -84,6 +85,9 @@ namespace Merchello.Composers
             // 4. Initialize Merchello DataTypes (Product Description TipTap editor)
             builder.Services.AddSingleton<MerchelloDataTypeInitializer>();
             builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, InitializeMerchelloDataTypesHandler>();
+
+            // 5. Seed US shipping tax overrides (states where shipping is not taxable)
+            builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, EnsureShippingTaxOverridesHandler>();
 
             // =====================================================
             // Front-End Rendering

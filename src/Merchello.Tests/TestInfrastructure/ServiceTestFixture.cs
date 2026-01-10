@@ -17,6 +17,7 @@ using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Checkout.Strategies.Interfaces;
 using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Shipping.Providers;
+using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Customers.Factories;
 using Merchello.Core.Customers.Models;
 using Merchello.Core.Customers.Services;
@@ -424,6 +425,13 @@ public class ServiceTestFixture : IDisposable
             .ReturnsAsync((RegisteredTaxProvider?)null);
         services.AddSingleton(taxProviderManagerMock.Object);
 
+        // Mock shipping provider manager (returns null by default - providers not configured)
+        var shippingProviderManagerMock = new Mock<IShippingProviderManager>();
+        shippingProviderManagerMock
+            .Setup(x => x.GetProviderAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((RegisteredShippingProvider?)null);
+        services.AddSingleton(shippingProviderManagerMock.Object);
+
         // Mock payment provider manager (returns empty list - no payment providers configured)
         var paymentProviderManagerMock = new Mock<IPaymentProviderManager>();
         paymentProviderManagerMock
@@ -776,6 +784,15 @@ public class ServiceTestFixture : IDisposable
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Shipment>>>>()))
                     .Returns((Func<MerchelloDbContext, Task<List<Shipment>>> func) => func(dbContext));
+
+                // ShippingTaxOverride return types (for TaxService shipping tax tests)
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ShippingTaxOverride?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<ShippingTaxOverride?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<ShippingTaxOverride>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<ShippingTaxOverride>>> func) => func(dbContext));
 
                 // Customer lookup DTO for InvoiceService.SearchCustomersAsync
                 scopeMock

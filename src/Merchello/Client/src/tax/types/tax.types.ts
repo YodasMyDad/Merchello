@@ -144,3 +144,47 @@ export interface TestTaxProviderResultDto {
   /** Additional details from the provider */
   details?: Record<string, string>;
 }
+
+// ============================================
+// Shipping Tax Override Types
+// ============================================
+
+/** Shipping tax override for a specific region */
+export interface ShippingTaxOverrideDto {
+  /** Override ID */
+  id: string;
+  /** ISO 3166-1 alpha-2 country code (e.g., "US", "GB") */
+  countryCode: string;
+  /** Optional ISO 3166-2 state/province code (e.g., "CA" for California) */
+  stateOrProvinceCode?: string;
+  /** Tax group ID for shipping. Null means shipping is never taxed in this region. */
+  shippingTaxGroupId?: string;
+  /** Tax group name (for UI display) */
+  shippingTaxGroupName?: string;
+  /** Tax group percentage (for UI display) */
+  shippingTaxGroupPercentage?: number;
+  /** Country display name (for UI) */
+  countryName?: string;
+  /** State/province display name (for UI) */
+  regionName?: string;
+  /** Date created */
+  dateCreated: string;
+  /** Date updated */
+  dateUpdated: string;
+}
+
+/** Request DTO for creating a new shipping tax override */
+export interface CreateShippingTaxOverrideDto {
+  /** ISO 3166-1 alpha-2 country code (e.g., "US", "GB") */
+  countryCode: string;
+  /** Optional ISO 3166-2 state/province code. When empty, applies to entire country. */
+  stateOrProvinceCode?: string;
+  /** Tax group ID for shipping. Null means shipping is never taxed in this region. */
+  shippingTaxGroupId?: string;
+}
+
+/** Request DTO for updating an existing shipping tax override */
+export interface UpdateShippingTaxOverrideDto {
+  /** Tax group ID for shipping. Null means shipping is never taxed in this region. */
+  shippingTaxGroupId?: string;
+}

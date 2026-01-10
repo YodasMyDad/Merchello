@@ -309,6 +309,9 @@ import type {
   TaxProviderFieldDto,
   SaveTaxProviderSettingsDto,
   TestTaxProviderResultDto,
+  ShippingTaxOverrideDto,
+  CreateShippingTaxOverrideDto,
+  UpdateShippingTaxOverrideDto,
 } from '@tax/types/tax.types.js';
 
 // Import exchange rate provider types
@@ -524,6 +527,30 @@ export const MerchelloApi = {
   /** Test/validate a tax provider's configuration */
   testTaxProvider: (alias: string) =>
     apiPost<TestTaxProviderResultDto>(`tax-providers/${alias}/test`),
+
+  // ============================================
+  // Shipping Tax Overrides API
+  // ============================================
+
+  /** Get all shipping tax overrides */
+  getShippingTaxOverrides: () =>
+    apiGet<ShippingTaxOverrideDto[]>('shipping-tax-overrides'),
+
+  /** Get a single shipping tax override by ID */
+  getShippingTaxOverride: (id: string) =>
+    apiGet<ShippingTaxOverrideDto>(`shipping-tax-overrides/${id}`),
+
+  /** Create a new shipping tax override */
+  createShippingTaxOverride: (data: CreateShippingTaxOverrideDto) =>
+    apiPost<ShippingTaxOverrideDto>('shipping-tax-overrides', data),
+
+  /** Update an existing shipping tax override */
+  updateShippingTaxOverride: (id: string, data: UpdateShippingTaxOverrideDto) =>
+    apiPut<ShippingTaxOverrideDto>(`shipping-tax-overrides/${id}`, data),
+
+  /** Delete a shipping tax override */
+  deleteShippingTaxOverride: (id: string) =>
+    apiDelete(`shipping-tax-overrides/${id}`),
 
   // Orders API
   getOrders: (params?: OrderListParams) => {

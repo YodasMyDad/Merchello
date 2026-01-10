@@ -62,7 +62,7 @@ FACTORIES → All object creation, stateless singletons
 - Backend calculates `RiskLevel` (high/medium/low/minimal)
 
 ### Tax
-- `ITaxService`: `.GetTaxGroups()`, `.GetApplicableRateAsync()`
+- `ITaxService`: `.GetTaxGroups()`, `.GetApplicableRateAsync()`, `.GetShippingTaxOverrideAsync()`, `.CreateShippingTaxOverrideAsync()`, `.UpdateShippingTaxOverrideAsync()`, `.DeleteShippingTaxOverrideAsync()`
 - `ITaxProviderManager`: `.GetActiveProviderAsync()` → `ITaxProvider.CalculateTaxAsync()`
 - Preview: `TaxApiController.PreviewCustomItemTax()`
 
@@ -212,6 +212,7 @@ Hook into CRUD for validation/modification/integration.
 - Shipment: Creating/Created, Saving/Saved
 - ShippingOption: Creating/Created, Saving/Saved, Deleting/Deleted
 - Supplier/TaxGroup/Warehouse: Creating/Created, Saving/Saved, Deleting/Deleted
+- ShippingTaxOverride: Creating/Created, Saving/Saved, Deleting/Deleted
 
 **Aggregate**: `InvoiceAggregateChangedNotification` on any Invoice/child change
 **Caching**: `MerchelloCacheRefresherNotification` for distributed invalidation
@@ -232,6 +233,7 @@ Hook into CRUD for validation/modification/integration.
 - Supplier: All 6 notifications (`ISupplierService`)
 - Warehouse: Creating/Created, Saving/Saved, Deleting/Deleted (`IWarehouseService`)
 - TaxGroup: Creating/Created, Saving/Saved, Deleting/Deleted (`ITaxService`)
+- ShippingTaxOverride: All 6 notifications (`ITaxService`)
 - Inventory: All 8 notifications (Reserve/Release/Allocate/Adjust/LowStock) (`IInventoryService`)
 - ExchangeRate: Refreshed, FetchFailed (`ExchangeRateRefreshJob`)
 - Checkout: AddressesChanging/Changed, DiscountCodeApplying/Applied, ShippingSelectionChanging/Changed, BasketCurrencyChanging/Changed (`ICheckoutService`)
@@ -299,6 +301,12 @@ Hook into CRUD for validation/modification/integration.
 | | `TaxGroupSavedNotification` | `TaxService` | No |
 | | `TaxGroupDeletingNotification` | `TaxService` | Yes |
 | | `TaxGroupDeletedNotification` | `TaxService` | No |
+| **ShippingTaxOverride** | `ShippingTaxOverrideCreatingNotification` | `TaxService` | Yes |
+| | `ShippingTaxOverrideCreatedNotification` | `TaxService` | No |
+| | `ShippingTaxOverrideSavingNotification` | `TaxService` | Yes |
+| | `ShippingTaxOverrideSavedNotification` | `TaxService` | No |
+| | `ShippingTaxOverrideDeletingNotification` | `TaxService` | Yes |
+| | `ShippingTaxOverrideDeletedNotification` | `TaxService` | No |
 | **Inventory** | `StockReservingNotification` | `InventoryService` | Yes |
 | | `StockReservedNotification` | `InventoryService` | No |
 | | `StockReleasingNotification` | `InventoryService` | Yes |

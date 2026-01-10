@@ -21,6 +21,7 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services;
 using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.Logging;
@@ -55,6 +56,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
     {
         var scopeProvider = CreateScopeProvider();
         var shippingService = new Mock<IShippingService>().Object;
+        var shippingProviderManager = new Mock<IShippingProviderManager>().Object;
         var inventoryService = new Mock<IInventoryService>().Object;
         var statusHandler = _fixture.GetService<IOrderStatusHandler>();
         var paymentService = new Mock<IPaymentService>().Object;
@@ -83,6 +85,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         return new InvoiceService(
             scopeProvider,
             shippingService,
+            shippingProviderManager,
             inventoryService,
             statusHandler,
             paymentService,

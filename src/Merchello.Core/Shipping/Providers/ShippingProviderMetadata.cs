@@ -70,4 +70,16 @@ public record ShippingProviderMetadata
     /// Determines what UI elements are shown when configuring shipping methods.
     /// </summary>
     public ProviderConfigCapabilities ConfigCapabilities { get; init; } = new();
+
+    /// <summary>
+    /// If true, rates returned by this provider already include tax (VAT/GST).
+    /// The system will NOT add additional shipping tax to these rates.
+    /// Default: false (rates are tax-exclusive - this is the standard for FedEx/UPS/DHL).
+    /// </summary>
+    /// <remarks>
+    /// Most carrier APIs return net (tax-exclusive) rates. Only set this to true
+    /// if your carrier API is configured to return gross (tax-inclusive) rates,
+    /// which is uncommon for B2B shipping APIs.
+    /// </remarks>
+    public bool RatesIncludeTax { get; init; } = false;
 }

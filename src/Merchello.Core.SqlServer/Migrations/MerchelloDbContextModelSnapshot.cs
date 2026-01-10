@@ -453,6 +453,41 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.ToTable("merchelloPayments", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.Accounting.Models.ShippingTaxOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DateUpdated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ShippingTaxGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("StateOrProvinceCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShippingTaxGroupId");
+
+                    b.HasIndex("CountryCode", "StateOrProvinceCode")
+                        .IsUnique()
+                        .HasFilter("[StateOrProvinceCode] IS NOT NULL");
+
+                    b.ToTable("merchelloShippingTaxOverrides", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.Accounting.Models.TaxGroup", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2647,6 +2682,16 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Navigation("Invoice");
 
                     b.Navigation("ParentPayment");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Accounting.Models.ShippingTaxOverride", b =>
+                {
+                    b.HasOne("Merchello.Core.Accounting.Models.TaxGroup", "ShippingTaxGroup")
+                        .WithMany()
+                        .HasForeignKey("ShippingTaxGroupId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ShippingTaxGroup");
                 });
 
             modelBuilder.Entity("Merchello.Core.Accounting.Models.TaxGroupRate", b =>

@@ -60,6 +60,7 @@ public class MerchelloDbContext : DbContext
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<TaxGroup> TaxGroups => Set<TaxGroup>();
     public DbSet<TaxGroupRate> TaxGroupRates => Set<TaxGroupRate>();
+    public DbSet<ShippingTaxOverride> ShippingTaxOverrides => Set<ShippingTaxOverride>();
 
     // Shipping DbSets
     public DbSet<Shipment> Shipments => Set<Shipment>();

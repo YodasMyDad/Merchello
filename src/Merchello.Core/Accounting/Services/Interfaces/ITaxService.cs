@@ -1,3 +1,4 @@
+using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Shared.Models;
 
@@ -88,6 +89,53 @@ public interface ITaxService
     /// Deletes a geographic tax rate
     /// </summary>
     Task<CrudResult<bool>> DeleteTaxGroupRate(Guid rateId, CancellationToken cancellationToken = default);
+
+    #endregion
+
+    #region Shipping Tax Overrides
+
+    /// <summary>
+    /// Gets a shipping tax override for a specific location.
+    /// Lookup priority: State-specific -> Country-level -> null (no override)
+    /// </summary>
+    /// <param name="countryCode">ISO 3166-1 country code</param>
+    /// <param name="stateOrProvinceCode">Optional ISO 3166-2 state/province code</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The shipping tax override, or null if none exists</returns>
+    Task<ShippingTaxOverride?> GetShippingTaxOverrideAsync(
+        string countryCode,
+        string? stateOrProvinceCode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a shipping tax override by ID
+    /// </summary>
+    Task<ShippingTaxOverride?> GetShippingTaxOverrideByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all shipping tax overrides
+    /// </summary>
+    Task<List<ShippingTaxOverride>> GetAllShippingTaxOverridesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a new shipping tax override
+    /// </summary>
+    Task<CrudResult<ShippingTaxOverride>> CreateShippingTaxOverrideAsync(
+        CreateShippingTaxOverrideDto dto,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates an existing shipping tax override
+    /// </summary>
+    Task<CrudResult<ShippingTaxOverride>> UpdateShippingTaxOverrideAsync(
+        Guid id,
+        UpdateShippingTaxOverrideDto dto,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a shipping tax override
+    /// </summary>
+    Task<CrudResult<bool>> DeleteShippingTaxOverrideAsync(Guid id, CancellationToken cancellationToken = default);
 
     #endregion
 }

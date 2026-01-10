@@ -334,6 +334,63 @@ if (markup > 0)
 
 ---
 
+## Tax Handling for Shipping Rates
+
+### Important: Rates Should Be Tax-Exclusive (Default)
+
+By default, Merchello assumes all shipping rates are **tax-exclusive** (the cost of shipping only, before any applicable sales tax or VAT). Tax is calculated separately based on destination jurisdiction using the configured tax provider (ManualTaxProvider, Avalara, etc.).
+
+This is the standard behavior for carrier APIs like FedEx, UPS, and DHL, which return transportation charges only.
+
+### The `RatesIncludeTax` Flag
+
+If your provider returns **tax-inclusive** rates (uncommon), set `RatesIncludeTax = true` in metadata:
+
+```csharp
+public override ShippingProviderMetadata Metadata => new()
+{
+    Key = "my-provider",
+    DisplayName = "My Provider",
+    // ... other properties ...
+    RatesIncludeTax = true  // Rates already include VAT/GST
+};
+```
+
+When `RatesIncludeTax = true`:
+- The system will **NOT** calculate additional shipping tax for orders using this provider
+- The rate is assumed to already include all applicable taxes
+- Use this for carrier accounts configured for gross (inclusive) pricing
+
+### When to Use Each Approach
+
+| Scenario | RatesIncludeTax | Notes |
+|----------|-----------------|-------|
+| FedEx, UPS, DHL (standard) | `false` (default) | APIs return net transportation charges |
+| European carrier with VAT-inclusive pricing | `true` | Some EU carriers return gross rates |
+| Carrier account configured for gross rates | `true` | Check your carrier account settings |
+| Flat rate shipping | `false` (default) | Store owner sets net rates, tax calculated separately |
+
+### Converting Gross to Net (Alternative)
+
+If your carrier API returns VAT-inclusive rates but you want Merchello to handle tax calculation, you can convert gross to net before returning:
+
+```csharp
+// Convert gross to net before returning (alternative to RatesIncludeTax = true)
+var vatRate = 0.20m; // 20% VAT
+var netRate = grossRate / (1 + vatRate);
+return new ShippingServiceLevel { TotalCost = netRate, ... };
+```
+
+### Verification
+
+When implementing a new provider, verify that:
+1. Carrier account is configured for net pricing (recommended)
+2. Test rates match carrier website before tax
+3. Tax is calculated correctly at checkout
+4. If using tax-inclusive rates, set `RatesIncludeTax = true` in metadata
+
+---
+
 ## Example 1: FedEx (Real-Time Rates)
 
 ```csharp
@@ -1131,6 +1188,7 @@ return new ShippingServiceLevel
 - Always check `IsAvailableFor` before making expensive API calls
 - Override `GetRatesForServicesAsync` for efficient per-service filtering with markup support
 - **External providers must convert rates to request currency** using `IExchangeRateCache` and `ICurrencyService` (see "Currency Conversion for External Providers" section)
+- **Rates are assumed tax-exclusive by default** - if your provider returns tax-inclusive rates, set `RatesIncludeTax = true` in metadata (see "Tax Handling for Shipping Rates" section)
 
 
 

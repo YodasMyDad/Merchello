@@ -58,4 +58,12 @@ export const manifests: Array<UmbExtensionManifest> = [
     name: "Merchello Test Tax Provider Modal",
     js: () => import("./modals/test-tax-provider-modal.element.js"),
   },
+
+  // Shipping tax override modal
+  {
+    type: "modal",
+    alias: "Merchello.ShippingTaxOverride.Modal",
+    name: "Merchello Shipping Tax Override Modal",
+    js: () => import("./modals/shipping-tax-override-modal.element.js"),
+  },
 ];
