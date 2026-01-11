@@ -160,47 +160,49 @@
                             </p>
                         </div>
                     </div>
+
+                    <!-- Newsletter opt-in -->
+                    <div class="mt-3">
+                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox"
+                                   id="accepts-marketing"
+                                   x-model="form.acceptsMarketing"
+                                   class="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent" />
+                            <span class="text-sm text-gray-700">Keep me updated with news and exclusive offers</span>
+                        </label>
+                    </div>
                 </div>
             </div>
 
-            <!-- Shipping Address Section -->
-            <div class="checkout-section">
-                <h2 class="font-heading text-lg font-normal mb-3">Shipping address</h2>
+            <!-- Billing Address Section -->
+            <div class="checkout-section" :class="{ 'border-b-0 pb-0 mb-0': shippingSameAsBilling }">
+                <h2 class="font-heading text-lg font-normal mb-3">Billing address</h2>
                 @await Html.PartialAsync("~/Views/Checkout/_AddressForm.cshtml", Model, new ViewDataDictionary(ViewData) {
-                    { "Prefix", "shipping" },
-                    { "OnBlurCallback", "debouncedCalculateShipping()" },
+                    { "Prefix", "billing" },
+                    { "OnBlurCallback", "onBillingFieldChange()" },
                     { "ShowRequired", true }
                 })
             </div>
 
-            <!-- Billing Address Section (Collapsed by default) -->
+            <!-- Shipping Address Section (Same as billing by default) -->
             <div class="checkout-section">
                 <label class="inline-flex items-center gap-2 cursor-pointer checkout-touch-target">
                     <input type="checkbox"
-                           id="same-as-shipping"
-                           x-model="sameAsShipping"
+                           id="shipping-same-as-billing"
+                           x-model="shippingSameAsBilling"
+                           @@change="onShippingSameAsBillingChange()"
                            class="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent" />
-                    <span class="text-sm text-gray-700">Billing address same as shipping</span>
+                    <span class="text-sm text-gray-700">Shipping address same as billing</span>
                 </label>
 
-                <div x-show="!sameAsShipping" x-cloak x-transition class="mt-3">
-                    <h3 class="font-heading text-base font-normal mb-2">Billing address</h3>
+                <div x-show="!shippingSameAsBilling" x-cloak x-transition class="mt-3">
+                    <h3 class="font-heading text-base font-normal mb-2">Shipping address</h3>
                     @await Html.PartialAsync("~/Views/Checkout/_AddressForm.cshtml", Model, new ViewDataDictionary(ViewData) {
-                        { "Prefix", "billing" },
+                        { "Prefix", "shipping" },
+                        { "OnBlurCallback", "debouncedCalculateShipping()" },
                         { "ShowRequired", true }
                     })
                 </div>
-            </div>
-
-            <!-- Marketing Opt-in -->
-            <div class="checkout-section">
-                <label class="inline-flex items-center gap-2 cursor-pointer checkout-touch-target">
-                    <input type="checkbox"
-                           id="accepts-marketing"
-                           x-model="form.acceptsMarketing"
-                           class="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent" />
-                    <span class="text-sm text-gray-700">Keep me updated with news and exclusive offers</span>
-                </label>
             </div>
 
             <!-- Shipping Options Section -->
@@ -226,6 +228,17 @@
                 <!-- Multi-warehouse notification -->
                 <div x-show="!shippingLoading && shippingGroups.length > 1" x-cloak class="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-3">
                     <p class="text-sm text-blue-800">Your order will ship from multiple locations. You'll receive separate tracking for each shipment.</p>
+                </div>
+
+                <!-- Items cannot ship warning -->
+                <div x-show="!shippingLoading && !allItemsShippable" x-cloak class="p-3 bg-red-50 border border-red-200 rounded-lg mb-3">
+                    <p class="text-sm font-medium text-red-800 mb-2">Some items cannot be shipped to this location:</p>
+                    <ul class="list-disc list-inside text-sm text-red-700 space-y-1">
+                        <template x-for="error in itemAvailabilityErrors" :key="error.message">
+                            <li x-text="error.message"></li>
+                        </template>
+                    </ul>
+                    <p class="text-sm text-red-700 mt-2">Please change your shipping address or remove unavailable items to continue.</p>
                 </div>
 
                 <!-- Shipping options -->
@@ -302,7 +315,7 @@
                                        name="payment-method"
                                        :value="cardPaymentMethods[0].providerAlias + ':' + (cardPaymentMethods[0].methodAlias || '')"
                                        x-model="selectedPaymentMethodKey"
-                                       @@change="onPaymentMethodChange(cardPaymentMethods[0])"
+                                       @@click="onPaymentMethodChange(cardPaymentMethods[0])"
                                        class="w-4 h-4 text-accent focus:ring-accent" />
                                 <div class="flex items-center gap-2 flex-1">
                                     <span x-html="getPaymentMethodIcon(cardPaymentMethods[0])" class="flex-shrink-0"></span>
@@ -322,7 +335,7 @@
                                            name="payment-method"
                                            :value="method.providerAlias + ':' + (method.methodAlias || '')"
                                            x-model="selectedPaymentMethodKey"
-                                           @@change="onPaymentMethodChange(method)"
+                                           @@click="onPaymentMethodChange(method)"
                                            class="w-4 h-4 text-accent focus:ring-accent" />
                                     <div class="flex items-center gap-2 flex-1">
                                         <span x-html="getPaymentMethodIcon(method)" class="flex-shrink-0"></span>
@@ -444,19 +457,7 @@
                 // Form data
                 form: {
                     email: '@(basket?.BillingAddress?.Email ?? "")',
-                    shipping: {
-                        name: '@(basket?.ShippingAddress?.Name ?? "")',
-                        company: '@(basket?.ShippingAddress?.Company ?? "")',
-                        address1: '@(basket?.ShippingAddress?.AddressOne ?? "")',
-                        address2: '@(basket?.ShippingAddress?.AddressTwo ?? "")',
-                        city: '@(basket?.ShippingAddress?.TownCity ?? "")',
-                        state: '@(basket?.ShippingAddress?.CountyState?.Name ?? "")',
-                        stateCode: '@(basket?.ShippingAddress?.CountyState?.RegionCode ?? defaultState)',
-                        postalCode: '@(basket?.ShippingAddress?.PostalCode ?? "")',
-                        country: '@(basket?.ShippingAddress?.Country ?? "")',
-                        countryCode: '@(basket?.ShippingAddress?.CountryCode ?? defaultCountry)',
-                        phone: '@(basket?.ShippingAddress?.Phone ?? "")'
-                    },
+                    // Billing - primary form shown to user (with defaults from basket or MerchelloSettings)
                     billing: {
                         name: '@(basket?.BillingAddress?.Name ?? "")',
                         company: '@(basket?.BillingAddress?.Company ?? "")',
@@ -464,10 +465,25 @@
                         address2: '@(basket?.BillingAddress?.AddressTwo ?? "")',
                         city: '@(basket?.BillingAddress?.TownCity ?? "")',
                         state: '@(basket?.BillingAddress?.CountyState?.Name ?? "")',
-                        stateCode: '@(basket?.BillingAddress?.CountyState?.RegionCode ?? "")',
+                        stateCode: '@(basket?.BillingAddress?.CountyState?.RegionCode ?? defaultState)',
                         postalCode: '@(basket?.BillingAddress?.PostalCode ?? "")',
                         country: '@(basket?.BillingAddress?.Country ?? "")',
-                        countryCode: '@(basket?.BillingAddress?.CountryCode ?? "")',
+                        countryCode: '@(basket?.BillingAddress?.CountryCode ?? defaultCountry)',
+                        phone: '@(basket?.BillingAddress?.Phone ?? "")'
+                    },
+                    // Shipping - ALWAYS mirrors billing on first load (shippingSameAsBilling=true by default)
+                    // This ensures shipping calc works immediately with country + region
+                    shipping: {
+                        name: '@(basket?.BillingAddress?.Name ?? "")',
+                        company: '@(basket?.BillingAddress?.Company ?? "")',
+                        address1: '@(basket?.BillingAddress?.AddressOne ?? "")',
+                        address2: '@(basket?.BillingAddress?.AddressTwo ?? "")',
+                        city: '@(basket?.BillingAddress?.TownCity ?? "")',
+                        state: '@(basket?.BillingAddress?.CountyState?.Name ?? "")',
+                        stateCode: '@(basket?.BillingAddress?.CountyState?.RegionCode ?? defaultState)',
+                        postalCode: '@(basket?.BillingAddress?.PostalCode ?? "")',
+                        country: '@(basket?.BillingAddress?.Country ?? "")',
+                        countryCode: '@(basket?.BillingAddress?.CountryCode ?? defaultCountry)',
                         phone: '@(basket?.BillingAddress?.Phone ?? "")'
                     },
                     acceptsMarketing: false,
@@ -487,7 +503,7 @@
                 isSignedIn: false,
 
                 // Address handling
-                sameAsShipping: true,
+                shippingSameAsBilling: true,
                 shippingRegions: [],
                 billingRegions: [],
 
@@ -496,6 +512,8 @@
                 shippingSelections: initialSelections,
                 shippingLoading: false,
                 shippingError: null,
+                itemAvailabilityErrors: [],
+                allItemsShippable: true,
 
                 // Payment
                 paymentLoading: true,
@@ -540,16 +558,30 @@
                 },
 
                 get canSubmit() {
-                    return this.allShippingSelected &&
+                    // Always validate billing (primary form)
+                    const billingValid = this.form.billing.name &&
+                                        this.form.billing.address1 &&
+                                        this.form.billing.city &&
+                                        this.form.billing.countryCode &&
+                                        this.form.billing.postalCode;
+
+                    // If shipping is different, validate shipping too
+                    const shippingValid = this.shippingSameAsBilling || (
+                        this.form.shipping.name &&
+                        this.form.shipping.address1 &&
+                        this.form.shipping.city &&
+                        this.form.shipping.countryCode &&
+                        this.form.shipping.postalCode
+                    );
+
+                    return this.allItemsShippable &&
+                           this.allShippingSelected &&
                            !this.shippingLoading &&
                            !this.paymentLoading &&
                            this.selectedPaymentMethod !== null &&
                            this.form.email &&
-                           this.form.shipping.name &&
-                           this.form.shipping.address1 &&
-                           this.form.shipping.city &&
-                           this.form.shipping.countryCode &&
-                           this.form.shipping.postalCode;
+                           billingValid &&
+                           shippingValid;
                 },
 
                 get formattedTotal() {
@@ -573,12 +605,18 @@
 
                 // Lifecycle
                 async init() {
-                    // Load regions for pre-selected countries
-                    if (this.form.shipping.countryCode) {
-                        await this.loadRegions('shipping', this.form.shipping.countryCode);
-                    }
+                    // Load regions for billing (primary form) first
                     if (this.form.billing.countryCode) {
                         await this.loadRegions('billing', this.form.billing.countryCode);
+                        // Since shippingSameAsBilling is true by default, copy billing regions to shipping
+                        if (this.shippingSameAsBilling) {
+                            this.shippingRegions = [...this.billingRegions];
+                        }
+                    }
+
+                    // Load shipping regions only if user has unchecked "same as billing"
+                    if (!this.shippingSameAsBilling && this.form.shipping.countryCode) {
+                        await this.loadRegions('shipping', this.form.shipping.countryCode);
                     }
 
                     // Sort initial shipping groups from server
@@ -691,11 +729,50 @@
                     this.form.billing.state = '';
                     this.form.billing.stateCode = '';
                     await this.loadRegions('billing', this.form.billing.countryCode);
+
+                    // If shipping same as billing, sync to shipping and recalculate
+                    if (this.shippingSameAsBilling) {
+                        this.syncBillingToShipping();
+                        this.shippingRegions = [...this.billingRegions];
+                        this.debouncedCalculateShipping();
+                    }
                 },
 
                 onBillingStateChange() {
                     const region = this.billingRegions.find(r => r.code === this.form.billing.stateCode);
                     if (region) this.form.billing.state = region.name;
+
+                    // If shipping same as billing, sync to shipping
+                    if (this.shippingSameAsBilling) {
+                        this.syncBillingToShipping();
+                        this.debouncedCalculateShipping();
+                    }
+                },
+
+                // Sync all billing fields to shipping (when shippingSameAsBilling is true)
+                syncBillingToShipping() {
+                    Object.keys(this.form.billing).forEach(key => {
+                        this.form.shipping[key] = this.form.billing[key];
+                    });
+                },
+
+                // Called when any billing field changes
+                onBillingFieldChange() {
+                    if (this.shippingSameAsBilling) {
+                        this.syncBillingToShipping();
+                        this.debouncedCalculateShipping();
+                    }
+                },
+
+                // Called when "Shipping same as billing" checkbox changes
+                onShippingSameAsBillingChange() {
+                    if (this.shippingSameAsBilling) {
+                        // Just checked - sync billing to shipping and recalculate
+                        this.syncBillingToShipping();
+                        this.shippingRegions = [...this.billingRegions];
+                        this.debouncedCalculateShipping();
+                    }
+                    // When unchecked, keep current shipping values so user can edit them
                 },
 
                 // Email capture for abandoned checkout and payment initialization
@@ -765,10 +842,19 @@
                                 document.dispatchEvent(new CustomEvent('merchello:basket-updated', {
                                     detail: { shipping: this.calculatedShipping, tax: this.basketTax, total: this.basketTotal }
                                 }));
+
+                                // Check for item-level shipping errors
+                                if (data.basket.errors && data.basket.errors.length > 0) {
+                                    this.itemAvailabilityErrors = data.basket.errors.filter(e => e.isShippingError);
+                                    this.allItemsShippable = this.itemAvailabilityErrors.length === 0;
+                                } else {
+                                    this.itemAvailabilityErrors = [];
+                                    this.allItemsShippable = true;
+                                }
                             }
 
                             this._shippingCalculated = true;
-                            this.announce('Shipping options loaded');
+                            this.announce(this.allItemsShippable ? 'Shipping options loaded' : 'Some items cannot be shipped to this location');
                         } else {
                             this.shippingError = data.message || 'Unable to calculate shipping.';
                         }
@@ -845,22 +931,34 @@
                 },
 
                 async onPaymentMethodChange(method) {
+                    // Check if same method is already selected with an active session
+                    const isSameMethod = this.selectedPaymentMethod?.providerAlias === method.providerAlias
+                        && this.selectedPaymentMethod?.methodAlias === method.methodAlias;
+
+                    if (isSameMethod && this.paymentSession) {
+                        // Already initialized - no action needed
+                        return;
+                    }
+
                     this.selectedPaymentMethod = method;
                     this.paymentError = null;
 
-                    // Track analytics
-                    if (window.MerchelloSinglePageAnalytics) {
+                    // Track analytics (only if method actually changed)
+                    if (!isSameMethod && window.MerchelloSinglePageAnalytics) {
                         window.MerchelloSinglePageAnalytics.trackPaymentSelected(method.displayName);
                     }
 
-                    this.announce(`Selected ${method.displayName} payment`);
+                    if (!isSameMethod) {
+                        this.announce(`Selected ${method.displayName} payment`);
+                    }
 
                     // Ensure email is captured to session before initializing payment
                     if (this.form.email && this._emailCaptured !== this.form.email) {
                         await this.captureEmail();
                     }
 
-                    // Lazy-initialize payment form if not already done and checkout data is ready
+                    // Initialize payment form if not already done and checkout data is ready
+                    // This handles both first-time selection and re-click after filling email
                     if (!this.paymentSession && this.form.email) {
                         await this.initializePaymentForm(method);
                     }
@@ -950,6 +1048,12 @@
                             if (this.selectedPaymentMethod && !this.paymentSession) {
                                 await this.initializePaymentForm(this.selectedPaymentMethod);
                             }
+                        }
+                    } else if (field.startsWith('billing.')) {
+                        const key = field.replace('billing.', '');
+                        const requiredFields = ['name', 'address1', 'city', 'countryCode', 'postalCode'];
+                        if (requiredFields.includes(key) && !this.form.billing[key]) {
+                            this.errors[field] = 'This field is required.';
                         }
                     } else if (field.startsWith('shipping.')) {
                         const key = field.replace('shipping.', '');
@@ -1057,16 +1161,16 @@
                     // Email
                     this.validateField('email');
 
-                    // Shipping address
+                    // Billing address (always required - primary form)
                     ['name', 'address1', 'city', 'countryCode', 'postalCode'].forEach(field => {
-                        this.validateField('shipping.' + field);
+                        this.validateField('billing.' + field);
                     });
 
-                    // Billing address (if different)
-                    if (!this.sameAsShipping) {
+                    // Shipping address (only if different from billing)
+                    if (!this.shippingSameAsBilling) {
                         ['name', 'address1', 'city', 'countryCode', 'postalCode'].forEach(field => {
-                            if (!this.form.billing[field]) {
-                                this.errors['billing.' + field] = 'This field is required.';
+                            if (!this.form.shipping[field]) {
+                                this.errors['shipping.' + field] = 'This field is required.';
                             }
                         });
                     }
@@ -1110,9 +1214,9 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 email: this.form.email,
-                                billingAddress: this.sameAsShipping ? this.form.shipping : this.form.billing,
-                                shippingAddress: this.form.shipping,
-                                shippingSameAsBilling: false,
+                                billingAddress: this.form.billing,
+                                shippingAddress: this.form.shipping, // Already synced from billing if shippingSameAsBilling
+                                shippingSameAsBilling: this.shippingSameAsBilling,
                                 acceptsMarketing: this.form.acceptsMarketing,
                                 // Include password only for new account creation (not for existing accounts signing in)
                                 password: this.showAccountSection && !this.hasExistingAccount && this.form.password && this.passwordValid

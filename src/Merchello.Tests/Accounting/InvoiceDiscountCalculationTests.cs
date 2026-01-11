@@ -23,6 +23,7 @@ using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Tax.Providers.Interfaces;
+using Merchello.Core.Tax.Services;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -68,7 +69,8 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             .ReturnsAsync(new ExchangeRateQuote(1m, DateTime.UtcNow, "mock"));
         var settings = Options.Create(new MerchelloSettings { DefaultRounding = MidpointRounding.AwayFromZero, StoreCurrencyCode = "USD" });
         var currencyService = new CurrencyService(settings);
-        var lineItemService = new LineItemService(currencyService);
+        var taxCalculationService = new TaxCalculationService(currencyService);
+        var lineItemService = new LineItemService(currencyService, taxCalculationService);
         var discountService = new Mock<IDiscountService>().Object;
         var taxServiceMock = new Mock<ITaxService>();
         taxServiceMock.Setup(x => x.GetApplicableRateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))

@@ -18,6 +18,16 @@ public interface ITaxCalculationService
     TaxCalculationSummary CalculateTax(TaxCalculationInput request, string currencyCode);
 
     /// <summary>
+    /// Calculates tax with full support for before-tax and after-tax discounts,
+    /// linked vs unlinked discounts, and shipping tax.
+    /// This method is used by LineItemService to ensure centralized tax logic.
+    /// </summary>
+    /// <param name="input">The tax calculation input with discounts</param>
+    /// <param name="currencyCode">Currency code for rounding</param>
+    /// <returns>Tax calculation result with line item and shipping tax</returns>
+    TaxWithDiscountsResult CalculateTaxWithDiscounts(TaxWithDiscountsInput input, string currencyCode);
+
+    /// <summary>
     /// Calculates the taxable amount for a single line item after applying
     /// line-item discount and pro-rated order discount.
     /// </summary>

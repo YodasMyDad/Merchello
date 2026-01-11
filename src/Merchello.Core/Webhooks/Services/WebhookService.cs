@@ -337,18 +337,15 @@ public class WebhookService(
 
             deliveryIds.Add(delivery.Id);
 
-            // Attempt immediate delivery
-            _ = Task.Run(async () =>
+            // Attempt immediate delivery - failures are logged and will be retried by OutboundDeliveryJob
+            try
             {
-                try
-                {
-                    await DeliverAsync(delivery.Id, CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Error delivering webhook {DeliveryId}", delivery.Id);
-                }
-            }, ct);
+                await DeliverAsync(delivery.Id, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Immediate webhook delivery failed for {DeliveryId}, will be retried by background job", delivery.Id);
+            }
         }
 
         return deliveryIds.FirstOrDefault();

@@ -1,0 +1,72 @@
+namespace Merchello.Core.Tax.Services.Models;
+
+/// <summary>
+/// Input for tax calculation with before-tax and after-tax discount support.
+/// This is used by LineItemService to delegate tax calculations to the centralized tax service.
+/// </summary>
+public class TaxWithDiscountsInput
+{
+    /// <summary>
+    /// Taxable line items with their totals, tax rates, and pre-calculated discount amounts.
+    /// </summary>
+    public required IReadOnlyList<TaxableItemWithDiscounts> TaxableItems { get; init; }
+
+    /// <summary>
+    /// Total unlinked (order-level) before-tax discount to be pro-rated across all taxable items.
+    /// Should be negative (e.g., -10.00 for a $10 discount).
+    /// </summary>
+    public decimal UnlinkedBeforeTaxDiscountTotal { get; init; }
+
+    /// <summary>
+    /// Total of all taxable line item amounts (used for pro-rating order-level discounts).
+    /// </summary>
+    public decimal TotalTaxableAmount { get; init; }
+
+    /// <summary>
+    /// Shipping amount to potentially apply tax to.
+    /// </summary>
+    public decimal ShippingAmount { get; init; }
+
+    /// <summary>
+    /// Whether shipping should be taxed.
+    /// </summary>
+    public bool IsShippingTaxable { get; init; }
+
+    /// <summary>
+    /// Default tax rate for shipping (as percentage, e.g., 8.25 for 8.25%).
+    /// </summary>
+    public decimal DefaultTaxRate { get; init; }
+}
+
+/// <summary>
+/// A taxable line item with pre-calculated discount amounts for tax calculation.
+/// </summary>
+public class TaxableItemWithDiscounts
+{
+    /// <summary>
+    /// SKU of the line item (used for correlation).
+    /// </summary>
+    public string? Sku { get; init; }
+
+    /// <summary>
+    /// Total amount for this line item (unit price * quantity), already rounded.
+    /// </summary>
+    public required decimal ItemTotal { get; init; }
+
+    /// <summary>
+    /// Tax rate for this item (as percentage, e.g., 8.25 for 8.25%).
+    /// </summary>
+    public required decimal TaxRate { get; init; }
+
+    /// <summary>
+    /// Linked before-tax discount amount for this specific item (already negative).
+    /// This is a discount linked directly to this SKU, not a pro-rated order discount.
+    /// </summary>
+    public decimal LinkedDiscount { get; init; }
+
+    /// <summary>
+    /// Pre-tax equivalent of after-tax discounts for this item.
+    /// This is the reverse-calculated amount that needs to be excluded from taxable base.
+    /// </summary>
+    public decimal AfterTaxDiscountContribution { get; init; }
+}

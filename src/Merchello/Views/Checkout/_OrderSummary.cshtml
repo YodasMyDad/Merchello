@@ -90,11 +90,10 @@
                             }
                             @if (options.Count > 0)
                             {
-                                <p class="text-xs text-gray-500 mt-0.5">@options.FormatOptionsCommaSeparated()</p>
-                            }
-                            @if (!string.IsNullOrEmpty(item.Sku))
-                            {
-                                <p class="text-xs text-gray-400 mt-0.5">@item.Sku</p>
+                                @foreach (var opt in options)
+                                {
+                                    <p class="text-xs text-gray-500 mt-0.5">@opt.OptionName: @opt.ValueName</p>
+                                }
                             }
                         </div>
                         <!-- Price -->

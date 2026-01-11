@@ -3,10 +3,14 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Tax.Services.Interfaces;
+using Merchello.Core.Tax.Services.Models;
 
 namespace Merchello.Core.Accounting.Services;
 
-public class LineItemService(ICurrencyService currencyService) : ILineItemService
+public class LineItemService(
+    ICurrencyService currencyService,
+    ITaxCalculationService taxCalculationService) : ILineItemService
 {
     public List<string> AddLineItem(List<LineItem> currentLineItems, LineItem newLineItem)
     {
@@ -193,24 +197,11 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
         var totalTaxableAmount = taxableItems.Sum(li =>
             currencyService.Round(li.Amount * li.Quantity, currencyCode));
 
-        // Calculate tax on discounted amounts
-        decimal tax = 0;
-        foreach (var lineItem in taxableItems)
+        // Build input for centralized tax calculation service
+        var taxableItemsInput = taxableItems.Select(lineItem =>
         {
             var itemTotal = currencyService.Round(lineItem.Amount * lineItem.Quantity, currencyCode);
-
-            // Find any linked before-tax discount for this item
             var lineItemDiscount = CalculateLinkedDiscountForItem(linkedDiscounts, lineItem, currencyCode);
-
-            // Pro-rate unlinked before-tax discounts across taxable items
-            var proRatedUnlinkedDiscount = 0m;
-            if (unlinkedBeforeTaxDiscountTotal < 0 && totalTaxableAmount > 0)
-            {
-                var proportion = itemTotal / totalTaxableAmount;
-                proRatedUnlinkedDiscount = currencyService.Round(unlinkedBeforeTaxDiscountTotal * proportion, currencyCode);
-            }
-
-            // Get after-tax discount contribution for this item
             var afterTaxContribution = 0m;
             if (!string.IsNullOrEmpty(lineItem.Sku) &&
                 afterTaxDiscountContributions.TryGetValue(lineItem.Sku, out var contribution))
@@ -218,19 +209,30 @@ public class LineItemService(ICurrencyService currencyService) : ILineItemServic
                 afterTaxContribution = contribution;
             }
 
-            // Tax on discounted amount (includes both before-tax and after-tax discount contributions)
-            var taxableAmount = currencyService.Round(
-                itemTotal + lineItemDiscount + proRatedUnlinkedDiscount - afterTaxContribution,
-                currencyCode);
-            taxableAmount = Math.Max(0, taxableAmount);
-            tax += currencyService.Round(taxableAmount * (lineItem.TaxRate / 100m), currencyCode);
-        }
+            return new TaxableItemWithDiscounts
+            {
+                Sku = lineItem.Sku,
+                ItemTotal = itemTotal,
+                TaxRate = lineItem.TaxRate,
+                LinkedDiscount = lineItemDiscount,
+                AfterTaxDiscountContribution = afterTaxContribution
+            };
+        }).ToList();
 
-        // Add shipping tax if applicable
-        if (isShippingTaxable && shippingAmount > 0)
-        {
-            tax += currencyService.Round(shippingAmount * (defaultTaxRate / 100m), currencyCode);
-        }
+        // Use centralized tax calculation service
+        var taxResult = taxCalculationService.CalculateTaxWithDiscounts(
+            new TaxWithDiscountsInput
+            {
+                TaxableItems = taxableItemsInput,
+                UnlinkedBeforeTaxDiscountTotal = unlinkedBeforeTaxDiscountTotal,
+                TotalTaxableAmount = totalTaxableAmount,
+                ShippingAmount = shippingAmount,
+                IsShippingTaxable = isShippingTaxable,
+                DefaultTaxRate = defaultTaxRate
+            },
+            currencyCode);
+
+        var tax = taxResult.TotalTax;
 
         var total = currencyService.Round(adjustedSubTotal + tax + shippingAmount, currencyCode);
         // Cap discount at subtotal - discount can never exceed what's being purchased

@@ -487,6 +487,7 @@ public class AbandonedCheckoutService(
         if (!_settings.Enabled) return;
 
         var cutoffTime = DateTime.UtcNow - abandonmentThreshold;
+        var abandonedCheckouts = new List<AbandonedCheckout>();
 
         using var scope = efCoreScopeProvider.CreateScope();
         var count = await scope.ExecuteWithContextAsync(async db =>
@@ -507,9 +508,29 @@ public class AbandonedCheckoutService(
             }
 
             await db.SaveChangesAsync(ct);
+            abandonedCheckouts.AddRange(checkoutsToAbandon);
             return checkoutsToAbandon.Count;
         });
         scope.Complete();
+
+        // Publish notifications AFTER transaction completes for webhooks/integrations
+        foreach (var checkout in abandonedCheckouts)
+        {
+            var recoveryLink = !string.IsNullOrEmpty(checkout.RecoveryToken)
+                ? $"{_settings.RecoveryUrlBase.TrimEnd('/')}/{checkout.RecoveryToken}"
+                : null;
+
+            await notificationPublisher.PublishAsync(
+                new CheckoutAbandonedNotification(
+                    checkout.Id,
+                    checkout.BasketId,
+                    checkout.Email,
+                    checkout.CustomerName,
+                    checkout.BasketTotal,
+                    checkout.CurrencyCode,
+                    recoveryLink),
+                ct);
+        }
 
         if (count > 0)
         {

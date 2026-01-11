@@ -24,5 +24,6 @@ public class CheckoutBasketDto
     public CheckoutAddressDto? BillingAddress { get; set; }
     public CheckoutAddressDto? ShippingAddress { get; set; }
     public List<AppliedDiscountDto> AppliedDiscounts { get; set; } = [];
+    public List<BasketErrorDto> Errors { get; set; } = [];
     public bool IsEmpty { get; set; }
 }

@@ -4,6 +4,7 @@ using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services;
+using Merchello.Core.Tax.Services;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using Xunit;
@@ -27,7 +28,8 @@ public class LineItemCalculationTests
             StoreCurrencyCode = "USD"
         });
         var currencyService = new CurrencyService(settings);
-        _lineItemService = new LineItemService(currencyService);
+        var taxCalculationService = new TaxCalculationService(currencyService);
+        _lineItemService = new LineItemService(currencyService, taxCalculationService);
     }
 
     #region CalculateFromLineItems - Basic Tests

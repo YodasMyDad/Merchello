@@ -1,3 +1,5 @@
+using Merchello.Core.Products.Models;
+
 namespace Merchello.Core.Products.Dtos;
 
 /// <summary>
@@ -11,6 +13,13 @@ public class ProductRootDetailDto
     public string? RootUrl { get; set; }
     public string? GoogleShoppingFeedCategory { get; set; }
     public bool IsDigitalProduct { get; set; }
+
+    /// <summary>
+    /// Aggregate stock status across all variants.
+    /// Calculated by backend - frontend should use this instead of deriving status locally.
+    /// Digital products will be Untracked, physical products aggregate across variants.
+    /// </summary>
+    public StockStatus AggregateStockStatus { get; set; }
 
     /// <summary>
     /// Default package configurations for shipping.

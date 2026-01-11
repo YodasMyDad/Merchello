@@ -123,6 +123,8 @@ export interface ProductRootDetailDto {
   rootUrl: string | null;
   googleShoppingFeedCategory: string | null;
   isDigitalProduct: boolean;
+  /** Aggregate stock status across all variants - calculated by backend (single source of truth) */
+  aggregateStockStatus: StockStatus;
   defaultPackageConfigurations: ProductPackageDto[];
 
   description: string | null;
@@ -183,6 +185,8 @@ export interface ProductVariantDto {
   id: string;
   productRootId: string;
   default: boolean;
+  /** Whether this variant can be set as the default - calculated by backend (single source of truth) */
+  canBeDefault: boolean;
   name: string | null;
   sku: string | null;
   gtin: string | null;

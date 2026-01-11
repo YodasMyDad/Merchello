@@ -212,7 +212,7 @@ Hook into CRUD for validation/modification/integration.
 - **Webhooks**: `IWebhookTopicRegistry` maps notifications to webhook topics
 - Both: Handlers @2000 queue to `OutboundDelivery`, processed by `OutboundDeliveryJob`
 
-**TODO**: `CustomerPasswordResetRequestedNotification` (future sprint: password reset flow)
+**Planned**: `CustomerPasswordResetRequestedNotification` - Will trigger when a customer requests a password reset, enabling email notifications with reset links via the Email integration.
 
 ## Webhooks
 
