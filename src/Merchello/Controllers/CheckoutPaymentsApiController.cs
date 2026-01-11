@@ -144,8 +144,9 @@ public class CheckoutPaymentsApiController(
             JavaScriptSdkUrl = result.JavaScriptSdkUrl,
             SdkConfiguration = result.SdkConfiguration,
             AdapterUrl = result.AdapterUrl,
-            ProviderAlias = result.ProviderAlias,
-            MethodAlias = result.MethodAlias,
+            // Use result values if set, otherwise fall back to request values
+            ProviderAlias = result.ProviderAlias ?? request.ProviderAlias,
+            MethodAlias = result.MethodAlias ?? request.MethodAlias,
             FormFields = result.FormFields?.Select(f => new CheckoutFormFieldDto
             {
                 Key = f.Key,
@@ -365,8 +366,9 @@ public class CheckoutPaymentsApiController(
             JavaScriptSdkUrl = result.JavaScriptSdkUrl,
             SdkConfiguration = result.SdkConfiguration,
             AdapterUrl = result.AdapterUrl,
-            ProviderAlias = result.ProviderAlias,
-            MethodAlias = result.MethodAlias,
+            // Use result values if set, otherwise fall back to request values
+            ProviderAlias = result.ProviderAlias ?? request.ProviderAlias,
+            MethodAlias = result.MethodAlias ?? request.MethodAlias,
             FormFields = result.FormFields?.Select(f => new CheckoutFormFieldDto
             {
                 Key = f.Key,
@@ -545,6 +547,138 @@ public class CheckoutPaymentsApiController(
             PaymentId = result.ResultObject.Id,
             TransactionId = result.ResultObject.TransactionId,
             RedirectUrl = $"/checkout/confirmation/{request.InvoiceId}"
+        });
+    }
+
+    /// <summary>
+    /// Process a DirectForm payment (e.g., Purchase Order, Manual Payment).
+    /// Used for payment methods that require form data instead of a payment token.
+    /// </summary>
+    [HttpPost("process-direct-payment")]
+    [ProducesResponseType<ProcessPaymentResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ProcessDirectPayment(
+        [FromBody] ProcessDirectPaymentDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.ProviderAlias))
+        {
+            return BadRequest(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "ProviderAlias is required."
+            });
+        }
+
+        // Get the invoice
+        var invoice = await invoiceService.GetInvoiceAsync(request.InvoiceId, cancellationToken);
+
+        if (invoice == null)
+        {
+            return NotFound(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "Invoice not found."
+            });
+        }
+
+        // Validate that the current checkout session owns this invoice
+        var currentBasket = await checkoutService.GetBasket(
+            new GetBasketParameters(),
+            cancellationToken);
+
+        if (currentBasket == null)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "No active checkout session."
+            });
+        }
+
+        var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
+
+        // Validate ownership by comparing billing email
+        if (string.IsNullOrEmpty(session.BillingAddress.Email) ||
+            !string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning(
+                "Invoice ownership validation failed in ProcessDirectPayment: Invoice {InvoiceId} has billing email {InvoiceBillingEmail}, but session has {SessionBillingEmail}",
+                request.InvoiceId,
+                invoice.BillingAddress.Email,
+                session.BillingAddress.Email);
+
+            return StatusCode(StatusCodes.Status403Forbidden, new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "You do not have permission to pay this invoice."
+            });
+        }
+
+        // Verify provider is enabled
+        var provider = await providerManager.GetProviderAsync(
+            request.ProviderAlias,
+            requireEnabled: true,
+            cancellationToken);
+
+        if (provider == null)
+        {
+            return BadRequest(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "Payment provider '" + request.ProviderAlias + "' is not available."
+            });
+        }
+
+        // Build the process payment request for DirectForm
+        var processRequest = new ProcessPaymentRequest
+        {
+            InvoiceId = request.InvoiceId,
+            ProviderAlias = request.ProviderAlias,
+            MethodAlias = request.MethodAlias,
+            Amount = invoice.Total,
+            FormData = request.FormData
+        };
+
+        // Process the payment
+        var result = await paymentService.ProcessPaymentAsync(processRequest, cancellationToken);
+
+        if (!result.Successful || result.ResultObject == null)
+        {
+            var errorMessage = result.Messages
+                .Where(m => m.ResultMessageType == Merchello.Core.Shared.Models.Enums.ResultMessageType.Error)
+                .Select(m => m.Message)
+                .FirstOrDefault() ?? "Payment processing failed.";
+
+            logger.LogWarning(
+                "DirectForm payment processing failed for invoice {InvoiceId} with provider {Provider}: {Error}",
+                request.InvoiceId,
+                request.ProviderAlias,
+                errorMessage);
+
+            return Ok(new ProcessPaymentResultDto
+            {
+                Success = false,
+                InvoiceId = request.InvoiceId,
+                ErrorMessage = errorMessage
+            });
+        }
+
+        logger.LogInformation(
+            "DirectForm payment processed successfully for invoice {InvoiceId} with provider {Provider}, PaymentId: {PaymentId}, TransactionId: {TransactionId}",
+            request.InvoiceId,
+            request.ProviderAlias,
+            result.ResultObject.Id,
+            result.ResultObject.TransactionId);
+
+        return Ok(new ProcessPaymentResultDto
+        {
+            Success = true,
+            InvoiceId = request.InvoiceId,
+            PaymentId = result.ResultObject.Id,
+            TransactionId = result.ResultObject.TransactionId,
+            RedirectUrl = "/checkout/confirmation/" + request.InvoiceId
         });
     }
 

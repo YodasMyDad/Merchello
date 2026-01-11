@@ -817,4 +817,112 @@ public class ProductServiceTests
     }
 
     #endregion
+
+    #region GetProduct with ProductRoot Tests (for Add-to-Basket flow)
+
+    [Fact]
+    public async Task GetProduct_WithIncludeProductRoot_LoadsProductOptionsFromJson()
+    {
+        // Arrange - create product with variant options (same flow as seed data)
+        var taxGroup = _dataBuilder.CreateTaxGroup();
+        var productType = _dataBuilder.CreateProductType();
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var createResult = await _productService.CreateProductRootOnly(new CreateProductRootOnlyParameters
+        {
+            Name = "Premium V-Neck",
+            Price = 24.99m,
+            CostOfGoods = 10.00m,
+            Weight = 0.3m,
+            TaxGroupId = taxGroup.Id,
+            ProductTypeId = productType.Id,
+            CollectionIds = []
+        });
+        var productRootId = createResult.ResultObject!.Id;
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Add Color option
+        await _productService.AddProductOption(new AddProductOptionParameters
+        {
+            ProductRootId = productRootId,
+            Name = "Color",
+            Alias = "color",
+            SortOrder = 1,
+            IsVariant = true,
+            Values =
+            [
+                new() { Name = "Grey", SortOrder = 1, SkuSuffix = "-GREY" },
+                new() { Name = "Navy", SortOrder = 2, SkuSuffix = "-NAVY" }
+            ]
+        });
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Add Size option
+        await _productService.AddProductOption(new AddProductOptionParameters
+        {
+            ProductRootId = productRootId,
+            Name = "Size",
+            Alias = "size",
+            SortOrder = 2,
+            IsVariant = true,
+            Values =
+            [
+                new() { Name = "S", SortOrder = 1, SkuSuffix = "-S" },
+                new() { Name = "M", SortOrder = 2, SkuSuffix = "-M" }
+            ]
+        });
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Generate variants
+        await _productService.GenerateVariantsFromOptions(
+            productRootId, defaultPrice: 24.99m, defaultCostOfGoods: 10.00m);
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Get a variant with options (any variant that has a VariantOptionsKey)
+        var variants = await _fixture.DbContext.Products
+            .AsNoTracking()
+            .Where(p => p.ProductRootId == productRootId && p.VariantOptionsKey != null)
+            .ToListAsync();
+        variants.ShouldNotBeEmpty("Should have variants with VariantOptionsKey");
+        var variant = variants.First();
+        variant.VariantOptionsKey.ShouldNotBeNullOrEmpty("VariantOptionsKey should be set");
+
+        // Act - Load the product the SAME way AddToBasket does
+        var product = await _productService.GetProduct(new GetProductParameters
+        {
+            ProductId = variant.Id,
+            IncludeProductRoot = true,
+            IncludeTaxGroup = true,
+            NoTracking = true
+        });
+
+        // Assert - ProductRoot should be loaded with ProductOptions
+        product.ShouldNotBeNull();
+        product.ProductRoot.ShouldNotBeNull();
+        product.ProductRoot.RootName.ShouldBe("Premium V-Neck");
+
+        // THIS IS THE CRITICAL ASSERTION - ProductOptions should be populated from JSON
+        product.ProductRoot.ProductOptions.ShouldNotBeNull();
+        product.ProductRoot.ProductOptions.Count.ShouldBe(2, "ProductOptions should have 2 options (Color, Size)");
+
+        // Verify option values are present
+        var colorOption = product.ProductRoot.ProductOptions.FirstOrDefault(o => o.Name == "Color");
+        colorOption.ShouldNotBeNull("Color option should exist");
+        colorOption.ProductOptionValues.Count.ShouldBe(2, "Color option should have 2 values");
+        colorOption.ProductOptionValues.ShouldContain(v => v.Name == "Grey");
+        colorOption.ProductOptionValues.ShouldContain(v => v.Name == "Navy");
+
+        var sizeOption = product.ProductRoot.ProductOptions.FirstOrDefault(o => o.Name == "Size");
+        sizeOption.ShouldNotBeNull("Size option should exist");
+        sizeOption.ProductOptionValues.Count.ShouldBe(2, "Size option should have 2 values");
+        sizeOption.ProductOptionValues.ShouldContain(v => v.Name == "S");
+        sizeOption.ProductOptionValues.ShouldContain(v => v.Name == "M");
+
+        // Verify VariantOptionsKey is comma-separated (simple format)
+        product.VariantOptionsKey!.ShouldContain(",");
+        product.VariantOptionsKey!.ShouldNotContain(",,");
+    }
+
+    #endregion
 }

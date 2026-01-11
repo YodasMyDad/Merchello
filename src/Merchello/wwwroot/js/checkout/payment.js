@@ -311,6 +311,20 @@ const MerchelloPayment = {
                 container.innerHTML = this.renderFormFields(session.formFields);
             }
 
+            // Create pseudo-adapter for DirectForm submission
+            // This allows submitPayment() to work for DirectForm types
+            this.currentAdapter = {
+                formFields: session.formFields || [],
+                session: session,
+                submit: async (invoiceId) => {
+                    return await this.submitDirectForm(invoiceId, session);
+                },
+                teardown: () => {
+                    container.innerHTML = '';
+                    container.style.display = 'none';
+                }
+            };
+
             if (onReady) {
                 onReady(session);
             }
@@ -320,6 +334,45 @@ const MerchelloPayment = {
                 onError(error);
             }
             throw error;
+        }
+    },
+
+    /**
+     * Submits a DirectForm payment (e.g., Purchase Order)
+     * @param {string} invoiceId - The invoice ID to pay
+     * @param {Object} session - Payment session with form fields
+     * @returns {Promise<Object>} Payment result
+     */
+    async submitDirectForm(invoiceId, session) {
+        const formFields = session.formFields || [];
+
+        // Validate form fields
+        const validation = this.validateFormData(formFields);
+        if (!validation.isValid) {
+            this.displayErrors(validation.errors);
+            return { success: false, errorMessage: 'Please fill in all required fields' };
+        }
+
+        // Collect form data
+        const formData = this.collectFormData(formFields);
+
+        try {
+            // Submit to backend
+            const response = await this.fetchWithTimeout('/api/merchello/checkout/process-direct-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    invoiceId,
+                    providerAlias: session.providerAlias,
+                    methodAlias: session.methodAlias,
+                    formData
+                })
+            });
+
+            return await response.json();
+        } catch (error) {
+            console.error('Error submitting direct form payment:', error);
+            return { success: false, errorMessage: error.message || 'Payment submission failed' };
         }
     },
 

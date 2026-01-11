@@ -43,6 +43,11 @@ public static class Constants
         public const string IsAddon = "IsAddon";
         public const string ImageUrl = "ImageUrl";
 
+        // Product display name data
+        public const string ProductRootName = "ProductRootName";
+        public const string VariantName = "VariantName";
+        public const string SelectedOptions = "SelectedOptions";
+
         // Tax
         public const string TaxGroupId = "TaxGroupId";
         public const string TaxGroupName = "TaxGroupName";

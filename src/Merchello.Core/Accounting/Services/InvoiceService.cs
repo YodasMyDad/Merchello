@@ -6,6 +6,7 @@ using Merchello.Core.Accounting.Handlers.Interfaces;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
+using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
@@ -2611,6 +2612,8 @@ public class InvoiceService(
                 OrderId = a.OrderId ?? Guid.Empty,
                 Sku = a.Sku,
                 Name = a.Name,
+                ProductRootName = a.Name ?? "", // Add-ons use their name directly
+                SelectedOptions = [], // Add-ons don't have variant options
                 ProductId = null,
                 Quantity = a.Quantity,
                 Amount = a.Amount,
@@ -2633,6 +2636,13 @@ public class InvoiceService(
             OrderId = lineItem.OrderId ?? Guid.Empty,
             Sku = lineItem.Sku,
             Name = lineItem.Name,
+            ProductRootName = lineItem.GetProductRootName(),
+            SelectedOptions = lineItem.GetSelectedOptions()
+                .Select(o => new SelectedOptionDto
+                {
+                    OptionName = o.OptionName,
+                    ValueName = o.ValueName
+                }).ToList(),
             ProductId = lineItem.ProductId,
             Quantity = lineItem.Quantity,
             Amount = lineItem.Amount,

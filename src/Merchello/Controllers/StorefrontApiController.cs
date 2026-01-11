@@ -1,5 +1,7 @@
 using Merchello.Core;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
@@ -40,11 +42,11 @@ public class StorefrontApiController(
     [HttpPost("basket/add")]
     public async Task<IActionResult> AddToBasket([FromBody] AddToBasketDto request, CancellationToken ct)
     {
-        // Get the product (variant)
+        // Get the product (variant) with ProductRoot - ProductOptions is JSON so automatically loaded with ProductRoot
         var product = await productService.GetProduct(new GetProductParameters
         {
             ProductId = request.ProductId,
-            IncludeProductRoot = true,
+            IncludeProductRoot = true, // ProductOptions (JSON column) loads with ProductRoot for display name extraction
             IncludeTaxGroup = true,
             NoTracking = true
         }, ct);
@@ -170,6 +172,13 @@ public class StorefrontApiController(
                 Id = li.Id,
                 Sku = li.Sku ?? "",
                 Name = li.Name ?? "",
+                ProductRootName = li.GetProductRootName(),
+                SelectedOptions = li.GetSelectedOptions()
+                    .Select(o => new SelectedOptionDto
+                    {
+                        OptionName = o.OptionName,
+                        ValueName = o.ValueName
+                    }).ToList(),
                 Quantity = li.Quantity,
                 UnitPrice = li.Amount,
                 LineTotal = li.Amount * li.Quantity,
@@ -584,6 +593,7 @@ public class StorefrontApiController(
         var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
         var rate = currencyContext.ExchangeRate;
         var displayEstimatedShipping = currencyService.Round(estimatedShipping * rate, currencyContext.CurrencyCode);
+        var displayTotal = currencyService.Round(basket.Total * rate, currencyContext.CurrencyCode);
 
         return Ok(new EstimatedShippingDto
         {
@@ -592,6 +602,8 @@ public class StorefrontApiController(
             FormattedEstimatedShipping = estimatedShipping.FormatWithSymbol(_settings.CurrencySymbol),
             DisplayEstimatedShipping = displayEstimatedShipping,
             FormattedDisplayEstimatedShipping = displayEstimatedShipping.FormatWithSymbol(currencyContext.CurrencySymbol),
+            DisplayTotal = displayTotal,
+            FormattedDisplayTotal = displayTotal.FormatWithSymbol(currencyContext.CurrencySymbol),
             GroupCount = groupingResult.Groups.Count
         });
     }

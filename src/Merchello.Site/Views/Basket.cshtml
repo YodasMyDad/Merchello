@@ -85,7 +85,14 @@
                                     <div class="row align-items-center">
                                         <!-- Product Info -->
                                         <div class="col-12 col-md-6 mb-3 mb-md-0">
-                                            <h5 class="mb-1" x-text="item.name"></h5>
+                                            <h5 class="mb-1" x-text="item.productRootName || item.name"></h5>
+                                            <template x-if="item.selectedOptions && item.selectedOptions.length > 0">
+                                                <div class="text-muted small mb-1">
+                                                    <template x-for="opt in item.selectedOptions" :key="opt.optionName">
+                                                        <span class="me-2" x-text="opt.optionName + ': ' + opt.valueName"></span>
+                                                    </template>
+                                                </div>
+                                            </template>
                                             <small class="text-muted" x-text="'SKU: ' + item.sku"></small>
 
                                             <!-- Availability Warning -->

@@ -187,6 +187,13 @@ public class MerchelloCheckoutController(
                 Id = li.LineItemId,
                 Sku = li.Sku ?? "",
                 Name = li.Name,
+                ProductRootName = li.ProductRootName,
+                SelectedOptions = li.SelectedOptions
+                    .Select(o => new SelectedOptionDto
+                    {
+                        OptionName = o.OptionName,
+                        ValueName = o.ValueName
+                    }).ToList(),
                 Quantity = li.Quantity,
                 Amount = li.Amount * li.Quantity,
                 FormattedAmount = (li.Amount * li.Quantity).FormatWithSymbol(currencySymbol)

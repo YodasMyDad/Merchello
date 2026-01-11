@@ -18,7 +18,7 @@
         ? JsonSerializer.Serialize(Model.ShippingGroups!.Select(g => new {
             groupId = g.GroupId.ToString(),
             groupName = g.GroupName,
-            lineItems = g.LineItems.Select(li => new { name = li.Name, quantity = li.Quantity, formattedAmount = li.FormattedAmount }),
+            lineItems = g.LineItems.Select(li => new { name = li.ProductRootName, quantity = li.Quantity, formattedAmount = li.FormattedAmount }),
             shippingOptions = g.ShippingOptions.Select(o => new {
                 id = o.Id.ToString(),
                 name = o.Name,
@@ -335,6 +335,10 @@
 
                     <!-- Payment form container (for hosted fields/widget integrations) -->
                     <div id="payment-form-container" x-show="selectedPaymentMethod && (selectedPaymentMethod.integrationType === 10 || selectedPaymentMethod.integrationType === 30)" x-cloak>
+                        <!-- Email required message for DirectForm payment methods -->
+                        <div x-show="!form.email" class="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
+                            <p class="text-sm text-amber-700">Please enter your email address above to continue with payment.</p>
+                        </div>
                         <div id="hosted-fields-container" class="min-h-[100px]"></div>
                         <div id="widget-container"></div>
                         <div id="direct-form-container"></div>
@@ -513,6 +517,7 @@
                 announcement: '',
                 _debounceTimers: {},
                 _shippingCalculated: @(hasShippingGroups ? "true" : "false"),
+                _emailCaptured: '',
 
                 // Basket totals (updated dynamically when shipping is selected)
                 basketTotal: @(basket?.Total ?? 0),
@@ -693,6 +698,25 @@
                     if (region) this.form.billing.state = region.name;
                 },
 
+                // Email capture for abandoned checkout and payment initialization
+                async captureEmail() {
+                    if (!this.form.email || this._emailCaptured === this.form.email) return;
+
+                    try {
+                        const response = await fetch('/api/merchello/checkout/capture-email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email: this.form.email })
+                        });
+
+                        if (response.ok) {
+                            this._emailCaptured = this.form.email;
+                        }
+                    } catch (error) {
+                        console.error('Failed to capture email:', error);
+                    }
+                },
+
                 // Shipping calculation
                 debouncedCalculateShipping() {
                     if (!this.canCalculateShipping) return;
@@ -831,6 +855,11 @@
 
                     this.announce(`Selected ${method.displayName} payment`);
 
+                    // Ensure email is captured to session before initializing payment
+                    if (this.form.email && this._emailCaptured !== this.form.email) {
+                        await this.captureEmail();
+                    }
+
                     // Lazy-initialize payment form if not already done and checkout data is ready
                     if (!this.paymentSession && this.form.email) {
                         await this.initializePaymentForm(method);
@@ -902,7 +931,7 @@
                 },
 
                 // Validation
-                validateField(field) {
+                async validateField(field) {
                     delete this.errors[field];
 
                     if (field === 'email') {
@@ -915,9 +944,11 @@
                             if (window.MerchelloSinglePageAnalytics) {
                                 window.MerchelloSinglePageAnalytics.trackContactInfo(this.form.email);
                             }
-                            // Initialize payment form if method selected but not yet initialized
+                            // Capture email to session first (for abandoned checkout + payment)
+                            await this.captureEmail();
+                            // Then initialize payment form if method already selected
                             if (this.selectedPaymentMethod && !this.paymentSession) {
-                                this.initializePaymentForm(this.selectedPaymentMethod);
+                                await this.initializePaymentForm(this.selectedPaymentMethod);
                             }
                         }
                     } else if (field.startsWith('shipping.')) {

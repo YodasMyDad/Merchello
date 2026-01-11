@@ -545,8 +545,15 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                   </merchello-product-image>
                 </div>
                 <div class="fulfillment-item-details">
-                  <div class="fulfillment-item-name">${item.name}</div>
-                  <div class="fulfillment-item-variant">${item.sku || ''}</div>
+                  <div class="fulfillment-item-name">${item.productRootName || item.name}</div>
+                  ${item.selectedOptions?.length ? html`
+                    <div class="fulfillment-item-options">
+                      ${item.selectedOptions.map(opt => html`
+                        <span class="fulfillment-item-option">${opt.optionName}: ${opt.valueName}</span>
+                      `)}
+                    </div>
+                  ` : nothing}
+                  <div class="fulfillment-item-sku">${item.sku || ''}</div>
                 </div>
                 <div class="fulfillment-item-pricing">
                   <span class="fulfillment-item-price">${formatCurrency(item.amount, currencyCode, currencySymbol)}</span>
@@ -1344,9 +1351,22 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       text-overflow: ellipsis;
     }
 
-    .fulfillment-item-variant {
+    .fulfillment-item-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.5rem;
+      margin-top: 0.125rem;
+    }
+
+    .fulfillment-item-option {
       font-size: 0.8125rem;
       color: var(--uui-color-text-alt);
+    }
+
+    .fulfillment-item-sku {
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+      margin-top: 0.25rem;
     }
 
     .fulfillment-item-pricing {

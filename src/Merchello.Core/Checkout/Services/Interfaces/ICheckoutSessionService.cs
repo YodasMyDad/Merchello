@@ -54,6 +54,13 @@ public interface ICheckoutSessionService
     Task ClearSessionAsync(Guid basketId, CancellationToken ct = default);
 
     /// <summary>
+    /// Saves just the email to the session's billing address.
+    /// Used for abandoned checkout capture and payment initialization.
+    /// Does NOT clear shipping selections (unlike SaveAddressesAsync).
+    /// </summary>
+    Task SaveEmailAsync(Guid basketId, string email, CancellationToken ct = default);
+
+    /// <summary>
     /// Saves a basket to the HTTP session.
     /// </summary>
     /// <param name="basket">The basket to save.</param>

@@ -1,8 +1,11 @@
+using System.Text.Json;
+using Merchello.Core;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Products.Models;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
@@ -656,6 +659,116 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
         countries.ShouldNotBeNull();
         // The mock returns GB, US, DE
         countries.Count.ShouldBe(3);
+    }
+
+    #endregion
+
+    #region CreateLineItem Tests
+
+    [Fact]
+    public void CreateLineItem_WithVariantOptions_ExtractsSelectedOptions()
+    {
+        // Arrange - create product with variant options
+        var colorValueGrey = new ProductOptionValue { Id = Guid.NewGuid(), Name = "Grey", FullName = "Grey" };
+        var colorValueBlue = new ProductOptionValue { Id = Guid.NewGuid(), Name = "Blue", FullName = "Blue" };
+        var sizeValueS = new ProductOptionValue { Id = Guid.NewGuid(), Name = "S", FullName = "S" };
+        var sizeValueM = new ProductOptionValue { Id = Guid.NewGuid(), Name = "M", FullName = "M" };
+
+        var colorOption = new ProductOption
+        {
+            Id = Guid.NewGuid(),
+            Name = "Color",
+            Alias = "color",
+            SortOrder = 1,
+            IsVariant = true,
+            ProductOptionValues = [colorValueGrey, colorValueBlue]
+        };
+
+        var sizeOption = new ProductOption
+        {
+            Id = Guid.NewGuid(),
+            Name = "Size",
+            Alias = "size",
+            SortOrder = 2,
+            IsVariant = true,
+            ProductOptionValues = [sizeValueS, sizeValueM]
+        };
+
+        var productRoot = new ProductRoot
+        {
+            Id = Guid.NewGuid(),
+            RootName = "Premium V-Neck",
+            ProductOptions = [colorOption, sizeOption]
+        };
+
+        // Create comma-separated variant key (Grey + S)
+        var variantOptionsKey = $"{colorValueGrey.Id},{sizeValueS.Id}";
+
+        var product = new Product
+        {
+            Id = Guid.NewGuid(),
+            ProductRootId = productRoot.Id,
+            ProductRoot = productRoot,
+            Name = "S-Grey",
+            Sku = "PREMIUM-V-NECK-S-GREY",
+            Price = 29.99m,
+            VariantOptionsKey = variantOptionsKey
+        };
+
+        // Act
+        var lineItem = _checkoutService.CreateLineItem(product);
+
+        // Assert - verify ProductRootName is stored
+        lineItem.ExtendedData.ShouldContainKey(Constants.ExtendedDataKeys.ProductRootName);
+        lineItem.ExtendedData[Constants.ExtendedDataKeys.ProductRootName].ShouldBe("Premium V-Neck");
+
+        // Assert - verify SelectedOptions contains correct option/value pairs
+        lineItem.ExtendedData.ShouldContainKey(Constants.ExtendedDataKeys.SelectedOptions);
+        var optionsJson = lineItem.ExtendedData[Constants.ExtendedDataKeys.SelectedOptions]?.ToString();
+        optionsJson.ShouldNotBeNullOrEmpty();
+
+        var selectedOptions = JsonSerializer.Deserialize<List<Core.Accounting.Models.SelectedOption>>(optionsJson!);
+        selectedOptions.ShouldNotBeNull();
+        selectedOptions!.Count.ShouldBe(2);
+
+        // Verify options are in sort order (Color first, then Size)
+        selectedOptions[0].OptionName.ShouldBe("Color");
+        selectedOptions[0].ValueName.ShouldBe("Grey");
+        selectedOptions[1].OptionName.ShouldBe("Size");
+        selectedOptions[1].ValueName.ShouldBe("S");
+    }
+
+    [Fact]
+    public void CreateLineItem_WithoutVariantOptions_DoesNotStoreSelectedOptions()
+    {
+        // Arrange - create product without variant options (simple product)
+        var productRoot = new ProductRoot
+        {
+            Id = Guid.NewGuid(),
+            RootName = "Simple Widget",
+            ProductOptions = []
+        };
+
+        var product = new Product
+        {
+            Id = Guid.NewGuid(),
+            ProductRootId = productRoot.Id,
+            ProductRoot = productRoot,
+            Name = "Simple Widget",
+            Sku = "SIMPLE-WIDGET",
+            Price = 9.99m,
+            VariantOptionsKey = null // No variant options
+        };
+
+        // Act
+        var lineItem = _checkoutService.CreateLineItem(product);
+
+        // Assert - ProductRootName should still be stored
+        lineItem.ExtendedData.ShouldContainKey(Constants.ExtendedDataKeys.ProductRootName);
+        lineItem.ExtendedData[Constants.ExtendedDataKeys.ProductRootName].ShouldBe("Simple Widget");
+
+        // Assert - SelectedOptions should NOT be stored for simple products
+        lineItem.ExtendedData.ShouldNotContainKey(Constants.ExtendedDataKeys.SelectedOptions);
     }
 
     #endregion

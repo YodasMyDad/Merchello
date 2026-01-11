@@ -759,7 +759,7 @@ public class CheckoutService(
     }
 
     /// <summary>
-    /// Creates a line item for a product with metadata for discount matching
+    /// Creates a line item for a product with metadata for discount matching and display
     /// </summary>
     public LineItem CreateLineItem(Products.Models.Product product, int quantity = 1)
     {
@@ -768,7 +768,7 @@ public class CheckoutService(
         // Add product metadata for discount matching (used by discount engine for targeting)
         lineItem.ExtendedData[Constants.ExtendedDataKeys.ProductRootId] = product.ProductRootId.ToString();
 
-        // ProductRoot must be loaded for ProductTypeId and Categories
+        // ProductRoot must be loaded for ProductTypeId, Categories, and display data
         var productRoot = product.ProductRoot;
         if (productRoot != null)
         {
@@ -780,9 +780,72 @@ public class CheckoutService(
                 var collectionIds = productRoot.Collections.Select(c => c.Id).ToList();
                 lineItem.ExtendedData[Constants.ExtendedDataKeys.CollectionIds] = JsonSerializer.Serialize(collectionIds);
             }
+
+            // Store root name for display (e.g., "Premium V-Neck" instead of variant name "S-Grey")
+            lineItem.ExtendedData[Constants.ExtendedDataKeys.ProductRootName] = productRoot.RootName ?? "";
+
+            // Store variant name as fallback when options can't be extracted
+            if (!string.IsNullOrWhiteSpace(product.Name) && product.Name != productRoot.RootName)
+            {
+                lineItem.ExtendedData[Constants.ExtendedDataKeys.VariantName] = product.Name;
+            }
+
+            // Extract and store selected option name/value pairs for display
+            if (!string.IsNullOrWhiteSpace(product.VariantOptionsKey))
+            {
+                var optionCount = productRoot.ProductOptions?.Count ?? 0;
+                logger.LogDebug(
+                    "CreateLineItem: Product {ProductId} has VariantOptionsKey={Key}, ProductOptions.Count={OptionCount}",
+                    product.Id, product.VariantOptionsKey, optionCount);
+
+                if (optionCount > 0)
+                {
+                    var selectedOptions = ExtractSelectedOptions(product.VariantOptionsKey, productRoot.ProductOptions!);
+                    logger.LogDebug("CreateLineItem: ExtractSelectedOptions returned {Count} options", selectedOptions.Count);
+
+                    if (selectedOptions.Count > 0)
+                    {
+                        lineItem.ExtendedData[Constants.ExtendedDataKeys.SelectedOptions] =
+                            JsonSerializer.Serialize(selectedOptions);
+                    }
+                }
+            }
         }
 
         return lineItem;
+    }
+
+    /// <summary>
+    /// Extracts selected option name/value pairs from a variant options key.
+    /// </summary>
+    private static List<Accounting.Models.SelectedOption> ExtractSelectedOptions(
+        string variantOptionsKey,
+        List<Products.Models.ProductOption> productOptions)
+    {
+        // Parse VariantOptionsKey - comma-separated GUIDs (simple split)
+        var keyParts = variantOptionsKey.Split(',')
+            .Select(k => Guid.TryParse(k.Trim(), out var g) ? g : (Guid?)null)
+            .Where(g => g.HasValue)
+            .Select(g => g!.Value)
+            .ToHashSet();
+
+        var selected = new List<Accounting.Models.SelectedOption>();
+        foreach (var option in productOptions.Where(o => o.IsVariant).OrderBy(o => o.SortOrder))
+        {
+            var matchingValue = option.ProductOptionValues
+                .FirstOrDefault(v => keyParts.Contains(v.Id));
+
+            if (matchingValue != null)
+            {
+                selected.Add(new Accounting.Models.SelectedOption
+                {
+                    OptionName = option.Name ?? "",
+                    ValueName = matchingValue.Name ?? ""
+                });
+            }
+        }
+
+        return selected;
     }
 
     /// <summary>

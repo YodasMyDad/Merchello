@@ -1,4 +1,5 @@
 using Merchello.Core;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
@@ -595,19 +596,19 @@ public class CheckoutApiController(
             return BadRequest(new { success = false, message = "No items in basket." });
         }
 
+        // Save email to checkout session for payment initialization
+        await checkoutSessionService.SaveEmailAsync(basket.Id, request.Email.Trim(), ct);
+
+        // Track for abandoned checkout (optional service)
         var abandonedCheckoutService = HttpContext.RequestServices
             .GetService<IAbandonedCheckoutService>();
 
-        if (abandonedCheckoutService == null)
+        if (abandonedCheckoutService != null)
         {
-            // Service not available - silently succeed (feature disabled)
-            return Ok(new { success = true });
+            await abandonedCheckoutService.TrackCheckoutActivityAsync(basket, request.Email.Trim(), ct);
         }
 
-        await abandonedCheckoutService.TrackCheckoutActivityAsync(basket, request.Email.Trim(), ct);
-
-        logger.LogDebug("Email captured for abandoned cart recovery: {Email}, Basket: {BasketId}",
-            request.Email, basket.Id);
+        logger.LogDebug("Email captured for basket: {BasketId}", basket.Id);
 
         return Ok(new { success = true });
     }
@@ -742,6 +743,13 @@ public class CheckoutApiController(
                 Id = li.Id,
                 Sku = li.Sku ?? "",
                 Name = li.Name ?? "",
+                ProductRootName = li.GetProductRootName(),
+                SelectedOptions = li.GetSelectedOptions()
+                    .Select(o => new SelectedOptionDto
+                    {
+                        OptionName = o.OptionName,
+                        ValueName = o.ValueName
+                    }).ToList(),
                 Quantity = li.Quantity,
                 UnitPrice = li.Amount,
                 LineTotal = li.Amount * li.Quantity,
@@ -836,6 +844,13 @@ public class CheckoutApiController(
                 Id = li.LineItemId,
                 Sku = li.Sku ?? "",
                 Name = li.Name,
+                ProductRootName = li.ProductRootName,
+                SelectedOptions = li.SelectedOptions
+                    .Select(o => new SelectedOptionDto
+                    {
+                        OptionName = o.OptionName,
+                        ValueName = o.ValueName
+                    }).ToList(),
                 Quantity = li.Quantity,
                 Amount = li.Amount * li.Quantity,
                 FormattedAmount = (li.Amount * li.Quantity).FormatWithSymbol(currencySymbol)

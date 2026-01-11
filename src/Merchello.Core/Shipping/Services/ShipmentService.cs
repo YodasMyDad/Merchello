@@ -2,6 +2,7 @@ using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Handlers.Interfaces;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Notifications;
@@ -784,6 +785,13 @@ public class ShipmentService(
                 Id = li.Id,
                 Sku = li.Sku,
                 Name = li.Name,
+                ProductRootName = li.GetProductRootName(),
+                SelectedOptions = li.GetSelectedOptions()
+                    .Select(o => new SelectedOptionDto
+                    {
+                        OptionName = o.OptionName,
+                        ValueName = o.ValueName
+                    }).ToList(),
                 OrderedQuantity = li.Quantity,
                 ShippedQuantity = shippedQuantities.TryGetValue(li.Id, out var shipped) ? shipped : 0,
                 ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null,
@@ -812,6 +820,13 @@ public class ShipmentService(
                     LineItemId = li.Id,
                     Sku = li.Sku,
                     Name = li.Name,
+                    ProductRootName = li.GetProductRootName(),
+                    SelectedOptions = li.GetSelectedOptions()
+                        .Select(o => new SelectedOptionDto
+                        {
+                            OptionName = o.OptionName,
+                            ValueName = o.ValueName
+                        }).ToList(),
                     Quantity = li.Quantity,
                     ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null
                 }).ToList() ?? []
