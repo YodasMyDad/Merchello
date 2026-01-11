@@ -12,6 +12,54 @@ namespace Merchello.Core.Tax.Services;
 public class TaxCalculationService(ICurrencyService currencyService) : ITaxCalculationService
 {
     /// <inheritdoc />
+    public TaxWithDiscountsResult CalculateTaxWithDiscounts(TaxWithDiscountsInput input, string currencyCode)
+    {
+        decimal lineItemTax = 0;
+
+        foreach (var item in input.TaxableItems)
+        {
+            // Start with item total
+            var taxableAmount = item.ItemTotal;
+
+            // Subtract linked discount (already negative, so we add it)
+            taxableAmount += item.LinkedDiscount;
+
+            // Pro-rate unlinked before-tax discounts across taxable items
+            if (input.UnlinkedBeforeTaxDiscountTotal < 0 && input.TotalTaxableAmount > 0)
+            {
+                var proportion = item.ItemTotal / input.TotalTaxableAmount;
+                var proRatedDiscount = currencyService.Round(
+                    input.UnlinkedBeforeTaxDiscountTotal * proportion, currencyCode);
+                taxableAmount += proRatedDiscount; // proRatedDiscount is negative
+            }
+
+            // Subtract after-tax discount contribution (pre-tax equivalent)
+            taxableAmount -= item.AfterTaxDiscountContribution;
+
+            // Ensure non-negative
+            taxableAmount = Math.Max(0m, taxableAmount);
+
+            // Calculate tax
+            lineItemTax += currencyService.Round(taxableAmount * (item.TaxRate / 100m), currencyCode);
+        }
+
+        // Calculate shipping tax if applicable
+        decimal shippingTax = 0;
+        if (input.IsShippingTaxable && input.ShippingAmount > 0)
+        {
+            shippingTax = currencyService.Round(
+                input.ShippingAmount * (input.DefaultTaxRate / 100m), currencyCode);
+        }
+
+        return new TaxWithDiscountsResult
+        {
+            TotalTax = currencyService.Round(lineItemTax + shippingTax, currencyCode),
+            LineItemTax = lineItemTax,
+            ShippingTax = shippingTax
+        };
+    }
+
+    /// <inheritdoc />
     public TaxCalculationSummary CalculateTax(TaxCalculationInput request, string currencyCode)
     {
         // Handle tax-exempt case

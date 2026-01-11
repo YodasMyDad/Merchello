@@ -10,6 +10,14 @@ public class ProductVariantDto
     public Guid Id { get; set; }
     public Guid ProductRootId { get; set; }
     public bool Default { get; set; }
+
+    /// <summary>
+    /// Whether this variant can be set as the default.
+    /// Calculated by backend based on: AvailableForPurchase, CanPurchase, and stock availability
+    /// in tracked warehouses. Frontend should use this instead of calculating eligibility locally.
+    /// </summary>
+    public bool CanBeDefault { get; set; }
+
     public string? Name { get; set; }
     public string? Sku { get; set; }
     public string? Gtin { get; set; }

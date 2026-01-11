@@ -321,7 +321,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
         for (const id of this._deletedOverrideIds) {
           const deleteResult = await MerchelloApi.deleteShippingTaxOverride(id);
           if (deleteResult.error) {
-            console.error("Failed to delete shipping override:", deleteResult.error);
+            // Deletion failed but continue with save - override may have been deleted already
           }
         }
         this._deletedOverrideIds = [];

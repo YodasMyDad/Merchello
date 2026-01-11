@@ -67,7 +67,6 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
     const { data, error } = await MerchelloApi.getAbandonedCheckoutStats();
     if (!this.#isConnected) return;
     if (error) {
-      console.error("Failed to load abandoned checkout stats:", error);
       return;
     }
     if (data) {

@@ -391,7 +391,8 @@ public class WebhookServiceTests : IClassFixture<ServiceTestFixture>
         var delivery = await _webhookService.GetDeliveryAsync(deliveryId);
         delivery.ShouldNotBeNull();
         delivery.Topic.ShouldBe(Constants.WebhookTopics.OrderCreated);
-        delivery.Status.ShouldBe(OutboundDeliveryStatus.Pending);
+        // Status is Succeeded because QueueDeliveryAsync now awaits immediate delivery
+        delivery.Status.ShouldBe(OutboundDeliveryStatus.Succeeded);
     }
 
     [Fact]

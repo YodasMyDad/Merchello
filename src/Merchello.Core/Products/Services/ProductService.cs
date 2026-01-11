@@ -2958,6 +2958,10 @@ public class ProductService(
     /// </summary>
     private ProductRootDetailDto MapToProductRootDetailDto(ProductRoot productRoot)
     {
+        // Build variants first so we can calculate aggregate stock status
+        var variants = productRoot.Products.OrderByDescending(p => p.Default).ThenBy(p => p.Name)
+            .Select(p => MapToProductVariantDto(p, productRoot.ProductRootWarehouses, settings.Value.LowStockThreshold)).ToList();
+
         return new ProductRootDetailDto
         {
             Id = productRoot.Id,
@@ -2966,6 +2970,7 @@ public class ProductService(
             RootUrl = productRoot.RootUrl,
             GoogleShoppingFeedCategory = productRoot.GoogleShoppingFeedCategory,
             IsDigitalProduct = productRoot.IsDigitalProduct,
+            AggregateStockStatus = CalculateProductRootAggregateStockStatus(productRoot.IsDigitalProduct, variants),
             DefaultPackageConfigurations = productRoot.DefaultPackageConfigurations.Select(p => new ProductPackageDto
             {
                 Weight = p.Weight,
@@ -2986,8 +2991,7 @@ public class ProductService(
             CollectionIds = productRoot.Collections.Select(c => c.Id).ToList(),
             WarehouseIds = productRoot.ProductRootWarehouses.Select(prw => prw.WarehouseId).ToList(),
             ProductOptions = productRoot.ProductOptions.OrderBy(o => o.SortOrder).Select(MapToProductOptionDto).ToList(),
-            Variants = productRoot.Products.OrderByDescending(p => p.Default).ThenBy(p => p.Name)
-                .Select(p => MapToProductVariantDto(p, productRoot.ProductRootWarehouses, settings.Value.LowStockThreshold)).ToList(),
+            Variants = variants,
             AvailableShippingOptions = MapToShippingOptionExclusionDtos(productRoot),
             ElementProperties = DeserializeElementProperties(productRoot.ElementPropertyData),
             ViewAlias = productRoot.ViewAlias
@@ -3103,6 +3107,27 @@ public class ProductService(
     }
 
     /// <summary>
+    /// Calculates aggregate stock status for a product root across all its variants.
+    /// Returns Untracked for digital products, otherwise aggregates from variant statuses.
+    /// </summary>
+    private static StockStatus CalculateProductRootAggregateStockStatus(bool isDigital, List<ProductVariantDto> variants)
+    {
+        if (isDigital)
+            return StockStatus.Untracked;
+
+        if (variants.Count == 0)
+            return StockStatus.OutOfStock;
+
+        // Return the worst status across all variants (OutOfStock > LowStock > InStock)
+        if (variants.All(v => v.StockStatus == StockStatus.OutOfStock))
+            return StockStatus.OutOfStock;
+        if (variants.Any(v => v.StockStatus == StockStatus.LowStock))
+            return StockStatus.LowStock;
+
+        return StockStatus.InStock;
+    }
+
+    /// <summary>
     /// Maps a Product entity to a ProductVariantDto
     /// </summary>
     private static ProductVariantDto MapToProductVariantDto(Product product, ICollection<ProductRootWarehouse> rootWarehouses, int lowStockThreshold)
@@ -3129,11 +3154,16 @@ public class ProductService(
             };
         }).ToList();
 
+        // Calculate CanBeDefault: must be purchaseable and have stock (if tracked)
+        var canBeDefault = product.AvailableForPurchase && product.CanPurchase &&
+            (warehouseStock.All(ws => !ws.TrackStock) || warehouseStock.Any(ws => ws.TrackStock && ws.AvailableStock > 0));
+
         return new ProductVariantDto
         {
             Id = product.Id,
             ProductRootId = product.ProductRootId,
             Default = product.Default,
+            CanBeDefault = canBeDefault,
             Name = product.Name,
             Sku = product.Sku,
             Gtin = product.Gtin,

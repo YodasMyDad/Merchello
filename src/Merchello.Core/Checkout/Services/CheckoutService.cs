@@ -179,8 +179,11 @@ public class CheckoutService(
         string? countryCode = null,
         CancellationToken cancellationToken = default)
     {
-        var removed = lineItemService.RemoveDiscountLineItem(basket.LineItems, discountLineItemId);
-        if (!removed)
+        // Find the discount line item BEFORE removing to get discount info for notification
+        var discountLineItem = basket.LineItems.FirstOrDefault(li =>
+            li.Id == discountLineItemId && li.LineItemType == LineItemType.Discount);
+
+        if (discountLineItem == null)
         {
             basket.Errors.Add(new BasketError
             {
@@ -188,6 +191,26 @@ public class CheckoutService(
                 RelatedLineItemId = discountLineItemId
             });
             return;
+        }
+
+        // Get the discount ID from ExtendedData to look up the discount for notification
+        Discount? discount = null;
+        if (discountLineItem.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var discountIdObj) &&
+            Guid.TryParse(discountIdObj.ToString(), out var discountId) &&
+            discountService != null)
+        {
+            discount = await discountService.GetByIdAsync(discountId, cancellationToken);
+        }
+
+        // Remove the line item
+        basket.LineItems.Remove(discountLineItem);
+
+        // Publish notification if we have the discount info
+        if (discount != null)
+        {
+            await notificationPublisher.PublishAsync(
+                new DiscountCodeRemovedNotification(basket, discount),
+                cancellationToken);
         }
 
         await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
@@ -1203,9 +1226,9 @@ public class CheckoutService(
                 {
                     ctxLineItem.CollectionIds = JsonSerializer.Deserialize<List<Guid>>(collectionIdsJson) ?? [];
                 }
-                catch
+                catch (JsonException)
                 {
-                    // Ignore deserialization errors
+                    // Invalid JSON format - continue with empty collection IDs
                 }
             }
 

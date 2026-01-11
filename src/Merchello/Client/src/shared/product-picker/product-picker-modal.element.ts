@@ -180,19 +180,11 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       data.variants.map(async (v) => this._mapToPickerVariant(v, data))
     );
 
-    // Calculate aggregate stock from variants
+    // Use backend-calculated aggregate stock status (single source of truth)
     const totalStock = variants.reduce((sum, v) => sum + v.availableStock, 0);
-    const isDigital = data.isDigitalProduct;
-    let stockStatus: PickerProductRoot["stockStatus"] = "InStock";
-    if (isDigital) {
-      stockStatus = "Untracked";
-    } else if (totalStock <= 0) {
-      stockStatus = "OutOfStock";
-    } else if (variants.some((v) => v.stockStatus === "LowStock")) {
-      stockStatus = "LowStock";
-    }
+    const stockStatus = data.aggregateStockStatus as PickerProductRoot["stockStatus"];
 
-    // Update the root with loaded variants and calculated stock
+    // Update the root with loaded variants and backend-calculated stock status
     this._productRoots = this._productRoots.map((root, i) =>
       i === rootIndex
         ? { ...root, variants, variantsLoaded: true, totalStock, stockStatus }

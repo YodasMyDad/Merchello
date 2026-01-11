@@ -70,6 +70,7 @@ public class EmailService(
 
         // Render the template
         string? body = null;
+        string? templateError = null;
         if (_renderTemplate != null)
         {
             try
@@ -79,10 +80,15 @@ public class EmailService(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to render email template {TemplatePath}", config.TemplatePath);
+                templateError = $"Template render failed: {ex.Message}";
             }
         }
+        else
+        {
+            templateError = "Template renderer not configured";
+        }
 
-        // Create the delivery record
+        // Create the delivery record - mark as failed if template couldn't render
         var delivery = new OutboundDelivery
         {
             Id = GuidExtensions.NewSequentialGuid,
@@ -91,7 +97,8 @@ public class EmailService(
             Topic = config.Topic,
             EntityId = entityId,
             EntityType = entityType,
-            Status = OutboundDeliveryStatus.Pending,
+            Status = templateError != null ? OutboundDeliveryStatus.Failed : OutboundDeliveryStatus.Pending,
+            ErrorMessage = templateError,
             EmailRecipients = toAddress,
             EmailSubject = subject,
             EmailFrom = fromAddress,
@@ -113,9 +120,18 @@ public class EmailService(
         });
         scope.Complete();
 
-        logger.LogInformation(
-            "Queued email delivery {DeliveryId} for configuration {ConfigurationId} to {Recipients}",
-            delivery.Id, config.Id, toAddress);
+        if (templateError != null)
+        {
+            logger.LogWarning(
+                "Created failed email delivery {DeliveryId} for configuration {ConfigurationId}: {Error}",
+                delivery.Id, config.Id, templateError);
+        }
+        else
+        {
+            logger.LogInformation(
+                "Queued email delivery {DeliveryId} for configuration {ConfigurationId} to {Recipients}",
+                delivery.Id, config.Id, toAddress);
+        }
 
         return delivery;
     }

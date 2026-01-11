@@ -264,8 +264,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
       // Load element type configuration (non-blocking)
       await this.#workspaceContext?.loadElementType();
-    } catch (error) {
-      console.error("Failed to load reference data:", error);
+    } catch {
       // Component will still function but with limited options
     }
   }
@@ -303,7 +302,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       const { error } = await this.#dataTypeRepository.requestByUnique(dataTypeKey);
 
       if (error) {
-        console.error("[Merchello] Error requesting DataType:", error);
         this._setFallbackEditorConfig();
         return;
       }
@@ -315,24 +313,15 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           if (!this.#isConnected) return;
           
           if (!dataType) {
-            console.warn("[Merchello] DataType not found, using fallback config");
             this._setFallbackEditorConfig();
             return;
           }
 
-          // Check if extensions config exists
-          const hasExtensions = dataType.values?.some((v: { alias: string }) => v.alias === 'extensions');
-
-          if (!hasExtensions) {
-            console.warn("[Merchello] DataType is missing 'extensions' config. Delete it in Settings > Data Types and restart to recreate.");
-          }
-          
           this._descriptionEditorConfig = new UmbPropertyEditorConfigCollection(dataType.values);
         },
         '_observeDescriptionDataType',
       );
-    } catch (error) {
-      console.error("[Merchello] Failed to load DataType configuration:", error);
+    } catch {
       this._setFallbackEditorConfig();
     }
   }
@@ -591,7 +580,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       }
     } catch (error) {
       this._errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
-      console.error("Save failed:", error);
     } finally {
       this._isSaving = false;
     }
@@ -1466,28 +1454,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  /**
-   * Checks if a variant can be set as the default.
-   * A variant must be available for purchase, can be purchased, and have stock (if tracked).
-   */
-  private _canBeDefault(variant: ProductVariantDto): boolean {
-    if (!variant.availableForPurchase || !variant.canPurchase) {
-      return false;
-    }
-
-    const trackedWarehouses = variant.warehouseStock?.filter(w => w.trackStock) ?? [];
-    if (trackedWarehouses.length === 0) {
-      return true; // Untracked = available
-    }
-
-    // Must have available stock in at least one tracked warehouse
-    return trackedWarehouses.some(w => w.availableStock > 0);
-  }
-
   private _renderVariantRow(variant: ProductVariantDto): unknown {
     const variantHref = this._product ? getVariantDetailHref(this._product.id, variant.id) : "";
     const optionDescription = this._getVariantOptionDescription(variant);
-    const canBeDefault = this._canBeDefault(variant);
+    // Use backend-calculated canBeDefault (single source of truth for eligibility)
+    const canBeDefault = variant.canBeDefault;
     const disabledTitle = !canBeDefault ? "Cannot set as default: variant is unavailable or out of stock" : "";
     return html`
       <uui-table-row>
@@ -1559,13 +1530,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         // Reload to sync with server state
         await this.#workspaceContext?.reload();
       } else {
-        console.error("Failed to set default variant:", error);
         this.#notificationContext?.peek("danger", { data: { headline: "Failed to set default variant", message: error.message } });
         // Revert optimistic update on error
         await this.#workspaceContext?.reload();
       }
-    } catch (error) {
-      console.error("Failed to set default variant:", error);
+    } catch {
       this.#notificationContext?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } });
       // Revert optimistic update on error
       await this.#workspaceContext?.reload();
@@ -1919,13 +1888,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         this.#notificationContext?.peek("positive", { data: { headline: "Options saved", message: "Variants have been regenerated" } });
         this.#workspaceContext?.reload();
       } else if (error) {
-        console.error("Failed to save options:", error);
         this._errorMessage = "Failed to save options: " + error.message;
         this.#notificationContext?.peek("danger", { data: { headline: "Failed to save options", message: error.message } });
       }
     } catch (error) {
       if (!this.#isConnected) return;
-      console.error("Failed to save options:", error);
       this._errorMessage = error instanceof Error ? error.message : "Failed to save options";
       this.#notificationContext?.peek("danger", { data: { headline: "Error", message: "An unexpected error occurred" } });
     }

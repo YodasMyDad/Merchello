@@ -25,6 +25,7 @@ using Merchello.Core.Tax.Models;
 using Merchello.Core.Tax.Providers;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Tax.Providers.Models;
+using Merchello.Core.Tax.Services;
 using Merchello.Core.Tax.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Tests.TestInfrastructure;
@@ -95,7 +96,8 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             .ReturnsAsync(new ExchangeRateQuote(1m, DateTime.UtcNow, "mock"));
         var settings = Options.Create(new MerchelloSettings { DefaultRounding = MidpointRounding.AwayFromZero, StoreCurrencyCode = "USD" });
         var currencyService = new CurrencyService(settings);
-        var lineItemService = new LineItemService(currencyService);
+        var taxCalculationService = new TaxCalculationService(currencyService);
+        var lineItemService = new LineItemService(currencyService, taxCalculationService);
         var discountService = new Mock<IDiscountService>().Object;
 
         // Mock tax service to return tax rates

@@ -801,6 +801,12 @@ public class CheckoutApiController(
             BillingAddress = MapAddressToDto(basket.BillingAddress),
             ShippingAddress = MapAddressToDto(basket.ShippingAddress),
             AppliedDiscounts = appliedDiscounts,
+            Errors = basket.Errors.Select(e => new BasketErrorDto
+            {
+                Message = e.Message,
+                RelatedLineItemId = e.RelatedLineItemId,
+                IsShippingError = e.IsShippingError
+            }).ToList(),
             IsEmpty = basket.LineItems.Count == 0
         };
     }

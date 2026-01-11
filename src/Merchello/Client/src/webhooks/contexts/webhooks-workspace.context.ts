@@ -83,7 +83,6 @@ export class MerchelloWebhooksWorkspaceContext
     this.#subscriptionId = unique;
     const { data, error } = await MerchelloApi.getWebhookSubscription(unique);
     if (error) {
-      console.error("Failed to load webhook subscription:", error);
       return;
     }
     this.#subscription.setValue(data);
