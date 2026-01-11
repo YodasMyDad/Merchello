@@ -1,3 +1,5 @@
+using Merchello.Core.Accounting.Extensions;
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Strategies.Interfaces;
 using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Products.Extensions;
@@ -106,6 +108,8 @@ public class DefaultOrderGroupingStrategy(
                     lineItem.Id,
                     lineItem.Name ?? string.Empty,
                     lineItem.Sku,
+                    lineItem.GetProductRootName(),
+                    lineItem.GetSelectedOptions(),
                     lineItem.Quantity,
                     lineItem.Amount,
                     basketCurrency,
@@ -119,6 +123,10 @@ public class DefaultOrderGroupingStrategy(
                     lineItem.Id,
                     lineItem.Name,
                     selectionResult.WarehouseAllocations.Count);
+
+                // Extract display fields once for all allocations
+                var productRootName = lineItem.GetProductRootName();
+                var selectedOptions = lineItem.GetSelectedOptions();
 
                 foreach (var allocation in selectionResult.WarehouseAllocations)
                 {
@@ -138,6 +146,8 @@ public class DefaultOrderGroupingStrategy(
                         lineItem.Id,
                         lineItem.Name ?? string.Empty,
                         lineItem.Sku,
+                        productRootName,
+                        selectedOptions,
                         allocatedQuantity,
                         proportionalAmount,
                         basketCurrency,
@@ -174,6 +184,8 @@ public class DefaultOrderGroupingStrategy(
         Guid lineItemId,
         string lineItemName,
         string? lineItemSku,
+        string productRootName,
+        List<SelectedOption> selectedOptions,
         int quantity,
         decimal amount,
         string basketCurrency,
@@ -325,6 +337,8 @@ public class DefaultOrderGroupingStrategy(
         {
             LineItemId = lineItemId,
             Name = lineItemName,
+            ProductRootName = productRootName,
+            SelectedOptions = selectedOptions,
             Sku = lineItemSku,
             Quantity = quantity,
             Amount = amount

@@ -1,4 +1,6 @@
-﻿using Merchello.Core.Checkout.Services.Interfaces;
+﻿using Merchello.Core.Accounting.Extensions;
+using Merchello.Core.Checkout.Dtos;
+using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
@@ -63,6 +65,13 @@ public class BasketController(
                     Id = li.Id,
                     Sku = li.Sku ?? "",
                     Name = li.Name ?? "",
+                    ProductRootName = li.GetProductRootName(),
+                    SelectedOptions = li.GetSelectedOptions()
+                        .Select(o => new SelectedOptionDto
+                        {
+                            OptionName = o.OptionName,
+                            ValueName = o.ValueName
+                        }).ToList(),
                     Quantity = li.Quantity,
                     UnitPrice = li.Amount,
                     LineTotal = li.Amount * li.Quantity,

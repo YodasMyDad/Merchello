@@ -187,8 +187,8 @@ public static class ProductExtensions
     {
         var orderedItems = productOptionValues.OrderBy(x => x.Id).ToList();
 
-        // Select the Id's and concat hyphen seperated
-        return (string.Join("-", orderedItems.Select(x => x.Id)),
+        // Select the Id's and concat comma-separated (GUIDs contain hyphens, so comma is safer)
+        return (string.Join(",", orderedItems.Select(x => x.Id)),
             string.Join("-", orderedItems.Select(x => x.FullName)));
     }
 

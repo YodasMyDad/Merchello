@@ -269,10 +269,21 @@ export interface FulfillmentOrderDto {
   shippingCost: number;
 }
 
+/** Selected product option for display (e.g., Color: Grey) */
+export interface SelectedOptionDto {
+  optionName: string;
+  valueName: string;
+}
+
 export interface LineItemDto {
   id: string;
   sku: string | null;
+  /** Variant name (e.g., "S-Grey"). For display, prefer productRootName with selectedOptions. */
   name: string | null;
+  /** Root product name (e.g., "Premium V-Neck") */
+  productRootName: string;
+  /** Selected options for this variant (e.g., Color: Grey, Size: S) */
+  selectedOptions: SelectedOptionDto[];
   quantity: number;
   amount: number;
   originalAmount: number | null;
@@ -433,7 +444,12 @@ export interface OrderFulfillmentDto {
 export interface FulfillmentLineItemDto {
   id: string;
   sku: string | null;
+  /** Variant name (e.g., "S-Grey"). For display, prefer productRootName with selectedOptions. */
   name: string | null;
+  /** Root product name (e.g., "Premium V-Neck") */
+  productRootName: string;
+  /** Selected options for this variant (e.g., Color: Grey, Size: S) */
+  selectedOptions: SelectedOptionDto[];
   orderedQuantity: number;
   shippedQuantity: number;
   remainingQuantity: number;
@@ -472,7 +488,12 @@ export interface ShipmentLineItemDto {
   id: string;
   lineItemId: string;
   sku: string | null;
+  /** Variant name (e.g., "S-Grey"). For display, prefer productRootName with selectedOptions. */
   name: string | null;
+  /** Root product name (e.g., "Premium V-Neck") */
+  productRootName: string;
+  /** Selected options for this variant (e.g., Color: Grey, Size: S) */
+  selectedOptions: SelectedOptionDto[];
   quantity: number;
   imageUrl: string | null;
 }
@@ -575,7 +596,12 @@ export interface LineItemForEditDto {
   id: string;
   orderId: string;
   sku: string | null;
+  /** Variant name (e.g., "S-Grey"). For display, prefer productRootName with selectedOptions. */
   name: string | null;
+  /** Root product name (e.g., "Premium V-Neck") */
+  productRootName: string;
+  /** Selected options for this variant (e.g., Color: Grey, Size: S) */
+  selectedOptions: SelectedOptionDto[];
   productId: string | null;
   quantity: number;
   amount: number;

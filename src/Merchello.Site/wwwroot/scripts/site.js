@@ -507,23 +507,14 @@ document.addEventListener('alpine:init', () => {
         },
 
         get estimatedTotal() {
-            return this.hasShippingEstimate
-                ? this.displayTotal + this.displayEstimatedShipping
-                : this.displayTotal;
+            // Server calculates total (including shipping after fetchEstimatedShipping)
+            // Frontend just displays the server-calculated value - single source of truth
+            return this.displayTotal;
         },
 
         get formattedEstimatedTotal() {
-            if (!this.hasShippingEstimate) {
-                return this.formattedDisplayTotal;
-            }
-            // Format the already-converted display value (don't use formatPrice which applies conversion again)
-            const currency = Alpine.store('currency');
-            return new Intl.NumberFormat(undefined, {
-                style: 'currency',
-                currency: currency.code || 'GBP',
-                minimumFractionDigits: currency.decimals,
-                maximumFractionDigits: currency.decimals
-            }).format(this.estimatedTotal);
+            // Use server-formatted total directly
+            return this.formattedDisplayTotal;
         },
 
         // Methods
@@ -610,6 +601,12 @@ document.addEventListener('alpine:init', () => {
                     this.formattedDisplayEstimatedShipping = data.formattedDisplayEstimatedShipping || '';
                     this.shippingGroupCount = data.groupCount || 0;
                     this.hasShippingEstimate = data.success;
+                    // Update displayTotal with server-calculated total (includes shipping)
+                    // This ensures single source of truth - server calculates, frontend displays
+                    if (data.displayTotal) {
+                        this.displayTotal = data.displayTotal;
+                        this.formattedDisplayTotal = data.formattedDisplayTotal || '';
+                    }
                 } else {
                     this.hasShippingEstimate = false;
                 }

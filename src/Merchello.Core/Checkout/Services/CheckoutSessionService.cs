@@ -110,6 +110,14 @@ public class CheckoutSessionService(IHttpContextAccessor httpContextAccessor) : 
     }
 
     /// <inheritdoc />
+    public async Task SaveEmailAsync(Guid basketId, string email, CancellationToken ct = default)
+    {
+        var checkoutSession = await GetSessionAsync(basketId, ct);
+        checkoutSession.BillingAddress.Email = email;
+        SaveSession(basketId, checkoutSession);
+    }
+
+    /// <inheritdoc />
     public void SaveBasketToSession(Basket basket)
     {
         var session = GetHttpSession();

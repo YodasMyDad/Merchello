@@ -25,8 +25,19 @@
       @foreach (var item in allLineItems)
       {
         var itemTotal = item.Amount * item.Quantity;
+        var rootName = item.GetProductRootName();
+        var options = item.GetSelectedOptions();
         <tr style="border-bottom: 1px solid #ecedee;">
-          <td style="padding: 10px 0;">@(item.Name ?? item.Sku)</td>
+          <td style="padding: 10px 0;">
+            <div style="font-weight: 500;">@rootName</div>
+            @if (options.Count > 0)
+            {
+              <div style="font-size: 13px; color: #666;">
+                @options.FormatOptionsCommaSeparated()
+              </div>
+            }
+            <div style="font-size: 12px; color: #888;">SKU: @item.Sku</div>
+          </td>
           <td style="padding: 10px 0; text-align: center;">@item.Quantity</td>
           <td style="padding: 10px 0; text-align: right;">@currencySymbol@itemTotal.ToString("N2")</td>
         </tr>

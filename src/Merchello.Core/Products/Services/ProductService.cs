@@ -1699,6 +1699,8 @@ public class ProductService(
                     .ThenInclude(pr => pr!.TaxGroup);
             }
 
+            // Note: ProductOptions is a JSON column on ProductRoot, automatically loaded when ProductRoot is included
+
             if (parameters.IncludeProductWarehouses)
             {
                 query = query

@@ -65,14 +65,18 @@ else
                         <div class="flex items-center gap-4">
                             @if (!string.IsNullOrEmpty(item.ImageUrl))
                             {
-                                <img src="@item.ImageUrl" alt="@item.Name" class="w-12 h-12 object-cover rounded flex-shrink-0" />
+                                <img src="@item.ImageUrl" alt="@item.ProductRootName" class="w-12 h-12 object-cover rounded flex-shrink-0" />
                             }
                             else
                             {
                                 <div class="w-12 h-12 bg-gray-200 rounded flex-shrink-0"></div>
                             }
                             <div class="flex-1">
-                                <p class="text-sm font-medium text-gray-900">@item.Name</p>
+                                <p class="text-sm font-medium text-gray-900">@item.ProductRootName</p>
+                                @if (item.SelectedOptions.Count > 0)
+                                {
+                                    <p class="text-xs text-gray-500">@string.Join(", ", item.SelectedOptions.Select(o => $"{o.OptionName}: {o.ValueName}"))</p>
+                                }
                                 <p class="text-sm text-gray-500">Qty: @item.Quantity</p>
                             </div>
                             <p class="text-sm font-medium text-gray-900">@item.FormattedLineTotal</p>

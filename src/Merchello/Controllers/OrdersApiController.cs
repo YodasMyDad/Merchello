@@ -1,9 +1,11 @@
 using Asp.Versioning;
 using Merchello.Core;
 using Merchello.Core.Accounting.Dtos;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
+using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
@@ -702,6 +704,13 @@ public class OrdersApiController(
                 Id = li.Id,
                 Sku = li.Sku,
                 Name = li.Name,
+                ProductRootName = li.GetProductRootName(),
+                SelectedOptions = li.GetSelectedOptions()
+                    .Select(o => new SelectedOptionDto
+                    {
+                        OptionName = o.OptionName,
+                        ValueName = o.ValueName
+                    }).ToList(),
                 Quantity = li.Quantity,
                 Amount = li.Amount,
                 OriginalAmount = li.OriginalAmount,
@@ -1074,6 +1083,13 @@ public class OrdersApiController(
                 LineItemId = li.Id,
                 Sku = li.Sku,
                 Name = li.Name,
+                ProductRootName = li.GetProductRootName(),
+                SelectedOptions = li.GetSelectedOptions()
+                    .Select(o => new SelectedOptionDto
+                    {
+                        OptionName = o.OptionName,
+                        ValueName = o.ValueName
+                    }).ToList(),
                 Quantity = li.Quantity,
                 ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var imageUrl) ? imageUrl : null
             }).ToList() ?? []

@@ -9,6 +9,7 @@ public class GetProductParameters
     public bool IncludeProductWarehouses { get; set; } = false;
     public bool IncludeProductRootWarehouses { get; set; } = false;
     public bool IncludeShippingRestrictions { get; set; } = false;
+
     public bool NoTracking { get; set; } = true;
 }
 
