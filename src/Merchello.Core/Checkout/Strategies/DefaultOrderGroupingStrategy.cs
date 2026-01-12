@@ -258,9 +258,14 @@ public class DefaultOrderGroupingStrategy(
         else
         {
             // Check if there's a selected shipping option for this warehouse that this product supports
-            var warehouseSelectedOption = context.SelectedShippingOptions.GetValueOrDefault(warehouseId);
-            var productSupportsSelected = warehouseSelectedOption != Guid.Empty &&
-                allowedShippingOptions.Any(so => so.Id == warehouseSelectedOption);
+            // The frontend sends selections keyed by groupId (not warehouseId), so we need to:
+            // 1. Generate the expected groupId for this warehouse's available options
+            // 2. Look up the selection using that groupId
+            var allowedShippingOptionIds = allowedShippingOptions.Select(so => so.Id).OrderBy(id => id).ToList();
+            var expectedGroupId = GenerateDeterministicGroupId(warehouseId, allowedShippingOptionIds);
+            var groupSelectedOption = context.SelectedShippingOptions.GetValueOrDefault(expectedGroupId);
+            var productSupportsSelected = groupSelectedOption != Guid.Empty &&
+                allowedShippingOptions.Any(so => so.Id == groupSelectedOption);
 
             if (productSupportsSelected)
             {
@@ -268,17 +273,17 @@ public class DefaultOrderGroupingStrategy(
                 // This consolidates items once user has made shipping choice
                 group = orderGroups.FirstOrDefault(g =>
                     g.WarehouseId == warehouseId &&
-                    g.SelectedShippingOptionId == warehouseSelectedOption);
+                    g.SelectedShippingOptionId == groupSelectedOption);
 
                 if (group == null)
                 {
-                    var selectedOption = allowedShippingOptions.First(so => so.Id == warehouseSelectedOption);
+                    var selectedOption = allowedShippingOptions.First(so => so.Id == groupSelectedOption);
                     group = new OrderGroup
                     {
-                        GroupId = GenerateDeterministicGroupId(warehouseId, [warehouseSelectedOption]),
+                        GroupId = GenerateDeterministicGroupId(warehouseId, [groupSelectedOption]),
                         GroupName = $"Shipment from {warehouseName}",
                         WarehouseId = warehouseId,
-                        SelectedShippingOptionId = warehouseSelectedOption,
+                        SelectedShippingOptionId = groupSelectedOption,
                         AvailableShippingOptions = [new ShippingOptionInfo
                         {
                             ShippingOptionId = selectedOption.Id,
@@ -299,7 +304,7 @@ public class DefaultOrderGroupingStrategy(
             else
             {
                 // PRE-SELECTION: Group by warehouse + available options (for UI to show choices)
-                var allowedShippingOptionIds = allowedShippingOptions.Select(so => so.Id).OrderBy(id => id).ToList();
+                // allowedShippingOptionIds is already calculated above for the groupId lookup
 
                 group = orderGroups.FirstOrDefault(g =>
                     g.WarehouseId == warehouseId &&
