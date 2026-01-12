@@ -27,11 +27,12 @@ Key Shopify patterns to follow:
 
 ### Tech Stack
 - **.NET MVC** with Razor views in RCL
-- **Alpine.JS** (CDN) for frontend interactivity
+- **Alpine.JS** (ES module via importmap) for frontend interactivity with modular component architecture
 - **Tailwind CSS** for utility-first styling
 - **Penguin UI** components where applicable (forms, buttons, modals, accordions)
 - **ContentFinder** pattern for URL routing (like ProductContentFinder)
 - **Existing `IPaymentProvider` architecture** for all payment processing
+- **ES Modules** for JavaScript organization (no build step required)
 
 ### Payment Provider Architecture
 The checkout is **provider-agnostic** - it works with any enabled payment provider via the existing `IPaymentProvider` interface. Each provider declares multiple **payment methods**, and the checkout UI adapts based on each method's `IntegrationType`:
@@ -192,6 +193,205 @@ This is handled automatically by ASP.NET Core's StaticWebAssets middleware. When
 
 > **Note:** IDE warnings about "path not found" for `_content/` paths are false positives - these paths are resolved at runtime, not compile time.
 
+### Alpine.js Modular Architecture
+
+The checkout uses a modular Alpine.js architecture following enterprise patterns. This provides testability, maintainability, and clear separation of concerns.
+
+#### Module Structure
+
+```
+src/Merchello/wwwroot/js/checkout/
+├── index.js                    # Entry point - registers all Alpine components
+├── stores/
+│   └── checkout.store.js       # Alpine.store('checkout') for shared state
+├── services/
+│   ├── api.js                  # Centralized API calls with error handling
+│   └── validation.js           # Form validation rules
+├── utils/
+│   ├── debounce.js             # Debounce utility
+│   ├── formatters.js           # Currency/date formatting
+│   └── announcer.js            # Screen reader announcements
+├── components/
+│   ├── single-page-checkout.js # Main orchestrator component
+│   ├── contact-section.js      # Email, account creation/sign-in
+│   ├── address-form.js         # Reusable address form component
+│   ├── shipping-selector.js    # Shipping option selection
+│   ├── payment-selector.js     # Payment method selection
+│   ├── order-summary.js        # Order summary with discount handling
+│   └── express-checkout.js     # Express checkout buttons
+├── payment.js                  # Payment adapter system (already excellent)
+├── analytics.js                # Event emitter (already excellent)
+└── adapters/                   # Payment provider adapters (already excellent)
+```
+
+#### Alpine.js Loading Strategy
+
+Alpine is loaded as an ES module via importmap, giving us full control over initialization order:
+
+```html
+<!-- _Layout.cshtml -->
+<script type="importmap">
+{
+    "imports": {
+        "alpinejs": "https://cdn.jsdelivr.net/npm/alpinejs@3/dist/module.esm.js",
+        "@alpinejs/collapse": "https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3/dist/module.esm.js"
+    }
+}
+</script>
+<script type="module" src="/js/checkout/index.js"></script>
+```
+
+#### Component Registration Pattern
+
+Components are registered via `Alpine.data()` before `Alpine.start()` is called:
+
+```javascript
+// index.js - Entry point
+import Alpine from 'alpinejs';
+import collapse from '@alpinejs/collapse';
+import { initCheckoutStore } from './stores/checkout.store.js';
+import { initSinglePageCheckout } from './components/single-page-checkout.js';
+
+// Make Alpine globally available
+window.Alpine = Alpine;
+
+// Register plugins
+Alpine.plugin(collapse);
+
+// Initialize store and all components BEFORE Alpine processes the DOM
+initCheckoutStore(initialData);
+initSinglePageCheckout();
+// ... other components
+
+// Start Alpine - all components are now registered, no race conditions
+Alpine.start();
+```
+
+This approach eliminates timing issues between ES modules and CDN scripts - we control exactly when Alpine starts.
+
+#### Shared State via Alpine.store
+
+Cross-component state is managed via `Alpine.store('checkout')`:
+
+```javascript
+// stores/checkout.store.js
+Alpine.store('checkout', {
+    // Basket state (updated by multiple components)
+    basket: { total: 0, shipping: 0, tax: 0, subtotal: 0, discount: 0 },
+    currency: { code: 'GBP', symbol: '£' },
+
+    // Shared form state
+    email: '',
+    shippingSameAsBilling: true,
+
+    // Loading states
+    isSubmitting: false,
+
+    // Methods
+    updateBasket(data) { Object.assign(this.basket, data); },
+    announce(message) { /* screen reader */ }
+});
+```
+
+Components access the store via `this.$store.checkout`:
+
+```javascript
+// In any component
+get total() {
+    return this.$store.checkout?.basket?.total ?? 0;
+}
+```
+
+#### Centralized Services
+
+**API Service** (`services/api.js`) - All fetch calls in one place:
+
+```javascript
+export const checkoutApi = {
+    initialize: (data) => fetchJson(`${BASE_URL}/initialize`, { method: 'POST', body: JSON.stringify(data) }),
+    saveAddresses: (data) => fetchJson(`${BASE_URL}/addresses`, { method: 'POST', body: JSON.stringify(data) }),
+    saveShipping: (data) => fetchJson(`${BASE_URL}/shipping`, { method: 'POST', body: JSON.stringify(data) }),
+    getRegions: (type, code) => fetchJson(`${BASE_URL}/${type}/regions/${code}`),
+    applyDiscount: (code) => fetchJson(`${BASE_URL}/discount/apply`, { method: 'POST', body: JSON.stringify({ code }) }),
+    // ... etc
+};
+```
+
+**Validation Service** (`services/validation.js`) - Form validation rules:
+
+```javascript
+export function validateEmail(email) { /* ... */ }
+export function validateAddress(fields, prefix) { /* ... */ }
+export function validateField(fieldName, value) { /* ... */ }
+```
+
+#### JSDoc Typing
+
+The codebase uses JavaScript with JSDoc types for IDE intellisense without requiring a compile step:
+
+```javascript
+// @ts-check
+/**
+ * @typedef {Object} BasketTotals
+ * @property {number} total
+ * @property {number} shipping
+ * @property {number} tax
+ */
+
+/**
+ * Initialize checkout and calculate shipping
+ * @param {Object} data
+ * @param {string} data.countryCode
+ * @returns {Promise<{success: boolean, basket?: BasketTotals}>}
+ */
+export async function initialize(data) {
+    return fetchJson(`${BASE_URL}/initialize`, { method: 'POST', body: JSON.stringify(data) });
+}
+```
+
+#### Initial Data from Server
+
+Server-side data is passed to Alpine components via a JSON script block:
+
+```html
+<!-- In SinglePage.cshtml -->
+<script id="checkout-initial-data" type="application/json">
+@Html.Raw(JsonSerializer.Serialize(new {
+    basket = new { total = basket?.Total ?? 0, shipping = basket?.Shipping ?? 0 },
+    currency = new { code = "GBP", symbol = "£" },
+    email = basket?.BillingAddress?.Email ?? "",
+    billing = new { /* ... */ },
+    shipping = new { /* ... */ },
+    shippingGroups = Model.ShippingGroups?.Select(/* ... */)
+}))
+</script>
+
+<div x-data="singlePageCheckout">
+```
+
+The `index.js` entry point reads this data and passes it to the store:
+
+```javascript
+const initialDataElement = document.getElementById('checkout-initial-data');
+let initialData = {};
+if (initialDataElement) {
+    initialData = JSON.parse(initialDataElement.textContent || '{}');
+}
+initCheckoutStore(initialData);
+```
+
+#### Benefits of This Architecture
+
+| Aspect | Before (Inline) | After (Modular) |
+|--------|-----------------|-----------------|
+| **Testability** | Cannot unit test inline scripts | Pure functions can be tested |
+| **Reusability** | Address form duplicated conceptually | `addressForm` component reused for billing/shipping |
+| **Maintainability** | 910-line function | 7 focused modules (~100-150 lines each) |
+| **State Management** | Custom DOM events | Alpine.store() pattern |
+| **API Calls** | Scattered throughout | Centralized in `api.js` |
+| **Validation** | Mixed with UI logic | Separate `validation.js` |
+| **TypeScript Ready** | No | Can add `.d.ts` types |
+
 ### Basket Data for Checkout
 
 When entering checkout, the following data is available from the basket system.
@@ -277,6 +477,161 @@ ICheckoutService.GetBasket()
 ```
 
 The `ICheckoutService.CalculateBasketAsync()` method recalculates totals, applies tax, and fetches shipping quotes based on the destination address.
+
+### Checkout Initialization & Calculation Flow
+
+Understanding this flow is critical for debugging checkout bugs, especially around shipping and totals.
+
+#### Initialization Flow (`InitializeCheckoutAsync`)
+
+When checkout loads, shipping is **estimated from quotes** (not passed from basket):
+
+```
+1. User enters checkout with basket (basket.Shipping = 0)
+2. InitializeCheckoutAsync called with country/state
+3. First CalculateBasketAsync - estimates shipping from quotes
+4. GetOrderGroupsAsync - creates warehouse groups with shipping options
+5. ShippingAutoSelector - auto-selects cheapest option per group
+6. Second CalculateBasketAsync with ShippingAmountOverride = selected amount
+7. RefreshAutomaticDiscountsAsync - checks free shipping thresholds, etc.
+8. Basket saved to DB with correct totals
+```
+
+#### Shipping Selection Flow (`SaveShippingSelectionsAsync`)
+
+When user changes shipping option:
+
+```
+1. User selects shipping option(s) in UI
+2. POST /api/merchello/checkout/shipping with selections
+3. SaveShippingSelectionsAsync called
+4. Calculates totalShipping from selected options
+5. CalculateBasketAsync with ShippingAmountOverride = totalShipping
+6. RefreshAutomaticDiscountsAsync called (may affect free shipping)
+7. Basket saved with updated totals
+```
+
+#### Key Service Methods
+
+| Method | Purpose | Critical Notes |
+|--------|---------|----------------|
+| `CalculateBasketAsync` | Recalculates all totals | Pass `ShippingAmountOverride` when you have a known shipping amount |
+| `RefreshAutomaticDiscountsAsync` | Checks/applies automatic discounts | **Internally calls `CalculateBasketAsync`** - must preserve shipping |
+| `GetOrderGroupsAsync` | Gets warehouse groups with shipping options | Uses session's `SelectedShippingOptions` |
+
+#### Shipping Amount Resolution (`CalculateBasketAsync`)
+
+The shipping cost is determined in this priority order (CheckoutService.cs:302-309):
+
+```csharp
+var shippingCost = parameters.ShippingAmountOverride      // 1. Explicit override
+    ?? (basket.Shipping > 0                               // 2. Existing basket value
+        ? basket.Shipping
+        : shippingQuotes.Sum(...));                       // 3. Cheapest from quotes
+```
+
+**Important**: `CalculateBasketAsync` always fetches fresh shipping quotes. If quotes fail or return different values, the fallback to `basket.Shipping` should preserve the value - but this can fail if `basket.Shipping` hasn't been set yet.
+
+#### Common Bug Pattern: Lost Shipping
+
+**The Bug**: Total = Subtotal + Tax (shipping not included)
+
+**Root Cause**: `RefreshAutomaticDiscountsAsync` calls `CalculateBasketAsync` internally **without** `ShippingAmountOverride`. If the shipping quotes fail or return empty, and `basket.Shipping` check fails, shipping becomes 0.
+
+**Prevention**: When calling `RefreshAutomaticDiscountsAsync`, ensure `basket.Shipping` is already set from a previous calculation. The internal `CalculateBasketAsync` should use the existing `basket.Shipping` as fallback.
+
+**Fix Pattern**: If you're calling `CalculateBasketAsync` after shipping has been selected, always pass `ShippingAmountOverride = basket.Shipping` to explicitly preserve it:
+
+```csharp
+// SAFE: Preserves existing shipping
+await CalculateBasketAsync(new CalculateBasketParameters
+{
+    Basket = basket,
+    CountryCode = countryCode,
+    ShippingAmountOverride = basket.Shipping
+}, ct);
+```
+
+#### Session vs Basket Shipping Storage
+
+Shipping is stored in two places:
+
+| Storage | What's Stored | Persistence |
+|---------|--------------|-------------|
+| `CheckoutSession.SelectedShippingOptions` | GroupId → ShippingOptionId mapping | HTTP Session (volatile) |
+| `basket.Shipping` | Calculated decimal amount | Database |
+
+The session holds the **selection** (which option was chosen), while the basket holds the **calculated amount**. When recalculating, the system can either:
+1. Look up selections from session and recalculate shipping
+2. Use existing `basket.Shipping` value
+
+#### Debug Checklist
+
+When debugging checkout total issues:
+
+1. **Check `basket.Shipping`** - Is it 0 or the expected value?
+2. **Check shipping quotes** - Are quotes being returned? Any errors?
+3. **Trace `CalculateBasketAsync` calls** - Is `ShippingAmountOverride` passed?
+4. **Check `RefreshAutomaticDiscountsAsync`** - Does it reset shipping?
+5. **Check session** - Is `SelectedShippingOptions` populated?
+
+### Item Availability Errors (Shipping Region Restrictions)
+
+When a user changes their shipping destination (billing country with "shipping same as billing" checked), the system checks if products can ship to the new location via warehouse service regions.
+
+#### Error Sources
+
+Shipping errors come from two places and are unified in `basket.Errors`:
+
+| Source | When | Error Type |
+|--------|------|------------|
+| `ShippingQuoteService.GetQuotesAsync()` | Missing product refs, unresolved products | Added directly to `basket.Errors` |
+| `DefaultOrderGroupingStrategy.GroupItemsAsync()` | Warehouse can't serve region, insufficient stock | Added via `InitializeCheckoutAsync()` |
+
+#### Error Flow
+
+```
+1. User changes billing country (with shipping same as billing)
+2. Frontend calls: POST /api/merchello/checkout/initialize
+3. Backend: InitializeCheckoutAsync()
+   a. CalculateBasketAsync() → adds quote errors to basket.Errors
+   b. GetOrderGroupsAsync() → returns grouping errors
+   c. Grouping errors copied to basket.Errors (IsShippingError = true)
+4. API returns: { success: true/false, basket: { errors: [...] } }
+5. Frontend checks: data.basket.errors.filter(e => e.isShippingError)
+6. UI displays: "Some items cannot be shipped to this location" with item list
+```
+
+#### Partial vs Complete Failure
+
+| Scenario | `Success` | `Groups.Count` | Behavior |
+|----------|-----------|----------------|----------|
+| All items ship | `true` | > 0 | Normal checkout flow |
+| Some items can't ship | `false` | > 0 | Shows shipping options + item errors |
+| No items can ship | `false` | 0 | Shows only item errors, blocks checkout |
+
+#### Frontend Error Display
+
+The `SinglePage.cshtml` displays item-level errors in both success and failure responses:
+
+```javascript
+// Success case: partial failure (some items ship, some don't)
+if (data.basket.errors && data.basket.errors.length > 0) {
+    this.itemAvailabilityErrors = data.basket.errors.filter(e => e.isShippingError);
+    this.allItemsShippable = this.itemAvailabilityErrors.length === 0;
+}
+
+// Failure case: complete failure (no items can ship)
+// Same check applied - basket included in error response
+```
+
+#### Debug Checklist for Item Availability
+
+1. **Check warehouse service regions** - Does the warehouse have `ServiceRegions` configured for the destination country/state?
+2. **Check `basket.Errors`** - Are errors with `IsShippingError = true` being returned?
+3. **Check `OrderGroupingResult.Errors`** - What's the failure reason from `SelectWarehouseForProduct()`?
+4. **Check API response** - Is `basket` included in both success AND error responses?
+5. **Check frontend** - Is `itemAvailabilityErrors` populated? Is `allItemsShippable` correct?
 
 ### Discount System Integration
 The checkout integrates with the existing discount system (`@docs/Discounts.md`):
@@ -1123,6 +1478,7 @@ src/Merchello/
 │   ├── _ExpressCheckout.cshtml     # Express checkout buttons (Phase 9)
 │   ├── Information.cshtml
 │   ├── Shipping.cshtml
+│   ├── SinglePage.cshtml           # Single-page checkout (uses modular Alpine.js)
 │   ├── Payment.cshtml              # Method-agnostic, adapts to method IntegrationType
 │   ├── Confirmation.cshtml
 │   ├── Return.cshtml               # Payment return/callback handler
@@ -1133,9 +1489,27 @@ src/Merchello/
 └── wwwroot/
     ├── css/checkout.css           # Generated Tailwind output - do not edit
     └── js/checkout/
-        ├── checkout.js
+        ├── index.js                # Entry point - registers all Alpine components
+        ├── stores/
+        │   └── checkout.store.js   # Alpine.store('checkout') for shared state
+        ├── services/
+        │   ├── api.js              # Centralized API calls with error handling
+        │   └── validation.js       # Form validation rules
+        ├── utils/
+        │   ├── debounce.js         # Debounce utility
+        │   ├── formatters.js       # Currency/date formatting
+        │   └── announcer.js        # Screen reader announcements
+        ├── components/
+        │   ├── single-page-checkout.js  # Main orchestrator component
+        │   ├── contact-section.js       # Email, account creation/sign-in
+        │   ├── address-form.js          # Reusable address form component
+        │   ├── shipping-selector.js     # Shipping option selection
+        │   ├── payment-selector.js      # Payment method selection
+        │   ├── order-summary.js         # Order summary with discount handling
+        │   └── express-checkout.js      # Express checkout buttons
         ├── analytics.js            # Event emitter + helper methods (Phase 10)
         ├── payment.js              # Dynamic adapter loading - no hard-coded providers
+        ├── single-page-analytics.js # Analytics helper for single-page checkout
         └── adapters/               # Provider-specific adapters
             ├── stripe-payment-adapter.js
             ├── stripe-express-adapter.js

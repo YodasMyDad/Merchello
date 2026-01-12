@@ -1103,7 +1103,12 @@ public class CheckoutService(
             });
         }
 
-        await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
+        await CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = countryCode,
+            ShippingAmountOverride = basket.Shipping  // Preserve existing shipping amount
+        }, cancellationToken);
         basket.DateUpdated = DateTime.UtcNow;
 
         return basket;
@@ -1712,13 +1717,25 @@ public class CheckoutService(
         // Get order groups with shipping options
         var groupingResult = await GetOrderGroupsAsync(basket, session, cancellationToken);
 
-        if (!groupingResult.Success)
+        // Add any grouping errors to basket.Errors so frontend can display item-level shipping errors
+        // (e.g., "Product X cannot be shipped to Country Y")
+        foreach (var error in groupingResult.Errors)
+        {
+            basket.Errors.Add(new BasketError
+            {
+                Message = error,
+                IsShippingError = true
+            });
+        }
+
+        // If there are no valid shipping groups at all (complete failure), add to result messages
+        // but continue processing to return the basket with errors for the frontend
+        if (!groupingResult.Success && groupingResult.Groups.Count == 0)
         {
             foreach (var error in groupingResult.Errors)
             {
                 result.Messages.Add(new ResultMessage { Message = error, ResultMessageType = ResultMessageType.Error });
             }
-            return result;
         }
 
         // Auto-select cheapest shipping if requested

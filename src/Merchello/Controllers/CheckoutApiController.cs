@@ -279,10 +279,15 @@ public class CheckoutApiController(
                 .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
                 ?? "Failed to initialize checkout.";
 
+            // Include basket in error response so frontend can display item-level shipping errors
+            // The basket.Errors collection contains specific messages like "Product X cannot ship to Country Y"
+            var errorResult = result.ResultObject;
+
             return Ok(new InitializeCheckoutResponseDto
             {
                 Success = false,
                 Message = errorMessage,
+                Basket = errorResult?.Basket != null ? MapBasketToDto(errorResult.Basket) : null,
                 Errors = result.Messages
                     .Where(m => m.ResultMessageType == ResultMessageType.Error)
                     .Select((m, i) => new { Key = $"error{i}", Value = m.Message ?? "Unknown error" })
