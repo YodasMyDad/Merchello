@@ -56,12 +56,25 @@ public class ShippingOptionService(
                 .ToListAsync(ct));
         scope.Complete();
 
-        // Resolve provider display names
+        // Resolve provider display names and capabilities
         var providers = await providerManager.GetProvidersAsync(ct);
-        var providerLookup = providers.ToDictionary(p => p.Metadata.Key, p => p.Metadata.DisplayName);
+        var providerLookup = providers.ToDictionary(
+            p => p.Metadata.Key,
+            p => (p.Metadata.DisplayName, p.Metadata.ConfigCapabilities.UsesLiveRates),
+            StringComparer.OrdinalIgnoreCase);
+
         foreach (var option in options)
         {
-            option.ProviderDisplayName = providerLookup.GetValueOrDefault(option.ProviderKey, option.ProviderKey);
+            if (providerLookup.TryGetValue(option.ProviderKey, out var providerInfo))
+            {
+                option.ProviderDisplayName = providerInfo.DisplayName;
+                option.UsesLiveRates = providerInfo.UsesLiveRates;
+            }
+            else
+            {
+                option.ProviderDisplayName = option.ProviderKey;
+                option.UsesLiveRates = false;
+            }
         }
 
         return options;

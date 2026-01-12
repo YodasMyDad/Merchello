@@ -182,18 +182,26 @@ export interface CheckoutFormFieldDto {
 // Checkout Preview Types
 // ============================================
 
-/** Payment method type for deduplication */
-export enum PaymentMethodType {
-  Cards = 0,
-  ApplePay = 10,
-  GooglePay = 20,
-  PayPal = 30,
-  Link = 40,
-  BuyNowPayLater = 50,
-  BankTransfer = 60,
-  Manual = 100,
-  Custom = 999,
-}
+/**
+ * Well-known payment method type constants for deduplication.
+ * When multiple providers offer the same method type, only one is shown at checkout.
+ * Third-party providers can use any string value - only matching types are deduplicated.
+ */
+export const PaymentMethodTypes = {
+  Cards: "cards",
+  ApplePay: "apple-pay",
+  GooglePay: "google-pay",
+  AmazonPay: "amazon-pay",
+  PayPal: "paypal",
+  Link: "link",
+  BuyNowPayLater: "bnpl",
+  BankTransfer: "bank-transfer",
+  Venmo: "venmo",
+  Manual: "manual",
+} as const;
+
+/** Type for well-known payment method types */
+export type PaymentMethodType = (typeof PaymentMethodTypes)[keyof typeof PaymentMethodTypes] | string | null;
 
 /** Preview of payment methods as they will appear at checkout */
 export interface CheckoutPaymentPreviewDto {

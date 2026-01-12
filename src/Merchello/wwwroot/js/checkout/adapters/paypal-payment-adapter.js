@@ -60,33 +60,36 @@
                             return config.orderId;
                         }
 
-                        // Otherwise create order on server
+                        // Otherwise create order on server using the generic widget endpoint
+                        const providerAlias = session.providerAlias || 'paypal';
                         try {
-                            const response = await MerchelloPayment.fetchWithTimeout('/api/merchello/checkout/paypal/create-order', {
+                            const response = await MerchelloPayment.fetchWithTimeout(`/api/merchello/checkout/${providerAlias}/create-order`, {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json'
                                 },
                                 body: JSON.stringify({
-                                    sessionId: session.sessionId
+                                    sessionId: session.sessionId,
+                                    methodAlias: session.methodAlias
                                 })
                             });
 
                             const result = await response.json();
                             if (!result.success) {
-                                throw new Error(result.errorMessage || 'Failed to create PayPal order');
+                                throw new Error(result.errorMessage || 'Failed to create order');
                             }
                             return result.orderId;
                         } catch (error) {
-                            console.error('Error creating PayPal order:', error);
+                            console.error('Error creating order:', error);
                             throw error;
                         }
                     },
 
                     // Capture order after approval
                     onApprove: async function(data, actions) {
+                        const providerAlias = session.providerAlias || 'paypal';
                         try {
-                            const response = await MerchelloPayment.fetchWithTimeout('/api/merchello/checkout/paypal/capture-order', {
+                            const response = await MerchelloPayment.fetchWithTimeout(`/api/merchello/checkout/${providerAlias}/capture-order`, {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json'

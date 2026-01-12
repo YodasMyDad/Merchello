@@ -63,6 +63,21 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
     /// </summary>
     private const string LinkIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24" rx="4" fill="#00D66F"/><path d="M13.5 8.5a3 3 0 0 1 0 4.24l-1.42 1.42a3 3 0 0 1-4.24-4.24l.7-.7" stroke="white" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 15.5a3 3 0 0 1 0-4.24l1.42-1.42a3 3 0 0 1 4.24 4.24l-.7.7" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>""";
 
+    /// <summary>
+    /// SVG icon for Amazon Pay (Amazon smile logo).
+    /// </summary>
+    private const string AmazonPayIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M13.958 10.09c0 1.232.029 2.256-.591 3.351-.502.891-1.301 1.438-2.186 1.438-1.214 0-1.922-.924-1.922-2.292 0-2.692 2.415-3.182 4.7-3.182v.685zm3.186 7.705a.657.657 0 01-.745.074c-1.047-.87-1.235-1.272-1.812-2.101-1.729 1.764-2.953 2.29-5.191 2.29-2.652 0-4.714-1.636-4.714-4.91 0-2.558 1.386-4.297 3.358-5.148 1.71-.752 4.099-.886 5.922-1.094v-.41c0-.752.058-1.643-.383-2.294-.385-.578-1.124-.816-1.774-.816-1.205 0-2.277.618-2.539 1.897-.054.283-.263.562-.551.576l-3.083-.333c-.26-.057-.548-.266-.473-.66C5.89 1.96 8.585.75 11.021.75c1.246 0 2.876.331 3.858 1.275 1.247 1.163 1.127 2.713 1.127 4.404v3.989c0 1.199.498 1.726.966 2.374.164.232.201.51-.009.681-.525.436-1.456 1.249-1.968 1.704l-.15.118z" fill="#FF9900"/><path d="M21.533 18.504c-2.055 1.544-5.034 2.367-7.598 2.367-3.595 0-6.835-1.33-9.282-3.547-.193-.174-.021-.413.21-.277 2.643 1.54 5.913 2.465 9.289 2.465 2.279 0 4.782-.472 7.088-1.452.347-.147.64.229.293.444z" fill="#FF9900"/><path d="M22.375 17.541c-.262-.338-1.74-.159-2.403-.08-.201.024-.232-.152-.051-.28 1.176-.828 3.106-.589 3.332-.312.227.279-.059 2.21-1.162 3.131-.17.142-.332.066-.256-.12.249-.618.805-2.001.54-2.339z" fill="#FF9900"/></svg>""";
+
+    /// <summary>
+    /// SVG icon for PayPal (PayPal logo).
+    /// </summary>
+    private const string PayPalIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7.076 21.337H2.47a.641.641 0 01-.633-.74L4.944 3.217a.775.775 0 01.765-.645h6.23c2.072 0 3.56.505 4.42 1.502.812.94 1.086 2.294.815 4.026l-.02.123v.635l.468.265c.399.214.717.468.96.762.39.477.633 1.085.722 1.803.092.735.034 1.607-.172 2.595-.238 1.14-.622 2.13-1.142 2.94-.48.75-1.068 1.37-1.749 1.845-.65.455-1.413.8-2.27 1.023-.833.218-1.772.33-2.79.33H9.75a.96.96 0 00-.946.8l-.026.149-.413 2.62-.021.106a.96.96 0 01-.948.8H7.076z" fill="#253B80"/><path d="M18.27 7.555c-.012.078-.026.158-.043.239-.553 2.838-2.446 3.82-4.865 3.82h-1.23a.598.598 0 00-.59.507l-.628 3.985-.178 1.128a.313.313 0 00.31.363h2.171c.26 0 .48-.19.52-.447l.02-.114.413-2.617.027-.144a.524.524 0 01.517-.447h.326c2.108 0 3.758-.857 4.24-3.336.201-1.035.337-1.946.273-2.624-.087-.93-.512-1.522-1.283-1.913z" fill="#179BD7"/><path d="M17.315 7.173a4.488 4.488 0 00-.562-.124 7.165 7.165 0 00-1.136-.083h-3.445a.521.521 0 00-.516.447l-.733 4.648-.021.136a.598.598 0 01.59-.507h1.23c2.42 0 4.313-.982 4.866-3.82.016-.084.03-.166.042-.247a2.856 2.856 0 00-.315-.45z" fill="#222D65"/><path d="M8.003 7.413a.521.521 0 01.516-.447h3.445c.408 0 .79.027 1.136.083.195.032.384.073.562.124.18.052.349.112.506.181.195-1.244.323-2.742-.147-3.678-.518-1.032-1.698-1.466-3.569-1.466H4.22a.601.601 0 00-.593.507L.543 20.055a.361.361 0 00.357.418h2.6l.653-4.141.733-4.648 1.117-7.07z" fill="#253B80"/></svg>""";
+
+    /// <summary>
+    /// SVG icon for Klarna (Klarna logo - pink badge).
+    /// </summary>
+    private const string KlarnaIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24" rx="4" fill="#FFB3C7"/><path d="M6.5 7h1.875c0 1.522-.655 2.916-1.736 3.893L9.5 15H7.25l-2.25-3.25V15H3.5V7h1.5v3.25C5.5 9.25 6.5 8.25 6.5 7zm5.75 0h1.5v8h-1.5V7zm3 6.5a1 1 0 112 0 1 1 0 01-2 0zM17.5 7h1.5v8h-1.5V7z" fill="#0A0B09"/></svg>""";
+
     /// <inheritdoc />
     public override PaymentProviderMetadata Metadata => new()
     {
@@ -165,7 +180,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             IntegrationType = PaymentIntegrationType.Redirect,
             IsExpressCheckout = false,
             DefaultSortOrder = 20,
-            MethodType = PaymentMethodType.Cards
+            MethodType = PaymentMethodTypes.Cards
         },
         new PaymentMethodDefinition
         {
@@ -177,7 +192,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             IntegrationType = PaymentIntegrationType.HostedFields,
             IsExpressCheckout = false,
             DefaultSortOrder = 10,
-            MethodType = PaymentMethodType.Cards
+            MethodType = PaymentMethodTypes.Cards
         },
         new PaymentMethodDefinition
         {
@@ -189,7 +204,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             IntegrationType = PaymentIntegrationType.HostedFields,
             IsExpressCheckout = false,
             DefaultSortOrder = 15,
-            MethodType = PaymentMethodType.Cards
+            MethodType = PaymentMethodTypes.Cards
         },
         new PaymentMethodDefinition
         {
@@ -201,7 +216,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 0,
-            MethodType = PaymentMethodType.ApplePay
+            MethodType = PaymentMethodTypes.ApplePay
         },
         new PaymentMethodDefinition
         {
@@ -213,7 +228,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 1,
-            MethodType = PaymentMethodType.GooglePay
+            MethodType = PaymentMethodTypes.GooglePay
         },
         new PaymentMethodDefinition
         {
@@ -225,7 +240,43 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 2,
-            MethodType = PaymentMethodType.Link
+            MethodType = PaymentMethodTypes.Link
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "amazonpay",
+            DisplayName = "Amazon Pay",
+            Icon = "icon-amazon",
+            IconHtml = AmazonPayIconSvg,
+            Description = "Fast, secure checkout with your Amazon account.",
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = true,
+            DefaultSortOrder = 3,
+            MethodType = PaymentMethodTypes.AmazonPay
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "paypal",
+            DisplayName = "PayPal",
+            Icon = "icon-paypal",
+            IconHtml = PayPalIconSvg,
+            Description = "Pay securely with your PayPal account.",
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = true,
+            DefaultSortOrder = 4,
+            MethodType = PaymentMethodTypes.PayPal
+        },
+        new PaymentMethodDefinition
+        {
+            Alias = "klarna",
+            DisplayName = "Klarna",
+            Icon = "icon-klarna",
+            IconHtml = KlarnaIconSvg,
+            Description = "Buy now, pay later with Klarna.",
+            IntegrationType = PaymentIntegrationType.Widget,
+            IsExpressCheckout = true,
+            DefaultSortOrder = 5,
+            MethodType = PaymentMethodTypes.BuyNowPayLater
         }
     ];
 
@@ -311,7 +362,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             "cards" => await CreateStripeCheckoutSessionAsync(request, cancellationToken),
             "cards-elements" => await CreatePaymentIntentSessionAsync(request, cancellationToken),
             "cards-hosted" => await CreateCardElementsSessionAsync(request, cancellationToken),
-            "applepay" or "googlepay" or "link" => await CreateExpressCheckoutSessionAsync(request, cancellationToken),
+            "applepay" or "googlepay" or "link" or "amazonpay" or "paypal" or "klarna" => await CreateExpressCheckoutSessionAsync(request, cancellationToken),
             _ => await CreatePaymentIntentSessionAsync(request, cancellationToken) // Default to Payment Element
         };
     }
@@ -628,16 +679,22 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             "applepay" => "applePay",
             "googlepay" => "googlePay",
             "link" => "link",
+            "amazonpay" => "amazon_pay",
+            "paypal" => "paypal",
+            "klarna" => "klarna",
             _ => null
         };
 
         // Get method type for frontend
         var methodType = methodAlias.ToLowerInvariant() switch
         {
-            "applepay" => PaymentMethodType.ApplePay,
-            "googlepay" => PaymentMethodType.GooglePay,
-            "link" => PaymentMethodType.Link,
-            _ => (PaymentMethodType?)null
+            "applepay" => PaymentMethodTypes.ApplePay,
+            "googlepay" => PaymentMethodTypes.GooglePay,
+            "link" => PaymentMethodTypes.Link,
+            "amazonpay" => PaymentMethodTypes.AmazonPay,
+            "paypal" => PaymentMethodTypes.PayPal,
+            "klarna" => PaymentMethodTypes.BuyNowPayLater,
+            _ => (string?)null
         };
 
         var config = new ExpressCheckoutClientConfig

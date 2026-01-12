@@ -715,7 +715,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
   private _renderOptionsTab(): unknown {
     const isNew = this.#workspaceContext?.isNew ?? true;
-    const hasLiveRateOptions = this._shippingOptions.some(o => o.providerKey !== "flat-rate");
+    const hasLiveRateOptions = this._shippingOptions.some(o => o.usesLiveRates);
 
     return html`
       <div class="tab-content">
@@ -798,7 +798,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
   private _renderOptionRow(option: ShippingOptionDto): unknown {
     const isDeleting = this._isDeletingOption === option.id;
-    const isLiveRates = option.providerKey !== "flat-rate";
+    const isLiveRates = option.usesLiveRates;
 
     // Build delivery time description from daysFrom/daysTo
     const deliveryTime = option.isNextDay

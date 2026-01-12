@@ -1,9 +1,10 @@
 namespace Merchello.Core.Payments.Dtos;
 
 /// <summary>
-/// Response from creating a PayPal order.
+/// Response from creating a widget order.
+/// Used by providers implementing the create-order/capture pattern.
 /// </summary>
-public class CreatePayPalOrderResultDto
+public class CreateWidgetOrderResultDto
 {
     /// <summary>
     /// Whether the order was created successfully.
@@ -11,7 +12,7 @@ public class CreatePayPalOrderResultDto
     public bool Success { get; set; }
 
     /// <summary>
-    /// The PayPal order ID to return to the PayPal SDK.
+    /// The provider-specific order ID to return to the SDK.
     /// </summary>
     public string? OrderId { get; set; }
 
@@ -25,4 +26,12 @@ public class CreatePayPalOrderResultDto
     /// Populated when Success is false.
     /// </summary>
     public string? CorrelationId { get; set; }
+}
+
+/// <summary>
+/// Response from creating a PayPal order.
+/// </summary>
+[Obsolete("Use CreateWidgetOrderResultDto instead. This will be removed in a future version.")]
+public class CreatePayPalOrderResultDto : CreateWidgetOrderResultDto
+{
 }

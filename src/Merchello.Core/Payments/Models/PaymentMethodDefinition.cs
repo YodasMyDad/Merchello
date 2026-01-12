@@ -57,13 +57,18 @@ public class PaymentMethodDefinition
     public bool ShowInCheckoutByDefault { get; init; } = true;
 
     /// <summary>
-    /// The type/category of this payment method (e.g., Cards, ApplePay, GooglePay).
-    /// Used for deduplication when multiple providers offer the same method type.
+    /// The type/category of this payment method for deduplication.
+    /// Use constants from <see cref="PaymentMethodTypes"/> (e.g., "cards", "apple-pay", "google-pay").
     /// Methods with the same MethodType are deduplicated at checkout - only the one
     /// with the lowest SortOrder from an enabled provider is shown.
-    /// Null or Custom types are not deduplicated.
+    /// Null or unique values are not deduplicated.
     /// </summary>
-    public PaymentMethodType? MethodType { get; init; }
+    /// <example>
+    /// <code>
+    /// MethodType = PaymentMethodTypes.ApplePay
+    /// </code>
+    /// </example>
+    public string? MethodType { get; init; }
 
     /// <summary>
     /// Regions/countries where this payment method is available.

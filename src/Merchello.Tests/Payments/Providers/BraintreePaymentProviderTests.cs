@@ -239,7 +239,7 @@ public class BraintreePaymentProviderTests
         cardsMethod.ShouldNotBeNull();
         cardsMethod!.IntegrationType.ShouldBe(PaymentIntegrationType.HostedFields);
         cardsMethod.IsExpressCheckout.ShouldBeFalse();
-        cardsMethod.MethodType.ShouldBe(PaymentMethodType.Cards);
+        cardsMethod.MethodType.ShouldBe(PaymentMethodTypes.Cards);
     }
 
     [Fact]
@@ -253,21 +253,21 @@ public class BraintreePaymentProviderTests
         paypal.ShouldNotBeNull();
         paypal!.IntegrationType.ShouldBe(PaymentIntegrationType.Widget);
         paypal.IsExpressCheckout.ShouldBeTrue();
-        paypal.MethodType.ShouldBe(PaymentMethodType.PayPal);
+        paypal.MethodType.ShouldBe(PaymentMethodTypes.PayPal);
 
         // Assert - Apple Pay uses Widget and is express checkout
         var applePay = methods.FirstOrDefault(m => m.Alias == "applepay");
         applePay.ShouldNotBeNull();
         applePay!.IntegrationType.ShouldBe(PaymentIntegrationType.Widget);
         applePay.IsExpressCheckout.ShouldBeTrue();
-        applePay.MethodType.ShouldBe(PaymentMethodType.ApplePay);
+        applePay.MethodType.ShouldBe(PaymentMethodTypes.ApplePay);
 
         // Assert - Google Pay uses Widget and is express checkout
         var googlePay = methods.FirstOrDefault(m => m.Alias == "googlepay");
         googlePay.ShouldNotBeNull();
         googlePay!.IntegrationType.ShouldBe(PaymentIntegrationType.Widget);
         googlePay.IsExpressCheckout.ShouldBeTrue();
-        googlePay.MethodType.ShouldBe(PaymentMethodType.GooglePay);
+        googlePay.MethodType.ShouldBe(PaymentMethodTypes.GooglePay);
     }
 
     [Theory]

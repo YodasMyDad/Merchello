@@ -1,13 +1,13 @@
 namespace Merchello.Core.Payments.Dtos;
 
 /// <summary>
-/// Request to capture an approved PayPal order.
-/// Called after the user approves payment in the PayPal popup.
+/// Request to capture an approved widget order.
+/// Called after the user approves payment in the provider's UI (e.g., PayPal popup, Klarna modal).
 /// </summary>
-public class CapturePayPalOrderDto
+public class CaptureWidgetOrderDto
 {
     /// <summary>
-    /// The PayPal order ID that was approved.
+    /// The provider-specific order ID that was approved.
     /// </summary>
     public required string OrderId { get; set; }
 
@@ -21,4 +21,13 @@ public class CapturePayPalOrderDto
     /// Required for capturing the payment.
     /// </summary>
     public Guid? InvoiceId { get; set; }
+}
+
+/// <summary>
+/// Request to capture an approved PayPal order.
+/// Called after the user approves payment in the PayPal popup.
+/// </summary>
+[Obsolete("Use CaptureWidgetOrderDto instead. This will be removed in a future version.")]
+public class CapturePayPalOrderDto : CaptureWidgetOrderDto
+{
 }

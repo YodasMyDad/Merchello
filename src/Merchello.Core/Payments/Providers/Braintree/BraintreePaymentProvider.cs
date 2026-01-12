@@ -222,7 +222,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             IntegrationType = PaymentIntegrationType.HostedFields,
             IsExpressCheckout = false,
             DefaultSortOrder = 10,
-            MethodType = PaymentMethodType.Cards
+            MethodType = PaymentMethodTypes.Cards
         },
         new PaymentMethodDefinition
         {
@@ -234,7 +234,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 0,
-            MethodType = PaymentMethodType.PayPal
+            MethodType = PaymentMethodTypes.PayPal
         },
         new PaymentMethodDefinition
         {
@@ -246,7 +246,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 1,
-            MethodType = PaymentMethodType.ApplePay
+            MethodType = PaymentMethodTypes.ApplePay
         },
         new PaymentMethodDefinition
         {
@@ -258,7 +258,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 2,
-            MethodType = PaymentMethodType.GooglePay
+            MethodType = PaymentMethodTypes.GooglePay
         },
         new PaymentMethodDefinition
         {
@@ -270,11 +270,11 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 3,
-            MethodType = PaymentMethodType.Custom,
+            MethodType = PaymentMethodTypes.Venmo,
             SupportedRegions = [new PaymentMethodRegion { Code = "US", Name = "United States" }]
         },
         // Local Payment Methods (EU) - use Widget type as they require Braintree SDK
-        // Each uses MethodType.Custom because they are region-specific and should NOT deduplicate
+        // Each uses null MethodType because they are region-specific and should NOT deduplicate
         // (a Belgian customer needs Bancontact, a Dutch customer needs iDEAL - both should show)
         new PaymentMethodDefinition
         {
@@ -286,7 +286,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = false,
             DefaultSortOrder = 20,
-            MethodType = PaymentMethodType.Custom,
+            MethodType = null, // Region-specific, no deduplication
             SupportedRegions = [new PaymentMethodRegion { Code = "NL", Name = "Netherlands" }]
         },
         new PaymentMethodDefinition
@@ -299,7 +299,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = false,
             DefaultSortOrder = 21,
-            MethodType = PaymentMethodType.Custom,
+            MethodType = null, // Region-specific, no deduplication
             SupportedRegions = [new PaymentMethodRegion { Code = "BE", Name = "Belgium" }]
         },
         new PaymentMethodDefinition
@@ -312,7 +312,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = false,
             DefaultSortOrder = 22,
-            MethodType = PaymentMethodType.Custom,
+            MethodType = null, // Region-specific, no deduplication
             SupportedRegions = [new PaymentMethodRegion { Code = "EU", Name = "European Union" }]
         },
         new PaymentMethodDefinition
@@ -325,7 +325,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = false,
             DefaultSortOrder = 23,
-            MethodType = PaymentMethodType.Custom,
+            MethodType = null, // Region-specific, no deduplication
             SupportedRegions = [new PaymentMethodRegion { Code = "AT", Name = "Austria" }]
         },
         new PaymentMethodDefinition
@@ -338,7 +338,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = false,
             DefaultSortOrder = 24,
-            MethodType = PaymentMethodType.Custom,
+            MethodType = null, // Region-specific, no deduplication
             SupportedRegions = [new PaymentMethodRegion { Code = "PL", Name = "Poland" }]
         }
     ];

@@ -228,27 +228,29 @@ PaymentProvider (Stripe)
 
 When multiple providers offer the same payment method (e.g., Stripe and Braintree both offering Apple Pay), only one should appear at checkout to avoid duplicate buttons.
 
-**PaymentMethodType Enum:**
+**PaymentMethodTypes Class** (string constants for extensibility):
 ```csharp
-public enum PaymentMethodType
+public static class PaymentMethodTypes
 {
-    Cards = 0,          // Credit/Debit cards
-    ApplePay = 10,      // Apple Pay
-    GooglePay = 20,     // Google Pay
-    PayPal = 30,        // PayPal
-    Link = 40,          // Stripe Link
-    BuyNowPayLater = 50,// Klarna, Afterpay, etc.
-    BankTransfer = 60,  // Direct bank transfer
-    Manual = 100,       // Offline payment
-    Custom = 999        // Not deduplicated
+    public const string Cards = "cards";           // Credit/Debit cards
+    public const string ApplePay = "apple-pay";    // Apple Pay
+    public const string GooglePay = "google-pay";  // Google Pay
+    public const string AmazonPay = "amazon-pay";  // Amazon Pay
+    public const string PayPal = "paypal";         // PayPal
+    public const string Link = "link";             // Stripe Link
+    public const string BuyNowPayLater = "bnpl";   // Klarna, Afterpay, etc.
+    public const string BankTransfer = "bank-transfer"; // Direct bank transfer
+    public const string Venmo = "venmo";           // Venmo (US only)
+    public const string Manual = "manual";         // Offline payment
 }
+// Third-party providers can use any string - only matching types are deduplicated
 ```
 
 **Deduplication Rules:**
-- Each `PaymentMethodDefinition` declares its `MethodType`
+- Each `PaymentMethodDefinition` declares its `MethodType` (string)
 - At checkout, methods are grouped by `MethodType`
 - For each type, only the method with the **lowest SortOrder** is shown
-- Methods with `null` or `Custom` type are NOT deduplicated
+- Methods with `null` or unique string values are NOT deduplicated
 
 **Admin Controls Priority:**
 - Enable/disable specific methods per provider
@@ -347,7 +349,7 @@ src/Merchello.Core/Payments/
 │   └── RegisteredPaymentProvider.cs
 ├── Models/
 │   ├── PaymentMethodDefinition.cs          # Method definition with MethodType
-│   ├── PaymentMethodType.cs                # Enum for deduplication
+│   ├── PaymentMethodTypes.cs               # String constants for deduplication
 │   ├── PaymentMethodSetting.cs             # Persisted method settings
 │   ├── ExpressCheckoutRequest.cs           # NEW
 │   ├── ExpressCheckoutResult.cs            # NEW
@@ -394,6 +396,10 @@ src/Merchello/Controllers/
 | GET | `/api/merchello/checkout/payment-methods` | Get standard payment methods |
 | POST | `/api/merchello/checkout/{invoiceId}/pay` | Create payment session |
 | POST | `/api/merchello/checkout/express` | Complete express checkout |
+| POST | `/api/merchello/checkout/{providerAlias}/create-order` | Create widget order (PayPal-style flow) |
+| POST | `/api/merchello/checkout/{providerAlias}/capture-order` | Capture widget order after approval |
+
+**Widget Flow Note:** The `create-order` and `capture-order` endpoints support any provider implementing the widget payment pattern (create → approve → capture). Third-party providers can use these generic endpoints by passing their provider alias in the URL.
 
 ### Backoffice (Admin)
 | Method | Endpoint | Purpose |
@@ -430,3 +436,4 @@ src/Merchello/Controllers/
 - [x] Backoffice test modal with 4 tabs (Session, Payment Form, Express, Webhooks)
 - [x] Webhook simulation generates provider-specific payloads
 - [x] Payment adapters support tokenize() for backoffice testing
+- [x] Widget flow endpoints work with any provider (genericized from PayPal-specific)

@@ -72,9 +72,9 @@ public class PaymentMethodDto
     public bool ShowInCheckout { get; set; }
 
     /// <summary>
-    /// The type/category of this payment method (e.g., Cards, ApplePay, GooglePay).
+    /// The type/category of this payment method (e.g., "cards", "apple-pay", "google-pay").
     /// Used for deduplication when multiple providers offer the same method type.
     /// </summary>
     [JsonPropertyName("methodType")]
-    public PaymentMethodType? MethodType { get; set; }
+    public string? MethodType { get; set; }
 }

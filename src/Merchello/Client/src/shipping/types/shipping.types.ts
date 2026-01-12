@@ -131,6 +131,8 @@ export interface ShippingOptionDto {
   serviceType?: string;
   /** Whether this shipping method is enabled */
   isEnabled: boolean;
+  /** Whether this provider uses live rates from an external API */
+  usesLiveRates: boolean;
 }
 
 /** Full detail DTO including nested costs and weight tiers */

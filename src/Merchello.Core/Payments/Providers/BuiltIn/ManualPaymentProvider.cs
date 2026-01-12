@@ -64,7 +64,7 @@ public class ManualPaymentProvider(IInvoiceService invoiceService) : PaymentProv
             IsExpressCheckout = false,
             DefaultSortOrder = 100,
             ShowInCheckoutByDefault = false,  // Hidden from checkout - backoffice only
-            MethodType = PaymentMethodType.Manual
+            MethodType = PaymentMethodTypes.Manual
         },
         new PaymentMethodDefinition
         {
@@ -76,7 +76,7 @@ public class ManualPaymentProvider(IInvoiceService invoiceService) : PaymentProv
             IsExpressCheckout = false,
             DefaultSortOrder = 50,
             ShowInCheckoutByDefault = true,  // Visible in checkout
-            MethodType = PaymentMethodType.Manual
+            MethodType = PaymentMethodTypes.Manual
         }
     ];
 

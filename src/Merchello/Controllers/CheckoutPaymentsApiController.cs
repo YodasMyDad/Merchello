@@ -1252,38 +1252,45 @@ public class CheckoutPaymentsApiController(
     }
 
     // =====================================================
-    // PayPal Widget Checkout
+    // Widget Payment Flow (Create Order / Capture)
+    // =====================================================
+    // Supports any provider implementing the widget pattern:
+    // PayPal, Klarna, Afterpay, and other BNPL solutions.
     // =====================================================
 
     /// <summary>
-    /// Create a PayPal order for the standard Widget payment flow.
-    /// Called by the PayPal button's createOrder callback when no pre-created order exists.
+    /// Create a widget order for payment flows that use the create-order/capture pattern.
+    /// Called by the provider's button/widget createOrder callback when no pre-created order exists.
     /// </summary>
     /// <remarks>
     /// This endpoint is typically used as a fallback. The standard flow pre-creates the
-    /// PayPal order during the InitiatePayment call and returns the orderId in sdkConfiguration.
+    /// order during the InitiatePayment call and returns the orderId in sdkConfiguration.
     /// </remarks>
-    [HttpPost("paypal/create-order")]
-    [ProducesResponseType<CreatePayPalOrderResultDto>(StatusCodes.Status200OK)]
+    /// <param name="providerAlias">The payment provider alias (e.g., "paypal", "klarna").</param>
+    /// <param name="request">The create order request.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpPost("{providerAlias}/create-order")]
+    [ProducesResponseType<CreateWidgetOrderResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreatePayPalOrder(
-        [FromBody] CreatePayPalOrderDto request,
+    public async Task<IActionResult> CreateWidgetOrder(
+        string providerAlias,
+        [FromBody] CreateWidgetOrderDto request,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            // Get the PayPal provider
+            // Get the provider
             var provider = await providerManager.GetProviderAsync(
-                "paypal",
+                providerAlias,
                 requireEnabled: true,
                 cancellationToken);
 
             if (provider == null)
             {
-                return Ok(new CreatePayPalOrderResultDto
+                return Ok(new CreateWidgetOrderResultDto
                 {
                     Success = false,
-                    ErrorMessage = "PayPal is not available."
+                    ErrorMessage = $"Payment provider '{providerAlias}' is not available."
                 });
             }
 
@@ -1292,7 +1299,7 @@ public class CheckoutPaymentsApiController(
 
             if (basket == null || basket.LineItems.Count == 0)
             {
-                return Ok(new CreatePayPalOrderResultDto
+                return Ok(new CreateWidgetOrderResultDto
                 {
                     Success = false,
                     ErrorMessage = "No items in basket."
@@ -1305,7 +1312,7 @@ public class CheckoutPaymentsApiController(
             // Validate checkout session has required data
             if (string.IsNullOrWhiteSpace(session.BillingAddress.Email))
             {
-                return Ok(new CreatePayPalOrderResultDto
+                return Ok(new CreateWidgetOrderResultDto
                 {
                     Success = false,
                     ErrorMessage = "Please complete the checkout information step first."
@@ -1316,18 +1323,20 @@ public class CheckoutPaymentsApiController(
             var invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, cancellationToken);
 
             logger.LogInformation(
-                "PayPal create-order: Invoice {InvoiceId} created from basket {BasketId}",
+                "Widget create-order ({Provider}): Invoice {InvoiceId} created from basket {BasketId}",
+                providerAlias,
                 invoice.Id,
                 basket.Id);
 
-            // Create payment session to get the PayPal order ID
+            // Create payment session to get the provider order ID
             var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            var methodAlias = request.MethodAlias ?? providerAlias;
             var result = await paymentService.CreatePaymentSessionAsync(
                 new CreatePaymentSessionParameters
                 {
                     InvoiceId = invoice.Id,
-                    ProviderAlias = "paypal",
-                    MethodAlias = "paypal",
+                    ProviderAlias = providerAlias,
+                    MethodAlias = methodAlias,
                     ReturnUrl = $"{baseUrl}/checkout/confirmation/{invoice.Id}",
                     CancelUrl = $"{baseUrl}/checkout/payment"
                 },
@@ -1336,14 +1345,15 @@ public class CheckoutPaymentsApiController(
             if (!result.Success || result.SdkConfiguration == null)
             {
                 logger.LogWarning(
-                    "PayPal create-order failed for invoice {InvoiceId}: {Error}",
+                    "Widget create-order ({Provider}) failed for invoice {InvoiceId}: {Error}",
+                    providerAlias,
                     invoice.Id,
                     result.ErrorMessage);
 
-                return Ok(new CreatePayPalOrderResultDto
+                return Ok(new CreateWidgetOrderResultDto
                 {
                     Success = false,
-                    ErrorMessage = result.ErrorMessage ?? "Failed to create PayPal order."
+                    ErrorMessage = result.ErrorMessage ?? $"Failed to create {providerAlias} order."
                 });
             }
 
@@ -1354,19 +1364,20 @@ public class CheckoutPaymentsApiController(
 
             if (string.IsNullOrEmpty(orderId))
             {
-                return Ok(new CreatePayPalOrderResultDto
+                return Ok(new CreateWidgetOrderResultDto
                 {
                     Success = false,
-                    ErrorMessage = "Failed to get PayPal order ID."
+                    ErrorMessage = $"Failed to get {providerAlias} order ID."
                 });
             }
 
             logger.LogInformation(
-                "PayPal order {OrderId} created for invoice {InvoiceId}",
+                "Widget order ({Provider}) {OrderId} created for invoice {InvoiceId}",
+                providerAlias,
                 orderId,
                 invoice.Id);
 
-            return Ok(new CreatePayPalOrderResultDto
+            return Ok(new CreateWidgetOrderResultDto
             {
                 Success = true,
                 OrderId = orderId
@@ -1374,30 +1385,50 @@ public class CheckoutPaymentsApiController(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "PayPal create-order failed");
+            logger.LogError(ex, "Widget create-order ({Provider}) failed", providerAlias);
 
-            return Ok(new CreatePayPalOrderResultDto
+            return Ok(new CreateWidgetOrderResultDto
             {
                 Success = false,
-                ErrorMessage = "An error occurred creating the PayPal order."
+                ErrorMessage = $"An error occurred creating the {providerAlias} order."
             });
         }
     }
 
     /// <summary>
-    /// Capture an approved PayPal order.
-    /// Called after the user approves payment in the PayPal popup.
+    /// Create a PayPal order for the standard Widget payment flow.
     /// </summary>
-    [HttpPost("paypal/capture-order")]
-    [ProducesResponseType<CapturePayPalOrderResultDto>(StatusCodes.Status200OK)]
+    /// <remarks>
+    /// This endpoint is deprecated. Use POST /{providerAlias}/create-order instead.
+    /// </remarks>
+    [Obsolete("Use CreateWidgetOrder with providerAlias parameter instead.")]
+    [HttpPost("paypal/create-order")]
+    [ProducesResponseType<CreateWidgetOrderResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CapturePayPalOrder(
-        [FromBody] CapturePayPalOrderDto request,
+    [ApiExplorerSettings(IgnoreApi = true)]
+    public Task<IActionResult> CreatePayPalOrder(
+        [FromBody] CreateWidgetOrderDto request,
+        CancellationToken cancellationToken = default) =>
+        CreateWidgetOrder("paypal", request, cancellationToken);
+
+    /// <summary>
+    /// Capture an approved widget order.
+    /// Called after the user approves payment in the provider's UI (e.g., PayPal popup, Klarna modal).
+    /// </summary>
+    /// <param name="providerAlias">The payment provider alias (e.g., "paypal", "klarna").</param>
+    /// <param name="request">The capture order request.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpPost("{providerAlias}/capture-order")]
+    [ProducesResponseType<CaptureWidgetOrderResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CaptureWidgetOrder(
+        string providerAlias,
+        [FromBody] CaptureWidgetOrderDto request,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.OrderId))
         {
-            return Ok(new CapturePayPalOrderResultDto
+            return Ok(new CaptureWidgetOrderResultDto
             {
                 Success = false,
                 ErrorMessage = "OrderId is required."
@@ -1406,25 +1437,25 @@ public class CheckoutPaymentsApiController(
 
         try
         {
-            // Get the PayPal provider
+            // Get the provider
             var provider = await providerManager.GetProviderAsync(
-                "paypal",
+                providerAlias,
                 requireEnabled: true,
                 cancellationToken);
 
             if (provider == null)
             {
-                return Ok(new CapturePayPalOrderResultDto
+                return Ok(new CaptureWidgetOrderResultDto
                 {
                     Success = false,
-                    ErrorMessage = "PayPal is not available."
+                    ErrorMessage = $"Payment provider '{providerAlias}' is not available."
                 });
             }
 
             // Get the invoice ID from the request
             if (!request.InvoiceId.HasValue)
             {
-                return Ok(new CapturePayPalOrderResultDto
+                return Ok(new CaptureWidgetOrderResultDto
                 {
                     Success = false,
                     ErrorMessage = "InvoiceId is required."
@@ -1436,7 +1467,7 @@ public class CheckoutPaymentsApiController(
 
             if (invoice == null)
             {
-                return Ok(new CapturePayPalOrderResultDto
+                return Ok(new CaptureWidgetOrderResultDto
                 {
                     Success = false,
                     ErrorMessage = "Invoice not found."
@@ -1457,12 +1488,13 @@ public class CheckoutPaymentsApiController(
                     !string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase))
                 {
                     logger.LogWarning(
-                        "Invoice ownership validation failed in CapturePayPalOrder: Invoice {InvoiceId} has billing email {InvoiceBillingEmail}, but session has {SessionBillingEmail}",
+                        "Invoice ownership validation failed in CaptureWidgetOrder ({Provider}): Invoice {InvoiceId} has billing email {InvoiceBillingEmail}, but session has {SessionBillingEmail}",
+                        providerAlias,
                         request.InvoiceId.Value,
                         invoice.BillingAddress.Email,
                         session.BillingAddress.Email);
 
-                    return Ok(new CapturePayPalOrderResultDto
+                    return Ok(new CaptureWidgetOrderResultDto
                     {
                         Success = false,
                         ErrorMessage = "You do not have permission to pay this invoice."
@@ -1470,11 +1502,11 @@ public class CheckoutPaymentsApiController(
                 }
             }
 
-            // Process the payment (capture the PayPal order)
+            // Process the payment (capture the order)
             var processRequest = new ProcessPaymentRequest
             {
                 InvoiceId = invoice.Id,
-                ProviderAlias = "paypal",
+                ProviderAlias = providerAlias,
                 SessionId = request.OrderId,
                 Amount = invoice.Total
             };
@@ -1489,12 +1521,13 @@ public class CheckoutPaymentsApiController(
                     .FirstOrDefault() ?? "Payment capture failed.";
 
                 logger.LogWarning(
-                    "PayPal capture failed for order {OrderId}, invoice {InvoiceId}: {Error}",
+                    "Widget capture ({Provider}) failed for order {OrderId}, invoice {InvoiceId}: {Error}",
+                    providerAlias,
                     request.OrderId,
                     invoice.Id,
                     errorMessage);
 
-                return Ok(new CapturePayPalOrderResultDto
+                return Ok(new CaptureWidgetOrderResultDto
                 {
                     Success = false,
                     ErrorMessage = errorMessage
@@ -1504,13 +1537,14 @@ public class CheckoutPaymentsApiController(
             var payment = result.ResultObject;
 
             logger.LogInformation(
-                "PayPal order {OrderId} captured for invoice {InvoiceId}, PaymentId: {PaymentId}, TransactionId: {TransactionId}",
+                "Widget order ({Provider}) {OrderId} captured for invoice {InvoiceId}, PaymentId: {PaymentId}, TransactionId: {TransactionId}",
+                providerAlias,
                 request.OrderId,
                 invoice.Id,
                 payment.Id,
                 payment.TransactionId);
 
-            return Ok(new CapturePayPalOrderResultDto
+            return Ok(new CaptureWidgetOrderResultDto
             {
                 Success = true,
                 InvoiceId = invoice.Id,
@@ -1521,15 +1555,31 @@ public class CheckoutPaymentsApiController(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "PayPal capture-order failed for order {OrderId}", request.OrderId);
+            logger.LogError(ex, "Widget capture-order ({Provider}) failed for order {OrderId}", providerAlias, request.OrderId);
 
-            return Ok(new CapturePayPalOrderResultDto
+            return Ok(new CaptureWidgetOrderResultDto
             {
                 Success = false,
-                ErrorMessage = "An error occurred capturing the PayPal order."
+                ErrorMessage = $"An error occurred capturing the {providerAlias} order."
             });
         }
     }
+
+    /// <summary>
+    /// Capture an approved PayPal order.
+    /// </summary>
+    /// <remarks>
+    /// This endpoint is deprecated. Use POST /{providerAlias}/capture-order instead.
+    /// </remarks>
+    [Obsolete("Use CaptureWidgetOrder with providerAlias parameter instead.")]
+    [HttpPost("paypal/capture-order")]
+    [ProducesResponseType<CaptureWidgetOrderResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ApiExplorerSettings(IgnoreApi = true)]
+    public Task<IActionResult> CapturePayPalOrder(
+        [FromBody] CaptureWidgetOrderDto request,
+        CancellationToken cancellationToken = default) =>
+        CaptureWidgetOrder("paypal", request, cancellationToken);
 
     // =====================================================
     // Helper Methods

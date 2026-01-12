@@ -2,7 +2,7 @@
  * Stripe Express Checkout Adapter
  *
  * Handles initialization and rendering of Stripe Express Checkout Element
- * for Apple Pay, Google Pay, and Link payment methods.
+ * for Apple Pay, Google Pay, Link, Amazon Pay, PayPal, and Klarna payment methods.
  *
  * See: https://docs.stripe.com/elements/express-checkout-element
  */
@@ -73,7 +73,8 @@
                     buttonTheme: {
                         applePay: 'black',
                         googlePay: 'black',
-                        paypal: 'gold'
+                        paypal: 'gold',
+                        klarna: 'default'
                     },
                     layout: {
                         maxColumns: 1,
@@ -187,17 +188,26 @@
 
         /**
          * Get wallet types filter based on method alias
-         * @param {string} methodAlias - The method alias (applepay, googlepay, link)
+         * @param {string} methodAlias - The method alias (applepay, googlepay, link, amazonpay, paypal, klarna)
          * @returns {Object|null} Wallet filter object or null to show all
          */
         getWalletTypes: function(methodAlias) {
+            // Base config - hide all by default
+            const hideAll = { applePay: 'never', googlePay: 'never', link: 'never', amazon_pay: 'never', paypal: 'never', klarna: 'never' };
+
             switch (methodAlias.toLowerCase()) {
                 case 'applepay':
-                    return { applePay: 'always', googlePay: 'never', link: 'never' };
+                    return { ...hideAll, applePay: 'always' };
                 case 'googlepay':
-                    return { applePay: 'never', googlePay: 'always', link: 'never' };
+                    return { ...hideAll, googlePay: 'always' };
                 case 'link':
-                    return { applePay: 'never', googlePay: 'never', link: 'always' };
+                    return { ...hideAll, link: 'always' };
+                case 'amazonpay':
+                    return { ...hideAll, amazon_pay: 'always' };
+                case 'paypal':
+                    return { ...hideAll, paypal: 'always' };
+                case 'klarna':
+                    return { ...hideAll, klarna: 'always' };
                 default:
                     return null; // Show all available
             }
@@ -244,5 +254,8 @@
     window.MerchelloExpressAdapters['stripe:applepay'] = stripeExpressAdapter;
     window.MerchelloExpressAdapters['stripe:googlepay'] = stripeExpressAdapter;
     window.MerchelloExpressAdapters['stripe:link'] = stripeExpressAdapter;
+    window.MerchelloExpressAdapters['stripe:amazonpay'] = stripeExpressAdapter;
+    window.MerchelloExpressAdapters['stripe:paypal'] = stripeExpressAdapter;
+    window.MerchelloExpressAdapters['stripe:klarna'] = stripeExpressAdapter;
 
 })();
