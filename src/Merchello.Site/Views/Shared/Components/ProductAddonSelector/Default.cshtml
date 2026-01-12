@@ -16,7 +16,7 @@
                        class="form-check-input"
                        id="addon-@value.Id"
                        :checked="isAddonSelected('@Model.OptionId', '@value.Id')"
-                       @@change="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, $event.target.checked)" />
+                       @@change="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, $event.target.checked)" />
                 <label class="form-check-label" for="addon-@value.Id">
                     @value.Name
                     @if (value.DisplayPriceAdjustment != 0)
@@ -44,7 +44,7 @@
                                     :class="{ 'selected': isAddonSelected('@Model.OptionId', '@value.Id') }"
                                     style="background-color: @(value.HexValue ?? "#ccc");"
                                     title="@value.Name@priceLabel"
-                                    @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
+                                    @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
                             </button>
                         </div>
                     }
@@ -64,7 +64,7 @@
                             :class="{ 'selected': isAddonSelected('@Model.OptionId', '@value.Id') }"
                             style="background-color: @(value.HexValue ?? "#ccc");"
                             title="@value.Name@priceLabel"
-                            @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
+                            @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
                     </button>
                 }
             </div>
@@ -84,7 +84,7 @@
                                     class="image-swatch"
                                     :class="{ 'selected': isAddonSelected('@Model.OptionId', '@value.Id') }"
                                     title="@value.Name@priceLabel"
-                                    @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
+                                    @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
                                 @if (!string.IsNullOrEmpty(value.MediaUrl))
                                 {
                                     <img src="@value.MediaUrl" alt="@value.Name" />
@@ -111,7 +111,7 @@
                             class="image-swatch"
                             :class="{ 'selected': isAddonSelected('@Model.OptionId', '@value.Id') }"
                             title="@value.Name@priceLabel"
-                            @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
+                            @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
                         @if (!string.IsNullOrEmpty(value.MediaUrl))
                         {
                             <img src="@value.MediaUrl" alt="@value.Name" />
@@ -136,7 +136,7 @@
                        id="addon-@Model.OptionId-@value.Id"
                        value="@value.Id"
                        :checked="isAddonSelected('@Model.OptionId', '@value.Id')"
-                       @@change="selectAddonRadio('@Model.OptionId', '@value.Id', @value.PriceAdjustment)" />
+                       @@change="selectAddonRadio('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment)" />
                 <label class="btn btn-outline-secondary" for="addon-@Model.OptionId-@value.Id">
                     @value.Name
                     @if (value.DisplayPriceAdjustment != 0)
@@ -153,11 +153,11 @@
     {
         @* Default: dropdown *@
         <select class="form-select"
-                @@change="selectAddonRadio('@Model.OptionId', $event.target.value, parseFloat($event.target.options[$event.target.selectedIndex].dataset.price || 0))">
-            <option value="" data-price="0">-- Select --</option>
+                @@change="selectAddonRadio('@Model.OptionId', $event.target.value, parseFloat($event.target.options[$event.target.selectedIndex].dataset.price || 0), parseFloat($event.target.options[$event.target.selectedIndex].dataset.displayPrice || 0))">
+            <option value="" data-price="0" data-display-price="0">-- Select --</option>
             @foreach (var value in Model.Values)
             {
-                <option value="@value.Id" data-price="@value.PriceAdjustment">
+                <option value="@value.Id" data-price="@value.PriceAdjustment" data-display-price="@value.DisplayPriceAdjustment">
                     @value.Name
                     @if (value.DisplayPriceAdjustment != 0)
                     {

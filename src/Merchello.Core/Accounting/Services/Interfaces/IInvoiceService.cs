@@ -20,6 +20,17 @@ public interface IInvoiceService
     /// </summary>
     Task<Invoice?> GetInvoiceAsync(Guid invoiceId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Creates an invoice and order(s) from a basket.
+    /// This is the single source of truth for order creation from checkout.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Basket Lifecycle:</b> The basket is NOT automatically deleted after order creation.
+    /// This allows for order recovery/retry scenarios. The basket should be cleared by the caller
+    /// (typically CheckoutPaymentsApiController) after successful payment completion.</para>
+    /// <para><b>Multi-warehouse:</b> Creates separate Order entities per warehouse group.</para>
+    /// <para><b>Stock:</b> Reserves stock immediately upon order creation.</para>
+    /// </remarks>
     Task<Invoice> CreateOrderFromBasketAsync(Basket basket, CheckoutSession checkoutSession, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> UpdateOrderStatusAsync(Guid orderId, OrderStatus newStatus, string? reason = null, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> CancelOrderAsync(Guid orderId, string reason, CancellationToken cancellationToken = default);

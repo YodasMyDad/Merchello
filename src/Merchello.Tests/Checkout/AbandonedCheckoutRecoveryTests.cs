@@ -1,0 +1,294 @@
+using System.Text.Json;
+using Merchello.Core.Accounting.Models;
+using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Locality.Models;
+using Merchello.Tests.TestInfrastructure;
+using Shouldly;
+using Xunit;
+
+namespace Merchello.Tests.Checkout;
+
+/// <summary>
+/// Tests for abandoned checkout recovery functionality.
+/// These tests verify that:
+/// 1. Addresses are properly stored in ExtendedData when tracking abandoned checkouts
+/// 2. Addresses are properly restored when recovering from abandoned checkouts
+/// 3. Currency is properly restored when recovering from abandoned checkouts
+/// </summary>
+[Collection("Integration")]
+public class AbandonedCheckoutRecoveryTests : IClassFixture<ServiceTestFixture>
+{
+    private readonly ServiceTestFixture _fixture;
+    private readonly IAbandonedCheckoutService _abandonedCheckoutService;
+
+    public AbandonedCheckoutRecoveryTests(ServiceTestFixture fixture)
+    {
+        _fixture = fixture;
+        _fixture.ResetDatabase();
+        _abandonedCheckoutService = fixture.GetService<IAbandonedCheckoutService>();
+    }
+
+    #region Helper Methods
+
+    private static Basket CreateBasketWithAddresses(string currency = "GBP")
+    {
+        return new Basket
+        {
+            Id = Guid.NewGuid(),
+            Currency = currency,
+            CurrencySymbol = currency == "GBP" ? "£" : "$",
+            BillingAddress = new Address
+            {
+                Name = "John Smith",
+                Email = "john@example.com",
+                AddressOne = "123 Test Street",
+                TownCity = "London",
+                CountryCode = "GB",
+                PostalCode = "SW1A 1AA"
+            },
+            ShippingAddress = new Address
+            {
+                Name = "John Smith",
+                Email = "john@example.com",
+                AddressOne = "123 Test Street",
+                TownCity = "London",
+                CountryCode = "GB",
+                PostalCode = "SW1A 1AA"
+            },
+            LineItems =
+            [
+                new LineItem
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Test Product",
+                    Sku = "TEST-001",
+                    Quantity = 1,
+                    Amount = 25.00m,
+                    LineItemType = LineItemType.Product
+                }
+            ],
+            SubTotal = 25.00m,
+            Tax = 5.00m,
+            Total = 30.00m
+        };
+    }
+
+    #endregion
+
+    [Fact]
+    public async Task TrackCheckoutActivityAsync_StoresAddressesInExtendedData()
+    {
+        // Arrange
+        var basket = CreateBasketWithAddresses("GBP");
+
+        // Save basket to database first
+        _fixture.DbContext.Baskets.Add(basket);
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act - Track checkout activity (this should store addresses in ExtendedData)
+        await _abandonedCheckoutService.TrackCheckoutActivityAsync(basket, "john@example.com");
+
+        // Assert - Check that abandoned checkout was created
+        var abandonedCheckout = _fixture.DbContext.AbandonedCheckouts
+            .FirstOrDefault(ac => ac.BasketId == basket.Id);
+
+        abandonedCheckout.ShouldNotBeNull();
+        abandonedCheckout.Email.ShouldBe("john@example.com");
+        abandonedCheckout.CurrencyCode.ShouldBe("GBP");
+        abandonedCheckout.CustomerName.ShouldBe("John Smith");
+
+        // Check that addresses were stored in ExtendedData
+        abandonedCheckout.ExtendedData.ShouldNotBeNull();
+        abandonedCheckout.ExtendedData.ContainsKey("BillingAddressJson").ShouldBeTrue();
+        abandonedCheckout.ExtendedData.ContainsKey("ShippingAddressJson").ShouldBeTrue();
+
+        // Verify billing address JSON
+        var billingJson = abandonedCheckout.ExtendedData["BillingAddressJson"]?.ToString();
+        billingJson.ShouldNotBeNullOrEmpty();
+        var billingAddress = JsonSerializer.Deserialize<Address>(billingJson);
+        billingAddress.ShouldNotBeNull();
+        billingAddress.Name.ShouldBe("John Smith");
+        billingAddress.Email.ShouldBe("john@example.com");
+        billingAddress.AddressOne.ShouldBe("123 Test Street");
+
+        // Verify shipping address JSON
+        var shippingJson = abandonedCheckout.ExtendedData["ShippingAddressJson"]?.ToString();
+        shippingJson.ShouldNotBeNullOrEmpty();
+        var shippingAddress = JsonSerializer.Deserialize<Address>(shippingJson);
+        shippingAddress.ShouldNotBeNull();
+        shippingAddress.Name.ShouldBe("John Smith");
+    }
+
+    [Fact]
+    public async Task TrackCheckoutActivityAsync_UpdatesExistingRecordWithNewAddresses()
+    {
+        // Arrange
+        var basket = CreateBasketWithAddresses("GBP");
+
+        // Save basket to database first
+        _fixture.DbContext.Baskets.Add(basket);
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // First tracking call
+        await _abandonedCheckoutService.TrackCheckoutActivityAsync(basket, "john@example.com");
+
+        // Update basket addresses
+        basket.BillingAddress.AddressOne = "456 New Street";
+        basket.BillingAddress.TownCity = "Manchester";
+        basket.ShippingAddress.AddressOne = "456 New Street";
+        basket.ShippingAddress.TownCity = "Manchester";
+
+        // Act - Second tracking call should update the existing record
+        await _abandonedCheckoutService.TrackCheckoutActivityAsync(basket, "john@example.com");
+
+        // Assert - Verify addresses were updated
+        _fixture.DbContext.ChangeTracker.Clear();
+        var abandonedCheckout = _fixture.DbContext.AbandonedCheckouts
+            .FirstOrDefault(ac => ac.BasketId == basket.Id);
+
+        abandonedCheckout.ShouldNotBeNull();
+        var billingJson = abandonedCheckout.ExtendedData["BillingAddressJson"]?.ToString();
+        var billingAddress = JsonSerializer.Deserialize<Address>(billingJson!);
+        billingAddress!.AddressOne.ShouldBe("456 New Street");
+        billingAddress.TownCity.ShouldBe("Manchester");
+    }
+
+    [Fact]
+    public async Task RestoreBasketFromRecoveryAsync_RestoresCurrencyFromAbandonedCheckout()
+    {
+        // Arrange
+        var basket = CreateBasketWithAddresses("GBP");
+
+        // Save basket to database
+        _fixture.DbContext.Baskets.Add(basket);
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Track checkout and mark as abandoned
+        await _abandonedCheckoutService.TrackCheckoutActivityAsync(basket, "john@example.com");
+
+        // Manually set the abandoned checkout to have a recovery token
+        var abandonedCheckout = _fixture.DbContext.AbandonedCheckouts
+            .First(ac => ac.BasketId == basket.Id);
+
+        abandonedCheckout.Status = AbandonedCheckoutStatus.Abandoned;
+        abandonedCheckout.DateAbandoned = DateTime.UtcNow;
+        abandonedCheckout.RecoveryToken = "test-recovery-token";
+        abandonedCheckout.RecoveryTokenExpiresUtc = DateTime.UtcNow.AddDays(7);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        // Clear the basket's currency to simulate it being lost
+        _fixture.DbContext.ChangeTracker.Clear();
+        var basketToModify = await _fixture.DbContext.Baskets.FindAsync(basket.Id);
+        basketToModify!.Currency = null;
+        basketToModify.CurrencySymbol = null;
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act - Restore basket from recovery
+        var result = await _abandonedCheckoutService.RestoreBasketFromRecoveryAsync("test-recovery-token");
+
+        // Assert
+        result.Successful.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+        result.ResultObject.Currency.ShouldBe("GBP");
+        result.ResultObject.CurrencySymbol.ShouldBe("£");
+    }
+
+    [Fact]
+    public async Task RestoreBasketFromRecoveryAsync_RestoresAddressesFromExtendedData()
+    {
+        // Arrange
+        var basket = CreateBasketWithAddresses("GBP");
+
+        // Save basket to database
+        _fixture.DbContext.Baskets.Add(basket);
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Track checkout (this stores addresses in ExtendedData)
+        await _abandonedCheckoutService.TrackCheckoutActivityAsync(basket, "john@example.com");
+
+        // Mark as abandoned with recovery token
+        var abandonedCheckout = _fixture.DbContext.AbandonedCheckouts
+            .First(ac => ac.BasketId == basket.Id);
+
+        abandonedCheckout.Status = AbandonedCheckoutStatus.Abandoned;
+        abandonedCheckout.DateAbandoned = DateTime.UtcNow;
+        abandonedCheckout.RecoveryToken = "test-recovery-token-2";
+        abandonedCheckout.RecoveryTokenExpiresUtc = DateTime.UtcNow.AddDays(7);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        // Clear the basket's addresses to simulate session loss
+        _fixture.DbContext.ChangeTracker.Clear();
+        var basketToModify = await _fixture.DbContext.Baskets.FindAsync(basket.Id);
+        basketToModify!.BillingAddress = new Address(); // Empty address
+        basketToModify.ShippingAddress = new Address(); // Empty address
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act - Restore basket from recovery
+        var result = await _abandonedCheckoutService.RestoreBasketFromRecoveryAsync("test-recovery-token-2");
+
+        // Assert
+        result.Successful.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+
+        // Billing address should be restored
+        result.ResultObject.BillingAddress.ShouldNotBeNull();
+        result.ResultObject.BillingAddress.Name.ShouldBe("John Smith");
+        result.ResultObject.BillingAddress.Email.ShouldBe("john@example.com");
+        result.ResultObject.BillingAddress.AddressOne.ShouldBe("123 Test Street");
+        result.ResultObject.BillingAddress.TownCity.ShouldBe("London");
+        result.ResultObject.BillingAddress.CountryCode.ShouldBe("GB");
+
+        // Shipping address should be restored
+        result.ResultObject.ShippingAddress.ShouldNotBeNull();
+        result.ResultObject.ShippingAddress.Name.ShouldBe("John Smith");
+        result.ResultObject.ShippingAddress.CountryCode.ShouldBe("GB");
+    }
+
+    [Fact]
+    public async Task RestoreBasketFromRecoveryAsync_WithExpiredToken_ReturnsError()
+    {
+        // Arrange
+        var basket = CreateBasketWithAddresses("GBP");
+
+        _fixture.DbContext.Baskets.Add(basket);
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        await _abandonedCheckoutService.TrackCheckoutActivityAsync(basket, "john@example.com");
+
+        var abandonedCheckout = _fixture.DbContext.AbandonedCheckouts
+            .First(ac => ac.BasketId == basket.Id);
+
+        abandonedCheckout.Status = AbandonedCheckoutStatus.Abandoned;
+        abandonedCheckout.DateAbandoned = DateTime.UtcNow;
+        abandonedCheckout.RecoveryToken = "expired-token";
+        abandonedCheckout.RecoveryTokenExpiresUtc = DateTime.UtcNow.AddDays(-1); // Expired
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _abandonedCheckoutService.RestoreBasketFromRecoveryAsync("expired-token");
+
+        // Assert
+        result.Successful.ShouldBeFalse();
+        result.Messages.Select(m => m.Message).ShouldContain(m => m != null && m.Contains("expired"));
+    }
+
+    [Fact]
+    public async Task RestoreBasketFromRecoveryAsync_WithInvalidToken_ReturnsError()
+    {
+        // Act
+        var result = await _abandonedCheckoutService.RestoreBasketFromRecoveryAsync("invalid-token");
+
+        // Assert
+        result.Successful.ShouldBeFalse();
+        result.Messages.Select(m => m.Message).ShouldContain(m => m != null && m.Contains("Invalid"));
+    }
+}

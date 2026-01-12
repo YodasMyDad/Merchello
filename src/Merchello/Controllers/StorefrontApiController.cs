@@ -1,6 +1,5 @@
 using Merchello.Core;
 using Merchello.Core.Accounting.Extensions;
-using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
@@ -9,12 +8,13 @@ using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
+using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
-using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Storefront.Dtos;
 using Merchello.Core.Storefront.Services;
+using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Core.Storefront.Services.Parameters;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -28,10 +28,11 @@ namespace Merchello.Controllers;
 [Route("api/merchello/storefront")]
 public class StorefrontApiController(
     ICheckoutService checkoutService,
-    IProductService productService,
     IStorefrontContextService storefrontContext,
+    IProductService productService,
     ILocationsService locationsService,
     ICurrencyService currencyService,
+    ICurrencyConversionService currencyConversion,
     IOptions<MerchelloSettings> settings) : ControllerBase
 {
     private readonly MerchelloSettings _settings = settings.Value;
@@ -42,99 +43,30 @@ public class StorefrontApiController(
     [HttpPost("basket/add")]
     public async Task<IActionResult> AddToBasket([FromBody] AddToBasketDto request, CancellationToken ct)
     {
-        // Get the product (variant) with ProductRoot - ProductOptions is JSON so automatically loaded with ProductRoot
-        var product = await productService.GetProduct(new GetProductParameters
+        // Use centralized service for adding products with addons
+        var result = await checkoutService.AddProductWithAddonsAsync(new AddProductWithAddonsParameters
         {
             ProductId = request.ProductId,
-            IncludeProductRoot = true, // ProductOptions (JSON column) loads with ProductRoot for display name extraction
-            IncludeTaxGroup = true,
-            NoTracking = true
+            Quantity = request.Quantity,
+            Addons = request.Addons.Select(a => new SelectedAddon { ValueId = a.ValueId }).ToList()
         }, ct);
 
-        if (product == null)
+        if (!result.Success)
         {
             return BadRequest(new BasketOperationResultDto
             {
                 Success = false,
-                Message = "Product not found"
+                Message = result.ErrorMessage ?? "Failed to add item to basket"
             });
         }
-
-        // Check if product is available for purchase
-        if (!product.AvailableForPurchase)
-        {
-            return BadRequest(new BasketOperationResultDto
-            {
-                Success = false,
-                Message = "This product is currently out of stock"
-            });
-        }
-
-        // Create the main product line item
-        var lineItem = checkoutService.CreateLineItem(product, request.Quantity);
-
-        // Add to basket
-        await checkoutService.AddToBasket(new AddToBasketParameters
-        {
-            ItemToAdd = lineItem
-        }, ct);
-
-        // Handle add-ons if any
-        if (request.Addons.Count > 0 && product.ProductRoot?.ProductOptions != null)
-        {
-            var addonOptions = product.ProductRoot.ProductOptions
-                .Where(po => !po.IsVariant)
-                .ToList();
-
-            var valueLookup = addonOptions
-                .SelectMany(o => o.ProductOptionValues.Select(v => (Option: o, Value: v)))
-                .ToDictionary(x => x.Value.Id, x => x);
-
-            foreach (var addon in request.Addons)
-            {
-                if (!valueLookup.TryGetValue(addon.ValueId, out var ov))
-                    continue;
-
-                // Create addon line item
-                var addonLineItem = new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    Name = $"{ov.Option.Name}: {ov.Value.Name}",
-                    Sku = string.IsNullOrWhiteSpace(ov.Value.SkuSuffix)
-                        ? $"ADDON-{ov.Value.Id.ToString()[..8]}"
-                        : $"{product.Sku}-{ov.Value.SkuSuffix}",
-                    DependantLineItemSku = lineItem.Sku,
-                    Quantity = request.Quantity,
-                    Amount = ov.Value.PriceAdjustment,
-                    LineItemType = LineItemType.Addon,
-                    IsTaxable = true,
-                    TaxRate = product.ProductRoot.TaxGroup?.TaxPercentage ?? 20m
-                };
-
-                addonLineItem.ExtendedData["AddonOptionId"] = ov.Option.Id.ToString();
-                addonLineItem.ExtendedData["AddonValueId"] = ov.Value.Id.ToString();
-                addonLineItem.ExtendedData["CostAdjustment"] = ov.Value.CostAdjustment;
-                addonLineItem.ExtendedData["WeightKg"] = ov.Value.WeightKg ?? 0m;
-
-                await checkoutService.AddToBasket(new AddToBasketParameters
-                {
-                    ItemToAdd = addonLineItem
-                }, ct);
-            }
-        }
-
-        // Get updated basket to return count
-        var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
-        var itemCount = basket?.LineItems.Sum(li => li.Quantity) ?? 0;
-        var total = basket?.Total ?? 0;
 
         return Ok(new BasketOperationResultDto
         {
             Success = true,
             Message = "Added to basket",
-            ItemCount = itemCount,
-            Total = total,
-            FormattedTotal = total.FormatWithSymbol(_settings.CurrencySymbol)
+            ItemCount = result.ItemCount,
+            Total = result.Total,
+            FormattedTotal = result.Total.FormatWithSymbol(_settings.CurrencySymbol)
         });
     }
 
@@ -162,10 +94,12 @@ public class StorefrontApiController(
             });
         }
 
+        // Use centralized currency conversion service
         var items = basket.LineItems.Select(li =>
         {
-            var displayUnitPrice = currencyService.Round(li.Amount * rate, currencyContext.CurrencyCode);
-            var displayLineTotal = currencyService.Round(li.Amount * li.Quantity * rate, currencyContext.CurrencyCode);
+            var displayUnitPrice = currencyConversion.Convert(li.Amount, rate, currencyContext.CurrencyCode);
+            var lineTotal = li.Amount * li.Quantity;
+            var displayLineTotal = currencyConversion.Convert(lineTotal, rate, currencyContext.CurrencyCode);
 
             return new StorefrontLineItemDto
             {
@@ -181,24 +115,24 @@ public class StorefrontApiController(
                     }).ToList(),
                 Quantity = li.Quantity,
                 UnitPrice = li.Amount,
-                LineTotal = li.Amount * li.Quantity,
-                FormattedUnitPrice = li.Amount.FormatWithSymbol(_settings.CurrencySymbol),
-                FormattedLineTotal = (li.Amount * li.Quantity).FormatWithSymbol(_settings.CurrencySymbol),
+                LineTotal = lineTotal,
+                FormattedUnitPrice = currencyConversion.Format(li.Amount, _settings.CurrencySymbol),
+                FormattedLineTotal = currencyConversion.Format(lineTotal, _settings.CurrencySymbol),
                 DisplayUnitPrice = displayUnitPrice,
                 DisplayLineTotal = displayLineTotal,
-                FormattedDisplayUnitPrice = displayUnitPrice.FormatWithSymbol(currencyContext.CurrencySymbol),
-                FormattedDisplayLineTotal = displayLineTotal.FormatWithSymbol(currencyContext.CurrencySymbol),
+                FormattedDisplayUnitPrice = currencyConversion.Format(displayUnitPrice, currencyContext.CurrencySymbol),
+                FormattedDisplayLineTotal = currencyConversion.Format(displayLineTotal, currencyContext.CurrencySymbol),
                 LineItemType = li.LineItemType.ToString(),
                 DependantLineItemSku = li.DependantLineItemSku
             };
         }).ToList();
 
-        // Convert totals for display
-        var displaySubTotal = currencyService.Round(basket.SubTotal * rate, currencyContext.CurrencyCode);
-        var displayDiscount = currencyService.Round(basket.Discount * rate, currencyContext.CurrencyCode);
-        var displayTax = currencyService.Round(basket.Tax * rate, currencyContext.CurrencyCode);
-        var displayShipping = currencyService.Round(basket.Shipping * rate, currencyContext.CurrencyCode);
-        var displayTotal = currencyService.Round(basket.Total * rate, currencyContext.CurrencyCode);
+        // Convert totals for display using centralized service
+        var displaySubTotal = currencyConversion.Convert(basket.SubTotal, rate, currencyContext.CurrencyCode);
+        var displayDiscount = currencyConversion.Convert(basket.Discount, rate, currencyContext.CurrencyCode);
+        var displayTax = currencyConversion.Convert(basket.Tax, rate, currencyContext.CurrencyCode);
+        var displayShipping = currencyConversion.Convert(basket.Shipping, rate, currencyContext.CurrencyCode);
+        var displayTotal = currencyConversion.Convert(basket.Total, rate, currencyContext.CurrencyCode);
 
         return Ok(new StorefrontBasketDto
         {
@@ -208,21 +142,21 @@ public class StorefrontApiController(
             Tax = basket.Tax,
             Shipping = basket.Shipping,
             Total = basket.Total,
-            FormattedSubTotal = basket.SubTotal.FormatWithSymbol(_settings.CurrencySymbol),
-            FormattedDiscount = basket.Discount.FormatWithSymbol(_settings.CurrencySymbol),
-            FormattedTax = basket.Tax.FormatWithSymbol(_settings.CurrencySymbol),
-            FormattedTotal = basket.Total.FormatWithSymbol(_settings.CurrencySymbol),
+            FormattedSubTotal = currencyConversion.Format(basket.SubTotal, _settings.CurrencySymbol),
+            FormattedDiscount = currencyConversion.Format(basket.Discount, _settings.CurrencySymbol),
+            FormattedTax = currencyConversion.Format(basket.Tax, _settings.CurrencySymbol),
+            FormattedTotal = currencyConversion.Format(basket.Total, _settings.CurrencySymbol),
             CurrencySymbol = _settings.CurrencySymbol,
             DisplaySubTotal = displaySubTotal,
             DisplayDiscount = displayDiscount,
             DisplayTax = displayTax,
             DisplayShipping = displayShipping,
             DisplayTotal = displayTotal,
-            FormattedDisplaySubTotal = displaySubTotal.FormatWithSymbol(currencyContext.CurrencySymbol),
-            FormattedDisplayDiscount = displayDiscount.FormatWithSymbol(currencyContext.CurrencySymbol),
-            FormattedDisplayTax = displayTax.FormatWithSymbol(currencyContext.CurrencySymbol),
-            FormattedDisplayShipping = displayShipping.FormatWithSymbol(currencyContext.CurrencySymbol),
-            FormattedDisplayTotal = displayTotal.FormatWithSymbol(currencyContext.CurrencySymbol),
+            FormattedDisplaySubTotal = currencyConversion.Format(displaySubTotal, currencyContext.CurrencySymbol),
+            FormattedDisplayDiscount = currencyConversion.Format(displayDiscount, currencyContext.CurrencySymbol),
+            FormattedDisplayTax = currencyConversion.Format(displayTax, currencyContext.CurrencySymbol),
+            FormattedDisplayShipping = currencyConversion.Format(displayShipping, currencyContext.CurrencySymbol),
+            FormattedDisplayTotal = currencyConversion.Format(displayTotal, currencyContext.CurrencySymbol),
             DisplayCurrencyCode = currencyContext.CurrencyCode,
             DisplayCurrencySymbol = currencyContext.CurrencySymbol,
             ExchangeRate = rate,
@@ -589,21 +523,24 @@ public class StorefrontApiController(
             ShippingAmountOverride = estimatedShipping
         }, ct);
 
-        // Get currency context for display conversion
+        // Get currency context for display conversion using centralized service
         var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
         var rate = currencyContext.ExchangeRate;
-        var displayEstimatedShipping = currencyService.Round(estimatedShipping * rate, currencyContext.CurrencyCode);
-        var displayTotal = currencyService.Round(basket.Total * rate, currencyContext.CurrencyCode);
+        var displayEstimatedShipping = currencyConversion.Convert(estimatedShipping, rate, currencyContext.CurrencyCode);
+        var displayTotal = currencyConversion.Convert(basket.Total, rate, currencyContext.CurrencyCode);
+        var displayTax = currencyConversion.Convert(basket.Tax, rate, currencyContext.CurrencyCode);
 
         return Ok(new EstimatedShippingDto
         {
             Success = true,
             EstimatedShipping = estimatedShipping,
-            FormattedEstimatedShipping = estimatedShipping.FormatWithSymbol(_settings.CurrencySymbol),
+            FormattedEstimatedShipping = currencyConversion.Format(estimatedShipping, _settings.CurrencySymbol),
             DisplayEstimatedShipping = displayEstimatedShipping,
-            FormattedDisplayEstimatedShipping = displayEstimatedShipping.FormatWithSymbol(currencyContext.CurrencySymbol),
+            FormattedDisplayEstimatedShipping = currencyConversion.Format(displayEstimatedShipping, currencyContext.CurrencySymbol),
             DisplayTotal = displayTotal,
-            FormattedDisplayTotal = displayTotal.FormatWithSymbol(currencyContext.CurrencySymbol),
+            FormattedDisplayTotal = currencyConversion.Format(displayTotal, currencyContext.CurrencySymbol),
+            DisplayTax = displayTax,
+            FormattedDisplayTax = currencyConversion.Format(displayTax, currencyContext.CurrencySymbol),
             GroupCount = groupingResult.Groups.Count
         });
     }

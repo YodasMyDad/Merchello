@@ -5,7 +5,11 @@
     Layout = "~/Views/Checkout/_Layout.cshtml";
     var basket = Model.Basket;
     var session = Model.Session;
-    var currencySymbol = basket?.CurrencySymbol ?? "£";
+
+    // Use display currency from ViewModel (customer's selected currency)
+    var displayCurrencySymbol = Model.DisplayCurrencySymbol ?? basket?.CurrencySymbol ?? "£";
+    var displayCurrencyCode = Model.DisplayCurrencyCode ?? basket?.Currency ?? "GBP";
+    var exchangeRate = Model.ExchangeRate;
 
     // Get default country/state from ViewModel (set by controller from basket or MerchelloSettings)
     var defaultCountry = Model.DefaultCountryCode ?? "";
@@ -14,20 +18,29 @@
     // JSON serialization options for initial data
     var jsonOptions = new JsonSerializerOptions { Encoder = JavaScriptEncoder.Default };
     var hasShippingGroups = Model.ShippingGroups?.Count > 0;
+
+    // Convert basket totals to display currency
+    var displayTotal = (basket?.Total ?? 0) * exchangeRate;
+    var displayShipping = (basket?.Shipping ?? 0) * exchangeRate;
+    var displayTax = (basket?.Tax ?? 0) * exchangeRate;
+    var displaySubtotal = (basket?.SubTotal ?? 0) * exchangeRate;
+    var displayDiscount = (basket?.Discount ?? 0) * exchangeRate;
 }
 
 <script id="checkout-initial-data" type="application/json">
 @Html.Raw(JsonSerializer.Serialize(new {
     basket = new {
-        total = basket?.Total ?? 0,
-        shipping = basket?.Shipping ?? 0,
-        tax = basket?.Tax ?? 0,
-        subtotal = basket?.SubTotal ?? 0
+        total = displayTotal,
+        shipping = displayShipping,
+        tax = displayTax,
+        subtotal = displaySubtotal,
+        discount = displayDiscount
     },
     currency = new {
-        code = basket?.Currency ?? "GBP",
-        symbol = currencySymbol
+        code = displayCurrencyCode,
+        symbol = displayCurrencySymbol
     },
+    exchangeRate = exchangeRate,
     email = basket?.BillingAddress?.Email ?? "",
     billing = new {
         name = basket?.BillingAddress?.Name ?? "",
@@ -393,7 +406,7 @@
                         <div x-show="!form.email" class="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
                             <p class="text-sm text-amber-700">Please enter your email address above to continue with payment.</p>
                         </div>
-                        <div id="hosted-fields-container" class="min-h-[100px]"></div>
+                        <div id="hosted-fields-container"></div>
                         <div id="widget-container"></div>
                         <div id="direct-form-container"></div>
                     </div>
@@ -459,7 +472,7 @@
     <div class="checkout-sticky-actions lg:hidden">
         <div class="flex items-center justify-between mb-2">
             <span class="text-sm text-gray-600">Total</span>
-            <span class="text-lg font-semibold" x-text="formattedTotal">@currencySymbol@(basket?.Total.ToString("N2") ?? "0.00")</span>
+            <span class="text-lg font-semibold" x-text="formattedTotal">@displayCurrencySymbol@(displayTotal.ToString("N2"))</span>
         </div>
         <button type="button"
                 @@click="submitOrder"
@@ -482,9 +495,6 @@
     <!-- Single-page checkout analytics helper -->
     <script src="/js/checkout/single-page-analytics.js"></script>
 
-    <!-- Checkout modules are loaded from _Layout.cshtml via index.js -->
+    <!-- Checkout modules (including payment.js) are loaded from _Layout.cshtml via index.js -->
     <!-- The singlePageCheckout component reads initial data from #checkout-initial-data JSON block above -->
-
-    <!-- Payment module for handling payment method adapters -->
-    <script src="/js/checkout/payment.js"></script>
 }

@@ -662,7 +662,8 @@ const MerchelloPayment = {
     }
 };
 
-// Export for use in other modules
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = MerchelloPayment;
-}
+// Make available globally for checkout components and adapters
+window.MerchelloPayment = MerchelloPayment;
+
+// Export as ES module
+export default MerchelloPayment;

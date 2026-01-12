@@ -9,6 +9,7 @@ using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Accounting.Handlers.Interfaces;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Checkout;
 using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
@@ -46,6 +47,9 @@ using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Storefront.Models;
+using Merchello.Core.Storefront.Services;
+using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Core.Tax.Services;
 using Merchello.Core.Tax.Services.Interfaces;
 using Merchello.Core.Tax.Providers;
@@ -469,6 +473,15 @@ public class ServiceTestFixture : IDisposable
         // CheckoutSessionService (uses IHttpContextAccessor)
         services.AddScoped<ICheckoutSessionService, CheckoutSessionService>();
 
+        // AbandonedCheckoutService and settings
+        var abandonedCheckoutSettings = new AbandonedCheckoutSettings
+        {
+            Enabled = true,
+            RecoveryUrlBase = "https://example.com/checkout/recover"
+        };
+        services.AddSingleton(Options.Create(abandonedCheckoutSettings));
+        services.AddScoped<IAbandonedCheckoutService, AbandonedCheckoutService>();
+
         // Mock locality catalog (returns list of shippable countries)
         var localityCatalogMock = new Mock<ILocalityCatalog>();
         localityCatalogMock.Setup(x => x.GetCountriesAsync(It.IsAny<CancellationToken>()))
@@ -515,6 +528,24 @@ public class ServiceTestFixture : IDisposable
         // Mock checkout member service
         var checkoutMemberServiceMock = new Mock<ICheckoutMemberService>();
         services.AddSingleton(checkoutMemberServiceMock.Object);
+
+        // Mock storefront context service (provides location/currency context for checkout)
+        var storefrontContextServiceMock = new Mock<IStorefrontContextService>();
+        storefrontContextServiceMock.Setup(x => x.GetBasketAvailabilityAsync(
+            It.IsAny<IReadOnlyList<LineItem>>(),
+            It.IsAny<string?>(),
+            It.IsAny<string?>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BasketLocationAvailability(true, []));
+        services.AddSingleton(storefrontContextServiceMock.Object);
+
+        // Mock currency conversion service
+        var currencyConversionServiceMock = new Mock<ICurrencyConversionService>();
+        currencyConversionServiceMock.Setup(x => x.Convert(It.IsAny<decimal>(), It.IsAny<decimal>(), It.IsAny<string>()))
+            .Returns((decimal amount, decimal rate, string _) => amount * rate);
+        currencyConversionServiceMock.Setup(x => x.Format(It.IsAny<decimal>(), It.IsAny<string>()))
+            .Returns((decimal amount, string symbol) => $"{symbol}{amount:N2}");
+        services.AddSingleton(currencyConversionServiceMock.Object);
 
         // Register CheckoutService
         // Important: This creates a proper Lazy<ICheckoutService> that resolves to the real service
@@ -798,6 +829,31 @@ public class ServiceTestFixture : IDisposable
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<CustomerLookupResultDto>>>>()))
                     .Returns((Func<MerchelloDbContext, Task<List<CustomerLookupResultDto>>> func) => func(dbContext));
+
+                // Abandoned checkout service return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Basket?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Basket?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<AbandonedCheckout?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<AbandonedCheckout?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<AbandonedCheckout>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<AbandonedCheckout>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<PaginatedList<AbandonedCheckout>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<PaginatedList<AbandonedCheckout>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<string?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<string?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Core.Checkout.Dtos.AbandonedCheckoutStatsDto>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Core.Checkout.Dtos.AbandonedCheckoutStatsDto>> func) => func(dbContext));
 
                 scopeMock.Setup(s => s.Complete()).Returns(true);
                 scopeMock.Setup(s => s.Dispose()).Callback(dbContext.Dispose);

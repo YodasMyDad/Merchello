@@ -111,11 +111,14 @@ export function initOrderSummary() {
                         });
                     }
 
-                    // Notify parent to reload (server-rendered discount lines)
-                    this.$dispatch('discount-applied', { basket: data.basket });
+                    // Update store with new basket data (reactive - no page reload needed)
+                    // @ts-ignore - Alpine store
+                    if (this.$store.checkout && data.basket) {
+                        this.$store.checkout.updateBasket(data.basket);
+                    }
 
-                    // Refresh page to show updated discount lines
-                    window.location.reload();
+                    // Notify parent components
+                    this.$dispatch('discount-applied', { basket: data.basket });
                 } else {
                     this.discountError = data.message || 'Failed to apply discount code.';
                 }
@@ -140,6 +143,8 @@ export function initOrderSummary() {
                 const data = await checkoutApi.removeDiscount(discountId);
 
                 if (data.success) {
+                    this.discountSuccess = 'Discount removed.';
+
                     // Track analytics
                     if (window.MerchelloCheckout) {
                         window.MerchelloCheckout.emit('checkout:coupon_removed', {
@@ -147,11 +152,14 @@ export function initOrderSummary() {
                         });
                     }
 
-                    // Notify parent
-                    this.$dispatch('discount-removed', { basket: data.basket });
+                    // Update store with new basket data (reactive - no page reload needed)
+                    // @ts-ignore - Alpine store
+                    if (this.$store.checkout && data.basket) {
+                        this.$store.checkout.updateBasket(data.basket);
+                    }
 
-                    // Refresh page to show updated totals
-                    window.location.reload();
+                    // Notify parent components
+                    this.$dispatch('discount-removed', { basket: data.basket });
                 } else {
                     this.discountError = data.message || 'Failed to remove discount.';
                 }

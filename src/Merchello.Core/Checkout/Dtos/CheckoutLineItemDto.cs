@@ -31,6 +31,13 @@ public class CheckoutLineItemDto
     public decimal LineTotal { get; set; }
     public string FormattedUnitPrice { get; set; } = "";
     public string FormattedLineTotal { get; set; } = "";
+
+    // Display currency prices (customer's selected currency)
+    public decimal DisplayUnitPrice { get; set; }
+    public decimal DisplayLineTotal { get; set; }
+    public string FormattedDisplayUnitPrice { get; set; } = "";
+    public string FormattedDisplayLineTotal { get; set; } = "";
+
     public LineItemType LineItemType { get; set; }
     public string? ImageUrl { get; set; }
 }

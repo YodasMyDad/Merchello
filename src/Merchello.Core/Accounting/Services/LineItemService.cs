@@ -238,12 +238,16 @@ public class LineItemService(
         // Cap discount at subtotal - discount can never exceed what's being purchased
         var discountAbsolute = currencyService.Round(Math.Min(Math.Abs(totalDiscountAmount), subTotal), currencyCode);
 
+        // Reconcile tax to ensure displayed values sum to total (prevents rounding discrepancies)
+        // Total = AdjustedSubTotal + Tax + Shipping must hold true for displayed values
+        var reconciledTax = Math.Max(0, total - adjustedSubTotal - shippingAmount);
+
         return new CalculateLineItemsResult
         {
             SubTotal = subTotal,
             Discount = discountAbsolute,
             AdjustedSubTotal = adjustedSubTotal,
-            Tax = tax,
+            Tax = reconciledTax,
             Total = total,
             Shipping = shippingAmount
         };

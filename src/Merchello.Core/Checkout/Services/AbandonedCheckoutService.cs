@@ -1,9 +1,11 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Data;
+using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Shared.Models;
@@ -75,6 +77,9 @@ public class AbandonedCheckoutService(
                 existing.CurrencyCode = basket.Currency;
                 existing.CurrencySymbol = basket.CurrencySymbol;
                 existing.CustomerName = basket.BillingAddress.Name;
+
+                // Store address snapshots for recovery (addresses may be lost if HTTP session expires)
+                StoreAddressSnapshots(existing, basket);
             }
             else if (!string.IsNullOrWhiteSpace(email))
             {
@@ -91,6 +96,9 @@ public class AbandonedCheckoutService(
                     CustomerName = basket.BillingAddress.Name,
                     Status = AbandonedCheckoutStatus.Active
                 };
+
+                // Store address snapshots for recovery (addresses may be lost if HTTP session expires)
+                StoreAddressSnapshots(abandoned, basket);
 
                 db.AbandonedCheckouts.Add(abandoned);
             }
@@ -375,9 +383,16 @@ public class AbandonedCheckoutService(
                 return null;
             }
 
+            // Restore addresses and currency from the abandoned checkout snapshot
+            // This is critical because HTTP session may have expired or user may be on a different device
+            RestoreAddressAndCurrencySnapshots(abandoned, existingBasket);
+
             // Mark as recovered (status update + notification)
             abandoned.Status = AbandonedCheckoutStatus.Recovered;
             abandoned.DateRecovered = DateTime.UtcNow;
+
+            // Save the basket with restored addresses
+            db.Baskets.Update(existingBasket);
             await db.SaveChangesAsync(ct);
 
             return existingBasket;
@@ -706,4 +721,113 @@ public class AbandonedCheckoutService(
         AbandonedCheckoutStatus.Expired => "cancelled",
         _ => "default"
     };
+
+    /// <summary>
+    /// Stores billing and shipping address snapshots in the abandoned checkout's ExtendedData.
+    /// This ensures addresses can be recovered even if the HTTP session expires.
+    /// </summary>
+    private static void StoreAddressSnapshots(AbandonedCheckout abandonedCheckout, Basket basket)
+    {
+        // Only store addresses if they have meaningful data (at least email for billing)
+        if (!string.IsNullOrWhiteSpace(basket.BillingAddress?.Email) ||
+            !string.IsNullOrWhiteSpace(basket.BillingAddress?.Name))
+        {
+            abandonedCheckout.ExtendedData["BillingAddressJson"] = JsonSerializer.Serialize(basket.BillingAddress);
+        }
+
+        // Store shipping address if it has meaningful data
+        if (!string.IsNullOrWhiteSpace(basket.ShippingAddress?.CountryCode) ||
+            !string.IsNullOrWhiteSpace(basket.ShippingAddress?.Name))
+        {
+            abandonedCheckout.ExtendedData["ShippingAddressJson"] = JsonSerializer.Serialize(basket.ShippingAddress);
+        }
+    }
+
+    /// <summary>
+    /// Restores address snapshots from the abandoned checkout's ExtendedData to the basket.
+    /// Also restores currency from the abandoned checkout record.
+    /// </summary>
+    private void RestoreAddressAndCurrencySnapshots(AbandonedCheckout abandonedCheckout, Basket basket)
+    {
+        // Restore currency from the abandoned checkout record
+        if (!string.IsNullOrEmpty(abandonedCheckout.CurrencyCode))
+        {
+            basket.Currency = abandonedCheckout.CurrencyCode;
+            basket.CurrencySymbol = abandonedCheckout.CurrencySymbol ?? "";
+            logger.LogDebug(
+                "Restored currency {CurrencyCode} for basket {BasketId} from abandoned checkout",
+                abandonedCheckout.CurrencyCode, basket.Id);
+        }
+
+        // Restore billing address from snapshot
+        var billingStr = GetExtendedDataString(abandonedCheckout.ExtendedData, "BillingAddressJson");
+        if (!string.IsNullOrEmpty(billingStr))
+        {
+            try
+            {
+                var billingAddress = JsonSerializer.Deserialize<Address>(billingStr);
+                if (billingAddress != null)
+                {
+                    basket.BillingAddress = billingAddress;
+                    logger.LogDebug(
+                        "Restored billing address for basket {BasketId} from abandoned checkout",
+                        basket.Id);
+                }
+            }
+            catch (JsonException ex)
+            {
+                logger.LogWarning(ex,
+                    "Failed to deserialize billing address from abandoned checkout {AbandonedCheckoutId}",
+                    abandonedCheckout.Id);
+            }
+        }
+
+        // Restore shipping address from snapshot
+        var shippingStr = GetExtendedDataString(abandonedCheckout.ExtendedData, "ShippingAddressJson");
+        if (!string.IsNullOrEmpty(shippingStr))
+        {
+            try
+            {
+                var shippingAddress = JsonSerializer.Deserialize<Address>(shippingStr);
+                if (shippingAddress != null)
+                {
+                    basket.ShippingAddress = shippingAddress;
+                    logger.LogDebug(
+                        "Restored shipping address for basket {BasketId} from abandoned checkout",
+                        basket.Id);
+                }
+            }
+            catch (JsonException ex)
+            {
+                logger.LogWarning(ex,
+                    "Failed to deserialize shipping address from abandoned checkout {AbandonedCheckoutId}",
+                    abandonedCheckout.Id);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Helper to get a string value from ExtendedData, handling both string and JsonElement types.
+    /// When EF Core deserializes JSON columns, values may be JsonElement instead of string.
+    /// </summary>
+    private static string? GetExtendedDataString(Dictionary<string, object> extendedData, string key)
+    {
+        if (!extendedData.TryGetValue(key, out var value) || value == null)
+            return null;
+
+        // Handle direct string value (when stored in-memory)
+        if (value is string str)
+            return str;
+
+        // Handle JsonElement (when deserialized from database JSON column)
+        if (value is JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind == JsonValueKind.String
+                ? jsonElement.GetString()
+                : jsonElement.GetRawText();
+        }
+
+        // Fallback - try ToString
+        return value.ToString();
+    }
 }

@@ -90,6 +90,10 @@ public partial class CheckoutValidator(IOptions<CheckoutSettings> checkoutSettin
         {
             errors[$"{prefix}.phone"] = "Phone number is required.";
         }
+        else if (!string.IsNullOrWhiteSpace(address.Phone) && !PhoneRegex().IsMatch(address.Phone))
+        {
+            errors[$"{prefix}.phone"] = "Please enter a valid phone number.";
+        }
 
         return errors;
     }
@@ -100,4 +104,7 @@ public partial class CheckoutValidator(IOptions<CheckoutSettings> checkoutSettin
 
     [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.IgnoreCase)]
     private static partial Regex EmailRegex();
+
+    [GeneratedRegex(@"^\+?[\d\s\-()]*\d[\d\s\-()]*$")]
+    private static partial Regex PhoneRegex();
 }

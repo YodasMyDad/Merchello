@@ -630,6 +630,45 @@ public class LineItemCalculationTests
         total.ShouldBe(1198.8m);
     }
 
+    [Fact]
+    public void CalculateFromLineItems_DisplayedValuesSumToTotal_NoRoundingDiscrepancy()
+    {
+        // Arrange - values that would cause rounding discrepancy without reconciliation
+        // Using prices that when individually rounded and summed differ from rounded sum
+        List<LineItem> lineItems =
+        [
+            CreateProductLineItem("SKU1", 7.446m, 1, taxRate: 30.05m)
+        ];
+
+        // Act - with shipping that also has fractional value
+        var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
+            Calculate(lineItems, 3.716m, 30.05m, _currencyCode, isShippingTaxable: true);
+
+        // Assert - displayed values MUST sum exactly to total (no penny discrepancy)
+        var displaySum = adjustedSubTotal + tax + shipping;
+        displaySum.ShouldBe(total, "Displayed values must sum exactly to total");
+    }
+
+    [Fact]
+    public void CalculateFromLineItems_WithDiscountsAndShipping_DisplayedValuesSumToTotal()
+    {
+        // Arrange - complex scenario with discounts
+        List<LineItem> lineItems =
+        [
+            CreateProductLineItem("SKU1", 49.99m, 2, taxRate: 20),
+            CreateProductLineItem("SKU2", 24.99m, 1, taxRate: 5)
+        ];
+        AddDiscount(lineItems, 15m, DiscountValueType.Percentage, _currencyCode, name: "15% off");
+
+        // Act
+        var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
+            Calculate(lineItems, 9.99m, 20, _currencyCode, isShippingTaxable: true);
+
+        // Assert - displayed values MUST sum exactly to total
+        var displaySum = adjustedSubTotal + tax + shipping;
+        displaySum.ShouldBe(total, "Displayed values must sum exactly to total");
+    }
+
     #endregion
 
     #region RemoveDiscountLineItem Tests

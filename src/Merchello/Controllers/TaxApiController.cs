@@ -2,8 +2,11 @@ using Asp.Versioning;
 using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Locality.Services.Interfaces;
+using Merchello.Core.Shared.Models;
+using Merchello.Core.Tax.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Merchello.Controllers;
 
@@ -12,7 +15,11 @@ namespace Merchello.Controllers;
 /// </summary>
 [ApiVersion("1.0")]
 [ApiExplorerSettings(GroupName = "Merchello")]
-public class TaxApiController(ITaxService taxService, ILocalityCatalog localityCatalog) : MerchelloApiControllerBase
+public class TaxApiController(
+    ITaxService taxService,
+    ITaxCalculationService taxCalculationService,
+    ILocalityCatalog localityCatalog,
+    IOptions<MerchelloSettings> settings) : MerchelloApiControllerBase
 {
     /// <summary>
     /// Get all tax groups
@@ -51,15 +58,18 @@ public class TaxApiController(ITaxService taxService, ILocalityCatalog localityC
             taxRate = taxGroup?.TaxPercentage ?? 0m;
         }
 
-        var subtotal = request.Price * request.Quantity;
-        var taxAmount = Math.Round(subtotal * (taxRate / 100m), 2);
+        var result = taxCalculationService.PreviewTax(
+            request.Price,
+            request.Quantity,
+            taxRate,
+            settings.Value.StoreCurrencyCode);
 
         return new PreviewCustomItemTaxResultDto
         {
-            Subtotal = subtotal,
-            TaxRate = taxRate,
-            TaxAmount = taxAmount,
-            Total = subtotal + taxAmount
+            Subtotal = result.Subtotal,
+            TaxRate = result.TaxRate,
+            TaxAmount = result.TaxAmount,
+            Total = result.Total
         };
     }
 

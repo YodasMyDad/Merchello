@@ -99,4 +99,25 @@ public class CheckoutViewModel
     /// Whether this is a single-page checkout view.
     /// </summary>
     public bool IsSinglePageCheckout { get; init; }
+
+    /// <summary>
+    /// Customer's selected display currency code (e.g., "GBP").
+    /// </summary>
+    public string? DisplayCurrencyCode { get; init; }
+
+    /// <summary>
+    /// Customer's selected display currency symbol (e.g., "£").
+    /// </summary>
+    public string? DisplayCurrencySymbol { get; init; }
+
+    /// <summary>
+    /// Exchange rate from store currency to display currency.
+    /// </summary>
+    public decimal ExchangeRate { get; init; } = 1m;
+
+    /// <summary>
+    /// Whether to show the discount code input.
+    /// True when there are active code-based discounts available.
+    /// </summary>
+    public bool ShowDiscountCode { get; init; }
 }

@@ -2,8 +2,10 @@ using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Storefront.Services;
 using Merchello.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
@@ -25,7 +27,9 @@ public class MerchelloCheckoutController(
     IOptions<CheckoutSettings> checkoutSettings,
     IOptions<MerchelloSettings> merchelloSettings,
     ICheckoutService checkoutService,
-    ICheckoutSessionService checkoutSessionService)
+    ICheckoutSessionService checkoutSessionService,
+    IStorefrontContextService storefrontContext,
+    IDiscountService discountService)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
 {
     private readonly CheckoutSettings _settings = checkoutSettings.Value;
@@ -108,6 +112,12 @@ public class MerchelloCheckoutController(
             return Redirect("/");
         }
 
+        // Get customer's currency context for display
+        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
+        var displayCurrencyCode = currencyContext.CurrencyCode;
+        var displayCurrencySymbol = currencyContext.CurrencySymbol;
+        var exchangeRate = currencyContext.ExchangeRate;
+
         // Load checkout session if basket exists
         var session = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
 
@@ -146,14 +156,20 @@ public class MerchelloCheckoutController(
                 // Update basket with calculated totals
                 basket = initResult.ResultObject.Basket;
 
-                // Get shipping groups with selections
-                var currencySymbol = basket.CurrencySymbol ?? _merchelloSettings.CurrencySymbol;
-                shippingGroups = MapOrderGroupsToDto(initResult.ResultObject.GroupingResult, currencySymbol, initResult.ResultObject.AutoSelectedShippingOptions);
+                // Get shipping groups with selections - use display currency for formatted costs
+                shippingGroups = MapOrderGroupsToDto(
+                    initResult.ResultObject.GroupingResult,
+                    displayCurrencySymbol,
+                    initResult.ResultObject.AutoSelectedShippingOptions,
+                    exchangeRate);
             }
         }
 
         // Reload session after initialization (may have been updated)
         session = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
+
+        // Check if there are any active discount codes to show the discount input
+        var showDiscountCode = await discountService.HasActiveCodeDiscountsAsync(ct);
 
         var viewModel = new CheckoutViewModel(
             CheckoutStep.Information,
@@ -166,7 +182,11 @@ public class MerchelloCheckoutController(
         {
             DefaultCountryCode = defaultCountryCode,
             DefaultStateCode = defaultStateCode,
-            IsSinglePageCheckout = true
+            IsSinglePageCheckout = true,
+            DisplayCurrencyCode = displayCurrencyCode,
+            DisplayCurrencySymbol = displayCurrencySymbol,
+            ExchangeRate = exchangeRate,
+            ShowDiscountCode = showDiscountCode
         };
 
         return View("~/Views/Checkout/SinglePage.cshtml", viewModel);
@@ -175,40 +195,50 @@ public class MerchelloCheckoutController(
     private static List<ShippingGroupDto> MapOrderGroupsToDto(
         Core.Checkout.Strategies.Models.OrderGroupingResult result,
         string currencySymbol,
-        Dictionary<Guid, Guid>? selectedOptions)
+        Dictionary<Guid, Guid>? selectedOptions,
+        decimal exchangeRate = 1m)
     {
         return result.Groups.Select(group => new ShippingGroupDto
         {
             GroupId = group.GroupId,
             GroupName = group.GroupName,
             WarehouseId = group.WarehouseId,
-            LineItems = group.LineItems.Select(li => new ShippingGroupLineItemDto
+            LineItems = group.LineItems.Select(li =>
             {
-                Id = li.LineItemId,
-                Sku = li.Sku ?? "",
-                Name = li.Name,
-                ProductRootName = li.ProductRootName,
-                SelectedOptions = li.SelectedOptions
-                    .Select(o => new SelectedOptionDto
-                    {
-                        OptionName = o.OptionName,
-                        ValueName = o.ValueName
-                    }).ToList(),
-                Quantity = li.Quantity,
-                Amount = li.Amount * li.Quantity,
-                FormattedAmount = (li.Amount * li.Quantity).FormatWithSymbol(currencySymbol)
+                var lineTotal = li.Amount * li.Quantity;
+                var displayLineTotal = lineTotal * exchangeRate;
+                return new ShippingGroupLineItemDto
+                {
+                    Id = li.LineItemId,
+                    Sku = li.Sku ?? "",
+                    Name = li.Name,
+                    ProductRootName = li.ProductRootName,
+                    SelectedOptions = li.SelectedOptions
+                        .Select(o => new SelectedOptionDto
+                        {
+                            OptionName = o.OptionName,
+                            ValueName = o.ValueName
+                        }).ToList(),
+                    Quantity = li.Quantity,
+                    Amount = displayLineTotal,
+                    FormattedAmount = displayLineTotal.FormatWithSymbol(currencySymbol)
+                };
             }).ToList(),
-            ShippingOptions = group.AvailableShippingOptions.Select(opt => new ShippingOptionDto
+            ShippingOptions = group.AvailableShippingOptions.Select(opt =>
             {
-                Id = opt.ShippingOptionId,
-                Name = opt.Name,
-                DaysFrom = opt.DaysFrom,
-                DaysTo = opt.DaysTo,
-                IsNextDay = opt.IsNextDay,
-                Cost = opt.Cost,
-                FormattedCost = opt.Cost.FormatWithSymbol(currencySymbol),
-                DeliveryDescription = opt.DeliveryTimeDescription,
-                ProviderKey = opt.ProviderKey
+                var displayCost = opt.Cost * exchangeRate;
+                return new ShippingOptionDto
+                {
+                    Id = opt.ShippingOptionId,
+                    Name = opt.Name,
+                    DaysFrom = opt.DaysFrom,
+                    DaysTo = opt.DaysTo,
+                    IsNextDay = opt.IsNextDay,
+                    Cost = displayCost,
+                    FormattedCost = displayCost.FormatWithSymbol(currencySymbol),
+                    DeliveryDescription = opt.DeliveryTimeDescription,
+                    ProviderKey = opt.ProviderKey
+                };
             }).ToList(),
             SelectedShippingOptionId = selectedOptions?.TryGetValue(group.GroupId, out var selectedId) == true
                 ? selectedId

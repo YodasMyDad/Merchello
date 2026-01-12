@@ -92,6 +92,7 @@ public class PaymentService(
         var request = new PaymentRequest
         {
             InvoiceId = parameters.InvoiceId,
+            MethodAlias = parameters.MethodAlias,
             Amount = invoice.Total,
             Currency = invoice.CurrencyCode,
             ReturnUrl = parameters.ReturnUrl,

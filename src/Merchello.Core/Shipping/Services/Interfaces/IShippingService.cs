@@ -5,6 +5,18 @@ using Merchello.Core.Shipping.Models;
 
 namespace Merchello.Core.Shipping.Services.Interfaces;
 
+/// <summary>
+/// High-level shipping orchestration service for basket and product shipping calculations.
+/// </summary>
+/// <remarks>
+/// <para><b>Service Architecture:</b> Shipping functionality is split across three services:</para>
+/// <list type="bullet">
+/// <item><b>IShippingService</b> (this) - Business logic and orchestration for basket/product shipping</item>
+/// <item><b>IShippingQuoteService</b> - Fetches quotes from shipping providers (FedEx, UPS, etc.)</item>
+/// <item><b>IShippingCostResolver</b> - Resolves costs from flat-rate shipping option configurations</item>
+/// </list>
+/// <para>This separation allows clean provider abstraction while keeping business logic centralized.</para>
+/// </remarks>
 public interface IShippingService
 {
     /// <summary>

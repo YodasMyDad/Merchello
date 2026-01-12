@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
@@ -11,6 +12,7 @@ using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Storefront.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -31,6 +33,7 @@ public class CheckoutPaymentsApiController(
     IInvoiceService invoiceService,
     ICheckoutService checkoutService,
     ICheckoutSessionService checkoutSessionService,
+    IStorefrontContextService storefrontContextService,
     IOptions<MerchelloSettings> merchelloSettings,
     ILogger<CheckoutPaymentsApiController> logger) : ControllerBase
 {
@@ -309,13 +312,31 @@ public class CheckoutPaymentsApiController(
         // Get checkout session
         var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
 
-        // Validate checkout session has required data
-        if (string.IsNullOrWhiteSpace(session.BillingAddress.Email))
+        // Fallback to basket addresses if session is empty (session expired, different browser, etc.)
+        // The basket addresses are persisted to the database, while session is volatile (HTTP session)
+        if (string.IsNullOrWhiteSpace(session.BillingAddress.Name) &&
+            !string.IsNullOrWhiteSpace(basket.BillingAddress.Name))
         {
+            logger.LogWarning(
+                "Checkout session addresses empty, falling back to basket addresses for basket {BasketId}",
+                basket.Id);
+            session.BillingAddress = basket.BillingAddress;
+            session.ShippingAddress = basket.ShippingAddress;
+        }
+
+        // Validate checkout session has all required address data
+        var validation = ValidateCheckoutSession(session);
+        if (!validation.IsValid)
+        {
+            logger.LogWarning(
+                "Checkout session validation failed for basket {BasketId}: {Error}",
+                basket.Id,
+                validation.ErrorMessage);
+
             return BadRequest(new PaymentSessionResultDto
             {
                 Success = false,
-                ErrorMessage = "Please complete the checkout information step first."
+                ErrorMessage = validation.ErrorMessage
             });
         }
 
@@ -331,6 +352,34 @@ public class CheckoutPaymentsApiController(
             {
                 Success = false,
                 ErrorMessage = $"Payment provider '{request.ProviderAlias}' is not available."
+            });
+        }
+
+        // Re-validate stock availability before creating order
+        // This catches cases where stock changed while user was completing checkout
+        var availability = await storefrontContextService.GetBasketAvailabilityAsync(
+            basket.LineItems,
+            session.ShippingAddress.CountryCode,
+            session.ShippingAddress.CountyState?.RegionCode,
+            cancellationToken);
+
+        if (!availability.AllItemsAvailable)
+        {
+            var unavailableItems = availability.Items
+                .Where(i => !i.CanShipToLocation || !i.HasStock)
+                .Select(i => i.StatusMessage)
+                .ToList();
+
+            logger.LogWarning(
+                "Stock validation failed at checkout for basket {BasketId}: {UnavailableItems}",
+                basket.Id,
+                string.Join(", ", unavailableItems));
+
+            return BadRequest(new PaymentSessionResultDto
+            {
+                Success = false,
+                ErrorMessage = "Some items in your basket are no longer available. Please review your basket and try again.",
+                UnavailableItems = unavailableItems
             });
         }
 
@@ -631,6 +680,19 @@ public class CheckoutPaymentsApiController(
             });
         }
 
+        // Sanitize form data to prevent injection attacks
+        var sanitizedFormData = SanitizeFormData(request.FormData);
+
+        // Log form fields being processed (for security monitoring)
+        if (sanitizedFormData.Any())
+        {
+            logger.LogInformation(
+                "Processing DirectForm payment for invoice {InvoiceId} with provider {Provider}, fields: {Fields}",
+                request.InvoiceId,
+                request.ProviderAlias,
+                string.Join(", ", sanitizedFormData.Keys));
+        }
+
         // Build the process payment request for DirectForm
         var processRequest = new ProcessPaymentRequest
         {
@@ -638,7 +700,7 @@ public class CheckoutPaymentsApiController(
             ProviderAlias = request.ProviderAlias,
             MethodAlias = request.MethodAlias,
             Amount = invoice.Total,
-            FormData = request.FormData
+            FormData = sanitizedFormData
         };
 
         // Process the payment
@@ -1467,5 +1529,69 @@ public class CheckoutPaymentsApiController(
                 ErrorMessage = "An error occurred capturing the PayPal order."
             });
         }
+    }
+
+    // =====================================================
+    // Helper Methods
+    // =====================================================
+
+    /// <summary>
+    /// Sanitizes form data values to prevent injection attacks.
+    /// Trims whitespace and limits string length for security.
+    /// </summary>
+    private static Dictionary<string, string> SanitizeFormData(Dictionary<string, string>? formData)
+    {
+        if (formData == null || formData.Count == 0)
+        {
+            return new Dictionary<string, string>();
+        }
+
+        const int maxValueLength = 10000; // Reasonable limit for form field values
+
+        return formData
+            .Where(kvp => !string.IsNullOrEmpty(kvp.Key))
+            .ToDictionary(
+                kvp => kvp.Key.Trim(),
+                kvp => kvp.Value?.Trim().Length > maxValueLength
+                    ? kvp.Value.Trim()[..maxValueLength]
+                    : kvp.Value?.Trim() ?? string.Empty
+            );
+    }
+
+    /// <summary>
+    /// Validates that the checkout session has all required address data for invoice creation.
+    /// </summary>
+    private static (bool IsValid, string? ErrorMessage) ValidateCheckoutSession(CheckoutSession session)
+    {
+        // Validate billing address
+        if (string.IsNullOrWhiteSpace(session.BillingAddress.Email))
+            return (false, "Email is required. Please complete the checkout information step first.");
+
+        if (string.IsNullOrWhiteSpace(session.BillingAddress.Name))
+            return (false, "Billing name is required. Please complete the checkout information step first.");
+
+        if (string.IsNullOrWhiteSpace(session.BillingAddress.AddressOne))
+            return (false, "Billing address is required. Please complete the checkout information step first.");
+
+        if (string.IsNullOrWhiteSpace(session.BillingAddress.TownCity))
+            return (false, "Billing city is required. Please complete the checkout information step first.");
+
+        if (string.IsNullOrWhiteSpace(session.BillingAddress.CountryCode))
+            return (false, "Billing country is required. Please complete the checkout information step first.");
+
+        // Validate shipping address
+        if (string.IsNullOrWhiteSpace(session.ShippingAddress.Name))
+            return (false, "Shipping name is required. Please complete the checkout information step first.");
+
+        if (string.IsNullOrWhiteSpace(session.ShippingAddress.AddressOne))
+            return (false, "Shipping address is required. Please complete the checkout information step first.");
+
+        if (string.IsNullOrWhiteSpace(session.ShippingAddress.TownCity))
+            return (false, "Shipping city is required. Please complete the checkout information step first.");
+
+        if (string.IsNullOrWhiteSpace(session.ShippingAddress.CountryCode))
+            return (false, "Shipping country is required. Please complete the checkout information step first.");
+
+        return (true, null);
     }
 }

@@ -161,6 +161,21 @@ public class TaxCalculationService(ICurrencyService currencyService) : ITaxCalcu
         return Math.Max(0, lineTotal - lineItemDiscount - proRatedOrderDiscount);
     }
 
+    /// <inheritdoc />
+    public TaxPreviewResult PreviewTax(decimal price, int quantity, decimal taxRate, string currencyCode)
+    {
+        var subtotal = currencyService.Round(price * quantity, currencyCode);
+        var taxAmount = currencyService.Round(subtotal * (taxRate / 100m), currencyCode);
+
+        return new TaxPreviewResult
+        {
+            Subtotal = subtotal,
+            TaxRate = taxRate,
+            TaxAmount = taxAmount,
+            Total = subtotal + taxAmount
+        };
+    }
+
     /// <summary>
     /// Calculates the discount amount for a line item based on discount type.
     /// </summary>

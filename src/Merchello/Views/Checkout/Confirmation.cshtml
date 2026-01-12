@@ -2,12 +2,16 @@
 @{
     Layout = "~/Views/Checkout/_Layout.cshtml";
     var confirmation = Model.Confirmation;
+
+    // Get customer name for personalization
+    var customerName = confirmation?.ShippingAddress?.Name ?? confirmation?.BillingAddress?.Name;
+    var firstName = customerName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
 }
 
 @if (confirmation == null)
 {
     <!-- Order Not Found -->
-    <div class="max-w-2xl mx-auto text-center">
+    <div class="max-w-2xl mx-auto text-center py-12">
         <div class="mb-6">
             <div class="inline-flex items-center justify-center w-20 h-20 bg-red-100 rounded-full">
                 <svg class="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -27,183 +31,284 @@
 }
 else
 {
-    <div class="max-w-2xl mx-auto text-center">
-        <!-- Success Icon -->
-        <div class="mb-6">
-            <div class="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full">
-                <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                </svg>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-0">
+        <!-- Left Column: Order Details -->
+        <div class="pt-6 lg:pr-12 pb-8">
+            <!-- Header: Confirmation Number & Thank You -->
+            <div class="mb-6">
+                <div class="flex items-center gap-2 mb-2">
+                    <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <p class="text-sm text-gray-600">Confirmation #@confirmation.InvoiceNumber</p>
+                </div>
+                <h1 class="font-heading text-2xl lg:text-3xl font-semibold text-gray-900">
+                    Thank you@(string.IsNullOrEmpty(firstName) ? "" : $", {firstName}")!
+                </h1>
+            </div>
+
+            <!-- Order Confirmed Card -->
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+                <div class="flex items-start gap-3">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div>
+                        <h2 class="font-medium text-gray-900">Your order is confirmed</h2>
+                        <p class="text-sm text-gray-600 mt-1">You'll receive a confirmation email soon</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order Details Section -->
+            <div class="border border-gray-200 rounded-lg">
+                <h3 class="text-lg font-medium text-gray-900 p-4 pb-0">Order details</h3>
+
+                <div class="divide-y divide-gray-200">
+                    <!-- Contact & Payment -->
+                    <div class="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-500 mb-1">Contact information</h4>
+                            <p class="text-sm text-gray-900">@confirmation.CustomerEmail</p>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(confirmation.PaymentMethod))
+                        {
+                            <div>
+                                <h4 class="text-sm font-medium text-gray-500 mb-1">Payment method</h4>
+                                <p class="text-sm text-gray-900">@confirmation.PaymentMethod</p>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Addresses -->
+                    <div class="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- Shipping Address -->
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-500 mb-1">Shipping address</h4>
+                            <address class="text-sm text-gray-900 not-italic leading-relaxed">
+                                @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Name))
+                                {
+                                    @confirmation.ShippingAddress.Name<br />
+                                }
+                                @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Address1))
+                                {
+                                    @confirmation.ShippingAddress.Address1<br />
+                                }
+                                @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Address2))
+                                {
+                                    @confirmation.ShippingAddress.Address2<br />
+                                }
+                                @{
+                                    var shipCity = confirmation.ShippingAddress.City;
+                                    var shipState = confirmation.ShippingAddress.State;
+                                    var shipPostal = confirmation.ShippingAddress.PostalCode;
+                                }
+                                @if (!string.IsNullOrEmpty(shipCity))
+                                {
+                                    @shipCity<br />
+                                }
+                                @if (!string.IsNullOrEmpty(shipState) || !string.IsNullOrEmpty(shipPostal))
+                                {
+                                    @shipState @shipPostal<br />
+                                }
+                                @confirmation.ShippingAddress.Country
+                                @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Phone))
+                                {
+                                    <br />@confirmation.ShippingAddress.Phone
+                                }
+                            </address>
+                        </div>
+
+                        <!-- Billing Address -->
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-500 mb-1">Billing address</h4>
+                            <address class="text-sm text-gray-900 not-italic leading-relaxed">
+                                @if (!string.IsNullOrEmpty(confirmation.BillingAddress.Name))
+                                {
+                                    @confirmation.BillingAddress.Name<br />
+                                }
+                                @if (!string.IsNullOrEmpty(confirmation.BillingAddress.Address1))
+                                {
+                                    @confirmation.BillingAddress.Address1<br />
+                                }
+                                @if (!string.IsNullOrEmpty(confirmation.BillingAddress.Address2))
+                                {
+                                    @confirmation.BillingAddress.Address2<br />
+                                }
+                                @{
+                                    var billCity = confirmation.BillingAddress.City;
+                                    var billState = confirmation.BillingAddress.State;
+                                    var billPostal = confirmation.BillingAddress.PostalCode;
+                                }
+                                @if (!string.IsNullOrEmpty(billCity))
+                                {
+                                    @billCity<br />
+                                }
+                                @if (!string.IsNullOrEmpty(billState) || !string.IsNullOrEmpty(billPostal))
+                                {
+                                    @billState @billPostal<br />
+                                }
+                                @confirmation.BillingAddress.Country
+                                @if (!string.IsNullOrEmpty(confirmation.BillingAddress.Phone))
+                                {
+                                    <br />@confirmation.BillingAddress.Phone
+                                }
+                            </address>
+                        </div>
+                    </div>
+
+                    <!-- Shipping Method -->
+                    <div class="p-4">
+                        <h4 class="text-sm font-medium text-gray-500 mb-1">Shipping method</h4>
+                        @if (confirmation.Shipments.Count > 0)
+                        {
+                            @foreach (var shipment in confirmation.Shipments)
+                            {
+                                <p class="text-sm text-gray-900">
+                                    @shipment.ShippingMethodName
+                                    @if (!string.IsNullOrEmpty(shipment.DeliveryEstimate))
+                                    {
+                                        <span class="text-gray-500">(@shipment.DeliveryEstimate)</span>
+                                    }
+                                </p>
+                            }
+                        }
+                        else
+                        {
+                            <p class="text-sm text-gray-900">Standard Shipping</p>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Need Help & Continue Shopping -->
+            <div class="mt-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <a href="/"
+                   class="px-6 py-3 bg-primary text-white font-medium rounded-lg hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all text-center">
+                    Continue shopping
+                </a>
+                @if (!string.IsNullOrEmpty(Model.Settings.SupportEmail))
+                {
+                    <span class="text-sm text-gray-600">
+                        Need help? <a href="mailto:@Model.Settings.SupportEmail" class="text-accent hover:underline">Contact us</a>
+                    </span>
+                }
             </div>
         </div>
 
-        <!-- Thank You Message -->
-        <h1 class="font-heading text-3xl font-semibold text-gray-900 mb-2">Thank you for your order!</h1>
-        <p class="text-gray-600 mb-8">Your order has been confirmed and will be shipping soon.</p>
-
-        <!-- Order Details Card -->
-        <div class="bg-gray-50 rounded-lg border border-gray-200 p-6 text-left mb-8">
-            <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
-                <div>
-                    <p class="text-sm text-gray-500">Order number</p>
-                    <p class="text-lg font-semibold text-gray-900">#@confirmation.InvoiceNumber</p>
-                </div>
-                <div class="text-right">
-                    <p class="text-sm text-gray-500">Order date</p>
-                    <p class="text-sm font-medium text-gray-900">@confirmation.OrderDate.ToString("MMMM d, yyyy")</p>
-                </div>
-            </div>
-
-            <!-- Order Summary -->
-            <div class="space-y-4 mb-6">
-                <h3 class="font-medium text-gray-900">Order summary</h3>
-
-                <!-- Line Items -->
-                <div class="space-y-3">
+        <!-- Right Column: Product Summary -->
+        <div class="relative lg:border-l lg:border-gray-200">
+            <div class="hidden lg:block absolute inset-y-0 left-0 w-[200vw] bg-[#fafafa] -z-10"></div>
+            <div class="pt-6 lg:pl-8 lg:pt-6 lg:pr-8 lg:sticky lg:top-0">
+                <!-- Product List -->
+                <div class="space-y-4 mb-4">
                     @foreach (var item in confirmation.LineItems)
                     {
-                        <div class="flex items-center gap-4">
-                            @if (!string.IsNullOrEmpty(item.ImageUrl))
-                            {
-                                <img src="@item.ImageUrl" alt="@item.ProductRootName" class="w-12 h-12 object-cover rounded flex-shrink-0" />
-                            }
-                            else
-                            {
-                                <div class="w-12 h-12 bg-gray-200 rounded flex-shrink-0"></div>
-                            }
-                            <div class="flex-1">
+                        <div class="flex gap-4">
+                            <!-- Product Image with Quantity Badge -->
+                            <div class="relative flex-shrink-0">
+                                @if (!string.IsNullOrEmpty(item.ImageUrl))
+                                {
+                                    <img src="@item.ImageUrl" alt="@item.ProductRootName" class="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                                }
+                                else
+                                {
+                                    <div class="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
+                                        <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                        </svg>
+                                    </div>
+                                }
+                                <span class="absolute -top-2 -right-2 w-5 h-5 bg-gray-500 text-white text-xs font-medium rounded-full flex items-center justify-center">
+                                    @item.Quantity
+                                </span>
+                            </div>
+
+                            <!-- Product Details -->
+                            <div class="flex-1 min-w-0">
                                 <p class="text-sm font-medium text-gray-900">@item.ProductRootName</p>
                                 @if (item.SelectedOptions.Count > 0)
                                 {
-                                    <p class="text-xs text-gray-500">@string.Join(", ", item.SelectedOptions.Select(o => $"{o.OptionName}: {o.ValueName}"))</p>
+                                    <p class="text-xs text-gray-500">@string.Join(" / ", item.SelectedOptions.Select(o => o.ValueName))</p>
                                 }
-                                <p class="text-sm text-gray-500">Qty: @item.Quantity</p>
                             </div>
-                            <p class="text-sm font-medium text-gray-900">@item.FormattedLineTotal</p>
+
+                            <!-- Price -->
+                            <div class="text-right flex-shrink-0">
+                                <p class="text-sm font-medium text-gray-900">@item.FormattedDisplayLineTotal</p>
+                            </div>
                         </div>
                     }
                 </div>
 
                 <!-- Totals -->
-                <div class="border-t border-gray-200 pt-4 space-y-2 text-sm">
-                    <div class="flex justify-between">
+                <div class="border-t border-gray-200 pt-4 space-y-2">
+                    <div class="flex justify-between text-sm">
                         <span class="text-gray-600">Subtotal</span>
-                        <span class="text-gray-900">@confirmation.FormattedSubTotal</span>
+                        <span class="text-gray-900">@confirmation.FormattedDisplaySubTotal</span>
                     </div>
-                    @if (confirmation.Discount > 0)
+                    @if (confirmation.DisplayDiscount > 0)
                     {
-                        <div class="flex justify-between text-green-600">
+                        <div class="flex justify-between text-sm text-green-600">
                             <span>Discount</span>
-                            <span>-@confirmation.FormattedDiscount</span>
+                            <span>-@confirmation.FormattedDisplayDiscount</span>
                         </div>
                     }
-                    <div class="flex justify-between">
+                    <div class="flex justify-between text-sm">
                         <span class="text-gray-600">Shipping</span>
-                        <span class="text-gray-900">@(confirmation.Shipping > 0 ? confirmation.FormattedShipping : "Free")</span>
+                        <span class="text-gray-900">@(confirmation.DisplayShipping > 0 ? confirmation.FormattedDisplayShipping : "FREE")</span>
                     </div>
-                    @if (confirmation.Tax > 0)
-                    {
-                        <div class="flex justify-between">
-                            <span class="text-gray-600">Tax</span>
-                            <span class="text-gray-900">@confirmation.FormattedTax</span>
+                </div>
+
+                <!-- Total -->
+                <div class="border-t border-gray-200 mt-4 pt-4">
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-base font-medium text-gray-900">Total</span>
+                        <div class="text-right">
+                            <span class="text-sm text-gray-500 mr-1">@confirmation.DisplayCurrencyCode</span>
+                            <span class="text-xl font-semibold text-gray-900">@confirmation.FormattedDisplayTotal</span>
                         </div>
-                    }
-                    <div class="flex justify-between font-semibold text-base pt-2 border-t border-gray-200">
-                        <span>Total</span>
-                        <span>@confirmation.FormattedTotal</span>
                     </div>
-                </div>
-            </div>
-
-            <!-- Shipping Information -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-200">
-                <div>
-                    <h4 class="text-sm font-medium text-gray-900 mb-2">Shipping address</h4>
-                    <address class="text-sm text-gray-600 not-italic">
-                        @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Name))
-                        {
-                            @confirmation.ShippingAddress.Name<br />
-                        }
-                        @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Company))
-                        {
-                            @confirmation.ShippingAddress.Company<br />
-                        }
-                        @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Address1))
-                        {
-                            @confirmation.ShippingAddress.Address1<br />
-                        }
-                        @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Address2))
-                        {
-                            @confirmation.ShippingAddress.Address2<br />
-                        }
-                        @{
-                            List<string> cityLine = [];
-                            if (!string.IsNullOrEmpty(confirmation.ShippingAddress.City)) cityLine.Add(confirmation.ShippingAddress.City);
-                            if (!string.IsNullOrEmpty(confirmation.ShippingAddress.State)) cityLine.Add(confirmation.ShippingAddress.State);
-                            if (!string.IsNullOrEmpty(confirmation.ShippingAddress.PostalCode)) cityLine.Add(confirmation.ShippingAddress.PostalCode);
-                        }
-                        @if (cityLine.Count > 0)
-                        {
-                            @string.Join(", ", cityLine)<br />
-                        }
-                        @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Country))
-                        {
-                            @confirmation.ShippingAddress.Country
-                        }
-                    </address>
-                </div>
-                <div>
-                    <h4 class="text-sm font-medium text-gray-900 mb-2">Shipping method</h4>
-                    @if (confirmation.Shipments.Count > 0)
+                    @if (confirmation.DisplayTax > 0)
                     {
-                        @foreach (var shipment in confirmation.Shipments)
-                        {
-                            <p class="text-sm text-gray-600">
-                                @shipment.ShippingMethodName
-                                @if (!string.IsNullOrEmpty(shipment.DeliveryEstimate))
-                                {
-                                    <span class="text-gray-500">(@shipment.DeliveryEstimate)</span>
-                                }
+                        <p class="text-xs text-gray-500 text-right mt-1">Including @confirmation.FormattedDisplayTax in taxes</p>
+                    }
+                </div>
+
+                <!-- Total Savings -->
+                @if (confirmation.DisplayDiscount > 0)
+                {
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                        <div class="flex items-center gap-2 text-sm">
+                            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                            </svg>
+                            <span class="font-medium text-gray-900">TOTAL SAVINGS</span>
+                            <span class="ml-auto font-medium text-gray-900">@confirmation.FormattedDisplayDiscount</span>
+                        </div>
+                    </div>
+                }
+
+                <!-- Email Confirmation Notice -->
+                @if (!string.IsNullOrEmpty(confirmation.CustomerEmail))
+                {
+                    <div class="mt-6 bg-blue-50 rounded-lg border border-blue-200 p-3">
+                        <div class="flex items-start gap-2">
+                            <svg class="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                            </svg>
+                            <p class="text-sm text-blue-800">
+                                A confirmation email has been sent to <strong>@confirmation.CustomerEmail</strong>
                             </p>
-                        }
-                    }
-                    else
-                    {
-                        <p class="text-sm text-gray-600">Standard Shipping</p>
-                    }
-                </div>
+                        </div>
+                    </div>
+                }
             </div>
-        </div>
-
-        <!-- Email Confirmation Notice -->
-        @if (!string.IsNullOrEmpty(confirmation.CustomerEmail))
-        {
-            <div class="bg-blue-50 rounded-lg border border-blue-200 p-4 mb-8">
-                <div class="flex items-start gap-3">
-                    <svg class="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                    </svg>
-                    <p class="text-sm text-blue-800">
-                        A confirmation email has been sent to <strong>@confirmation.CustomerEmail</strong> with your order details and tracking information.
-                    </p>
-                </div>
-            </div>
-        }
-
-        <!-- Continue Shopping Button -->
-        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a href="/"
-               class="w-full sm:w-auto px-8 py-3 bg-primary text-white font-medium rounded-lg hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all text-center">
-                Continue Shopping
-            </a>
-
-            @if (!string.IsNullOrEmpty(Model.Settings.SupportEmail))
-            {
-                <a href="mailto:@Model.Settings.SupportEmail"
-                   class="w-full sm:w-auto px-8 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 transition-all text-center">
-                    Need Help?
-                </a>
-            }
         </div>
     </div>
 }

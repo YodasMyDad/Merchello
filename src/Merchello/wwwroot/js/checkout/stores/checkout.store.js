@@ -134,17 +134,27 @@ export function initCheckoutStore(initialData = {}) {
 
         /**
          * Update basket totals
-         * @param {Partial<BasketState>} data
+         * Prefers display currency amounts (displayTotal, etc.) over store currency amounts
+         * @param {Object} data - Basket data from API
          */
         updateBasket(data) {
             // Create a new basket object to ensure Alpine's reactivity detects the change
+            // Use display currency amounts if available, otherwise fall back to store currency
             this.basket = {
-                total: data.total !== undefined ? data.total : this.basket.total,
-                shipping: data.shipping !== undefined ? data.shipping : this.basket.shipping,
-                tax: data.tax !== undefined ? data.tax : this.basket.tax,
-                subtotal: data.subtotal !== undefined ? data.subtotal : this.basket.subtotal,
-                discount: data.discount !== undefined ? data.discount : this.basket.discount
+                total: data.displayTotal ?? data.total ?? this.basket.total,
+                shipping: data.displayShipping ?? data.shipping ?? this.basket.shipping,
+                tax: data.displayTax ?? data.tax ?? this.basket.tax,
+                subtotal: data.displaySubTotal ?? data.subtotal ?? this.basket.subtotal,
+                discount: data.displayDiscount ?? data.discount ?? this.basket.discount
             };
+
+            // Update currency if provided
+            if (data.displayCurrencyCode || data.displayCurrencySymbol) {
+                this.currency = {
+                    code: data.displayCurrencyCode ?? this.currency.code,
+                    symbol: data.displayCurrencySymbol ?? this.currency.symbol
+                };
+            }
         },
 
         /**

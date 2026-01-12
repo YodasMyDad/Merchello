@@ -10,6 +10,7 @@ document.addEventListener('alpine:init', () => {
 
     /**
      * Basket Store - Global state for basket count
+     * Uses MerchelloApi for centralized API access
      */
     Alpine.store('basket', {
         count: 0,
@@ -21,16 +22,11 @@ document.addEventListener('alpine:init', () => {
         },
 
         async fetchCount() {
-            try {
-                const response = await fetch('/api/merchello/storefront/basket/count');
-                if (response.ok) {
-                    const data = await response.json();
-                    this.count = data.itemCount;
-                    this.total = data.total;
-                    this.formattedTotal = data.formattedTotal;
-                }
-            } catch (error) {
-                console.error('Failed to fetch basket count:', error);
+            const result = await MerchelloApi.basket.getCount();
+            if (result.success) {
+                this.count = result.data.itemCount;
+                this.total = result.data.total;
+                this.formattedTotal = result.data.formattedTotal;
             }
         },
 
@@ -43,6 +39,7 @@ document.addEventListener('alpine:init', () => {
 
     /**
      * Country Store - Global shipping country state
+     * Uses MerchelloApi for centralized API access
      */
     Alpine.store('country', {
         code: '',
@@ -55,36 +52,22 @@ document.addEventListener('alpine:init', () => {
         },
 
         async fetch() {
-            try {
-                const response = await fetch('/api/merchello/storefront/shipping/countries');
-                if (response.ok) {
-                    const data = await response.json();
-                    this.countries = data.countries;
-                    this.code = data.current.countryCode;
-                    this.name = data.current.countryName;
-                }
-            } catch (error) {
-                console.error('Failed to fetch shipping countries:', error);
+            const result = await MerchelloApi.shipping.getCountries();
+            if (result.success) {
+                this.countries = result.data.countries;
+                this.code = result.data.current.countryCode;
+                this.name = result.data.current.countryName;
             }
         },
 
         async setCountry(code) {
             this.isLoading = true;
-            try {
-                const response = await fetch('/api/merchello/storefront/shipping/country', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ countryCode: code })
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    this.code = data.countryCode;
-                    this.name = data.countryName;
-                    // Reload page to refresh server-rendered prices in new currency
-                    window.location.reload();
-                }
-            } catch (error) {
-                console.error('Failed to set country:', error);
+            const result = await MerchelloApi.shipping.setCountry(code);
+            if (result.success) {
+                this.code = result.data.countryCode;
+                this.name = result.data.countryName;
+                // Reload page to refresh server-rendered prices in new currency
+                window.location.reload();
             }
             this.isLoading = false;
         }
@@ -103,25 +86,21 @@ document.addEventListener('alpine:init', () => {
     });
 
     /**
-     * Currency Store - Global currency context for price display
-     * Initialized from server-injected window.merchelloCurrency
+     * Currency Store - Global currency context for price display.
+     * Values are populated from server via StorefrontCurrency component (window.merchelloCurrency).
+     * These defaults are fallbacks only - actual values come from Merchello settings.
      */
     Alpine.store('currency', {
-        code: 'GBP',
-        symbol: '£',
-        decimals: 2,
-        rate: 1.0,
-        storeCode: 'GBP',
+        // Fallback defaults - overwritten by server values in init()
+        code: window.merchelloCurrency?.code || 'GBP',
+        symbol: window.merchelloCurrency?.symbol || '£',
+        decimals: window.merchelloCurrency?.decimals ?? 2,
+        rate: window.merchelloCurrency?.rate ?? 1.0,
+        storeCode: window.merchelloCurrency?.storeCode || 'GBP',
 
         init() {
-            // Initialize from server-injected data
-            if (window.merchelloCurrency) {
-                this.code = window.merchelloCurrency.code;
-                this.symbol = window.merchelloCurrency.symbol;
-                this.decimals = window.merchelloCurrency.decimals;
-                this.rate = window.merchelloCurrency.rate;
-                this.storeCode = window.merchelloCurrency.storeCode;
-            }
+            // Values already set from window.merchelloCurrency above
+            // This init is kept for any additional setup if needed
         },
 
         // Convert store price to display price
@@ -129,9 +108,20 @@ document.addEventListener('alpine:init', () => {
             return storePrice * this.rate;
         },
 
-        // Format a store price for display in customer currency
+        // Format a store price for display in customer currency (legacy - does conversion)
         formatPrice(storePrice) {
             const displayPrice = this.convert(storePrice);
+            return new Intl.NumberFormat(undefined, {
+                style: 'currency',
+                currency: this.code || 'GBP',
+                minimumFractionDigits: this.decimals,
+                maximumFractionDigits: this.decimals
+            }).format(displayPrice);
+        },
+
+        // Format a display price (already converted - no conversion needed)
+        // Use this for server-provided display prices (single source of truth)
+        formatDisplayPrice(displayPrice) {
             return new Intl.NumberFormat(undefined, {
                 style: 'currency',
                 currency: this.code || 'GBP',
@@ -210,6 +200,23 @@ document.addEventListener('alpine:init', () => {
             return this.currentVariant?.previousPrice;
         },
 
+        // Display prices (pre-converted by server - single source of truth)
+        get displayPrice() {
+            return this.currentVariant?.displayPrice || 0;
+        },
+
+        get displayPreviousPrice() {
+            return this.currentVariant?.displayPreviousPrice;
+        },
+
+        get formattedDisplayPrice() {
+            return this.currentVariant?.formattedDisplayPrice || '';
+        },
+
+        get formattedDisplayPreviousPrice() {
+            return this.currentVariant?.formattedDisplayPreviousPrice;
+        },
+
         get onSale() {
             return this.currentVariant?.onSale || false;
         },
@@ -248,6 +255,19 @@ document.addEventListener('alpine:init', () => {
             const base = this.price;
             const addonsTotal = this.selectedAddons.reduce((sum, a) => sum + a.price, 0);
             return base + addonsTotal;
+        },
+
+        // Display total price (uses pre-converted values from server)
+        get displayTotalPrice() {
+            const base = this.displayPrice;
+            const addonsTotal = this.selectedAddons.reduce((sum, a) => sum + (a.displayPrice || 0), 0);
+            return base + addonsTotal;
+        },
+
+        // Formatted display total price (for UI - uses server values, no frontend conversion)
+        get formattedDisplayTotalPrice() {
+            // Use currency store for consistent formatting of pre-converted total
+            return Alpine.store('currency').formatDisplayPrice(this.displayTotalPrice);
         },
 
         get maxQuantity() {
@@ -328,11 +348,11 @@ document.addEventListener('alpine:init', () => {
             this.updateVariant();
         },
 
-        toggleAddon(optionId, valueId, price, isChecked) {
+        toggleAddon(optionId, valueId, price, displayPrice, isChecked) {
             if (isChecked) {
                 // Add addon
                 if (!this.selectedAddons.find(a => a.optionId === optionId && a.valueId === valueId)) {
-                    this.selectedAddons.push({ optionId, valueId, price });
+                    this.selectedAddons.push({ optionId, valueId, price, displayPrice });
                 }
             } else {
                 // Remove addon
@@ -342,12 +362,12 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        selectAddonRadio(optionId, valueId, price) {
+        selectAddonRadio(optionId, valueId, price, displayPrice) {
             // Remove any existing selection for this option
             this.selectedAddons = this.selectedAddons.filter(a => a.optionId !== optionId);
             // Add new selection if value is provided
             if (valueId) {
-                this.selectedAddons.push({ optionId, valueId, price });
+                this.selectedAddons.push({ optionId, valueId, price, displayPrice });
             }
         },
 
@@ -393,32 +413,29 @@ document.addEventListener('alpine:init', () => {
             this.isLoading = true;
 
             try {
-                const response = await fetch('/api/merchello/storefront/basket/add', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        productId: this.selectedVariantId,
-                        quantity: this.quantity,
-                        addons: this.selectedAddons.map(a => ({
-                            optionId: a.optionId,
-                            valueId: a.valueId
-                        }))
-                    })
+                // Use centralized MerchelloApi for basket operations
+                const result = await MerchelloApi.basket.add({
+                    productId: this.selectedVariantId,
+                    quantity: this.quantity,
+                    addons: this.selectedAddons.map(a => ({
+                        optionId: a.optionId,
+                        valueId: a.valueId
+                    }))
                 });
 
-                const data = await response.json();
-
-                if (response.ok && data.success) {
+                if (result.success && result.data.success) {
                     // Update basket store
-                    Alpine.store('basket').update(data.itemCount, data.total, data.formattedTotal);
-
-                    // Show success toast
+                    Alpine.store('basket').update(
+                        result.data.itemCount,
+                        result.data.total,
+                        result.data.formattedTotal
+                    );
                     Alpine.store('toast').show('Added to basket!', 'success');
                 } else {
-                    // Show error toast
-                    Alpine.store('toast').show(data.message || 'Failed to add to basket', 'danger');
+                    Alpine.store('toast').show(
+                        result.data?.message || result.error || 'Failed to add to basket',
+                        'danger'
+                    );
                 }
             } catch (error) {
                 console.error('Add to cart error:', error);
@@ -480,6 +497,7 @@ document.addEventListener('alpine:init', () => {
 
         // Estimated shipping state
         displayTotal: config.displayTotal || 0,
+        displayTax: config.displayTax || 0,
         displayEstimatedShipping: 0,
         formattedDisplayEstimatedShipping: '',
         shippingGroupCount: 0,
@@ -540,13 +558,10 @@ document.addEventListener('alpine:init', () => {
             const countryCode = Alpine.store('country').code;
             if (!countryCode) return;
 
-            try {
-                const response = await fetch(`/api/merchello/storefront/shipping/countries/${countryCode}/regions`);
-                if (response.ok) {
-                    this.regions = await response.json();
-                }
-            } catch (error) {
-                console.error('Failed to fetch regions:', error);
+            // Use centralized MerchelloApi for shipping operations
+            const result = await MerchelloApi.shipping.getRegions(countryCode);
+            if (result.success) {
+                this.regions = result.data;
             }
         },
 
@@ -556,17 +571,16 @@ document.addEventListener('alpine:init', () => {
 
             this.isLoadingAvailability = true;
             try {
-                let url = `/api/merchello/storefront/basket/availability?countryCode=${countryCode}`;
-                if (this.selectedRegion) {
-                    url += `&regionCode=${this.selectedRegion}`;
-                }
+                // Use centralized MerchelloApi for basket availability check
+                const result = await MerchelloApi.basket.checkAvailability(
+                    countryCode,
+                    this.selectedRegion
+                );
 
-                const response = await fetch(url);
-                if (response.ok) {
-                    const data = await response.json();
-                    this.allItemsAvailable = data.allItemsAvailable;
+                if (result.success) {
+                    this.allItemsAvailable = result.data.allItemsAvailable;
                     this.itemAvailability = {};
-                    data.items.forEach(item => {
+                    result.data.items.forEach(item => {
                         this.itemAvailability[item.lineItemId] = item;
                     });
                 }
@@ -589,23 +603,28 @@ document.addEventListener('alpine:init', () => {
 
             this.isLoadingShipping = true;
             try {
-                let url = `/api/merchello/storefront/basket/estimated-shipping?countryCode=${countryCode}`;
-                if (this.selectedRegion) {
-                    url += `&regionCode=${this.selectedRegion}`;
-                }
+                // Use centralized MerchelloApi for estimated shipping
+                const result = await MerchelloApi.basket.getEstimatedShipping(
+                    countryCode,
+                    this.selectedRegion
+                );
 
-                const response = await fetch(url);
-                if (response.ok) {
-                    const data = await response.json();
+                if (result.success && result.data.success) {
+                    const data = result.data;
                     this.displayEstimatedShipping = data.displayEstimatedShipping || 0;
                     this.formattedDisplayEstimatedShipping = data.formattedDisplayEstimatedShipping || '';
                     this.shippingGroupCount = data.groupCount || 0;
-                    this.hasShippingEstimate = data.success;
+                    this.hasShippingEstimate = true;
                     // Update displayTotal with server-calculated total (includes shipping)
                     // This ensures single source of truth - server calculates, frontend displays
                     if (data.displayTotal) {
                         this.displayTotal = data.displayTotal;
                         this.formattedDisplayTotal = data.formattedDisplayTotal || '';
+                    }
+                    // Update displayTax with server-calculated tax (includes shipping tax)
+                    if (data.displayTax !== undefined) {
+                        this.displayTax = data.displayTax;
+                        this.formattedDisplayTax = data.formattedDisplayTax || '';
                     }
                 } else {
                     this.hasShippingEstimate = false;
@@ -619,16 +638,12 @@ document.addEventListener('alpine:init', () => {
         },
 
         async refreshBasket() {
-            try {
-                const response = await fetch('/api/merchello/storefront/basket');
-                if (response.ok) {
-                    const data = await response.json();
-                    this.updateFromResponse(data);
-                    // Refresh estimated shipping after basket changes
-                    await this.fetchEstimatedShipping();
-                }
-            } catch (error) {
-                console.error('Failed to refresh basket:', error);
+            // Use centralized MerchelloApi for basket operations
+            const result = await MerchelloApi.basket.get();
+            if (result.success) {
+                this.updateFromResponse(result.data);
+                // Refresh estimated shipping after basket changes
+                await this.fetchEstimatedShipping();
             }
         },
 
@@ -663,19 +678,17 @@ document.addEventListener('alpine:init', () => {
 
             this.updatingItemId = itemId;
             try {
-                const response = await fetch('/api/merchello/storefront/basket/update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ lineItemId: itemId, quantity: newQuantity })
-                });
+                // Use centralized MerchelloApi for basket operations
+                const result = await MerchelloApi.basket.updateQuantity(itemId, newQuantity);
 
-                const data = await response.json();
-
-                if (response.ok && data.success) {
+                if (result.success && result.data.success) {
                     await this.refreshBasket();
                     Alpine.store('toast').show('Quantity updated', 'success');
                 } else {
-                    Alpine.store('toast').show(data.message || 'Failed to update quantity', 'danger');
+                    Alpine.store('toast').show(
+                        result.data?.message || result.error || 'Failed to update quantity',
+                        'danger'
+                    );
                 }
             } catch (error) {
                 console.error('Update quantity error:', error);
@@ -688,17 +701,17 @@ document.addEventListener('alpine:init', () => {
         async removeItem(itemId) {
             this.removingItemId = itemId;
             try {
-                const response = await fetch(`/api/merchello/storefront/basket/${itemId}`, {
-                    method: 'DELETE'
-                });
+                // Use centralized MerchelloApi for basket operations
+                const result = await MerchelloApi.basket.remove(itemId);
 
-                const data = await response.json();
-
-                if (response.ok && data.success) {
+                if (result.success && result.data.success) {
                     await this.refreshBasket();
                     Alpine.store('toast').show('Item removed', 'success');
                 } else {
-                    Alpine.store('toast').show(data.message || 'Failed to remove item', 'danger');
+                    Alpine.store('toast').show(
+                        result.data?.message || result.error || 'Failed to remove item',
+                        'danger'
+                    );
                 }
             } catch (error) {
                 console.error('Remove item error:', error);

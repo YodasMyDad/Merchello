@@ -14,6 +14,9 @@ import collapse from '@alpinejs/collapse';
 // Import store
 import { initCheckoutStore } from './stores/checkout.store.js';
 
+// Import payment module (handles form rendering and payment flow)
+import MerchelloPayment from './payment.js';
+
 // Import components
 import { initSinglePageCheckout } from './components/single-page-checkout.js';
 import { initContactSection } from './components/contact-section.js';
@@ -68,6 +71,7 @@ Alpine.start();
 // Export for testing and external use
 export {
     Alpine,
+    MerchelloPayment,
     initCheckoutStore,
     initSinglePageCheckout,
     initContactSection,

@@ -112,7 +112,7 @@
 
         <div>
             <label for="@(prefix)-postal" class="@labelClass">
-                Postal code @if (showRequired) { <span class="text-red-500">*</span> }
+                Zip/Postcode @if (showRequired) { <span class="text-red-500">*</span> }
             </label>
             <input type="text"
                    id="@(prefix)-postal"
@@ -157,10 +157,9 @@
                x-model="form.@(prefix).phone"
                @if (requirePhone) { <text>required</text> }
                autocomplete="@prefix tel"
+               @if (hasBlurCallback) { <text>@@blur="validateField('@(prefix).phone'); @(onBlurCallback)"</text> }
+               :class="errors['@(prefix).phone'] ? 'checkout-input-error' : ''"
                class="@inputClass" />
-        @if (requirePhone)
-        {
-            <p x-show="errors['@(prefix).phone']" x-text="errors['@(prefix).phone']" class="checkout-error" x-cloak></p>
-        }
+        <p x-show="errors['@(prefix).phone']" x-text="errors['@(prefix).phone']" class="checkout-error" x-cloak></p>
     </div>
 </div>

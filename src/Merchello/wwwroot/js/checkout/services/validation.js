@@ -11,6 +11,12 @@
 const EMAIL_PATTERN = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
 
 /**
+ * Phone regex pattern - allows +, digits, spaces, dashes, parentheses (requires at least one digit)
+ * @type {RegExp}
+ */
+const PHONE_PATTERN = /^\+?[\d\s\-()]*\d[\d\s\-()]*$/;
+
+/**
  * Required address fields
  * @type {string[]}
  */
@@ -77,6 +83,24 @@ export function validateAddress(fields, prefix) {
 }
 
 /**
+ * Validate a phone number (optional field - only validates if value is provided)
+ * @param {string} phone
+ * @returns {{isValid: boolean, error?: string}}
+ */
+export function validatePhone(phone) {
+    // Phone is optional - only validate if provided
+    if (!phone || !phone.trim()) {
+        return { isValid: true };
+    }
+
+    if (!PHONE_PATTERN.test(phone)) {
+        return { isValid: false, error: 'Please enter a valid phone number.' };
+    }
+
+    return { isValid: true };
+}
+
+/**
  * Validate a single field
  * @param {string} fieldName - Full field name (e.g., 'email', 'billing.name')
  * @param {any} value
@@ -90,6 +114,11 @@ export function validateField(fieldName, value) {
 
     // Extract field type from prefixed names (e.g., 'billing.name' -> 'name')
     const baseName = fieldName.includes('.') ? fieldName.split('.').pop() : fieldName;
+
+    // Phone validation (optional field)
+    if (baseName === 'phone') {
+        return validatePhone(value);
+    }
 
     // Required field check
     if (REQUIRED_ADDRESS_FIELDS.includes(baseName)) {
@@ -142,6 +171,7 @@ export function validateCheckoutForm(form, shippingSameAsBilling) {
 
 export default {
     validateEmail,
+    validatePhone,
     validateAddress,
     validateField,
     validateCheckoutForm

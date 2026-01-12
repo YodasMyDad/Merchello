@@ -80,6 +80,17 @@ public interface ICheckoutService
     Task AddToBasket(AddToBasketParameters parameters, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Adds a product with optional add-ons to the basket.
+    /// Handles product validation, availability checking, and addon line item creation.
+    /// </summary>
+    /// <param name="parameters">Parameters specifying product, quantity, and addons</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Result with updated basket and line items, or error</returns>
+    Task<AddProductWithAddonsResult> AddProductWithAddonsAsync(
+        AddProductWithAddonsParameters parameters,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Update line item quantity in basket
     /// </summary>
     Task UpdateLineItemQuantity(Guid lineItemId, int quantity, string? countryCode = null, CancellationToken cancellationToken = default);
