@@ -63,6 +63,7 @@ using Merchello.Core.Shared.RateLimiting.Interfaces;
 using Merchello.Core.Warehouses.Services;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Storefront.Services;
+using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Core.Reporting.Services;
 using Merchello.Core.Reporting.Services.Interfaces;
 using Merchello.Core.Tax.Providers;
@@ -260,6 +261,7 @@ public static class Startup
 
         // Storefront
         builder.Services.AddScoped<IStorefrontContextService, StorefrontContextService>();
+        builder.Services.AddScoped<ICurrencyConversionService, CurrencyConversionService>();
 
         // Exchange Rates
         builder.Services.AddScoped<IExchangeRateProviderManager, ExchangeRateProviderManager>();

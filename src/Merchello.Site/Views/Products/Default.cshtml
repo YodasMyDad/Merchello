@@ -90,6 +90,11 @@
                 name = v.Name,
                 price = v.Price,
                 previousPrice = v.PreviousPrice,
+                // Display prices (pre-converted to customer's currency - single source of truth)
+                displayPrice = v.Price * currencyContext.ExchangeRate,
+                displayPreviousPrice = v.PreviousPrice.HasValue ? v.PreviousPrice.Value * currencyContext.ExchangeRate : (decimal?)null,
+                formattedDisplayPrice = $"{currencyContext.CurrencySymbol}{(v.Price * currencyContext.ExchangeRate).ToString($"N{currencyContext.DecimalPlaces}")}",
+                formattedDisplayPreviousPrice = v.PreviousPrice.HasValue ? $"{currencyContext.CurrencySymbol}{(v.PreviousPrice.Value * currencyContext.ExchangeRate).ToString($"N{currencyContext.DecimalPlaces}")}" : null,
                 onSale = v.OnSale,
                 // Location-aware: only available if can ship AND has stock at location
                 availableForPurchase = avail?.CanShipToLocation == true && avail?.HasStock == true,
@@ -136,6 +141,11 @@
                 id = v.Id.ToString(),
                 name = v.Name,
                 priceAdjustment = v.PriceAdjustment,
+                // Display price adjustment (pre-converted to customer's currency)
+                displayPriceAdjustment = v.PriceAdjustment * currencyContext.ExchangeRate,
+                formattedDisplayPriceAdjustment = v.PriceAdjustment >= 0
+                    ? $"+{currencyContext.CurrencySymbol}{(v.PriceAdjustment * currencyContext.ExchangeRate).ToString($"N{currencyContext.DecimalPlaces}")}"
+                    : $"-{currencyContext.CurrencySymbol}{Math.Abs(v.PriceAdjustment * currencyContext.ExchangeRate).ToString($"N{currencyContext.DecimalPlaces}")}",
                 hexValue = v.HexValue,
                 mediaUrl = v.MediaKey.HasValue
                     ? MediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 80)
@@ -296,11 +306,11 @@
                 var priceFormat = $"N{currencyContext.DecimalPlaces}";
             }
             <div class="pricing mb-3">
-                <span class="h3 text-dark" x-text="formatPrice(totalPrice)">@currencyContext.CurrencySymbol@displayPrice.ToString(priceFormat)</span>
+                <span class="h3 text-dark" x-text="formattedDisplayTotalPrice">@currencyContext.CurrencySymbol@displayPrice.ToString(priceFormat)</span>
                 @* SSR fallback for sale - x-cloak hides until Alpine loads, then Alpine controls visibility *@
                 <span class="text-decoration-line-through text-muted ms-2"
-                      x-show="onSale && previousPrice"
-                      x-text="formatPrice(previousPrice)"
+                      x-show="onSale && displayPreviousPrice"
+                      x-text="formattedDisplayPreviousPrice"
                       @(Model.OnSale && Model.PreviousPrice.HasValue ? "" : "x-cloak")>@(Model.OnSale && displayPreviousPrice.HasValue ? $"{currencyContext.CurrencySymbol}{displayPreviousPrice.Value.ToString(priceFormat)}" : "")</span>
                 <span class="badge bg-danger ms-2"
                       x-show="onSale"

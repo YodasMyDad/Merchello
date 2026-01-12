@@ -18,6 +18,28 @@ FACTORIES → All object creation, stateless singletons
 ### Line Items
 `ILineItemService`: `.CalculateFromLineItems()`, `.AddDiscountLineItem()`
 
+### Calculation Flow
+Both basket and invoice calculations share a single source of truth:
+```
+CheckoutService.CalculateBasketAsync()     InvoiceService.RecalculateInvoiceTotalsAsync()
+              │                                           │
+              └─────────────────┬─────────────────────────┘
+                                ▼
+                   LineItemService.CalculateFromLineItems()
+                                │
+                                ▼
+                   TaxCalculationService.CalculateTaxWithDiscounts()
+```
+
+| Shared Logic | Method |
+|--------------|--------|
+| Subtotal | `productItems.Sum(li => Amount * Quantity)` |
+| Discounts | Before-tax, after-tax, linked, unlinked |
+| Tax pro-rating | `ITaxCalculationService.CalculateTaxWithDiscounts()` |
+| Rounding | `ICurrencyService.Round()` |
+
+**Difference**: Basket uses `DefaultTaxRate` (fast preview); Invoice uses stored `TaxRate` + provider (accurate final).
+
 ### Products
 `IProductService`: `.RegenerateVariants()`, `.PreviewAddonPriceAsync()`
 Backend calculates `StockStatus` (InStock/LowStock/OutOfStock/Untracked)

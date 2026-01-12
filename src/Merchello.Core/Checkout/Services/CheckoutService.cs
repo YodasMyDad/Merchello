@@ -489,6 +489,98 @@ public class CheckoutService(
         }
     }
 
+    /// <inheritdoc />
+    public async Task<AddProductWithAddonsResult> AddProductWithAddonsAsync(
+        AddProductWithAddonsParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        // Get the product (variant) with ProductRoot - ProductOptions is JSON so automatically loaded with ProductRoot
+        var product = await productService.GetProduct(new Products.Services.Parameters.GetProductParameters
+        {
+            ProductId = parameters.ProductId,
+            IncludeProductRoot = true, // ProductOptions (JSON column) loads with ProductRoot for display name extraction
+            IncludeTaxGroup = true,
+            NoTracking = true
+        }, cancellationToken);
+
+        if (product == null)
+        {
+            return AddProductWithAddonsResult.Failed("Product not found");
+        }
+
+        // Check if product is available for purchase
+        if (!product.AvailableForPurchase)
+        {
+            return AddProductWithAddonsResult.Failed("This product is currently out of stock");
+        }
+
+        // Create the main product line item
+        var productLineItem = CreateLineItem(product, parameters.Quantity);
+
+        // Add main product to basket
+        await AddToBasket(new AddToBasketParameters
+        {
+            ItemToAdd = productLineItem,
+            CustomerId = parameters.CustomerId
+        }, cancellationToken);
+
+        // Handle add-ons if any
+        var addonLineItems = new List<LineItem>();
+
+        if (parameters.Addons.Count > 0 && product.ProductRoot?.ProductOptions != null)
+        {
+            var addonOptions = product.ProductRoot.ProductOptions
+                .Where(po => !po.IsVariant)
+                .ToList();
+
+            var valueLookup = addonOptions
+                .SelectMany(o => o.ProductOptionValues.Select(v => (Option: o, Value: v)))
+                .ToDictionary(x => x.Value.Id, x => x);
+
+            foreach (var addon in parameters.Addons)
+            {
+                if (!valueLookup.TryGetValue(addon.ValueId, out var ov))
+                    continue;
+
+                // Create addon line item
+                var addonLineItem = new LineItem
+                {
+                    Id = Guid.NewGuid(),
+                    Name = $"{ov.Option.Name}: {ov.Value.Name}",
+                    Sku = string.IsNullOrWhiteSpace(ov.Value.SkuSuffix)
+                        ? $"ADDON-{ov.Value.Id.ToString()[..8]}"
+                        : $"{product.Sku}-{ov.Value.SkuSuffix}",
+                    DependantLineItemSku = productLineItem.Sku,
+                    Quantity = parameters.Quantity,
+                    Amount = ov.Value.PriceAdjustment,
+                    LineItemType = LineItemType.Addon,
+                    IsTaxable = true,
+                    TaxRate = product.ProductRoot.TaxGroup?.TaxPercentage ?? 20m
+                };
+
+                addonLineItem.ExtendedData["AddonOptionId"] = ov.Option.Id.ToString();
+                addonLineItem.ExtendedData["AddonValueId"] = ov.Value.Id.ToString();
+                addonLineItem.ExtendedData["CostAdjustment"] = ov.Value.CostAdjustment;
+                addonLineItem.ExtendedData["WeightKg"] = ov.Value.WeightKg ?? 0m;
+
+                await AddToBasket(new AddToBasketParameters
+                {
+                    ItemToAdd = addonLineItem,
+                    CustomerId = parameters.CustomerId
+                }, cancellationToken);
+
+                addonLineItems.Add(addonLineItem);
+            }
+        }
+
+        // Get updated basket to return
+        var basket = await GetBasket(new GetBasketParameters { CustomerId = parameters.CustomerId }, cancellationToken);
+
+        return basket != null
+            ? AddProductWithAddonsResult.Successful(basket, productLineItem, addonLineItems)
+            : AddProductWithAddonsResult.Failed("Failed to retrieve basket after adding items");
+    }
+
     /// <summary>
     /// Update line item quantity in basket
     /// </summary>
@@ -1568,7 +1660,8 @@ public class CheckoutService(
             return null;
         }
 
-        // Get currency symbol
+        // Use invoice's currency (the currency the order was placed in)
+        var currencyCode = invoice.CurrencyCode ?? _settings.StoreCurrencyCode;
         var currencySymbol = invoice.CurrencySymbol ?? _settings.CurrencySymbol;
 
         // Flatten line items from all orders (products and add-ons)
@@ -1586,6 +1679,8 @@ public class CheckoutService(
                 foreach (var li in order.LineItems.Where(l =>
                     l.LineItemType == LineItemType.Product || l.LineItemType == LineItemType.Addon))
                 {
+                    var lineTotal = li.Quantity * li.Amount;
+
                     lineItems.Add(new CheckoutLineItemDto
                     {
                         Id = li.Id,
@@ -1593,9 +1688,14 @@ public class CheckoutService(
                         Name = li.Name ?? "",
                         Quantity = li.Quantity,
                         UnitPrice = li.Amount,
-                        LineTotal = li.Quantity * li.Amount,
+                        LineTotal = lineTotal,
                         FormattedUnitPrice = FormatPrice(li.Amount, currencySymbol),
-                        FormattedLineTotal = FormatPrice(li.Quantity * li.Amount, currencySymbol),
+                        FormattedLineTotal = FormatPrice(lineTotal, currencySymbol),
+                        // Display fields match store currency (no conversion in core service)
+                        DisplayUnitPrice = li.Amount,
+                        DisplayLineTotal = lineTotal,
+                        FormattedDisplayUnitPrice = FormatPrice(li.Amount, currencySymbol),
+                        FormattedDisplayLineTotal = FormatPrice(lineTotal, currencySymbol),
                         LineItemType = li.LineItemType
                     });
                 }
@@ -1652,6 +1752,8 @@ public class CheckoutService(
             BillingAddress = MapAddress(invoice.BillingAddress),
             ShippingAddress = MapAddress(invoice.ShippingAddress),
             LineItems = lineItems,
+
+            // Store currency amounts
             SubTotal = invoice.SubTotal,
             FormattedSubTotal = FormatPrice(invoice.SubTotal, currencySymbol),
             Discount = invoice.Discount,
@@ -1663,6 +1765,23 @@ public class CheckoutService(
             Total = invoice.Total,
             FormattedTotal = FormatPrice(invoice.Total, currencySymbol),
             CurrencySymbol = currencySymbol,
+
+            // Display currency matches store currency (no conversion in core service)
+            // Storefront layer can apply currency conversion if needed
+            DisplayCurrencyCode = currencyCode,
+            DisplayCurrencySymbol = currencySymbol,
+            ExchangeRate = 1m,
+            DisplaySubTotal = invoice.SubTotal,
+            FormattedDisplaySubTotal = FormatPrice(invoice.SubTotal, currencySymbol),
+            DisplayDiscount = invoice.Discount,
+            FormattedDisplayDiscount = FormatPrice(invoice.Discount, currencySymbol),
+            DisplayShipping = totalShipping,
+            FormattedDisplayShipping = FormatPrice(totalShipping, currencySymbol),
+            DisplayTax = invoice.Tax,
+            FormattedDisplayTax = FormatPrice(invoice.Tax, currencySymbol),
+            DisplayTotal = invoice.Total,
+            FormattedDisplayTotal = FormatPrice(invoice.Total, currencySymbol),
+
             Shipments = shipments,
             PaymentMethod = paymentMethod
         };

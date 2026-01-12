@@ -25,8 +25,15 @@ public class BasketCountDto
 }
 
 /// <summary>
-/// Full basket response with line items and multi-currency support
+/// Full basket response with line items and multi-currency support.
 /// </summary>
+/// <remarks>
+/// <para><b>Usage:</b> Used by StorefrontApiController for storefront shopping pages.</para>
+/// <para><b>vs CheckoutBasketDto:</b> This DTO supports multi-currency display (Store + Display amounts).
+/// CheckoutBasketDto is for checkout flow (single currency, frozen state).</para>
+/// <para><b>Store amounts:</b> Internal amounts in store currency (for calculations).</para>
+/// <para><b>Display amounts:</b> Converted to customer's selected currency (for display).</para>
+/// </remarks>
 public class StorefrontBasketDto
 {
     public List<StorefrontLineItemDto> Items { get; set; } = [];
@@ -137,6 +144,12 @@ public class EstimatedShippingDto
     /// </summary>
     public decimal DisplayTotal { get; set; }
     public string FormattedDisplayTotal { get; set; } = "";
+
+    /// <summary>
+    /// Updated tax amount (with shipping tax included) in display currency.
+    /// </summary>
+    public decimal DisplayTax { get; set; }
+    public string FormattedDisplayTax { get; set; } = "";
 
     public int GroupCount { get; set; }
     public string? Message { get; set; }

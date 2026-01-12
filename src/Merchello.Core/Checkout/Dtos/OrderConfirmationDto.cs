@@ -95,6 +95,73 @@ public class OrderConfirmationDto
     /// </summary>
     public string CurrencySymbol { get; set; } = "";
 
+    // Display currency fields (customer's selected currency)
+
+    /// <summary>
+    /// Display currency code (e.g., "GBP", "EUR").
+    /// </summary>
+    public string DisplayCurrencyCode { get; set; } = "";
+
+    /// <summary>
+    /// Display currency symbol (e.g., "£", "€").
+    /// </summary>
+    public string DisplayCurrencySymbol { get; set; } = "";
+
+    /// <summary>
+    /// Exchange rate from store currency to display currency.
+    /// </summary>
+    public decimal ExchangeRate { get; set; } = 1m;
+
+    /// <summary>
+    /// Subtotal in display currency.
+    /// </summary>
+    public decimal DisplaySubTotal { get; set; }
+
+    /// <summary>
+    /// Formatted subtotal in display currency.
+    /// </summary>
+    public string FormattedDisplaySubTotal { get; set; } = "";
+
+    /// <summary>
+    /// Discount in display currency.
+    /// </summary>
+    public decimal DisplayDiscount { get; set; }
+
+    /// <summary>
+    /// Formatted discount in display currency.
+    /// </summary>
+    public string FormattedDisplayDiscount { get; set; } = "";
+
+    /// <summary>
+    /// Shipping cost in display currency.
+    /// </summary>
+    public decimal DisplayShipping { get; set; }
+
+    /// <summary>
+    /// Formatted shipping cost in display currency.
+    /// </summary>
+    public string FormattedDisplayShipping { get; set; } = "";
+
+    /// <summary>
+    /// Tax in display currency.
+    /// </summary>
+    public decimal DisplayTax { get; set; }
+
+    /// <summary>
+    /// Formatted tax in display currency.
+    /// </summary>
+    public string FormattedDisplayTax { get; set; } = "";
+
+    /// <summary>
+    /// Total in display currency.
+    /// </summary>
+    public decimal DisplayTotal { get; set; }
+
+    /// <summary>
+    /// Formatted total in display currency.
+    /// </summary>
+    public string FormattedDisplayTotal { get; set; } = "";
+
     /// <summary>
     /// Shipping method information per order/shipment group.
     /// </summary>

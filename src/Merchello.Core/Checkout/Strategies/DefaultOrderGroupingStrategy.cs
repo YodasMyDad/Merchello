@@ -264,41 +264,53 @@ public class DefaultOrderGroupingStrategy(
             var allowedShippingOptionIds = allowedShippingOptions.Select(so => so.Id).OrderBy(id => id).ToList();
             var expectedGroupId = GenerateDeterministicGroupId(warehouseId, allowedShippingOptionIds);
             var groupSelectedOption = context.SelectedShippingOptions.GetValueOrDefault(expectedGroupId);
+
+            // Fallback: try looking up by WarehouseId (handles key mismatch when GroupId changes between PRE/POST selection)
+            if (groupSelectedOption == Guid.Empty)
+            {
+                groupSelectedOption = context.SelectedShippingOptions.GetValueOrDefault(warehouseId);
+            }
+
             var productSupportsSelected = groupSelectedOption != Guid.Empty &&
                 allowedShippingOptions.Any(so => so.Id == groupSelectedOption);
 
             if (productSupportsSelected)
             {
-                // POST-SELECTION: Group by warehouse + selected shipping option
-                // This consolidates items once user has made shipping choice
+                // Selection exists: Group by warehouse + all available options (same as PRE-SELECTION)
+                // but mark which option is selected. This allows users to see all options and change their selection.
+                // Use consistent GroupId based on all options so the key is stable.
                 group = orderGroups.FirstOrDefault(g =>
                     g.WarehouseId == warehouseId &&
-                    g.SelectedShippingOptionId == groupSelectedOption);
+                    g.AvailableShippingOptions.Select(so => so.ShippingOptionId).OrderBy(id => id).SequenceEqual(allowedShippingOptionIds));
 
                 if (group == null)
                 {
-                    var selectedOption = allowedShippingOptions.First(so => so.Id == groupSelectedOption);
                     group = new OrderGroup
                     {
-                        GroupId = GenerateDeterministicGroupId(warehouseId, [groupSelectedOption]),
+                        GroupId = GenerateDeterministicGroupId(warehouseId, allowedShippingOptionIds),
                         GroupName = $"Shipment from {warehouseName}",
                         WarehouseId = warehouseId,
                         SelectedShippingOptionId = groupSelectedOption,
-                        AvailableShippingOptions = [new ShippingOptionInfo
+                        AvailableShippingOptions = allowedShippingOptions.Select(so => new ShippingOptionInfo
                         {
-                            ShippingOptionId = selectedOption.Id,
-                            Name = selectedOption.Name ?? string.Empty,
-                            DaysFrom = selectedOption.DaysFrom,
-                            DaysTo = selectedOption.DaysTo,
-                            IsNextDay = selectedOption.IsNextDay,
+                            ShippingOptionId = so.Id,
+                            Name = so.Name ?? string.Empty,
+                            DaysFrom = so.DaysFrom,
+                            DaysTo = so.DaysTo,
+                            IsNextDay = so.IsNextDay,
                             Cost = ConvertShippingCostToBasketCurrency(
-                                shippingCostResolver.GetTotalShippingCost(selectedOption, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode) ?? 0,
+                                shippingCostResolver.GetTotalShippingCost(so, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode) ?? 0,
                                 basketCurrency,
                                 storeToBasketRate),
-                            ProviderKey = selectedOption.ProviderKey
-                        }]
+                            ProviderKey = so.ProviderKey
+                        }).ToList()
                     };
                     orderGroups.Add(group);
+                }
+                else if (!group.SelectedShippingOptionId.HasValue)
+                {
+                    // Group exists but doesn't have selection marked yet - update it
+                    group.SelectedShippingOptionId = groupSelectedOption;
                 }
             }
             else

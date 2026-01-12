@@ -89,9 +89,9 @@
         </div>
     </header>
 
-    @if (!Model.IsSinglePageCheckout)
+    @if (!Model.IsSinglePageCheckout && Model.Step != CheckoutStep.Confirmation)
     {
-        <!-- Breadcrumb Navigation (multi-page checkout only) -->
+        <!-- Breadcrumb Navigation (multi-page checkout only, not on confirmation) -->
         <nav class="bg-gray-50 border-b border-gray-200">
             <div class="max-w-6xl mx-auto px-4 py-3">
                 <ol class="flex items-center space-x-2 text-sm">

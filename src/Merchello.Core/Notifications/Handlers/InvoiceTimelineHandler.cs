@@ -3,6 +3,7 @@ using Merchello.Core.Data;
 using Merchello.Core.Notifications.Order;
 using Merchello.Core.Notifications.Payment;
 using Merchello.Core.Notifications.Shipment;
+using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Events;
@@ -17,6 +18,7 @@ namespace Merchello.Core.Notifications.Handlers;
 [NotificationHandlerPriority(2000)] // Run late, after main business logic
 internal class InvoiceTimelineHandler(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    ICurrencyService currencyService,
     ILogger<InvoiceTimelineHandler> logger)
     : INotificationAsyncHandler<OrderStatusChangedNotification>,
       INotificationAsyncHandler<ShipmentCreatedNotification>,
@@ -77,10 +79,11 @@ internal class InvoiceTimelineHandler(
     public async Task HandleAsync(PaymentCreatedNotification notification, CancellationToken cancellationToken)
     {
         var payment = notification.Payment;
+        var formattedAmount = currencyService.FormatAmount(payment.Amount, payment.CurrencyCode);
 
         var description = payment.PaymentSuccess
-            ? $"Payment of {payment.Amount:C} received"
-            : $"Payment of {payment.Amount:C} failed";
+            ? $"Payment of {formattedAmount} received"
+            : $"Payment of {formattedAmount} failed";
 
         if (!string.IsNullOrWhiteSpace(payment.PaymentProviderAlias))
         {
@@ -93,7 +96,8 @@ internal class InvoiceTimelineHandler(
     public async Task HandleAsync(PaymentRefundedNotification notification, CancellationToken cancellationToken)
     {
         var refund = notification.RefundPayment;
-        var description = $"Refund of {notification.RefundAmount:C} processed";
+        var formattedAmount = currencyService.FormatAmount(notification.RefundAmount, refund.CurrencyCode);
+        var description = $"Refund of {formattedAmount} processed";
 
         if (!string.IsNullOrWhiteSpace(notification.RefundReason))
         {

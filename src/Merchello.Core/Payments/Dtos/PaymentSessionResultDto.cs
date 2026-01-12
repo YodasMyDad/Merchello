@@ -99,4 +99,11 @@ public class PaymentSessionResultDto
     /// </summary>
     [JsonPropertyName("correlationId")]
     public string? CorrelationId { get; set; }
+
+    /// <summary>
+    /// List of items that are no longer available (out of stock or can't ship).
+    /// Populated when stock validation fails during checkout.
+    /// </summary>
+    [JsonPropertyName("unavailableItems")]
+    public List<string>? UnavailableItems { get; set; }
 }

@@ -53,6 +53,13 @@ public interface IDiscountService
     Task<List<Discount>> GetActiveAutomaticDiscountsAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// Checks if there are any active code-based discounts available.
+    /// Used to conditionally show the discount code input on checkout.
+    /// Excludes discounts that have reached their usage limit.
+    /// </summary>
+    Task<bool> HasActiveCodeDiscountsAsync(CancellationToken ct = default);
+
+    /// <summary>
     /// Gets discounts by IDs with all related entities.
     /// </summary>
     Task<List<Discount>> GetByIdsAsync(List<Guid> discountIds, CancellationToken ct = default);

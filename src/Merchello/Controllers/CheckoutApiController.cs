@@ -11,6 +11,8 @@ using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
+using Merchello.Core.Storefront.Services;
+using Merchello.Core.Storefront.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -29,6 +31,8 @@ public class CheckoutApiController(
     ICheckoutValidator checkoutValidator,
     ICheckoutMemberService checkoutMemberService,
     IRateLimiter rateLimiter,
+    IStorefrontContextService storefrontContext,
+    ICurrencyConversionService currencyConversion,
     IOptions<MerchelloSettings> merchelloSettings,
     ILogger<CheckoutApiController> logger) : ControllerBase
 {
@@ -44,17 +48,21 @@ public class CheckoutApiController(
     public async Task<IActionResult> GetBasket(CancellationToken ct)
     {
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
+        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
 
         if (basket == null || basket.LineItems.Count == 0)
         {
             return Ok(new CheckoutBasketDto
             {
                 IsEmpty = true,
-                CurrencySymbol = _settings.CurrencySymbol
+                CurrencySymbol = _settings.CurrencySymbol,
+                DisplayCurrencyCode = currencyContext.CurrencyCode,
+                DisplayCurrencySymbol = currencyContext.CurrencySymbol,
+                ExchangeRate = currencyContext.ExchangeRate
             });
         }
 
-        return Ok(MapBasketToDto(basket));
+        return Ok(await MapBasketToDtoWithCurrencyAsync(basket, ct));
     }
 
     /// <summary>
@@ -170,7 +178,7 @@ public class CheckoutApiController(
         {
             Success = true,
             Message = "Addresses saved successfully.",
-            Basket = MapBasketToDto(result.ResultObject!)
+            Basket = await MapBasketToDtoWithCurrencyAsync(result.ResultObject!, ct)
         });
     }
 
@@ -231,7 +239,7 @@ public class CheckoutApiController(
         {
             Success = true,
             Message = "Discount applied successfully.",
-            Basket = updatedBasket != null ? MapBasketToDto(updatedBasket) : null
+            Basket = updatedBasket != null ? await MapBasketToDtoWithCurrencyAsync(updatedBasket, ct) : null
         });
     }
 
@@ -287,7 +295,7 @@ public class CheckoutApiController(
             {
                 Success = false,
                 Message = errorMessage,
-                Basket = errorResult?.Basket != null ? MapBasketToDto(errorResult.Basket) : null,
+                Basket = errorResult?.Basket != null ? await MapBasketToDtoWithCurrencyAsync(errorResult.Basket, ct) : null,
                 Errors = result.Messages
                     .Where(m => m.ResultMessageType == ResultMessageType.Error)
                     .Select((m, i) => new { Key = $"error{i}", Value = m.Message ?? "Unknown error" })
@@ -296,20 +304,30 @@ public class CheckoutApiController(
         }
 
         var initResult = result.ResultObject!;
-        var currencySymbol = initResult.Basket.CurrencySymbol ?? _settings.CurrencySymbol;
+
+        // Get currency context for display
+        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
+        var displayCurrencySymbol = currencyContext.CurrencySymbol;
+        var exchangeRate = currencyContext.ExchangeRate;
 
         var shippingGroups = MapOrderGroupsToDto(
             initResult.GroupingResult,
-            currencySymbol,
-            initResult.AutoSelectedShippingOptions);
+            displayCurrencySymbol,
+            initResult.AutoSelectedShippingOptions,
+            exchangeRate);
+
+        var displayCombinedShippingTotal = currencyConversion.Convert(
+            initResult.CombinedShippingTotal,
+            exchangeRate,
+            currencyContext.CurrencyCode);
 
         return Ok(new InitializeCheckoutResponseDto
         {
             Success = true,
-            Basket = MapBasketToDto(initResult.Basket),
+            Basket = MapBasketToDto(initResult.Basket, currencyContext.CurrencyCode, displayCurrencySymbol, exchangeRate),
             ShippingGroups = shippingGroups,
-            CombinedShippingTotal = initResult.CombinedShippingTotal,
-            FormattedCombinedShippingTotal = initResult.CombinedShippingTotal.FormatWithSymbol(currencySymbol),
+            CombinedShippingTotal = displayCombinedShippingTotal,
+            FormattedCombinedShippingTotal = currencyConversion.Format(displayCombinedShippingTotal, displayCurrencySymbol),
             ShippingAutoSelected = initResult.ShippingAutoSelected
         });
     }
@@ -346,13 +364,18 @@ public class CheckoutApiController(
             });
         }
 
-        var currencySymbol = basket.CurrencySymbol ?? _settings.CurrencySymbol;
-        var shippingGroups = MapOrderGroupsToDto(groupingResult, currencySymbol, session.SelectedShippingOptions);
+        // Get currency context for display
+        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
+        var shippingGroups = MapOrderGroupsToDto(
+            groupingResult,
+            currencyContext.CurrencySymbol,
+            session.SelectedShippingOptions,
+            currencyContext.ExchangeRate);
 
         return Ok(new SelectShippingResponseDto
         {
             Success = true,
-            Basket = MapBasketToDto(basket),
+            Basket = MapBasketToDto(basket, currencyContext.CurrencyCode, currencyContext.CurrencySymbol, currencyContext.ExchangeRate),
             ShippingGroups = shippingGroups
         });
     }
@@ -399,16 +422,41 @@ public class CheckoutApiController(
         }
 
         // Validate that all groups have a selection
+        // Try lookup by GroupId first, then fall back to WarehouseId, then search all request entries
+        // This handles GroupId changes between PRE/POST selection modes
         var errors = new Dictionary<string, string>();
         foreach (var group in groupingResult.Groups)
         {
-            if (!request.Selections.TryGetValue(group.GroupId, out var selectedOptionId))
+            Guid selectedOptionId = Guid.Empty;
+
+            // Try 1: lookup by GroupId
+            if (request.Selections.TryGetValue(group.GroupId, out var foundById))
+            {
+                selectedOptionId = foundById;
+            }
+            // Try 2: lookup by WarehouseId
+            else if (group.WarehouseId.HasValue && request.Selections.TryGetValue(group.WarehouseId.Value, out var foundByWarehouse))
+            {
+                selectedOptionId = foundByWarehouse;
+            }
+            // Try 3: search all request selections for one that matches this group's available options
+            else
+            {
+                var availableOptionIds = group.AvailableShippingOptions.Select(o => o.ShippingOptionId).ToHashSet();
+                var matchingSelection = request.Selections.FirstOrDefault(kvp => availableOptionIds.Contains(kvp.Value));
+                if (matchingSelection.Value != Guid.Empty)
+                {
+                    selectedOptionId = matchingSelection.Value;
+                }
+            }
+
+            if (selectedOptionId == Guid.Empty)
             {
                 errors[group.GroupId.ToString()] = $"Please select a shipping method for {group.GroupName}.";
                 continue;
             }
 
-            // Validate the selected option exists
+            // Validate the selected option exists in this group
             if (!group.AvailableShippingOptions.Any(o => o.ShippingOptionId == selectedOptionId))
             {
                 errors[group.GroupId.ToString()] = $"Invalid shipping option selected for {group.GroupName}.";
@@ -425,12 +473,48 @@ public class CheckoutApiController(
             });
         }
 
+        // Augment selections with WarehouseId and GroupId keys for stable lookups
+        // This ensures selections can be found regardless of GroupId changes between PRE/POST selection modes
+        var augmentedSelections = new Dictionary<Guid, Guid>(request.Selections);
+        foreach (var group in groupingResult.Groups)
+        {
+            // Find the selected option using the same smart lookup as validation
+            Guid selectedOption = Guid.Empty;
+            if (request.Selections.TryGetValue(group.GroupId, out var foundById))
+            {
+                selectedOption = foundById;
+            }
+            else if (group.WarehouseId.HasValue && request.Selections.TryGetValue(group.WarehouseId.Value, out var foundByWarehouse))
+            {
+                selectedOption = foundByWarehouse;
+            }
+            else
+            {
+                var availableOptionIds = group.AvailableShippingOptions.Select(o => o.ShippingOptionId).ToHashSet();
+                var matchingSelection = request.Selections.FirstOrDefault(kvp => availableOptionIds.Contains(kvp.Value));
+                if (matchingSelection.Value != Guid.Empty)
+                {
+                    selectedOption = matchingSelection.Value;
+                }
+            }
+
+            if (selectedOption != Guid.Empty)
+            {
+                // Store by both GroupId and WarehouseId for maximum compatibility
+                augmentedSelections[group.GroupId] = selectedOption;
+                if (group.WarehouseId.HasValue)
+                {
+                    augmentedSelections[group.WarehouseId.Value] = selectedOption;
+                }
+            }
+        }
+
         // Delegate to service (handles calculation, discounts, DB save, and session updates)
         var saveResult = await checkoutService.SaveShippingSelectionsAsync(new SaveShippingSelectionsParameters
         {
             Basket = basket,
             Session = session,
-            Selections = request.Selections,
+            Selections = augmentedSelections,
             DeliveryDates = request.DeliveryDates
         }, ct);
 
@@ -453,14 +537,20 @@ public class CheckoutApiController(
         // Re-fetch groups with updated selections
         var updatedSession = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
         var updatedGroupingResult = await checkoutService.GetOrderGroupsAsync(updatedBasket, updatedSession, ct);
-        var currencySymbol = updatedBasket.CurrencySymbol ?? _settings.CurrencySymbol;
+
+        // Get currency context for display
+        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
 
         return Ok(new SelectShippingResponseDto
         {
             Success = true,
             Message = "Shipping selections saved successfully.",
-            Basket = MapBasketToDto(updatedBasket),
-            ShippingGroups = MapOrderGroupsToDto(updatedGroupingResult, currencySymbol, updatedSession.SelectedShippingOptions)
+            Basket = MapBasketToDto(updatedBasket, currencyContext.CurrencyCode, currencyContext.CurrencySymbol, currencyContext.ExchangeRate),
+            ShippingGroups = MapOrderGroupsToDto(
+                updatedGroupingResult,
+                currencyContext.CurrencySymbol,
+                updatedSession.SelectedShippingOptions,
+                currencyContext.ExchangeRate)
         });
     }
 
@@ -512,7 +602,7 @@ public class CheckoutApiController(
         {
             Success = true,
             Message = "Discount removed successfully.",
-            Basket = updatedBasket != null ? MapBasketToDto(updatedBasket) : null
+            Basket = updatedBasket != null ? await MapBasketToDtoWithCurrencyAsync(updatedBasket, ct) : null
         });
     }
 
@@ -661,7 +751,7 @@ public class CheckoutApiController(
         }
 
         // Return the recovered basket as a checkout basket DTO
-        var basketDto = MapBasketToDto(result.ResultObject);
+        var basketDto = await MapBasketToDtoWithCurrencyAsync(result.ResultObject, ct);
         return Ok(new
         {
             success = true,
@@ -735,32 +825,43 @@ public class CheckoutApiController(
 
     #region Private Helpers
 
-    private CheckoutBasketDto MapBasketToDto(Basket basket)
+    private CheckoutBasketDto MapBasketToDto(
+        Basket basket,
+        string displayCurrencyCode,
+        string displayCurrencySymbol,
+        decimal exchangeRate)
     {
-        var currencySymbol = basket.CurrencySymbol ?? _settings.CurrencySymbol;
+        var storeCurrencySymbol = basket.CurrencySymbol ?? _settings.CurrencySymbol;
 
         var lineItems = basket.LineItems
             .Where(li => li.LineItemType == LineItemType.Product
                       || li.LineItemType == LineItemType.Custom
                       || li.LineItemType == LineItemType.Addon)
-            .Select(li => new CheckoutLineItemDto
+            .Select(li =>
             {
-                Id = li.Id,
-                Sku = li.Sku ?? "",
-                Name = li.Name ?? "",
-                ProductRootName = li.GetProductRootName(),
-                SelectedOptions = li.GetSelectedOptions()
-                    .Select(o => new SelectedOptionDto
-                    {
-                        OptionName = o.OptionName,
-                        ValueName = o.ValueName
-                    }).ToList(),
-                Quantity = li.Quantity,
-                UnitPrice = li.Amount,
-                LineTotal = li.Amount * li.Quantity,
-                FormattedUnitPrice = li.Amount.FormatWithSymbol(currencySymbol),
-                FormattedLineTotal = (li.Amount * li.Quantity).FormatWithSymbol(currencySymbol),
-                LineItemType = li.LineItemType
+                var displayUnitPrice = currencyConversion.Convert(li.Amount, exchangeRate, displayCurrencyCode);
+                var lineTotal = li.Amount * li.Quantity;
+                var displayLineTotal = currencyConversion.Convert(lineTotal, exchangeRate, displayCurrencyCode);
+
+                return new CheckoutLineItemDto
+                {
+                    Id = li.Id,
+                    Sku = li.Sku ?? "",
+                    Name = li.Name ?? "",
+                    ProductRootName = li.GetProductRootName(),
+                    SelectedOptions = li.GetSelectedOptions()
+                        .Select(o => new SelectedOptionDto
+                        {
+                            OptionName = o.OptionName,
+                            ValueName = o.ValueName
+                        }).ToList(),
+                    Quantity = li.Quantity,
+                    UnitPrice = displayUnitPrice,
+                    LineTotal = displayLineTotal,
+                    FormattedUnitPrice = currencyConversion.Format(displayUnitPrice, displayCurrencySymbol),
+                    FormattedLineTotal = currencyConversion.Format(displayLineTotal, displayCurrencySymbol),
+                    LineItemType = li.LineItemType
+                };
             })
             .ToList();
 
@@ -771,6 +872,9 @@ public class CheckoutApiController(
                 li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var discountIdObj);
                 li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCode, out var discountCodeObj);
 
+                var discountAmount = Math.Abs(li.Amount * li.Quantity);
+                var displayDiscountAmount = currencyConversion.Convert(discountAmount, exchangeRate, displayCurrencyCode);
+
                 return new AppliedDiscountDto
                 {
                     Id = discountIdObj is string discountIdStr && Guid.TryParse(discountIdStr, out var discountId)
@@ -778,31 +882,56 @@ public class CheckoutApiController(
                         : li.Id,
                     Name = li.Name ?? "Discount",
                     Code = discountCodeObj?.ToString(),
-                    Amount = Math.Abs(li.Amount * li.Quantity),
-                    FormattedAmount = Math.Abs(li.Amount * li.Quantity).FormatWithSymbol(currencySymbol),
+                    Amount = displayDiscountAmount,
+                    FormattedAmount = currencyConversion.Format(displayDiscountAmount, displayCurrencySymbol),
                     IsAutomatic = discountCodeObj == null
                 };
             })
             .ToList();
 
+        // Convert totals for display
+        var displaySubTotal = currencyConversion.Convert(basket.SubTotal, exchangeRate, displayCurrencyCode);
+        var displayDiscount = currencyConversion.Convert(basket.Discount, exchangeRate, displayCurrencyCode);
+        var displayTax = currencyConversion.Convert(basket.Tax, exchangeRate, displayCurrencyCode);
+        var displayShipping = currencyConversion.Convert(basket.Shipping, exchangeRate, displayCurrencyCode);
+        var displayTotal = currencyConversion.Convert(basket.Total, exchangeRate, displayCurrencyCode);
+
         return new CheckoutBasketDto
         {
             Id = basket.Id,
             LineItems = lineItems,
+
+            // Store currency amounts (for calculations/backend)
             SubTotal = basket.SubTotal,
             Discount = basket.Discount,
             AdjustedSubTotal = basket.AdjustedSubTotal,
             Tax = basket.Tax,
             Shipping = basket.Shipping,
             Total = basket.Total,
-            FormattedSubTotal = basket.SubTotal.FormatWithSymbol(currencySymbol),
-            FormattedDiscount = basket.Discount.FormatWithSymbol(currencySymbol),
-            FormattedAdjustedSubTotal = basket.AdjustedSubTotal.FormatWithSymbol(currencySymbol),
-            FormattedTax = basket.Tax.FormatWithSymbol(currencySymbol),
-            FormattedShipping = basket.Shipping.FormatWithSymbol(currencySymbol),
-            FormattedTotal = basket.Total.FormatWithSymbol(currencySymbol),
+            FormattedSubTotal = basket.SubTotal.FormatWithSymbol(storeCurrencySymbol),
+            FormattedDiscount = basket.Discount.FormatWithSymbol(storeCurrencySymbol),
+            FormattedAdjustedSubTotal = basket.AdjustedSubTotal.FormatWithSymbol(storeCurrencySymbol),
+            FormattedTax = basket.Tax.FormatWithSymbol(storeCurrencySymbol),
+            FormattedShipping = basket.Shipping.FormatWithSymbol(storeCurrencySymbol),
+            FormattedTotal = basket.Total.FormatWithSymbol(storeCurrencySymbol),
             Currency = basket.Currency ?? _settings.StoreCurrencyCode,
-            CurrencySymbol = currencySymbol,
+            CurrencySymbol = storeCurrencySymbol,
+
+            // Display currency amounts (customer's selected currency)
+            DisplaySubTotal = displaySubTotal,
+            DisplayDiscount = displayDiscount,
+            DisplayTax = displayTax,
+            DisplayShipping = displayShipping,
+            DisplayTotal = displayTotal,
+            FormattedDisplaySubTotal = currencyConversion.Format(displaySubTotal, displayCurrencySymbol),
+            FormattedDisplayDiscount = currencyConversion.Format(displayDiscount, displayCurrencySymbol),
+            FormattedDisplayTax = currencyConversion.Format(displayTax, displayCurrencySymbol),
+            FormattedDisplayShipping = currencyConversion.Format(displayShipping, displayCurrencySymbol),
+            FormattedDisplayTotal = currencyConversion.Format(displayTotal, displayCurrencySymbol),
+            DisplayCurrencyCode = displayCurrencyCode,
+            DisplayCurrencySymbol = displayCurrencySymbol,
+            ExchangeRate = exchangeRate,
+
             BillingAddress = MapAddressToDto(basket.BillingAddress),
             ShippingAddress = MapAddressToDto(basket.ShippingAddress),
             AppliedDiscounts = appliedDiscounts,
@@ -814,6 +943,16 @@ public class CheckoutApiController(
             }).ToList(),
             IsEmpty = basket.LineItems.Count == 0
         };
+    }
+
+    private async Task<CheckoutBasketDto> MapBasketToDtoWithCurrencyAsync(Basket basket, CancellationToken ct)
+    {
+        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
+        return MapBasketToDto(
+            basket,
+            currencyContext.CurrencyCode,
+            currencyContext.CurrencySymbol,
+            currencyContext.ExchangeRate);
     }
 
     private static CheckoutAddressDto? MapAddressToDto(Address? address)
@@ -843,40 +982,50 @@ public class CheckoutApiController(
     private static List<ShippingGroupDto> MapOrderGroupsToDto(
         OrderGroupingResult result,
         string currencySymbol,
-        Dictionary<Guid, Guid>? selectedOptions)
+        Dictionary<Guid, Guid>? selectedOptions,
+        decimal exchangeRate = 1m)
     {
         return result.Groups.Select(group => new ShippingGroupDto
         {
             GroupId = group.GroupId,
             GroupName = group.GroupName,
             WarehouseId = group.WarehouseId,
-            LineItems = group.LineItems.Select(li => new ShippingGroupLineItemDto
+            LineItems = group.LineItems.Select(li =>
             {
-                Id = li.LineItemId,
-                Sku = li.Sku ?? "",
-                Name = li.Name,
-                ProductRootName = li.ProductRootName,
-                SelectedOptions = li.SelectedOptions
-                    .Select(o => new SelectedOptionDto
-                    {
-                        OptionName = o.OptionName,
-                        ValueName = o.ValueName
-                    }).ToList(),
-                Quantity = li.Quantity,
-                Amount = li.Amount * li.Quantity,
-                FormattedAmount = (li.Amount * li.Quantity).FormatWithSymbol(currencySymbol)
+                var lineTotal = li.Amount * li.Quantity;
+                var displayLineTotal = lineTotal * exchangeRate;
+                return new ShippingGroupLineItemDto
+                {
+                    Id = li.LineItemId,
+                    Sku = li.Sku ?? "",
+                    Name = li.Name,
+                    ProductRootName = li.ProductRootName,
+                    SelectedOptions = li.SelectedOptions
+                        .Select(o => new SelectedOptionDto
+                        {
+                            OptionName = o.OptionName,
+                            ValueName = o.ValueName
+                        }).ToList(),
+                    Quantity = li.Quantity,
+                    Amount = displayLineTotal,
+                    FormattedAmount = displayLineTotal.FormatWithSymbol(currencySymbol)
+                };
             }).ToList(),
-            ShippingOptions = group.AvailableShippingOptions.Select(opt => new ShippingOptionDto
+            ShippingOptions = group.AvailableShippingOptions.Select(opt =>
             {
-                Id = opt.ShippingOptionId,
-                Name = opt.Name,
-                DaysFrom = opt.DaysFrom,
-                DaysTo = opt.DaysTo,
-                IsNextDay = opt.IsNextDay,
-                Cost = opt.Cost,
-                FormattedCost = opt.Cost.FormatWithSymbol(currencySymbol),
-                DeliveryDescription = opt.DeliveryTimeDescription,
-                ProviderKey = opt.ProviderKey
+                var displayCost = opt.Cost * exchangeRate;
+                return new ShippingOptionDto
+                {
+                    Id = opt.ShippingOptionId,
+                    Name = opt.Name,
+                    DaysFrom = opt.DaysFrom,
+                    DaysTo = opt.DaysTo,
+                    IsNextDay = opt.IsNextDay,
+                    Cost = displayCost,
+                    FormattedCost = displayCost.FormatWithSymbol(currencySymbol),
+                    DeliveryDescription = opt.DeliveryTimeDescription,
+                    ProviderKey = opt.ProviderKey
+                };
             }).ToList(),
             SelectedShippingOptionId = selectedOptions?.TryGetValue(group.GroupId, out var selectedId) == true
                 ? selectedId

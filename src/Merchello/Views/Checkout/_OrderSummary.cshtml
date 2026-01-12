@@ -3,9 +3,17 @@
     var model = ViewData.Model as CheckoutViewModel;
     var basket = model?.Basket;
     var hasItems = model?.HasItems ?? false;
-    var currencySymbol = basket?.CurrencySymbol ?? "£";
-    var currencyCode = basket?.Currency ?? "GBP";
     var isSinglePage = model?.IsSinglePageCheckout ?? false;
+
+    // Use display currency from view model (customer's selected currency)
+    var displayCurrencySymbol = model?.DisplayCurrencySymbol ?? basket?.CurrencySymbol ?? "£";
+    var displayCurrencyCode = model?.DisplayCurrencyCode ?? basket?.Currency ?? "GBP";
+    var exchangeRate = model?.ExchangeRate ?? 1m;
+
+    // Convert basket amounts to display currency
+    var displaySubTotal = (basket?.SubTotal ?? 0) * exchangeRate;
+    var displayDiscount = (basket?.Discount ?? 0) * exchangeRate;
+    var displayTotal = (basket?.Total ?? 0) * exchangeRate;
 
     // Get discount line items
     var discountLineItems = basket?.LineItems?
@@ -32,7 +40,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
             </svg>
         </div>
-        <span class="text-lg font-semibold text-gray-900">@(basket != null ? $"{currencySymbol}{basket.Total:N2}" : "--")</span>
+        <span class="text-lg font-semibold text-gray-900">@(basket != null ? $"{displayCurrencySymbol}{displayTotal:N2}" : "--")</span>
     </button>
 
     <!-- Order Summary Content (collapsible on mobile, always visible on desktop) -->
@@ -98,44 +106,47 @@
                         </div>
                         <!-- Price -->
                         <div class="text-sm font-medium text-gray-900">
-                            @currencySymbol@((item.Amount * item.Quantity).ToString("N2"))
+                            @displayCurrencySymbol@(((item.Amount * item.Quantity) * exchangeRate).ToString("N2"))
                         </div>
                     </div>
                 }
             }
         </div>
 
-        <!-- Discount Code Input (Shopify style with border) -->
-        <div class="pb-6">
-            <div class="flex gap-2">
-                <div class="flex-1">
-                    <input type="text"
-                           x-model="discountCode"
-                           placeholder="Discount code"
-                           @@keydown.enter.prevent="applyDiscount()"
-                           :disabled="applyingDiscount"
-                           class="w-full px-4 py-3 bg-white border border-gray-200 rounded text-sm
-                                  focus:ring-1 focus:ring-gray-400 focus:border-gray-400 focus:outline-none
-                                  transition-colors disabled:bg-gray-50 disabled:text-gray-500
-                                  placeholder:text-gray-400" />
+        @if (model?.ShowDiscountCode == true)
+        {
+            <!-- Discount Code Input (Shopify style with border) -->
+            <div class="pb-6">
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <input type="text"
+                               x-model="discountCode"
+                               placeholder="Discount code"
+                               @@keydown.enter.prevent="applyDiscount()"
+                               :disabled="applyingDiscount"
+                               class="w-full px-4 py-3 bg-white border border-gray-200 rounded text-sm
+                                      focus:ring-1 focus:ring-gray-400 focus:border-gray-400 focus:outline-none
+                                      transition-colors disabled:bg-gray-50 disabled:text-gray-500
+                                      placeholder:text-gray-400" />
+                    </div>
+                    <button type="button"
+                            @@click="applyDiscount()"
+                            :disabled="!discountCode.trim() || applyingDiscount"
+                            class="px-5 py-3 bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-600 text-sm font-medium rounded
+                                   transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-100">
+                        <span x-show="!applyingDiscount">Apply</span>
+                        <span x-show="applyingDiscount" x-cloak>
+                            <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </span>
+                    </button>
                 </div>
-                <button type="button"
-                        @@click="applyDiscount()"
-                        :disabled="!discountCode.trim() || applyingDiscount"
-                        class="px-5 py-3 bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-600 text-sm font-medium rounded
-                               transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-100">
-                    <span x-show="!applyingDiscount">Apply</span>
-                    <span x-show="applyingDiscount" x-cloak>
-                        <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                    </span>
-                </button>
+                <p x-show="discountError" x-cloak x-text="discountError" class="text-sm text-red-600 mt-2"></p>
+                <p x-show="discountSuccess" x-cloak x-text="discountSuccess" class="text-sm text-green-600 mt-2"></p>
             </div>
-            <p x-show="discountError" x-cloak x-text="discountError" class="text-sm text-red-600 mt-2"></p>
-            <p x-show="discountSuccess" x-cloak x-text="discountSuccess" class="text-sm text-green-600 mt-2"></p>
-        </div>
+        }
 
         <!-- Applied Discounts -->
         @if (discountLineItems.Count > 0)
@@ -169,7 +180,7 @@
             <!-- Subtotal -->
             <div class="flex justify-between text-sm">
                 <span class="text-gray-600">Subtotal</span>
-                <span class="text-gray-900 font-medium">@(basket != null ? $"{currencySymbol}{basket.SubTotal:N2}" : "--")</span>
+                <span class="text-gray-900 font-medium">@(basket != null ? $"{displayCurrencySymbol}{displaySubTotal:N2}" : "--")</span>
             </div>
 
             <!-- Discount Total -->
@@ -177,7 +188,7 @@
             {
                 <div class="flex justify-between text-sm">
                     <span class="text-gray-600">Discount</span>
-                    <span class="text-green-600 font-medium">-@currencySymbol@basket.Discount.ToString("N2")</span>
+                    <span class="text-green-600 font-medium">-@displayCurrencySymbol@displayDiscount.ToString("N2")</span>
                 </div>
             }
 
@@ -195,7 +206,7 @@
                 }
                 else if (basket?.Shipping > 0)
                 {
-                    <span class="text-gray-900 font-medium">@($"{currencySymbol}{basket.Shipping:N2}")</span>
+                    <span class="text-gray-900 font-medium">@($"{displayCurrencySymbol}{(basket.Shipping * exchangeRate):N2}")</span>
                 }
                 else
                 {
@@ -217,7 +228,7 @@
                 }
                 else if (basket?.Tax > 0)
                 {
-                    <span class="text-gray-900 font-medium">@($"{currencySymbol}{basket.Tax:N2}")</span>
+                    <span class="text-gray-900 font-medium">@($"{displayCurrencySymbol}{(basket.Tax * exchangeRate):N2}")</span>
                 }
                 else
                 {
@@ -229,14 +240,14 @@
             <div class="flex justify-between items-baseline pt-4 mt-2 border-t border-gray-200">
                 <span class="text-base text-gray-900">Total</span>
                 <div class="text-right flex items-baseline gap-2">
-                    <span class="text-xs text-gray-500">@currencyCode</span>
+                    <span class="text-xs text-gray-500">@displayCurrencyCode</span>
                     @if (isSinglePage)
                     {
                         <span class="text-xl font-semibold text-gray-900" x-text="formatCurrency(total)"></span>
                     }
                     else
                     {
-                        <span class="text-xl font-semibold text-gray-900">@(basket != null ? $"{currencySymbol}{basket.Total:N2}" : "--")</span>
+                        <span class="text-xl font-semibold text-gray-900">@(basket != null ? $"{displayCurrencySymbol}{displayTotal:N2}" : "--")</span>
                     }
                 </div>
             </div>

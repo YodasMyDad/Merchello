@@ -43,4 +43,15 @@ public interface ITaxCalculationService
         decimal orderDiscountTotal,
         decimal totalTaxableAmount,
         string currencyCode);
+
+    /// <summary>
+    /// Calculates a simple tax preview for a single item.
+    /// Used by UI components to preview tax before adding items.
+    /// </summary>
+    /// <param name="price">Unit price of the item</param>
+    /// <param name="quantity">Quantity of items</param>
+    /// <param name="taxRate">Tax rate as a percentage (e.g., 20 for 20%)</param>
+    /// <param name="currencyCode">Currency code for rounding</param>
+    /// <returns>Preview result with subtotal, tax amount, and total</returns>
+    TaxPreviewResult PreviewTax(decimal price, int quantity, decimal taxRate, string currencyCode);
 }

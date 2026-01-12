@@ -118,7 +118,14 @@ public class InvoiceService(
         var totalShippingCost = 0m;
         foreach (var group in shippingResult.WarehouseGroups)
         {
-            var selectedOptionId = checkoutSession.SelectedShippingOptions.GetValueOrDefault(group.GroupId);
+            // First check if the strategy already resolved the selection (POST-SELECTION flow)
+            var selectedOptionId = group.SelectedShippingOptionId ?? Guid.Empty;
+
+            // Fall back to lookup from checkout session if not set
+            if (selectedOptionId == Guid.Empty)
+            {
+                selectedOptionId = checkoutSession.SelectedShippingOptions.GetValueOrDefault(group.GroupId);
+            }
             if (selectedOptionId == Guid.Empty)
             {
                 selectedOptionId = checkoutSession.SelectedShippingOptions.GetValueOrDefault(group.WarehouseId);
@@ -213,9 +220,14 @@ public class InvoiceService(
             foreach (var group in shippingResult.WarehouseGroups)
             {
                 // Determine which shipping option was selected for this group
-                // Try GroupId first (for groups with specific shipping restrictions)
-                // Fall back to WarehouseId for backward compatibility
-                var selectedShippingOptionId = checkoutSession.SelectedShippingOptions.GetValueOrDefault(group.GroupId);
+                // First check if the strategy already resolved the selection (POST-SELECTION flow)
+                var selectedShippingOptionId = group.SelectedShippingOptionId ?? Guid.Empty;
+
+                // Fall back to lookup from checkout session if not set
+                if (selectedShippingOptionId == Guid.Empty)
+                {
+                    selectedShippingOptionId = checkoutSession.SelectedShippingOptions.GetValueOrDefault(group.GroupId);
+                }
                 if (selectedShippingOptionId == Guid.Empty)
                 {
                     selectedShippingOptionId = checkoutSession.SelectedShippingOptions.GetValueOrDefault(group.WarehouseId);

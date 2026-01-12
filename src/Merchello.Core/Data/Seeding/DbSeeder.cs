@@ -1449,7 +1449,7 @@ public class DbSeeder(
             await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
             {
                 InvoiceId = invoice.Id,
-                Text = $"Payment of £{payment.Amount:F2} received via {paymentMethod}",
+                Text = $"Payment of {invoice.CurrencySymbol}{payment.Amount:F2} received via {paymentMethod}",
                 VisibleToCustomer = true,
                 AuthorName = "System"
             }, cancellationToken);

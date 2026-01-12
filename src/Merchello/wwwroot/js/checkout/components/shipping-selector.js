@@ -6,6 +6,7 @@
  */
 
 import { checkoutApi } from '../services/api.js';
+import { calculateShippingTotal } from '../utils/shipping-calculator.js';
 
 /**
  * @typedef {Object} ShippingOption
@@ -241,21 +242,13 @@ export function initShippingSelector() {
         },
 
         /**
-         * Calculate total shipping from selected options
+         * Calculate total shipping from selected options.
+         * Uses shared utility to avoid duplication - single source of truth.
+         * Note: This is a display calculation only; backend validates actual totals.
          * @returns {number}
          */
         get calculatedShipping() {
-            let total = 0;
-            for (const group of this.shippingGroups) {
-                const selectedId = this.shippingSelections[group.groupId];
-                if (selectedId && group.shippingOptions) {
-                    const selected = group.shippingOptions.find(o => o.id === selectedId);
-                    if (selected) {
-                        total += selected.cost;
-                    }
-                }
-            }
-            return total;
+            return calculateShippingTotal(this.shippingGroups, this.shippingSelections);
         },
 
         /**

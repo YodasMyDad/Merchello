@@ -519,6 +519,40 @@ public class DiscountService(
     }
 
     /// <inheritdoc />
+    public async Task<bool> HasActiveCodeDiscountsAsync(CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var activeDiscounts = await scope.ExecuteWithContextAsync(async db =>
+            await db.Discounts
+                .AsNoTracking()
+                .Where(d =>
+                    d.Method == DiscountMethod.Code &&
+                    d.Status == DiscountStatus.Active &&
+                    d.StartsAt <= now &&
+                    (d.EndsAt == null || d.EndsAt >= now))
+                .Select(d => new { d.Id, d.TotalUsageLimit })
+                .ToListAsync(ct));
+        scope.Complete();
+
+        if (activeDiscounts.Count == 0)
+            return false;
+
+        // For discounts with no usage limit, return true immediately
+        if (activeDiscounts.Any(d => d.TotalUsageLimit == null))
+            return true;
+
+        // Get usage counts for discounts that have limits
+        var discountIds = activeDiscounts.Select(d => d.Id).ToList();
+        var usageCounts = await GetUsageCountsAsync(discountIds, ct);
+
+        // Return true if any discount has remaining uses
+        return activeDiscounts.Any(d =>
+            usageCounts.GetValueOrDefault(d.Id, 0) < d.TotalUsageLimit);
+    }
+
+    /// <inheritdoc />
     public async Task<List<Discount>> GetByIdsAsync(List<Guid> discountIds, CancellationToken ct = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();

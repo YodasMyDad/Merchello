@@ -7,8 +7,9 @@
  */
 
 import { checkoutApi } from '../services/api.js';
-import { validateCheckoutForm } from '../services/validation.js';
+import { validateCheckoutForm, validatePhone } from '../services/validation.js';
 import { createDebouncer } from '../utils/debounce.js';
+import { calculateShippingTotal } from '../utils/shipping-calculator.js';
 
 /**
  * Read initial checkout data from the DOM
@@ -199,18 +200,13 @@ export function initSinglePageCheckout() {
                 return this.currencySymbol + this.basketTotal.toFixed(2);
             },
 
+            /**
+             * Calculate total shipping from selected options.
+             * Uses shared utility to avoid duplication - single source of truth.
+             * Note: This is a display calculation only; backend validates actual totals.
+             */
             get calculatedShipping() {
-                let total = 0;
-                for (const group of this.shippingGroups) {
-                    const selectedId = this.shippingSelections[group.groupId];
-                    if (selectedId && group.shippingOptions) {
-                        const selected = group.shippingOptions.find(o => o.id === selectedId);
-                        if (selected) {
-                            total += selected.cost;
-                        }
-                    }
-                }
-                return total;
+                return calculateShippingTotal(this.shippingGroups, this.shippingSelections);
             },
 
             // ============================================
@@ -445,11 +441,11 @@ export function initSinglePageCheckout() {
                             }
                         });
 
-                        // Update basket totals
+                        // Update basket totals - prefer display currency amounts
                         if (data.basket) {
-                            this.basketTotal = data.basket.total;
-                            this.basketShipping = data.basket.shipping ?? 0;
-                            this.basketTax = data.basket.tax ?? 0;
+                            this.basketTotal = data.basket.displayTotal ?? data.basket.total;
+                            this.basketShipping = data.basket.displayShipping ?? data.basket.shipping ?? 0;
+                            this.basketTax = data.basket.displayTax ?? data.basket.tax ?? 0;
                             this.dispatchBasketUpdate();
 
                             // Check for item-level shipping errors
@@ -495,9 +491,10 @@ export function initSinglePageCheckout() {
                     const data = await checkoutApi.saveShipping(this.shippingSelections);
 
                     if (data.success && data.basket) {
-                        this.basketTotal = data.basket.total;
-                        this.basketShipping = data.basket.shipping ?? 0;
-                        this.basketTax = data.basket.tax ?? 0;
+                        // Use display currency amounts
+                        this.basketTotal = data.basket.displayTotal ?? data.basket.total;
+                        this.basketShipping = data.basket.displayShipping ?? data.basket.shipping ?? 0;
+                        this.basketTax = data.basket.displayTax ?? data.basket.tax ?? 0;
                         this.dispatchBasketUpdate();
                     }
                 } catch (error) {
@@ -714,12 +711,22 @@ export function initSinglePageCheckout() {
                     const requiredFields = ['name', 'address1', 'city', 'countryCode', 'postalCode'];
                     if (requiredFields.includes(key) && !this.form.billing[key]) {
                         this.errors[field] = 'This field is required.';
+                    } else if (key === 'phone') {
+                        const result = validatePhone(this.form.billing.phone);
+                        if (!result.isValid) {
+                            this.errors[field] = result.error;
+                        }
                     }
                 } else if (field.startsWith('shipping.')) {
                     const key = field.replace('shipping.', '');
                     const requiredFields = ['name', 'address1', 'city', 'countryCode', 'postalCode'];
                     if (requiredFields.includes(key) && !this.form.shipping[key]) {
                         this.errors[field] = 'This field is required.';
+                    } else if (key === 'phone') {
+                        const result = validatePhone(this.form.shipping.phone);
+                        if (!result.isValid) {
+                            this.errors[field] = result.error;
+                        }
                     }
                 }
             },
@@ -733,6 +740,7 @@ export function initSinglePageCheckout() {
                 ['name', 'address1', 'city', 'countryCode', 'postalCode'].forEach(field => {
                     this.validateField('billing.' + field);
                 });
+                this.validateField('billing.phone');
 
                 if (!this.shippingSameAsBilling) {
                     ['name', 'address1', 'city', 'countryCode', 'postalCode'].forEach(field => {
@@ -740,6 +748,7 @@ export function initSinglePageCheckout() {
                             this.errors['shipping.' + field] = 'This field is required.';
                         }
                     });
+                    this.validateField('shipping.phone');
                 }
 
                 if (!this.allShippingSelected) {
