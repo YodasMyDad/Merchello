@@ -1,5 +1,3 @@
-using Merchello.Core.Payments.Models;
-
 namespace Merchello.Core.Payments.Dtos;
 
 /// <summary>
@@ -23,9 +21,9 @@ public class ExpressMethodConfigDto
     public required string DisplayName { get; set; }
 
     /// <summary>
-    /// The method type (ApplePay, GooglePay, etc.).
+    /// The method type (e.g., "apple-pay", "google-pay").
     /// </summary>
-    public PaymentMethodType? MethodType { get; set; }
+    public string? MethodType { get; set; }
 
     /// <summary>
     /// URL to load the provider's JavaScript SDK.

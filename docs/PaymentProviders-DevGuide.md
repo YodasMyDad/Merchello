@@ -49,25 +49,34 @@ new PaymentMethodDefinition
 {
     Alias = "applepay",
     DisplayName = "Apple Pay",
-    MethodType = PaymentMethodType.ApplePay,  // Required for deduplication
+    MethodType = PaymentMethodTypes.ApplePay,  // Required for deduplication
     IntegrationType = PaymentIntegrationType.Widget,
     IsExpressCheckout = true,
     DefaultSortOrder = 0
 }
 ```
 
-**Available Method Types:**
-| Type | Value | Use For |
-|------|-------|---------|
-| `Cards` | 0 | Credit/Debit card entry |
-| `ApplePay` | 10 | Apple Pay |
-| `GooglePay` | 20 | Google Pay |
-| `PayPal` | 30 | PayPal |
-| `Link` | 40 | Stripe Link |
-| `BuyNowPayLater` | 50 | Klarna, Afterpay, etc. |
-| `BankTransfer` | 60 | Direct bank transfer |
-| `Manual` | 100 | Offline/manual payment |
-| `Custom` | 999 | Not deduplicated |
+**Well-Known Method Types** (from `PaymentMethodTypes` class):
+| Constant | Value | Use For |
+|----------|-------|---------|
+| `Cards` | `"cards"` | Credit/Debit card entry |
+| `ApplePay` | `"apple-pay"` | Apple Pay |
+| `GooglePay` | `"google-pay"` | Google Pay |
+| `AmazonPay` | `"amazon-pay"` | Amazon Pay |
+| `PayPal` | `"paypal"` | PayPal |
+| `Link` | `"link"` | Stripe Link |
+| `BuyNowPayLater` | `"bnpl"` | Klarna, Afterpay, etc. |
+| `BankTransfer` | `"bank-transfer"` | Direct bank transfer |
+| `Venmo` | `"venmo"` | Venmo (US only) |
+| `Manual` | `"manual"` | Offline/manual payment |
+| `null` | - | Not deduplicated (use for custom/regional methods) |
+
+**Custom Method Types:**
+Third-party providers can use any string value. Methods with matching `MethodType` values are deduplicated; unique or null values are never deduplicated:
+```csharp
+MethodType = "my-custom-wallet"  // Won't be deduplicated
+MethodType = null                 // Won't be deduplicated
+```
 
 **Deduplication Rules:**
 - Methods grouped by `MethodType`
@@ -106,7 +115,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             DisplayName = "Credit/Debit Card",
             Icon = "icon-credit-card",
             Description = "Pay with Visa, Mastercard, American Express",
-            MethodType = PaymentMethodType.Cards,
+            MethodType = PaymentMethodTypes.Cards,
             IntegrationType = PaymentIntegrationType.Redirect,
             IsExpressCheckout = false,
             DefaultSortOrder = 10
@@ -117,7 +126,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             DisplayName = "Apple Pay",
             Icon = "icon-apple",
             Description = "Fast, secure checkout with Apple Pay",
-            MethodType = PaymentMethodType.ApplePay,
+            MethodType = PaymentMethodTypes.ApplePay,
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 0
@@ -128,7 +137,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             DisplayName = "Google Pay",
             Icon = "icon-google",
             Description = "Fast, secure checkout with Google Pay",
-            MethodType = PaymentMethodType.GooglePay,
+            MethodType = PaymentMethodTypes.GooglePay,
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 1
@@ -254,7 +263,7 @@ public class BraintreePaymentProvider : PaymentProviderBase
         {
             Alias = "cards",
             DisplayName = "Credit/Debit Card",
-            MethodType = PaymentMethodType.Cards,
+            MethodType = PaymentMethodTypes.Cards,
             IntegrationType = PaymentIntegrationType.HostedFields,
             IsExpressCheckout = false,
             DefaultSortOrder = 10
@@ -264,7 +273,7 @@ public class BraintreePaymentProvider : PaymentProviderBase
         {
             Alias = "paypal",
             DisplayName = "PayPal",
-            MethodType = PaymentMethodType.PayPal,
+            MethodType = PaymentMethodTypes.PayPal,
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 0
@@ -273,7 +282,7 @@ public class BraintreePaymentProvider : PaymentProviderBase
         {
             Alias = "venmo",
             DisplayName = "Venmo",
-            MethodType = PaymentMethodType.Custom,  // Braintree-exclusive, no deduplication
+            MethodType = null,  // Braintree-exclusive, no deduplication
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 3
@@ -285,7 +294,7 @@ public class BraintreePaymentProvider : PaymentProviderBase
             Alias = "ideal",
             DisplayName = "iDEAL",
             Description = "Pay with iDEAL (Netherlands)",
-            MethodType = PaymentMethodType.Custom,  // Region-specific, no deduplication
+            MethodType = null,  // Region-specific, no deduplication
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = false,
             DefaultSortOrder = 20
@@ -295,7 +304,7 @@ public class BraintreePaymentProvider : PaymentProviderBase
             Alias = "sepa",
             DisplayName = "SEPA Direct Debit",
             Description = "Pay with SEPA Direct Debit (EU)",
-            MethodType = PaymentMethodType.Custom,  // Region-specific, no deduplication
+            MethodType = null,  // Region-specific, no deduplication
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = false,
             DefaultSortOrder = 22
@@ -404,7 +413,7 @@ public class ManualPaymentProvider(IInvoiceService invoiceService) : PaymentProv
             DisplayName = "Purchase Order",
             Icon = "icon-document",
             Description = "Enter your purchase order number to complete the order",
-            MethodType = PaymentMethodType.Manual,
+            MethodType = PaymentMethodTypes.Manual,
             IntegrationType = PaymentIntegrationType.DirectForm,
             IsExpressCheckout = false,
             DefaultSortOrder = 50,
@@ -532,6 +541,65 @@ async function onApplePayAuthorized(payment: ApplePayPayment, basketId: string) 
   }
 }
 ```
+
+### Widget Payment Flow (Create-Order/Capture Pattern)
+
+Some payment providers (PayPal, Klarna, Afterpay, etc.) use a widget-based flow where:
+1. Customer clicks a button in the provider's widget
+2. Provider shows its own UI (popup/modal)
+3. Customer approves the payment
+4. Widget calls back to capture the payment
+
+Merchello provides generic endpoints for this pattern that any third-party provider can use:
+
+```typescript
+// In your payment adapter's createOrder callback
+async function createOrder(session) {
+  const response = await fetch(`/api/merchello/checkout/${session.providerAlias}/create-order`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId: session.sessionId,
+      methodAlias: session.methodAlias  // Optional: specific method within provider
+    })
+  });
+
+  const result = await response.json();
+  if (!result.success) throw new Error(result.errorMessage);
+  return result.orderId;  // Return to provider SDK
+}
+
+// In your payment adapter's onApprove callback
+async function captureOrder(session, orderId) {
+  const response = await fetch(`/api/merchello/checkout/${session.providerAlias}/capture-order`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      orderId: orderId,
+      sessionId: session.sessionId,
+      invoiceId: session.invoiceId
+    })
+  });
+
+  const result = await response.json();
+  if (result.success && result.redirectUrl) {
+    window.location.href = result.redirectUrl;
+  }
+  return result;
+}
+```
+
+**Widget Flow Endpoints:**
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/api/merchello/checkout/{providerAlias}/create-order` | Create order when customer initiates payment |
+| POST | `/api/merchello/checkout/{providerAlias}/capture-order` | Capture payment after customer approval |
+
+These endpoints are provider-agnostic - any payment provider can implement the widget pattern by:
+1. Setting `IntegrationType = PaymentIntegrationType.Widget` on the payment method
+2. Creating a JavaScript adapter that registers with `window.MerchelloPaymentAdapters`
+3. Using the generic create-order/capture-order endpoints in the adapter callbacks
 
 ---
 
@@ -844,7 +912,7 @@ public override IReadOnlyList<PaymentMethodDefinition> GetAvailablePaymentMethod
         Alias = "cards",
         DisplayName = "Credit/Debit Card",
         IconHtml = CardIconSvg,  // Provider-controlled icon
-        MethodType = PaymentMethodType.Cards,
+        MethodType = PaymentMethodTypes.Cards,
         IntegrationType = PaymentIntegrationType.HostedFields,
         // ...
     }
@@ -900,3 +968,6 @@ const paypalAdapter = {
 - Backoffice test modal has 4 tabs: Session, Payment Form, Express Checkout, Webhooks
 - Implement `tokenize()` in adapters to enable Payment Form testing in backoffice
 - Implement `GetWebhookEventTemplatesAsync()` and `GenerateTestWebhookPayloadAsync()` for webhook simulation
+- Widget flow endpoints (`/{providerAlias}/create-order`, `/{providerAlias}/capture-order`) work with any provider
+- Set `IconHtml` in `PaymentMethodDefinition` to provide custom SVG icons for your payment methods
+- Express checkout buttons use CSS classes based on method type (e.g., `express-button-applepay`). Unknown types fall back to `express-button-default` - provide your own CSS or use the default styling

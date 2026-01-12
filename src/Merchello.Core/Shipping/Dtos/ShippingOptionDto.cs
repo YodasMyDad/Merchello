@@ -27,4 +27,10 @@ public class ShippingOptionDto
     public int CostCount { get; set; }
     public int WeightTierCount { get; set; }
     public DateTime UpdateDate { get; set; }
+
+    /// <summary>
+    /// Whether this provider uses live rates from an external API.
+    /// False for flat-rate and other locally-configured providers.
+    /// </summary>
+    public bool UsesLiveRates { get; set; }
 }

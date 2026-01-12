@@ -1,5 +1,3 @@
-using Merchello.Core.Payments.Models;
-
 namespace Merchello.Core.Payments.Dtos;
 
 /// <summary>
@@ -67,9 +65,9 @@ public class CheckoutMethodPreviewDto
     public string? IconHtml { get; set; }
 
     /// <summary>
-    /// The type/category of this payment method (e.g., Cards, ApplePay).
+    /// The type/category of this payment method (e.g., "cards", "apple-pay").
     /// </summary>
-    public PaymentMethodType? MethodType { get; set; }
+    public string? MethodType { get; set; }
 
     /// <summary>
     /// Sort order for display in checkout.

@@ -1,5 +1,3 @@
-using Merchello.Core.Payments.Models;
-
 namespace Merchello.Core.Payments.Dtos;
 
 /// <summary>
@@ -54,9 +52,9 @@ public class PaymentMethodSettingDto
     public bool IsExpressCheckout { get; set; }
 
     /// <summary>
-    /// Method type for deduplication.
+    /// Method type for deduplication. Use values from <see cref="Models.PaymentMethodTypes"/>.
     /// </summary>
-    public PaymentMethodType? MethodType { get; set; }
+    public string? MethodType { get; set; }
 
     /// <summary>
     /// Regions/countries where this payment method is available.

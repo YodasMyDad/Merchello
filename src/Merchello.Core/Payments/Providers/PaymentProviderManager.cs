@@ -525,8 +525,8 @@ public class PaymentProviderManager(
         List<CheckoutMethodPreviewDto> hiddenMethods = [];
 
         // Track winners per MethodType for express and standard separately
-        var expressWinners = new Dictionary<PaymentMethodType, CheckoutMethodPreviewDto>();
-        var standardWinners = new Dictionary<PaymentMethodType, CheckoutMethodPreviewDto>();
+        var expressWinners = new Dictionary<string, CheckoutMethodPreviewDto>();
+        var standardWinners = new Dictionary<string, CheckoutMethodPreviewDto>();
 
         // First pass: identify winners (methods with lowest sort order per type)
         foreach (var method in sortedMethods)
@@ -539,7 +539,7 @@ public class PaymentProviderManager(
 
             var isExpress = methodDef?.IsExpressCheckout ?? false;
 
-            if (method.MethodType is null or PaymentMethodType.Custom)
+            if (string.IsNullOrEmpty(method.MethodType))
             {
                 // Not deduplicated - always active
                 if (isExpress)
@@ -552,16 +552,16 @@ public class PaymentProviderManager(
                 var winners = isExpress ? expressWinners : standardWinners;
                 var targetList = isExpress ? expressMethods : standardMethods;
 
-                if (!winners.ContainsKey(method.MethodType.Value))
+                if (!winners.ContainsKey(method.MethodType))
                 {
                     // First one wins (lowest sort order)
-                    winners[method.MethodType.Value] = method;
+                    winners[method.MethodType] = method;
                     targetList.Add(method);
                 }
                 else
                 {
                     // This one is outranked
-                    var winner = winners[method.MethodType.Value];
+                    var winner = winners[method.MethodType];
                     method.IsActive = false;
                     method.OutrankedBy = winner.ProviderDisplayName;
                     hiddenMethods.Add(method);
@@ -586,21 +586,21 @@ public class PaymentProviderManager(
     private List<PaymentMethodDto> DeduplicateByMethodType(List<PaymentMethodDto> methods)
     {
         List<PaymentMethodDto> result = [];
-        var seenMethodTypes = new Dictionary<PaymentMethodType, PaymentMethodDto>();
+        var seenMethodTypes = new Dictionary<string, PaymentMethodDto>();
 
         foreach (var method in methods.OrderBy(m => m.SortOrder).ThenBy(m => m.DisplayName))
         {
-            // Methods without a MethodType or with Custom type are not deduplicated
-            if (method.MethodType is null or PaymentMethodType.Custom)
+            // Methods without a MethodType are not deduplicated
+            if (string.IsNullOrEmpty(method.MethodType))
             {
                 result.Add(method);
                 continue;
             }
 
             // For typed methods, only include the first one (lowest sort order)
-            if (!seenMethodTypes.TryGetValue(method.MethodType.Value, out var existingMethod))
+            if (!seenMethodTypes.TryGetValue(method.MethodType, out var existingMethod))
             {
-                seenMethodTypes[method.MethodType.Value] = method;
+                seenMethodTypes[method.MethodType] = method;
                 result.Add(method);
             }
             else

@@ -1,5 +1,3 @@
-using Merchello.Core.Payments.Models;
-
 namespace Merchello.Core.Payments.Dtos;
 
 /// <summary>
@@ -28,9 +26,9 @@ public class ExpressCheckoutMethodDto
     public string? Icon { get; set; }
 
     /// <summary>
-    /// The type/category of this payment method (e.g., ApplePay, GooglePay).
+    /// The type/category of this payment method (e.g., "apple-pay", "google-pay").
     /// </summary>
-    public PaymentMethodType? MethodType { get; set; }
+    public string? MethodType { get; set; }
 
     /// <summary>
     /// Sort order for display.

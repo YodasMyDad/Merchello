@@ -31,10 +31,10 @@ public class ExpressCheckoutClientConfig
     public Dictionary<string, object> SdkConfig { get; init; } = [];
 
     /// <summary>
-    /// The type of button to render. Maps to PaymentMethodType.
+    /// The type of button to render. Use values from <see cref="PaymentMethodTypes"/>.
     /// Used by the frontend to select the appropriate button renderer.
     /// </summary>
-    public PaymentMethodType? MethodType { get; init; }
+    public string? MethodType { get; init; }
 
     /// <summary>
     /// Optional URL to a custom JavaScript file that handles this provider's express checkout.

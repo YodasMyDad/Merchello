@@ -117,22 +117,19 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     this._providerSettings = {};
     this._methodConfig = null;
 
-    if (providerKey !== "flat-rate") {
-      // Load method config for external providers
-      try {
-        const { data } = await MerchelloApi.getShippingProviderMethodConfig(providerKey);
-        if (data) {
-          this._methodConfig = data;
-        }
-      } catch {
-        // Method config loading failed - continue without config
+    // Load method config for any provider (will return empty fields for providers without config)
+    try {
+      const { data } = await MerchelloApi.getShippingProviderMethodConfig(providerKey);
+      if (data) {
+        this._methodConfig = data;
       }
+    } catch {
+      // Method config loading failed - continue without config
     }
   }
 
   /** Whether this provider uses live rates (external API) */
   private get _usesLiveRates(): boolean {
-    if (this._providerKey === "flat-rate") return false;
     const provider = this._availableProviders.find(p => p.key === this._providerKey);
     return provider?.capabilities?.usesLiveRates ?? false;
   }
@@ -239,13 +236,15 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
         this._providerSettings = data.providerSettings ?? {};
         this._isEnabled = data.isEnabled ?? true;
 
-        // Load method config if external provider
-        if (this._providerKey !== "flat-rate") {
-          await this._loadAvailableProviders();
+        // Load available providers and method config for any provider
+        await this._loadAvailableProviders();
+        try {
           const { data: methodConfig } = await MerchelloApi.getShippingProviderMethodConfig(this._providerKey);
           if (methodConfig) {
             this._methodConfig = methodConfig;
           }
+        } catch {
+          // Method config loading failed - continue without config
         }
       }
     } catch (err) {

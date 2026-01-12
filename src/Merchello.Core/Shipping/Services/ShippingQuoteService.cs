@@ -197,6 +197,13 @@ public class ShippingQuoteService(
             }, errors);
         }
 
+        // Build lookup of provider capabilities (UsesLiveRates) by provider key
+        var providers = await providerRegistry.GetProvidersAsync(cancellationToken);
+        var usesLiveRatesLookup = providers.ToDictionary(
+            p => p.Provider.Metadata.Key,
+            p => p.Provider.Metadata.ConfigCapabilities.UsesLiveRates,
+            StringComparer.OrdinalIgnoreCase);
+
         var productIds = lineItems.Select(item => item.ProductId!.Value).Distinct().ToList();
 
         using var scope = efCoreScopeProvider.CreateScope();
@@ -253,7 +260,7 @@ public class ShippingQuoteService(
                 continue;
             }
 
-            var snapshot = BuildProductSnapshot(product, countryCode, stateOrProvinceCode, shippingCostResolver);
+            var snapshot = BuildProductSnapshot(product, countryCode, stateOrProvinceCode, shippingCostResolver, usesLiveRatesLookup);
 
             // Get effective packages (variant override or root default)
             var productPackages = GetEffectivePackages(product);
@@ -321,7 +328,12 @@ public class ShippingQuoteService(
         return (request, errors);
     }
 
-    private static ShippingProductSnapshot BuildProductSnapshot(Product product, string countryCode, string? stateOrProvinceCode, IShippingCostResolver costResolver)
+    private static ShippingProductSnapshot BuildProductSnapshot(
+        Product product,
+        string countryCode,
+        string? stateOrProvinceCode,
+        IShippingCostResolver costResolver,
+        Dictionary<string, bool> usesLiveRatesLookup)
     {
         // Get allowed shipping options based on product restrictions
         var allowedOptions = product.GetAllowedShippingOptions();
@@ -344,12 +356,14 @@ public class ShippingQuoteService(
                     : warehouseLookup.GetValueOrDefault(option.WarehouseId) ?? option.Warehouse;
                 var canShip = warehouse.CanServeRegion(countryCode, stateOrProvinceCode);
 
-                // For external providers, they're available if the warehouse can ship to the region
-                // For flat-rate, they need a destination cost configured
-                var isExternalProvider = option.ProviderKey != "flat-rate";
-                var canShipToDestination = isExternalProvider
-                    ? canShip  // External providers calculate costs at runtime
-                    : canShip && destinationCost.HasValue;  // Flat rate needs cost configured
+                // Check if provider uses live rates (external API) vs configured costs
+                var usesLiveRates = usesLiveRatesLookup.GetValueOrDefault(option.ProviderKey, false);
+
+                // For live-rate providers, they're available if the warehouse can ship to the region
+                // For local-rate providers, they need a destination cost configured
+                var canShipToDestination = usesLiveRates
+                    ? canShip  // Live-rate providers calculate costs at runtime
+                    : canShip && destinationCost.HasValue;  // Local-rate providers need cost configured
 
                 return new ShippingOptionSnapshot
                 {

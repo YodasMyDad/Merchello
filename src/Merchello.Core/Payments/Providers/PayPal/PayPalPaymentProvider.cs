@@ -142,7 +142,7 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
             DefaultSortOrder = 5,
-            MethodType = PaymentMethodType.PayPal
+            MethodType = PaymentMethodTypes.PayPal
         },
         new PaymentMethodDefinition
         {
@@ -154,7 +154,7 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = false,
             DefaultSortOrder = 15,
-            MethodType = PaymentMethodType.BuyNowPayLater
+            MethodType = PaymentMethodTypes.BuyNowPayLater
         }
     ];
 
@@ -495,9 +495,9 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
         // Map method alias to method type
         var methodType = normalizedAlias switch
         {
-            "paypal" => PaymentMethodType.PayPal,
-            "paylater" => PaymentMethodType.BuyNowPayLater,
-            _ => (PaymentMethodType?)null
+            "paypal" => PaymentMethodTypes.PayPal,
+            "paylater" => PaymentMethodTypes.BuyNowPayLater,
+            _ => (string?)null
         };
 
         // Build SDK URL with appropriate parameters

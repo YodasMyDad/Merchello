@@ -10,6 +10,7 @@ using Merchello.Core.Notifications.OrderGrouping;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -23,6 +24,7 @@ public class ShippingService(
     IOrderGroupingStrategyResolver strategyResolver,
     IMerchelloNotificationPublisher notificationPublisher,
     IShippingCostResolver shippingCostResolver,
+    IShippingProviderManager providerManager,
     IOptions<MerchelloSettings> settings,
     ILogger<ShippingService> logger) : IShippingService
 {
@@ -577,6 +579,13 @@ public class ShippingService(
             };
         }
 
+        // Build lookup of provider capabilities (UsesLiveRates) by provider key
+        var providers = await providerManager.GetProvidersAsync(cancellationToken);
+        var usesLiveRatesLookup = providers.ToDictionary(
+            p => p.Provider.Metadata.Key,
+            p => p.Provider.Metadata.ConfigCapabilities.UsesLiveRates,
+            StringComparer.OrdinalIgnoreCase);
+
         using var scope = efCoreScopeProvider.CreateScope();
 
         var result = await scope.ExecuteWithContextAsync(async db =>
@@ -615,10 +624,12 @@ public class ShippingService(
             {
                 var cost = GetShippingCostForDestination(shippingOption, destinationCountryCode, destinationStateCode);
 
-                // For flat-rate, skip if no cost configured for destination
-                // For external providers, they're available if warehouse can serve the region
-                var isExternalProvider = shippingOption.ProviderKey != "flat-rate";
-                if (!isExternalProvider && cost == null && shippingOption.FixedCost == null)
+                // Check if provider uses live rates (external API) vs configured costs
+                var usesLiveRates = usesLiveRatesLookup.GetValueOrDefault(shippingOption.ProviderKey, false);
+
+                // For local-rate providers, skip if no cost configured for destination
+                // For live-rate providers, they're available if warehouse can serve the region
+                if (!usesLiveRates && cost == null && shippingOption.FixedCost == null)
                 {
                     continue;
                 }
@@ -638,8 +649,8 @@ public class ShippingService(
                     DaysFrom = shippingOption.DaysFrom,
                     DaysTo = shippingOption.DaysTo,
                     IsNextDay = shippingOption.IsNextDay,
-                    EstimatedCost = isExternalProvider ? null : (cost ?? shippingOption.FixedCost),
-                    IsEstimate = isExternalProvider,
+                    EstimatedCost = usesLiveRates ? null : cost ?? shippingOption.FixedCost,
+                    IsEstimate = usesLiveRates,
                     DeliveryTimeDescription = deliveryTime
                 });
             }
