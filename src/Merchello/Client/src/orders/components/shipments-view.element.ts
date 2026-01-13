@@ -45,12 +45,13 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     super();
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
       this.#workspaceContext = context as MerchelloOrdersWorkspaceContext;
+      if (!this.#workspaceContext) return;
       this.observe(this.#workspaceContext.order, (order) => {
         if (order?.id && order.id !== this._invoiceId) {
           this._invoiceId = order.id;
           this._loadShipments();
         }
-      });
+      }, '_observeOrder');
     });
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
       this.#modalManager = context;

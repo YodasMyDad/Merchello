@@ -189,9 +189,19 @@ public class PaymentService(
                 return result;
             }
 
+            // Check if provider explicitly wants to skip payment recording (e.g., Purchase Order)
+            if (paymentResult.SkipPaymentRecording)
+            {
+                logger.LogInformation(
+                    "Skipping payment recording for invoice {InvoiceId} via {Provider} (SkipPaymentRecording=true)",
+                    request.InvoiceId, request.ProviderAlias);
+
+                result.AddSuccessMessage("Payment method accepted. Payment will be recorded when received.");
+                return result;
+            }
+
             // Record the payment if completed, authorized, or pending
-            // Pending status is used by payment methods like Purchase Order where the order
-            // is accepted but payment confirmation comes later (via webhook or manual approval)
+            // Pending status is used for async payment confirmations (e.g., webhooks)
             if (paymentResult.Status == PaymentResultStatus.Completed ||
                 paymentResult.Status == PaymentResultStatus.Authorized ||
                 paymentResult.Status == PaymentResultStatus.Pending)

@@ -48,6 +48,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
     super();
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
       this.#workspaceContext = context as MerchelloCustomersWorkspaceContext;
+      if (!this.#workspaceContext) return;
       this._isNew = this.#workspaceContext.isNew;
       this.observe(this.#workspaceContext.segment, (segment) => {
         this._segment = segment;
@@ -56,7 +57,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
         if (segment) {
           this._formData = { ...segment };
         }
-      });
+      }, '_segment');
     });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;

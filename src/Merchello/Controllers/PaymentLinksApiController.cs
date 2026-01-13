@@ -65,10 +65,9 @@ public class PaymentLinksApiController(IPaymentLinkService paymentLinkService) :
     /// </summary>
     /// <param name="invoiceId">The invoice ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The payment link info, or 404 if no link exists.</returns>
+    /// <returns>The payment link info, or empty response if no link exists.</returns>
     [HttpGet("invoices/{invoiceId:guid}/payment-link")]
     [ProducesResponseType<PaymentLinkInfoDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPaymentLink(
         Guid invoiceId,
         CancellationToken cancellationToken = default)
@@ -77,7 +76,11 @@ public class PaymentLinksApiController(IPaymentLinkService paymentLinkService) :
 
         if (linkInfo is null)
         {
-            return NotFound("No payment link found for this invoice.");
+            return Ok(new PaymentLinkInfoDto
+            {
+                HasActiveLink = false,
+                IsPaid = false
+            });
         }
 
         return Ok(MapToDto(linkInfo));

@@ -192,22 +192,22 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             }
           }
           this._isLoading = !product;
-        });
+        }, '_product');
 
         // Observe element type
         this.observe(this.#workspaceContext.elementType, (elementType) => {
           this._elementType = elementType;
-        });
+        }, '_elementType');
 
         // Observe element property values
         this.observe(this.#workspaceContext.elementPropertyValues, (values) => {
           this._elementPropertyValues = values;
-        });
+        }, '_elementPropertyValues');
 
         // Observe filter groups from centralized context
         this.observe(this.#workspaceContext.filterGroups, (groups) => {
           this._filterGroups = groups;
-        });
+        }, '_filterGroups');
       }
     });
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {

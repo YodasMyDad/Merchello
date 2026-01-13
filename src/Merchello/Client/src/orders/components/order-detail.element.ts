@@ -74,7 +74,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
         this.observe(this.#workspaceContext.order, (order) => {
           this._order = order ?? null;
           this._isLoading = !order;
-        });
+        }, '_order');
       }
     });
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
@@ -83,7 +83,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     this.consumeContext(UMB_CURRENT_USER_CONTEXT, (context) => {
       this.observe(context?.currentUser, (currentUser) => {
         this._currentUser = currentUser;
-      });
+      }, '_currentUser');
     });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;

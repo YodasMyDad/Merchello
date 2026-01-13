@@ -63,6 +63,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
 
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
       this.#workspaceContext = context as MerchelloDiscountsWorkspaceContext;
+      if (!this.#workspaceContext) return;
       this._isNew = this.#workspaceContext.isNew;
 
       this.observe(this.#workspaceContext.discount, (discount) => {
@@ -70,15 +71,15 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
         this._targetRules = discount?.targetRules ?? [];
         this._eligibilityRules = discount?.eligibilityRules ?? [];
         this._isLoading = false;
-      });
+      }, '_discount');
 
       this.observe(this.#workspaceContext.isLoading, (isLoading) => {
         this._isLoading = isLoading;
-      });
+      }, '_isLoading');
 
       this.observe(this.#workspaceContext.isSaving, (isSaving) => {
         this._isSaving = isSaving;
-      });
+      }, '_isSaving');
     });
 
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {

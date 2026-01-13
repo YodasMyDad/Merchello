@@ -55,6 +55,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
     super();
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
       this.#workspaceContext = context as MerchelloEmailsWorkspaceContext;
+      if (!this.#workspaceContext) return;
       this._isNew = this.#workspaceContext.isNew;
       this.observe(this.#workspaceContext.email, (email) => {
         this._email = email;
@@ -66,7 +67,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
             this._loadTokensForTopic(email.topic);
           }
         }
-      });
+      }, '_email');
     });
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
       this.#modalManager = context;

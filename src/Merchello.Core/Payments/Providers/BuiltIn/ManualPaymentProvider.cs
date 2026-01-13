@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Payments.Models;
 
 namespace Merchello.Core.Payments.Providers.BuiltIn;
@@ -194,6 +195,15 @@ public class ManualPaymentProvider(IInvoiceService invoiceService) : PaymentProv
             };
         }
 
+        // Add note to invoice recording the PO submission
+        await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
+        {
+            InvoiceId = request.InvoiceId,
+            Text = $"Purchase order submitted: {poNumber}. Awaiting payment.",
+            VisibleToCustomer = true,
+            AuthorName = "System"
+        }, cancellationToken);
+
         var transactionId = $"po_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}";
 
         return new PaymentResult
@@ -202,6 +212,7 @@ public class ManualPaymentProvider(IInvoiceService invoiceService) : PaymentProv
             TransactionId = transactionId,
             Status = PaymentResultStatus.Pending,
             Amount = request.Amount,
+            SkipPaymentRecording = true,
             ProviderData = new Dictionary<string, object>
             {
                 ["purchaseOrderNumber"] = poNumber

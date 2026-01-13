@@ -61,7 +61,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
             this._formData = { ...warehouse };
           }
           this._isLoading = !warehouse;
-        });
+        }, '_warehouse');
       }
     });
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {

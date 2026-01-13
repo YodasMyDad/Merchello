@@ -67,6 +67,12 @@ public class PaymentResult
     /// </summary>
     public string? RiskScoreSource { get; init; }
 
+    /// <summary>
+    /// When true, no payment record is created but checkout completes successfully.
+    /// Used for payment methods like Purchase Order where payment is received later.
+    /// </summary>
+    public bool SkipPaymentRecording { get; init; }
+
     // =====================================================
     // Factory methods
     // =====================================================

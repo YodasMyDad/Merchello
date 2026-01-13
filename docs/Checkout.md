@@ -213,11 +213,15 @@ src/Merchello/wwwroot/js/checkout/
 │   ├── announcer.js            # Screen reader announcements
 │   ├── regions.js              # Region/state loading for address forms
 │   ├── security.js             # URL validation and safe redirects
-│   └── shipping-calculator.js  # Shipping cost calculation
+│   ├── shipping-calculator.js  # Shipping cost calculation
+│   └── payment-errors.js       # Standardized payment error handling
 ├── components/
-│   ├── single-page-checkout.js # Main orchestrator (handles contact, addresses, shipping, payment)
-│   ├── order-summary.js        # Order summary sidebar with discount handling
-│   └── express-checkout.js     # Express checkout buttons (Apple Pay, Google Pay, PayPal)
+│   ├── single-page-checkout.js   # Main orchestrator (coordinates sub-components)
+│   ├── checkout-address-form.js  # Reusable address form (billing/shipping)
+│   ├── checkout-shipping.js      # Shipping method display and selection
+│   ├── checkout-payment.js       # Payment method display and selection
+│   ├── order-summary.js          # Order summary sidebar with discount handling
+│   └── express-checkout.js       # Express checkout buttons (Apple Pay, Google Pay, PayPal)
 ├── payment.js                  # Payment adapter system - dynamic adapter loading
 ├── analytics.js                # Event emitter for GTM/analytics integration
 ├── single-page-analytics.js    # Analytics helper for single-page checkout
@@ -226,8 +230,10 @@ src/Merchello/wwwroot/js/checkout/
     ├── paypal-unified-adapter.js
     ├── stripe-payment-adapter.js
     ├── stripe-express-adapter.js
+    ├── stripe-card-elements-adapter.js
     ├── braintree-payment-adapter.js
-    └── braintree-express-adapter.js
+    ├── braintree-express-adapter.js
+    └── braintree-local-payment-adapter.js
 ```
 
 #### Alpine.js Loading Strategy
@@ -1507,11 +1513,15 @@ src/Merchello/
         │   ├── announcer.js        # Screen reader announcements
         │   ├── regions.js          # Region/state loading
         │   ├── security.js         # URL validation and safe redirects
-        │   └── shipping-calculator.js  # Shipping cost calculation
+        │   ├── shipping-calculator.js  # Shipping cost calculation
+        │   └── payment-errors.js   # Standardized payment error handling
         ├── components/
-        │   ├── single-page-checkout.js  # Main orchestrator (contact, addresses, shipping, payment)
-        │   ├── order-summary.js         # Order summary with discount handling
-        │   └── express-checkout.js      # Express checkout buttons
+        │   ├── single-page-checkout.js   # Main orchestrator (coordinates sub-components)
+        │   ├── checkout-address-form.js  # Reusable address form (billing/shipping)
+        │   ├── checkout-shipping.js      # Shipping method display and selection
+        │   ├── checkout-payment.js       # Payment method display and selection
+        │   ├── order-summary.js          # Order summary with discount handling
+        │   └── express-checkout.js       # Express checkout buttons
         ├── analytics.js            # Event emitter for GTM/analytics
         ├── payment.js              # Dynamic adapter loading - no hard-coded providers
         ├── single-page-analytics.js # Analytics helper for single-page checkout

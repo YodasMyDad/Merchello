@@ -101,15 +101,15 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
         this.observe(this.#workspaceContext.product, (product) => {
           this._product = product ?? null;
           this._updateVariantFromProduct();
-        });
+        }, '_product');
         this.observe(this.#workspaceContext.variantId, (variantId) => {
           this.#variantId = variantId;
           this._updateVariantFromProduct();
-        });
+        }, '_variantId');
         // Observe filter groups from centralized context
         this.observe(this.#workspaceContext.filterGroups, (groups) => {
           this._filterGroups = groups;
-        });
+        }, '_filterGroups');
       }
     });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {

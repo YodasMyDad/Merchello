@@ -87,18 +87,20 @@ public class MerchelloCheckoutController(
 
             var confirmation = await checkoutService.GetOrderConfirmationAsync(checkoutPage.InvoiceId.Value, ct);
 
+            // Clear basket cookie and session cache after successful order
+            // This must happen BEFORE any redirect to ensure basket is cleared
+            if (confirmation != null)
+            {
+                Response.Cookies.Delete(Core.Constants.Cookies.BasketId);
+                HttpContext.Session.Remove("Basket");
+            }
+
             // Check if we should redirect to custom confirmation URL
             if (confirmation != null && !string.IsNullOrWhiteSpace(_settings.ConfirmationRedirectUrl))
             {
                 var encodedNumber = Uri.EscapeDataString((string)confirmation.InvoiceNumber);
                 var redirectUrl = _settings.ConfirmationRedirectUrl + "?invoiceId=" + confirmation.InvoiceId + "&invoiceNumber=" + encodedNumber;
                 return Redirect(redirectUrl);
-            }
-
-            // Clear basket cookie after successful order
-            if (confirmation != null)
-            {
-                Response.Cookies.Delete(Core.Constants.Cookies.BasketId);
             }
 
             // Pre-serialize line items for analytics (avoid JSON in view)

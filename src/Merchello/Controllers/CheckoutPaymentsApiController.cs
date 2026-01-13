@@ -239,6 +239,12 @@ public class CheckoutPaymentsApiController(
 
             if (existingPayment != null)
             {
+                // Clear basket on successful payment
+                if (existingPayment.PaymentSuccess)
+                {
+                    ClearBasketCookieAndSession();
+                }
+
                 return new PaymentReturnResultDto
                 {
                     Success = existingPayment.PaymentSuccess,
@@ -624,6 +630,9 @@ public class CheckoutPaymentsApiController(
         // Set confirmation token to authorize viewing the confirmation page
         SetConfirmationToken(request.InvoiceId);
 
+        // Clear basket after successful payment
+        ClearBasketCookieAndSession();
+
         return Ok(new ProcessPaymentResultDto
         {
             Success = true,
@@ -745,7 +754,7 @@ public class CheckoutPaymentsApiController(
         // Process the payment
         var result = await paymentService.ProcessPaymentAsync(processRequest, cancellationToken);
 
-        if (!result.Successful || result.ResultObject == null)
+        if (!result.Successful)
         {
             var errorMessage = result.Messages
                 .Where(m => m.ResultMessageType == Merchello.Core.Shared.Models.Enums.ResultMessageType.Error)
@@ -766,15 +775,36 @@ public class CheckoutPaymentsApiController(
             });
         }
 
+        // Set confirmation token to authorize viewing the confirmation page
+        SetConfirmationToken(request.InvoiceId);
+
+        // Clear basket after successful payment
+        ClearBasketCookieAndSession();
+
+        // Check if payment was recorded (may be skipped for Purchase Order)
+        if (result.ResultObject == null)
+        {
+            logger.LogInformation(
+                "DirectForm payment accepted for invoice {InvoiceId} with provider {Provider} (no payment recorded - awaiting payment)",
+                request.InvoiceId,
+                request.ProviderAlias);
+
+            return Ok(new ProcessPaymentResultDto
+            {
+                Success = true,
+                InvoiceId = request.InvoiceId,
+                PaymentId = null,
+                TransactionId = null,
+                RedirectUrl = "/checkout/confirmation/" + request.InvoiceId
+            });
+        }
+
         logger.LogInformation(
             "DirectForm payment processed successfully for invoice {InvoiceId} with provider {Provider}, PaymentId: {PaymentId}, TransactionId: {TransactionId}",
             request.InvoiceId,
             request.ProviderAlias,
             result.ResultObject.Id,
             result.ResultObject.TransactionId);
-
-        // Set confirmation token to authorize viewing the confirmation page
-        SetConfirmationToken(request.InvoiceId);
 
         return Ok(new ProcessPaymentResultDto
         {
@@ -1076,6 +1106,9 @@ public class CheckoutPaymentsApiController(
 
             // Set confirmation token to authorize viewing the confirmation page
             SetConfirmationToken(invoice.Id);
+
+            // Clear basket after successful payment
+            ClearBasketCookieAndSession();
 
             return Ok(new ExpressCheckoutResponseDto
             {
@@ -1619,6 +1652,9 @@ public class CheckoutPaymentsApiController(
             // Set confirmation token to authorize viewing the confirmation page
             SetConfirmationToken(invoice.Id);
 
+            // Clear basket after successful payment
+            ClearBasketCookieAndSession();
+
             return Ok(new CaptureWidgetOrderResultDto
             {
                 Success = true,
@@ -1737,5 +1773,15 @@ public class CheckoutPaymentsApiController(
                 // Token expires after 24 hours - enough time to view confirmation but not forever
                 Expires = DateTimeOffset.UtcNow.AddHours(24)
             });
+    }
+
+    /// <summary>
+    /// Clears the basket cookie and session cache after successful payment.
+    /// This prevents items from reappearing in the cart after order completion.
+    /// </summary>
+    private void ClearBasketCookieAndSession()
+    {
+        Response.Cookies.Delete(Core.Constants.Cookies.BasketId);
+        HttpContext.Session.Remove("Basket");
     }
 }

@@ -735,8 +735,27 @@ export class MyEditor extends UmbFormControlMixin<string, typeof UmbLitElement>(
 
 ### Observe State
 ```typescript
-this.observe(myContext.counter, (value) => { this.#counter = value; }, 'alias');
+this.observe(myContext.counter, (value) => { this.#counter = value; }, '_counter');
 ```
+
+> **CRITICAL: Always provide an alias (third parameter) when using `this.observe()` inside `consumeContext` callbacks.**
+>
+> Without an alias, each time `consumeContext` fires (which can happen multiple times during component lifecycle), a new subscription is created without canceling the previous one. This causes:
+> - **Infinite API loops** from duplicate observers triggering the same fetch
+> - **Memory leaks** from unreleased subscriptions
+> - **Duplicate event handlers** firing multiple times
+>
+> ```typescript
+> // ❌ BAD: Missing alias - creates duplicate subscriptions
+> this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
+>   this.observe(context.data, (data) => { this._data = data; });
+> });
+>
+> // ✅ GOOD: Alias prevents duplicate subscriptions
+> this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
+>   this.observe(context.data, (data) => { this._data = data; }, '_data');
+> });
+> ```
 
 ### Property Dataset (Form Builder)
 ```typescript

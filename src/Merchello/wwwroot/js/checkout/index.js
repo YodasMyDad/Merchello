@@ -21,6 +21,9 @@ import MerchelloPayment from './payment.js';
 import { initSinglePageCheckout } from './components/single-page-checkout.js';
 import { initOrderSummary } from './components/order-summary.js';
 import { initExpressCheckout } from './components/express-checkout.js';
+import { initCheckoutAddressForm } from './components/checkout-address-form.js';
+import { initCheckoutShipping } from './components/checkout-shipping.js';
+import { initCheckoutPayment } from './components/checkout-payment.js';
 
 // Make Alpine available globally (required for Alpine.data, Alpine.store)
 window.Alpine = Alpine;
@@ -55,11 +58,12 @@ console.log('[Checkout] Store initialized');
 
 // Register all components
 // These must be registered BEFORE Alpine.start() processes the DOM
-console.log('[Checkout] Registering singlePageCheckout...');
+console.log('[Checkout] Registering components...');
+initCheckoutAddressForm();
+initCheckoutShipping();
+initCheckoutPayment();
 initSinglePageCheckout();
-console.log('[Checkout] Registering orderSummary...');
 initOrderSummary();
-console.log('[Checkout] Registering expressCheckout...');
 initExpressCheckout();
 console.log('[Checkout] All components registered');
 
@@ -74,6 +78,9 @@ export {
     Alpine,
     MerchelloPayment,
     initCheckoutStore,
+    initCheckoutAddressForm,
+    initCheckoutShipping,
+    initCheckoutPayment,
     initSinglePageCheckout,
     initOrderSummary,
     initExpressCheckout

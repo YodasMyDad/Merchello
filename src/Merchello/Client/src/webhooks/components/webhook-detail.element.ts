@@ -49,12 +49,13 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
     super();
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
       this.#workspaceContext = context as MerchelloWebhooksWorkspaceContext;
+      if (!this.#workspaceContext) return;
       this.observe(this.#workspaceContext.subscription, (subscription) => {
         this._subscription = subscription ?? null;
         if (subscription) {
           this._loadDeliveries();
         }
-      });
+      }, '_subscription');
     });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
