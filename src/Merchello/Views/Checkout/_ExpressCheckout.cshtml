@@ -22,16 +22,16 @@
      x-cloak>
 
     <!-- Loading State - Skeleton Loaders -->
-    <div x-show="isLoading" class="flex flex-col sm:flex-row items-center sm:justify-center gap-3">
-        <div class="h-12 w-full max-w-[280px] sm:w-40 sm:max-w-none animate-pulse bg-gray-200 rounded-lg"></div>
-        <div class="h-12 w-full max-w-[280px] sm:w-40 sm:max-w-none animate-pulse bg-gray-200 rounded-lg"></div>
-        <div class="h-12 w-full max-w-[280px] sm:w-40 sm:max-w-none animate-pulse bg-gray-200 rounded-lg"></div>
+    <div x-show="isLoading" class="flex flex-col sm:flex-row items-center sm:justify-center gap-2">
+        <div class="h-10 w-full max-w-[200px] sm:w-[120px] sm:max-w-[140px] animate-pulse bg-gray-200 rounded-lg"></div>
+        <div class="h-10 w-full max-w-[200px] sm:w-[120px] sm:max-w-[140px] animate-pulse bg-gray-200 rounded-lg"></div>
+        <div class="h-10 w-full max-w-[200px] sm:w-[120px] sm:max-w-[140px] animate-pulse bg-gray-200 rounded-lg"></div>
     </div>
 
     <!-- Express Checkout Content -->
     <div x-show="!isLoading && hasExpressMethods" x-cloak>
         <!-- Dynamic Express Checkout Buttons Container -->
-        <div id="express-buttons-container" class="flex flex-col sm:flex-row sm:flex-wrap items-center sm:justify-center gap-3">
+        <div id="express-buttons-container" class="flex flex-col sm:flex-row sm:flex-wrap items-center sm:justify-center gap-2">
             <!-- Buttons are rendered dynamically by JavaScript based on API response -->
         </div>
 
@@ -64,18 +64,18 @@
 </div>
 
 <style>
-    /* Express button wrapper - full width on mobile, fixed on tablet+ */
+    /* Express button wrapper - full width on mobile, constrained on tablet+ */
     .express-button-wrapper {
         width: 100%;
-        max-width: 280px;
-        min-height: 48px;
+        max-width: 200px;
+        min-height: 40px;
     }
 
     @@media (min-width: 640px) {
         .express-button-wrapper {
-            width: auto;
-            min-width: 160px;
-            max-width: none;
+            width: 120px;
+            min-width: 120px;
+            max-width: 140px;
         }
     }
 
@@ -84,14 +84,14 @@
         -webkit-appearance: -apple-pay-button;
         -apple-pay-button-type: plain;
         cursor: pointer;
-        height: 48px;
+        height: 40px;
         width: 100%;
-        border-radius: 8px;
+        border-radius: 6px;
     }
 
     @@media (min-width: 640px) {
         .apple-pay-button {
-            width: 160px;
+            width: 120px;
         }
     }
 
@@ -101,21 +101,22 @@
 
     /* Generic express button base styles */
     .express-button {
-        height: 48px;
+        height: 40px;
         width: 100%;
-        border-radius: 8px;
+        border-radius: 6px;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
+        gap: 6px;
         font-weight: 500;
+        font-size: 14px;
         transition: opacity 0.2s, background-color 0.2s;
     }
 
     @@media (min-width: 640px) {
         .express-button {
-            width: 160px;
+            width: 120px;
         }
     }
 
@@ -174,4 +175,11 @@
     // Global registry for express checkout adapters
     // Provider adapters are loaded dynamically via the adapterUrl field
     window.MerchelloExpressAdapters = window.MerchelloExpressAdapters || {};
+
+    // Centralized express checkout configuration
+    // Adapters should read from this config for consistent styling
+    window.MerchelloExpressConfig = window.MerchelloExpressConfig || {
+        buttonHeight: 40,      // Height in pixels for SDK buttons (PayPal, Stripe, etc.)
+        borderRadius: 6        // Border radius in pixels
+    };
 </script>

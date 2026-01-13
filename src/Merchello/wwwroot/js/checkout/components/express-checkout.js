@@ -82,7 +82,7 @@ export function initExpressCheckout() {
             this._initialized = true;
 
             try {
-                // Fetch express checkout configuration
+                // Fetch express checkout configuration (methods, SDK urls, etc.)
                 const response = await fetch('/api/merchello/checkout/express-config');
 
                 if (!response.ok) {
@@ -91,6 +91,9 @@ export function initExpressCheckout() {
 
                 this.config = await response.json();
                 this.hasExpressMethods = this.config?.methods?.length > 0;
+
+                // API now returns amounts already converted to display currency with proper rounding
+                // No client-side override needed - backend handles currency conversion via DisplayCurrencyExtensions
 
                 // Listen for basket updates to keep express checkout in sync
                 document.addEventListener('merchello:basket-updated', (e) => {
@@ -149,10 +152,14 @@ export function initExpressCheckout() {
 
         /**
          * Initialize all express checkout methods
+         * Uses a resilient approach: only clears existing buttons after new ones succeed
          */
         async initializeExpressCheckout() {
             const container = document.getElementById('express-buttons-container');
             if (!container) return;
+
+            const methods = this.config?.methods;
+            if (!methods || methods.length === 0) return;
 
             // Set minimum height to prevent layout shift during re-render
             const currentHeight = container.offsetHeight;
@@ -160,17 +167,33 @@ export function initExpressCheckout() {
                 container.style.minHeight = `${currentHeight}px`;
             }
 
-            // Teardown existing buttons
-            await this.teardownExpressButtons();
-            container.innerHTML = '';
+            // Create temporary container for new buttons
+            const tempContainer = document.createElement('div');
+            tempContainer.className = container.className;
+            let successCount = 0;
 
-            // Process each method
-            for (const method of this.config.methods) {
+            // Try to render new buttons to temp container first
+            for (const method of methods) {
                 try {
-                    await this.initializeMethod(method, container);
+                    await this.initializeMethod(method, tempContainer);
+                    successCount++;
                 } catch (err) {
                     console.error(`Failed to initialize ${method.methodAlias}:`, err);
                 }
+            }
+
+            // Only replace existing buttons if at least one new button succeeded
+            if (successCount > 0) {
+                // Teardown existing buttons
+                await this.teardownExpressButtons();
+                container.innerHTML = '';
+
+                // Move new buttons from temp container to actual container
+                while (tempContainer.firstChild) {
+                    container.appendChild(tempContainer.firstChild);
+                }
+            } else {
+                console.warn('Express checkout re-render failed, keeping existing buttons');
             }
 
             // Remove minimum height after render complete
@@ -310,15 +333,14 @@ export function initExpressCheckout() {
          * @param {Object} providerData
          */
         async processExpressCheckout(providerAlias, methodAlias, paymentToken, customerData, providerData) {
-            // Prevent double-submission - if already processing, ignore
-            if (this.isProcessing) {
-                console.warn('Express checkout already in progress, ignoring duplicate request');
-                return;
-            }
+            // Note: Adapters are responsible for setting isProcessing = true before calling this function
+            // and for checking isProcessing before initiating payment flow. This function trusts
+            // that the adapter has already done those checks.
 
-            // Track request ID to prevent race conditions
+            // Track request ID to prevent stale responses from overwriting newer ones
             const requestId = ++this._expressRequestId;
 
+            // Ensure processing state is set (adapters should have done this, but be safe)
             this.isProcessing = true;
             this.error = null;
 

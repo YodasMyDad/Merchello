@@ -28,17 +28,29 @@ public class PaymentMethodDto
     public required string DisplayName { get; set; }
 
     /// <summary>
-    /// Icon identifier or URL (legacy).
+    /// Icon identifier for the payment method in admin UI (e.g., "icon-credit-card").
     /// </summary>
     [JsonPropertyName("icon")]
     public string? Icon { get; set; }
 
     /// <summary>
-    /// Icon HTML/SVG markup for the payment method.
-    /// When provided, this is used instead of Icon for rendering.
+    /// Icon HTML/SVG markup for the payment method in admin UI.
     /// </summary>
     [JsonPropertyName("iconHtml")]
     public string? IconHtml { get; set; }
+
+    /// <summary>
+    /// Icon HTML/SVG markup for the payment method in customer checkout.
+    /// Separate from Icon/IconHtml which are used in admin UI.
+    /// </summary>
+    [JsonPropertyName("checkoutIconHtml")]
+    public string? CheckoutIconHtml { get; set; }
+
+    /// <summary>
+    /// Custom styling for the payment method container in checkout.
+    /// </summary>
+    [JsonPropertyName("checkoutStyle")]
+    public PaymentMethodCheckoutStyleDto? CheckoutStyle { get; set; }
 
     /// <summary>
     /// Description of the payment method.

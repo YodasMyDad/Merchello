@@ -191,6 +191,9 @@ const MerchelloPayment = {
      * @returns {Promise<void>}
      */
     async handlePaymentFlow(session, options = {}) {
+        // Teardown any existing adapter before setting up new one
+        await this.teardownCurrentAdapter();
+
         switch (session.integrationType) {
             case this.IntegrationType.Redirect:
                 await this.handleRedirectFlow(session);
@@ -764,12 +767,17 @@ const MerchelloPayment = {
 
     /**
      * Gets the payment icon for a method
-     * Prefers iconHtml from API, falls back to icon URL, then default icons
+     * Prefers checkoutIconHtml, falls back to iconHtml, then icon URL, then default icons
      * @param {Object} method - Payment method object
      * @returns {string} HTML for the payment icon
      */
     getMethodIcon(method) {
-        // Prefer iconHtml from the provider (allows full control)
+        // Prefer checkoutIconHtml (explicit checkout-specific icon)
+        if (method.checkoutIconHtml) {
+            return method.checkoutIconHtml;
+        }
+
+        // Fall back to iconHtml from the provider (backwards compat)
         if (method.iconHtml) {
             return method.iconHtml;
         }
@@ -797,6 +805,29 @@ const MerchelloPayment = {
 
         // Default card icon
         return typeIcons[0];
+    },
+
+    /**
+     * Gets inline style string for a payment method based on checkoutStyle
+     * @param {Object} method - Payment method object
+     * @param {boolean} isSelected - Whether the method is currently selected
+     * @returns {string} CSS inline style string
+     */
+    getMethodStyle(method, isSelected = false) {
+        const style = method.checkoutStyle;
+        if (!style) return '';
+
+        const parts = [];
+        if (isSelected) {
+            if (style.selectedBackgroundColor) parts.push(`background-color: ${style.selectedBackgroundColor}`);
+            if (style.selectedBorderColor) parts.push(`border-color: ${style.selectedBorderColor}`);
+            if (style.selectedTextColor) parts.push(`color: ${style.selectedTextColor}`);
+        } else {
+            if (style.backgroundColor) parts.push(`background-color: ${style.backgroundColor}`);
+            if (style.borderColor) parts.push(`border-color: ${style.borderColor}`);
+            if (style.textColor) parts.push(`color: ${style.textColor}`);
+        }
+        return parts.join('; ');
     },
 
     /**

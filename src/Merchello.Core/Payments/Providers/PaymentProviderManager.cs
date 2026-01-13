@@ -414,6 +414,18 @@ public class PaymentProviderManager(
                     DisplayName = methodSetting?.DisplayNameOverride ?? methodDef.DisplayName,
                     Icon = methodDef.Icon,
                     IconHtml = methodDef.IconHtml,
+                    CheckoutIconHtml = methodDef.CheckoutIconHtml,
+                    CheckoutStyle = methodDef.CheckoutStyle != null
+                        ? new PaymentMethodCheckoutStyleDto
+                        {
+                            BackgroundColor = methodDef.CheckoutStyle.BackgroundColor,
+                            BorderColor = methodDef.CheckoutStyle.BorderColor,
+                            TextColor = methodDef.CheckoutStyle.TextColor,
+                            SelectedBackgroundColor = methodDef.CheckoutStyle.SelectedBackgroundColor,
+                            SelectedBorderColor = methodDef.CheckoutStyle.SelectedBorderColor,
+                            SelectedTextColor = methodDef.CheckoutStyle.SelectedTextColor
+                        }
+                        : null,
                     Description = methodDef.Description,
                     IntegrationType = methodDef.IntegrationType,
                     IsExpressCheckout = methodDef.IsExpressCheckout,

@@ -85,6 +85,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
   @state() private _errorMessage: string | null = null;
 
   #isConnected = false;
+  #cardinalStyleElement?: HTMLStyleElement;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -111,6 +112,8 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
       }
     }
     this.#currentAdapter = undefined;
+    // Clean up Cardinal z-index fix
+    this._removeCardinalZIndexFix();
   }
 
   private _restoreSavedValues(): void {
@@ -135,6 +138,34 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
       localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
     } catch {
       // Ignore localStorage errors
+    }
+  }
+
+  private _injectCardinalZIndexFix(): void {
+    // Prevent duplicate injection
+    if (this.#cardinalStyleElement) return;
+
+    const style = document.createElement('style');
+    style.id = 'merchello-cardinal-zindex-fix';
+    style.textContent = `
+      /* Fix for Cardinal Commerce 3DS modal appearing behind Umbraco modal */
+      .cardinal-modal-overlay,
+      .cardinal-modal,
+      [id*="Cardinal"],
+      [class*="Cardinal"],
+      iframe[name*="Cardinal"],
+      div[style*="z-index"][style*="position: fixed"] {
+        z-index: 999999 !important;
+      }
+    `;
+    document.head.appendChild(style);
+    this.#cardinalStyleElement = style;
+  }
+
+  private _removeCardinalZIndexFix(): void {
+    if (this.#cardinalStyleElement) {
+      this.#cardinalStyleElement.remove();
+      this.#cardinalStyleElement = undefined;
     }
   }
 
@@ -241,6 +272,9 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
 
       // Load adapter script
       await this._loadScript(data.adapterUrl);
+
+      // Inject z-index fix for Cardinal 3DS modal (used by Braintree)
+      this._injectCardinalZIndexFix();
 
       // Try to render the payment form
       await this._renderPaymentAdapter(data);
