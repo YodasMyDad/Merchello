@@ -85,6 +85,26 @@ public class CheckoutPaymentsApiController(
             return NotFound("Invoice not found.");
         }
 
+        // Validate invoice state before allowing payment
+        if (invoice.IsCancelled)
+        {
+            logger.LogWarning("Payment attempt on cancelled invoice: {InvoiceId}", invoiceId);
+            return BadRequest("This invoice has been cancelled and cannot be paid.");
+        }
+
+        var invoicePaymentStatus = await paymentService.GetInvoicePaymentStatusAsync(invoiceId, cancellationToken);
+        if (invoicePaymentStatus == InvoicePaymentStatus.Paid)
+        {
+            logger.LogWarning("Payment attempt on already-paid invoice: {InvoiceId}", invoiceId);
+            return BadRequest("This invoice has already been paid.");
+        }
+
+        if (invoicePaymentStatus == InvoicePaymentStatus.Refunded)
+        {
+            logger.LogWarning("Payment attempt on refunded invoice: {InvoiceId}", invoiceId);
+            return BadRequest("This invoice has been refunded and cannot accept new payments.");
+        }
+
         // Validate that the current checkout session owns this invoice
         // This prevents users from paying invoices that don't belong to them
         var currentBasket = await checkoutService.GetBasket(
@@ -98,15 +118,20 @@ public class CheckoutPaymentsApiController(
 
         var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
 
-        // Validate ownership by comparing billing email
-        // The invoice was created with the billing email from checkout, so they must match
-        if (string.IsNullOrEmpty(session.BillingAddress.Email) ||
-            !string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase))
+        // Validate ownership with multiple checks for defense in depth:
+        // 1. Session must have the invoice ID that was created from this checkout
+        // 2. Billing email must match (fallback for sessions created before InvoiceId tracking)
+        var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == invoiceId;
+        var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
+            string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
+
+        if (!hasValidInvoiceId && !hasValidEmail)
         {
             logger.LogWarning(
-                "Invoice ownership validation failed: Invoice {InvoiceId} has billing email {InvoiceBillingEmail}, but session has {SessionBillingEmail}",
+                "Invoice ownership validation failed: Invoice {InvoiceId} (email: {InvoiceBillingEmail}), Session invoice: {SessionInvoiceId}, Session email: {SessionBillingEmail}",
                 invoiceId,
                 invoice.BillingAddress.Email,
+                session.InvoiceId,
                 session.BillingAddress.Email);
 
             return StatusCode(StatusCodes.Status403Forbidden, "You do not have permission to pay this invoice.");
@@ -391,6 +416,9 @@ public class CheckoutPaymentsApiController(
             invoice.Id,
             basket.Id);
 
+        // Store invoice ID in session for ownership validation during payment
+        await checkoutSessionService.SetInvoiceIdAsync(basket.Id, invoice.Id, cancellationToken);
+
         // Create payment session
         var result = await paymentService.CreatePaymentSessionAsync(
             new CreatePaymentSessionParameters
@@ -516,14 +544,18 @@ public class CheckoutPaymentsApiController(
 
         var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
 
-        // Validate ownership by comparing billing email
-        if (string.IsNullOrEmpty(session.BillingAddress.Email) ||
-            !string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase))
+        // Validate ownership with multiple checks for defense in depth
+        var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == request.InvoiceId;
+        var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
+            string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
+
+        if (!hasValidInvoiceId && !hasValidEmail)
         {
             logger.LogWarning(
-                "Invoice ownership validation failed in ProcessPayment: Invoice {InvoiceId} has billing email {InvoiceBillingEmail}, but session has {SessionBillingEmail}",
+                "Invoice ownership validation failed in ProcessPayment: Invoice {InvoiceId} (email: {InvoiceBillingEmail}), Session invoice: {SessionInvoiceId}, Session email: {SessionBillingEmail}",
                 request.InvoiceId,
                 invoice.BillingAddress.Email,
+                session.InvoiceId,
                 session.BillingAddress.Email);
 
             return StatusCode(StatusCodes.Status403Forbidden, new ProcessPaymentResultDto
@@ -589,6 +621,9 @@ public class CheckoutPaymentsApiController(
             result.ResultObject.Id,
             result.ResultObject.TransactionId);
 
+        // Set confirmation token to authorize viewing the confirmation page
+        SetConfirmationToken(request.InvoiceId);
+
         return Ok(new ProcessPaymentResultDto
         {
             Success = true,
@@ -648,14 +683,18 @@ public class CheckoutPaymentsApiController(
 
         var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
 
-        // Validate ownership by comparing billing email
-        if (string.IsNullOrEmpty(session.BillingAddress.Email) ||
-            !string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase))
+        // Validate ownership with multiple checks for defense in depth
+        var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == request.InvoiceId;
+        var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
+            string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
+
+        if (!hasValidInvoiceId && !hasValidEmail)
         {
             logger.LogWarning(
-                "Invoice ownership validation failed in ProcessDirectPayment: Invoice {InvoiceId} has billing email {InvoiceBillingEmail}, but session has {SessionBillingEmail}",
+                "Invoice ownership validation failed in ProcessDirectPayment: Invoice {InvoiceId} (email: {InvoiceBillingEmail}), Session invoice: {SessionInvoiceId}, Session email: {SessionBillingEmail}",
                 request.InvoiceId,
                 invoice.BillingAddress.Email,
+                session.InvoiceId,
                 session.BillingAddress.Email);
 
             return StatusCode(StatusCodes.Status403Forbidden, new ProcessPaymentResultDto
@@ -733,6 +772,9 @@ public class CheckoutPaymentsApiController(
             request.ProviderAlias,
             result.ResultObject.Id,
             result.ResultObject.TransactionId);
+
+        // Set confirmation token to authorize viewing the confirmation page
+        SetConfirmationToken(request.InvoiceId);
 
         return Ok(new ProcessPaymentResultDto
         {
@@ -862,26 +904,28 @@ public class CheckoutPaymentsApiController(
                 });
             }
 
-            // Save addresses to checkout session
+            // Create transient session for validation (NOT persisted yet)
+            // This ensures we don't corrupt session state if shipping validation fails
             var sameAsBilling = request.CustomerData.BillingAddress == null;
-            await checkoutSessionService.SaveAddressesAsync(
-                basket.Id,
-                billingAddress,
-                sameAsBilling ? null : shippingAddress,
-                sameAsBilling,
-                acceptsMarketing: false, // Express checkout doesn't include marketing consent
-                cancellationToken);
+            var effectiveShippingAddress = sameAsBilling ? billingAddress : (shippingAddress ?? billingAddress);
 
-            // Get the updated session
-            var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+            var transientSession = new CheckoutSession
+            {
+                BasketId = basket.Id,
+                BillingAddress = billingAddress,
+                ShippingAddress = effectiveShippingAddress,
+                ShippingSameAsBilling = sameAsBilling,
+                AcceptsMarketing = false,
+                CurrentStep = CheckoutStep.Shipping
+            };
 
-            // Auto-select shipping for express checkout (shipping selections are cleared when addresses change)
-            var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, session, cancellationToken);
+            // Validate shipping BEFORE persisting addresses
+            var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, transientSession, cancellationToken);
 
             if (!groupingResult.Success || groupingResult.Groups.Count == 0)
             {
                 logger.LogWarning(
-                    "Express checkout: Unable to calculate shipping options for basket {BasketId}",
+                    "Express checkout: Unable to calculate shipping options for basket {BasketId}. Address not persisted.",
                     basket.Id);
 
                 return BadRequest(new ExpressCheckoutResponseDto
@@ -899,7 +943,7 @@ public class CheckoutPaymentsApiController(
             if (autoSelectedShipping.Count == 0)
             {
                 logger.LogWarning(
-                    "Express checkout: No shipping options available for basket {BasketId}",
+                    "Express checkout: No shipping options available for basket {BasketId}. Address not persisted.",
                     basket.Id);
 
                 return BadRequest(new ExpressCheckoutResponseDto
@@ -909,6 +953,15 @@ public class CheckoutPaymentsApiController(
                 });
             }
 
+            // Validation passed - NOW persist addresses to session
+            await checkoutSessionService.SaveAddressesAsync(
+                basket.Id,
+                billingAddress,
+                sameAsBilling ? null : shippingAddress,
+                sameAsBilling,
+                acceptsMarketing: false,
+                cancellationToken);
+
             // Save shipping selections to session
             await checkoutSessionService.SaveShippingSelectionsAsync(
                 basket.Id,
@@ -916,8 +969,8 @@ public class CheckoutPaymentsApiController(
                 null,
                 cancellationToken);
 
-            // Refresh session with shipping selections
-            session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+            // Get the persisted session for subsequent operations
+            var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
 
             logger.LogInformation(
                 "Express checkout: Auto-selected shipping for {GroupCount} groups, combined total: {Total}",
@@ -932,6 +985,9 @@ public class CheckoutPaymentsApiController(
                 invoice.Id,
                 basket.Id,
                 request.CustomerData.Email);
+
+            // Store invoice ID in session for ownership validation during payment
+            await checkoutSessionService.SetInvoiceIdAsync(basket.Id, invoice.Id, cancellationToken);
 
             // Build express checkout request for the provider
             var expressRequest = new ExpressCheckoutRequest
@@ -1018,6 +1074,9 @@ public class CheckoutPaymentsApiController(
                 payment.Id,
                 transactionId);
 
+            // Set confirmation token to authorize viewing the confirmation page
+            SetConfirmationToken(invoice.Id);
+
             return Ok(new ExpressCheckoutResponseDto
             {
                 Success = true,
@@ -1060,11 +1119,17 @@ public class CheckoutPaymentsApiController(
 
         var currency = basket?.Currency ?? _settings.StoreCurrencyCode;
         var amount = basket?.Total ?? 0;
+        var subTotal = basket?.SubTotal ?? 0;
+        var shipping = basket?.Shipping ?? 0;
+        var tax = basket?.Tax ?? 0;
 
         var config = new ExpressCheckoutConfigDto
         {
             Currency = currency,
             Amount = amount,
+            SubTotal = subTotal,
+            Shipping = shipping,
+            Tax = tax,
             Methods = []
         };
 
@@ -1328,6 +1393,9 @@ public class CheckoutPaymentsApiController(
                 invoice.Id,
                 basket.Id);
 
+            // Store invoice ID in session for ownership validation during payment
+            await checkoutSessionService.SetInvoiceIdAsync(basket.Id, invoice.Id, cancellationToken);
+
             // Create payment session to get the provider order ID
             var baseUrl = $"{Request.Scheme}://{Request.Host}";
             var methodAlias = request.MethodAlias ?? providerAlias;
@@ -1483,15 +1551,19 @@ public class CheckoutPaymentsApiController(
             {
                 var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
 
-                // Validate ownership by comparing billing email
-                if (!string.IsNullOrEmpty(session.BillingAddress.Email) &&
-                    !string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase))
+                // Validate ownership with multiple checks for defense in depth
+                var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == request.InvoiceId.Value;
+                var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
+                    string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
+
+                if (!hasValidInvoiceId && !hasValidEmail)
                 {
                     logger.LogWarning(
-                        "Invoice ownership validation failed in CaptureWidgetOrder ({Provider}): Invoice {InvoiceId} has billing email {InvoiceBillingEmail}, but session has {SessionBillingEmail}",
+                        "Invoice ownership validation failed in CaptureWidgetOrder ({Provider}): Invoice {InvoiceId} (email: {InvoiceBillingEmail}), Session invoice: {SessionInvoiceId}, Session email: {SessionBillingEmail}",
                         providerAlias,
                         request.InvoiceId.Value,
                         invoice.BillingAddress.Email,
+                        session.InvoiceId,
                         session.BillingAddress.Email);
 
                     return Ok(new CaptureWidgetOrderResultDto
@@ -1543,6 +1615,9 @@ public class CheckoutPaymentsApiController(
                 invoice.Id,
                 payment.Id,
                 payment.TransactionId);
+
+            // Set confirmation token to authorize viewing the confirmation page
+            SetConfirmationToken(invoice.Id);
 
             return Ok(new CaptureWidgetOrderResultDto
             {
@@ -1643,5 +1718,24 @@ public class CheckoutPaymentsApiController(
             return (false, "Shipping country is required. Please complete the checkout information step first.");
 
         return (true, null);
+    }
+
+    /// <summary>
+    /// Sets a secure confirmation token cookie that authorizes the user to view the order confirmation page.
+    /// This prevents unauthorized users from viewing order details by guessing invoice IDs.
+    /// </summary>
+    private void SetConfirmationToken(Guid invoiceId)
+    {
+        Response.Cookies.Append(
+            Core.Constants.Cookies.ConfirmationToken,
+            invoiceId.ToString(),
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+                // Token expires after 24 hours - enough time to view confirmation but not forever
+                Expires = DateTimeOffset.UtcNow.AddHours(24)
+            });
     }
 }

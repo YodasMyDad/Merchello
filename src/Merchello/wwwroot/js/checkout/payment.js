@@ -38,6 +38,42 @@ const MerchelloPayment = {
     },
 
     /**
+     * Validates that a redirect URL is safe to navigate to.
+     * Only allows redirects to the same origin and within the checkout path.
+     * @param {string|null|undefined} url - The URL to validate
+     * @returns {boolean} True if the URL is safe to redirect to
+     */
+    isValidRedirectUrl(url) {
+        if (!url || typeof url !== 'string') {
+            return false;
+        }
+        try {
+            const parsed = new URL(url, window.location.origin);
+            // Only allow same-origin redirects within checkout paths
+            return parsed.origin === window.location.origin &&
+                   parsed.pathname.startsWith('/checkout');
+        } catch (e) {
+            console.warn('Invalid redirect URL:', url, e);
+            return false;
+        }
+    },
+
+    /**
+     * Safely redirects to a URL after validation.
+     * Falls back to the checkout page if the URL is invalid.
+     * @param {string|null|undefined} url - The URL to redirect to
+     * @param {string} [fallbackUrl='/checkout'] - URL to use if validation fails
+     */
+    safeRedirect(url, fallbackUrl = '/checkout') {
+        if (this.isValidRedirectUrl(url)) {
+            window.location.href = url;
+        } else {
+            console.error('Unsafe redirect blocked. Using fallback:', fallbackUrl);
+            window.location.href = fallbackUrl;
+        }
+    },
+
+    /**
      * Fetch wrapper with timeout support for older browsers
      * @param {string} url - URL to fetch
      * @param {Object} options - Fetch options
@@ -182,7 +218,7 @@ const MerchelloPayment = {
         if (!session.redirectUrl) {
             throw new Error('No redirect URL provided');
         }
-        window.location.href = session.redirectUrl;
+        this.safeRedirect(session.redirectUrl);
     },
 
     /**
@@ -249,6 +285,8 @@ const MerchelloPayment = {
             }
         } catch (error) {
             console.error('Error setting up payment adapter:', error);
+            // Clean up adapter on error to prevent memory leaks
+            await this.teardownCurrentAdapter();
             if (onError) {
                 onError(error);
             }
@@ -306,9 +344,14 @@ const MerchelloPayment = {
             // Show the container
             container.style.display = 'block';
 
-            // Render form fields
+            // Render form fields using safe DOM methods (prevents XSS)
             if (session.formFields && session.formFields.length > 0) {
-                container.innerHTML = this.renderFormFields(session.formFields);
+                // Clear existing content safely
+                while (container.firstChild) {
+                    container.removeChild(container.firstChild);
+                }
+                // Append new form fields using DOM API
+                container.appendChild(this.createFormFields(session.formFields));
             }
 
             // Create pseudo-adapter for DirectForm submission
@@ -320,7 +363,10 @@ const MerchelloPayment = {
                     return await this.submitDirectForm(invoiceId, session);
                 },
                 teardown: () => {
-                    container.innerHTML = '';
+                    // Clear container safely using DOM methods
+                    while (container.firstChild) {
+                        container.removeChild(container.firstChild);
+                    }
                     container.style.display = 'none';
                 }
             };
@@ -330,6 +376,8 @@ const MerchelloPayment = {
             }
         } catch (error) {
             console.error('Error setting up direct form:', error);
+            // Clean up adapter on error to prevent memory leaks
+            await this.teardownCurrentAdapter();
             if (onError) {
                 onError(error);
             }
@@ -415,6 +463,114 @@ const MerchelloPayment = {
     },
 
     /**
+     * Creates form fields using safe DOM methods (prevents XSS)
+     * @param {Array} fields - Array of form field definitions
+     * @returns {DocumentFragment} DOM fragment containing form fields
+     */
+    createFormFields(fields) {
+        const fragment = document.createDocumentFragment();
+
+        fields.forEach(field => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'mb-4';
+
+            // Create label
+            const label = document.createElement('label');
+            label.className = 'block text-sm font-medium text-gray-700 mb-1';
+            label.htmlFor = field.key;
+            label.textContent = field.label;
+
+            if (field.isRequired) {
+                const asterisk = document.createElement('span');
+                asterisk.className = 'text-red-500';
+                asterisk.textContent = ' *';
+                label.appendChild(asterisk);
+            }
+
+            wrapper.appendChild(label);
+
+            // Create input element based on field type
+            let inputElement;
+            const fieldType = (field.fieldType || 'text').toLowerCase();
+            const inputClasses = 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent';
+
+            switch (fieldType) {
+                case 'textarea':
+                    inputElement = document.createElement('textarea');
+                    inputElement.rows = 3;
+                    inputElement.value = field.defaultValue || '';
+                    if (field.placeholder) {
+                        inputElement.placeholder = field.placeholder;
+                    }
+                    break;
+
+                case 'select':
+                    inputElement = document.createElement('select');
+                    // Add default option
+                    const defaultOpt = document.createElement('option');
+                    defaultOpt.value = '';
+                    defaultOpt.textContent = '-- Select --';
+                    inputElement.appendChild(defaultOpt);
+                    // Add field options
+                    (field.options || []).forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt.value;
+                        option.textContent = opt.label;
+                        if (opt.value === field.defaultValue) {
+                            option.selected = true;
+                        }
+                        inputElement.appendChild(option);
+                    });
+                    break;
+
+                case 'date':
+                    inputElement = document.createElement('input');
+                    inputElement.type = 'date';
+                    inputElement.value = field.defaultValue || '';
+                    break;
+
+                case 'text':
+                case 'email':
+                case 'phone':
+                default:
+                    inputElement = document.createElement('input');
+                    inputElement.type = fieldType === 'phone' ? 'tel' : (fieldType === 'email' ? 'email' : 'text');
+                    inputElement.value = field.defaultValue || '';
+                    if (field.placeholder) {
+                        inputElement.placeholder = field.placeholder;
+                    }
+                    if (field.validationPattern) {
+                        inputElement.pattern = field.validationPattern;
+                    }
+                    break;
+            }
+
+            // Set common attributes
+            inputElement.id = field.key;
+            inputElement.name = field.key;
+            inputElement.className = inputClasses;
+            if (field.isRequired) {
+                inputElement.required = true;
+            }
+
+            wrapper.appendChild(inputElement);
+
+            // Add description if present
+            if (field.description) {
+                const desc = document.createElement('p');
+                desc.className = 'text-sm text-gray-500 mt-1';
+                desc.textContent = field.description;
+                wrapper.appendChild(desc);
+            }
+
+            fragment.appendChild(wrapper);
+        });
+
+        return fragment;
+    },
+
+    /**
+     * @deprecated Use createFormFields instead for better XSS protection
      * Renders form fields for DirectForm integration type
      * @param {Array} fields - Array of form field definitions
      * @returns {string} HTML string for the form fields
@@ -621,7 +777,8 @@ const MerchelloPayment = {
         // If icon is a URL, return an img tag
         if (method.icon) {
             if (method.icon.startsWith('http') || method.icon.startsWith('/')) {
-                return `<img src="${method.icon}" alt="${method.displayName}" class="h-6 w-auto" />`;
+                // Escape attributes to prevent XSS
+                return `<img src="${this.escapeHtml(method.icon)}" alt="${this.escapeHtml(method.displayName)}" class="h-6 w-auto" />`;
             }
         }
 

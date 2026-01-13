@@ -171,6 +171,21 @@ public class OrderConfirmationDto
     /// Payment method used (e.g., "Visa ending in 4242").
     /// </summary>
     public string? PaymentMethod { get; set; }
+
+    /// <summary>
+    /// Whether the order has been cancelled.
+    /// </summary>
+    public bool IsCancelled { get; set; }
+
+    /// <summary>
+    /// Reason for cancellation if cancelled.
+    /// </summary>
+    public string? CancellationReason { get; set; }
+
+    /// <summary>
+    /// Whether the order has been fully refunded.
+    /// </summary>
+    public bool IsRefunded { get; set; }
 }
 
 /// <summary>

@@ -28,7 +28,8 @@ public class PaymentFactory(ICurrencyService currencyService)
         decimal? settlementAmount = null,
         string? settlementExchangeRateSource = null,
         decimal? riskScore = null,
-        string? riskScoreSource = null)
+        string? riskScoreSource = null,
+        string? methodDisplayName = null)
     {
         var amountInStoreCurrency = CalculateAmountInStoreCurrency(
             amount, currencyCode, storeCurrencyCode, pricingExchangeRate);
@@ -45,6 +46,7 @@ public class PaymentFactory(ICurrencyService currencyService)
             SettlementAmount = settlementAmount,
             SettlementExchangeRateSource = settlementExchangeRateSource ?? providerAlias,
             PaymentProviderAlias = providerAlias,
+            PaymentMethod = methodDisplayName,
             PaymentType = PaymentType.Payment,
             TransactionId = transactionId,
             Description = description,

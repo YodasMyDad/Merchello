@@ -31,38 +31,114 @@
 }
 else
 {
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-0">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-0 min-h-[calc(100vh-10rem)]">
         <!-- Left Column: Order Details -->
         <div class="pt-6 lg:pr-12 pb-8">
-            <!-- Header: Confirmation Number & Thank You -->
+            <!-- Header: Confirmation Number & Title -->
             <div class="mb-6">
                 <div class="flex items-center gap-2 mb-2">
-                    <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <p class="text-sm text-gray-600">Confirmation #@confirmation.InvoiceNumber</p>
+                    @if (confirmation.IsCancelled)
+                    {
+                        <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    }
+                    else if (confirmation.IsRefunded)
+                    {
+                        <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                        </svg>
+                    }
+                    else
+                    {
+                        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    }
+                    <p class="text-sm text-gray-600">Order #@confirmation.InvoiceNumber</p>
                 </div>
-                <h1 class="font-heading text-2xl lg:text-3xl font-semibold text-gray-900">
-                    Thank you@(string.IsNullOrEmpty(firstName) ? "" : $", {firstName}")!
-                </h1>
+                @if (confirmation.IsCancelled)
+                {
+                    <h1 class="font-heading text-2xl lg:text-3xl font-semibold text-gray-900">
+                        Order Cancelled
+                    </h1>
+                }
+                else if (confirmation.IsRefunded)
+                {
+                    <h1 class="font-heading text-2xl lg:text-3xl font-semibold text-gray-900">
+                        Order Refunded
+                    </h1>
+                }
+                else
+                {
+                    <h1 class="font-heading text-2xl lg:text-3xl font-semibold text-gray-900">
+                        Thank you@(string.IsNullOrEmpty(firstName) ? "" : $", {firstName}")!
+                    </h1>
+                }
             </div>
 
-            <!-- Order Confirmed Card -->
-            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
-                <div class="flex items-start gap-3">
-                    <div class="flex-shrink-0">
-                        <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                            </svg>
+            <!-- Order Status Card -->
+            @if (confirmation.IsCancelled)
+            {
+                <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                    <div class="flex items-start gap-3">
+                        <div class="flex-shrink-0">
+                            <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                                <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div>
+                            <h2 class="font-medium text-gray-900">This order has been cancelled</h2>
+                            @if (!string.IsNullOrEmpty(confirmation.CancellationReason))
+                            {
+                                <p class="text-sm text-gray-600 mt-1">Reason: @confirmation.CancellationReason</p>
+                            }
+                            else
+                            {
+                                <p class="text-sm text-gray-600 mt-1">If you have questions, please contact support</p>
+                            }
                         </div>
                     </div>
-                    <div>
-                        <h2 class="font-medium text-gray-900">Your order is confirmed</h2>
-                        <p class="text-sm text-gray-600 mt-1">You'll receive a confirmation email soon</p>
+                </div>
+            }
+            else if (confirmation.IsRefunded)
+            {
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                    <div class="flex items-start gap-3">
+                        <div class="flex-shrink-0">
+                            <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                                <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div>
+                            <h2 class="font-medium text-gray-900">This order has been refunded</h2>
+                            <p class="text-sm text-gray-600 mt-1">Your refund should appear within 5-10 business days</p>
+                        </div>
                     </div>
                 </div>
-            </div>
+            }
+            else
+            {
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+                    <div class="flex items-start gap-3">
+                        <div class="flex-shrink-0">
+                            <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div>
+                            <h2 class="font-medium text-gray-900">Your order is confirmed</h2>
+                            <p class="text-sm text-gray-600 mt-1">You'll receive a confirmation email soon</p>
+                        </div>
+                    </div>
+                </div>
+            }
 
             <!-- Order Details Section -->
             <div class="border border-gray-200 rounded-lg">
@@ -201,124 +277,35 @@ else
             </div>
         </div>
 
-        <!-- Right Column: Product Summary -->
+        <!-- Right Column: Order Summary (Shared Partial) -->
         <div class="relative lg:border-l lg:border-gray-200">
             <div class="hidden lg:block absolute inset-y-0 left-0 w-[200vw] bg-[#fafafa] -z-10"></div>
             <div class="pt-6 lg:pl-8 lg:pt-6 lg:pr-8 lg:sticky lg:top-0">
-                <!-- Product List -->
-                <div class="space-y-4 mb-4">
-                    @foreach (var item in confirmation.LineItems)
-                    {
-                        <div class="flex gap-4">
-                            <!-- Product Image with Quantity Badge -->
-                            <div class="relative flex-shrink-0">
-                                @if (!string.IsNullOrEmpty(item.ImageUrl))
-                                {
-                                    <img src="@item.ImageUrl" alt="@item.ProductRootName" class="w-16 h-16 object-cover rounded-lg border border-gray-200" />
-                                }
-                                else
-                                {
-                                    <div class="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
-                                        <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                        </svg>
-                                    </div>
-                                }
-                                <span class="absolute -top-2 -right-2 w-5 h-5 bg-gray-500 text-white text-xs font-medium rounded-full flex items-center justify-center">
-                                    @item.Quantity
-                                </span>
-                            </div>
-
-                            <!-- Product Details -->
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm font-medium text-gray-900">@item.ProductRootName</p>
-                                @if (item.SelectedOptions.Count > 0)
-                                {
-                                    <p class="text-xs text-gray-500">@string.Join(" / ", item.SelectedOptions.Select(o => o.ValueName))</p>
-                                }
-                            </div>
-
-                            <!-- Price -->
-                            <div class="text-right flex-shrink-0">
-                                <p class="text-sm font-medium text-gray-900">@item.FormattedDisplayLineTotal</p>
-                            </div>
-                        </div>
-                    }
-                </div>
-
-                <!-- Totals -->
-                <div class="border-t border-gray-200 pt-4 space-y-2">
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Subtotal</span>
-                        <span class="text-gray-900">@confirmation.FormattedDisplaySubTotal</span>
-                    </div>
-                    @if (confirmation.DisplayDiscount > 0)
-                    {
-                        <div class="flex justify-between text-sm text-green-600">
-                            <span>Discount</span>
-                            <span>-@confirmation.FormattedDisplayDiscount</span>
-                        </div>
-                    }
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Shipping</span>
-                        <span class="text-gray-900">@(confirmation.DisplayShipping > 0 ? confirmation.FormattedDisplayShipping : "FREE")</span>
-                    </div>
-                </div>
-
-                <!-- Total -->
-                <div class="border-t border-gray-200 mt-4 pt-4">
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-base font-medium text-gray-900">Total</span>
-                        <div class="text-right">
-                            <span class="text-sm text-gray-500 mr-1">@confirmation.DisplayCurrencyCode</span>
-                            <span class="text-xl font-semibold text-gray-900">@confirmation.FormattedDisplayTotal</span>
-                        </div>
-                    </div>
-                    @if (confirmation.DisplayTax > 0)
-                    {
-                        <p class="text-xs text-gray-500 text-right mt-1">Including @confirmation.FormattedDisplayTax in taxes</p>
-                    }
-                </div>
-
-                <!-- Total Savings -->
-                @if (confirmation.DisplayDiscount > 0)
-                {
-                    <div class="mt-4 pt-4 border-t border-gray-200">
-                        <div class="flex items-center gap-2 text-sm">
-                            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
-                            </svg>
-                            <span class="font-medium text-gray-900">TOTAL SAVINGS</span>
-                            <span class="ml-auto font-medium text-gray-900">@confirmation.FormattedDisplayDiscount</span>
-                        </div>
-                    </div>
-                }
-
-                <!-- Email Confirmation Notice -->
-                @if (!string.IsNullOrEmpty(confirmation.CustomerEmail))
-                {
-                    <div class="mt-6 bg-blue-50 rounded-lg border border-blue-200 p-3">
-                        <div class="flex items-start gap-2">
-                            <svg class="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                            </svg>
-                            <p class="text-sm text-blue-800">
-                                A confirmation email has been sent to <strong>@confirmation.CustomerEmail</strong>
-                            </p>
-                        </div>
-                    </div>
-                }
+                @await Html.PartialAsync("~/Views/Checkout/_OrderSummary.cshtml", Model, new ViewDataDictionary(ViewData) {
+                    { "Mode", "readonly" },
+                    { "Confirmation", confirmation }
+                })
             </div>
         </div>
     </div>
 }
 
 @section Scripts {
-    @if (confirmation != null)
+    @if (confirmation != null && !confirmation.IsCancelled && !confirmation.IsRefunded)
     {
         <script>
             document.addEventListener('DOMContentLoaded', function() {
                 if (window.MerchelloCheckout) {
+                    // Prevent duplicate purchase events on page refresh
+                    var purchaseKey = 'merchello_purchase_' + '@confirmation.InvoiceId';
+                    if (localStorage.getItem(purchaseKey)) {
+                        console.debug('Purchase event already fired for invoice ' + '@confirmation.InvoiceNumber');
+                        return;
+                    }
+
+                    // Mark this purchase as tracked
+                    localStorage.setItem(purchaseKey, Date.now().toString());
+
                     window.MerchelloCheckout.emit('checkout:purchase', {
                         transaction_id: '@confirmation.InvoiceNumber',
                         currency_symbol: '@confirmation.CurrencySymbol',

@@ -12,6 +12,7 @@ public static class Constants
         public const string ShippingCountry = "Merchello.ShippingCountry";
         public const string ShippingRegion = "Merchello.ShippingRegion";
         public const string Currency = "Merchello.Currency";
+        public const string ConfirmationToken = "Merchello.ConfirmationToken";
     }
 
     public static class ExtendedDataKeys

@@ -104,9 +104,9 @@
                             const result = await response.json();
 
                             if (result.success) {
-                                // Redirect to confirmation
+                                // Redirect to confirmation - validate URL before navigating
                                 if (result.redirectUrl) {
-                                    window.location.href = result.redirectUrl;
+                                    window.MerchelloPayment.safeRedirect(result.redirectUrl);
                                 }
                             } else {
                                 // Use currentContainer for Shadow DOM compatibility

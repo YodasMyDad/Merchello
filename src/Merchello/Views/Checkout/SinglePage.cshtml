@@ -25,6 +25,11 @@
     var displayTax = (basket?.Tax ?? 0) * exchangeRate;
     var displaySubtotal = (basket?.SubTotal ?? 0) * exchangeRate;
     var displayDiscount = (basket?.Discount ?? 0) * exchangeRate;
+
+    // Extract applied discounts for reactive display
+    var discountLineItems = basket?.LineItems?
+        .Where(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Discount)
+        .ToList() ?? [];
 }
 
 <script id="checkout-initial-data" type="application/json">
@@ -56,17 +61,17 @@
         phone = basket?.BillingAddress?.Phone ?? ""
     },
     shipping = new {
-        name = basket?.BillingAddress?.Name ?? "",
-        company = basket?.BillingAddress?.Company ?? "",
-        address1 = basket?.BillingAddress?.AddressOne ?? "",
-        address2 = basket?.BillingAddress?.AddressTwo ?? "",
-        city = basket?.BillingAddress?.TownCity ?? "",
-        state = basket?.BillingAddress?.CountyState?.Name ?? "",
-        stateCode = basket?.BillingAddress?.CountyState?.RegionCode ?? defaultState,
-        postalCode = basket?.BillingAddress?.PostalCode ?? "",
-        country = basket?.BillingAddress?.Country ?? "",
-        countryCode = basket?.BillingAddress?.CountryCode ?? defaultCountry,
-        phone = basket?.BillingAddress?.Phone ?? ""
+        name = basket?.ShippingAddress?.Name ?? "",
+        company = basket?.ShippingAddress?.Company ?? "",
+        address1 = basket?.ShippingAddress?.AddressOne ?? "",
+        address2 = basket?.ShippingAddress?.AddressTwo ?? "",
+        city = basket?.ShippingAddress?.TownCity ?? "",
+        state = basket?.ShippingAddress?.CountyState?.Name ?? "",
+        stateCode = basket?.ShippingAddress?.CountyState?.RegionCode ?? defaultState,
+        postalCode = basket?.ShippingAddress?.PostalCode ?? "",
+        country = basket?.ShippingAddress?.Country ?? "",
+        countryCode = basket?.ShippingAddress?.CountryCode ?? defaultCountry,
+        phone = basket?.ShippingAddress?.Phone ?? ""
     },
     shippingGroups = (Model.ShippingGroups ?? []).Select(g => new {
         groupId = g.GroupId.ToString(),
@@ -82,7 +87,15 @@
         }),
         selectedOptionId = g.SelectedShippingOptionId?.ToString()
     }),
-    hasShippingGroups = hasShippingGroups
+    hasShippingGroups = hasShippingGroups,
+    appliedDiscounts = discountLineItems.Select(d => new {
+        id = d.ExtendedData?.TryGetValue("DiscountId", out var idObj) == true ? idObj?.ToString() : d.Id.ToString(),
+        name = d.Name,
+        code = d.ExtendedData?.TryGetValue("DiscountCode", out var codeObj) == true ? codeObj?.ToString() : (string?)null,
+        amount = Math.Abs(d.Amount * d.Quantity) * exchangeRate,
+        formattedAmount = $"{displayCurrencySymbol}{(Math.Abs(d.Amount * d.Quantity) * exchangeRate):N2}",
+        isAutomatic = d.ExtendedData?.ContainsKey("DiscountCode") != true
+    })
 }, jsonOptions))
 </script>
 

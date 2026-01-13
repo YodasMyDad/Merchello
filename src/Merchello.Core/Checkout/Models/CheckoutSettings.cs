@@ -119,6 +119,28 @@ public class CheckoutSettings
     /// </summary>
     public string? PrivacyUrl { get; set; }
 
+    // === Session Timeout ===
+
+    /// <summary>
+    /// Sliding timeout in minutes. Session expires after this period of inactivity.
+    /// Each access resets this timer. Default: 30 minutes.
+    /// Set to 0 to disable sliding expiration (use absolute timeout only).
+    /// </summary>
+    public int SessionSlidingTimeoutMinutes { get; set; } = 30;
+
+    /// <summary>
+    /// Absolute timeout in minutes. Maximum session lifetime regardless of activity.
+    /// Prevents indefinite sessions for very active users. Default: 240 minutes (4 hours).
+    /// Set to 0 to disable absolute timeout (use sliding timeout only).
+    /// </summary>
+    public int SessionAbsoluteTimeoutMinutes { get; set; } = 240;
+
+    /// <summary>
+    /// Whether to log warnings when checkout sessions expire.
+    /// Useful for monitoring abandoned checkout rates. Default: true.
+    /// </summary>
+    public bool LogSessionExpirations { get; set; } = true;
+
     // === Custom Scripts ===
 
     /// <summary>

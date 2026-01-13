@@ -360,3 +360,7 @@ src/.idea
 # EF Core design-time build hosts
 **/BuildHost-net472/
 **/BuildHost-netcore/
+/tmpclaude*
+/*/tmpclaude*
+/*/*/tmpclaude*
+/**/tmpclaude-*

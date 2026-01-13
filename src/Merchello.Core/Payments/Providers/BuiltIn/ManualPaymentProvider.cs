@@ -200,7 +200,7 @@ public class ManualPaymentProvider(IInvoiceService invoiceService) : PaymentProv
         {
             Success = true,
             TransactionId = transactionId,
-            Status = PaymentResultStatus.Completed,
+            Status = PaymentResultStatus.Pending,
             Amount = request.Amount,
             ProviderData = new Dictionary<string, object>
             {
