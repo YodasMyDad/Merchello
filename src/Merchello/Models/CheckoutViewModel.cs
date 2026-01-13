@@ -116,6 +116,12 @@ public class CheckoutViewModel
     public decimal ExchangeRate { get; init; } = 1m;
 
     /// <summary>
+    /// Number of decimal places for the display currency (e.g., 2 for GBP, 0 for JPY).
+    /// Used for proper formatting in views.
+    /// </summary>
+    public int CurrencyDecimalPlaces { get; init; } = 2;
+
+    /// <summary>
     /// Whether to show the discount code input.
     /// True when there are active code-based discounts available.
     /// </summary>
@@ -126,4 +132,30 @@ public class CheckoutViewModel
     /// Set by the controller to avoid JSON serialization in views.
     /// </summary>
     public string? LineItemsJson { get; init; }
+
+    /// <summary>
+    /// Pre-calculated display total in customer's selected currency.
+    /// Properly rounded using ICurrencyService.
+    /// </summary>
+    public decimal DisplayTotal { get; init; }
+
+    /// <summary>
+    /// Pre-calculated display subtotal in customer's selected currency.
+    /// </summary>
+    public decimal DisplaySubTotal { get; init; }
+
+    /// <summary>
+    /// Pre-calculated display shipping in customer's selected currency.
+    /// </summary>
+    public decimal DisplayShipping { get; init; }
+
+    /// <summary>
+    /// Pre-calculated display tax in customer's selected currency.
+    /// </summary>
+    public decimal DisplayTax { get; init; }
+
+    /// <summary>
+    /// Pre-calculated display discount in customer's selected currency.
+    /// </summary>
+    public decimal DisplayDiscount { get; init; }
 }

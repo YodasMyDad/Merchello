@@ -58,10 +58,11 @@
                 }
 
                 // Create a unique element container
+                const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 40 };
                 const elementContainer = document.createElement('div');
                 elementContainer.id = 'stripe-express-' + method.methodAlias;
                 elementContainer.style.width = '100%';
-                elementContainer.style.minHeight = '48px';
+                elementContainer.style.minHeight = `${expressConfig.buttonHeight}px`;
                 container.appendChild(elementContainer);
 
                 // Determine which wallet types to show based on method
@@ -69,7 +70,7 @@
 
                 // Create Express Checkout Element
                 const expressOptions = {
-                    buttonHeight: sdkConfig.buttonHeight || 48,
+                    buttonHeight: sdkConfig.buttonHeight || expressConfig.buttonHeight,
                     buttonTheme: {
                         applePay: 'black',
                         googlePay: 'black',

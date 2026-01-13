@@ -244,10 +244,27 @@ export function getMethodKey(method) {
     return `${method.providerAlias}:${method.methodAlias || ''}`;
 }
 
+/**
+ * Get inline style for a payment method (standalone function)
+ * @param {PaymentMethod} method
+ * @param {boolean} isSelected - Whether the method is currently selected
+ * @returns {string} CSS inline style string
+ */
+export function getPaymentMethodStyle(method, isSelected = false) {
+    // Check MerchelloPayment first
+    if (typeof window !== 'undefined' && window.MerchelloPayment?.getMethodStyle) {
+        return window.MerchelloPayment.getMethodStyle(method, isSelected);
+    }
+
+    // No custom style
+    return '';
+}
+
 export default {
     initCheckoutPayment,
     IntegrationType,
     getPaymentMethodIcon,
+    getPaymentMethodStyle,
     categorizePaymentMethods,
     getMethodKey
 };

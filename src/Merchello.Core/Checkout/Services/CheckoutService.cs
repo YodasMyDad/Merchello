@@ -770,7 +770,8 @@ public class CheckoutService(
     }
 
     /// <summary>
-    /// Converts all line item amounts in the basket to a new currency using exchange rates.
+    /// Updates the customer's display currency preference without converting basket amounts.
+    /// Basket amounts always remain in store currency; display conversion happens at render time.
     /// </summary>
     public async Task<CrudResult<Basket>> ConvertBasketCurrencyAsync(
         ConvertBasketCurrencyParameters parameters,
@@ -782,30 +783,31 @@ public class CheckoutService(
         // Get the current basket
         var basket = await GetBasket(new GetBasketParameters(), cancellationToken);
 
-        // If basket is empty or null, nothing to convert - just return success
+        // If basket is empty or null, nothing to do - just return success
         if (basket == null || basket.LineItems.Count == 0)
         {
             result.ResultObject = basket;
             return result;
         }
 
-        var oldCurrencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
+        // Store currency is the source of truth - use it for exchange rate lookup
+        var storeCurrencyCode = _settings.StoreCurrencyCode;
 
-        // If currency is the same, no conversion needed
-        if (string.Equals(oldCurrencyCode, newCurrencyCode, StringComparison.OrdinalIgnoreCase))
+        // If requested currency is the same as store currency, no exchange rate needed
+        if (string.Equals(storeCurrencyCode, newCurrencyCode, StringComparison.OrdinalIgnoreCase))
         {
             result.ResultObject = basket;
             return result;
         }
 
-        // Get exchange rate: old currency → new currency
-        var rate = await exchangeRateCache.GetRateAsync(oldCurrencyCode, newCurrencyCode, cancellationToken);
+        // Get exchange rate: store currency → display currency (for notification context only)
+        var rate = await exchangeRateCache.GetRateAsync(storeCurrencyCode, newCurrencyCode, cancellationToken);
 
         if (rate == null)
         {
             result.Messages.Add(new ResultMessage
             {
-                Message = $"Exchange rate unavailable: {oldCurrencyCode} → {newCurrencyCode}. Unable to change currency.",
+                Message = $"Exchange rate unavailable: {storeCurrencyCode} → {newCurrencyCode}. Unable to change display currency.",
                 ResultMessageType = ResultMessageType.Error
             });
             return result;
@@ -813,7 +815,7 @@ public class CheckoutService(
 
         // Publish "Before" notification - handlers can cancel
         var changingNotification = new BasketCurrencyChangingNotification(
-            basket, oldCurrencyCode, newCurrencyCode, rate.Value);
+            basket, storeCurrencyCode, newCurrencyCode, rate.Value);
 
         if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
         {
@@ -825,49 +827,20 @@ public class CheckoutService(
             return result;
         }
 
-        // Convert each line item amount
-        foreach (var lineItem in basket.LineItems)
-        {
-            // Store original amount for audit trail
-            lineItem.ExtendedData["OriginalCurrency"] = oldCurrencyCode;
-            lineItem.ExtendedData["OriginalAmount"] = lineItem.Amount.ToString("G");
+        // NOTE: We intentionally do NOT modify basket amounts here.
+        // Basket amounts always stay in store currency.
+        // Display conversion happens at render time using DisplayCurrencyExtensions.
 
-            // Convert amount using exchange rate and round appropriately
-            lineItem.Amount = currencyService.Round(lineItem.Amount * rate.Value, newCurrencyCode);
-        }
-
-        // Update basket currency
+        // Update display preference only - NO amount conversion (Shopify approach)
         basket.Currency = newCurrencyCode;
-        basket.CurrencySymbol = parameters.NewCurrencySymbol
-            ?? currencyService.GetCurrency(newCurrencyCode).Symbol;
+        basket.CurrencySymbol = currencyService.GetCurrency(newCurrencyCode).Symbol;
         basket.DateUpdated = DateTime.UtcNow;
 
-        // Recalculate totals
-        var countryCode = !string.IsNullOrWhiteSpace(basket.ShippingAddress.CountryCode)
-            ? basket.ShippingAddress.CountryCode
-            : _settings.DefaultShippingCountry ?? "US";
+        await SaveBasketAsync(basket, cancellationToken);
 
-        await CalculateBasketAsync(new CalculateBasketParameters
-        {
-            Basket = basket,
-            CountryCode = countryCode
-        }, cancellationToken);
-
-        // Save to database
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            db.Baskets.Update(basket);
-            await db.SaveChangesAsync(cancellationToken);
-        });
-        scope.Complete();
-
-        // Update session
-        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
-
-        // Publish "After" notification
+        // Publish "After" notification (rate provided for notification handlers that need it)
         await notificationPublisher.PublishAsync(
-            new BasketCurrencyChangedNotification(basket, oldCurrencyCode, newCurrencyCode, rate.Value),
+            new BasketCurrencyChangedNotification(basket, storeCurrencyCode, newCurrencyCode, rate.Value),
             cancellationToken);
 
         result.ResultObject = basket;
@@ -1857,6 +1830,8 @@ public class CheckoutService(
 
         // Update basket with shipping address for calculation purposes
         basket.ShippingAddress = shippingAddress;
+        // Also update billing address country to match (storefront selection takes precedence)
+        basket.BillingAddress.CountryCode = parameters.CountryCode;
         basket.DateUpdated = DateTime.UtcNow;
 
         // Calculate basket with shipping country

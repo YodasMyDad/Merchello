@@ -177,15 +177,16 @@
             buttonContainer.style.width = '100%';
             container.appendChild(buttonContainer);
 
-            // Render native PayPal button
-            paypal.Buttons({
+            // Render native PayPal button - must await to complete before container is moved
+            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 40 };
+            await paypal.Buttons({
                 fundingSource: paypal.FUNDING.PAYPAL,
                 style: {
                     layout: 'vertical',
                     color: 'gold',
                     shape: 'rect',
                     label: 'paypal',
-                    height: 48
+                    height: expressConfig.buttonHeight
                 },
                 createOrder: () => {
                     return paypalCheckoutInstance.createPayment({
@@ -257,11 +258,12 @@
             applePayInstances[methodAlias] = applePayInstance;
 
             // Create Apple Pay button
+            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 40 };
             const button = document.createElement('apple-pay-button');
             button.setAttribute('buttonstyle', 'black');
             button.setAttribute('type', 'plain');
             button.setAttribute('locale', 'en');
-            button.style.cssText = '--apple-pay-button-width: 100%; --apple-pay-button-height: 48px; display: block;';
+            button.style.cssText = `--apple-pay-button-width: 100%; --apple-pay-button-height: ${expressConfig.buttonHeight}px; display: block;`;
             container.appendChild(button);
 
             button.addEventListener('click', async (event) => {
@@ -449,8 +451,9 @@
                 buttonSizeMode: 'fill'
             });
 
+            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 40 };
             button.style.width = '100%';
-            button.style.minHeight = '48px';
+            button.style.minHeight = `${expressConfig.buttonHeight}px`;
             container.appendChild(button);
         },
 
@@ -481,10 +484,11 @@
             }
 
             // Create Venmo button
+            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 40, borderRadius: 6 };
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'venmo-button';
-            button.style.cssText = 'width: 100%; height: 48px; background: #3D95CE; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s;';
+            button.style.cssText = `width: 100%; height: ${expressConfig.buttonHeight}px; background: #3D95CE; border: none; border-radius: ${expressConfig.borderRadius}px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s;`;
             button.innerHTML = '<svg width="80" height="20" viewBox="0 0 64 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10.5 0.5C11.2 1.7 11.5 2.9 11.5 4.5C11.5 8.9 7.7 14.6 4.6 18.5H0L2.3 1L7.3 0.5L6.2 11.5C7.5 9.4 9.1 6 9.1 3.8C9.1 2.5 8.9 1.6 8.5 0.9L10.5 0.5ZM17.5 7.5C18.5 7.5 20.5 7 20.5 5.5C20.5 4.7 20 4.3 19.3 4.3C18.3 4.3 17.6 5.3 17.5 7.5ZM17.3 10C17.3 12.3 18.3 13.2 19.8 13.2C21.2 13.2 22.5 12.8 24.3 11.8L23.8 15.5C22.5 16.3 20.5 17 18.3 17C14.3 17 12.5 14.5 12.5 11C12.5 6 15.5 1.5 20.3 1.5C23.3 1.5 25 3.3 25 5.8C25 9.5 21 10 17.3 10ZM32.5 4.8C33.5 4.8 34.3 5 35.3 5.5L34.5 9.5C33.7 9.1 32.8 8.8 31.8 8.8C30 8.8 29 10.5 29 12.5C29 14 29.7 14.8 30.8 14.8C31.7 14.8 32.5 14.5 33.5 13.8L33 17.5C32 18 30.5 18.5 29 18.5C26 18.5 24 16.3 24 13C24 8 27 1.5 32.5 1.5C34.3 1.5 36 2 37 2.8L35.5 6.5C34.8 6 33.8 5.5 32.8 5.5L32.5 4.8ZM44.5 4.8C43.3 4.8 42.5 6.3 42.5 8C42.5 9.5 43.2 10.3 44.2 10.3C45.4 10.3 46.2 8.8 46.2 7C46.2 5.7 45.5 4.8 44.5 4.8ZM43.5 13.8C42.2 13.8 41.2 13.3 40.5 12.5C40 14.3 39.3 16.3 38.5 18.5H33.5L38 1L42.5 0.5L42.3 2C43.3 1 44.5 0.5 46 0.5C48.8 0.5 51 2.8 51 6.3C51 11 47.8 14.5 43.5 13.8ZM58.5 1C60.5 1 62.5 1.5 64 2.3L63.3 6C61.8 5.3 60.3 4.8 58.8 4.8C57.8 4.8 57.3 5.1 57.3 5.7C57.3 7.3 64 7 64 11.5C64 15 61 17 57 17C55 17 52.8 16.5 51.3 15.5L52 12C53.5 13 55.5 13.5 57.3 13.5C58.5 13.5 59.3 13.1 59.3 12.3C59.3 10.7 52.3 11.1 52.3 6.5C52.3 3.3 55 1 58.5 1Z" fill="white"/></svg>';
 
             button.addEventListener('mouseenter', () => {

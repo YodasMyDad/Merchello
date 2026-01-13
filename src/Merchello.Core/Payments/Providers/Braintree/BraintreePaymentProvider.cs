@@ -218,6 +218,8 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             DisplayName = "Credit/Debit Card",
             Icon = "icon-credit-card",
             IconHtml = CardIconSvg,
+            // Checkout icon: credit card with sizing classes
+            CheckoutIconHtml = """<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2 9h20" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="13" width="5" height="2" rx="0.5" fill="currentColor" opacity="0.5"/></svg>""",
             Description = "Pay with Visa, Mastercard, American Express, Discover, and more.",
             IntegrationType = PaymentIntegrationType.HostedFields,
             IsExpressCheckout = false,

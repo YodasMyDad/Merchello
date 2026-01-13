@@ -24,7 +24,7 @@ import { safeRedirect } from '../utils/security.js';
 import { loadRegions } from '../utils/regions.js';
 import { formatCurrency } from '../utils/formatters.js';
 import { getSelectedShippingName, sortShippingOptions } from './checkout-shipping.js';
-import { getPaymentMethodIcon, categorizePaymentMethods, IntegrationType } from './checkout-payment.js';
+import { getPaymentMethodIcon, getPaymentMethodStyle, categorizePaymentMethods, IntegrationType } from './checkout-payment.js';
 
 // Payment form container IDs by integration type
 const PAYMENT_CONTAINER_IDS = {
@@ -259,6 +259,17 @@ export function initSinglePageCheckout() {
             // Delegate to helper - kept for template compatibility
             getPaymentMethodIcon(method) {
                 return getPaymentMethodIcon(method);
+            },
+
+            // Get inline style for payment method based on checkoutStyle
+            getPaymentMethodStyle(method, isSelected = false) {
+                return getPaymentMethodStyle(method, isSelected);
+            },
+
+            // Check if a payment method is selected
+            isPaymentMethodSelected(method) {
+                return this.selectedPaymentMethod?.providerAlias === method.providerAlias &&
+                       this.selectedPaymentMethod?.methodAlias === method.methodAlias;
             },
 
             // ============================================
@@ -539,6 +550,7 @@ export function initSinglePageCheckout() {
 
                 store?.setPaymentMethod(method);
                 store?.setPaymentError(null);
+                store?.setPaymentSession(null);
 
                 if (!isSameMethod && window.MerchelloSinglePageAnalytics) {
                     window.MerchelloSinglePageAnalytics.trackPaymentSelected(method.displayName);

@@ -1,10 +1,12 @@
 using Merchello.Core.Checkout.Dtos;
+using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Services;
 using Merchello.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -29,7 +31,8 @@ public class MerchelloCheckoutController(
     ICheckoutService checkoutService,
     ICheckoutSessionService checkoutSessionService,
     IStorefrontContextService storefrontContext,
-    IDiscountService discountService)
+    IDiscountService discountService,
+    ICurrencyService currencyService)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
 {
     private readonly CheckoutSettings _settings = checkoutSettings.Value;
@@ -178,13 +181,16 @@ public class MerchelloCheckoutController(
         var shippingCountriesResult = await checkoutService.GetAvailableCountriesAsync(ct);
         var shippingCountries = shippingCountriesResult.Select(c => new CountryDto(c.Code, c.Name)).ToList();
 
-        // Determine default country from basket or settings
-        var defaultCountryCode = session?.ShippingAddress?.CountryCode
+        // Determine default country - prioritize storefront cookie (user's current selection) over saved data
+        var storefrontLocation = await storefrontContext.GetShippingLocationAsync(ct);
+        var defaultCountryCode = storefrontLocation.CountryCode
+            ?? session?.ShippingAddress?.CountryCode
             ?? basket.ShippingAddress?.CountryCode
             ?? _merchelloSettings.DefaultShippingCountry
             ?? "US";
 
-        var defaultStateCode = session?.ShippingAddress?.CountyState?.RegionCode
+        var defaultStateCode = storefrontLocation.RegionCode
+            ?? session?.ShippingAddress?.CountyState?.RegionCode
             ?? basket.ShippingAddress?.CountyState?.RegionCode;
 
         // Initialize checkout with default country to get shipping groups
@@ -221,6 +227,12 @@ public class MerchelloCheckoutController(
         // Check if there are any active discount codes to show the discount input
         var showDiscountCode = await discountService.HasActiveCodeDiscountsAsync(ct);
 
+        // Calculate display amounts using extension method for proper currency rounding
+        var displayAmounts = basket.GetDisplayAmounts(
+            exchangeRate,
+            currencyService,
+            displayCurrencyCode);
+
         var viewModel = new CheckoutViewModel(
             CheckoutStep.Information,
             _settings,
@@ -236,7 +248,13 @@ public class MerchelloCheckoutController(
             DisplayCurrencyCode = displayCurrencyCode,
             DisplayCurrencySymbol = displayCurrencySymbol,
             ExchangeRate = exchangeRate,
-            ShowDiscountCode = showDiscountCode
+            CurrencyDecimalPlaces = currencyContext.DecimalPlaces,
+            ShowDiscountCode = showDiscountCode,
+            DisplayTotal = displayAmounts.Total,
+            DisplaySubTotal = displayAmounts.SubTotal,
+            DisplayShipping = displayAmounts.Shipping,
+            DisplayTax = displayAmounts.Tax,
+            DisplayDiscount = displayAmounts.Discount
         };
 
         return View("~/Views/Checkout/SinglePage.cshtml", viewModel);

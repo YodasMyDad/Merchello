@@ -135,13 +135,14 @@
                     fundingSource = paypal.FUNDING.PAYPAL;
                 }
 
+                const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 40 };
                 const buttonConfig = {
                     style: {
                         layout: 'horizontal',
                         color: isPaylater ? 'blue' : 'gold',
                         shape: 'rect',
                         label: isPaylater ? 'paylater' : 'paypal',
-                        height: 48
+                        height: expressConfig.buttonHeight
                     },
 
                     createOrder: async () => {

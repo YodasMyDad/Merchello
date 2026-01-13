@@ -17,16 +17,28 @@ public class PaymentMethodDefinition
     public required string DisplayName { get; init; }
 
     /// <summary>
-    /// Icon identifier or URL for the payment method (legacy).
+    /// Icon identifier for the payment method in admin UI (e.g., "icon-credit-card").
     /// </summary>
     public string? Icon { get; init; }
 
     /// <summary>
-    /// Icon HTML/SVG markup for the payment method.
-    /// When provided, this is used instead of Icon for rendering.
-    /// Provider controls the visual appearance of the icon.
+    /// Icon HTML/SVG markup for the payment method in admin UI.
+    /// When provided, this is used instead of Icon for rendering in backoffice.
     /// </summary>
     public string? IconHtml { get; init; }
+
+    /// <summary>
+    /// Icon HTML/SVG markup for the payment method in customer checkout.
+    /// Separate from Icon/IconHtml which are used in admin UI.
+    /// When provided, this is rendered next to the payment method selection in checkout.
+    /// </summary>
+    public string? CheckoutIconHtml { get; init; }
+
+    /// <summary>
+    /// Inline styles for the payment method container in checkout.
+    /// Allows providers to customize appearance to match their brand.
+    /// </summary>
+    public PaymentMethodCheckoutStyle? CheckoutStyle { get; init; }
 
     /// <summary>
     /// Description of the payment method shown to customers.

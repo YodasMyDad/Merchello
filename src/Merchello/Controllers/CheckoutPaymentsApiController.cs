@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
@@ -12,12 +13,12 @@ using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Merchello.Controllers;
 
@@ -34,10 +35,9 @@ public class CheckoutPaymentsApiController(
     ICheckoutService checkoutService,
     ICheckoutSessionService checkoutSessionService,
     IStorefrontContextService storefrontContextService,
-    IOptions<MerchelloSettings> merchelloSettings,
+    ICurrencyService currencyService,
     ILogger<CheckoutPaymentsApiController> logger) : ControllerBase
 {
-    private readonly MerchelloSettings _settings = merchelloSettings.Value;
 
     /// <summary>
     /// Get available payment methods for checkout.
@@ -1020,13 +1020,14 @@ public class CheckoutPaymentsApiController(
             await checkoutSessionService.SetInvoiceIdAsync(basket.Id, invoice.Id, cancellationToken);
 
             // Build express checkout request for the provider
+            // Use invoice currency - this is the currency the customer agreed to pay
             var expressRequest = new ExpressCheckoutRequest
             {
                 BasketId = basket.Id,
                 MethodAlias = request.MethodAlias ?? request.ProviderAlias,
                 PaymentToken = request.PaymentToken,
                 Amount = invoice.Total,
-                Currency = basket.Currency ?? _settings.StoreCurrencyCode,
+                Currency = invoice.CurrencyCode,
                 CustomerData = new ExpressCheckoutCustomerData
                 {
                     Email = request.CustomerData.Email,
@@ -1150,19 +1151,20 @@ public class CheckoutPaymentsApiController(
         var methods = await providerManager.GetExpressCheckoutMethodsAsync(cancellationToken);
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), cancellationToken);
 
-        var currency = basket?.Currency ?? _settings.StoreCurrencyCode;
-        var amount = basket?.Total ?? 0;
-        var subTotal = basket?.SubTotal ?? 0;
-        var shipping = basket?.Shipping ?? 0;
-        var tax = basket?.Tax ?? 0;
+        // Get the display currency and convert basket totals using extension method
+        var currencyContext = await storefrontContextService.GetCurrencyContextAsync(cancellationToken);
+        var displayAmounts = basket.GetDisplayAmounts(
+            currencyContext.ExchangeRate,
+            currencyService,
+            currencyContext.CurrencyCode);
 
         var config = new ExpressCheckoutConfigDto
         {
-            Currency = currency,
-            Amount = amount,
-            SubTotal = subTotal,
-            Shipping = shipping,
-            Tax = tax,
+            Currency = currencyContext.CurrencyCode,
+            Amount = displayAmounts.Total,
+            SubTotal = displayAmounts.SubTotal,
+            Shipping = displayAmounts.Shipping,
+            Tax = displayAmounts.Tax,
             Methods = []
         };
 
@@ -1186,8 +1188,8 @@ public class CheckoutPaymentsApiController(
             {
                 var clientConfig = await provider.Provider.GetExpressCheckoutClientConfigAsync(
                     method.MethodAlias,
-                    amount,
-                    currency,
+                    config.Amount,
+                    config.Currency,
                     cancellationToken);
 
                 // If provider returns config, use it; otherwise use basic info
@@ -1266,12 +1268,19 @@ public class CheckoutPaymentsApiController(
             });
         }
 
+        // Get display currency and convert basket total for the payment
+        var currencyContext = await storefrontContextService.GetCurrencyContextAsync(cancellationToken);
+        var displayAmounts = basket.GetDisplayAmounts(
+            currencyContext.ExchangeRate,
+            currencyService,
+            currencyContext.CurrencyCode);
+
         // Create payment session which will create the PaymentIntent
         var paymentRequest = new PaymentRequest
         {
             InvoiceId = Guid.Empty, // Will be created after express checkout completes
-            Amount = basket.Total,
-            Currency = basket.Currency ?? _settings.StoreCurrencyCode,
+            Amount = displayAmounts.Total,
+            Currency = currencyContext.CurrencyCode,
             MethodAlias = request.MethodAlias,
             ReturnUrl = $"{Request.Scheme}://{Request.Host}/checkout/confirmation",
             CancelUrl = $"{Request.Scheme}://{Request.Host}/checkout"

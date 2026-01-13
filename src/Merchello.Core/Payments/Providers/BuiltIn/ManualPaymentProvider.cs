@@ -72,6 +72,8 @@ public class ManualPaymentProvider(IInvoiceService invoiceService) : PaymentProv
             Alias = Constants.PaymentProviders.Aliases.PurchaseOrder,
             DisplayName = "Purchase Order",
             Icon = Constants.PaymentProviders.Icons.Document,
+            // Checkout-specific icon: text input field
+            CheckoutIconHtml = """<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="6" width="18" height="12" rx="2" /><path stroke-linecap="round" d="M7 12h.01M7 12v-2m0 2v2" /></svg>""",
             Description = "Enter your purchase order number to complete the order",
             IntegrationType = PaymentIntegrationType.DirectForm,
             IsExpressCheckout = false,

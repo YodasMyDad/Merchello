@@ -10,6 +10,7 @@
     var displayCurrencySymbol = Model.DisplayCurrencySymbol ?? basket?.CurrencySymbol ?? "£";
     var displayCurrencyCode = Model.DisplayCurrencyCode ?? basket?.Currency ?? "GBP";
     var exchangeRate = Model.ExchangeRate;
+    var decimalPlaces = Model.CurrencyDecimalPlaces;
 
     // Get default country/state from ViewModel (set by controller from basket or MerchelloSettings)
     var defaultCountry = Model.DefaultCountryCode ?? "";
@@ -19,12 +20,12 @@
     var jsonOptions = new JsonSerializerOptions { Encoder = JavaScriptEncoder.Default };
     var hasShippingGroups = Model.ShippingGroups?.Count > 0;
 
-    // Convert basket totals to display currency
-    var displayTotal = (basket?.Total ?? 0) * exchangeRate;
-    var displayShipping = (basket?.Shipping ?? 0) * exchangeRate;
-    var displayTax = (basket?.Tax ?? 0) * exchangeRate;
-    var displaySubtotal = (basket?.SubTotal ?? 0) * exchangeRate;
-    var displayDiscount = (basket?.Discount ?? 0) * exchangeRate;
+    // Use pre-calculated display amounts from ViewModel (properly rounded via ICurrencyService)
+    var displayTotal = Model.DisplayTotal;
+    var displayShipping = Model.DisplayShipping;
+    var displayTax = Model.DisplayTax;
+    var displaySubtotal = Model.DisplaySubTotal;
+    var displayDiscount = Model.DisplayDiscount;
 
     // Extract applied discounts for reactive display
     var discountLineItems = basket?.LineItems?
@@ -92,8 +93,8 @@
         id = d.ExtendedData?.TryGetValue("DiscountId", out var idObj) == true ? idObj?.ToString() : d.Id.ToString(),
         name = d.Name,
         code = d.ExtendedData?.TryGetValue("DiscountCode", out var codeObj) == true ? codeObj?.ToString() : (string?)null,
-        amount = Math.Abs(d.Amount * d.Quantity) * exchangeRate,
-        formattedAmount = $"{displayCurrencySymbol}{(Math.Abs(d.Amount * d.Quantity) * exchangeRate):N2}",
+        amount = Math.Round(Math.Abs(d.Amount * d.Quantity) * exchangeRate, decimalPlaces),
+        formattedAmount = $"{displayCurrencySymbol}{Math.Round(Math.Abs(d.Amount * d.Quantity) * exchangeRate, decimalPlaces).ToString($"N{decimalPlaces}")}",
         isAutomatic = d.ExtendedData?.ContainsKey("DiscountCode") != true
     })
 }, jsonOptions))
@@ -276,89 +277,120 @@
             <div class="checkout-section">
                 <h2 class="font-heading text-lg font-normal mb-3">Shipping method</h2>
 
-                <!-- Loading state -->
-                <div x-show="shippingLoading" class="space-y-2">
-                    <div class="h-16 checkout-skeleton rounded-lg"></div>
-                    <div class="h-16 checkout-skeleton rounded-lg"></div>
-                </div>
+                <!-- Container with relative positioning for overlay -->
+                <div class="relative">
 
-                <!-- No shipping address yet -->
-                <div x-show="!shippingLoading && !canCalculateShipping && shippingGroups.length === 0" x-cloak class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                    <p class="text-sm text-gray-600">Enter your shipping address to see available shipping options.</p>
-                </div>
+                    <!-- Loading overlay (appears on top when updating existing options) -->
+                    <div x-show="shippingLoading && shippingGroups.length > 0"
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
+                         class="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-lg"
+                         role="status"
+                         aria-label="Updating shipping options">
+                        <div class="flex items-center gap-2 text-sm text-gray-500">
+                            <svg class="animate-spin h-4 w-4 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Updating shipping options...</span>
+                        </div>
+                    </div>
 
-                <!-- Shipping error -->
-                <div x-show="!shippingLoading && shippingError" x-cloak class="p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p class="text-sm text-red-700" x-text="shippingError"></p>
-                </div>
+                    <!-- Initial skeleton (only shown on FIRST load when no options exist yet) -->
+                    <div x-show="shippingLoading && shippingGroups.length === 0 && canCalculateShipping"
+                         x-transition
+                         class="space-y-2">
+                        <div class="h-16 checkout-skeleton rounded-lg"></div>
+                        <div class="h-16 checkout-skeleton rounded-lg"></div>
+                    </div>
 
-                <!-- Multi-warehouse notification -->
-                <div x-show="!shippingLoading && shippingGroups.length > 1" x-cloak class="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-3">
-                    <p class="text-sm text-blue-800">Your order will ship from multiple locations. You'll receive separate tracking for each shipment.</p>
-                </div>
+                    <!-- Content wrapper - dims during loading but stays visible -->
+                    <div :class="{ 'opacity-50 pointer-events-none select-none': shippingLoading && shippingGroups.length > 0 }"
+                         class="transition-opacity duration-200">
 
-                <!-- Items cannot ship warning -->
-                <div x-show="!shippingLoading && !allItemsShippable" x-cloak class="p-3 bg-red-50 border border-red-200 rounded-lg mb-3">
-                    <p class="text-sm font-medium text-red-800 mb-2">Some items cannot be shipped to this location:</p>
-                    <ul class="list-disc list-inside text-sm text-red-700 space-y-1">
-                        <template x-for="error in itemAvailabilityErrors" :key="error.message">
-                            <li x-text="error.message"></li>
-                        </template>
-                    </ul>
-                    <p class="text-sm text-red-700 mt-2">Please change your shipping address or remove unavailable items to continue.</p>
-                </div>
+                        <!-- No shipping address yet -->
+                        <div x-show="!shippingLoading && !canCalculateShipping && shippingGroups.length === 0" x-cloak class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <p class="text-sm text-gray-600">Enter your shipping address to see available shipping options.</p>
+                        </div>
 
-                <!-- Shipping options -->
-                <div x-show="!shippingLoading && !shippingError && shippingGroups.length > 0" x-cloak class="space-y-3">
-                    <template x-for="group in shippingGroups" :key="group.groupId">
-                        <div class="border border-gray-200 rounded-lg overflow-hidden">
-                            <!-- Group header (only show if multiple groups) -->
-                            <template x-if="shippingGroups.length > 1">
-                                <div class="bg-gray-50 px-3 py-2 border-b border-gray-200">
-                                    <p class="text-sm font-medium text-gray-700" x-text="getSelectedShippingName(group)"></p>
-                                    <p class="text-xs text-gray-500 mt-1.5 flex flex-wrap gap-x-2 gap-y-1">
-                                        <template x-for="(item, idx) in group.lineItems" :key="idx">
-                                            <span class="inline-flex items-center whitespace-nowrap">
-                                                <span x-text="item.name"></span>
-                                                <span x-show="item.quantity > 1" class="ml-1 text-gray-400" x-text="'(' + item.quantity + ')'"></span>
-                                            </span>
-                                        </template>
-                                    </p>
-                                </div>
-                            </template>
+                        <!-- Shipping error -->
+                        <div x-show="!shippingLoading && shippingError" x-cloak x-transition class="p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <p class="text-sm text-red-700" x-text="shippingError"></p>
+                        </div>
 
-                            <!-- Shipping options for this group -->
-                            <div class="p-2 space-y-2">
-                                <template x-for="option in group.shippingOptions" :key="option.id">
-                                    <label class="flex items-center gap-3 p-2 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
-                                           :class="{ 'border-accent bg-accent/5': shippingSelections[group.groupId] === option.id }">
-                                        <input type="radio"
-                                               :name="'shipping-' + group.groupId"
-                                               :value="option.id"
-                                               x-model="shippingSelections[group.groupId]"
-                                               @@change="onShippingOptionChange(group.groupId, option)"
-                                               class="w-4 h-4 text-accent focus:ring-accent" />
-                                        <div class="flex-1 min-w-0">
-                                            <p class="text-sm font-medium text-gray-900">
-                                                <span x-text="option.name"></span>
-                                                <template x-if="option.isNextDay">
-                                                    <span class="ml-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-800 rounded">Next Day</span>
+                        <!-- Multi-warehouse notification -->
+                        <div x-show="!shippingLoading && shippingGroups.length > 1" x-cloak x-transition class="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-3">
+                            <p class="text-sm text-blue-800">Your order will ship from multiple locations. You'll receive separate tracking for each shipment.</p>
+                        </div>
+
+                        <!-- Items cannot ship warning -->
+                        <div x-show="!shippingLoading && !allItemsShippable" x-cloak x-transition class="p-3 bg-red-50 border border-red-200 rounded-lg mb-3">
+                            <p class="text-sm font-medium text-red-800 mb-2">Some items cannot be shipped to this location:</p>
+                            <ul class="list-disc list-inside text-sm text-red-700 space-y-1">
+                                <template x-for="error in itemAvailabilityErrors" :key="error.message">
+                                    <li x-text="error.message"></li>
+                                </template>
+                            </ul>
+                            <p class="text-sm text-red-700 mt-2">Please change your shipping address or remove unavailable items to continue.</p>
+                        </div>
+
+                        <!-- Shipping options -->
+                        <div x-show="!shippingError && shippingGroups.length > 0" x-cloak class="space-y-3">
+                            <template x-for="group in shippingGroups" :key="group.groupId">
+                                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                    <!-- Group header (only show if multiple groups) -->
+                                    <template x-if="shippingGroups.length > 1">
+                                        <div class="bg-gray-50 px-3 py-2 border-b border-gray-200">
+                                            <p class="text-sm font-medium text-gray-700" x-text="getSelectedShippingName(group)"></p>
+                                            <p class="text-xs text-gray-500 mt-1.5 flex flex-wrap gap-x-2 gap-y-1">
+                                                <template x-for="(item, idx) in group.lineItems" :key="idx">
+                                                    <span class="inline-flex items-center whitespace-nowrap">
+                                                        <span x-text="item.name"></span>
+                                                        <span x-show="item.quantity > 1" class="ml-1 text-gray-400" x-text="'(' + item.quantity + ')'"></span>
+                                                    </span>
                                                 </template>
                                             </p>
-                                            <p class="text-xs text-gray-500" x-text="option.deliveryDescription"></p>
                                         </div>
-                                        <template x-if="option.cost === 0">
-                                            <span class="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 rounded-full">FREE</span>
+                                    </template>
+
+                                    <!-- Shipping options for this group -->
+                                    <div class="p-2 space-y-2">
+                                        <template x-for="option in group.shippingOptions" :key="option.id">
+                                            <label class="flex items-center gap-3 p-2 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
+                                                   :class="{ 'border-accent bg-accent/5': shippingSelections[group.groupId] === option.id }">
+                                                <input type="radio"
+                                                       :name="'shipping-' + group.groupId"
+                                                       :value="option.id"
+                                                       x-model="shippingSelections[group.groupId]"
+                                                       @@change="onShippingOptionChange(group.groupId, option)"
+                                                       class="w-4 h-4 text-accent focus:ring-accent" />
+                                                <div class="flex-1 min-w-0">
+                                                    <p class="text-sm font-medium text-gray-900">
+                                                        <span x-text="option.name"></span>
+                                                        <template x-if="option.isNextDay">
+                                                            <span class="ml-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-800 rounded">Next Day</span>
+                                                        </template>
+                                                    </p>
+                                                    <p class="text-xs text-gray-500" x-text="option.deliveryDescription"></p>
+                                                </div>
+                                                <template x-if="option.cost === 0">
+                                                    <span class="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 rounded-full">FREE</span>
+                                                </template>
+                                                <template x-if="option.cost > 0">
+                                                    <span class="text-sm font-medium text-gray-900" x-text="option.formattedCost"></span>
+                                                </template>
+                                            </label>
                                         </template>
-                                        <template x-if="option.cost > 0">
-                                            <span class="text-sm font-medium text-gray-900" x-text="option.formattedCost"></span>
-                                        </template>
-                                    </label>
-                                </template>
-                            </div>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
-                    </template>
-                </div>
+                    </div><!-- end content wrapper -->
+                </div><!-- end relative container -->
             </div>
 
             <!-- Payment Section -->
@@ -377,7 +409,8 @@
                     <template x-if="cardPaymentMethods.length === 1">
                         <div class="space-y-2 mb-4">
                             <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
-                                   :class="{ 'border-accent bg-accent/5': selectedPaymentMethod?.providerAlias === cardPaymentMethods[0].providerAlias && selectedPaymentMethod?.methodAlias === cardPaymentMethods[0].methodAlias }">
+                                   :class="{ 'border-accent bg-accent/5': isPaymentMethodSelected(cardPaymentMethods[0]) }"
+                                   :style="getPaymentMethodStyle(cardPaymentMethods[0], isPaymentMethodSelected(cardPaymentMethods[0]))">
                                 <input type="radio"
                                        name="payment-method"
                                        :value="cardPaymentMethods[0].providerAlias + ':' + (cardPaymentMethods[0].methodAlias || '')"
@@ -397,7 +430,8 @@
                         <div class="space-y-2 mb-4">
                             <template x-for="method in cardPaymentMethods" :key="method.providerAlias + ':' + (method.methodAlias || '')">
                                 <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
-                                       :class="{ 'border-accent bg-accent/5': selectedPaymentMethod?.providerAlias === method.providerAlias && selectedPaymentMethod?.methodAlias === method.methodAlias }">
+                                       :class="{ 'border-accent bg-accent/5': isPaymentMethodSelected(method) }"
+                                       :style="getPaymentMethodStyle(method, isPaymentMethodSelected(method))">
                                     <input type="radio"
                                            name="payment-method"
                                            :value="method.providerAlias + ':' + (method.methodAlias || '')"
@@ -433,7 +467,8 @@
                                     <button type="button"
                                             @@click="onPaymentMethodChange(method); selectedPaymentMethodKey = method.providerAlias + ':' + (method.methodAlias || '')"
                                             class="w-full flex items-center justify-center gap-2 p-3 border border-gray-200 rounded-lg hover:border-accent hover:bg-accent/5 transition-colors"
-                                            :class="{ 'border-accent bg-accent/5': selectedPaymentMethod?.providerAlias === method.providerAlias && selectedPaymentMethod?.methodAlias === method.methodAlias }">
+                                            :class="{ 'border-accent bg-accent/5': isPaymentMethodSelected(method) }"
+                                            :style="getPaymentMethodStyle(method, isPaymentMethodSelected(method))">
                                         <span x-html="getPaymentMethodIcon(method)" class="flex-shrink-0"></span>
                                         <span class="text-sm font-medium text-gray-900" x-text="method.displayName"></span>
                                     </button>
