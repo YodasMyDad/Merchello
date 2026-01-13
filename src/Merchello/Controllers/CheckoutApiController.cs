@@ -691,8 +691,14 @@ public class CheckoutApiController(
             return BadRequest(new { success = false, message = "No items in basket." });
         }
 
+        var email = request.Email.Trim();
+
         // Save email to checkout session for payment initialization
-        await checkoutSessionService.SaveEmailAsync(basket.Id, request.Email.Trim(), ct);
+        await checkoutSessionService.SaveEmailAsync(basket.Id, email, ct);
+
+        // Save email to basket for persistence across sessions
+        basket.BillingAddress.Email = email;
+        await checkoutService.SaveBasketAsync(basket, ct);
 
         // Track for abandoned checkout (optional service)
         var abandonedCheckoutService = HttpContext.RequestServices
@@ -700,12 +706,127 @@ public class CheckoutApiController(
 
         if (abandonedCheckoutService != null)
         {
-            await abandonedCheckoutService.TrackCheckoutActivityAsync(basket, request.Email.Trim(), ct);
+            await abandonedCheckoutService.TrackCheckoutActivityAsync(basket, email, ct);
         }
 
         logger.LogDebug("Email captured for basket: {BasketId}", basket.Id);
 
         return Ok(new { success = true });
+    }
+
+    /// <summary>
+    /// Capture address data early for persistence.
+    /// Call this on address field blur to auto-save as user enters data.
+    /// </summary>
+    [HttpPost("capture-address")]
+    public async Task<IActionResult> CaptureAddress([FromBody] CaptureAddressDto request, CancellationToken ct)
+    {
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
+        if (basket == null || basket.LineItems.Count == 0)
+        {
+            return BadRequest(new { success = false, message = "No items in basket." });
+        }
+
+        var hasChanges = false;
+
+        // Update email if provided
+        if (!string.IsNullOrWhiteSpace(request.Email))
+        {
+            basket.BillingAddress.Email = request.Email.Trim();
+            hasChanges = true;
+        }
+
+        // Update billing address fields
+        if (request.BillingAddress != null)
+        {
+            UpdateAddressFromDto(basket.BillingAddress, request.BillingAddress);
+            hasChanges = true;
+        }
+
+        // Update shipping address
+        if (request.ShippingSameAsBilling && request.BillingAddress != null)
+        {
+            // Copy billing to shipping only if billing data was provided
+            CopyAddress(basket.BillingAddress, basket.ShippingAddress);
+            // hasChanges already set by billing address update above
+        }
+        else if (!request.ShippingSameAsBilling && request.ShippingAddress != null)
+        {
+            UpdateAddressFromDto(basket.ShippingAddress, request.ShippingAddress);
+            hasChanges = true;
+        }
+
+        if (hasChanges)
+        {
+            // Save to database
+            await checkoutService.SaveBasketAsync(basket, ct);
+
+            // Update checkout session
+            await checkoutSessionService.SaveAddressesAsync(
+                basket.Id,
+                basket.BillingAddress,
+                basket.ShippingAddress,
+                request.ShippingSameAsBilling,
+                ct: ct);
+
+            // Track for abandoned checkout (optional service)
+            var abandonedCheckoutService = HttpContext.RequestServices
+                .GetService<IAbandonedCheckoutService>();
+
+            if (abandonedCheckoutService != null)
+            {
+                await abandonedCheckoutService.TrackCheckoutActivityAsync(
+                    basket,
+                    basket.BillingAddress.Email ?? "",
+                    ct);
+            }
+
+            logger.LogDebug("Address captured for basket: {BasketId}", basket.Id);
+        }
+
+        return Ok(new { success = true });
+    }
+
+    private static void UpdateAddressFromDto(Address address, CheckoutAddressDto dto)
+    {
+        if (!string.IsNullOrEmpty(dto.Name)) address.Name = dto.Name;
+        if (!string.IsNullOrEmpty(dto.Company)) address.Company = dto.Company;
+        if (!string.IsNullOrEmpty(dto.Address1)) address.AddressOne = dto.Address1;
+        if (dto.Address2 != null) address.AddressTwo = dto.Address2;
+        if (!string.IsNullOrEmpty(dto.City)) address.TownCity = dto.City;
+        if (!string.IsNullOrEmpty(dto.PostalCode)) address.PostalCode = dto.PostalCode;
+        if (!string.IsNullOrEmpty(dto.Country)) address.Country = dto.Country;
+        if (!string.IsNullOrEmpty(dto.CountryCode)) address.CountryCode = dto.CountryCode;
+        if (!string.IsNullOrEmpty(dto.Phone)) address.Phone = dto.Phone;
+
+        // Handle state/region
+        if (!string.IsNullOrEmpty(dto.State) || !string.IsNullOrEmpty(dto.StateCode))
+        {
+            address.CountyState ??= new CountyState();
+            if (!string.IsNullOrEmpty(dto.State)) address.CountyState.Name = dto.State;
+            if (!string.IsNullOrEmpty(dto.StateCode)) address.CountyState.RegionCode = dto.StateCode;
+        }
+    }
+
+    private static void CopyAddress(Address source, Address target)
+    {
+        target.Name = source.Name;
+        target.Company = source.Company;
+        target.AddressOne = source.AddressOne;
+        target.AddressTwo = source.AddressTwo;
+        target.TownCity = source.TownCity;
+        target.PostalCode = source.PostalCode;
+        target.Country = source.Country;
+        target.CountryCode = source.CountryCode;
+        target.Phone = source.Phone;
+        target.Email = source.Email;
+
+        if (source.CountyState != null)
+        {
+            target.CountyState ??= new CountyState();
+            target.CountyState.Name = source.CountyState.Name;
+            target.CountyState.RegionCode = source.CountyState.RegionCode;
+        }
     }
 
     /// <summary>

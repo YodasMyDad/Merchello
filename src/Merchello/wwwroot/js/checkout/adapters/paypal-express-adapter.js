@@ -74,7 +74,11 @@
                                     providerAlias: method.providerAlias || 'paypal',
                                     methodAlias: method.methodAlias,
                                     amount: config.amount,
-                                    currency: config.currency
+                                    currency: config.currency,
+                                    // Include breakdown for accurate PayPal display
+                                    subTotal: config.subTotal,
+                                    shipping: config.shipping,
+                                    tax: config.tax
                                 })
                             });
 

@@ -234,6 +234,14 @@ public interface ICheckoutService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Persists the basket to the database without recalculation.
+    /// Use this for simple updates like email capture or partial address saves.
+    /// </summary>
+    /// <param name="basket">The basket to save.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task SaveBasketAsync(Basket basket, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Saves shipping selections to the checkout session, updates basket totals,
     /// refreshes automatic discounts, and persists to the database.
     /// </summary>

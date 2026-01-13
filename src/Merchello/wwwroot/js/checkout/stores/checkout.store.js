@@ -39,6 +39,16 @@ import { createAnnouncer } from '../utils/announcer.js';
  */
 
 /**
+ * @typedef {Object} AppliedDiscount
+ * @property {string} id - Discount ID
+ * @property {string} name - Display name
+ * @property {string|null} code - Discount code (null for automatic discounts)
+ * @property {number} amount - Discount amount
+ * @property {string} formattedAmount - Formatted display amount
+ * @property {boolean} isAutomatic - Whether discount was auto-applied
+ */
+
+/**
  * Initialize the checkout store
  *
  * @param {Object} [initialData] - Optional initial data from server
@@ -48,6 +58,7 @@ import { createAnnouncer } from '../utils/announcer.js';
  * @param {Partial<AddressState>} [initialData.billing]
  * @param {Partial<AddressState>} [initialData.shipping]
  * @param {boolean} [initialData.shippingSameAsBilling]
+ * @param {AppliedDiscount[]} [initialData.appliedDiscounts]
  */
 export function initCheckoutStore(initialData = {}) {
     const announcer = createAnnouncer();
@@ -72,6 +83,9 @@ export function initCheckoutStore(initialData = {}) {
             code: initialData.currency?.code ?? 'GBP',
             symbol: initialData.currency?.symbol ?? '£'
         },
+
+        /** @type {AppliedDiscount[]} */
+        appliedDiscounts: initialData.appliedDiscounts ?? [],
 
         // ============================================
         // Form State
@@ -147,6 +161,11 @@ export function initCheckoutStore(initialData = {}) {
                 subtotal: data.displaySubTotal ?? data.subtotal ?? this.basket.subtotal,
                 discount: data.displayDiscount ?? data.discount ?? this.basket.discount
             };
+
+            // Update applied discounts list (for reactive UI updates)
+            if (data.appliedDiscounts !== undefined) {
+                this.appliedDiscounts = data.appliedDiscounts ?? [];
+            }
 
             // Update currency if provided
             if (data.displayCurrencyCode || data.displayCurrencySymbol) {

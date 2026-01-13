@@ -54,6 +54,32 @@ public class MerchelloCheckoutController(
         // Handle confirmation step - load confirmation data once and reuse
         if (checkoutPage.Step == CheckoutStep.Confirmation && checkoutPage.InvoiceId.HasValue)
         {
+            // Security: Verify the user has permission to view this confirmation
+            // The confirmation token is set when payment succeeds and contains the invoice ID
+            var confirmationToken = Request.Cookies[Core.Constants.Cookies.ConfirmationToken];
+            if (string.IsNullOrEmpty(confirmationToken) ||
+                !Guid.TryParse(confirmationToken, out var tokenInvoiceId) ||
+                tokenInvoiceId != checkoutPage.InvoiceId.Value)
+            {
+                logger.LogWarning(
+                    "Unauthorized confirmation access attempt for invoice {InvoiceId}. Token: {Token}",
+                    checkoutPage.InvoiceId.Value,
+                    confirmationToken ?? "missing");
+
+                // Show "order not found" instead of revealing whether the invoice exists
+                var unauthorizedViewModel = new CheckoutViewModel(
+                    checkoutPage.Step,
+                    _settings,
+                    basket: null,
+                    session: null,
+                    billingCountries: null,
+                    shippingCountries: null,
+                    shippingGroups: null,
+                    confirmation: null);
+
+                return View("~/Views/Checkout/Confirmation.cshtml", unauthorizedViewModel);
+            }
+
             var confirmation = await checkoutService.GetOrderConfirmationAsync(checkoutPage.InvoiceId.Value, ct);
 
             // Check if we should redirect to custom confirmation URL

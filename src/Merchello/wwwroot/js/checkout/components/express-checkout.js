@@ -20,9 +20,14 @@
  * @typedef {Object} ExpressConfig
  * @property {ExpressMethod[]} methods
  * @property {number} amount
+ * @property {number} subTotal
+ * @property {number} shipping
+ * @property {number} tax
  * @property {string} currency
  * @property {string} country
  */
+
+import { safeRedirect } from '../utils/security.js';
 
 // Global registry for express checkout adapters
 window.MerchelloExpressAdapters = window.MerchelloExpressAdapters || {};
@@ -54,6 +59,15 @@ export function initExpressCheckout() {
         /** @type {boolean} */
         _initialized: false,
 
+        /** @type {number} */
+        _expressRequestId: 0,
+
+        /** @type {number|null} */
+        _reRenderTimeout: null,
+
+        /** @type {number} */
+        _lastKnownAmount: 0,
+
         /**
          * Initialize the component
          */
@@ -75,10 +89,41 @@ export function initExpressCheckout() {
                 this.config = await response.json();
                 this.hasExpressMethods = this.config?.methods?.length > 0;
 
-                // Listen for basket updates
+                // Listen for basket updates to keep express checkout in sync
                 document.addEventListener('merchello:basket-updated', (e) => {
-                    if (this.hasExpressMethods && this.config && e.detail?.total) {
+                    if (!this.hasExpressMethods || !this.config || !e.detail) return;
+
+                    const oldAmount = this.config.amount;
+                    const newAmount = e.detail.total ?? oldAmount;
+
+                    // Update all basket values to keep express checkout accurate
+                    if (e.detail.total !== undefined) {
                         this.config.amount = e.detail.total;
+                    }
+                    if (e.detail.shipping !== undefined) {
+                        this.config.shipping = e.detail.shipping;
+                    }
+                    if (e.detail.tax !== undefined) {
+                        this.config.tax = e.detail.tax;
+                    }
+                    if (e.detail.subTotal !== undefined) {
+                        this.config.subTotal = e.detail.subTotal;
+                    }
+
+                    // Check if amount changed significantly (more than 1 cent)
+                    // If so, re-render express buttons to show updated amounts
+                    const amountChanged = Math.abs(newAmount - oldAmount) > 0.01;
+                    if (amountChanged) {
+                        // Debounce re-render to avoid rapid flickering during shipping calculations
+                        if (this._reRenderTimeout) {
+                            clearTimeout(this._reRenderTimeout);
+                        }
+
+                        this._reRenderTimeout = setTimeout(async () => {
+                            this._reRenderTimeout = null;
+                            this._lastKnownAmount = this.config.amount;
+                            await this.initializeExpressCheckout();
+                        }, 300);
                     }
                 });
 
@@ -106,6 +151,12 @@ export function initExpressCheckout() {
             const container = document.getElementById('express-buttons-container');
             if (!container) return;
 
+            // Set minimum height to prevent layout shift during re-render
+            const currentHeight = container.offsetHeight;
+            if (currentHeight > 0) {
+                container.style.minHeight = `${currentHeight}px`;
+            }
+
             // Teardown existing buttons
             await this.teardownExpressButtons();
             container.innerHTML = '';
@@ -118,6 +169,9 @@ export function initExpressCheckout() {
                     console.error(`Failed to initialize ${method.methodAlias}:`, err);
                 }
             }
+
+            // Remove minimum height after render complete
+            container.style.minHeight = '';
         },
 
         /**
@@ -253,6 +307,15 @@ export function initExpressCheckout() {
          * @param {Object} providerData
          */
         async processExpressCheckout(providerAlias, methodAlias, paymentToken, customerData, providerData) {
+            // Prevent double-submission - if already processing, ignore
+            if (this.isProcessing) {
+                console.warn('Express checkout already in progress, ignoring duplicate request');
+                return;
+            }
+
+            // Track request ID to prevent race conditions
+            const requestId = ++this._expressRequestId;
+
             this.isProcessing = true;
             this.error = null;
 
@@ -269,18 +332,33 @@ export function initExpressCheckout() {
                     })
                 });
 
+                // Check if a newer request was made while we were waiting
+                if (requestId !== this._expressRequestId) {
+                    console.warn('Stale express checkout response, ignoring');
+                    return;
+                }
+
                 const result = await response.json();
 
                 if (result.success) {
-                    window.location.href = result.redirectUrl || `/checkout/confirmation/${result.invoiceId}`;
+                    // Validate server-provided redirect URL before navigating
+                    const redirectUrl = result.redirectUrl || `/checkout/confirmation/${result.invoiceId}`;
+                    safeRedirect(redirectUrl);
                 } else {
                     this.error = result.errorMessage || 'Payment failed. Please try again.';
                 }
             } catch (err) {
+                // Ignore errors from stale requests
+                if (requestId !== this._expressRequestId) {
+                    return;
+                }
                 console.error('Express checkout failed:', err);
                 this.error = 'An error occurred processing your payment.';
             } finally {
-                this.isProcessing = false;
+                // Only update processing state if this is the current request
+                if (requestId === this._expressRequestId) {
+                    this.isProcessing = false;
+                }
             }
         },
 

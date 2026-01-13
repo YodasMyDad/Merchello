@@ -64,4 +64,15 @@ public class RecordPaymentParameters
     /// Optional settlement exchange rate source identifier.
     /// </summary>
     public string? SettlementExchangeRateSource { get; init; }
+
+    /// <summary>
+    /// The payment method alias within the provider (e.g., "purchaseorder", "cards").
+    /// </summary>
+    public string? MethodAlias { get; init; }
+
+    /// <summary>
+    /// The display name of the payment method (e.g., "Purchase Order", "Credit Card").
+    /// Used for display on confirmation page and receipts.
+    /// </summary>
+    public string? MethodDisplayName { get; init; }
 }

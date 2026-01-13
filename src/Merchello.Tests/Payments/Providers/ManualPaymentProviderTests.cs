@@ -175,7 +175,7 @@ public class ManualPaymentProviderTests
         var result = await _provider.ProcessPaymentAsync(request);
 
         result.Success.ShouldBeTrue();
-        result.Status.ShouldBe(PaymentResultStatus.Completed);
+        result.Status.ShouldBe(PaymentResultStatus.Pending); // PO is pending until actual payment received
         result.TransactionId.ShouldStartWith("po_");
         result.Amount.ShouldBe(200m);
         result.ProviderData!["purchaseOrderNumber"].ShouldBe("PO-12345");

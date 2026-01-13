@@ -191,6 +191,23 @@ export const checkoutApi = {
     },
 
     /**
+     * Capture address data for auto-save during checkout.
+     * Call this on address field blur to persist data across sessions.
+     * @param {Object} data
+     * @param {string} [data.email]
+     * @param {Partial<AddressFields>} [data.billingAddress]
+     * @param {Partial<AddressFields>} [data.shippingAddress]
+     * @param {boolean} [data.shippingSameAsBilling]
+     * @returns {Promise<{success: boolean}>}
+     */
+    captureAddress(data) {
+        return fetchJson(`${BASE_URL}/capture-address`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+
+    /**
      * Check if an email has an existing account
      * @param {string} email
      * @returns {Promise<{hasExistingAccount: boolean}>}

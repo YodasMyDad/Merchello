@@ -189,10 +189,23 @@ public class PaymentService(
                 return result;
             }
 
-            // Record the payment if completed or authorized
+            // Record the payment if completed, authorized, or pending
+            // Pending status is used by payment methods like Purchase Order where the order
+            // is accepted but payment confirmation comes later (via webhook or manual approval)
             if (paymentResult.Status == PaymentResultStatus.Completed ||
-                paymentResult.Status == PaymentResultStatus.Authorized)
+                paymentResult.Status == PaymentResultStatus.Authorized ||
+                paymentResult.Status == PaymentResultStatus.Pending)
             {
+                // Look up the method display name from the provider
+                var methodDisplayName = GetMethodDisplayName(registeredProvider.Provider, request.MethodAlias);
+
+                if (paymentResult.Status == PaymentResultStatus.Pending)
+                {
+                    logger.LogInformation(
+                        "Payment pending for invoice {InvoiceId} via {Provider}. Recording payment with pending status. TransactionId: {TransactionId}",
+                        request.InvoiceId, request.ProviderAlias, paymentResult.TransactionId);
+                }
+
                 return await RecordPaymentAsync(
                     new RecordPaymentParameters
                     {
@@ -205,20 +218,11 @@ public class PaymentService(
                         SettlementAmount = paymentResult.SettlementAmount,
                         SettlementExchangeRateSource = request.ProviderAlias,
                         RiskScore = paymentResult.RiskScore,
-                        RiskScoreSource = paymentResult.RiskScoreSource
+                        RiskScoreSource = paymentResult.RiskScoreSource,
+                        MethodAlias = request.MethodAlias,
+                        MethodDisplayName = methodDisplayName
                     },
                     cancellationToken);
-            }
-
-            // For pending status, we'll wait for webhook confirmation
-            if (paymentResult.Status == PaymentResultStatus.Pending)
-            {
-                logger.LogInformation(
-                    "Payment pending for invoice {InvoiceId} via {Provider}. Awaiting webhook confirmation. TransactionId: {TransactionId}",
-                    request.InvoiceId, request.ProviderAlias, paymentResult.TransactionId);
-
-                result.AddSuccessMessage("Payment is pending confirmation.");
-                return result;
             }
 
             if (paymentResult.Success)
@@ -291,7 +295,8 @@ public class PaymentService(
                 settlementAmount: parameters.SettlementAmount,
                 settlementExchangeRateSource: parameters.SettlementExchangeRateSource,
                 riskScore: parameters.RiskScore,
-                riskScoreSource: parameters.RiskScoreSource);
+                riskScoreSource: parameters.RiskScoreSource,
+                methodDisplayName: parameters.MethodDisplayName);
 
             // Publish "Before" notification - handlers can cancel or modify
             var creatingNotification = new PaymentCreatingNotification(payment);
@@ -911,6 +916,23 @@ public class PaymentService(
         {
             idempotencyService.ClearProcessingMarker(idempotencyKey);
         }
+    }
+
+    /// <summary>
+    /// Gets the display name for a payment method from the provider.
+    /// </summary>
+    /// <param name="provider">The payment provider.</param>
+    /// <param name="methodAlias">The method alias (e.g., "purchaseorder", "cards").</param>
+    /// <returns>The method display name, or the provider display name if method not found.</returns>
+    private static string? GetMethodDisplayName(IPaymentProvider provider, string? methodAlias)
+    {
+        if (string.IsNullOrEmpty(methodAlias))
+            return provider.Metadata.DisplayName;
+
+        var method = provider.GetAvailablePaymentMethods()
+            .FirstOrDefault(m => m.Alias == methodAlias);
+
+        return method?.DisplayName ?? provider.Metadata.DisplayName;
     }
 
     /// <inheritdoc />

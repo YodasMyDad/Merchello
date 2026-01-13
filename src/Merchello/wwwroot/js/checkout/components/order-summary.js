@@ -87,26 +87,40 @@ export function initOrderSummary() {
         },
 
         /**
+         * Check if any discount operation is in progress
+         * @returns {boolean}
+         */
+        get isDiscountOperationInProgress() {
+            return this.applyingDiscount || this.removingDiscount !== null;
+        },
+
+        /**
          * Apply a discount code
          */
         async applyDiscount() {
             if (!this.discountCode.trim()) return;
+
+            // Prevent concurrent operations (mutex)
+            if (this.isDiscountOperationInProgress) return;
+
+            // Save the code before clearing for analytics
+            const appliedCode = this.discountCode.trim();
 
             this.applyingDiscount = true;
             this.discountError = '';
             this.discountSuccess = '';
 
             try {
-                const data = await checkoutApi.applyDiscount(this.discountCode.trim());
+                const data = await checkoutApi.applyDiscount(appliedCode);
 
                 if (data.success) {
                     this.discountSuccess = 'Discount applied successfully!';
                     this.discountCode = '';
 
-                    // Track analytics
+                    // Track analytics with the saved code
                     if (window.MerchelloCheckout) {
                         window.MerchelloCheckout.emit('checkout:coupon_applied', {
-                            coupon: this.discountCode.trim(),
+                            coupon: appliedCode,
                             discount_amount: data.discountAmount || 0
                         });
                     }
@@ -135,6 +149,9 @@ export function initOrderSummary() {
          * @param {string} discountId
          */
         async removeDiscount(discountId) {
+            // Prevent concurrent operations (mutex)
+            if (this.isDiscountOperationInProgress) return;
+
             this.removingDiscount = discountId;
             this.discountError = '';
             this.discountSuccess = '';

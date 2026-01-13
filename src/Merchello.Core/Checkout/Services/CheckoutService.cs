@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
@@ -1531,6 +1532,21 @@ public class CheckoutService(
     }
 
     /// <inheritdoc />
+    public async Task SaveBasketAsync(Basket basket, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            db.Baskets.Update(basket);
+            await db.SaveChangesAsync(cancellationToken);
+        });
+        scope.Complete();
+
+        // Update HTTP session to keep in sync
+        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
+    }
+
+    /// <inheritdoc />
     public async Task<CrudResult<Basket>> SaveShippingSelectionsAsync(
         SaveShippingSelectionsParameters parameters,
         CancellationToken cancellationToken = default)
@@ -1681,11 +1697,23 @@ public class CheckoutService(
                 {
                     var lineTotal = li.Quantity * li.Amount;
 
+                    // Get display data from ExtendedData
+                    var imageUrl = li.ExtendedData?.GetValueOrDefault("ImageUrl")?.ToString();
+                    var productRootName = li.GetProductRootName();
+                    var selectedOptions = li.GetSelectedOptions()
+                        .Select(o => new SelectedOptionDto
+                        {
+                            OptionName = o.OptionName,
+                            ValueName = o.ValueName
+                        }).ToList();
+
                     lineItems.Add(new CheckoutLineItemDto
                     {
                         Id = li.Id,
                         Sku = li.Sku ?? "",
                         Name = li.Name ?? "",
+                        ProductRootName = productRootName,
+                        SelectedOptions = selectedOptions,
                         Quantity = li.Quantity,
                         UnitPrice = li.Amount,
                         LineTotal = lineTotal,
@@ -1696,7 +1724,8 @@ public class CheckoutService(
                         DisplayLineTotal = lineTotal,
                         FormattedDisplayUnitPrice = FormatPrice(li.Amount, currencySymbol),
                         FormattedDisplayLineTotal = FormatPrice(lineTotal, currencySymbol),
-                        LineItemType = li.LineItemType
+                        LineItemType = li.LineItemType,
+                        ImageUrl = imageUrl
                     });
                 }
             }
@@ -1783,7 +1812,15 @@ public class CheckoutService(
             FormattedDisplayTotal = FormatPrice(invoice.Total, currencySymbol),
 
             Shipments = shipments,
-            PaymentMethod = paymentMethod
+            PaymentMethod = paymentMethod,
+
+            // Order status
+            IsCancelled = invoice.IsCancelled,
+            CancellationReason = invoice.CancellationReason,
+            IsRefunded = invoice.Payments?
+                .Where(p => p.PaymentType == Payments.Models.PaymentType.Refund ||
+                           p.PaymentType == Payments.Models.PaymentType.PartialRefund)
+                .Sum(p => Math.Abs(p.Amount)) >= invoice.Total
         };
     }
 

@@ -47,5 +47,24 @@ public class CheckoutSession
     /// Whether the customer has opted in to marketing communications.
     /// </summary>
     public bool AcceptsMarketing { get; set; }
+
+    /// <summary>
+    /// When this checkout session was first created.
+    /// Used with AbsoluteTimeoutMinutes to enforce maximum session lifetime.
+    /// </summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// When this session was last accessed or modified.
+    /// Used with SlidingTimeoutMinutes for sliding expiration.
+    /// </summary>
+    public DateTime LastActivityAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// The invoice ID created from this checkout session.
+    /// Used for security validation - ensures the session owns the invoice being paid.
+    /// Set when the invoice is created during checkout.
+    /// </summary>
+    public Guid? InvoiceId { get; set; }
 }
 

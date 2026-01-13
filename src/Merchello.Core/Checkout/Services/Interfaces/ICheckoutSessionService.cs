@@ -71,4 +71,13 @@ public interface ICheckoutSessionService
     /// </summary>
     /// <returns>The basket, or null if not found in session.</returns>
     Basket? GetBasketFromSession();
+
+    /// <summary>
+    /// Sets the invoice ID created from this checkout session.
+    /// Used for security validation during payment.
+    /// </summary>
+    /// <param name="basketId">The basket ID.</param>
+    /// <param name="invoiceId">The invoice ID created from this checkout.</param>
+    /// <param name="ct">Cancellation token.</param>
+    Task SetInvoiceIdAsync(Guid basketId, Guid invoiceId, CancellationToken ct = default);
 }
