@@ -19,10 +19,6 @@ import MerchelloPayment from './payment.js';
 
 // Import components
 import { initSinglePageCheckout } from './components/single-page-checkout.js';
-import { initContactSection } from './components/contact-section.js';
-import { initAddressForm } from './components/address-form.js';
-import { initShippingSelector } from './components/shipping-selector.js';
-import { initPaymentSelector } from './components/payment-selector.js';
 import { initOrderSummary } from './components/order-summary.js';
 import { initExpressCheckout } from './components/express-checkout.js';
 
@@ -50,23 +46,28 @@ function getInitialDataFromDOM() {
 
 // Get initial data from the page
 const initialData = getInitialDataFromDOM();
+console.log('[Checkout] Initial data loaded:', initialData);
 
 // Initialize the store first (components depend on it)
+console.log('[Checkout] Initializing store...');
 initCheckoutStore(initialData);
+console.log('[Checkout] Store initialized');
 
 // Register all components
 // These must be registered BEFORE Alpine.start() processes the DOM
+console.log('[Checkout] Registering singlePageCheckout...');
 initSinglePageCheckout();
-initContactSection();
-initAddressForm();
-initShippingSelector();
-initPaymentSelector();
+console.log('[Checkout] Registering orderSummary...');
 initOrderSummary();
+console.log('[Checkout] Registering expressCheckout...');
 initExpressCheckout();
+console.log('[Checkout] All components registered');
 
 // Start Alpine - this processes all x-data attributes in the DOM
 // All components are now registered, so no race conditions
+console.log('[Checkout] Starting Alpine...');
 Alpine.start();
+console.log('[Checkout] Alpine started successfully');
 
 // Export for testing and external use
 export {
@@ -74,10 +75,6 @@ export {
     MerchelloPayment,
     initCheckoutStore,
     initSinglePageCheckout,
-    initContactSection,
-    initAddressForm,
-    initShippingSelector,
-    initPaymentSelector,
     initOrderSummary,
     initExpressCheckout
 };

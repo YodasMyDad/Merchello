@@ -399,8 +399,11 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
       },
     });
 
-    const result = await modalContext?.onSubmit().catch(() => undefined);
-    if (!result) return; // User cancelled
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
 
     const { error } = await MerchelloApi.deleteDiscount(this._discount.id);
 

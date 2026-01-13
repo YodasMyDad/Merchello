@@ -36,6 +36,14 @@
  *     items: Item[]              // basket line items
  *   }
  *
+ * checkout:add_contact_info
+ *   Emitted when a valid email address is entered
+ *   Payload: {
+ *     currency: string,
+ *     value: number,
+ *     items: Item[]
+ *   }
+ *
  * checkout:add_shipping_info
  *   Emitted when shipping method is selected
  *   Payload: {

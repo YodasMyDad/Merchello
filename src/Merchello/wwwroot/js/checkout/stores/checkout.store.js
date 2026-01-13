@@ -2,8 +2,9 @@
 /**
  * Merchello Checkout Store
  *
- * Shared state management for checkout components using Alpine.store().
- * Replaces custom DOM events with a centralized reactive store.
+ * SINGLE SOURCE OF TRUTH for checkout state.
+ * All checkout components access state via this.$store.checkout.
+ * Components dispatch events for changes; the main orchestrator handles flow.
  */
 
 import { createAnnouncer } from '../utils/announcer.js';
@@ -49,6 +50,42 @@ import { createAnnouncer } from '../utils/announcer.js';
  */
 
 /**
+ * @typedef {Object} ShippingOption
+ * @property {string} id
+ * @property {string} name
+ * @property {number} cost
+ * @property {string} formattedCost
+ * @property {number} daysFrom
+ * @property {number} daysTo
+ * @property {boolean} isNextDay
+ * @property {string} deliveryDescription
+ */
+
+/**
+ * @typedef {Object} ShippingGroup
+ * @property {string} groupId
+ * @property {string} groupName
+ * @property {string} warehouseId
+ * @property {Array} lineItems
+ * @property {ShippingOption[]} shippingOptions
+ * @property {string|null} selectedShippingOptionId
+ */
+
+/**
+ * @typedef {Object} PaymentMethod
+ * @property {string} providerAlias
+ * @property {string} methodAlias
+ * @property {string} displayName
+ * @property {number} integrationType
+ * @property {string} iconUrl
+ */
+
+/**
+ * @typedef {Object} FieldErrors
+ * @type {Object.<string, string>}
+ */
+
+/**
  * Initialize the checkout store
  *
  * @param {Object} [initialData] - Optional initial data from server
@@ -59,14 +96,68 @@ import { createAnnouncer } from '../utils/announcer.js';
  * @param {Partial<AddressState>} [initialData.shipping]
  * @param {boolean} [initialData.shippingSameAsBilling]
  * @param {AppliedDiscount[]} [initialData.appliedDiscounts]
+ * @param {ShippingGroup[]} [initialData.shippingGroups]
+ * @param {Object.<string, string>} [initialData.shippingSelections]
+ * @param {PaymentMethod[]} [initialData.paymentMethods]
  */
 export function initCheckoutStore(initialData = {}) {
     const announcer = createAnnouncer();
 
+    // Parse initial shipping selections from groups
+    // Note: JSON from Razor uses 'selectedOptionId', not 'selectedShippingOptionId'
+    const initialSelections = {};
+    if (initialData.shippingGroups) {
+        initialData.shippingGroups.forEach(g => {
+            if (g.selectedOptionId) {
+                initialSelections[g.groupId] = g.selectedOptionId;
+            }
+        });
+    }
+
     // @ts-ignore - Alpine is global
     Alpine.store('checkout', {
         // ============================================
-        // Basket State
+        // FORM STATE (moved from component)
+        // ============================================
+
+        /** @type {Object} */
+        form: {
+            email: initialData.email ?? '',
+            billing: {
+                name: '',
+                company: '',
+                address1: '',
+                address2: '',
+                city: '',
+                state: '',
+                stateCode: '',
+                country: '',
+                countryCode: initialData.billing?.countryCode ?? '',
+                postalCode: '',
+                phone: '',
+                ...initialData.billing
+            },
+            shipping: {
+                name: '',
+                company: '',
+                address1: '',
+                address2: '',
+                city: '',
+                state: '',
+                stateCode: '',
+                country: '',
+                countryCode: initialData.shipping?.countryCode ?? '',
+                postalCode: '',
+                phone: '',
+                ...initialData.shipping
+            },
+            sameAsBilling: initialData.shippingSameAsBilling ?? true,
+            acceptsMarketing: false,
+            password: ''
+        },
+
+        // ============================================
+        // BASKET STATE
         // ============================================
 
         /** @type {BasketState} */
@@ -88,62 +179,173 @@ export function initCheckoutStore(initialData = {}) {
         appliedDiscounts: initialData.appliedDiscounts ?? [],
 
         // ============================================
-        // Form State
+        // SHIPPING STATE
         // ============================================
 
-        /** @type {string} */
-        email: initialData.email ?? '',
+        /** @type {ShippingGroup[]} */
+        shippingGroups: initialData.shippingGroups ?? [],
+
+        /** @type {Object.<string, string>} */
+        shippingSelections: { ...initialSelections, ...initialData.shippingSelections },
 
         /** @type {boolean} */
-        shippingSameAsBilling: initialData.shippingSameAsBilling ?? true,
+        shippingLoading: false,
 
-        /** @type {AddressState} */
-        billingAddress: {
-            name: '',
-            company: '',
-            address1: '',
-            address2: '',
-            city: '',
-            state: '',
-            stateCode: '',
-            country: '',
-            countryCode: initialData.billing?.countryCode ?? '',
-            postalCode: '',
-            phone: '',
-            ...initialData.billing
-        },
+        /** @type {string|null} */
+        shippingError: null,
 
-        /** @type {AddressState} */
-        shippingAddress: {
-            name: '',
-            company: '',
-            address1: '',
-            address2: '',
-            city: '',
-            state: '',
-            stateCode: '',
-            country: '',
-            countryCode: initialData.shipping?.countryCode ?? '',
-            postalCode: '',
-            phone: '',
-            ...initialData.shipping
-        },
+        /** @type {boolean} */
+        shippingCalculated: (initialData.shippingGroups?.length ?? 0) > 0,
+
+        /** @type {Array} */
+        itemAvailabilityErrors: [],
+
+        /** @type {boolean} */
+        allItemsShippable: true,
 
         // ============================================
-        // UI State
+        // PAYMENT STATE
+        // ============================================
+
+        /** @type {PaymentMethod[]} */
+        paymentMethods: initialData.paymentMethods ?? [],
+
+        /** @type {PaymentMethod|null} */
+        selectedPaymentMethod: null,
+
+        /** @type {Object|null} */
+        paymentSession: null,
+
+        /** @type {boolean} */
+        paymentLoading: true,
+
+        /** @type {string|null} */
+        paymentError: null,
+
+        /** @type {string|null} */
+        invoiceId: null,
+
+        // ============================================
+        // UI STATE
         // ============================================
 
         /** @type {boolean} */
         isSubmitting: false,
 
+        /** @type {FieldErrors} */
+        errors: {},
+
         /** @type {string} */
         generalError: '',
 
-        /** @type {boolean} */
-        shippingCalculated: false,
+        // ============================================
+        // COMPUTED GETTERS (as methods)
+        // ============================================
+
+        /**
+         * Check if shipping can be calculated (has required address fields)
+         * @returns {boolean}
+         */
+        canCalculateShipping() {
+            const addr = this.form.sameAsBilling ? this.form.billing : this.form.shipping;
+            return !!(addr.countryCode && addr.postalCode && addr.postalCode.length >= 3);
+        },
+
+        /**
+         * Check if all shipping groups have a selection
+         * @returns {boolean}
+         */
+        allShippingSelected() {
+            if (this.shippingGroups.length === 0) return false;
+            return this.shippingGroups.every(g =>
+                g.shippingOptions.length === 0 || this.shippingSelections[g.groupId]
+            );
+        },
+
+        /**
+         * Get the effective shipping address (billing if same, otherwise shipping)
+         * @returns {AddressState}
+         */
+        getEffectiveShippingAddress() {
+            return this.form.sameAsBilling ? this.form.billing : this.form.shipping;
+        },
 
         // ============================================
-        // Methods
+        // FORM METHODS
+        // ============================================
+
+        /**
+         * Set a form field using dot notation path
+         * @param {string} path - Field path (e.g., 'email', 'billing.name')
+         * @param {*} value - The value to set
+         */
+        setFormField(path, value) {
+            const parts = path.split('.');
+            if (parts.length === 1) {
+                this.form[path] = value;
+            } else if (parts.length === 2) {
+                const [group, field] = parts;
+                if (this.form[group]) {
+                    this.form[group][field] = value;
+                }
+            }
+
+            // Auto-sync shipping from billing if sameAsBilling
+            if (path.startsWith('billing.') && this.form.sameAsBilling) {
+                const field = path.replace('billing.', '');
+                this.form.shipping[field] = value;
+            }
+        },
+
+        /**
+         * Set email address
+         * @param {string} email
+         */
+        setEmail(email) {
+            this.form.email = email;
+        },
+
+        /**
+         * Update billing address
+         * @param {Partial<AddressState>} data
+         */
+        updateBillingAddress(data) {
+            Object.assign(this.form.billing, data);
+
+            // Sync to shipping if same as billing
+            if (this.form.sameAsBilling) {
+                this.syncShippingFromBilling();
+            }
+        },
+
+        /**
+         * Update shipping address
+         * @param {Partial<AddressState>} data
+         */
+        updateShippingAddress(data) {
+            Object.assign(this.form.shipping, data);
+        },
+
+        /**
+         * Sync shipping address from billing
+         */
+        syncShippingFromBilling() {
+            Object.assign(this.form.shipping, this.form.billing);
+        },
+
+        /**
+         * Set same as billing toggle
+         * @param {boolean} value
+         */
+        setSameAsBilling(value) {
+            this.form.sameAsBilling = value;
+            if (value) {
+                this.syncShippingFromBilling();
+            }
+        },
+
+        // ============================================
+        // BASKET METHODS
         // ============================================
 
         /**
@@ -186,71 +388,150 @@ export function initCheckoutStore(initialData = {}) {
         },
 
         /**
-         * Set email address
-         * @param {string} email
-         */
-        setEmail(email) {
-            this.email = email;
-        },
-
-        /**
-         * Update billing address
-         * @param {Partial<AddressState>} data
-         */
-        updateBillingAddress(data) {
-            Object.assign(this.billingAddress, data);
-
-            // Sync to shipping if same as billing
-            if (this.shippingSameAsBilling) {
-                this.syncShippingFromBilling();
-            }
-        },
-
-        /**
-         * Update shipping address
-         * @param {Partial<AddressState>} data
-         */
-        updateShippingAddress(data) {
-            Object.assign(this.shippingAddress, data);
-        },
-
-        /**
-         * Sync shipping address from billing
-         */
-        syncShippingFromBilling() {
-            Object.assign(this.shippingAddress, this.billingAddress);
-        },
-
-        /**
-         * Get the effective shipping address (billing if same, otherwise shipping)
-         * @returns {AddressState}
-         */
-        getEffectiveShippingAddress() {
-            return this.shippingSameAsBilling ? this.billingAddress : this.shippingAddress;
-        },
-
-        /**
          * Format a value as currency
          * @param {number} value
          * @returns {string}
          */
         formatCurrency(value) {
+            if (typeof value !== 'number' || isNaN(value)) {
+                return `${this.currency.symbol}0.00`;
+            }
             return `${this.currency.symbol}${value.toFixed(2)}`;
         },
 
+        // ============================================
+        // SHIPPING METHODS
+        // ============================================
+
         /**
-         * Set the submitting state
-         * @param {boolean} value
+         * Update shipping groups and selections
+         * @param {ShippingGroup[]} groups
+         * @param {Object.<string, string>} [selections]
          */
-        setSubmitting(value) {
-            this.isSubmitting = value;
+        updateShipping(groups, selections) {
+            this.shippingGroups = groups;
+            if (selections) {
+                this.shippingSelections = selections;
+            }
+            this.shippingCalculated = groups.length > 0;
+        },
+
+        /**
+         * Set shipping selection for a group
+         * @param {string} groupId
+         * @param {string} optionId
+         */
+        setShippingSelection(groupId, optionId) {
+            this.shippingSelections = {
+                ...this.shippingSelections,
+                [groupId]: optionId
+            };
+        },
+
+        /**
+         * Set shipping loading state
+         * @param {boolean} loading
+         */
+        setShippingLoading(loading) {
+            this.shippingLoading = loading;
+        },
+
+        /**
+         * Set shipping error
+         * @param {string|null} error
+         */
+        setShippingError(error) {
+            this.shippingError = error;
+            if (error) {
+                announcer.announceError(error);
+            }
+        },
+
+        // ============================================
+        // PAYMENT METHODS
+        // ============================================
+
+        /**
+         * Set available payment methods
+         * @param {PaymentMethod[]} methods
+         */
+        setPaymentMethods(methods) {
+            this.paymentMethods = methods;
+        },
+
+        /**
+         * Set the selected payment method
+         * @param {PaymentMethod|null} method
+         */
+        setPaymentMethod(method) {
+            this.selectedPaymentMethod = method;
+        },
+
+        /**
+         * Set payment session
+         * @param {Object|null} session
+         */
+        setPaymentSession(session) {
+            this.paymentSession = session;
+            if (session?.invoiceId) {
+                this.invoiceId = session.invoiceId;
+            }
+        },
+
+        /**
+         * Set payment loading state
+         * @param {boolean} loading
+         */
+        setPaymentLoading(loading) {
+            this.paymentLoading = loading;
+        },
+
+        /**
+         * Set payment error
+         * @param {string|null} error
+         */
+        setPaymentError(error) {
+            this.paymentError = error;
+            if (error) {
+                announcer.announceError(error);
+            }
+        },
+
+        // ============================================
+        // ERROR METHODS
+        // ============================================
+
+        /**
+         * Set an error for a specific field
+         * @param {string} field - Field path (e.g., 'email', 'billing.name')
+         * @param {string} message - Error message
+         */
+        setError(field, message) {
+            this.errors = { ...this.errors, [field]: message };
+        },
+
+        /**
+         * Clear error for a specific field
+         * @param {string} field
+         */
+        clearError(field) {
+            const { [field]: _, ...rest } = this.errors;
+            this.errors = rest;
+        },
+
+        /**
+         * Clear all field errors
+         */
+        clearAllErrors() {
+            this.errors = {};
+            this.generalError = '';
         },
 
         /**
          * Set a general error message
          * @param {string} message
          */
-        setError(message) {
+        setGeneralError(message) {
             this.generalError = message;
             if (message) {
                 announcer.announceError(message);
@@ -260,8 +541,20 @@ export function initCheckoutStore(initialData = {}) {
         /**
          * Clear the general error
          */
-        clearError() {
+        clearGeneralError() {
             this.generalError = '';
+        },
+
+        // ============================================
+        // UI STATE METHODS
+        // ============================================
+
+        /**
+         * Set the submitting state
+         * @param {boolean} value
+         */
+        setSubmitting(value) {
+            this.isSubmitting = value;
         },
 
         /**

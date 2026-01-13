@@ -122,8 +122,7 @@ window.MerchelloPaymentAdapters['provider-alias'] = {
 | Braintree | `/_content/Merchello/js/checkout/adapters/braintree-payment-adapter.js` | Cards (Hosted Fields) |
 | Braintree Express | `/_content/Merchello/js/checkout/adapters/braintree-express-adapter.js` | PayPal, Apple Pay, Google Pay, Venmo |
 | Braintree Local | `/_content/Merchello/js/checkout/adapters/braintree-local-payment-adapter.js` | iDEAL, Bancontact, SEPA, EPS, P24 |
-| PayPal | `/_content/Merchello/js/checkout/adapters/paypal-payment-adapter.js` | PayPal, Pay Later |
-| PayPal Express | `/_content/Merchello/js/checkout/adapters/paypal-express-adapter.js` | PayPal Express Checkout |
+| PayPal | `/_content/Merchello/js/checkout/adapters/paypal-unified-adapter.js` | PayPal, Pay Later (standard + express) |
 
 ### RCL Requirement for Third-Party Providers
 

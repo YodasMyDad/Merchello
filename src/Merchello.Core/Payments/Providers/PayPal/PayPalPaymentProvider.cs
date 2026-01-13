@@ -37,9 +37,9 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
     private const string PayPalJsSdkBaseUrl = "https://www.paypal.com/sdk/js";
 
     /// <summary>
-    /// URL to the PayPal payment adapter script.
+    /// URL to the PayPal unified adapter script (handles both standard and express checkout).
     /// </summary>
-    private const string PayPalPaymentAdapterUrl = "/js/checkout/adapters/paypal-payment-adapter.js";
+    private const string PayPalPaymentAdapterUrl = "/js/checkout/adapters/paypal-unified-adapter.js";
 
     /// <summary>
     /// SVG icon for PayPal (PP logo symbol only).
@@ -464,9 +464,10 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
     // =====================================================
 
     /// <summary>
-    /// URL to the PayPal express checkout adapter script.
+    /// URL to the PayPal unified adapter script for express checkout.
+    /// Uses the same adapter as standard checkout for consistency.
     /// </summary>
-    private const string PayPalExpressAdapterUrl = "/js/checkout/adapters/paypal-express-adapter.js";
+    private const string PayPalExpressAdapterUrl = "/js/checkout/adapters/paypal-unified-adapter.js";
 
     /// <inheritdoc />
     /// <remarks>

@@ -99,8 +99,11 @@ export class MerchelloShippingOptionsListElement extends UmbElementMixin(LitElem
       },
     });
 
-    const result = await modalContext?.onSubmit().catch(() => undefined);
-    if (!result) return; // User cancelled
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
     if (!this.#isConnected) return; // Component disconnected while modal was open
 
     const { error } = await MerchelloApi.deleteShippingOption(option.id);

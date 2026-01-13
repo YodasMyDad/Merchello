@@ -54,6 +54,11 @@ public class MerchelloCheckoutController(
         // Handle confirmation step - load confirmation data once and reuse
         if (checkoutPage.Step == CheckoutStep.Confirmation && checkoutPage.InvoiceId.HasValue)
         {
+            // Prevent browser caching of confirmation page (security: prevents shared computer users from seeing previous orders)
+            Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
+            Response.Headers["Pragma"] = "no-cache";
+            Response.Headers["Expires"] = "0";
+
             // Security: Verify the user has permission to view this confirmation
             // The confirmation token is set when payment succeeds and contains the invoice ID
             var confirmationToken = Request.Cookies[Core.Constants.Cookies.ConfirmationToken];
@@ -96,6 +101,20 @@ public class MerchelloCheckoutController(
                 Response.Cookies.Delete(Core.Constants.Cookies.BasketId);
             }
 
+            // Pre-serialize line items for analytics (avoid JSON in view)
+            string? lineItemsJson = null;
+            if (confirmation?.LineItems != null)
+            {
+                lineItemsJson = System.Text.Json.JsonSerializer.Serialize(
+                    confirmation.LineItems.Select(li => new
+                    {
+                        item_id = string.IsNullOrEmpty(li.Sku) ? li.Id.ToString() : li.Sku,
+                        item_name = li.Name,
+                        price = li.UnitPrice,
+                        quantity = li.Quantity
+                    }));
+            }
+
             var confirmationViewModel = new CheckoutViewModel(
                 checkoutPage.Step,
                 _settings,
@@ -104,7 +123,10 @@ public class MerchelloCheckoutController(
                 billingCountries: null,
                 shippingCountries: null,
                 shippingGroups: null,
-                confirmation: confirmation);
+                confirmation: confirmation)
+            {
+                LineItemsJson = lineItemsJson
+            };
 
             return View("~/Views/Checkout/Confirmation.cshtml", confirmationViewModel);
         }

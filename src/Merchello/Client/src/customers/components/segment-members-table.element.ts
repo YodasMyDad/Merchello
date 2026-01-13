@@ -138,8 +138,11 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
       },
     });
 
-    const result = await modalContext?.onSubmit().catch(() => undefined);
-    if (!result) return; // User cancelled
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
     if (!this.#isConnected) return; // Component disconnected while modal was open
 
     this._removingIds = new Set([...this._removingIds, member.customerId]);

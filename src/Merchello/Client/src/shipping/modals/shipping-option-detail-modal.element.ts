@@ -350,8 +350,11 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
       },
     });
 
-    const result = await modalContext?.onSubmit().catch(() => undefined);
-    if (!result) return; // User cancelled
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
 
     const { error } = await MerchelloApi.deleteShippingCost(cost.id);
 
@@ -394,8 +397,11 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
       },
     });
 
-    const result = await modalContext?.onSubmit().catch(() => undefined);
-    if (!result) return; // User cancelled
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
 
     const { error } = await MerchelloApi.deleteShippingWeightTier(tier.id);
 

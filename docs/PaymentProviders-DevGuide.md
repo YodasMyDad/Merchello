@@ -759,7 +759,7 @@ private const string MyProviderAdapterUrl = "/_content/MyCompany.Merchello.MyPro
 // Built-in adapter URLs
 "/_content/Merchello/js/checkout/adapters/stripe-payment-adapter.js"
 "/_content/Merchello/js/checkout/adapters/braintree-payment-adapter.js"
-"/_content/Merchello/js/checkout/adapters/paypal-payment-adapter.js"
+"/_content/Merchello/js/checkout/adapters/paypal-unified-adapter.js"  // Handles both standard and express
 ```
 
 ### Adapter Structure

@@ -120,4 +120,10 @@ public class CheckoutViewModel
     /// True when there are active code-based discounts available.
     /// </summary>
     public bool ShowDiscountCode { get; init; }
+
+    /// <summary>
+    /// Pre-serialized line items JSON for analytics tracking.
+    /// Set by the controller to avoid JSON serialization in views.
+    /// </summary>
+    public string? LineItemsJson { get; init; }
 }

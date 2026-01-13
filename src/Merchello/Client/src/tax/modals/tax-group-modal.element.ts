@@ -185,8 +185,11 @@ export class MerchelloTaxGroupModalElement extends UmbModalBaseElement<
       },
     });
 
-    const result = await confirm.onSubmit().catch(() => null);
-    if (!result) return;
+    try {
+      await confirm.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
 
     this._isDeletingRate = rate.id;
     const { error } = await MerchelloApi.deleteTaxGroupRate(rate.id);

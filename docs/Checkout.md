@@ -6,7 +6,7 @@ Build a **Shopify-style built-in checkout** for Merchello - a consistent, mobile
 
 ### Goals
 - Standalone checkout isolated from user's site theme
-- Multi-step flow: Information → Shipping → Payment → Confirmation
+- Single-page checkout with all sections visible (Contact, Billing, Shipping, Payment)
 - Guest checkout (email-only, customer auto-created)
 - Express checkout (Apple Pay, Google Pay, Link by Stripe, PayPal One Touch)
 - Mobile-first, Shopify-quality UX
@@ -210,18 +210,24 @@ src/Merchello/wwwroot/js/checkout/
 ├── utils/
 │   ├── debounce.js             # Debounce utility
 │   ├── formatters.js           # Currency/date formatting
-│   └── announcer.js            # Screen reader announcements
+│   ├── announcer.js            # Screen reader announcements
+│   ├── regions.js              # Region/state loading for address forms
+│   ├── security.js             # URL validation and safe redirects
+│   └── shipping-calculator.js  # Shipping cost calculation
 ├── components/
-│   ├── single-page-checkout.js # Main orchestrator component
-│   ├── contact-section.js      # Email, account creation/sign-in
-│   ├── address-form.js         # Reusable address form component
-│   ├── shipping-selector.js    # Shipping option selection
-│   ├── payment-selector.js     # Payment method selection
-│   ├── order-summary.js        # Order summary with discount handling
-│   └── express-checkout.js     # Express checkout buttons
-├── payment.js                  # Payment adapter system (already excellent)
-├── analytics.js                # Event emitter (already excellent)
-└── adapters/                   # Payment provider adapters (already excellent)
+│   ├── single-page-checkout.js # Main orchestrator (handles contact, addresses, shipping, payment)
+│   ├── order-summary.js        # Order summary sidebar with discount handling
+│   └── express-checkout.js     # Express checkout buttons (Apple Pay, Google Pay, PayPal)
+├── payment.js                  # Payment adapter system - dynamic adapter loading
+├── analytics.js                # Event emitter for GTM/analytics integration
+├── single-page-analytics.js    # Analytics helper for single-page checkout
+├── confirmation.js             # Back-button protection for confirmation page
+└── adapters/                   # Payment provider adapters
+    ├── paypal-unified-adapter.js
+    ├── stripe-payment-adapter.js
+    ├── stripe-express-adapter.js
+    ├── braintree-payment-adapter.js
+    └── braintree-express-adapter.js
 ```
 
 #### Alpine.js Loading Strategy
@@ -654,11 +660,13 @@ The order summary sidebar displays:
 ## User Flow Summary
 
 ```
-/checkout/information    → Email, billing/shipping address, discount code
-        ↓
-/checkout/shipping       → Select shipping per warehouse group
-        ↓
-/checkout/payment        → Select payment provider, card entry or express checkout
+/checkout                → Single-page checkout with all sections:
+                           - Contact (email)
+                           - Billing address
+                           - Shipping address (or "same as billing")
+                           - Shipping method selection
+                           - Payment method & card entry
+                           - Discount code input
         ↓
 /checkout/confirmation   → Order summary, optional redirect to Umbraco content
 ```
@@ -839,7 +847,7 @@ adapter.submit() → POST /api/merchello/checkout/process-payment
 | payment.js | `src/Merchello/wwwroot/js/checkout/` | Dynamic adapter loading |
 | stripe-payment-adapter.js | `wwwroot/js/checkout/adapters/` | Stripe SDK integration |
 | braintree-payment-adapter.js | `wwwroot/js/checkout/adapters/` | Braintree SDK integration |
-| paypal-payment-adapter.js | `wwwroot/js/checkout/adapters/` | PayPal SDK integration |
+| paypal-unified-adapter.js | `wwwroot/js/checkout/adapters/` | PayPal SDK integration (standard + express) |
 
 ### Key Services
 - `IPaymentProviderManager.GetStandardPaymentMethodsAsync()` - list non-express payment methods
@@ -1080,7 +1088,7 @@ Wire up express checkout buttons on the Information step, allowing customers to 
 | _ExpressCheckout.cshtml | `src/Merchello/Views/Checkout/` |
 | stripe-express-adapter.js | `src/Merchello/wwwroot/js/checkout/adapters/` |
 | braintree-express-adapter.js | `src/Merchello/wwwroot/js/checkout/adapters/` |
-| paypal-express-adapter.js | `src/Merchello/wwwroot/js/checkout/adapters/` |
+| paypal-unified-adapter.js | `src/Merchello/wwwroot/js/checkout/adapters/` |
 | ExpressCheckoutClientConfig.cs | `src/Merchello.Core/Payments/Models/` |
 
 ### Pluggable Architecture
@@ -1247,11 +1255,11 @@ window.MerchelloCheckout.getTotalQuantity(items);  // Sum quantities
 | Event | Trigger | Maps to GA4 | Maps to Meta |
 |-------|---------|-------------|--------------|
 | `checkout:begin` | Enter checkout | `begin_checkout` | `InitiateCheckout` |
-| `checkout:contact_complete` | Email submitted | Custom | - |
+| `checkout:add_contact_info` | Valid email entered | `add_contact_info` | - |
+| `checkout:add_shipping_info` | Shipping chosen | `add_shipping_info` | - |
+| `checkout:add_payment_info` | Payment method selected | `add_payment_info` | `AddPaymentInfo` |
 | `checkout:coupon_applied` | Discount applied | Custom | - |
 | `checkout:coupon_removed` | Discount removed | Custom | - |
-| `checkout:shipping_selected` | Shipping chosen | `add_shipping_info` | - |
-| `checkout:payment_initiated` | Payment step | `add_payment_info` | `AddPaymentInfo` |
 | `checkout:purchase` | Order complete | `purchase` | `Purchase` |
 | `checkout:error` | Error occurred | Custom | - |
 
@@ -1472,22 +1480,20 @@ src/Merchello/
 ├── Controllers/
 │   └── CheckoutController.cs
 ├── Views/Checkout/
-│   ├── _Layout.cshtml
-│   ├── _OrderSummary.cshtml
-│   ├── _AddressForm.cshtml
-│   ├── _ExpressCheckout.cshtml     # Express checkout buttons (Phase 9)
-│   ├── Information.cshtml
-│   ├── Shipping.cshtml
-│   ├── SinglePage.cshtml           # Single-page checkout (uses modular Alpine.js)
-│   ├── Payment.cshtml              # Method-agnostic, adapts to method IntegrationType
-│   ├── Confirmation.cshtml
+│   ├── _Layout.cshtml              # Checkout layout (logo, custom scripts, styles)
+│   ├── _ViewImports.cshtml         # Razor imports
+│   ├── _OrderSummary.cshtml        # Order summary sidebar partial
+│   ├── _AddressForm.cshtml         # Address form partial (billing/shipping)
+│   ├── _ExpressCheckout.cshtml     # Express checkout buttons partial
+│   ├── SinglePage.cshtml           # Main single-page checkout view
+│   ├── Confirmation.cshtml         # Order confirmation page
 │   ├── Return.cshtml               # Payment return/callback handler
 │   └── Cancel.cshtml               # Payment cancellation handler
 ├── Styles/
-│   ├── tailwind.config.js         # Tailwind configuration
-│   └── checkout.css               # Tailwind input file (@tailwind directives)
+│   ├── tailwind.config.js          # Tailwind configuration
+│   └── checkout.css                # Tailwind input file (@tailwind directives)
 └── wwwroot/
-    ├── css/checkout.css           # Generated Tailwind output - do not edit
+    ├── css/checkout.css            # Generated Tailwind output - do not edit
     └── js/checkout/
         ├── index.js                # Entry point - registers all Alpine components
         ├── stores/
@@ -1498,25 +1504,26 @@ src/Merchello/
         ├── utils/
         │   ├── debounce.js         # Debounce utility
         │   ├── formatters.js       # Currency/date formatting
-        │   └── announcer.js        # Screen reader announcements
+        │   ├── announcer.js        # Screen reader announcements
+        │   ├── regions.js          # Region/state loading
+        │   ├── security.js         # URL validation and safe redirects
+        │   └── shipping-calculator.js  # Shipping cost calculation
         ├── components/
-        │   ├── single-page-checkout.js  # Main orchestrator component
-        │   ├── contact-section.js       # Email, account creation/sign-in
-        │   ├── address-form.js          # Reusable address form component
-        │   ├── shipping-selector.js     # Shipping option selection
-        │   ├── payment-selector.js      # Payment method selection
+        │   ├── single-page-checkout.js  # Main orchestrator (contact, addresses, shipping, payment)
         │   ├── order-summary.js         # Order summary with discount handling
         │   └── express-checkout.js      # Express checkout buttons
-        ├── analytics.js            # Event emitter + helper methods (Phase 10)
+        ├── analytics.js            # Event emitter for GTM/analytics
         ├── payment.js              # Dynamic adapter loading - no hard-coded providers
         ├── single-page-analytics.js # Analytics helper for single-page checkout
+        ├── confirmation.js         # Back-button protection for confirmation
         └── adapters/               # Provider-specific adapters
+            ├── paypal-unified-adapter.js
             ├── stripe-payment-adapter.js
             ├── stripe-express-adapter.js
+            ├── stripe-card-elements-adapter.js
             ├── braintree-payment-adapter.js
             ├── braintree-express-adapter.js
-            ├── paypal-payment-adapter.js
-            └── paypal-express-adapter.js
+            └── braintree-local-payment-adapter.js
 
 src/Merchello.Core/Checkout/Models/
 └── CheckoutSettings.cs

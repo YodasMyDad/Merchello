@@ -199,8 +199,11 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
       },
     });
 
-    const result = await modalContext?.onSubmit().catch(() => undefined);
-    if (!result) return;
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
     if (!this.#isConnected) return;
 
     this._isDeleting = taxGroup.id;
@@ -266,8 +269,11 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
       },
     });
 
-    const result = await modalContext?.onSubmit().catch(() => undefined);
-    if (!result) return;
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
     if (!this.#isConnected) return;
 
     // Track deleted override to be saved with unified save

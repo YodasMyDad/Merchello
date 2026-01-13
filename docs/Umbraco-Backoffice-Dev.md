@@ -442,6 +442,37 @@ constructor() { super(); this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (ctx) =>
 async #open() { const result = await this.#modalManager?.open(this, MY_MODAL, { data: {} }); }
 ```
 
+### Confirm Modal Pattern
+
+Use `UMB_CONFIRM_MODAL` for delete confirmations and destructive actions. **Important:** The modal's `onSubmit()` promise resolves on confirm and rejects on cancel - do NOT check the result value.
+
+```typescript
+import { UMB_MODAL_MANAGER_CONTEXT } from '@umbraco-cms/backoffice/modal';
+import { UMB_CONFIRM_MODAL } from '@umbraco-cms/backoffice/modal';
+
+// Open confirm modal
+const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+  data: {
+    headline: 'Delete Item',
+    content: 'Are you sure you want to delete this item?',
+    confirmLabel: 'Delete',
+    color: 'danger',
+  },
+});
+
+// ✅ CORRECT: Use try-catch - onSubmit() resolves on confirm, rejects on cancel
+try {
+  await modalContext?.onSubmit();
+} catch {
+  return; // User cancelled
+}
+// User confirmed - proceed with deletion
+
+// ❌ WRONG: Do NOT check the result value - it's always undefined/empty
+// const result = await modalContext?.onSubmit().catch(() => undefined);
+// if (!result) return; // BUG: Always returns because result is always falsy
+```
+
 ### Custom Condition
 ```typescript
 import { UmbConditionBase } from '@umbraco-cms/backoffice/extension-api';

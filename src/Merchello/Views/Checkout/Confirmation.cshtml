@@ -291,6 +291,9 @@ else
 }
 
 @section Scripts {
+    <!-- Confirmation page protection (back button, cleanup) -->
+    <script src="~/js/checkout/confirmation.js"></script>
+
     @if (confirmation != null && !confirmation.IsCancelled && !confirmation.IsRefunded)
     {
         <script>
@@ -308,20 +311,14 @@ else
 
                     window.MerchelloCheckout.emit('checkout:purchase', {
                         transaction_id: '@confirmation.InvoiceNumber',
+                        currency: '@confirmation.DisplayCurrencyCode',
                         currency_symbol: '@confirmation.CurrencySymbol',
                         value: @confirmation.Total,
                         subtotal: @confirmation.SubTotal,
                         tax: @confirmation.Tax,
                         shipping: @confirmation.Shipping,
                         discount: @confirmation.Discount,
-                        items: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-                            confirmation.LineItems.Select(li => new {
-                                item_id = string.IsNullOrEmpty(li.Sku) ? li.Id.ToString() : li.Sku,
-                                item_name = li.Name,
-                                price = li.UnitPrice,
-                                quantity = li.Quantity
-                            })
-                        ))
+                        items: @Html.Raw(Model.LineItemsJson ?? "[]")
                     });
                 }
             });

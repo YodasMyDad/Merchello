@@ -37,7 +37,10 @@ window.MerchelloExpressAdapters = window.MerchelloExpressAdapters || {};
  */
 export function initExpressCheckout() {
     // @ts-ignore - Alpine is global
-    Alpine.data('expressCheckout', () => ({
+    Alpine.data('expressCheckout', () => {
+        console.log('[expressCheckout] Creating component...');
+        try {
+            const componentData = {
         /** @type {boolean} */
         isLoading: true,
 
@@ -53,8 +56,8 @@ export function initExpressCheckout() {
         /** @type {ExpressConfig|null} */
         config: null,
 
-        /** @type {Set<string>} */
-        loadedSdks: new Set(),
+        /** @type {Object.<string, boolean>} */
+        loadedSdks: {},
 
         /** @type {boolean} */
         _initialized: false,
@@ -202,15 +205,15 @@ export function initExpressCheckout() {
          */
         async initializeMethod(method, container) {
             // Load adapter script if provided
-            if (method.adapterUrl && !this.loadedSdks.has(method.adapterUrl)) {
+            if (method.adapterUrl && !this.loadedSdks[method.adapterUrl]) {
                 await this.loadScript(method.adapterUrl);
-                this.loadedSdks.add(method.adapterUrl);
+                this.loadedSdks[method.adapterUrl] = true;
             }
 
             // Load SDK if provided
-            if (method.sdkUrl && !this.loadedSdks.has(method.sdkUrl)) {
+            if (method.sdkUrl && !this.loadedSdks[method.sdkUrl]) {
                 await this.loadScript(method.sdkUrl);
-                this.loadedSdks.add(method.sdkUrl);
+                this.loadedSdks[method.sdkUrl] = true;
             }
 
             // Create wrapper for this button
@@ -382,7 +385,15 @@ export function initExpressCheckout() {
                 document.head.appendChild(script);
             });
         }
-    }));
+            };
+
+            console.log('[expressCheckout] Component created successfully');
+            return componentData;
+        } catch (e) {
+            console.error('[expressCheckout] FATAL - Component initialization failed:', e);
+            throw e;
+        }
+    });
 }
 
 export default { initExpressCheckout };

@@ -290,8 +290,11 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
       },
     });
 
-    const result = await modalContext?.onSubmit().catch(() => undefined);
-    if (!result) return; // User cancelled
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
     if (!this.#isConnected) return; // Component disconnected while modal was open
 
     const { error } = await MerchelloApi.deleteWarehouse(this._warehouse.id);
@@ -346,8 +349,11 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
       },
     });
 
-    const result = await modalContext?.onSubmit().catch(() => undefined);
-    if (!result) return; // User cancelled
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
     if (!this.#isConnected) return; // Component disconnected while modal was open
 
     this._isDeletingRegion = region.id;
@@ -403,8 +409,11 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
       },
     });
 
-    const result = await modalContext?.onSubmit().catch(() => undefined);
-    if (!result) return; // User cancelled
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
     if (!this.#isConnected) return; // Component disconnected while modal was open
 
     this._isDeletingOption = option.id;

@@ -186,8 +186,11 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
       },
     });
 
-    const result = await modalContext?.onSubmit().catch(() => undefined);
-    if (!result) return; // User cancelled
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
     if (!this.#isConnected) return; // Component disconnected while modal was open
 
     const { error } = await MerchelloApi.deletePaymentProvider(setting.id);

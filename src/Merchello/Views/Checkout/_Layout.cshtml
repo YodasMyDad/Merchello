@@ -10,18 +10,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>@(settings.CompanyName ?? "Checkout") - @Model.Step</title>
 
-    <!-- Import map for ES module resolution - Alpine loaded as module for controlled startup -->
-    <script type="importmap">
+    @if (Model.Step != CheckoutStep.Confirmation)
     {
-        "imports": {
-            "alpinejs": "https://cdn.jsdelivr.net/npm/alpinejs@@3/dist/module.esm.js",
-            "@@alpinejs/collapse": "https://cdn.jsdelivr.net/npm/@@alpinejs/collapse@@3/dist/module.esm.js"
+        <!-- Import map for ES module resolution - Alpine loaded as module for controlled startup -->
+        <script type="importmap">
+        {
+            "imports": {
+                "alpinejs": "https://cdn.jsdelivr.net/npm/alpinejs@@3/dist/module.esm.js",
+                "@@alpinejs/collapse": "https://cdn.jsdelivr.net/npm/@@alpinejs/collapse@@3/dist/module.esm.js"
+            }
         }
-    }
-    </script>
+        </script>
 
-    <!-- Merchello Checkout Module - imports Alpine, registers components, then starts Alpine -->
-    <script type="module" src="/js/checkout/index.js"></script>
+        <!-- Merchello Checkout Module - imports Alpine, registers components, then starts Alpine -->
+        <script type="module" src="/js/checkout/index.js"></script>
+    }
 
     <!-- Checkout component styles (built from Styles/checkout.css) -->
     <link rel="stylesheet" href="/css/checkout.css" />

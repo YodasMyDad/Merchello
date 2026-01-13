@@ -7,7 +7,7 @@
  */
 
 import { checkoutApi } from '../services/api.js';
-import { validateCheckoutForm, validatePhone } from '../services/validation.js';
+import { validatePhone } from '../services/validation.js';
 import { createDebouncer } from '../utils/debounce.js';
 import { calculateShippingTotal } from '../utils/shipping-calculator.js';
 import { safeRedirect } from '../utils/security.js';
@@ -34,23 +34,25 @@ function getInitialDataFromDOM() {
 export function initSinglePageCheckout() {
     // @ts-ignore - Alpine is global
     Alpine.data('singlePageCheckout', () => {
-        const debouncer = createDebouncer();
+        console.log('[singlePageCheckout] Creating component...');
+        try {
+            const debouncer = createDebouncer();
 
-        // Read initial data from DOM (set by server via JSON script block)
-        const initialData = getInitialDataFromDOM();
+            // Read initial data from DOM (set by server via JSON script block)
+            const initialData = getInitialDataFromDOM();
 
-        // Parse shipping groups from initial data
-        const initialGroups = initialData.shippingGroups || [];
-        const initialSelections = {};
-        initialGroups.forEach(g => {
-            if (g.selectedOptionId) {
-                initialSelections[g.groupId] = g.selectedOptionId;
-            }
-        });
+            // Parse shipping groups from initial data
+            const initialGroups = initialData.shippingGroups || [];
+            const initialSelections = {};
+            initialGroups.forEach(g => {
+                if (g.selectedOptionId) {
+                    initialSelections[g.groupId] = g.selectedOptionId;
+                }
+            });
 
-        return {
+            const componentData = {
             // ============================================
-            // Form State
+            // Form State (local - bound via x-model)
             // ============================================
 
             form: {
@@ -86,7 +88,7 @@ export function initSinglePageCheckout() {
             },
 
             // ============================================
-            // Account State
+            // Account State (local - UI specific)
             // ============================================
 
             showAccountSection: false,
@@ -101,7 +103,7 @@ export function initSinglePageCheckout() {
             isSignedIn: false,
 
             // ============================================
-            // Address State
+            // Address State (local - UI specific)
             // ============================================
 
             shippingSameAsBilling: true,
@@ -109,54 +111,73 @@ export function initSinglePageCheckout() {
             shippingRegions: [],
 
             // ============================================
-            // Shipping State
+            // Shipping State (from store)
             // ============================================
 
-            shippingGroups: initialGroups,
-            shippingSelections: initialSelections,
-            shippingLoading: false,
-            shippingError: null,
-            itemAvailabilityErrors: [],
-            allItemsShippable: true,
+            /** @returns {Array} */
+            get shippingGroups() { return this.$store.checkout?.shippingGroups ?? []; },
+            /** @returns {Object} */
+            get shippingSelections() { return this.$store.checkout?.shippingSelections ?? {}; },
+            /** @returns {boolean} */
+            get shippingLoading() { return this.$store.checkout?.shippingLoading ?? false; },
+            /** @returns {string|null} */
+            get shippingError() { return this.$store.checkout?.shippingError ?? null; },
+            /** @returns {Array} */
+            get itemAvailabilityErrors() { return this.$store.checkout?.itemAvailabilityErrors ?? []; },
+            /** @returns {boolean} */
+            get allItemsShippable() { return this.$store.checkout?.allItemsShippable ?? true; },
             _shippingCalculated: initialGroups.length > 0,
 
             // ============================================
-            // Payment State
+            // Payment State (from store)
             // ============================================
 
-            paymentLoading: true,
-            paymentError: null,
-            paymentMethods: [],
+            /** @returns {boolean} */
+            get paymentLoading() { return this.$store.checkout?.paymentLoading ?? true; },
+            /** @returns {string|null} */
+            get paymentError() { return this.$store.checkout?.paymentError ?? null; },
+            /** @returns {Array} */
+            get paymentMethods() { return this.$store.checkout?.paymentMethods ?? []; },
             cardPaymentMethods: [],
             redirectPaymentMethods: [],
-            selectedPaymentMethod: null,
+            /** @returns {Object|null} */
+            get selectedPaymentMethod() { return this.$store.checkout?.selectedPaymentMethod ?? null; },
             selectedPaymentMethodKey: '',
-            paymentSession: null,
-            invoiceId: null,
+            /** @returns {Object|null} */
+            get paymentSession() { return this.$store.checkout?.paymentSession ?? null; },
+            /** @returns {string|null} */
+            get invoiceId() { return this.$store.checkout?.invoiceId ?? null; },
 
             // ============================================
-            // Validation State
+            // Validation State (from store)
             // ============================================
 
-            errors: {},
-            generalError: '',
+            /** @returns {Object} */
+            get errors() { return this.$store.checkout?.errors ?? {}; },
+            /** @returns {string} */
+            get generalError() { return this.$store.checkout?.generalError ?? ''; },
 
             // ============================================
             // UI State
             // ============================================
 
-            isSubmitting: false,
+            /** @returns {boolean} */
+            get isSubmitting() { return this.$store.checkout?.isSubmitting ?? false; },
             announcement: '',
             _emailCaptured: '',
             _lastAddressHash: '',
             _shippingRequestId: 0,
             _paymentInitRequestId: 0,
 
-            // Basket totals (from nested JSON structure)
-            basketTotal: initialData.basket?.total || 0,
-            basketShipping: initialData.basket?.shipping || 0,
-            basketTax: initialData.basket?.tax || 0,
-            currencySymbol: initialData.currency?.symbol || '£',
+            // Basket totals (from store)
+            /** @returns {number} */
+            get basketTotal() { return this.$store.checkout?.basket?.total ?? 0; },
+            /** @returns {number} */
+            get basketShipping() { return this.$store.checkout?.basket?.shipping ?? 0; },
+            /** @returns {number} */
+            get basketTax() { return this.$store.checkout?.basket?.tax ?? 0; },
+            /** @returns {string} */
+            get currencySymbol() { return this.$store.checkout?.currency?.symbol ?? '£'; },
 
             // ============================================
             // Computed Properties
@@ -218,14 +239,15 @@ export function initSinglePageCheckout() {
             // ============================================
 
             async init() {
-                // Initialize store with form data
+                // Sync form data to store (store is initialized first in index.js)
                 // @ts-ignore - Alpine store
                 const store = this.$store.checkout;
                 if (store) {
+                    // Sync local form to store for other components
                     store.setEmail(this.form.email);
                     store.updateBillingAddress(this.form.billing);
                     store.updateShippingAddress(this.form.shipping);
-                    store.shippingSameAsBilling = this.shippingSameAsBilling;
+                    store.form.sameAsBilling = this.shippingSameAsBilling;
                 }
 
                 // Load billing regions
@@ -479,10 +501,13 @@ export function initSinglePageCheckout() {
             // Shipping Calculation
             // ============================================
 
+            /**
+             * Debounced shipping calculation.
+             * Note: Address capture is now handled separately in event handlers
+             * to prevent race condition where shipping calc uses stale address data.
+             * Call debouncedCaptureAddress() separately when needed.
+             */
             debouncedCalculateShipping() {
-                // Always capture address when shipping fields change
-                this.debouncedCaptureAddress();
-
                 if (!this.canCalculateShipping) return;
                 debouncer.debounce('shipping', () => this.calculateShipping(), 500);
             },
@@ -492,9 +517,10 @@ export function initSinglePageCheckout() {
 
                 // Track request ID to ignore stale responses (race condition fix)
                 const requestId = ++this._shippingRequestId;
+                const store = this.$store.checkout;
 
-                this.shippingLoading = true;
-                this.shippingError = null;
+                store?.setShippingLoading(true);
+                store?.setShippingError(null);
 
                 try {
                     const data = await checkoutApi.initialize({
@@ -510,47 +536,68 @@ export function initSinglePageCheckout() {
                     }
 
                     if (data.success) {
-                        this.shippingGroups = data.shippingGroups || [];
-                        this.sortShippingOptions();
+                        const groups = data.shippingGroups || [];
+                        // Sort options within groups
+                        groups.forEach(group => {
+                            if (group.shippingOptions && group.shippingOptions.length > 1) {
+                                group.shippingOptions.sort((a, b) => {
+                                    if (a.isNextDay && !b.isNextDay) return -1;
+                                    if (!a.isNextDay && b.isNextDay) return 1;
+                                    return a.cost - b.cost;
+                                });
+                            }
+                        });
 
-                        // Apply auto-selected options, validating they exist in current options
-                        this.shippingGroups.forEach(g => {
+                        // Build selections from auto-selected options
+                        const selections = { ...this.shippingSelections };
+                        groups.forEach(g => {
                             if (g.selectedShippingOptionId) {
                                 const optionExists = g.shippingOptions?.some(o => o.id === g.selectedShippingOptionId);
                                 if (optionExists) {
-                                    this.shippingSelections[g.groupId] = g.selectedShippingOptionId;
+                                    selections[g.groupId] = g.selectedShippingOptionId;
                                 }
                             }
                         });
 
+                        // Update store with shipping data
+                        store?.updateShipping(groups, selections);
+
                         // Update basket totals - prefer display currency amounts
                         if (data.basket) {
-                            this.basketTotal = data.basket.displayTotal ?? data.basket.total;
-                            this.basketShipping = data.basket.displayShipping ?? data.basket.shipping ?? 0;
-                            this.basketTax = data.basket.displayTax ?? data.basket.tax ?? 0;
+                            store?.updateBasket({
+                                total: data.basket.displayTotal ?? data.basket.total,
+                                shipping: data.basket.displayShipping ?? data.basket.shipping ?? 0,
+                                tax: data.basket.displayTax ?? data.basket.tax ?? 0
+                            });
                             this.dispatchBasketUpdate();
 
                             // Check for item-level shipping errors
                             if (data.basket.errors && data.basket.errors.length > 0) {
-                                this.itemAvailabilityErrors = data.basket.errors.filter(e => e.isShippingError);
-                                this.allItemsShippable = this.itemAvailabilityErrors.length === 0;
+                                const shippingErrors = data.basket.errors.filter(e => e.isShippingError);
+                                store.itemAvailabilityErrors = shippingErrors;
+                                store.allItemsShippable = shippingErrors.length === 0;
                             } else {
-                                this.itemAvailabilityErrors = [];
-                                this.allItemsShippable = true;
+                                store.itemAvailabilityErrors = [];
+                                store.allItemsShippable = true;
                             }
                         }
 
                         this._shippingCalculated = true;
                         this.announce(this.allItemsShippable ? 'Shipping options loaded' : 'Some items cannot be shipped to this location');
                     } else {
-                        this.shippingError = data.message || 'Unable to calculate shipping.';
+                        store?.setShippingError(data.message || 'Unable to calculate shipping.');
 
                         if (data.basket?.errors) {
-                            this.itemAvailabilityErrors = data.basket.errors.filter(e => e.isShippingError);
-                            this.allItemsShippable = this.itemAvailabilityErrors.length === 0;
+                            const shippingErrors = data.basket.errors.filter(e => e.isShippingError);
+                            store.itemAvailabilityErrors = shippingErrors;
+                            store.allItemsShippable = shippingErrors.length === 0;
                         } else {
                             // No specific errors but calculation failed - assume items may not be shippable
-                            this.allItemsShippable = false;
+                            store.allItemsShippable = false;
+                        }
+
+                        if (window.MerchelloSinglePageAnalytics) {
+                            window.MerchelloSinglePageAnalytics.trackError('shipping_unavailable', data.message || 'Unable to calculate shipping');
                         }
                     }
                 } catch (error) {
@@ -559,13 +606,17 @@ export function initSinglePageCheckout() {
                         return;
                     }
                     console.error('Failed to calculate shipping:', error);
-                    this.shippingError = 'An error occurred while calculating shipping.';
-                    this.allItemsShippable = false;
-                    this.shippingGroups = [];
+                    store?.setShippingError('An error occurred while calculating shipping.');
+                    store.allItemsShippable = false;
+                    store?.updateShipping([], {});
+
+                    if (window.MerchelloSinglePageAnalytics) {
+                        window.MerchelloSinglePageAnalytics.trackError('shipping_calculation', error.message || 'Failed to calculate shipping');
+                    }
                 } finally {
                     // Only update loading state if this is the current request
                     if (requestId === this._shippingRequestId) {
-                        this.shippingLoading = false;
+                        store?.setShippingLoading(false);
                     }
                 }
             },
@@ -585,10 +636,12 @@ export function initSinglePageCheckout() {
                     const data = await checkoutApi.saveShipping(this.shippingSelections);
 
                     if (data.success && data.basket) {
-                        // Use display currency amounts
-                        this.basketTotal = data.basket.displayTotal ?? data.basket.total;
-                        this.basketShipping = data.basket.displayShipping ?? data.basket.shipping ?? 0;
-                        this.basketTax = data.basket.displayTax ?? data.basket.tax ?? 0;
+                        // Use display currency amounts - update via store
+                        this.$store.checkout?.updateBasket({
+                            total: data.basket.displayTotal ?? data.basket.total,
+                            shipping: data.basket.displayShipping ?? data.basket.shipping ?? 0,
+                            tax: data.basket.displayTax ?? data.basket.tax ?? 0
+                        });
                         this.dispatchBasketUpdate();
                     }
                 } catch (error) {
@@ -601,12 +654,13 @@ export function initSinglePageCheckout() {
             // ============================================
 
             async loadPaymentMethods() {
-                this.paymentLoading = true;
-                this.paymentError = null;
+                const store = this.$store.checkout;
+                store?.setPaymentLoading(true);
+                store?.setPaymentError(null);
 
                 try {
                     const methods = await checkoutApi.getPaymentMethods();
-                    this.paymentMethods = methods || [];
+                    store?.setPaymentMethods(methods || []);
 
                     // Use named constants from MerchelloPayment for integration types
                     const IntegrationType = window.MerchelloPayment?.IntegrationType ?? { HostedFields: 10, DirectForm: 30 };
@@ -615,13 +669,18 @@ export function initSinglePageCheckout() {
                     this.redirectPaymentMethods = this.paymentMethods.filter(m => !formBasedTypes.includes(m.integrationType));
                 } catch (error) {
                     console.error('Failed to load payment methods:', error);
-                    this.paymentError = 'Unable to load payment methods. Please refresh the page.';
+                    store?.setPaymentError('Unable to load payment methods. Please refresh the page.');
+
+                    if (window.MerchelloSinglePageAnalytics) {
+                        window.MerchelloSinglePageAnalytics.trackError('payment_methods_load', error.message || 'Failed to load payment methods');
+                    }
                 } finally {
-                    this.paymentLoading = false;
+                    store?.setPaymentLoading(false);
                 }
             },
 
             async onPaymentMethodChange(method) {
+                const store = this.$store.checkout;
                 const isSameMethod = this.selectedPaymentMethod?.providerAlias === method.providerAlias
                     && this.selectedPaymentMethod?.methodAlias === method.methodAlias;
 
@@ -629,8 +688,8 @@ export function initSinglePageCheckout() {
                     return;
                 }
 
-                this.selectedPaymentMethod = method;
-                this.paymentError = null;
+                store?.setPaymentMethod(method);
+                store?.setPaymentError(null);
 
                 if (!isSameMethod && window.MerchelloSinglePageAnalytics) {
                     window.MerchelloSinglePageAnalytics.trackPaymentSelected(method.displayName);
@@ -660,6 +719,7 @@ export function initSinglePageCheckout() {
 
                 // Track request ID to handle race conditions when user switches methods quickly
                 const requestId = ++this._paymentInitRequestId;
+                const store = this.$store.checkout;
 
                 // Cancel any pending address capture to avoid duplicate requests
                 debouncer.cancel('captureAddress');
@@ -698,8 +758,7 @@ export function initSinglePageCheckout() {
                     }
 
                     if (payData.success && window.MerchelloPayment) {
-                        this.invoiceId = payData.invoiceId;
-                        this.paymentSession = payData;
+                        store?.setPaymentSession(payData);
 
                         let containerId = 'hosted-fields-container';
                         if (payData.integrationType === 30) {
@@ -715,12 +774,20 @@ export function initSinglePageCheckout() {
                             },
                             onError: (err) => {
                                 console.error('Payment form setup failed:', err);
-                                this.paymentError = err.message || 'Failed to load payment form';
+                                store?.setPaymentError(err.message || 'Failed to load payment form');
+
+                                if (window.MerchelloSinglePageAnalytics) {
+                                    window.MerchelloSinglePageAnalytics.trackError('payment_form_setup', err.message || 'Payment form setup failed');
+                                }
                             }
                         });
                     } else if (!payData.success) {
                         console.error('Payment session creation failed:', payData.errorMessage);
-                        this.paymentError = payData.errorMessage || 'Failed to initialize payment';
+                        store?.setPaymentError(payData.errorMessage || 'Failed to initialize payment');
+
+                        if (window.MerchelloSinglePageAnalytics) {
+                            window.MerchelloSinglePageAnalytics.trackError('payment_session', payData.errorMessage || 'Payment session creation failed');
+                        }
                     }
                 } catch (error) {
                     // Ignore errors from stale requests
@@ -728,7 +795,11 @@ export function initSinglePageCheckout() {
                         return;
                     }
                     console.error('Failed to initialize payment form:', error);
-                    this.paymentError = 'Failed to load payment form. Please try again.';
+                    store?.setPaymentError('Failed to load payment form. Please try again.');
+
+                    if (window.MerchelloSinglePageAnalytics) {
+                        window.MerchelloSinglePageAnalytics.trackError('payment_form', error.message || 'Failed to initialize payment form');
+                    }
                 }
             },
 
@@ -819,13 +890,14 @@ export function initSinglePageCheckout() {
             // ============================================
 
             async validateField(field) {
-                delete this.errors[field];
+                const store = this.$store.checkout;
+                store?.clearError(field);
 
                 if (field === 'email') {
                     if (!this.form.email) {
-                        this.errors.email = 'Email is required.';
+                        store?.setError('email', 'Email is required.');
                     } else if (!/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/.test(this.form.email)) {
-                        this.errors.email = 'Please enter a valid email address.';
+                        store?.setError('email', 'Please enter a valid email address.');
                     } else {
                         if (window.MerchelloSinglePageAnalytics) {
                             window.MerchelloSinglePageAnalytics.trackContactInfo(this.form.email);
@@ -839,30 +911,31 @@ export function initSinglePageCheckout() {
                     const key = field.replace('billing.', '');
                     const requiredFields = ['name', 'address1', 'city', 'countryCode', 'postalCode'];
                     if (requiredFields.includes(key) && !this.form.billing[key]) {
-                        this.errors[field] = 'This field is required.';
+                        store?.setError(field, 'This field is required.');
                     } else if (key === 'phone') {
                         const result = validatePhone(this.form.billing.phone);
                         if (!result.isValid) {
-                            this.errors[field] = result.error;
+                            store?.setError(field, result.error);
                         }
                     }
                 } else if (field.startsWith('shipping.')) {
                     const key = field.replace('shipping.', '');
                     const requiredFields = ['name', 'address1', 'city', 'countryCode', 'postalCode'];
                     if (requiredFields.includes(key) && !this.form.shipping[key]) {
-                        this.errors[field] = 'This field is required.';
+                        store?.setError(field, 'This field is required.');
                     } else if (key === 'phone') {
                         const result = validatePhone(this.form.shipping.phone);
                         if (!result.isValid) {
-                            this.errors[field] = result.error;
+                            store?.setError(field, result.error);
                         }
                     }
                 }
             },
 
             validate() {
-                this.errors = {};
-                this.generalError = '';
+                const store = this.$store.checkout;
+                store?.clearAllErrors();
+                store?.setGeneralError('');
 
                 this.validateField('email');
 
@@ -874,18 +947,18 @@ export function initSinglePageCheckout() {
                 if (!this.shippingSameAsBilling) {
                     ['name', 'address1', 'city', 'countryCode', 'postalCode'].forEach(field => {
                         if (!this.form.shipping[field]) {
-                            this.errors['shipping.' + field] = 'This field is required.';
+                            store?.setError('shipping.' + field, 'This field is required.');
                         }
                     });
                     this.validateField('shipping.phone');
                 }
 
                 if (!this.allShippingSelected) {
-                    this.generalError = 'Please select a shipping method.';
+                    store?.setGeneralError('Please select a shipping method.');
                 }
 
                 if (!this.selectedPaymentMethod) {
-                    this.generalError = this.generalError || 'Please select a payment method.';
+                    store?.setGeneralError(this.generalError || 'Please select a payment method.');
                 }
 
                 return Object.keys(this.errors).length === 0 && !this.generalError;
@@ -896,6 +969,8 @@ export function initSinglePageCheckout() {
             // ============================================
 
             async submitOrder() {
+                const store = this.$store.checkout;
+
                 if (!this.validate()) {
                     const errorCount = Object.keys(this.errors).length;
                     this.announce(`Form has ${errorCount} error${errorCount !== 1 ? 's' : ''}. Please correct and try again.`);
@@ -903,17 +978,14 @@ export function initSinglePageCheckout() {
                 }
 
                 if (!this.selectedPaymentMethod) {
-                    this.generalError = 'Please select a payment method.';
+                    store?.setGeneralError('Please select a payment method.');
                     this.announce('Please select a payment method.');
                     return;
                 }
 
-                this.isSubmitting = true;
-                this.generalError = '';
+                store?.setSubmitting(true);
+                store?.setGeneralError('');
                 this.announce('Processing your order...');
-
-                // @ts-ignore - Alpine store
-                this.$store.checkout?.setSubmitting(true);
 
                 try {
                     // 1. Save addresses
@@ -963,8 +1035,7 @@ export function initSinglePageCheckout() {
                             throw new Error(payData.errorMessage || 'Failed to initiate payment');
                         }
 
-                        this.invoiceId = payData.invoiceId;
-                        this.paymentSession = payData;
+                        store?.setPaymentSession(payData);
                     }
 
                     // 4. Handle payment flow
@@ -989,8 +1060,12 @@ export function initSinglePageCheckout() {
                                     this.announce('Payment form ready. Please complete your payment details.');
                                 },
                                 onError: (err) => {
-                                    this.paymentError = err.message || 'Payment setup failed';
-                                    this.isSubmitting = false;
+                                    store?.setPaymentError(err.message || 'Payment setup failed');
+                                    store?.setSubmitting(false);
+
+                                    if (window.MerchelloSinglePageAnalytics) {
+                                        window.MerchelloSinglePageAnalytics.trackError('payment_flow', err.message || 'Payment setup failed');
+                                    }
                                 }
                             });
                         }
@@ -1009,15 +1084,24 @@ export function initSinglePageCheckout() {
 
                 } catch (error) {
                     console.error('Order submission failed:', error);
-                    this.generalError = error.message || 'An error occurred. Please try again.';
+                    store?.setGeneralError(error.message || 'An error occurred. Please try again.');
                     this.announce(this.generalError);
+
+                    if (window.MerchelloSinglePageAnalytics) {
+                        window.MerchelloSinglePageAnalytics.trackError('order_submission', error.message || 'Order submission failed');
+                    }
                 } finally {
-                    this.isSubmitting = false;
-                    // @ts-ignore - Alpine store
-                    this.$store.checkout?.setSubmitting(false);
+                    store?.setSubmitting(false);
                 }
             }
-        };
+            };
+
+            console.log('[singlePageCheckout] Component created successfully');
+            return componentData;
+        } catch (e) {
+            console.error('[singlePageCheckout] FATAL - Component initialization failed:', e);
+            throw e;
+        }
     });
 }
 

@@ -13,7 +13,10 @@ import { checkoutApi } from '../services/api.js';
  */
 export function initOrderSummary() {
     // @ts-ignore - Alpine is global
-    Alpine.data('orderSummary', (initialTotals = {}) => ({
+    Alpine.data('orderSummary', () => {
+        console.log('[orderSummary] Creating component...');
+        try {
+            const componentData = {
         // UI state
         expanded: false,
         discountCode: '',
@@ -38,7 +41,8 @@ export function initOrderSummary() {
         formatCurrency(value) {
             // @ts-ignore - Alpine store
             const symbol = this.$store.checkout?.currency?.symbol ?? '£';
-            return `${symbol}${value.toFixed(2)}`;
+            const numValue = (typeof value === 'number' && !isNaN(value)) ? value : 0;
+            return `${symbol}${numValue.toFixed(2)}`;
         },
 
         /**
@@ -187,7 +191,15 @@ export function initOrderSummary() {
                 this.removingDiscount = null;
             }
         }
-    }));
+            };
+
+            console.log('[orderSummary] Component created successfully');
+            return componentData;
+        } catch (e) {
+            console.error('[orderSummary] FATAL - Component initialization failed:', e);
+            throw e;
+        }
+    });
 }
 
 export default { initOrderSummary };

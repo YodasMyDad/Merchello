@@ -17,14 +17,14 @@
  * 3. Customize the GTM and/or Facebook Pixel sections below
  *
  * Available events:
- * - checkout:begin           - Customer enters checkout
- * - checkout:contact_complete - Email/contact submitted
- * - checkout:coupon_applied  - Discount code applied
- * - checkout:coupon_removed  - Discount code removed
- * - checkout:shipping_selected - Shipping method selected
- * - checkout:payment_initiated - Customer reaches payment step
- * - checkout:purchase        - Order completed successfully
- * - checkout:error           - Payment or validation error
+ * - checkout:begin             - Customer enters checkout
+ * - checkout:add_contact_info  - Valid email entered
+ * - checkout:add_shipping_info - Shipping method selected
+ * - checkout:add_payment_info  - Payment method selected
+ * - checkout:coupon_applied    - Discount code applied
+ * - checkout:coupon_removed    - Discount code removed
+ * - checkout:purchase          - Order completed successfully
+ * - checkout:error             - Payment or validation error
  *
  * Built-in helper methods (on window.MerchelloCheckout):
  * - mapToGA4Item(item)       - Transform item for GA4 format
@@ -63,7 +63,19 @@
             });
         });
 
-        mc.on('checkout:shipping_selected', function(data) {
+        mc.on('checkout:add_contact_info', function(data) {
+            dataLayer.push({ ecommerce: null });
+            dataLayer.push({
+                event: 'add_contact_info',
+                ecommerce: {
+                    currency: data.currency,
+                    value: data.value,
+                    items: data.items.map(mc.mapToGA4Item)
+                }
+            });
+        });
+
+        mc.on('checkout:add_shipping_info', function(data) {
             dataLayer.push({ ecommerce: null });
             dataLayer.push({
                 event: 'add_shipping_info',
@@ -77,7 +89,7 @@
             });
         });
 
-        mc.on('checkout:payment_initiated', function(data) {
+        mc.on('checkout:add_payment_info', function(data) {
             dataLayer.push({ ecommerce: null });
             dataLayer.push({
                 event: 'add_payment_info',
@@ -143,7 +155,7 @@
                 });
             });
 
-            mc.on('checkout:payment_initiated', function(data) {
+            mc.on('checkout:add_payment_info', function(data) {
                 fbq('track', 'AddPaymentInfo', {
                     currency: data.currency,
                     value: data.value,

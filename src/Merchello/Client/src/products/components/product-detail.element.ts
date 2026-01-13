@@ -1784,8 +1784,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       },
     });
 
-    const result = await modalContext?.onSubmit().catch(() => undefined);
-    if (!result) return; // User cancelled
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
     if (!this.#isConnected) return; // Component disconnected while modal was open
 
     const options = (this._formData.productOptions || []).filter((o) => o.id !== optionId);
@@ -1818,8 +1821,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         },
       });
 
-      const result = await modalContext?.onSubmit().catch(() => undefined);
-      if (!result) return false; // User cancelled
+      try {
+        await modalContext?.onSubmit();
+      } catch {
+        return false; // User cancelled
+      }
       if (!this.#isConnected) return false; // Component disconnected while modal was open
       return true;
     }
@@ -1835,8 +1841,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         },
       });
 
-      const result = await modalContext?.onSubmit().catch(() => undefined);
-      if (!result) return false; // User cancelled
+      try {
+        await modalContext?.onSubmit();
+      } catch {
+        return false; // User cancelled
+      }
       if (!this.#isConnected) return false; // Component disconnected while modal was open
       return true;
     }

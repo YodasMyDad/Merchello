@@ -194,8 +194,11 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
       },
     });
 
-    const result = await modalContext?.onSubmit().catch(() => undefined);
-    if (!result) return; // User cancelled
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
     if (!this.#isConnected) return; // Component disconnected while modal was open
 
     this._isDeletingGroup = filterGroup.id;
