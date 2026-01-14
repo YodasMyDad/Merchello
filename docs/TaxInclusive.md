@@ -159,8 +159,8 @@ Update interface `IStorefrontContextService` with the new method.
 /// Calculated display price for a product, ready for frontend rendering.
 /// </summary>
 public record ProductDisplayPrice(
-    decimal Amount,              // Display price (inc or ex tax based on setting)
-    decimal? SaleAmount,         // Sale price if applicable
+    decimal Amount,              // Current selling price (inc or ex tax based on setting)
+    decimal? CompareAtAmount,    // Previous price for strikethrough when OnSale (inc or ex tax)
     bool IncludesTax,            // Whether Amount includes tax
     decimal TaxRate,             // Tax rate percentage (e.g., 20 for 20%)
     decimal TaxAmount,           // Tax portion of the price
@@ -187,43 +187,45 @@ public static class DisplayPriceExtensions
         ICurrencyService currencyService,
         CancellationToken ct = default)
     {
-        var netPrice = product.OnSale && product.PreviousPrice.HasValue
-            ? product.Price
-            : product.Price;
-        var netSalePrice = product.OnSale ? product.Price : (decimal?)null;
+        // Price = current selling price (what customer pays)
+        // PreviousPrice = "was" price for strikethrough display when OnSale
+        var netPrice = product.Price;
+        var netCompareAtPrice = product.OnSale && product.PreviousPrice.HasValue
+            ? product.PreviousPrice.Value
+            : (decimal?)null;
 
         // Get applicable tax rate for customer's location
         decimal taxRate = 0m;
-        if (displayContext.DisplayPricesIncTax && product.ProductRoot?.TaxGroupId != null)
+        if (displayContext.DisplayPricesIncTax && product.ProductRoot?.TaxGroupId is Guid taxGroupId)
         {
             taxRate = await taxService.GetApplicableRateAsync(
-                product.ProductRoot.TaxGroupId,
+                taxGroupId,
                 displayContext.TaxCountryCode,
                 displayContext.TaxRegionCode,
                 ct);
         }
 
-        // Calculate tax-inclusive price (if applicable)
+        // Calculate tax-inclusive prices (if applicable)
         var taxMultiplier = displayContext.DisplayPricesIncTax ? 1 + (taxRate / 100m) : 1m;
         var priceWithTax = netPrice * taxMultiplier;
-        var salePriceWithTax = netSalePrice * taxMultiplier;
+        var compareAtPriceWithTax = netCompareAtPrice * taxMultiplier;
 
         // Convert to display currency
         var displayPrice = currencyService.Round(
             priceWithTax * displayContext.ExchangeRate,
             displayContext.CurrencyCode);
-        var displaySalePrice = salePriceWithTax.HasValue
-            ? currencyService.Round(salePriceWithTax.Value * displayContext.ExchangeRate, displayContext.CurrencyCode)
+        var displayCompareAtPrice = compareAtPriceWithTax.HasValue
+            ? currencyService.Round(compareAtPriceWithTax.Value * displayContext.ExchangeRate, displayContext.CurrencyCode)
             : (decimal?)null;
 
-        // Calculate tax amount in display currency
+        // Calculate tax amount in display currency (on current selling price)
         var taxAmount = displayContext.DisplayPricesIncTax
             ? currencyService.Round((netPrice * (taxRate / 100m)) * displayContext.ExchangeRate, displayContext.CurrencyCode)
             : 0m;
 
         return new ProductDisplayPrice(
             displayPrice,
-            displaySalePrice,
+            displayCompareAtPrice,
             displayContext.DisplayPricesIncTax && taxRate > 0,
             taxRate,
             taxAmount,
@@ -233,6 +235,34 @@ public static class DisplayPriceExtensions
     }
 }
 ```
+
+#### 2.3 Addon Price Adjustment Display
+
+When `DisplayPricesIncTax = true`, add-on price adjustments (e.g., "+£10 for gift wrapping") should also display tax-inclusive.
+
+**File:** `src/Merchello.Core/Products/Extensions/DisplayPriceExtensions.cs`
+
+Add method:
+```csharp
+/// <summary>
+/// Calculates the display price adjustment for an add-on option.
+/// </summary>
+public static decimal GetDisplayPriceAdjustment(
+    decimal priceAdjustment,
+    StorefrontDisplayContext displayContext,
+    decimal taxRate,
+    ICurrencyService currencyService)
+{
+    if (priceAdjustment == 0) return 0;
+
+    var taxMultiplier = displayContext.DisplayPricesIncTax ? 1 + (taxRate / 100m) : 1m;
+    var adjustedAmount = priceAdjustment * taxMultiplier * displayContext.ExchangeRate;
+
+    return currencyService.Round(adjustedAmount, displayContext.CurrencyCode);
+}
+```
+
+**Usage:** When rendering add-on options in the storefront, call this for each `ProductOptionValue.PriceAdjustment` using the `TaxRate` from the product's tax group.
 
 ---
 
@@ -251,7 +281,14 @@ Add property:
 public ProductDisplayPrice? DisplayPrice { get; set; }
 ```
 
-#### 3.2 Add Display Properties to ProductListItemDto
+#### 3.2 Storefront Product DTOs
+
+> **Note:** `ProductListItemDto` is documented as "Product list item for the admin backoffice grid view".
+> For storefront display, either:
+> - Create separate `StorefrontProductListItemDto` with `DisplayPrice`, or
+> - Add `DisplayPrice` to existing DTOs with the understanding it's null for admin contexts
+
+**Recommended approach:** Add to existing DTOs since they're already used by storefront. The nullable `DisplayPrice` property clearly indicates "not calculated" when null.
 
 **File:** `src/Merchello.Core/Products/Dtos/ProductListItemDto.cs`
 
@@ -259,6 +296,7 @@ Add property:
 ```csharp
 /// <summary>
 /// Calculated display price in customer's currency, optionally including tax.
+/// Null when fetched without display context (e.g., admin API).
 /// </summary>
 public ProductDisplayPrice? DisplayPrice { get; set; }
 ```
@@ -344,12 +382,28 @@ Update product templates to use `DisplayPrice`:
 ```html
 @if (product.DisplayPrice != null)
 {
-    <span class="price">
-        @product.DisplayPrice.CurrencySymbol@product.DisplayPrice.Amount.ToString($"N{product.DisplayPrice.DecimalPlaces}")
-    </span>
-    @if (product.DisplayPrice.IncludesTax)
+    var dp = product.DisplayPrice;
+    var format = $"N{dp.DecimalPlaces}";
+
+    @if (dp.CompareAtAmount.HasValue)
     {
-        <span class="tax-info">(inc. @product.DisplayPrice.TaxRate% VAT)</span>
+        <span class="price-was text-muted text-decoration-line-through">
+            @dp.CurrencySymbol@dp.CompareAtAmount.Value.ToString(format)
+        </span>
+        <span class="price-now text-danger fw-bold">
+            @dp.CurrencySymbol@dp.Amount.ToString(format)
+        </span>
+    }
+    else
+    {
+        <span class="price fw-bold">
+            @dp.CurrencySymbol@dp.Amount.ToString(format)
+        </span>
+    }
+
+    @if (dp.IncludesTax)
+    {
+        <span class="tax-info text-muted small">(inc. @dp.TaxRate% VAT)</span>
     }
 }
 ```
@@ -362,6 +416,8 @@ Update Alpine.js checkout store to handle display prices consistently.
 
 ## Files to Modify
 
+### Core Library (Merchello.Core)
+
 | File | Action | Phase |
 |------|--------|-------|
 | `Shared/Models/MerchelloSettings.cs` | ADD `DisplayPricesIncTax` property | 1 |
@@ -369,12 +425,28 @@ Update Alpine.js checkout store to handle display prices consistently.
 | `Storefront/Services/StorefrontContextService.cs` | ADD `GetDisplayContextAsync()` | 1 |
 | `Storefront/Services/Interfaces/IStorefrontContextService.cs` | ADD interface method | 1 |
 | `Products/Models/ProductDisplayPrice.cs` | CREATE new record | 2 |
-| `Products/Extensions/DisplayPriceExtensions.cs` | CREATE extension methods | 2 |
+| `Products/Extensions/DisplayPriceExtensions.cs` | CREATE extension methods (product + addon) | 2 |
 | `Products/Dtos/ProductVariantDto.cs` | ADD `DisplayPrice` property | 3 |
 | `Products/Dtos/ProductListItemDto.cs` | ADD `DisplayPrice` property | 3 |
 | `Products/Services/ProductService.cs` | UPDATE to calculate display prices | 3 |
 | `Checkout/Extensions/DisplayCurrencyExtensions.cs` | ADD overload for display context | 4 |
-| Product view templates | UPDATE to use DisplayPrice | 5 |
+
+### Tests (Merchello.Tests)
+
+| File | Action | Phase |
+|------|--------|-------|
+| `Products/TaxInclusiveDisplayTests.cs` | CREATE integration tests | 2-3 |
+
+### Site Implementation (Merchello.Site)
+
+| File | Action | Phase |
+|------|--------|-------|
+| `Shared/Components/ProductBox/ProductBoxViewComponent.cs` | UPDATE to use `GetDisplayPriceAsync()` | 5 |
+| `Shared/Components/ProductBox/ProductBoxViewModel.cs` | UPDATE to use `ProductDisplayPrice` | 5 |
+| `Shared/Components/ProductBox/Default.cshtml` | UPDATE to show tax info | 5 |
+| `Shared/Components/ProductAddonSelector/ProductAddonSelectorViewComponent.cs` | UPDATE addon price adjustments for tax | 5 |
+| `Views/Products/Default.cshtml` | UPDATE variant JSON with tax-inclusive prices | 5 |
+| `wwwroot/scripts/site.js` | UPDATE `formatDisplayPrice` to handle tax info | 5 |
 
 ---
 
@@ -422,6 +494,16 @@ Product (NET, USD)
 | API consumers | `DisplayPrice` is null when no context provided |
 | Cached pages | May show stale prices if rate changes |
 
+### UX Consistency: Product Page vs Basket
+
+When `DisplayPricesIncTax = true`:
+- **Product page** shows: `£100.00 (inc. 20% VAT)` - tax baked into display price
+- **Basket** shows: Line items with tax calculated by `LineItemService`, typically displayed as subtotal + tax breakdown
+
+This is **by design** - the basket needs accurate tax calculation per line item (different products may have different tax rates). However, ensure the **basket total** matches what the customer expects from the product page.
+
+**Recommendation:** When `DisplayPricesIncTax = true`, consider showing basket line items as tax-inclusive amounts with a note, rather than NET + tax breakdown. This maintains consistency with the browsing experience.
+
 ---
 
 ## Verification Steps
@@ -452,6 +534,300 @@ With `DisplayPricesIncTax = true` and product stored as $100 NET (USD):
 - Tax shown as separate line(s)
 - `TotalInStoreCurrency` = original NET × quantity (for reporting)
 - `Total` = converted amount in customer currency (what they paid)
+
+---
+
+## Integration Tests
+
+> **Reference:** See `MultiCurrencyInvoiceTests.cs` for the established testing pattern.
+
+Create `TaxInclusiveDisplayTests.cs` in `src/Merchello.Tests/Products/` to verify tax-inclusive display calculations work correctly, especially in combination with multi-currency.
+
+### Test File Structure
+
+**File:** `src/Merchello.Tests/Products/TaxInclusiveDisplayTests.cs`
+
+```csharp
+[Collection("Integration")]
+public class TaxInclusiveDisplayTests : IClassFixture<ServiceTestFixture>
+{
+    private readonly ServiceTestFixture _fixture;
+    private readonly ITaxService _taxService;
+    private readonly ICurrencyService _currencyService;
+
+    public TaxInclusiveDisplayTests(ServiceTestFixture fixture)
+    {
+        _fixture = fixture;
+        _fixture.ResetDatabase();
+        _taxService = fixture.GetService<ITaxService>();
+        _currencyService = fixture.GetService<ICurrencyService>();
+    }
+}
+```
+
+### Required Test Cases
+
+#### 1. Basic Tax-Inclusive Display
+```csharp
+[Fact]
+public async Task GetDisplayPriceAsync_WithTaxInclusiveEnabled_AppliesTaxRate()
+{
+    // Arrange - £83.33 NET, 20% VAT, same currency
+    var taxGroup = dataBuilder.CreateTaxGroup("Standard VAT", 20m);
+    var productRoot = dataBuilder.CreateProductRoot("Product", taxGroup);
+    var product = dataBuilder.CreateProduct("Item", productRoot, price: 83.33m);
+
+    var displayContext = new StorefrontDisplayContext(
+        CurrencyCode: "GBP",
+        CurrencySymbol: "£",
+        DecimalPlaces: 2,
+        ExchangeRate: 1.0m,
+        StoreCurrencyCode: "GBP",
+        DisplayPricesIncTax: true,
+        TaxCountryCode: "GB",
+        TaxRegionCode: null);
+
+    // Act
+    var displayPrice = await product.GetDisplayPriceAsync(
+        displayContext, _taxService, _currencyService);
+
+    // Assert
+    displayPrice.Amount.ShouldBe(100.00m);  // £83.33 × 1.20 = £100.00
+    displayPrice.IncludesTax.ShouldBeTrue();
+    displayPrice.TaxRate.ShouldBe(20m);
+    displayPrice.TaxAmount.ShouldBe(16.67m);  // £83.33 × 0.20
+}
+```
+
+#### 2. Tax-Inclusive with Currency Conversion (Critical for Multi-Currency Compatibility)
+```csharp
+[Fact]
+public async Task GetDisplayPriceAsync_WithTaxAndCurrencyConversion_AppliesBothCorrectly()
+{
+    // Arrange - $100 USD NET, 20% UK VAT, GBP display (rate 0.80)
+    _fixture.SetExchangeRate("GBP", "USD", 1.25m);  // 1 GBP = 1.25 USD
+
+    var taxGroup = dataBuilder.CreateTaxGroup("UK VAT", 20m);
+    var productRoot = dataBuilder.CreateProductRoot("Product", taxGroup);
+    var product = dataBuilder.CreateProduct("Item", productRoot, price: 100.00m);
+
+    var displayContext = new StorefrontDisplayContext(
+        CurrencyCode: "GBP",
+        CurrencySymbol: "£",
+        DecimalPlaces: 2,
+        ExchangeRate: 0.80m,  // USD to GBP (1/1.25)
+        StoreCurrencyCode: "USD",
+        DisplayPricesIncTax: true,
+        TaxCountryCode: "GB",
+        TaxRegionCode: null);
+
+    // Act
+    var displayPrice = await product.GetDisplayPriceAsync(
+        displayContext, _taxService, _currencyService);
+
+    // Assert - $100 × 1.20 (tax) × 0.80 (currency) = £96.00
+    displayPrice.Amount.ShouldBe(96.00m);
+    displayPrice.CurrencyCode.ShouldBe("GBP");
+    displayPrice.IncludesTax.ShouldBeTrue();
+}
+```
+
+#### 3. Zero Tax Country (US Customer on UK Store)
+```csharp
+[Fact]
+public async Task GetDisplayPriceAsync_WithZeroTaxCountry_ShowsExTaxPrice()
+{
+    // Arrange - $100 USD, US customer (0% configured), USD display
+    var taxGroup = dataBuilder.CreateTaxGroup("Standard", 20m);  // Default 20%
+    // No TaxGroupRate for US = falls back to 0% (or configure explicitly)
+
+    var displayContext = new StorefrontDisplayContext(
+        CurrencyCode: "USD",
+        CurrencySymbol: "$",
+        DecimalPlaces: 2,
+        ExchangeRate: 1.0m,
+        StoreCurrencyCode: "USD",
+        DisplayPricesIncTax: true,  // Setting is ON but rate is 0%
+        TaxCountryCode: "US",
+        TaxRegionCode: null);
+
+    // Act
+    var displayPrice = await product.GetDisplayPriceAsync(
+        displayContext, _taxService, _currencyService);
+
+    // Assert - $100 × 1.00 (0% tax) = $100.00
+    displayPrice.Amount.ShouldBe(100.00m);
+    displayPrice.IncludesTax.ShouldBeFalse();  // No tax included when rate is 0
+    displayPrice.TaxRate.ShouldBe(0m);
+}
+```
+
+#### 4. Tax-Inclusive Disabled (Explicit Ex-Tax Display)
+```csharp
+[Fact]
+public async Task GetDisplayPriceAsync_WithTaxInclusiveDisabled_ShowsNetPrice()
+{
+    // Arrange
+    var displayContext = new StorefrontDisplayContext(
+        // ... same setup
+        DisplayPricesIncTax: false,  // Setting is OFF
+        TaxCountryCode: "GB",
+        TaxRegionCode: null);
+
+    // Act
+    var displayPrice = await product.GetDisplayPriceAsync(
+        displayContext, _taxService, _currencyService);
+
+    // Assert - Shows NET price even for UK customer
+    displayPrice.Amount.ShouldBe(83.33m);
+    displayPrice.IncludesTax.ShouldBeFalse();
+    displayPrice.TaxRate.ShouldBe(0m);  // Not applied
+}
+```
+
+#### 5. JPY Zero-Decimal Currency with Tax
+```csharp
+[Fact]
+public async Task GetDisplayPriceAsync_WithJpyAndTax_RoundsToWholeNumber()
+{
+    // Arrange - $100 USD, 10% Japan consumption tax, JPY display
+    _fixture.SetExchangeRate("JPY", "USD", 0.0067m);  // ~150 JPY per USD
+
+    var displayContext = new StorefrontDisplayContext(
+        CurrencyCode: "JPY",
+        CurrencySymbol: "¥",
+        DecimalPlaces: 0,
+        ExchangeRate: 150m,  // USD to JPY
+        StoreCurrencyCode: "USD",
+        DisplayPricesIncTax: true,
+        TaxCountryCode: "JP",
+        TaxRegionCode: null);
+
+    // Act
+    var displayPrice = await product.GetDisplayPriceAsync(
+        displayContext, _taxService, _currencyService);
+
+    // Assert - $100 × 1.10 × 150 = ¥16,500 (whole number)
+    displayPrice.Amount.ShouldBe(16500m);
+    (displayPrice.Amount % 1).ShouldBe(0m);  // No decimals for JPY
+}
+```
+
+#### 6. Sale Price with Tax-Inclusive Display
+```csharp
+[Fact]
+public async Task GetDisplayPriceAsync_OnSale_BothPricesIncludeTax()
+{
+    // Arrange - Was £100 NET, now £80 NET, 20% VAT
+    var product = dataBuilder.CreateProduct("Sale Item", productRoot, price: 80.00m);
+    product.OnSale = true;
+    product.PreviousPrice = 100.00m;
+
+    // Act
+    var displayPrice = await product.GetDisplayPriceAsync(
+        displayContext, _taxService, _currencyService);
+
+    // Assert
+    displayPrice.Amount.ShouldBe(96.00m);           // £80 × 1.20
+    displayPrice.CompareAtAmount.ShouldBe(120.00m); // £100 × 1.20
+}
+```
+
+#### 7. Addon Price Adjustment with Tax
+```csharp
+[Fact]
+public void GetDisplayPriceAdjustment_WithTax_CalculatesCorrectly()
+{
+    // Arrange - +£10 add-on, 20% VAT
+    var priceAdjustment = 10.00m;
+    var taxRate = 20m;
+
+    // Act
+    var displayAdjustment = DisplayPriceExtensions.GetDisplayPriceAdjustment(
+        priceAdjustment, displayContext, taxRate, _currencyService);
+
+    // Assert - £10 × 1.20 = £12.00
+    displayAdjustment.ShouldBe(12.00m);
+}
+```
+
+### Multi-Currency + Tax Integration Test
+
+This critical test verifies the full flow works end-to-end:
+
+```csharp
+[Fact]
+public async Task FullFlow_ProductDisplayToInvoice_TaxAndCurrencyConsistent()
+{
+    // Arrange - USD store, GBP customer, 20% UK VAT
+    _fixture.SetExchangeRate("GBP", "USD", 1.25m);
+
+    var taxGroup = dataBuilder.CreateTaxGroup("UK VAT", 20m);
+    taxGroup.TaxGroupRates.Add(new TaxGroupRate { CountryCode = "GB", Rate = 20m });
+
+    var productRoot = dataBuilder.CreateProductRoot("Product", taxGroup);
+    var product = dataBuilder.CreateProduct("Item", productRoot, price: 100.00m);
+
+    // 1. Verify display price
+    var displayContext = new StorefrontDisplayContext(
+        CurrencyCode: "GBP", CurrencySymbol: "£", DecimalPlaces: 2,
+        ExchangeRate: 0.80m, StoreCurrencyCode: "USD",
+        DisplayPricesIncTax: true, TaxCountryCode: "GB", TaxRegionCode: null);
+
+    var displayPrice = await product.GetDisplayPriceAsync(
+        displayContext, _taxService, _currencyService);
+
+    // Display: $100 × 1.20 × 0.80 = £96.00 inc VAT
+    displayPrice.Amount.ShouldBe(96.00m);
+
+    // 2. Create basket and invoice (existing multi-currency flow)
+    var basket = new Basket
+    {
+        Currency = "GBP",
+        LineItems = [new LineItem
+        {
+            ProductId = product.Id,
+            Amount = 100.00m,  // NET in store currency (USD)
+            Quantity = 1,
+            TaxRate = 20m,
+            IsTaxable = true
+        }],
+        SubTotal = 100.00m,
+        Tax = 20.00m,
+        Total = 120.00m
+    };
+
+    var invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+
+    // 3. Verify invoice consistency
+    invoice.CurrencyCode.ShouldBe("GBP");
+    invoice.StoreCurrencyCode.ShouldBe("USD");
+
+    // Invoice line item: $100 / 1.25 = £80 NET
+    var lineItem = invoice.Orders!.First().LineItems!.First();
+    lineItem.Amount.ShouldBe(80.00m);
+
+    // Invoice total should include tax: £80 + £16 tax = £96
+    // This matches the displayed price!
+    invoice.Total.ShouldBe(96.00m);
+}
+```
+
+### Files to Add
+
+| File | Location |
+|------|----------|
+| `TaxInclusiveDisplayTests.cs` | `src/Merchello.Tests/Products/` |
+
+### Running Tests
+
+```bash
+# Run all tax-inclusive tests
+dotnet test --filter "FullyQualifiedName~TaxInclusiveDisplayTests"
+
+# Run alongside multi-currency tests to verify no regressions
+dotnet test --filter "FullyQualifiedName~MultiCurrencyInvoiceTests|FullyQualifiedName~TaxInclusiveDisplayTests"
+```
 
 ---
 

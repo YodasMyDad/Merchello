@@ -151,8 +151,8 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         invoice.PricingExchangeRate.ShouldBe(1.25m);
 
         // Verify line item amounts are converted
-        var order = invoice.Orders.First();
-        var productLineItem = order.LineItems.First(li => li.LineItemType == LineItemType.Product);
+        var order = invoice.Orders!.First();
+        var productLineItem = order.LineItems!.First(li => li.LineItemType == LineItemType.Product);
 
         // $100 USD / 1.25 = £80 GBP
         productLineItem.Amount.ShouldBe(80.00m);
@@ -277,8 +277,8 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         // Assert
         invoice.CurrencyCode.ShouldBe("GBP");
 
-        var order = invoice.Orders.First();
-        var discountLineItem = order.LineItems.FirstOrDefault(li => li.LineItemType == LineItemType.Discount);
+        var order = invoice.Orders!.First();
+        var discountLineItem = order.LineItems!.FirstOrDefault(li => li.LineItemType == LineItemType.Discount);
 
         discountLineItem.ShouldNotBeNull();
         // $10 USD / 1.25 = £8 GBP (but stored as negative for discount)
@@ -385,8 +385,8 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         invoice.PricingExchangeRate.ShouldBeNull();  // No rate needed for same currency
         invoice.TotalInStoreCurrency.ShouldBeNull();  // Not needed when currencies match
 
-        var order = invoice.Orders.First();
-        var productLineItem = order.LineItems.First(li => li.LineItemType == LineItemType.Product);
+        var order = invoice.Orders!.First();
+        var productLineItem = order.LineItems!.First(li => li.LineItemType == LineItemType.Product);
         productLineItem.Amount.ShouldBe(49.99m);  // Unchanged
     }
 
@@ -491,8 +491,8 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         // Assert
         invoice.CurrencyCode.ShouldBe("JPY");
 
-        var order = invoice.Orders.First();
-        var productLineItem = order.LineItems.First(li => li.LineItemType == LineItemType.Product);
+        var order = invoice.Orders!.First();
+        var productLineItem = order.LineItems!.First(li => li.LineItemType == LineItemType.Product);
 
         // $100 USD / 0.01 = ¥10000 JPY (should have zero decimals)
         productLineItem.Amount.ShouldBe(10000m);
@@ -613,14 +613,14 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         // Assert
         invoice.CurrencyCode.ShouldBe("EUR");
 
-        var order = invoice.Orders.First();
+        var order = invoice.Orders!.First();
 
         // Product: $54 USD / 1.08 = €50 EUR
-        var productLineItem = order.LineItems.First(li => li.LineItemType == LineItemType.Product);
+        var productLineItem = order.LineItems!.First(li => li.LineItemType == LineItemType.Product);
         productLineItem.Amount.ShouldBe(50.00m);
 
         // Add-on: $5.40 USD / 1.08 = €5 EUR
-        var addonLineItem = order.LineItems.FirstOrDefault(li => li.LineItemType == LineItemType.Addon);
+        var addonLineItem = order.LineItems!.FirstOrDefault(li => li.LineItemType == LineItemType.Addon);
         addonLineItem.ShouldNotBeNull();
         addonLineItem.Amount.ShouldBe(5.00m);
     }
