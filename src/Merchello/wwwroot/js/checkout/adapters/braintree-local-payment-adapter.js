@@ -571,7 +571,7 @@
             currentCheckout.error = null;
 
             try {
-                const response = await MerchelloPayment.fetchWithTimeout('/api/merchello/checkout/process-payment', {
+                const response = await fetch('/api/merchello/checkout/process-payment', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -583,11 +583,30 @@
                         paymentMethodToken: payload.nonce,
                         formData: {
                             deviceData: dataCollectorInstance?.deviceData || '',
-                            type: payload.type,
-                            details: payload.details
+                            type: payload.type || '',
+                            details: payload.details ? JSON.stringify(payload.details) : ''
                         }
                     })
                 });
+
+                // Handle error responses with user-friendly messages
+                if (!response.ok) {
+                    let errorMessage = 'Payment processing failed. Please try again.';
+                    try {
+                        const errorData = await response.json();
+                        if (errorData.errors) {
+                            console.error('Server validation errors:', Object.values(errorData.errors).flat());
+                        }
+                        if (errorData.errorMessage) {
+                            errorMessage = errorData.errorMessage;
+                        } else if (errorData.title) {
+                            errorMessage = 'Payment could not be processed. Please try again or contact support.';
+                        }
+                    } catch {
+                        // Could not parse error response
+                    }
+                    throw new Error(errorMessage);
+                }
 
                 const result = await response.json();
 

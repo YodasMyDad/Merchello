@@ -14,7 +14,7 @@ import type {
 import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getStoreSettings } from "@api/store-settings.js";
-import { formatRelativeDate } from "@shared/utils/formatting.js";
+import { formatRelativeDate, formatNumber } from "@shared/utils/formatting.js";
 import { MERCHELLO_WEBHOOK_SUBSCRIPTION_MODAL } from "@webhooks/modals/webhook-subscription-modal.token.js";
 import { MERCHELLO_WEBHOOK_TEST_MODAL } from "@webhooks/modals/webhook-test-modal.token.js";
 import "@shared/components/pagination.element.js";
@@ -295,11 +295,11 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
           <div class="stat-label">Active</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">${this._stats.successRate.toFixed(1)}%</div>
+          <div class="stat-value">${formatNumber(this._stats.successRate, 1)}%</div>
           <div class="stat-label">Success Rate</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">${this._stats.averageResponseTimeMs.toFixed(0)}ms</div>
+          <div class="stat-value">${formatNumber(this._stats.averageResponseTimeMs, 0)}ms</div>
           <div class="stat-label">Avg Response</div>
         </div>
       </div>

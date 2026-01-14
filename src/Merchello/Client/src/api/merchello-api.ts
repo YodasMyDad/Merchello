@@ -154,6 +154,8 @@ import type {
   PaymentStatusDto,
   RecordManualPaymentDto,
   ProcessRefundDto,
+  PreviewRefundRequestDto,
+  RefundPreviewDto,
   InvoiceNoteDto,
   AddInvoiceNoteDto,
   AddressDto,
@@ -852,6 +854,10 @@ export const MerchelloApi = {
   /** Process a refund */
   processRefund: (paymentId: string, data: ProcessRefundDto) =>
     apiPost<PaymentDto>(`payments/${paymentId}/refund`, data),
+
+  /** Preview a refund calculation without processing it */
+  previewRefund: (paymentId: string, data?: PreviewRefundRequestDto) =>
+    apiPost<RefundPreviewDto>(`payments/${paymentId}/preview-refund`, data ?? {}),
 
   // ============================================
   // Payment Links API

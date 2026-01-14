@@ -19,6 +19,7 @@ using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Locality.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -36,10 +37,12 @@ public class OrdersApiController(
     IStatementService statementService,
     IProductService productService,
     ICurrencyService currencyService,
+    ILocalityCatalog localityCatalog,
     IOptions<MerchelloSettings> merchelloSettings,
     IBackOfficeSecurityAccessor backOfficeSecurityAccessor) : MerchelloApiControllerBase
 {
     private readonly ICurrencyService _currencyService = currencyService;
+    private readonly ILocalityCatalog _localityCatalog = localityCatalog;
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
     /// <summary>
     /// Get paginated list of orders/invoices
@@ -196,7 +199,7 @@ public class OrdersApiController(
             .Distinct() ?? [];
         var productImages = await productService.GetProductImagesAsync(productIds);
 
-        var detail = MapToDetail(invoice, shippingOptionNames, productImages);
+        var detail = await MapToDetailAsync(invoice, shippingOptionNames, productImages);
 
         // Get customer order count by billing email
         var billingEmail = invoice.BillingAddress?.Email;
@@ -548,7 +551,7 @@ public class OrdersApiController(
         };
     }
 
-    private OrderDetailDto MapToDetail(Invoice invoice, Dictionary<Guid, string> shippingOptionNames, Dictionary<Guid, string?> productImages)
+    private async Task<OrderDetailDto> MapToDetailAsync(Invoice invoice, Dictionary<Guid, string> shippingOptionNames, Dictionary<Guid, string?> productImages)
     {
         var orders = invoice.Orders?.ToList() ?? [];
         var payments = invoice.Payments?.ToList() ?? [];
@@ -581,6 +584,10 @@ public class OrdersApiController(
             Name = d.Name,
             Amount = Math.Abs(d.Amount)
         }).ToList();
+
+        // Map addresses with country name lookup
+        var billingAddress = await MapAddressAsync(invoice.BillingAddress);
+        var shippingAddress = await MapAddressAsync(invoice.ShippingAddress);
 
         return new OrderDetailDto
         {
@@ -637,8 +644,8 @@ public class OrdersApiController(
             FulfillmentStatus = GetFulfillmentStatus(orders),
             FulfillmentStatusCssClass = GetFulfillmentStatusCssClass(orders),
             IsCancelled = invoice.IsCancelled,
-            BillingAddress = MapAddress(invoice.BillingAddress),
-            ShippingAddress = MapAddress(invoice.ShippingAddress),
+            BillingAddress = billingAddress,
+            ShippingAddress = shippingAddress,
             Orders = orders.Select(o => MapFulfillmentOrder(o, shippingOptionNames, productImages)).ToList(),
             Notes = invoice.Notes?.Select(n => new InvoiceNoteDto
             {
@@ -658,6 +665,33 @@ public class OrdersApiController(
             DueDate = invoice.DueDate,
             IsOverdue = invoice.DueDate.HasValue && invoice.DueDate.Value < DateTime.UtcNow && paymentDetails.BalanceDue > 0,
             DaysUntilDue = invoice.DueDate.HasValue ? (int)(invoice.DueDate.Value.Date - DateTime.UtcNow.Date).TotalDays : null
+        };
+    }
+
+    private async Task<AddressDto?> MapAddressAsync(Core.Locality.Models.Address? address)
+    {
+        if (address == null) return null;
+
+        // Look up country name from code if not set
+        var countryName = address.Country;
+        if (string.IsNullOrEmpty(countryName) && !string.IsNullOrEmpty(address.CountryCode))
+        {
+            countryName = await _localityCatalog.TryGetCountryNameAsync(address.CountryCode);
+        }
+
+        return new AddressDto
+        {
+            Name = address.Name,
+            Company = address.Company,
+            AddressOne = address.AddressOne,
+            AddressTwo = address.AddressTwo,
+            TownCity = address.TownCity,
+            CountyState = address.CountyState?.Name,
+            PostalCode = address.PostalCode,
+            Country = countryName,
+            CountryCode = address.CountryCode,
+            Email = address.Email,
+            Phone = address.Phone
         };
     }
 

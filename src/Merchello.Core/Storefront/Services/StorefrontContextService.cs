@@ -388,6 +388,22 @@ public class StorefrontContextService(
             _settings.StoreCurrencyCode);
     }
 
+    public async Task<StorefrontDisplayContext> GetDisplayContextAsync(CancellationToken ct = default)
+    {
+        var currencyContext = await GetCurrencyContextAsync(ct);
+        var shippingLocation = await GetShippingLocationAsync(ct);
+
+        return new StorefrontDisplayContext(
+            currencyContext.CurrencyCode,
+            currencyContext.CurrencySymbol,
+            currencyContext.DecimalPlaces,
+            currencyContext.ExchangeRate,
+            currencyContext.StoreCurrencyCode,
+            _settings.DisplayPricesIncTax,
+            shippingLocation.CountryCode,
+            shippingLocation.RegionCode);
+    }
+
     /// <summary>
     /// Gets the exchange rate from store currency to the specified target currency.
     /// </summary>

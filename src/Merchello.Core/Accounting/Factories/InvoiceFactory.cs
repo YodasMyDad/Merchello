@@ -46,6 +46,7 @@ public class InvoiceFactory(ICurrencyService currencyService)
             Id = GuidExtensions.NewSequentialGuid,
             InvoiceNumber = invoiceNumber,
             CustomerId = customerId,
+            BasketId = basket.Id, // For finding existing unpaid invoices when user returns to checkout
             BillingAddress = billingAddress,
             ShippingAddress = shippingAddress,
             CurrencyCode = presentmentCurrency,

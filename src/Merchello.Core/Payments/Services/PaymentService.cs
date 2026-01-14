@@ -75,7 +75,44 @@ public class PaymentService(
                 $"Payment provider '{parameters.ProviderAlias}' is not available or not enabled.");
         }
 
-        // Load the invoice to get amount and details
+        // Check if this is a DirectForm method that doesn't require an invoice
+        // DirectForm methods (e.g., Purchase Order) defer invoice creation until form submission
+        // to prevent ghost orders when form validation fails
+        var methodDefinition = registeredProvider.Provider.GetAvailablePaymentMethods()
+            .FirstOrDefault(m => m.Alias == (parameters.MethodAlias ?? parameters.ProviderAlias));
+
+        if (methodDefinition?.IntegrationType == PaymentIntegrationType.DirectForm)
+        {
+            // DirectForm methods don't need an invoice - they just return form fields
+            // The invoice is created later in ProcessDirectPayment after form validation
+            var directFormRequest = new PaymentRequest
+            {
+                InvoiceId = parameters.InvoiceId,
+                MethodAlias = parameters.MethodAlias,
+                Amount = 0,
+                Currency = string.Empty,
+                ReturnUrl = parameters.ReturnUrl,
+                CancelUrl = parameters.CancelUrl
+            };
+
+            try
+            {
+                var directFormResult = await registeredProvider.Provider.CreatePaymentSessionAsync(directFormRequest, cancellationToken);
+
+                logger.LogInformation(
+                    "DirectForm payment session created for provider {Provider}. Success: {Success}, SessionId: {SessionId}",
+                    parameters.ProviderAlias, directFormResult.Success, directFormResult.SessionId);
+
+                return directFormResult;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to create DirectForm payment session for provider {Provider}", parameters.ProviderAlias);
+                return PaymentSessionResult.Failed($"Payment session creation failed: {ex.Message}");
+            }
+        }
+
+        // Load the invoice to get amount and details (required for non-DirectForm methods)
         using var scope = efCoreScopeProvider.CreateScope();
         var invoice = await scope.ExecuteWithContextAsync(async db =>
             await db.Invoices
@@ -575,6 +612,103 @@ public class PaymentService(
                 new PaymentRefundedNotification(originalPayment, result.ResultObject),
                 cancellationToken);
         }
+
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<CrudResult<Dtos.RefundPreviewDto>> PreviewRefundAsync(
+        PreviewRefundParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<Dtos.RefundPreviewDto>();
+
+        // Load the original payment
+        using var scope = efCoreScopeProvider.CreateScope();
+        var originalPayment = await scope.ExecuteWithContextAsync(async db =>
+            await db.Payments
+                .AsNoTracking()
+                .Include(p => p.Refunds)
+                .FirstOrDefaultAsync(p => p.Id == parameters.PaymentId, cancellationToken));
+
+        if (originalPayment == null)
+        {
+            result.AddErrorMessage($"Payment '{parameters.PaymentId}' not found.");
+            scope.Complete();
+            return result;
+        }
+
+        if (originalPayment.PaymentType != PaymentType.Payment)
+        {
+            result.AddErrorMessage("Cannot refund a refund payment.");
+            scope.Complete();
+            return result;
+        }
+
+        // Calculate refundable amount
+        var existingRefunds = originalPayment.Refunds?.Sum(r => Math.Abs(r.Amount)) ?? 0;
+        var refundableAmount = originalPayment.Amount - existingRefunds;
+
+        // Calculate requested amount based on percentage or direct amount
+        decimal requestedAmount;
+        if (parameters.Percentage.HasValue)
+        {
+            // Percentage takes precedence
+            var percentage = Math.Clamp(parameters.Percentage.Value, 0, 100);
+            requestedAmount = refundableAmount * (percentage / 100m);
+        }
+        else if (parameters.Amount.HasValue)
+        {
+            requestedAmount = parameters.Amount.Value;
+        }
+        else
+        {
+            // Default to full refund
+            requestedAmount = refundableAmount;
+        }
+
+        // Round using currency service
+        requestedAmount = _currencyService.Round(requestedAmount, originalPayment.CurrencyCode);
+        refundableAmount = _currencyService.Round(refundableAmount, originalPayment.CurrencyCode);
+
+        // Validate requested amount doesn't exceed refundable
+        if (requestedAmount > refundableAmount)
+        {
+            requestedAmount = refundableAmount;
+        }
+
+        // Check provider capabilities
+        var supportsRefund = false;
+        var supportsPartialRefund = false;
+
+        if (!string.IsNullOrEmpty(originalPayment.PaymentProviderAlias))
+        {
+            var registeredProvider = await providerManager.GetProviderAsync(
+                originalPayment.PaymentProviderAlias,
+                requireEnabled: false,
+                cancellationToken);
+
+            if (registeredProvider != null)
+            {
+                supportsRefund = registeredProvider.Metadata.SupportsRefunds;
+                supportsPartialRefund = registeredProvider.Metadata.SupportsPartialRefunds;
+            }
+        }
+
+        scope.Complete();
+
+        result.ResultObject = new Dtos.RefundPreviewDto
+        {
+            PaymentId = originalPayment.Id,
+            RefundableAmount = refundableAmount,
+            RequestedAmount = requestedAmount,
+            CurrencyCode = originalPayment.CurrencyCode,
+            SupportsRefund = supportsRefund,
+            SupportsPartialRefund = supportsPartialRefund,
+            ProviderAlias = originalPayment.PaymentProviderAlias,
+            FormattedRefundableAmount = _currencyService.FormatAmount(refundableAmount, originalPayment.CurrencyCode),
+            FormattedRequestedAmount = _currencyService.FormatAmount(requestedAmount, originalPayment.CurrencyCode)
+        };
 
         return result;
     }

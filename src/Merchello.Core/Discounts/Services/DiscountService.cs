@@ -205,6 +205,35 @@ public class DiscountService(
             return result;
         }
 
+        // Validate requirement value is non-negative
+        if (parameters.RequirementValue.HasValue && parameters.RequirementValue.Value < 0)
+        {
+            result.AddErrorMessage("Requirement value cannot be negative.");
+            return result;
+        }
+
+        // Validate eligibility rule references exist
+        if (parameters.EligibilityRules != null)
+        {
+            var validationResult = await ValidateEligibilityRulesAsync(parameters.EligibilityRules, ct);
+            if (!string.IsNullOrEmpty(validationResult))
+            {
+                result.AddErrorMessage(validationResult);
+                return result;
+            }
+        }
+
+        // Validate target rule references exist
+        if (parameters.TargetRules != null)
+        {
+            var validationResult = await ValidateTargetRulesAsync(parameters.TargetRules, ct);
+            if (!string.IsNullOrEmpty(validationResult))
+            {
+                result.AddErrorMessage(validationResult);
+                return result;
+            }
+        }
+
         // Create discount
         var discount = discountFactory.Create(parameters);
 
@@ -376,6 +405,38 @@ public class DiscountService(
 
         if (parameters.Priority.HasValue)
             discount.Priority = parameters.Priority.Value;
+
+        // Validate requirement value is non-negative
+        if (parameters.RequirementValue.HasValue && parameters.RequirementValue.Value < 0)
+        {
+            result.AddErrorMessage("Requirement value cannot be negative.");
+            scope.Complete();
+            return result;
+        }
+
+        // Validate eligibility rule references exist (if being updated)
+        if (parameters.EligibilityRules != null)
+        {
+            var validationResult = await ValidateEligibilityRulesAsync(parameters.EligibilityRules, ct);
+            if (!string.IsNullOrEmpty(validationResult))
+            {
+                result.AddErrorMessage(validationResult);
+                scope.Complete();
+                return result;
+            }
+        }
+
+        // Validate target rule references exist (if being updated)
+        if (parameters.TargetRules != null)
+        {
+            var validationResult = await ValidateTargetRulesAsync(parameters.TargetRules, ct);
+            if (!string.IsNullOrEmpty(validationResult))
+            {
+                result.AddErrorMessage(validationResult);
+                scope.Complete();
+                return result;
+            }
+        }
 
         discount.DateUpdated = DateTime.UtcNow;
 
@@ -1161,6 +1222,114 @@ public class DiscountService(
             return summaries;
         });
 
+        scope.Complete();
+        return result;
+    }
+
+    #endregion
+
+    #region Private Validation Helpers
+
+    /// <summary>
+    /// Validates that all referenced IDs in eligibility rules actually exist.
+    /// </summary>
+    private async Task<string?> ValidateEligibilityRulesAsync(
+        List<CreateDiscountEligibilityRuleParameters> rules,
+        CancellationToken ct)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            foreach (var rule in rules)
+            {
+                if (rule.EligibilityIds == null || rule.EligibilityIds.Count == 0)
+                    continue;
+
+                switch (rule.EligibilityType)
+                {
+                    case DiscountEligibilityType.SpecificCustomers:
+                        var customerCount = await db.Customers
+                            .CountAsync(c => rule.EligibilityIds.Contains(c.Id), ct);
+                        if (customerCount != rule.EligibilityIds.Count)
+                        {
+                            var existingIds = await db.Customers
+                                .Where(c => rule.EligibilityIds.Contains(c.Id))
+                                .Select(c => c.Id)
+                                .ToListAsync(ct);
+                            var missingIds = rule.EligibilityIds.Except(existingIds).ToList();
+                            return $"Customer IDs not found: {string.Join(", ", missingIds)}";
+                        }
+                        break;
+
+                    case DiscountEligibilityType.CustomerSegments:
+                        var segmentCount = await db.CustomerSegments
+                            .CountAsync(s => rule.EligibilityIds.Contains(s.Id), ct);
+                        if (segmentCount != rule.EligibilityIds.Count)
+                        {
+                            var existingIds = await db.CustomerSegments
+                                .Where(s => rule.EligibilityIds.Contains(s.Id))
+                                .Select(s => s.Id)
+                                .ToListAsync(ct);
+                            var missingIds = rule.EligibilityIds.Except(existingIds).ToList();
+                            return $"Segment IDs not found: {string.Join(", ", missingIds)}";
+                        }
+                        break;
+                }
+            }
+            return (string?)null;
+        });
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Validates that all referenced IDs in target rules actually exist.
+    /// </summary>
+    private async Task<string?> ValidateTargetRulesAsync(
+        List<CreateDiscountTargetRuleParameters> rules,
+        CancellationToken ct)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            foreach (var rule in rules)
+            {
+                if (rule.TargetIds == null || rule.TargetIds.Count == 0)
+                    continue;
+
+                switch (rule.TargetType)
+                {
+                    case DiscountTargetType.SpecificProducts:
+                        var productCount = await db.Products
+                            .CountAsync(p => rule.TargetIds.Contains(p.Id), ct);
+                        if (productCount != rule.TargetIds.Count)
+                        {
+                            var existingIds = await db.Products
+                                .Where(p => rule.TargetIds.Contains(p.Id))
+                                .Select(p => p.Id)
+                                .ToListAsync(ct);
+                            var missingIds = rule.TargetIds.Except(existingIds).ToList();
+                            return $"Product IDs not found: {string.Join(", ", missingIds)}";
+                        }
+                        break;
+
+                    case DiscountTargetType.Collections:
+                        var collectionCount = await db.ProductCollections
+                            .CountAsync(c => rule.TargetIds.Contains(c.Id), ct);
+                        if (collectionCount != rule.TargetIds.Count)
+                        {
+                            var existingIds = await db.ProductCollections
+                                .Where(c => rule.TargetIds.Contains(c.Id))
+                                .Select(c => c.Id)
+                                .ToListAsync(ct);
+                            var missingIds = rule.TargetIds.Except(existingIds).ToList();
+                            return $"Collection IDs not found: {string.Join(", ", missingIds)}";
+                        }
+                        break;
+                }
+            }
+            return (string?)null;
+        });
         scope.Complete();
         return result;
     }

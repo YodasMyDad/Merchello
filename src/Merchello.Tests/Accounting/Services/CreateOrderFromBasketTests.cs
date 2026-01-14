@@ -161,6 +161,7 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         // Assert
         invoice.ShouldNotBeNull();
         invoice.InvoiceNumber.ShouldNotBeNullOrEmpty();
+        invoice.BasketId.ShouldBe(basket.Id); // Verify BasketId is set for duplicate invoice prevention
         invoice.Orders.ShouldNotBeNull();
         invoice.Orders.Count.ShouldBe(1);
 

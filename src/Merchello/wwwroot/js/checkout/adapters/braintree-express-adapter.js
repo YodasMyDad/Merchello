@@ -519,7 +519,7 @@
                         {
                             deviceData: dataCollectorInstances[methodAlias]?.deviceData || '',
                             type: 'VenmoAccount',
-                            details: payload.details
+                            details: payload.details ? JSON.stringify(payload.details) : ''
                         }
                     );
                 } catch (error) {

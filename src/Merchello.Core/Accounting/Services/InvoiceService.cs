@@ -4057,4 +4057,136 @@ public class InvoiceService(
 
         return result.LineResults.FirstOrDefault()?.TaxRate ?? 0m;
     }
+
+    /// <inheritdoc />
+    public async Task<Invoice?> GetUnpaidInvoiceForBasketAsync(Guid basketId, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            // Get the basket (LineItems is stored as JSON, automatically deserialized)
+            var basket = await db.Baskets
+                .AsNoTracking()
+                .FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken);
+
+            if (basket == null)
+            {
+                return (Invoice: (Invoice?)null, Basket: (Basket?)null);
+            }
+
+            // Query directly on BasketId column - efficient indexed lookup
+            // Include orders and line items for content validation
+            var invoice = await db.Invoices
+                .AsNoTracking()
+                .Include(i => i.Payments)
+                .Include(i => i.Orders!)
+                    .ThenInclude(o => o.LineItems)
+                .Where(i => i.BasketId == basketId && !i.IsDeleted && !i.IsCancelled)
+                .OrderByDescending(i => i.DateCreated)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return (Invoice: invoice, Basket: basket);
+        });
+        scope.Complete();
+
+        var invoice = result.Invoice;
+        var basket = result.Basket;
+
+        if (invoice == null || basket == null)
+        {
+            return null;
+        }
+
+        // Check if invoice has already been paid
+        if (HasSuccessfulPayment(invoice.Payments))
+        {
+            logger.LogInformation(
+                "Invoice {InvoiceId} for basket {BasketId} already has successful payment. Will create new invoice.",
+                invoice.Id, basketId);
+            return null;
+        }
+
+        // Validate that basket hasn't been modified since invoice was created
+        // If basket was updated after invoice creation, the invoice may have stale data
+        if (basket.DateUpdated > invoice.DateCreated)
+        {
+            logger.LogInformation(
+                "Basket {BasketId} was modified ({BasketUpdated}) after invoice {InvoiceId} was created ({InvoiceCreated}). Will create new invoice instead.",
+                basketId, basket.DateUpdated, invoice.Id, invoice.DateCreated);
+            return null;
+        }
+
+        // Validate basket contents match invoice - ensures we don't reuse stale invoice data
+        if (!BasketMatchesInvoice(basket, invoice))
+        {
+            logger.LogInformation(
+                "Basket {BasketId} contents do not match invoice {InvoiceId}. Will create new invoice instead.",
+                basketId, invoice.Id);
+            return null;
+        }
+
+        logger.LogInformation(
+            "Found existing unpaid invoice {InvoiceId} for basket {BasketId}",
+            invoice.Id, basketId);
+
+        return invoice;
+    }
+
+    /// <summary>
+    /// Validates that basket line items match invoice order line items.
+    /// Compares product SKUs and quantities to ensure the invoice hasn't become stale.
+    /// </summary>
+    private static bool BasketMatchesInvoice(Basket basket, Invoice invoice)
+    {
+        // Get product line items from basket (excluding discounts, shipping, etc.)
+        var basketProductItems = basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Product)
+            .ToList();
+
+        // Get all product line items from all orders in the invoice
+        var invoiceProductItems = invoice.Orders?
+            .SelectMany(o => o.LineItems ?? [])
+            .Where(li => li.LineItemType == LineItemType.Product)
+            .ToList() ?? [];
+
+        // Quick check: same number of product line items
+        if (basketProductItems.Count != invoiceProductItems.Count)
+        {
+            return false;
+        }
+
+        // Build lookup of invoice items by SKU for comparison
+        // Group by SKU and sum quantities (in case of multi-warehouse split)
+        var invoiceSkuQuantities = invoiceProductItems
+            .GroupBy(li => li.Sku ?? "")
+            .ToDictionary(g => g.Key, g => g.Sum(li => li.Quantity));
+
+        // Verify each basket item has matching SKU and quantity in invoice
+        foreach (var basketItem in basketProductItems)
+        {
+            var sku = basketItem.Sku ?? "";
+            if (!invoiceSkuQuantities.TryGetValue(sku, out var invoiceQuantity))
+            {
+                return false; // SKU not found in invoice
+            }
+
+            if (basketItem.Quantity != invoiceQuantity)
+            {
+                return false; // Quantity mismatch
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Checks if an invoice has any successful payments.
+    /// </summary>
+    private static bool HasSuccessfulPayment(ICollection<Payment>? payments)
+    {
+        if (payments == null || payments.Count == 0)
+            return false;
+
+        return payments.Any(p => p.PaymentSuccess && p.PaymentType == PaymentType.Payment);
+    }
 }

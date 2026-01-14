@@ -27,6 +27,9 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("BasketId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("CancellationReason")
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");

@@ -104,11 +104,6 @@
                 rangeMax: config.rangeMax,
                 debounceTimer: null,
 
-                formatPrice(value) {
-                    // Use global currency store for proper formatting with exchange rate
-                    return Alpine.store('currency').formatPrice(value);
-                },
-
                 toggleFilter(filterId) {
                     const index = this.selectedFilters.indexOf(filterId);
                     if (index > -1) {

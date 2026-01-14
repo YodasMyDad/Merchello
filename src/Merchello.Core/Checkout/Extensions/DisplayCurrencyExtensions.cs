@@ -1,6 +1,7 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Storefront.Models;
 
 namespace Merchello.Core.Checkout.Extensions;
 
@@ -28,6 +29,28 @@ public static class DisplayCurrencyExtensions
             currencyService.Round(basket.Shipping * exchangeRate, targetCurrency),
             currencyService.Round(basket.Tax * exchangeRate, targetCurrency),
             currencyService.Round(basket.Discount * exchangeRate, targetCurrency)
+        );
+    }
+
+    /// <summary>
+    /// Get basket totals converted to display currency using StorefrontDisplayContext.
+    /// Note: Basket totals already include tax (calculated by LineItemService).
+    /// This method just converts to display currency.
+    /// </summary>
+    public static DisplayAmounts GetDisplayAmounts(
+        this Basket? basket,
+        StorefrontDisplayContext displayContext,
+        ICurrencyService currencyService)
+    {
+        if (basket == null)
+            return new DisplayAmounts(0, 0, 0, 0, 0);
+
+        return new DisplayAmounts(
+            currencyService.Round(basket.Total * displayContext.ExchangeRate, displayContext.CurrencyCode),
+            currencyService.Round(basket.SubTotal * displayContext.ExchangeRate, displayContext.CurrencyCode),
+            currencyService.Round(basket.Shipping * displayContext.ExchangeRate, displayContext.CurrencyCode),
+            currencyService.Round(basket.Tax * displayContext.ExchangeRate, displayContext.CurrencyCode),
+            currencyService.Round(basket.Discount * displayContext.ExchangeRate, displayContext.CurrencyCode)
         );
     }
 

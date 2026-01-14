@@ -180,5 +180,14 @@ public interface IInvoiceService
     Task<CrudResult<Invoice>> ApplyPromotionalDiscountAsync(
         ApplyPromotionalDiscountParameters parameters,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets an unpaid invoice that was created from a specific basket.
+    /// Used to reuse existing invoices when a user returns to checkout, preventing ghost orders.
+    /// </summary>
+    /// <param name="basketId">The basket ID to search for</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The unpaid invoice if found, null otherwise</returns>
+    Task<Invoice?> GetUnpaidInvoiceForBasketAsync(Guid basketId, CancellationToken cancellationToken = default);
 }
 

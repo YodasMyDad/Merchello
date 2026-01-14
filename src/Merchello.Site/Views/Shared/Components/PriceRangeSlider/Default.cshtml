@@ -10,18 +10,28 @@
     var step = range > 0 ? Math.Max(1, Math.Floor(range / 100)) : 1;
     // For CSS calculation, prevent division by zero
     var rangeForCalc = range > 0 ? range : 1;
-    // Price format for SSR fallback
+    // Price format for SSR fallback (uses display prices)
     var priceFormat = $"N{Model.DecimalPlaces}";
+    var displaySelectedMin = Model.DisplaySelectedMin ?? Model.DisplayRangeMin;
+    var displaySelectedMax = Model.DisplaySelectedMax ?? Model.DisplayRangeMax;
 }
 
 @if (range > 0)
 {
-    <div class="price-range-slider mb-4">
+    <div class="price-range-slider mb-4"
+         x-data="{ displayMultiplier: @Model.DisplayMultiplier, decimals: @Model.DecimalPlaces }"
+         x-init="
+            // Helper to convert store price to display price and format
+            $el.toDisplayPrice = (storePrice) => {
+                const displayPrice = storePrice * displayMultiplier;
+                return Alpine.store('currency').formatDisplayPrice(displayPrice);
+            };
+         ">
         <h6 class="fw-bold mb-3">Price Range</h6>
 
         <div class="d-flex justify-content-between mb-2">
-            <span class="price-label" x-text="formatPrice(priceMin)">@Model.CurrencySymbol@selectedMin.ToString(priceFormat)</span>
-            <span class="price-label" x-text="formatPrice(priceMax)">@Model.CurrencySymbol@selectedMax.ToString(priceFormat)</span>
+            <span class="price-label" x-text="$el.toDisplayPrice(priceMin)">@Model.CurrencySymbol@displaySelectedMin.ToString(priceFormat)</span>
+            <span class="price-label" x-text="$el.toDisplayPrice(priceMax)">@Model.CurrencySymbol@displaySelectedMax.ToString(priceFormat)</span>
         </div>
 
         <div class="range-slider-container">

@@ -603,16 +603,6 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
                 }
             };
 
-            // Only add custom fields if not in test mode
-            // Custom fields require configuration in the Braintree Control Panel
-            if (!request.IsTestMode)
-            {
-                transactionRequest.CustomFields = new Dictionary<string, string>
-                {
-                    ["invoice_id"] = request.InvoiceId.ToString()
-                };
-            }
-
             // Add merchant account if configured
             if (!string.IsNullOrEmpty(_merchantAccountId))
             {

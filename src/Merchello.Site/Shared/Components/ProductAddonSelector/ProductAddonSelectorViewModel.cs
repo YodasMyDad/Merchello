@@ -36,6 +36,11 @@ public class ProductAddonSelectorViewModel
     public int DecimalPlaces { get; set; } = 2;
 
     /// <summary>
+    /// Whether prices include tax (for display purposes).
+    /// </summary>
+    public bool IncludesTax { get; set; }
+
+    /// <summary>
     /// The option values to display.
     /// </summary>
     public List<ProductAddonValueViewModel> Values { get; set; } = [];

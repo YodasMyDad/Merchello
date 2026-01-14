@@ -1,3 +1,5 @@
+using Merchello.Core.Products.Models;
+
 namespace Merchello.Core.Products.Dtos;
 
 /// <summary>
@@ -43,4 +45,10 @@ public class ProductListItemDto
     /// Whether this is a digital product that doesn't require shipping
     /// </summary>
     public bool IsDigitalProduct { get; set; }
+
+    /// <summary>
+    /// Calculated display price in customer's currency, optionally including tax.
+    /// Null when fetched without display context (e.g., admin API).
+    /// </summary>
+    public ProductDisplayPrice? DisplayPrice { get; set; }
 }

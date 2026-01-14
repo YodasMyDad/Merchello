@@ -41,6 +41,14 @@ public class MerchelloSettings
     public string? DefaultShippingCountry { get; set; }
 
     /// <summary>
+    /// When true, storefront prices are displayed including applicable tax (VAT/GST).
+    /// Tax is calculated based on the customer's shipping country using TaxGroup rates.
+    /// Products remain stored as NET prices in the database.
+    /// Default: false (prices displayed excluding tax)
+    /// </summary>
+    public bool DisplayPricesIncTax { get; set; }
+
+    /// <summary>
     /// When true, shows stock counts on product pages (e.g., "In Stock (50 available)").
     /// When false, shows only status (e.g., "In Stock" or "Out of Stock").
     /// Default: false

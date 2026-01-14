@@ -31,7 +31,7 @@
 }
 else
 {
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-0 min-h-[calc(100vh-10rem)]">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-0 h-full">
         <!-- Left Column: Order Details -->
         <div class="pt-6 lg:pr-12 pb-8">
             <!-- Header: Confirmation Number & Title -->
@@ -134,7 +134,6 @@ else
                         </div>
                         <div>
                             <h2 class="font-medium text-gray-900">Your order is confirmed</h2>
-                            <p class="text-sm text-gray-600 mt-1">You'll receive a confirmation email soon</p>
                         </div>
                     </div>
                 </div>
@@ -171,6 +170,10 @@ else
                                 {
                                     @confirmation.ShippingAddress.Name<br />
                                 }
+                                @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Company))
+                                {
+                                    @confirmation.ShippingAddress.Company<br />
+                                }
                                 @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Address1))
                                 {
                                     @confirmation.ShippingAddress.Address1<br />
@@ -182,17 +185,20 @@ else
                                 @{
                                     var shipCity = confirmation.ShippingAddress.City;
                                     var shipState = confirmation.ShippingAddress.State;
-                                    var shipPostal = confirmation.ShippingAddress.PostalCode;
+                                    var shipCityState = string.Join(", ", new[] { shipCity, shipState }.Where(s => !string.IsNullOrEmpty(s)));
                                 }
-                                @if (!string.IsNullOrEmpty(shipCity))
+                                @if (!string.IsNullOrEmpty(shipCityState))
                                 {
-                                    @shipCity<br />
+                                    @shipCityState<br />
                                 }
-                                @if (!string.IsNullOrEmpty(shipState) || !string.IsNullOrEmpty(shipPostal))
+                                @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.PostalCode))
                                 {
-                                    @shipState @shipPostal<br />
+                                    @confirmation.ShippingAddress.PostalCode<br />
                                 }
-                                @confirmation.ShippingAddress.Country
+                                @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Country))
+                                {
+                                    @confirmation.ShippingAddress.Country
+                                }
                                 @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Phone))
                                 {
                                     <br />@confirmation.ShippingAddress.Phone
@@ -208,6 +214,10 @@ else
                                 {
                                     @confirmation.BillingAddress.Name<br />
                                 }
+                                @if (!string.IsNullOrEmpty(confirmation.BillingAddress.Company))
+                                {
+                                    @confirmation.BillingAddress.Company<br />
+                                }
                                 @if (!string.IsNullOrEmpty(confirmation.BillingAddress.Address1))
                                 {
                                     @confirmation.BillingAddress.Address1<br />
@@ -219,17 +229,20 @@ else
                                 @{
                                     var billCity = confirmation.BillingAddress.City;
                                     var billState = confirmation.BillingAddress.State;
-                                    var billPostal = confirmation.BillingAddress.PostalCode;
+                                    var billCityState = string.Join(", ", new[] { billCity, billState }.Where(s => !string.IsNullOrEmpty(s)));
                                 }
-                                @if (!string.IsNullOrEmpty(billCity))
+                                @if (!string.IsNullOrEmpty(billCityState))
                                 {
-                                    @billCity<br />
+                                    @billCityState<br />
                                 }
-                                @if (!string.IsNullOrEmpty(billState) || !string.IsNullOrEmpty(billPostal))
+                                @if (!string.IsNullOrEmpty(confirmation.BillingAddress.PostalCode))
                                 {
-                                    @billState @billPostal<br />
+                                    @confirmation.BillingAddress.PostalCode<br />
                                 }
-                                @confirmation.BillingAddress.Country
+                                @if (!string.IsNullOrEmpty(confirmation.BillingAddress.Country))
+                                {
+                                    @confirmation.BillingAddress.Country
+                                }
                                 @if (!string.IsNullOrEmpty(confirmation.BillingAddress.Phone))
                                 {
                                     <br />@confirmation.BillingAddress.Phone

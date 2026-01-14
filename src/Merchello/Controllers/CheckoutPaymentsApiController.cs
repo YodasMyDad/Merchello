@@ -422,16 +422,29 @@ public class CheckoutPaymentsApiController(
             });
         }
 
-        // Create invoice from basket (skip for DirectForm - will be created in ProcessDirectPayment)
+        // Get or create invoice from basket (skip for DirectForm - will be created in ProcessDirectPayment)
         Invoice? invoice = null;
         if (!isDirectForm)
         {
-            invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, cancellationToken);
+            // Check for existing unpaid invoice to prevent ghost orders when users abandon and return
+            invoice = await invoiceService.GetUnpaidInvoiceForBasketAsync(basket.Id, cancellationToken);
 
-            logger.LogInformation(
-                "Invoice {InvoiceId} created from basket {BasketId}",
-                invoice.Id,
-                basket.Id);
+            if (invoice != null)
+            {
+                logger.LogInformation(
+                    "Reusing existing unpaid invoice {InvoiceId} for basket {BasketId}",
+                    invoice.Id,
+                    basket.Id);
+            }
+            else
+            {
+                invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, cancellationToken);
+
+                logger.LogInformation(
+                    "Invoice {InvoiceId} created from basket {BasketId}",
+                    invoice.Id,
+                    basket.Id);
+            }
 
             // Store invoice ID in session for ownership validation during payment
             await checkoutSessionService.SetInvoiceIdAsync(basket.Id, invoice.Id, cancellationToken);
@@ -713,6 +726,20 @@ public class CheckoutPaymentsApiController(
         else if (session.InvoiceId.HasValue)
         {
             invoice = await invoiceService.GetInvoiceAsync(session.InvoiceId.Value, cancellationToken);
+        }
+
+        // Check for existing unpaid invoice to prevent ghost orders when users abandon and return
+        if (invoice == null)
+        {
+            invoice = await invoiceService.GetUnpaidInvoiceForBasketAsync(currentBasket.Id, cancellationToken);
+            if (invoice != null)
+            {
+                logger.LogInformation(
+                    "Reusing existing unpaid invoice {InvoiceId} for basket {BasketId} in DirectForm payment",
+                    invoice.Id,
+                    currentBasket.Id);
+                await checkoutSessionService.SetInvoiceIdAsync(currentBasket.Id, invoice.Id, cancellationToken);
+            }
         }
 
         // If no invoice exists, create one now (DirectForm flow - validation passed on frontend)

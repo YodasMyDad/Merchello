@@ -1,3 +1,5 @@
+using Merchello.Core.Products.Models;
+
 namespace Merchello.Site.Shared.Components.ProductBox;
 
 public class ProductBoxViewModel
@@ -10,10 +12,9 @@ public class ProductBoxViewModel
     public string? ImageUrl { get; set; }
     public string ProductUrl { get; set; } = string.Empty;
 
-    // Display prices in customer's selected currency
-    public decimal DisplayPrice { get; set; }
-    public decimal? DisplayPreviousPrice { get; set; }
-    public string CurrencyCode { get; set; } = "GBP";
-    public string CurrencySymbol { get; set; } = "£";
-    public int DecimalPlaces { get; set; } = 2;
+    /// <summary>
+    /// Calculated display price in customer's currency, optionally including tax.
+    /// Includes amount, currency info, and tax details.
+    /// </summary>
+    public ProductDisplayPrice? DisplayPrice { get; set; }
 }

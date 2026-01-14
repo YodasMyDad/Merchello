@@ -52,6 +52,26 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
     this._quickAmountPercentages = settings.refundQuickAmountPercentages;
   }
 
+  /**
+   * Preview refund calculation using backend API for proper currency rounding.
+   * Falls back to client-side calculation if preview fails (e.g., network error).
+   */
+  private async _previewRefund(paymentId: string, percentage?: number): Promise<void> {
+    const { data, error } = await MerchelloApi.previewRefund(paymentId, { percentage });
+
+    if (error || !data) {
+      // Fallback to client-side calculation if preview fails
+      const payment = this.data?.payment;
+      if (payment) {
+        this._amount = percentage
+          ? payment.refundableAmount * (percentage / 100)
+          : payment.refundableAmount;
+      }
+      return;
+    }
+
+    this._amount = data.requestedAmount;
+  }
 
   private async _handleSave(): Promise<void> {
     const payment = this.data?.payment;
@@ -163,14 +183,14 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
                 this._amount = parseFloat((e.target as HTMLInputElement).value) || 0;
               }}
             ></uui-input>
-            <!-- Quick amount buttons for UX convenience only.
+            <!-- Quick amount buttons use backend preview API for proper currency rounding.
                  Backend validates actual refund amount in processRefund API call. -->
             <div class="amount-buttons">
               <uui-button
                 look="secondary"
                 label="Full Refund"
                 compact
-                @click=${() => (this._amount = payment.refundableAmount)}
+                @click=${() => this._previewRefund(payment.id)}
               >
                 Full Refund
               </uui-button>
@@ -180,7 +200,7 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
                     look="secondary"
                     label="${pct}%"
                     compact
-                    @click=${() => (this._amount = payment.refundableAmount * (pct / 100))}
+                    @click=${() => this._previewRefund(payment.id, pct)}
                   >
                     ${pct}%
                   </uui-button>

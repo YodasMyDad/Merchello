@@ -269,8 +269,9 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     if (address.company) lines.push(address.company);
     if (address.addressOne) lines.push(address.addressOne);
     if (address.addressTwo) lines.push(address.addressTwo);
-    const cityLine = [address.townCity, address.countyState, address.postalCode].filter(Boolean).join(" ");
-    if (cityLine) lines.push(cityLine);
+    const cityState = [address.townCity, address.countyState].filter(Boolean).join(", ");
+    if (cityState) lines.push(cityState);
+    if (address.postalCode) lines.push(address.postalCode);
     if (address.country) lines.push(address.country);
     if (address.phone) lines.push(address.phone);
     return lines;

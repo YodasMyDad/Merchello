@@ -582,4 +582,359 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     #endregion
+
+    #region GetUnpaidInvoiceForBasketAsync Tests
+
+    [Fact]
+    public async Task GetUnpaidInvoiceForBasketAsync_WithExistingUnpaidInvoice_ReturnsInvoice()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var customer = dataBuilder.CreateCustomer();
+
+        // Use fixed timestamps to avoid timing issues
+        var basketTime = new DateTime(2026, 1, 1, 10, 0, 0, DateTimeKind.Utc);
+        var invoiceTime = new DateTime(2026, 1, 1, 10, 5, 0, DateTimeKind.Utc); // 5 mins after basket
+
+        // Create a basket with line items
+        var basket = new Core.Checkout.Models.Basket
+        {
+            Id = Guid.NewGuid(),
+            Currency = "GBP",
+            DateCreated = basketTime,
+            DateUpdated = basketTime,
+            LineItems =
+            [
+                new LineItem { Sku = "PROD-001", Quantity = 2, LineItemType = LineItemType.Product },
+                new LineItem { Sku = "PROD-002", Quantity = 1, LineItemType = LineItemType.Product }
+            ]
+        };
+        _fixture.DbContext.Baskets.Add(basket);
+
+        // Create an invoice with matching line items
+        var invoice = dataBuilder.CreateInvoice(customer: customer);
+        invoice.BasketId = basket.Id;
+        invoice.DateCreated = invoiceTime;
+        invoice.DateUpdated = invoiceTime;
+
+        // Add order with matching line items
+        var warehouse = dataBuilder.CreateWarehouse();
+        var shippingOption = dataBuilder.CreateShippingOption(warehouse: warehouse);
+        var order = dataBuilder.CreateOrder(invoice: invoice, warehouse: warehouse, shippingOption: shippingOption);
+        order.LineItems =
+        [
+            new LineItem { Sku = "PROD-001", Quantity = 2, LineItemType = LineItemType.Product, OrderId = order.Id },
+            new LineItem { Sku = "PROD-002", Quantity = 1, LineItemType = LineItemType.Product, OrderId = order.Id }
+        ];
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _invoiceService.GetUnpaidInvoiceForBasketAsync(basket.Id);
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.Id.ShouldBe(invoice.Id);
+    }
+
+    [Fact]
+    public async Task GetUnpaidInvoiceForBasketAsync_WithPaidInvoice_ReturnsNull()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var customer = dataBuilder.CreateCustomer();
+
+        // Create a basket
+        var basket = new Core.Checkout.Models.Basket
+        {
+            Id = Guid.NewGuid(),
+            Currency = "GBP",
+            DateCreated = DateTime.UtcNow.AddMinutes(-10),
+            DateUpdated = DateTime.UtcNow.AddMinutes(-10)
+        };
+        _fixture.DbContext.Baskets.Add(basket);
+
+        // Create an invoice linked to the basket
+        var invoice = dataBuilder.CreateInvoice(customer: customer);
+        invoice.BasketId = basket.Id;
+        invoice.DateCreated = DateTime.UtcNow.AddMinutes(-5);
+
+        // Add a successful payment
+        var payment = dataBuilder.CreatePayment(invoice);
+        payment.PaymentSuccess = true;
+        payment.PaymentType = Core.Payments.Models.PaymentType.Payment;
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _invoiceService.GetUnpaidInvoiceForBasketAsync(basket.Id);
+
+        // Assert - should return null because invoice is already paid
+        result.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task GetUnpaidInvoiceForBasketAsync_WithModifiedBasket_ReturnsNull()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var customer = dataBuilder.CreateCustomer();
+
+        // Create a basket that was modified AFTER invoice creation
+        var basket = new Core.Checkout.Models.Basket
+        {
+            Id = Guid.NewGuid(),
+            Currency = "GBP",
+            DateCreated = DateTime.UtcNow.AddMinutes(-10),
+            DateUpdated = DateTime.UtcNow // Modified just now
+        };
+        _fixture.DbContext.Baskets.Add(basket);
+
+        // Create an invoice linked to the basket (created before basket was modified)
+        var invoice = dataBuilder.CreateInvoice(customer: customer);
+        invoice.BasketId = basket.Id;
+        invoice.DateCreated = DateTime.UtcNow.AddMinutes(-5); // Created before basket was updated
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _invoiceService.GetUnpaidInvoiceForBasketAsync(basket.Id);
+
+        // Assert - should return null because basket was modified after invoice creation
+        result.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task GetUnpaidInvoiceForBasketAsync_WithNoExistingInvoice_ReturnsNull()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+
+        // Create a basket with no associated invoice
+        var basket = new Core.Checkout.Models.Basket
+        {
+            Id = Guid.NewGuid(),
+            Currency = "GBP",
+            DateCreated = DateTime.UtcNow,
+            DateUpdated = DateTime.UtcNow
+        };
+        _fixture.DbContext.Baskets.Add(basket);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _invoiceService.GetUnpaidInvoiceForBasketAsync(basket.Id);
+
+        // Assert
+        result.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task GetUnpaidInvoiceForBasketAsync_WithNonExistentBasket_ReturnsNull()
+    {
+        // Act
+        var result = await _invoiceService.GetUnpaidInvoiceForBasketAsync(Guid.NewGuid());
+
+        // Assert
+        result.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task GetUnpaidInvoiceForBasketAsync_WithDifferentSku_ReturnsNull()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var customer = dataBuilder.CreateCustomer();
+
+        var basketTime = new DateTime(2026, 1, 1, 10, 0, 0, DateTimeKind.Utc);
+        var invoiceTime = new DateTime(2026, 1, 1, 10, 5, 0, DateTimeKind.Utc);
+
+        // Create basket with one SKU
+        var basket = new Core.Checkout.Models.Basket
+        {
+            Id = Guid.NewGuid(),
+            Currency = "GBP",
+            DateCreated = basketTime,
+            DateUpdated = basketTime,
+            LineItems =
+            [
+                new LineItem { Sku = "PROD-NEW", Quantity = 2, LineItemType = LineItemType.Product }
+            ]
+        };
+        _fixture.DbContext.Baskets.Add(basket);
+
+        // Create invoice with different SKU
+        var invoice = dataBuilder.CreateInvoice(customer: customer);
+        invoice.BasketId = basket.Id;
+        invoice.DateCreated = invoiceTime;
+        invoice.DateUpdated = invoiceTime;
+
+        var warehouse = dataBuilder.CreateWarehouse();
+        var shippingOption = dataBuilder.CreateShippingOption(warehouse: warehouse);
+        var order = dataBuilder.CreateOrder(invoice: invoice, warehouse: warehouse, shippingOption: shippingOption);
+        order.LineItems =
+        [
+            new LineItem { Sku = "PROD-OLD", Quantity = 2, LineItemType = LineItemType.Product, OrderId = order.Id }
+        ];
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _invoiceService.GetUnpaidInvoiceForBasketAsync(basket.Id);
+
+        // Assert - should return null because SKUs don't match
+        result.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task GetUnpaidInvoiceForBasketAsync_WithDifferentQuantity_ReturnsNull()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var customer = dataBuilder.CreateCustomer();
+
+        var basketTime = new DateTime(2026, 1, 1, 10, 0, 0, DateTimeKind.Utc);
+        var invoiceTime = new DateTime(2026, 1, 1, 10, 5, 0, DateTimeKind.Utc);
+
+        // Create basket with quantity 5
+        var basket = new Core.Checkout.Models.Basket
+        {
+            Id = Guid.NewGuid(),
+            Currency = "GBP",
+            DateCreated = basketTime,
+            DateUpdated = basketTime,
+            LineItems =
+            [
+                new LineItem { Sku = "PROD-001", Quantity = 5, LineItemType = LineItemType.Product }
+            ]
+        };
+        _fixture.DbContext.Baskets.Add(basket);
+
+        // Create invoice with quantity 2 (different)
+        var invoice = dataBuilder.CreateInvoice(customer: customer);
+        invoice.BasketId = basket.Id;
+        invoice.DateCreated = invoiceTime;
+        invoice.DateUpdated = invoiceTime;
+
+        var warehouse = dataBuilder.CreateWarehouse();
+        var shippingOption = dataBuilder.CreateShippingOption(warehouse: warehouse);
+        var order = dataBuilder.CreateOrder(invoice: invoice, warehouse: warehouse, shippingOption: shippingOption);
+        order.LineItems =
+        [
+            new LineItem { Sku = "PROD-001", Quantity = 2, LineItemType = LineItemType.Product, OrderId = order.Id }
+        ];
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _invoiceService.GetUnpaidInvoiceForBasketAsync(basket.Id);
+
+        // Assert - should return null because quantities don't match
+        result.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task GetUnpaidInvoiceForBasketAsync_WithExtraItemInBasket_ReturnsNull()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var customer = dataBuilder.CreateCustomer();
+
+        var basketTime = new DateTime(2026, 1, 1, 10, 0, 0, DateTimeKind.Utc);
+        var invoiceTime = new DateTime(2026, 1, 1, 10, 5, 0, DateTimeKind.Utc);
+
+        // Create basket with 2 items
+        var basket = new Core.Checkout.Models.Basket
+        {
+            Id = Guid.NewGuid(),
+            Currency = "GBP",
+            DateCreated = basketTime,
+            DateUpdated = basketTime,
+            LineItems =
+            [
+                new LineItem { Sku = "PROD-001", Quantity = 1, LineItemType = LineItemType.Product },
+                new LineItem { Sku = "PROD-002", Quantity = 1, LineItemType = LineItemType.Product }
+            ]
+        };
+        _fixture.DbContext.Baskets.Add(basket);
+
+        // Create invoice with only 1 item
+        var invoice = dataBuilder.CreateInvoice(customer: customer);
+        invoice.BasketId = basket.Id;
+        invoice.DateCreated = invoiceTime;
+        invoice.DateUpdated = invoiceTime;
+
+        var warehouse = dataBuilder.CreateWarehouse();
+        var shippingOption = dataBuilder.CreateShippingOption(warehouse: warehouse);
+        var order = dataBuilder.CreateOrder(invoice: invoice, warehouse: warehouse, shippingOption: shippingOption);
+        order.LineItems =
+        [
+            new LineItem { Sku = "PROD-001", Quantity = 1, LineItemType = LineItemType.Product, OrderId = order.Id }
+        ];
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _invoiceService.GetUnpaidInvoiceForBasketAsync(basket.Id);
+
+        // Assert - should return null because basket has extra item
+        result.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task GetUnpaidInvoiceForBasketAsync_WithMissingItemInBasket_ReturnsNull()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var customer = dataBuilder.CreateCustomer();
+
+        var basketTime = new DateTime(2026, 1, 1, 10, 0, 0, DateTimeKind.Utc);
+        var invoiceTime = new DateTime(2026, 1, 1, 10, 5, 0, DateTimeKind.Utc);
+
+        // Create basket with 1 item
+        var basket = new Core.Checkout.Models.Basket
+        {
+            Id = Guid.NewGuid(),
+            Currency = "GBP",
+            DateCreated = basketTime,
+            DateUpdated = basketTime,
+            LineItems =
+            [
+                new LineItem { Sku = "PROD-001", Quantity = 1, LineItemType = LineItemType.Product }
+            ]
+        };
+        _fixture.DbContext.Baskets.Add(basket);
+
+        // Create invoice with 2 items
+        var invoice = dataBuilder.CreateInvoice(customer: customer);
+        invoice.BasketId = basket.Id;
+        invoice.DateCreated = invoiceTime;
+        invoice.DateUpdated = invoiceTime;
+
+        var warehouse = dataBuilder.CreateWarehouse();
+        var shippingOption = dataBuilder.CreateShippingOption(warehouse: warehouse);
+        var order = dataBuilder.CreateOrder(invoice: invoice, warehouse: warehouse, shippingOption: shippingOption);
+        order.LineItems =
+        [
+            new LineItem { Sku = "PROD-001", Quantity = 1, LineItemType = LineItemType.Product, OrderId = order.Id },
+            new LineItem { Sku = "PROD-002", Quantity = 1, LineItemType = LineItemType.Product, OrderId = order.Id }
+        ];
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _invoiceService.GetUnpaidInvoiceForBasketAsync(basket.Id);
+
+        // Assert - should return null because basket is missing an item
+        result.ShouldBeNull();
+    }
+
+    #endregion
 }

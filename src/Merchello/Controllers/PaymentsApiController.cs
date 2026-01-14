@@ -305,6 +305,39 @@ public class PaymentsApiController(
         return Ok(await MapToPaymentDtoAsync(result.ResultObject!, cancellationToken));
     }
 
+    /// <summary>
+    /// Preview a refund calculation without processing it.
+    /// Returns calculated amounts and provider capabilities for UI preview.
+    /// </summary>
+    [HttpPost("payments/{id:guid}/preview-refund")]
+    [ProducesResponseType<RefundPreviewDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> PreviewRefund(
+        Guid id,
+        [FromBody] PreviewRefundRequestDto? request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await paymentService.PreviewRefundAsync(new PreviewRefundParameters
+        {
+            PaymentId = id,
+            Amount = request?.Amount,
+            Percentage = request?.Percentage
+        }, cancellationToken);
+
+        if (!result.Successful)
+        {
+            var errorMessage = result.Messages.FirstOrDefault()?.Message;
+            if (errorMessage?.Contains("not found") == true)
+            {
+                return NotFound(errorMessage);
+            }
+            return BadRequest(errorMessage ?? "Failed to preview refund.");
+        }
+
+        return Ok(result.ResultObject);
+    }
+
     // ============================================
     // Mapping Helpers
     // ============================================

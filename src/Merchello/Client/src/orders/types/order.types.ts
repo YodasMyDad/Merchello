@@ -122,6 +122,36 @@ export interface ProcessRefundDto {
   isManualRefund?: boolean;
 }
 
+/** Request to preview a refund calculation */
+export interface PreviewRefundRequestDto {
+  /** Specific amount to preview refund for. If null, previews full refund. */
+  amount?: number;
+  /** Percentage of refundable amount (0-100). Takes precedence over amount if provided. */
+  percentage?: number;
+}
+
+/** Result of a refund preview calculation */
+export interface RefundPreviewDto {
+  /** The payment ID being previewed */
+  paymentId: string;
+  /** The total refundable amount for this payment */
+  refundableAmount: number;
+  /** The calculated refund amount based on request (amount or percentage) */
+  requestedAmount: number;
+  /** The currency code for the refund amounts */
+  currencyCode: string;
+  /** Whether the payment provider supports partial refunds */
+  supportsPartialRefund: boolean;
+  /** Whether the payment provider supports refunds at all */
+  supportsRefund: boolean;
+  /** The payment provider alias handling this payment */
+  providerAlias?: string | null;
+  /** Formatted refundable amount for display */
+  formattedRefundableAmount?: string | null;
+  /** Formatted requested amount for display */
+  formattedRequestedAmount?: string | null;
+}
+
 /** Custom event detail for payment-recorded event */
 export interface PaymentRecordedDetail {
   invoiceId: string;

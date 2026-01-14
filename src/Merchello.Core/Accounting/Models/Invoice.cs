@@ -18,6 +18,13 @@ public class Invoice
     public Guid CustomerId { get; set; }
 
     /// <summary>
+    /// The basket this invoice was created from (null for draft orders).
+    /// Used to find existing unpaid invoices when a customer returns to checkout,
+    /// preventing duplicate "ghost" invoices.
+    /// </summary>
+    public Guid? BasketId { get; set; }
+
+    /// <summary>
     /// Human-readable invoice number (e.g., "INV-0001")
     /// </summary>
     public string InvoiceNumber { get; set; } = string.Empty;

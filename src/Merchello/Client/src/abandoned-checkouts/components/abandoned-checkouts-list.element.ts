@@ -10,7 +10,7 @@ import type {
 } from "@abandoned-checkouts/types/abandoned-checkout.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getStoreSettings } from "@api/store-settings.js";
-import { formatRelativeDate } from "@shared/utils/formatting.js";
+import { formatRelativeDate, formatNumber } from "@shared/utils/formatting.js";
 import type { PageChangeEventDetail } from "@shared/types/pagination.types.js";
 import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";
@@ -210,11 +210,11 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
           <div class="stat-label">Total Abandoned</div>
         </uui-box>
         <uui-box class="stat-card">
-          <div class="stat-value">${this._stats.recoveryRate.toFixed(1)}%</div>
+          <div class="stat-value">${formatNumber(this._stats.recoveryRate, 1)}%</div>
           <div class="stat-label">Recovery Rate</div>
         </uui-box>
         <uui-box class="stat-card">
-          <div class="stat-value">${this._stats.conversionRate.toFixed(1)}%</div>
+          <div class="stat-value">${formatNumber(this._stats.conversionRate, 1)}%</div>
           <div class="stat-label">Conversion Rate</div>
         </uui-box>
         <uui-box class="stat-card">

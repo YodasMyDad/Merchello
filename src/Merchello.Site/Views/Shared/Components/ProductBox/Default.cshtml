@@ -28,22 +28,27 @@
                 @Model.Name
             </a>
         </h5>
-        <p class="card-text mb-0">
-            @{
-                // Format prices using customer's currency
-                var priceFormat = $"N{Model.DecimalPlaces}";
-            }
-            @if (Model.OnSale && Model.DisplayPreviousPrice.HasValue)
-            {
-                <span class="text-muted text-decoration-line-through me-2">
-                    @Model.CurrencySymbol@Model.DisplayPreviousPrice.Value.ToString(priceFormat)
-                </span>
-                <span class="text-danger fw-bold">@Model.CurrencySymbol@Model.DisplayPrice.ToString(priceFormat)</span>
-            }
-            else
-            {
-                <span class="fw-bold">@Model.CurrencySymbol@Model.DisplayPrice.ToString(priceFormat)</span>
-            }
-        </p>
+        @if (Model.DisplayPrice != null)
+        {
+            var dp = Model.DisplayPrice;
+            var priceFormat = $"N{dp.DecimalPlaces}";
+            <p class="card-text mb-0">
+                @if (dp.CompareAtAmount.HasValue)
+                {
+                    <span class="text-muted text-decoration-line-through me-2">
+                        @dp.CurrencySymbol@dp.CompareAtAmount.Value.ToString(priceFormat)
+                    </span>
+                    <span class="text-danger fw-bold">@dp.CurrencySymbol@dp.Amount.ToString(priceFormat)</span>
+                }
+                else
+                {
+                    <span class="fw-bold">@dp.CurrencySymbol@dp.Amount.ToString(priceFormat)</span>
+                }
+                @if (dp.IncludesTax)
+                {
+                    <span class="text-muted small ms-1">(inc. @dp.TaxRate% VAT)</span>
+                }
+            </p>
+        }
     </div>
 </div>

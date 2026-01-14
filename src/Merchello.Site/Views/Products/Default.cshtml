@@ -7,6 +7,8 @@
 @inject Microsoft.Extensions.Options.IOptions<Merchello.Core.Shared.Models.MerchelloSettings> Settings
 @inject Merchello.Services.IRichTextRenderer RichTextRenderer
 @inject Merchello.Core.Storefront.Services.IStorefrontContextService StorefrontContext
+@inject Merchello.Core.Accounting.Services.Interfaces.ITaxService TaxService
+@inject Merchello.Core.Shared.Services.Interfaces.ICurrencyService CurrencyService
 @inherits UmbracoViewPage<MerchelloProductViewModel>
 @{
     Layout = "~/Views/Website.cshtml";
@@ -32,8 +34,20 @@
     // Get customer's shipping location for location-aware stock display
     var shippingLocation = await StorefrontContext.GetShippingLocationAsync();
 
-    // Get currency context for display prices
-    var currencyContext = await StorefrontContext.GetCurrencyContextAsync();
+    // Get display context for prices (includes currency and tax settings)
+    var displayContext = await StorefrontContext.GetDisplayContextAsync();
+
+    // Get applicable tax rate for this product
+    decimal taxRate = 0m;
+    if (displayContext.DisplayPricesIncTax && Model.ProductRoot?.TaxGroupId is Guid taxGroupId)
+    {
+        taxRate = await TaxService.GetApplicableRateAsync(
+            taxGroupId,
+            displayContext.TaxCountryCode,
+            displayContext.TaxRegionCode);
+    }
+    var taxMultiplier = displayContext.DisplayPricesIncTax ? 1 + (taxRate / 100m) : 1m;
+    var includesTax = displayContext.DisplayPricesIncTax && taxRate > 0;
 
     // Pre-calculate location-aware availability for all variants
     var variantAvailability = new Dictionary<Guid, Merchello.Core.Storefront.Models.ProductLocationAvailability>();
@@ -73,28 +87,40 @@
         }
     }
 
+    // Helper function to calculate display price with tax
+    decimal CalculateDisplayPrice(decimal netPrice)
+    {
+        var priceWithTax = netPrice * taxMultiplier;
+        return CurrencyService.Round(priceWithTax * displayContext.ExchangeRate, displayContext.CurrencyCode);
+    }
+
     // Build config for Alpine.js
     var config = new
     {
         selectedVariantId = Model.SelectedVariant.Id.ToString(),
         selectedOptions = selectedOptions,
         productUrl = Model.ProductUrl,
-        currencySymbol = settings.CurrencySymbol,
+        currencySymbol = displayContext.CurrencySymbol,
         lowStockThreshold = settings.LowStockThreshold,
+        // Tax display info
+        includesTax = includesTax,
+        taxRate = taxRate,
         variants = Model.AllVariants.Select(v =>
         {
             var avail = variantAvailability.GetValueOrDefault(v.Id);
+            var variantDisplayPrice = CalculateDisplayPrice(v.Price);
+            var variantDisplayPreviousPrice = v.PreviousPrice.HasValue ? CalculateDisplayPrice(v.PreviousPrice.Value) : (decimal?)null;
             return new
             {
                 id = v.Id.ToString(),
                 name = v.Name,
                 price = v.Price,
                 previousPrice = v.PreviousPrice,
-                // Display prices (pre-converted to customer's currency - single source of truth)
-                displayPrice = v.Price * currencyContext.ExchangeRate,
-                displayPreviousPrice = v.PreviousPrice.HasValue ? v.PreviousPrice.Value * currencyContext.ExchangeRate : (decimal?)null,
-                formattedDisplayPrice = $"{currencyContext.CurrencySymbol}{(v.Price * currencyContext.ExchangeRate).ToString($"N{currencyContext.DecimalPlaces}")}",
-                formattedDisplayPreviousPrice = v.PreviousPrice.HasValue ? $"{currencyContext.CurrencySymbol}{(v.PreviousPrice.Value * currencyContext.ExchangeRate).ToString($"N{currencyContext.DecimalPlaces}")}" : null,
+                // Display prices (with tax if applicable, in customer's currency)
+                displayPrice = variantDisplayPrice,
+                displayPreviousPrice = variantDisplayPreviousPrice,
+                formattedDisplayPrice = $"{displayContext.CurrencySymbol}{variantDisplayPrice.ToString($"N{displayContext.DecimalPlaces}")}",
+                formattedDisplayPreviousPrice = variantDisplayPreviousPrice.HasValue ? $"{displayContext.CurrencySymbol}{variantDisplayPreviousPrice.Value.ToString($"N{displayContext.DecimalPlaces}")}" : null,
                 onSale = v.OnSale,
                 // Location-aware: only available if can ship AND has stock at location
                 availableForPurchase = avail?.CanShipToLocation == true && avail?.HasStock == true,
@@ -136,20 +162,24 @@
             name = o.Name,
             alias = o.Alias,
             uiType = o.OptionUiAlias ?? "checkbox",
-            values = o.ProductOptionValues.Select(v => new
+            values = o.ProductOptionValues.Select(v =>
             {
-                id = v.Id.ToString(),
-                name = v.Name,
-                priceAdjustment = v.PriceAdjustment,
-                // Display price adjustment (pre-converted to customer's currency)
-                displayPriceAdjustment = v.PriceAdjustment * currencyContext.ExchangeRate,
-                formattedDisplayPriceAdjustment = v.PriceAdjustment >= 0
-                    ? $"+{currencyContext.CurrencySymbol}{(v.PriceAdjustment * currencyContext.ExchangeRate).ToString($"N{currencyContext.DecimalPlaces}")}"
-                    : $"-{currencyContext.CurrencySymbol}{Math.Abs(v.PriceAdjustment * currencyContext.ExchangeRate).ToString($"N{currencyContext.DecimalPlaces}")}",
-                hexValue = v.HexValue,
-                mediaUrl = v.MediaKey.HasValue
-                    ? MediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 80)
-                    : null
+                var addonDisplayPrice = CalculateDisplayPrice(v.PriceAdjustment);
+                return new
+                {
+                    id = v.Id.ToString(),
+                    name = v.Name,
+                    priceAdjustment = v.PriceAdjustment,
+                    // Display price adjustment (with tax if applicable, in customer's currency)
+                    displayPriceAdjustment = addonDisplayPrice,
+                    formattedDisplayPriceAdjustment = v.PriceAdjustment >= 0
+                        ? $"+{displayContext.CurrencySymbol}{addonDisplayPrice.ToString($"N{displayContext.DecimalPlaces}")}"
+                        : $"-{displayContext.CurrencySymbol}{Math.Abs(addonDisplayPrice).ToString($"N{displayContext.DecimalPlaces}")}",
+                    hexValue = v.HexValue,
+                    mediaUrl = v.MediaKey.HasValue
+                        ? MediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 80)
+                        : null
+                };
             }).ToList()
         }).ToList()
     };
@@ -298,23 +328,28 @@
 
             <!-- Pricing -->
             @{
-                // Calculate display prices for SSR fallback
-                var displayPrice = Model.Price * currencyContext.ExchangeRate;
-                var displayPreviousPrice = Model.PreviousPrice.HasValue
-                    ? Model.PreviousPrice.Value * currencyContext.ExchangeRate
+                // Calculate display prices for SSR fallback (with tax if applicable)
+                var ssrDisplayPrice = CalculateDisplayPrice(Model.Price);
+                var ssrDisplayPreviousPrice = Model.PreviousPrice.HasValue
+                    ? CalculateDisplayPrice(Model.PreviousPrice.Value)
                     : (decimal?)null;
-                var priceFormat = $"N{currencyContext.DecimalPlaces}";
+                var priceFormat = $"N{displayContext.DecimalPlaces}";
             }
             <div class="pricing mb-3">
-                <span class="h3 text-dark" x-text="formattedDisplayTotalPrice">@currencyContext.CurrencySymbol@displayPrice.ToString(priceFormat)</span>
+                <span class="h3 text-dark" x-text="formattedDisplayTotalPrice">@displayContext.CurrencySymbol@ssrDisplayPrice.ToString(priceFormat)</span>
                 @* SSR fallback for sale - x-cloak hides until Alpine loads, then Alpine controls visibility *@
                 <span class="text-decoration-line-through text-muted ms-2"
                       x-show="onSale && displayPreviousPrice"
                       x-text="formattedDisplayPreviousPrice"
-                      @(Model.OnSale && Model.PreviousPrice.HasValue ? "" : "x-cloak")>@(Model.OnSale && displayPreviousPrice.HasValue ? $"{currencyContext.CurrencySymbol}{displayPreviousPrice.Value.ToString(priceFormat)}" : "")</span>
+                      @(Model.OnSale && Model.PreviousPrice.HasValue ? "" : "x-cloak")>@(Model.OnSale && ssrDisplayPreviousPrice.HasValue ? $"{displayContext.CurrencySymbol}{ssrDisplayPreviousPrice.Value.ToString(priceFormat)}" : "")</span>
                 <span class="badge bg-danger ms-2"
                       x-show="onSale"
                       @(Model.OnSale ? "" : "x-cloak")>Sale</span>
+                @* Tax indicator when prices include tax *@
+                @if (includesTax)
+                {
+                    <span class="text-muted small ms-2" x-show="includesTax">(inc. @taxRate% VAT)</span>
+                }
             </div>
 
             <!-- Stock Status - SSR fallback shown until Alpine takes over -->
@@ -415,7 +450,7 @@
 
                         @foreach (var option in Model.AddOnOptions.OrderBy(o => o.SortOrder))
                         {
-                            @await Component.InvokeAsync("ProductAddonSelector", new { option = option })
+                            @await Component.InvokeAsync("ProductAddonSelector", new { option = option, taxRate = taxRate })
                         }
                     </div>
                 </div>

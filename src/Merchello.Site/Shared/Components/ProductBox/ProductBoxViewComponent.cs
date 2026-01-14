@@ -1,5 +1,8 @@
+using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Services;
 using Microsoft.AspNetCore.Mvc;
 using Umbraco.Cms.Core.Models.PublishedContent;
@@ -10,14 +13,16 @@ namespace Merchello.Site.Shared.Components.ProductBox;
 public class ProductBoxViewComponent(
     IProductService productService,
     IPublishedMediaCache mediaCache,
-    IStorefrontContextService storefrontContext) : ViewComponent
+    IStorefrontContextService storefrontContext,
+    ITaxService taxService,
+    ICurrencyService currencyService) : ViewComponent
 {
     public async Task<IViewComponentResult> InvokeAsync(Product product)
     {
         ArgumentNullException.ThrowIfNull(product);
 
-        // Get currency context for display prices
-        var currencyContext = await storefrontContext.GetCurrencyContextAsync();
+        // Get display context for prices (includes currency and tax settings)
+        var displayContext = await storefrontContext.GetDisplayContextAsync();
 
         // Get the first image GUID for this product
         var imageDict = await productService.GetProductImagesAsync([product.Id]);
@@ -34,11 +39,8 @@ public class ProductBoxViewComponent(
             }
         }
 
-        // Calculate display prices with exchange rate
-        var displayPrice = product.Price * currencyContext.ExchangeRate;
-        var displayPreviousPrice = product.OnSale && product.PreviousPrice.HasValue
-            ? product.PreviousPrice.Value * currencyContext.ExchangeRate
-            : (decimal?)null;
+        // Calculate display price with tax and currency conversion
+        var displayPrice = await product.GetDisplayPriceAsync(displayContext, taxService, currencyService);
 
         var model = new ProductBoxViewModel
         {
@@ -51,12 +53,7 @@ public class ProductBoxViewComponent(
             ProductUrl = product.ProductRoot?.RootUrl != null
                 ? $"/{product.ProductRoot.RootUrl}"
                 : $"/products/{product.Id}",
-            // Display prices in customer's currency
-            DisplayPrice = displayPrice,
-            DisplayPreviousPrice = displayPreviousPrice,
-            CurrencyCode = currencyContext.CurrencyCode,
-            CurrencySymbol = currencyContext.CurrencySymbol,
-            DecimalPlaces = currencyContext.DecimalPlaces
+            DisplayPrice = displayPrice
         };
 
         return View(model);

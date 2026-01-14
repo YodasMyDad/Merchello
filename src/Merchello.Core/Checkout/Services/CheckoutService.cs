@@ -510,6 +510,8 @@ public class CheckoutService(
         }
 
         // Check if product is available for purchase
+        // Note: Stock validation happens at order submission time via IInventoryService.
+        // The AvailableForPurchase flag reflects current stock availability status.
         if (!product.AvailableForPurchase)
         {
             return AddProductWithAddonsResult.Failed("This product is currently out of stock");
@@ -594,6 +596,8 @@ public class CheckoutService(
             var lineItem = basket.LineItems.FirstOrDefault(li => li.Id == lineItemId);
             if (lineItem != null)
             {
+                // Note: Stock validation happens at order submission time via IInventoryService.
+                // The basket accepts any quantity; final validation occurs when creating the order.
                 lineItem.Quantity = quantity;
                 basket.DateUpdated = DateTime.UtcNow;
                 await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
@@ -1751,8 +1755,8 @@ public class CheckoutService(
             InvoiceNumber = invoice.InvoiceNumber,
             OrderDate = invoice.DateCreated,
             CustomerEmail = invoice.BillingAddress.Email ?? "",
-            BillingAddress = MapAddress(invoice.BillingAddress),
-            ShippingAddress = MapAddress(invoice.ShippingAddress),
+            BillingAddress = await MapAddressAsync(invoice.BillingAddress),
+            ShippingAddress = await MapAddressAsync(invoice.ShippingAddress),
             LineItems = lineItems,
 
             // Store currency amounts
@@ -1945,8 +1949,15 @@ public class CheckoutService(
         return $"{currencySymbol}{price:N2}";
     }
 
-    private static CheckoutAddressDto MapAddress(Locality.Models.Address address)
+    private async Task<CheckoutAddressDto> MapAddressAsync(Locality.Models.Address address)
     {
+        // Look up country name from code if not set
+        var countryName = address.Country;
+        if (string.IsNullOrEmpty(countryName) && !string.IsNullOrEmpty(address.CountryCode))
+        {
+            countryName = await localityCatalog.TryGetCountryNameAsync(address.CountryCode);
+        }
+
         return new CheckoutAddressDto
         {
             Name = address.Name,
@@ -1957,7 +1968,7 @@ public class CheckoutService(
             State = address.CountyState.Name,
             StateCode = address.CountyState.RegionCode,
             PostalCode = address.PostalCode,
-            Country = address.Country,
+            Country = countryName,
             CountryCode = address.CountryCode,
             Phone = address.Phone
         };

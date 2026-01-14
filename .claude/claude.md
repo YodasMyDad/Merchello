@@ -125,3 +125,6 @@ src/
 - Testing: Unit test pure functions, component tests for critical UI
 - A11y: Keyboard accessible, ARIA, color contrast
 - Performance: Minimal reactive state, lazy loading, small bundles
+
+## Research
+Anytime you are dealing with an external / third party API / SDK or nuget plugin, always search online to make sure you are using the latest version and have read the latest docs / implementation guides so nothing is missed.

@@ -858,6 +858,11 @@ public class ServiceTestFixture : IDisposable
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Core.Checkout.Dtos.AbandonedCheckoutStatsDto>>>()))
                     .Returns((Func<MerchelloDbContext, Task<Core.Checkout.Dtos.AbandonedCheckoutStatsDto>> func) => func(dbContext));
 
+                // GetUnpaidInvoiceForBasketAsync return type (tuple of Invoice and Basket)
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<(Invoice? Invoice, Basket? Basket)>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<(Invoice? Invoice, Basket? Basket)>> func) => func(dbContext));
+
                 scopeMock.Setup(s => s.Complete()).Returns(true);
                 scopeMock.Setup(s => s.Dispose()).Callback(dbContext.Dispose);
 

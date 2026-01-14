@@ -300,13 +300,13 @@ public class MjmlHelper : IMjmlHelper
         if (!string.IsNullOrEmpty(address.AddressTwo))
             sb.AppendLine($"  {HtmlEncode(address.AddressTwo)}<br/>");
 
-        var cityLine = new List<string>();
-        if (!string.IsNullOrEmpty(address.TownCity)) cityLine.Add(address.TownCity);
-        if (!string.IsNullOrEmpty(address.CountyState?.Name)) cityLine.Add(address.CountyState.Name);
-        if (!string.IsNullOrEmpty(address.PostalCode)) cityLine.Add(address.PostalCode);
-        if (cityLine.Count > 0)
-            sb.AppendLine($"  {HtmlEncode(string.Join(", ", cityLine))}<br/>");
-
+        var cityState = new List<string>();
+        if (!string.IsNullOrEmpty(address.TownCity)) cityState.Add(address.TownCity);
+        if (!string.IsNullOrEmpty(address.CountyState?.Name)) cityState.Add(address.CountyState.Name);
+        if (cityState.Count > 0)
+            sb.AppendLine($"  {HtmlEncode(string.Join(", ", cityState))}<br/>");
+        if (!string.IsNullOrEmpty(address.PostalCode))
+            sb.AppendLine($"  {HtmlEncode(address.PostalCode)}<br/>");
         if (!string.IsNullOrEmpty(address.Country))
             sb.AppendLine($"  {HtmlEncode(address.Country)}");
 

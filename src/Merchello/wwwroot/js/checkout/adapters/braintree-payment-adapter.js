@@ -477,6 +477,11 @@
 
                     const threeDSecureResult = await threeDSecureInstance.verifyCard(threeDSecureRequest);
 
+                    // Validate 3DS result before using
+                    if (!threeDSecureResult || !threeDSecureResult.nonce) {
+                        throw new Error('3D Secure verification failed: No payment nonce returned');
+                    }
+
                     // Use the 3D Secure nonce
                     nonce = threeDSecureResult.nonce;
 
@@ -486,7 +491,14 @@
                     }
                 } catch (threeDSecureError) {
                     console.error('3D Secure verification failed:', threeDSecureError);
-                    // Continue without 3D Secure if it fails
+
+                    // Check if this is a user cancellation
+                    if (threeDSecureError.code === 'THREEDS_CARDINAL_SDK_CANCELED') {
+                        return { success: false, error: 'Payment cancelled. Please try again.' };
+                    }
+
+                    // For other 3DS errors, return failure
+                    return { success: false, error: threeDSecureError.message || '3D Secure verification failed. Please try again.' };
                 }
             }
 
@@ -583,6 +595,11 @@
 
                         const threeDSecureResult = await threeDSecureInstance.verifyCard(threeDSecureRequest);
 
+                        // Validate 3DS result before using
+                        if (!threeDSecureResult || !threeDSecureResult.nonce) {
+                            throw new Error('3D Secure verification failed: No payment nonce returned');
+                        }
+
                         // Use the 3D Secure nonce
                         nonce = threeDSecureResult.nonce;
 
@@ -592,12 +609,24 @@
                         }
                     } catch (threeDSecureError) {
                         console.error('3D Secure verification failed:', threeDSecureError);
-                        // Continue without 3D Secure if it fails
+
+                        // Check if this is a user cancellation
+                        if (threeDSecureError.code === 'THREEDS_CARDINAL_SDK_CANCELED') {
+                            throw new Error('Payment cancelled. Please try again.');
+                        }
+
+                        // For other 3DS errors, don't silently continue - the nonce may be rejected
+                        throw new Error(threeDSecureError.message || '3D Secure verification failed. Please try again.');
                     }
                 }
 
+                // Validate nonce before submission
+                if (!nonce) {
+                    throw new Error('Payment token missing. Please try again.');
+                }
+
                 // 3. Submit to server for processing
-                const response = await MerchelloPayment.fetchWithTimeout('/api/merchello/checkout/process-payment', {
+                const response = await fetch('/api/merchello/checkout/process-payment', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -609,11 +638,35 @@
                         paymentMethodToken: nonce,
                         formData: {
                             deviceData: dataCollectorInstance?.deviceData || '',
-                            type: tokenizeResult.type,
-                            details: tokenizeResult.details
+                            type: tokenizeResult.type || '',
+                            details: tokenizeResult.details ? JSON.stringify(tokenizeResult.details) : ''
                         }
                     })
                 });
+
+                // Handle error responses with user-friendly messages
+                if (!response.ok) {
+                    let errorMessage = 'Payment processing failed. Please try again.';
+                    try {
+                        const errorData = await response.json();
+                        // Check for validation errors from ASP.NET
+                        if (errorData.errors) {
+                            const errorMessages = Object.values(errorData.errors).flat();
+                            if (errorMessages.length > 0) {
+                                console.error('Server validation errors:', errorMessages);
+                            }
+                        }
+                        // Use server error message if available
+                        if (errorData.errorMessage) {
+                            errorMessage = errorData.errorMessage;
+                        } else if (errorData.title) {
+                            errorMessage = 'Payment could not be processed. Please try again or contact support.';
+                        }
+                    } catch {
+                        // Could not parse error response, use default message
+                    }
+                    throw new Error(errorMessage);
+                }
 
                 const result = await response.json();
 

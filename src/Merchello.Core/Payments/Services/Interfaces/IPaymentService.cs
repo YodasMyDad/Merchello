@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
@@ -49,6 +50,17 @@ public interface IPaymentService
     /// <returns>Result containing the refund payment record (negative amount).</returns>
     Task<CrudResult<Payment>> ProcessRefundAsync(
         ProcessRefundParameters parameters,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Preview a refund calculation without processing it.
+    /// Returns the calculated refund amount and provider capabilities.
+    /// </summary>
+    /// <param name="parameters">Parameters for the refund preview.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result containing the refund preview details.</returns>
+    Task<CrudResult<RefundPreviewDto>> PreviewRefundAsync(
+        PreviewRefundParameters parameters,
         CancellationToken cancellationToken = default);
 
     /// <summary>

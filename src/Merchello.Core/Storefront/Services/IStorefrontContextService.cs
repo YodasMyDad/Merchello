@@ -81,6 +81,12 @@ public interface IStorefrontContextService
     Task<StorefrontCurrencyContext> GetCurrencyContextAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// Gets complete display context including currency and tax-inclusive settings.
+    /// Use this for product display price calculations.
+    /// </summary>
+    Task<StorefrontDisplayContext> GetDisplayContextAsync(CancellationToken ct = default);
+
+    /// <summary>
     /// Gets availability info for all items in the current basket at a specific location.
     /// Checks if each item can ship to the location and has sufficient stock.
     /// </summary>

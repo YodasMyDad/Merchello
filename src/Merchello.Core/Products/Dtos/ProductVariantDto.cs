@@ -73,4 +73,10 @@ public class ProductVariantDto
     /// IDs of shipping options excluded for this specific variant.
     /// </summary>
     public List<Guid> ExcludedShippingOptionIds { get; set; } = [];
+
+    /// <summary>
+    /// Calculated display price in customer's currency, optionally including tax.
+    /// Null when fetched without display context (e.g., admin API).
+    /// </summary>
+    public ProductDisplayPrice? DisplayPrice { get; set; }
 }

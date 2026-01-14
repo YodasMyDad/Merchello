@@ -32,6 +32,9 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<Guid?>("BasketId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("CancellationReason")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");

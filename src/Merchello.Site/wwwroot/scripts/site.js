@@ -103,24 +103,9 @@ document.addEventListener('alpine:init', () => {
             // This init is kept for any additional setup if needed
         },
 
-        // Convert store price to display price
-        convert(storePrice) {
-            return storePrice * this.rate;
-        },
-
-        // Format a store price for display in customer currency (legacy - does conversion)
-        formatPrice(storePrice) {
-            const displayPrice = this.convert(storePrice);
-            return new Intl.NumberFormat(undefined, {
-                style: 'currency',
-                currency: this.code || 'GBP',
-                minimumFractionDigits: this.decimals,
-                maximumFractionDigits: this.decimals
-            }).format(displayPrice);
-        },
-
-        // Format a display price (already converted - no conversion needed)
+        // Format a display price (already converted by server - no conversion needed)
         // Use this for server-provided display prices (single source of truth)
+        // Per TaxInclusive.md: All prices are pre-calculated server-side with tax and currency conversion
         formatDisplayPrice(displayPrice) {
             return new Intl.NumberFormat(undefined, {
                 style: 'currency',
@@ -186,6 +171,9 @@ document.addEventListener('alpine:init', () => {
         productUrl: config.productUrl,
         currencySymbol: config.currencySymbol || '£',
         lowStockThreshold: config.lowStockThreshold || 10,
+        // Tax display info
+        includesTax: config.includesTax || false,
+        taxRate: config.taxRate || 0,
 
         // Current variant (computed)
         get currentVariant() {
@@ -270,6 +258,9 @@ document.addEventListener('alpine:init', () => {
             return Alpine.store('currency').formatDisplayPrice(this.displayTotalPrice);
         },
 
+        // UX hint only - backend validates actual stock quantity in basket/add API
+        // This prevents users from selecting more than displayed stock, but the true
+        // validation happens server-side to account for concurrent purchases and reservations
         get maxQuantity() {
             if (!this.trackStock) return 99;
             return Math.min(this.stockCount, 99);
@@ -443,11 +434,6 @@ document.addEventListener('alpine:init', () => {
             } finally {
                 this.isLoading = false;
             }
-        },
-
-        formatPrice(value) {
-            // Use global currency store for proper formatting with exchange rate
-            return Alpine.store('currency').formatPrice(value);
         },
 
         incrementQuantity() {
@@ -727,11 +713,6 @@ document.addEventListener('alpine:init', () => {
 
         decrementQuantity(item) {
             this.updateQuantity(item.id, item.quantity - 1);
-        },
-
-        formatPrice(value) {
-            // Use global currency store for proper formatting with exchange rate
-            return Alpine.store('currency').formatPrice(value);
         }
     }));
 
