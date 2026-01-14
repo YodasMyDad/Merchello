@@ -7,9 +7,10 @@ namespace Merchello.Core.Payments.Dtos;
 public class ProcessDirectPaymentDto
 {
     /// <summary>
-    /// The invoice ID to process payment for
+    /// The invoice ID to process payment for.
+    /// Optional for DirectForm - invoice will be created if not provided.
     /// </summary>
-    public required Guid InvoiceId { get; set; }
+    public Guid? InvoiceId { get; set; }
 
     /// <summary>
     /// The payment provider alias (e.g., "manual")

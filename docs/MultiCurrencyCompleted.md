@@ -337,11 +337,52 @@ Amount = displayAmounts.Total,
 Currency = currencyContext.CurrencyCode,
 ```
 
-### Phase 3: Invoice Creation (Verified - No Changes Required)
+### Phase 3: Invoice Creation (Fixed - Centralized Conversion)
 
-**Status: ALREADY CORRECT**
+**Status: FIXED - Line items, add-ons, and discounts now converted**
 
-The `InvoiceService.CreateOrderFromBasketAsync` method already correctly implements exchange rate locking:
+The `InvoiceService.CreateOrderFromBasketAsync` method uses a centralized conversion pattern:
+
+#### 3.1 Centralized Conversion Method
+
+Added `ConvertToPresentmentCurrency()` at line ~3013:
+```csharp
+/// <summary>
+/// Converts an amount from store currency to presentment currency.
+/// Rate is presentment → store, so divide to convert store → presentment.
+/// </summary>
+private decimal ConvertToPresentmentCurrency(
+    decimal storeCurrencyAmount,
+    ExchangeRateQuote? pricingQuote,
+    string presentmentCurrency)
+{
+    if (pricingQuote == null || pricingQuote.Rate <= 0m)
+        return storeCurrencyAmount;
+
+    return currencyService.Round(storeCurrencyAmount / pricingQuote.Rate, presentmentCurrency);
+}
+```
+
+#### 3.2 All Amounts Now Converted
+
+| Item Type | Location | Conversion |
+|-----------|----------|------------|
+| Line items | ~line 290 | `ConvertToPresentmentCurrency(shippingLineItem.Amount, pricingQuote, presentmentCurrency)` |
+| Add-ons | ~line 306 | `ConvertToPresentmentCurrency(addon.Amount, pricingQuote, presentmentCurrency)` |
+| Discounts | ~line 323 | `ConvertToPresentmentCurrency(discountLineItem.Amount, pricingQuote, presentmentCurrency)` |
+| Shipping | ~line 248 | `ConvertToPresentmentCurrency(shippingCost, pricingQuote, presentmentCurrency)` |
+
+#### 3.3 No Double Conversion
+
+The conversion flow is intentionally two-step:
+1. `ConvertToPresentmentCurrency()` - **divides** by rate (store → presentment for invoice amounts)
+2. `ApplyPricingRateToStoreAmounts()` - **multiplies** by rate (presentment → store for reporting)
+
+These are **opposite operations** for different purposes:
+- `Invoice.Total` = £80 GBP (what customer pays)
+- `Invoice.TotalInStoreCurrency` = $100 USD (for internal reports)
+
+#### 3.4 Invoice Fields
 
 | Field | Purpose | Status |
 |-------|---------|--------|
@@ -351,8 +392,6 @@ The `InvoiceService.CreateOrderFromBasketAsync` method already correctly impleme
 | `CurrencyCode` | Customer's display currency | ✓ Already implemented |
 | `StoreCurrencyCode` | Store's base currency | ✓ Already implemented |
 | `TotalInStoreCurrency` | Original USD amount for reporting | ✓ Already implemented |
-
-**No code changes required for Phase 3.**
 
 ### Phase 4: Update Views with Pre-Calculated Display Amounts ✅ COMPLETE
 
@@ -497,7 +536,8 @@ The API now returns correctly converted amounts directly.
 |------|--------|-------|--------|
 | `Merchello.Core/Checkout/Extensions/DisplayCurrencyExtensions.cs` | CREATE extension methods | 1 | ✅ Done |
 | `CheckoutPaymentsApiController.cs` | FIX amount/currency mismatch | 2 | ✅ Done |
-| `InvoiceService.cs` | Already correct | 3 | ✅ N/A |
+| `InvoiceService.cs` | ADD `ConvertToPresentmentCurrency()`, apply to all line items | 3 | ✅ Done |
+| `LineItemFactory.cs` | UPDATE `CreateAddonForOrder()` and `CreateDiscountForOrder()` to accept amount | 3 | ✅ Done |
 | `CheckoutViewModel.cs` | ADD display properties + CurrencyDecimalPlaces | 4 | ✅ Done |
 | `MerchelloCheckoutController.cs` | ADD display amount calculation | 4 | ✅ Done |
 | `SinglePage.cshtml` | FIX discount formatting with proper rounding | 4 | ✅ Done |
@@ -524,10 +564,16 @@ The API now returns correctly converted amounts directly.
 | Component | Why |
 |-----------|-----|
 | `Basket.cs` | No new fields needed - basket stays in USD |
-| `LineItemFactory.cs` | Items always in USD |
 | Add to basket flow | Items added in USD, no conversion |
 | Product display | Already does on-the-fly conversion |
 | Shipping options | Already does on-the-fly conversion |
+
+## What DID Change (Phase 3 Fixes)
+
+| Component | Change |
+|-----------|--------|
+| `InvoiceService.cs` | Added `ConvertToPresentmentCurrency()` method, applied to all line items at invoice creation |
+| `LineItemFactory.cs` | Updated `CreateAddonForOrder()` and `CreateDiscountForOrder()` to accept pre-converted amount parameter |
 
 ---
 

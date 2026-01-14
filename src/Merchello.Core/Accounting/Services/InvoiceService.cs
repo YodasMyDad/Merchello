@@ -241,12 +241,11 @@ public class InvoiceService(
                 }
 
                 // Calculate base shipping cost for this group
-                var baseShippingCost = CalculateShippingCost(shippingOption, checkoutSession.ShippingAddress);
-                if (pricingQuote != null)
-                {
-                    // Configured shipping costs are stored in store currency - convert to presentment.
-                    baseShippingCost = currencyService.Round(baseShippingCost / pricingQuote.Rate, presentmentCurrency);
-                }
+                // Shipping costs are stored in store currency - convert to presentment currency
+                var baseShippingCost = ConvertToPresentmentCurrency(
+                    CalculateShippingCost(shippingOption, checkoutSession.ShippingAddress),
+                    pricingQuote,
+                    presentmentCurrency);
 
                 // Check for delivery date selection
                 DateTime? requestedDeliveryDate = null;
@@ -284,11 +283,12 @@ public class InvoiceService(
                         cost = product.CostOfGoods;
                     }
 
+                    // Convert line item amount from store currency to presentment currency
                     var orderLineItem = lineItemFactory.CreateForOrder(
                         basketLineItem,
-                        shippingLineItem.Quantity,  // Use allocated quantity (not basket quantity)
-                        shippingLineItem.Amount,    // Use allocated amount (not basket amount)
-                        cost);                      // Captured cost of goods for profit calculations
+                        shippingLineItem.Quantity,
+                        ConvertToPresentmentCurrency(shippingLineItem.Amount, pricingQuote, presentmentCurrency),
+                        cost);
 
                     orderLineItems.Add(orderLineItem);
 
@@ -299,8 +299,11 @@ public class InvoiceService(
 
                     foreach (var addon in dependentAddons)
                     {
-                        // Allocate add-on quantities proportional to this shipment's allocation
-                        var addonOrderLine = lineItemFactory.CreateAddonForOrder(addon, shippingLineItem.Quantity);
+                        // Convert add-on amount from store currency to presentment currency
+                        var addonOrderLine = lineItemFactory.CreateAddonForOrder(
+                            addon,
+                            shippingLineItem.Quantity,
+                            ConvertToPresentmentCurrency(addon.Amount, pricingQuote, presentmentCurrency));
                         orderLineItems.Add(addonOrderLine);
                     }
 
@@ -316,11 +319,12 @@ public class InvoiceService(
 
                     foreach (var discountLineItem in dependentDiscounts)
                     {
-                        // Scale discount proportionally if quantity was split across warehouses
+                        // Convert discount amount from store currency to presentment currency, then scale
                         var discountOrderLine = lineItemFactory.CreateDiscountForOrder(
                             discountLineItem,
                             shippingLineItem.Quantity,
-                            basketLineItem.Quantity);
+                            basketLineItem.Quantity,
+                            ConvertToPresentmentCurrency(discountLineItem.Amount, pricingQuote, presentmentCurrency));
                         orderLineItems.Add(discountOrderLine);
                     }
                 }
@@ -355,10 +359,12 @@ public class InvoiceService(
             {
                 foreach (var discountLineItem in orderLevelDiscounts)
                 {
+                    // Convert order-level discount amount from store currency to presentment currency
                     var orderDiscountLine = lineItemFactory.CreateDiscountForOrder(
                         discountLineItem,
                         allocatedQuantity: 1,
-                        originalQuantity: 1);
+                        originalQuantity: 1,
+                        ConvertToPresentmentCurrency(discountLineItem.Amount, pricingQuote, presentmentCurrency));
                     firstOrderLineItems.Add(orderDiscountLine);
                 }
             }
@@ -2993,6 +2999,28 @@ public class InvoiceService(
         invoice.DiscountInStoreCurrency = currencyService.Round(invoice.Discount * rate, storeCurrency);
         invoice.TaxInStoreCurrency = currencyService.Round(invoice.Tax * rate, storeCurrency);
         invoice.TotalInStoreCurrency = currencyService.Round(invoice.Total * rate, storeCurrency);
+    }
+
+    /// <summary>
+    /// Converts an amount from store currency to presentment currency.
+    /// Used during invoice creation to convert basket amounts (stored in store currency)
+    /// to the customer's selected display currency.
+    /// </summary>
+    /// <param name="storeCurrencyAmount">Amount in store currency (e.g., USD)</param>
+    /// <param name="pricingQuote">Exchange rate quote (presentment → store), or null if same currency</param>
+    /// <param name="presentmentCurrency">Target currency code (e.g., "GBP")</param>
+    /// <returns>Amount converted to presentment currency with proper rounding</returns>
+    private decimal ConvertToPresentmentCurrency(
+        decimal storeCurrencyAmount,
+        ExchangeRateQuote? pricingQuote,
+        string presentmentCurrency)
+    {
+        // If no quote (same currency), no conversion needed
+        if (pricingQuote == null || pricingQuote.Rate <= 0m)
+            return storeCurrencyAmount;
+
+        // Rate is presentment → store, so divide to convert store → presentment
+        return currencyService.Round(storeCurrencyAmount / pricingQuote.Rate, presentmentCurrency);
     }
 
     private static string BuildEditNote(List<string> changes, string? editReason)

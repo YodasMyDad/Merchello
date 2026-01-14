@@ -839,7 +839,9 @@ export function initSinglePageCheckout() {
                         if (payData.integrationType !== 0) {
                             const paymentResult = await window.MerchelloPayment.submitPayment(payData.invoiceId);
                             if (paymentResult.success) {
-                                safeRedirect(`/checkout/confirmation/${payData.invoiceId}`);
+                                // Use redirectUrl from payment result (includes invoice ID from backend)
+                                // This handles DirectForm where invoiceId is created during payment
+                                safeRedirect(paymentResult.redirectUrl || `/checkout/confirmation/${paymentResult.invoiceId || payData.invoiceId}`);
                             } else {
                                 throw new Error(paymentResult.errorMessage || 'Payment failed');
                             }

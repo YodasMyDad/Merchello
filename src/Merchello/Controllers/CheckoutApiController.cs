@@ -272,6 +272,17 @@ public class CheckoutApiController(
             });
         }
 
+        // Sync basket currency from storefront context if not already set
+        // This ensures the invoice will be created in the customer's display currency
+        var currencyCtx = await storefrontContext.GetCurrencyContextAsync(ct);
+        if (string.IsNullOrEmpty(basket.Currency) ||
+            !string.Equals(basket.Currency, currencyCtx.CurrencyCode, StringComparison.OrdinalIgnoreCase))
+        {
+            basket.Currency = currencyCtx.CurrencyCode;
+            basket.CurrencySymbol = currencyCtx.CurrencySymbol;
+            await checkoutService.SaveBasketAsync(basket, ct);
+        }
+
         var result = await checkoutService.InitializeCheckoutAsync(new InitializeCheckoutParameters
         {
             Basket = basket,

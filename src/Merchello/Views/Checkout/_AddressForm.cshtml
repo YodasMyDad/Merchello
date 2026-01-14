@@ -30,7 +30,7 @@
         <input type="text"
                id="@(prefix)-name"
                x-model="form.@(prefix).name"
-               required
+               @if (prefix == "shipping") { <text>:required="!shippingSameAsBilling"</text> } else { <text>required</text> }
                autocomplete="@prefix name"
                @if (hasBlurCallback) { <text>@@blur="validateField('@(prefix).name'); @(onBlurCallback)"</text> }
                :class="errors['@(prefix).name'] ? 'checkout-input-error' : ''"
@@ -46,7 +46,7 @@
         <input type="text"
                id="@(prefix)-address1"
                x-model="form.@(prefix).address1"
-               required
+               @if (prefix == "shipping") { <text>:required="!shippingSameAsBilling"</text> } else { <text>required</text> }
                autocomplete="@prefix address-line1"
                @if (hasBlurCallback) { <text>@@blur="validateField('@(prefix).address1'); @(onBlurCallback)"</text> }
                :class="errors['@(prefix).address1'] ? 'checkout-input-error' : ''"
@@ -76,7 +76,7 @@
             <input type="text"
                    id="@(prefix)-city"
                    x-model="form.@(prefix).city"
-                   required
+                   @if (prefix == "shipping") { <text>:required="!shippingSameAsBilling"</text> } else { <text>required</text> }
                    autocomplete="@prefix address-level2"
                    @if (hasBlurCallback) { <text>@@blur="validateField('@(prefix).city'); @(onBlurCallback)"</text> }
                    :class="errors['@(prefix).city'] ? 'checkout-input-error' : ''"
@@ -117,7 +117,7 @@
             <input type="text"
                    id="@(prefix)-postal"
                    x-model="form.@(prefix).postalCode"
-                   required
+                   @if (prefix == "shipping") { <text>:required="!shippingSameAsBilling"</text> } else { <text>required</text> }
                    autocomplete="@prefix postal-code"
                    @if (hasBlurCallback) { <text>@@blur="validateField('@(prefix).postalCode'); @(onBlurCallback)"</text> }
                    :class="errors['@(prefix).postalCode'] ? 'checkout-input-error' : ''"
@@ -134,7 +134,7 @@
         <select id="@(prefix)-country"
                 x-model="form.@(prefix).countryCode"
                 @@change="on@(prefix.Substring(0,1).ToUpper())@(prefix.Substring(1))CountryChange()"
-                required
+                @if (prefix == "shipping") { <text>:required="!shippingSameAsBilling"</text> } else { <text>required</text> }
                 autocomplete="@prefix country"
                 :class="errors['@(prefix).countryCode'] ? 'checkout-input-error' : ''"
                 class="@selectClass">

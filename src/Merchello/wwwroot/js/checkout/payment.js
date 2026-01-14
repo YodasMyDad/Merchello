@@ -185,6 +185,23 @@ const MerchelloPayment = {
     },
 
     /**
+     * Clears and hides all payment form containers
+     * Called before rendering a new payment form to prevent stacking
+     */
+    clearAllPaymentContainers() {
+        const containerIds = ['hosted-fields-container', 'widget-container', 'direct-form-container'];
+        containerIds.forEach(id => {
+            const container = document.getElementById(id);
+            if (container) {
+                while (container.firstChild) {
+                    container.removeChild(container.firstChild);
+                }
+                container.style.display = 'none';
+            }
+        });
+    },
+
+    /**
      * Handles the payment flow based on integration type
      * @param {Object} session - Payment session result from initiatePayment
      * @param {Object} options - Additional options for handling
@@ -193,6 +210,9 @@ const MerchelloPayment = {
     async handlePaymentFlow(session, options = {}) {
         // Teardown any existing adapter before setting up new one
         await this.teardownCurrentAdapter();
+
+        // Clear all payment containers to prevent form stacking when switching methods
+        this.clearAllPaymentContainers();
 
         switch (session.integrationType) {
             case this.IntegrationType.Redirect:
@@ -409,11 +429,13 @@ const MerchelloPayment = {
 
         try {
             // Submit to backend
+            // Note: invoiceId may be null for DirectForm - the backend will create the invoice
+            // after form validation passes to prevent ghost orders when validation fails.
             const response = await this.fetchWithTimeout('/api/merchello/checkout/process-direct-payment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    invoiceId,
+                    invoiceId: invoiceId || null,
                     providerAlias: session.providerAlias,
                     methodAlias: session.methodAlias,
                     formData

@@ -152,7 +152,7 @@ export function initExpressCheckout() {
 
         /**
          * Initialize all express checkout methods
-         * Uses a resilient approach: only clears existing buttons after new ones succeed
+         * Renders directly to DOM container (required by PayPal SDK)
          */
         async initializeExpressCheckout() {
             const container = document.getElementById('express-buttons-container');
@@ -167,33 +167,18 @@ export function initExpressCheckout() {
                 container.style.minHeight = `${currentHeight}px`;
             }
 
-            // Create temporary container for new buttons
-            const tempContainer = document.createElement('div');
-            tempContainer.className = container.className;
-            let successCount = 0;
+            // Teardown existing buttons before re-render
+            await this.teardownExpressButtons();
+            container.innerHTML = '';
 
-            // Try to render new buttons to temp container first
+            // Render buttons directly to DOM container
+            // PayPal SDK requires container to be in the actual DOM
             for (const method of methods) {
                 try {
-                    await this.initializeMethod(method, tempContainer);
-                    successCount++;
+                    await this.initializeMethod(method, container);
                 } catch (err) {
                     console.error(`Failed to initialize ${method.methodAlias}:`, err);
                 }
-            }
-
-            // Only replace existing buttons if at least one new button succeeded
-            if (successCount > 0) {
-                // Teardown existing buttons
-                await this.teardownExpressButtons();
-                container.innerHTML = '';
-
-                // Move new buttons from temp container to actual container
-                while (tempContainer.firstChild) {
-                    container.appendChild(tempContainer.firstChild);
-                }
-            } else {
-                console.warn('Express checkout re-render failed, keeping existing buttons');
             }
 
             // Remove minimum height after render complete

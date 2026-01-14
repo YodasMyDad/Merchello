@@ -1,3 +1,4 @@
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Checkout.Models;
@@ -386,6 +387,13 @@ public class CheckoutPaymentsApiController(
             });
         }
 
+        // Check if this is a DirectForm payment method (e.g., Purchase Order)
+        // For DirectForm types, we defer invoice creation until ProcessDirectPayment
+        // after form validation passes. This prevents ghost orders when validation fails.
+        var methodDefinition = provider.Provider.GetAvailablePaymentMethods()
+            .FirstOrDefault(m => m.Alias == (request.MethodAlias ?? request.ProviderAlias));
+        var isDirectForm = methodDefinition?.IntegrationType == PaymentIntegrationType.DirectForm;
+
         // Re-validate stock availability before creating order
         // This catches cases where stock changed while user was completing checkout
         var availability = await storefrontContextService.GetBasketAvailabilityAsync(
@@ -414,22 +422,32 @@ public class CheckoutPaymentsApiController(
             });
         }
 
-        // Create invoice from basket
-        var invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, cancellationToken);
+        // Create invoice from basket (skip for DirectForm - will be created in ProcessDirectPayment)
+        Invoice? invoice = null;
+        if (!isDirectForm)
+        {
+            invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, cancellationToken);
 
-        logger.LogInformation(
-            "Invoice {InvoiceId} created from basket {BasketId}",
-            invoice.Id,
-            basket.Id);
+            logger.LogInformation(
+                "Invoice {InvoiceId} created from basket {BasketId}",
+                invoice.Id,
+                basket.Id);
 
-        // Store invoice ID in session for ownership validation during payment
-        await checkoutSessionService.SetInvoiceIdAsync(basket.Id, invoice.Id, cancellationToken);
+            // Store invoice ID in session for ownership validation during payment
+            await checkoutSessionService.SetInvoiceIdAsync(basket.Id, invoice.Id, cancellationToken);
+        }
+        else
+        {
+            logger.LogInformation(
+                "DirectForm payment session for basket {BasketId} - invoice deferred until form validation",
+                basket.Id);
+        }
 
         // Create payment session
         var result = await paymentService.CreatePaymentSessionAsync(
             new CreatePaymentSessionParameters
             {
-                InvoiceId = invoice.Id,
+                InvoiceId = invoice?.Id ?? Guid.Empty,
                 ProviderAlias = request.ProviderAlias,
                 MethodAlias = request.MethodAlias,
                 ReturnUrl = request.ReturnUrl,
@@ -440,7 +458,7 @@ public class CheckoutPaymentsApiController(
         var response = new PaymentSessionResultDto
         {
             Success = result.Success,
-            InvoiceId = invoice.Id,
+            InvoiceId = invoice?.Id,
             SessionId = result.SessionId,
             IntegrationType = result.IntegrationType,
             RedirectUrl = result.RedirectUrl,
@@ -475,16 +493,16 @@ public class CheckoutPaymentsApiController(
         if (!result.Success)
         {
             logger.LogWarning(
-                "Payment session creation failed for invoice {InvoiceId} with provider {Provider}: {Error}",
-                invoice.Id,
+                "Payment session creation failed for {PaymentType} with provider {Provider}: {Error}",
+                invoice != null ? $"invoice {invoice.Id}" : "DirectForm (no invoice yet)",
                 request.ProviderAlias,
                 result.ErrorMessage);
         }
         else
         {
             logger.LogInformation(
-                "Payment session created for invoice {InvoiceId} with provider {Provider}, SessionId: {SessionId}",
-                invoice.Id,
+                "Payment session created for {PaymentType} with provider {Provider}, SessionId: {SessionId}",
+                invoice != null ? $"invoice {invoice.Id}" : "DirectForm (invoice deferred)",
                 request.ProviderAlias,
                 result.SessionId);
         }
@@ -664,19 +682,7 @@ public class CheckoutPaymentsApiController(
             });
         }
 
-        // Get the invoice
-        var invoice = await invoiceService.GetInvoiceAsync(request.InvoiceId, cancellationToken);
-
-        if (invoice == null)
-        {
-            return NotFound(new ProcessPaymentResultDto
-            {
-                Success = false,
-                ErrorMessage = "Invoice not found."
-            });
-        }
-
-        // Validate that the current checkout session owns this invoice
+        // Get current basket and session first (needed for invoice lookup/creation)
         var currentBasket = await checkoutService.GetBasket(
             new GetBasketParameters(),
             cancellationToken);
@@ -692,25 +698,90 @@ public class CheckoutPaymentsApiController(
 
         var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
 
-        // Validate ownership with multiple checks for defense in depth
-        var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == request.InvoiceId;
-        var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
-            string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
+        // Get or create invoice
+        // For DirectForm types (Purchase Order), invoice may not exist yet because we defer
+        // creation until after form validation passes to prevent ghost orders.
+        Invoice? invoice = null;
+        var invoiceCreatedInThisRequest = false;
 
-        if (!hasValidInvoiceId && !hasValidEmail)
+        // Try to get invoice from request
+        if (request.InvoiceId.HasValue && request.InvoiceId.Value != Guid.Empty)
         {
-            logger.LogWarning(
-                "Invoice ownership validation failed in ProcessDirectPayment: Invoice {InvoiceId} (email: {InvoiceBillingEmail}), Session invoice: {SessionInvoiceId}, Session email: {SessionBillingEmail}",
-                request.InvoiceId,
-                invoice.BillingAddress.Email,
-                session.InvoiceId,
-                session.BillingAddress.Email);
+            invoice = await invoiceService.GetInvoiceAsync(request.InvoiceId.Value, cancellationToken);
+        }
+        // Try to get invoice from session
+        else if (session.InvoiceId.HasValue)
+        {
+            invoice = await invoiceService.GetInvoiceAsync(session.InvoiceId.Value, cancellationToken);
+        }
 
-            return StatusCode(StatusCodes.Status403Forbidden, new ProcessPaymentResultDto
+        // If no invoice exists, create one now (DirectForm flow - validation passed on frontend)
+        if (invoice == null)
+        {
+            logger.LogInformation(
+                "Creating invoice from basket {BasketId} during DirectForm payment submission",
+                currentBasket.Id);
+
+            // Validate checkout session has all required address data
+            var validation = ValidateCheckoutSession(session);
+            if (!validation.IsValid)
             {
-                Success = false,
-                ErrorMessage = "You do not have permission to pay this invoice."
-            });
+                return BadRequest(new ProcessPaymentResultDto
+                {
+                    Success = false,
+                    ErrorMessage = validation.ErrorMessage
+                });
+            }
+
+            // Re-validate stock before creating invoice
+            var availability = await storefrontContextService.GetBasketAvailabilityAsync(
+                currentBasket.LineItems,
+                session.ShippingAddress.CountryCode,
+                session.ShippingAddress.CountyState?.RegionCode,
+                cancellationToken);
+
+            if (!availability.AllItemsAvailable)
+            {
+                return BadRequest(new ProcessPaymentResultDto
+                {
+                    Success = false,
+                    ErrorMessage = "Some items in your basket are no longer available."
+                });
+            }
+
+            invoice = await invoiceService.CreateOrderFromBasketAsync(currentBasket, session, cancellationToken);
+            await checkoutSessionService.SetInvoiceIdAsync(currentBasket.Id, invoice.Id, cancellationToken);
+            invoiceCreatedInThisRequest = true;
+
+            logger.LogInformation(
+                "Invoice {InvoiceId} created from basket {BasketId} during DirectForm payment",
+                invoice.Id,
+                currentBasket.Id);
+        }
+
+        // Validate ownership with multiple checks for defense in depth
+        // Skip this check if we just created the invoice - we know it's valid
+        if (!invoiceCreatedInThisRequest)
+        {
+            var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == invoice.Id;
+            var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
+                string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
+
+            if (!hasValidInvoiceId && !hasValidEmail)
+            {
+                logger.LogWarning(
+                    "Invoice ownership validation failed in ProcessDirectPayment: Invoice {InvoiceId} (email: {InvoiceBillingEmail}), Session invoice: {SessionInvoiceId}, Session email: {SessionBillingEmail}",
+                    invoice.Id,
+                    invoice.BillingAddress.Email,
+                    session.InvoiceId,
+                    session.BillingAddress.Email);
+
+                return StatusCode(StatusCodes.Status403Forbidden, new ProcessPaymentResultDto
+                {
+                    Success = false,
+                    ErrorMessage = "You do not have permission to pay this invoice."
+                });
+            }
         }
 
         // Verify provider is enabled
@@ -736,7 +807,7 @@ public class CheckoutPaymentsApiController(
         {
             logger.LogInformation(
                 "Processing DirectForm payment for invoice {InvoiceId} with provider {Provider}, fields: {Fields}",
-                request.InvoiceId,
+                invoice.Id,
                 request.ProviderAlias,
                 string.Join(", ", sanitizedFormData.Keys));
         }
@@ -744,7 +815,7 @@ public class CheckoutPaymentsApiController(
         // Build the process payment request for DirectForm
         var processRequest = new ProcessPaymentRequest
         {
-            InvoiceId = request.InvoiceId,
+            InvoiceId = invoice.Id,
             ProviderAlias = request.ProviderAlias,
             MethodAlias = request.MethodAlias,
             Amount = invoice.Total,
@@ -763,20 +834,20 @@ public class CheckoutPaymentsApiController(
 
             logger.LogWarning(
                 "DirectForm payment processing failed for invoice {InvoiceId} with provider {Provider}: {Error}",
-                request.InvoiceId,
+                invoice.Id,
                 request.ProviderAlias,
                 errorMessage);
 
             return Ok(new ProcessPaymentResultDto
             {
                 Success = false,
-                InvoiceId = request.InvoiceId,
+                InvoiceId = invoice.Id,
                 ErrorMessage = errorMessage
             });
         }
 
         // Set confirmation token to authorize viewing the confirmation page
-        SetConfirmationToken(request.InvoiceId);
+        SetConfirmationToken(invoice.Id);
 
         // Clear basket after successful payment
         ClearBasketCookieAndSession();
@@ -786,22 +857,22 @@ public class CheckoutPaymentsApiController(
         {
             logger.LogInformation(
                 "DirectForm payment accepted for invoice {InvoiceId} with provider {Provider} (no payment recorded - awaiting payment)",
-                request.InvoiceId,
+                invoice.Id,
                 request.ProviderAlias);
 
             return Ok(new ProcessPaymentResultDto
             {
                 Success = true,
-                InvoiceId = request.InvoiceId,
+                InvoiceId = invoice.Id,
                 PaymentId = null,
                 TransactionId = null,
-                RedirectUrl = "/checkout/confirmation/" + request.InvoiceId
+                RedirectUrl = "/checkout/confirmation/" + invoice.Id
             });
         }
 
         logger.LogInformation(
             "DirectForm payment processed successfully for invoice {InvoiceId} with provider {Provider}, PaymentId: {PaymentId}, TransactionId: {TransactionId}",
-            request.InvoiceId,
+            invoice.Id,
             request.ProviderAlias,
             result.ResultObject.Id,
             result.ResultObject.TransactionId);
@@ -809,10 +880,10 @@ public class CheckoutPaymentsApiController(
         return Ok(new ProcessPaymentResultDto
         {
             Success = true,
-            InvoiceId = request.InvoiceId,
+            InvoiceId = invoice.Id,
             PaymentId = result.ResultObject.Id,
             TransactionId = result.ResultObject.TransactionId,
-            RedirectUrl = "/checkout/confirmation/" + request.InvoiceId
+            RedirectUrl = "/checkout/confirmation/" + invoice.Id
         });
     }
 

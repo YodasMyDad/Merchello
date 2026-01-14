@@ -207,6 +207,9 @@ public class ServiceTestFixture : IDisposable
     private readonly List<SqliteConnection> _trackedConnections = [];
     private readonly object _connectionLock = new();
 
+    // Configurable exchange rate cache mock for multi-currency testing
+    private Mock<IExchangeRateCache> _exchangeRateCacheMock = null!;
+
     public MerchelloDbContext DbContext { get; private set; } = null!;
     public IServiceProvider ServiceProvider => _serviceProvider;
 
@@ -280,15 +283,15 @@ public class ServiceTestFixture : IDisposable
         // Currency services
         services.AddScoped<ICurrencyService, CurrencyService>();
 
-        // Mock exchange rate cache for testing (returns 1:1 rates)
-        var exchangeRateCacheMock = new Mock<IExchangeRateCache>();
-        exchangeRateCacheMock
+        // Mock exchange rate cache for testing (default: 1:1 rates, configurable via SetExchangeRate)
+        _exchangeRateCacheMock = new Mock<IExchangeRateCache>();
+        _exchangeRateCacheMock
             .Setup(x => x.GetRateQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ExchangeRateQuote(1m, DateTime.UtcNow, "mock"));
-        exchangeRateCacheMock
+        _exchangeRateCacheMock
             .Setup(x => x.GetRateAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(1m);
-        services.AddSingleton(exchangeRateCacheMock.Object);
+        services.AddSingleton(_exchangeRateCacheMock.Object);
 
         // Services
         services.AddScoped<IOrderStatusHandler, DefaultOrderStatusHandler>();
@@ -909,6 +912,25 @@ public class ServiceTestFixture : IDisposable
     /// Creates a new scope for test operations
     /// </summary>
     public IServiceScope CreateScope() => _serviceProvider.CreateScope();
+
+    /// <summary>
+    /// Configure the exchange rate for a specific currency pair.
+    /// Rate direction is presentment → store (e.g., GBP→USD means 1 GBP = rate USD).
+    /// Call this before creating invoices in multi-currency tests.
+    /// </summary>
+    /// <param name="fromCurrency">Presentment currency code (customer's currency)</param>
+    /// <param name="toCurrency">Store currency code</param>
+    /// <param name="rate">Exchange rate (1 fromCurrency = rate toCurrency)</param>
+    public void SetExchangeRate(string fromCurrency, string toCurrency, decimal rate)
+    {
+        _exchangeRateCacheMock
+            .Setup(x => x.GetRateQuoteAsync(fromCurrency, toCurrency, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExchangeRateQuote(rate, DateTime.UtcNow, "test-mock"));
+
+        _exchangeRateCacheMock
+            .Setup(x => x.GetRateAsync(fromCurrency, toCurrency, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(rate);
+    }
 
     /// <summary>
     /// Creates a new DbContext instance that points at the shared in-memory database.

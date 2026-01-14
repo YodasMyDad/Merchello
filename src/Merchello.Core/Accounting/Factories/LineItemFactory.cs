@@ -79,7 +79,10 @@ public class LineItemFactory
     /// Creates an add-on line item for an order (e.g., custom/service items dependent on a product).
     /// Cost is extracted from ExtendedData["CostAdjustment"] if available.
     /// </summary>
-    public LineItem CreateAddonForOrder(LineItem addonItem, int quantity)
+    /// <param name="addonItem">The basket add-on line item</param>
+    /// <param name="quantity">Quantity allocated to this order</param>
+    /// <param name="amount">Amount in presentment currency (converted from store currency)</param>
+    public LineItem CreateAddonForOrder(LineItem addonItem, int quantity, decimal amount)
     {
         // Extract cost from ExtendedData if available (stored when add-on was added to basket)
         var cost = GetDecimalFromExtendedData(addonItem.ExtendedData, "CostAdjustment");
@@ -91,7 +94,7 @@ public class LineItemFactory
             Name = addonItem.Name,
             Sku = addonItem.Sku,
             Quantity = quantity,
-            Amount = addonItem.Amount,
+            Amount = amount,
             Cost = cost,
             OriginalAmount = addonItem.OriginalAmount,
             LineItemType = addonItem.LineItemType,
@@ -109,12 +112,17 @@ public class LineItemFactory
     /// <param name="discountItem">The basket discount line item</param>
     /// <param name="allocatedQuantity">Quantity allocated to this order</param>
     /// <param name="originalQuantity">Original quantity in the basket</param>
-    public LineItem CreateDiscountForOrder(LineItem discountItem, int allocatedQuantity, int originalQuantity)
+    /// <param name="convertedAmount">Discount amount already converted to presentment currency</param>
+    public LineItem CreateDiscountForOrder(
+        LineItem discountItem,
+        int allocatedQuantity,
+        int originalQuantity,
+        decimal convertedAmount)
     {
         // Scale discount amount proportionally if quantity was split
         // e.g., if 10 items with £5 discount split 6/4 → £3/£2 discount per order
         var scaleFactor = originalQuantity > 0 ? (decimal)allocatedQuantity / originalQuantity : 1m;
-        var scaledAmount = Math.Round(discountItem.Amount * scaleFactor, 2);
+        var scaledAmount = Math.Round(convertedAmount * scaleFactor, 2);
 
         return new LineItem
         {
