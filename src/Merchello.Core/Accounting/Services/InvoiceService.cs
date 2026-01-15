@@ -44,6 +44,7 @@ using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Tax.Providers.Models;
+using Merchello.Core.Tax.Services.Interfaces;
 using Merchello.Core.Warehouses.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -69,6 +70,7 @@ public class InvoiceService(
     IDiscountService discountService,
     ITaxService taxService,
     ITaxProviderManager taxProviderManager,
+    ITaxCalculationService taxCalculationService,
     InvoiceFactory invoiceFactory,
     OrderFactory orderFactory,
     LineItemFactory lineItemFactory,
@@ -1539,13 +1541,15 @@ public class InvoiceService(
             var shippingTotal = currencyService.Round(orders.Sum(o => o.ShippingCost), currencyCode);
 
             // Use centralized calculation method - handles before-tax and after-tax discounts
+            // Shipping tax is handled separately via CalculateShippingTaxAsync, so IsShippingTaxable = false here
             var calcResult = lineItemService.CalculateFromLineItems(new CalculateLineItemsParameters
             {
                 LineItems = allLineItems,
                 ShippingAmount = shippingTotal,
                 DefaultTaxRate = 0,
                 CurrencyCode = currencyCode,
-                IsShippingTaxable = false
+                IsShippingTaxable = false,
+                ShippingTaxRate = null // Not used when IsShippingTaxable = false
             });
             var subTotal = calcResult.SubTotal;
             var discountTotal = calcResult.Discount;
@@ -2766,7 +2770,8 @@ public class InvoiceService(
             ShippingAmount = shippingTotal,
             DefaultTaxRate = 0,
             CurrencyCode = currencyCode,
-            IsShippingTaxable = false // Line item taxes only - shipping tax calculated via provider below
+            IsShippingTaxable = false, // Line item taxes only - shipping tax calculated via provider below
+            ShippingTaxRate = null // Not used when IsShippingTaxable = false
         });
 
         // Calculate shipping tax via tax provider (uses centralized ManualTaxProvider logic)
@@ -2878,24 +2883,42 @@ public class InvoiceService(
             logger.LogWarning(ex, "Failed to calculate shipping tax via provider, using fallback");
         }
 
-        // Fallback: proportional calculation using already-computed line item tax
+        // Fallback: use tax provider configuration to determine shipping tax
         // This handles the case where:
         // - Provider fails or returns error
         // - Provider couldn't calculate due to missing TaxGroupId on line items
-        if (lineItemTax > 0)
-        {
-            var taxableSubtotal = allLineItems
-                .Where(li => li.IsTaxable && li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon)
-                .Sum(li => li.Amount * li.Quantity);
+        var countryCode = invoice.ShippingAddress?.CountryCode;
+        var stateCode = invoice.ShippingAddress?.CountyState?.RegionCode;
 
-            if (taxableSubtotal > 0)
-            {
-                var effectiveRate = lineItemTax / taxableSubtotal;
-                return currencyService.Round(taxableShippingTotal * effectiveRate, currencyCode);
-            }
+        // If we don't have a country code, we can't determine taxability - don't apply shipping tax
+        if (string.IsNullOrWhiteSpace(countryCode))
+        {
+            return 0m;
         }
 
-        return 0m;
+        // Get the shipping tax rate from the provider (respects regional overrides, global config, etc.)
+        // Returns: specific rate, 0m (not taxable), or null (use proportional calculation)
+        var shippingTaxRate = await taxProviderManager.GetShippingTaxRateForLocationAsync(
+            countryCode, stateCode, ct);
+
+        if (shippingTaxRate == 0m)
+        {
+            return 0m; // Shipping is explicitly not taxable for this location
+        }
+
+        if (shippingTaxRate.HasValue)
+        {
+            // Use the configured shipping tax rate (from regional override or shipping tax group)
+            return taxableShippingTotal.PercentageAmount(shippingTaxRate.Value, currencyCode, currencyService);
+        }
+
+        // shippingTaxRate is null - use proportional calculation (EU/UK compliant weighted average)
+        var taxableSubtotal = allLineItems
+            .Where(li => li.IsTaxable && li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon)
+            .Sum(li => li.Amount * li.Quantity);
+
+        return taxCalculationService.CalculateProportionalShippingTax(
+            taxableShippingTotal, lineItemTax, taxableSubtotal, currencyCode);
     }
 
     /// <summary>
@@ -3019,8 +3042,8 @@ public class InvoiceService(
         if (pricingQuote == null || pricingQuote.Rate <= 0m)
             return storeCurrencyAmount;
 
-        // Rate is presentment → store, so divide to convert store → presentment
-        return currencyService.Round(storeCurrencyAmount / pricingQuote.Rate, presentmentCurrency);
+        // Delegate to centralized method in ICurrencyService
+        return currencyService.ConvertToPresentmentCurrency(storeCurrencyAmount, pricingQuote.Rate, presentmentCurrency);
     }
 
     private static string BuildEditNote(List<string> changes, string? editReason)

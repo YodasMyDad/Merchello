@@ -127,6 +127,18 @@ public interface ICheckoutService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Ensures the basket currency matches the customer's display currency.
+    /// Should be called before any operation that depends on basket.Currency (invoice creation, payment processing).
+    /// This is a silent sync - no notifications are published. For user-initiated currency changes, use ConvertBasketCurrencyAsync.
+    /// </summary>
+    /// <param name="basket">The basket to sync.</param>
+    /// <param name="currencyCode">The customer's display currency code.</param>
+    /// <param name="currencySymbol">The customer's display currency symbol.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The basket with currency synced.</returns>
+    Task<Basket> EnsureBasketCurrencyAsync(Basket basket, string currencyCode, string currencySymbol, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Creates a line item for a product
     /// </summary>
     /// <param name="product">The product to add</param>

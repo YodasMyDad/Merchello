@@ -5,6 +5,8 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Checkout.Strategies;
+using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
@@ -20,6 +22,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Merchello.Controllers;
 
@@ -37,6 +40,8 @@ public class CheckoutPaymentsApiController(
     ICheckoutSessionService checkoutSessionService,
     IStorefrontContextService storefrontContextService,
     ICurrencyService currencyService,
+    IExchangeRateCache exchangeRateCache,
+    IOptions<MerchelloSettings> settings,
     ILogger<CheckoutPaymentsApiController> logger) : ControllerBase
 {
 
@@ -622,6 +627,7 @@ public class CheckoutPaymentsApiController(
         {
             InvoiceId = request.InvoiceId,
             ProviderAlias = request.ProviderAlias,
+            MethodAlias = request.MethodAlias,
             PaymentMethodToken = request.PaymentMethodToken,
             Amount = invoice.Total,
             FormData = request.FormData
@@ -1032,9 +1038,26 @@ public class CheckoutPaymentsApiController(
                 });
             }
 
+            // PayPal often returns a partial billing address (name and country only, no street).
+            // If billing address is incomplete, copy missing fields from shipping address.
+            if (shippingAddress != null && string.IsNullOrWhiteSpace(billingAddress.AddressOne))
+            {
+                billingAddress.AddressOne = shippingAddress.AddressOne;
+                billingAddress.AddressTwo = shippingAddress.AddressTwo;
+                billingAddress.TownCity = shippingAddress.TownCity;
+                billingAddress.PostalCode = shippingAddress.PostalCode;
+                billingAddress.CountyState = shippingAddress.CountyState;
+                // Keep billing country if it was provided, otherwise use shipping
+                if (string.IsNullOrWhiteSpace(billingAddress.CountryCode))
+                {
+                    billingAddress.CountryCode = shippingAddress.CountryCode;
+                }
+            }
+
             // Create transient session for validation (NOT persisted yet)
             // This ensures we don't corrupt session state if shipping validation fails
-            var sameAsBilling = request.CustomerData.BillingAddress == null;
+            var sameAsBilling = request.CustomerData.BillingAddress == null ||
+                                string.IsNullOrWhiteSpace(request.CustomerData.BillingAddress.Line1);
             var effectiveShippingAddress = sameAsBilling ? billingAddress : (shippingAddress ?? billingAddress);
 
             var transientSession = new CheckoutSession
@@ -1249,20 +1272,91 @@ public class CheckoutPaymentsApiController(
         var methods = await providerManager.GetExpressCheckoutMethodsAsync(cancellationToken);
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), cancellationToken);
 
-        // Get the display currency and convert basket totals using extension method
-        var currencyContext = await storefrontContextService.GetCurrencyContextAsync(cancellationToken);
-        var displayAmounts = basket.GetDisplayAmounts(
-            currencyContext.ExchangeRate,
-            currencyService,
-            currencyContext.CurrencyCode);
+        if (basket == null || !basket.LineItems.Any(li => li.ProductId.HasValue))
+        {
+            var emptyCurrency = basket?.Currency ?? settings.Value.StoreCurrencyCode;
+            return new ExpressCheckoutConfigDto { Currency = emptyCurrency, Methods = [] };
+        }
+
+        // Get shipping location from storefront context (respects cookie or store default)
+        var displayContext = await storefrontContextService.GetDisplayContextAsync(cancellationToken);
+        var countryCode = displayContext.TaxCountryCode;
+
+        // Pre-calculate shipping using same flow as ProcessExpressCheckout
+        // This ensures the amount shown to PayPal matches what will be charged
+        var estimatedShipping = 0m;
+        var tempSession = new CheckoutSession
+        {
+            BasketId = basket.Id,
+            ShippingAddress = new Address { CountryCode = countryCode }
+        };
+
+        var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, tempSession, cancellationToken);
+        if (groupingResult.Success && groupingResult.Groups.Count > 0)
+        {
+            var autoSelectedShipping = ShippingAutoSelector.SelectOptions(
+                groupingResult.Groups,
+                ShippingAutoSelectStrategy.Cheapest);
+            estimatedShipping = ShippingAutoSelector.CalculateCombinedTotal(
+                groupingResult.Groups,
+                autoSelectedShipping);
+        }
+
+        // Recalculate basket with shipping to get accurate totals
+        await checkoutService.CalculateBasketAsync(
+            new CalculateBasketParameters
+            {
+                Basket = basket,
+                CountryCode = countryCode,
+                ShippingAmountOverride = estimatedShipping
+            },
+            cancellationToken);
+
+        // Sync basket currency from storefront context (same as main checkout)
+        var currencyCtx = await storefrontContextService.GetCurrencyContextAsync(cancellationToken);
+        basket = await checkoutService.EnsureBasketCurrencyAsync(basket, currencyCtx.CurrencyCode, currencyCtx.CurrencySymbol, cancellationToken);
+
+        // Use same calculation path as invoice creation (NOT display amounts)
+        // This ensures PayPal authorizes the exact amount that will be charged
+        var presentmentCurrency = currencyCtx.CurrencyCode;
+        var storeCurrency = settings.Value.StoreCurrencyCode;
+
+        decimal total, subTotal, shipping, tax;
+
+        if (!string.Equals(presentmentCurrency, storeCurrency, StringComparison.OrdinalIgnoreCase))
+        {
+            // Get exchange rate same way as CreateOrderFromBasketAsync
+            var pricingQuote = await exchangeRateCache.GetRateQuoteAsync(
+                presentmentCurrency, storeCurrency, cancellationToken);
+
+            if (pricingQuote == null || pricingQuote.Rate <= 0m)
+            {
+                throw new InvalidOperationException(
+                    $"No exchange rate available for express checkout: {presentmentCurrency} → {storeCurrency}");
+            }
+
+            // Convert using centralized method (divides by rate)
+            total = currencyService.ConvertToPresentmentCurrency(basket.Total, pricingQuote.Rate, presentmentCurrency);
+            subTotal = currencyService.ConvertToPresentmentCurrency(basket.SubTotal, pricingQuote.Rate, presentmentCurrency);
+            shipping = currencyService.ConvertToPresentmentCurrency(basket.Shipping, pricingQuote.Rate, presentmentCurrency);
+            tax = currencyService.ConvertToPresentmentCurrency(basket.Tax, pricingQuote.Rate, presentmentCurrency);
+        }
+        else
+        {
+            // Same currency - no conversion needed
+            total = basket.Total;
+            subTotal = basket.SubTotal;
+            shipping = basket.Shipping;
+            tax = basket.Tax;
+        }
 
         var config = new ExpressCheckoutConfigDto
         {
-            Currency = currencyContext.CurrencyCode,
-            Amount = displayAmounts.Total,
-            SubTotal = displayAmounts.SubTotal,
-            Shipping = displayAmounts.Shipping,
-            Tax = displayAmounts.Tax,
+            Currency = presentmentCurrency,
+            Amount = total,
+            SubTotal = subTotal,
+            Shipping = shipping,
+            Tax = tax,
             Methods = []
         };
 
@@ -1366,19 +1460,76 @@ public class CheckoutPaymentsApiController(
             });
         }
 
-        // Get display currency and convert basket total for the payment
-        var currencyContext = await storefrontContextService.GetCurrencyContextAsync(cancellationToken);
-        var displayAmounts = basket.GetDisplayAmounts(
-            currencyContext.ExchangeRate,
-            currencyService,
-            currencyContext.CurrencyCode);
+        // Use same calculation path as invoice creation (NOT display amounts)
+        // This ensures the PaymentIntent amount matches what will be charged
+        var displayContext = await storefrontContextService.GetDisplayContextAsync(cancellationToken);
+        var countryCode = displayContext.TaxCountryCode;
+
+        // Pre-calculate shipping using same flow as ProcessExpressCheckout
+        var estimatedShipping = 0m;
+        var tempSession = new CheckoutSession
+        {
+            BasketId = basket.Id,
+            ShippingAddress = new Address { CountryCode = countryCode }
+        };
+
+        var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, tempSession, cancellationToken);
+        if (groupingResult.Success && groupingResult.Groups.Count > 0)
+        {
+            var autoSelectedShipping = ShippingAutoSelector.SelectOptions(
+                groupingResult.Groups,
+                ShippingAutoSelectStrategy.Cheapest);
+            estimatedShipping = ShippingAutoSelector.CalculateCombinedTotal(
+                groupingResult.Groups,
+                autoSelectedShipping);
+        }
+
+        // Recalculate basket with shipping to get accurate totals
+        await checkoutService.CalculateBasketAsync(
+            new CalculateBasketParameters
+            {
+                Basket = basket,
+                CountryCode = countryCode,
+                ShippingAmountOverride = estimatedShipping
+            },
+            cancellationToken);
+
+        // Sync basket currency from storefront context (same as main checkout)
+        var currencyCtx2 = await storefrontContextService.GetCurrencyContextAsync(cancellationToken);
+        basket = await checkoutService.EnsureBasketCurrencyAsync(basket, currencyCtx2.CurrencyCode, currencyCtx2.CurrencySymbol, cancellationToken);
+
+        // Calculate amounts using invoice path (divide by rate)
+        var presentmentCurrency = currencyCtx2.CurrencyCode;
+        var storeCurrency = settings.Value.StoreCurrencyCode;
+        decimal total;
+
+        if (!string.Equals(presentmentCurrency, storeCurrency, StringComparison.OrdinalIgnoreCase))
+        {
+            var pricingQuote = await exchangeRateCache.GetRateQuoteAsync(
+                presentmentCurrency, storeCurrency, cancellationToken);
+
+            if (pricingQuote == null || pricingQuote.Rate <= 0m)
+            {
+                return BadRequest(new ExpressPaymentIntentResponseDto
+                {
+                    Success = false,
+                    ErrorMessage = $"No exchange rate available: {presentmentCurrency} → {storeCurrency}"
+                });
+            }
+
+            total = currencyService.ConvertToPresentmentCurrency(basket.Total, pricingQuote.Rate, presentmentCurrency);
+        }
+        else
+        {
+            total = basket.Total;
+        }
 
         // Create payment session which will create the PaymentIntent
         var paymentRequest = new PaymentRequest
         {
             InvoiceId = Guid.Empty, // Will be created after express checkout completes
-            Amount = displayAmounts.Total,
-            Currency = currencyContext.CurrencyCode,
+            Amount = total,
+            Currency = presentmentCurrency,
             MethodAlias = request.MethodAlias,
             ReturnUrl = $"{Request.Scheme}://{Request.Host}/checkout/confirmation",
             CancelUrl = $"{Request.Scheme}://{Request.Host}/checkout"
@@ -1719,6 +1870,7 @@ public class CheckoutPaymentsApiController(
             {
                 InvoiceId = invoice.Id,
                 ProviderAlias = providerAlias,
+                MethodAlias = request.MethodAlias ?? providerAlias,
                 SessionId = request.OrderId,
                 Amount = invoice.Total
             };

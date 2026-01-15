@@ -136,6 +136,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             discountService,
             taxServiceMock.Object,
             taxProviderManagerMock.Object,
+            taxCalculationService,
             invoiceFactory,
             orderFactory,
             lineItemFactory,

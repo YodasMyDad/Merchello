@@ -2,6 +2,7 @@ using Merchello.Core;
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Dtos;
+using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
@@ -11,6 +12,8 @@ using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
+using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
@@ -33,6 +36,7 @@ public class CheckoutApiController(
     IRateLimiter rateLimiter,
     IStorefrontContextService storefrontContext,
     ICurrencyConversionService currencyConversion,
+    ICurrencyService currencyService,
     IOptions<MerchelloSettings> merchelloSettings,
     ILogger<CheckoutApiController> logger) : ControllerBase
 {
@@ -272,16 +276,9 @@ public class CheckoutApiController(
             });
         }
 
-        // Sync basket currency from storefront context if not already set
-        // This ensures the invoice will be created in the customer's display currency
+        // Sync basket currency from storefront context (centralized service method)
         var currencyCtx = await storefrontContext.GetCurrencyContextAsync(ct);
-        if (string.IsNullOrEmpty(basket.Currency) ||
-            !string.Equals(basket.Currency, currencyCtx.CurrencyCode, StringComparison.OrdinalIgnoreCase))
-        {
-            basket.Currency = currencyCtx.CurrencyCode;
-            basket.CurrencySymbol = currencyCtx.CurrencySymbol;
-            await checkoutService.SaveBasketAsync(basket, ct);
-        }
+        basket = await checkoutService.EnsureBasketCurrencyAsync(basket, currencyCtx.CurrencyCode, currencyCtx.CurrencySymbol, ct);
 
         var result = await checkoutService.InitializeCheckoutAsync(new InitializeCheckoutParameters
         {
@@ -316,26 +313,28 @@ public class CheckoutApiController(
 
         var initResult = result.ResultObject!;
 
-        // Get currency context for display
-        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
-        var displayCurrencySymbol = currencyContext.CurrencySymbol;
-        var exchangeRate = currencyContext.ExchangeRate;
+        // Get display context for tax-inclusive pricing
+        var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
+        var displayCurrencySymbol = displayContext.CurrencySymbol;
+        var exchangeRate = displayContext.ExchangeRate;
 
         var shippingGroups = MapOrderGroupsToDto(
             initResult.GroupingResult,
             displayCurrencySymbol,
             initResult.AutoSelectedShippingOptions,
-            exchangeRate);
+            displayContext,
+            currencyService);
 
-        var displayCombinedShippingTotal = currencyConversion.Convert(
+        // Apply same tax-inclusive logic to combined shipping total for consistency
+        var displayCombinedShippingTotal = DisplayCurrencyExtensions.GetDisplayShippingOptionCost(
             initResult.CombinedShippingTotal,
-            exchangeRate,
-            currencyContext.CurrencyCode);
+            displayContext,
+            currencyService);
 
         return Ok(new InitializeCheckoutResponseDto
         {
             Success = true,
-            Basket = MapBasketToDto(initResult.Basket, currencyContext.CurrencyCode, displayCurrencySymbol, exchangeRate),
+            Basket = MapBasketToDto(initResult.Basket, displayContext.CurrencyCode, displayCurrencySymbol, exchangeRate),
             ShippingGroups = shippingGroups,
             CombinedShippingTotal = displayCombinedShippingTotal,
             FormattedCombinedShippingTotal = currencyConversion.Format(displayCombinedShippingTotal, displayCurrencySymbol),
@@ -375,18 +374,19 @@ public class CheckoutApiController(
             });
         }
 
-        // Get currency context for display
-        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
+        // Get display context for tax-inclusive pricing
+        var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
         var shippingGroups = MapOrderGroupsToDto(
             groupingResult,
-            currencyContext.CurrencySymbol,
+            displayContext.CurrencySymbol,
             session.SelectedShippingOptions,
-            currencyContext.ExchangeRate);
+            displayContext,
+            currencyService);
 
         return Ok(new SelectShippingResponseDto
         {
             Success = true,
-            Basket = MapBasketToDto(basket, currencyContext.CurrencyCode, currencyContext.CurrencySymbol, currencyContext.ExchangeRate),
+            Basket = MapBasketToDto(basket, displayContext.CurrencyCode, displayContext.CurrencySymbol, displayContext.ExchangeRate),
             ShippingGroups = shippingGroups
         });
     }
@@ -549,19 +549,20 @@ public class CheckoutApiController(
         var updatedSession = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
         var updatedGroupingResult = await checkoutService.GetOrderGroupsAsync(updatedBasket, updatedSession, ct);
 
-        // Get currency context for display
-        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
+        // Get display context for tax-inclusive pricing
+        var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
 
         return Ok(new SelectShippingResponseDto
         {
             Success = true,
             Message = "Shipping selections saved successfully.",
-            Basket = MapBasketToDto(updatedBasket, currencyContext.CurrencyCode, currencyContext.CurrencySymbol, currencyContext.ExchangeRate),
+            Basket = MapBasketToDto(updatedBasket, displayContext.CurrencyCode, displayContext.CurrencySymbol, displayContext.ExchangeRate),
             ShippingGroups = MapOrderGroupsToDto(
                 updatedGroupingResult,
-                currencyContext.CurrencySymbol,
+                displayContext.CurrencySymbol,
                 updatedSession.SelectedShippingOptions,
-                currencyContext.ExchangeRate)
+                displayContext,
+                currencyService)
         });
     }
 
@@ -1115,8 +1116,11 @@ public class CheckoutApiController(
         OrderGroupingResult result,
         string currencySymbol,
         Dictionary<Guid, Guid>? selectedOptions,
-        decimal exchangeRate = 1m)
+        StorefrontDisplayContext displayContext,
+        ICurrencyService currencyService)
     {
+        var exchangeRate = displayContext.ExchangeRate;
+
         return result.Groups.Select(group => new ShippingGroupDto
         {
             GroupId = group.GroupId,
@@ -1125,7 +1129,7 @@ public class CheckoutApiController(
             LineItems = group.LineItems.Select(li =>
             {
                 var lineTotal = li.Amount * li.Quantity;
-                var displayLineTotal = lineTotal * exchangeRate;
+                var displayLineTotal = currencyService.Round(lineTotal * exchangeRate, displayContext.CurrencyCode);
                 return new ShippingGroupLineItemDto
                 {
                     Id = li.LineItemId,
@@ -1145,7 +1149,8 @@ public class CheckoutApiController(
             }).ToList(),
             ShippingOptions = group.AvailableShippingOptions.Select(opt =>
             {
-                var displayCost = opt.Cost * exchangeRate;
+                var displayCost = DisplayCurrencyExtensions.GetDisplayShippingOptionCost(
+                    opt.Cost, displayContext, currencyService);
                 return new ShippingOptionDto
                 {
                     Id = opt.ShippingOptionId,

@@ -1,5 +1,6 @@
 ﻿using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Checkout.Dtos;
+using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Shared.Models;
@@ -38,9 +39,10 @@ public class BasketController(
     {
         var basket = await checkoutService.GetBasket(new GetBasketParameters());
 
-        // Get currency context for display conversion
-        var currencyContext = await storefrontContext.GetCurrencyContextAsync();
-        var rate = currencyContext.ExchangeRate;
+        // Get full display context (currency + tax-inclusive settings)
+        var displayContext = await storefrontContext.GetDisplayContextAsync();
+        var rate = displayContext.ExchangeRate;
+        var symbol = displayContext.CurrencySymbol;
 
         if (basket == null || basket.LineItems.Count == 0)
         {
@@ -48,17 +50,22 @@ public class BasketController(
             {
                 IsEmpty = true,
                 CurrencySymbol = _settings.CurrencySymbol,
-                DisplayCurrencyCode = currencyContext.CurrencyCode,
-                DisplayCurrencySymbol = currencyContext.CurrencySymbol,
-                ExchangeRate = rate
+                DisplayCurrencyCode = displayContext.CurrencyCode,
+                DisplayCurrencySymbol = symbol,
+                ExchangeRate = rate,
+                DisplayPricesIncTax = displayContext.DisplayPricesIncTax
             };
         }
         else
         {
+            // Use centralized method for basket totals (includes tax-inclusive calculations)
+            var displayAmounts = basket.GetDisplayAmounts(displayContext, currencyService);
+
             var items = basket.LineItems.Select(li =>
             {
-                var displayUnitPrice = currencyService.Round(li.Amount * rate, currencyContext.CurrencyCode);
-                var displayLineTotal = currencyService.Round(li.Amount * li.Quantity * rate, currencyContext.CurrencyCode);
+                // Use centralized methods for line item display amounts
+                var displayUnitPrice = li.GetDisplayLineItemUnitPrice(displayContext, currencyService);
+                var displayLineTotal = li.GetDisplayLineItemTotal(displayContext, currencyService);
 
                 return new StorefrontLineItemDto
                 {
@@ -79,19 +86,14 @@ public class BasketController(
                     FormattedLineTotal = FormatPrice(li.Amount * li.Quantity),
                     DisplayUnitPrice = displayUnitPrice,
                     DisplayLineTotal = displayLineTotal,
-                    FormattedDisplayUnitPrice = FormatDisplayPrice(displayUnitPrice, currencyContext.CurrencySymbol),
-                    FormattedDisplayLineTotal = FormatDisplayPrice(displayLineTotal, currencyContext.CurrencySymbol),
+                    FormattedDisplayUnitPrice = FormatDisplayPrice(displayUnitPrice, symbol),
+                    FormattedDisplayLineTotal = FormatDisplayPrice(displayLineTotal, symbol),
+                    TaxRate = li.TaxRate,
+                    IsTaxable = li.IsTaxable,
                     LineItemType = li.LineItemType.ToString(),
                     DependantLineItemSku = li.DependantLineItemSku
                 };
             }).ToList();
-
-            // Convert totals for display
-            var displaySubTotal = currencyService.Round(basket.SubTotal * rate, currencyContext.CurrencyCode);
-            var displayDiscount = currencyService.Round(basket.Discount * rate, currencyContext.CurrencyCode);
-            var displayTax = currencyService.Round(basket.Tax * rate, currencyContext.CurrencyCode);
-            var displayShipping = currencyService.Round(basket.Shipping * rate, currencyContext.CurrencyCode);
-            var displayTotal = currencyService.Round(basket.Total * rate, currencyContext.CurrencyCode);
 
             // Get availability for basket items (SSR) - pass line items to avoid duplicate basket fetch
             var availability = await storefrontContext.GetBasketAvailabilityAsync(basket.LineItems, ct: default);
@@ -103,6 +105,12 @@ public class BasketController(
                     HasStock = i.HasStock,
                     Message = i.StatusMessage
                 });
+
+            // Calculate tax-inclusive subtotal from line items (sum of tax-inclusive line totals)
+            // This excludes shipping tax which shouldn't be in the subtotal
+            var taxInclusiveSubTotal = items
+                .Where(i => i.LineItemType == "Product" || i.LineItemType == "Addon")
+                .Sum(i => i.DisplayLineTotal);
 
             ViewBag.BasketData = new StorefrontBasketDto
             {
@@ -117,19 +125,28 @@ public class BasketController(
                 FormattedTax = FormatPrice(basket.Tax),
                 FormattedTotal = FormatPrice(basket.Total),
                 CurrencySymbol = _settings.CurrencySymbol,
-                DisplaySubTotal = displaySubTotal,
-                DisplayDiscount = displayDiscount,
-                DisplayTax = displayTax,
-                DisplayShipping = displayShipping,
-                DisplayTotal = displayTotal,
-                FormattedDisplaySubTotal = FormatDisplayPrice(displaySubTotal, currencyContext.CurrencySymbol),
-                FormattedDisplayDiscount = FormatDisplayPrice(displayDiscount, currencyContext.CurrencySymbol),
-                FormattedDisplayTax = FormatDisplayPrice(displayTax, currencyContext.CurrencySymbol),
-                FormattedDisplayShipping = FormatDisplayPrice(displayShipping, currencyContext.CurrencySymbol),
-                FormattedDisplayTotal = FormatDisplayPrice(displayTotal, currencyContext.CurrencySymbol),
-                DisplayCurrencyCode = currencyContext.CurrencyCode,
-                DisplayCurrencySymbol = currencyContext.CurrencySymbol,
+                DisplaySubTotal = displayAmounts.SubTotal,
+                DisplayDiscount = displayAmounts.Discount,
+                DisplayTax = displayAmounts.Tax,
+                DisplayShipping = displayAmounts.Shipping,
+                DisplayTotal = displayAmounts.Total,
+                FormattedDisplaySubTotal = FormatDisplayPrice(displayAmounts.SubTotal, symbol),
+                FormattedDisplayDiscount = FormatDisplayPrice(displayAmounts.Discount, symbol),
+                FormattedDisplayTax = FormatDisplayPrice(displayAmounts.Tax, symbol),
+                FormattedDisplayShipping = FormatDisplayPrice(displayAmounts.Shipping, symbol),
+                FormattedDisplayTotal = FormatDisplayPrice(displayAmounts.Total, symbol),
+                DisplayCurrencyCode = displayContext.CurrencyCode,
+                DisplayCurrencySymbol = symbol,
                 ExchangeRate = rate,
+                // Tax-inclusive display properties
+                DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
+                TaxInclusiveDisplaySubTotal = taxInclusiveSubTotal,
+                FormattedTaxInclusiveDisplaySubTotal = FormatDisplayPrice(taxInclusiveSubTotal, symbol),
+                TaxInclusiveDisplayShipping = displayAmounts.TaxInclusiveShipping,
+                FormattedTaxInclusiveDisplayShipping = FormatDisplayPrice(displayAmounts.TaxInclusiveShipping, symbol),
+                TaxInclusiveDisplayDiscount = displayAmounts.TaxInclusiveDiscount,
+                FormattedTaxInclusiveDisplayDiscount = FormatDisplayPrice(displayAmounts.TaxInclusiveDiscount, symbol),
+                TaxIncludedMessage = displayAmounts.TaxIncludedMessage,
                 ItemCount = basket.LineItems.Sum(li => li.Quantity),
                 IsEmpty = false,
                 AllItemsAvailable = availability.AllItemsAvailable,

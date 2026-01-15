@@ -47,8 +47,31 @@ public class TaxCalculationService(ICurrencyService currencyService) : ITaxCalcu
         decimal shippingTax = 0;
         if (input.IsShippingTaxable && input.ShippingAmount > 0)
         {
-            shippingTax = currencyService.Round(
-                input.ShippingAmount * (input.DefaultTaxRate / 100m), currencyCode);
+            if (input.ShippingTaxRate == 0m)
+            {
+                // Shipping is explicitly not taxable
+                shippingTax = 0m;
+            }
+            else if (input.ShippingTaxRate.HasValue)
+            {
+                // Use the configured shipping tax rate (from regional override or shipping tax group)
+                shippingTax = currencyService.Round(
+                    input.ShippingAmount * (input.ShippingTaxRate.Value / 100m), currencyCode);
+            }
+            else
+            {
+                // ShippingTaxRate is null - use weighted average of line item tax rates
+                // This is EU/UK VAT compliant for mixed-rate orders
+                // Important: Use pre-discount item totals and rates so discounts don't affect shipping tax
+                var totalTaxableAmount = input.TaxableItems.Sum(i => i.ItemTotal);
+                if (totalTaxableAmount > 0)
+                {
+                    // Calculate weighted average tax rate from item rates (not affected by discounts)
+                    var weightedTaxRate = input.TaxableItems.Sum(i => i.ItemTotal * i.TaxRate) / totalTaxableAmount;
+                    shippingTax = currencyService.Round(
+                        input.ShippingAmount * (weightedTaxRate / 100m), currencyCode);
+                }
+            }
         }
 
         return new TaxWithDiscountsResult
@@ -174,6 +197,22 @@ public class TaxCalculationService(ICurrencyService currencyService) : ITaxCalcu
             TaxAmount = taxAmount,
             Total = subtotal + taxAmount
         };
+    }
+
+    /// <inheritdoc />
+    public decimal CalculateProportionalShippingTax(
+        decimal shippingAmount,
+        decimal lineItemTax,
+        decimal taxableSubtotal,
+        string currencyCode)
+    {
+        if (shippingAmount <= 0 || lineItemTax <= 0 || taxableSubtotal <= 0)
+        {
+            return 0m;
+        }
+
+        var effectiveRate = lineItemTax / taxableSubtotal;
+        return currencyService.Round(shippingAmount * effectiveRate, currencyCode);
     }
 
     /// <summary>

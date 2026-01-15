@@ -24,6 +24,7 @@ using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Tax.Services;
+using Merchello.Core.Tax.Services.Interfaces;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -101,6 +102,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             discountService,
             taxServiceMock.Object,
             taxProviderManager,
+            taxCalculationService,
             invoiceFactory,
             orderFactory,
             lineItemFactory,

@@ -11,6 +11,7 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services.Parameters;
+using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
@@ -26,7 +27,8 @@ public class StorefrontContextService(
     ICountryCurrencyMappingService countryCurrencyMapping,
     IExchangeRateCache exchangeRateCache,
     ICheckoutService checkoutService,
-    IProductService productService) : IStorefrontContextService
+    IProductService productService,
+    ITaxProviderManager taxProviderManager) : IStorefrontContextService
 {
     private const int CookieExpiryDays = 30;
 
@@ -393,6 +395,18 @@ public class StorefrontContextService(
         var currencyContext = await GetCurrencyContextAsync(ct);
         var shippingLocation = await GetShippingLocationAsync(ct);
 
+        // Query actual shipping tax configuration from the active tax provider
+        var isShippingTaxed = await taxProviderManager.IsShippingTaxedForLocationAsync(
+            shippingLocation.CountryCode,
+            shippingLocation.RegionCode,
+            ct);
+
+        // Get the actual shipping tax rate from the provider
+        var shippingTaxRate = await taxProviderManager.GetShippingTaxRateForLocationAsync(
+            shippingLocation.CountryCode,
+            shippingLocation.RegionCode,
+            ct);
+
         return new StorefrontDisplayContext(
             currencyContext.CurrencyCode,
             currencyContext.CurrencySymbol,
@@ -401,7 +415,10 @@ public class StorefrontContextService(
             currencyContext.StoreCurrencyCode,
             _settings.DisplayPricesIncTax,
             shippingLocation.CountryCode,
-            shippingLocation.RegionCode);
+            shippingLocation.RegionCode,
+            DefaultTaxRate: 0, // Tax rates come from line items/TaxGroups
+            IsShippingTaxable: isShippingTaxed,
+            ShippingTaxRate: shippingTaxRate);
     }
 
     /// <summary>

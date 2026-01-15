@@ -162,6 +162,28 @@ public class OrderConfirmationDto
     /// </summary>
     public string FormattedDisplayTotal { get; set; } = "";
 
+    // Tax-inclusive display (when DisplayPricesIncTax setting is enabled)
+
+    /// <summary>
+    /// Whether prices are displayed including tax.
+    /// </summary>
+    public bool DisplayPricesIncTax { get; set; }
+
+    /// <summary>
+    /// Subtotal including tax in display currency (for tax-inclusive display).
+    /// </summary>
+    public decimal TaxInclusiveDisplaySubTotal { get; set; }
+
+    /// <summary>
+    /// Formatted subtotal including tax in display currency.
+    /// </summary>
+    public string FormattedTaxInclusiveDisplaySubTotal { get; set; } = "";
+
+    /// <summary>
+    /// Tax included message (e.g., "Including £10.17 in taxes").
+    /// </summary>
+    public string? TaxIncludedMessage { get; set; }
+
     /// <summary>
     /// Shipping method information per order/shipment group.
     /// </summary>

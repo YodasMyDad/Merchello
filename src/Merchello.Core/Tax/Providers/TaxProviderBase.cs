@@ -42,6 +42,19 @@ public abstract class TaxProviderBase : ITaxProvider
         return Task.FromResult(TaxProviderValidationResult.Valid());
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Default implementation returns null, indicating rate cannot be determined without full calculation.
+    /// Providers that can determine rate statically (e.g., ManualTaxProvider) should override this.
+    /// </remarks>
+    public virtual Task<decimal?> GetShippingTaxRateForLocationAsync(
+        string countryCode,
+        string? stateCode,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<decimal?>(null);
+    }
+
     /// <summary>
     /// Gets a configuration value by key.
     /// </summary>

@@ -18,7 +18,7 @@ public class CalculateLineItemsParameters
     public required decimal ShippingAmount { get; init; }
 
     /// <summary>
-    /// Default tax rate for shipping (item tax rates come from LineItem.TaxRate)
+    /// Default tax rate used when line items don't have their own TaxRate set
     /// </summary>
     public required decimal DefaultTaxRate { get; init; }
 
@@ -28,7 +28,15 @@ public class CalculateLineItemsParameters
     public required string CurrencyCode { get; init; }
 
     /// <summary>
-    /// Whether shipping is taxable (defaults to true)
+    /// Whether shipping is taxable. Should come from ITaxProviderManager.IsShippingTaxedForLocationAsync().
     /// </summary>
     public bool IsShippingTaxable { get; init; } = true;
+
+    /// <summary>
+    /// The specific shipping tax rate to use. Should come from ITaxProviderManager.GetShippingTaxRateForLocationAsync().
+    /// - null = use proportional calculation (weighted average of line item rates, EU/UK VAT compliant)
+    /// - 0m = shipping is explicitly not taxable
+    /// - positive value = use this specific rate percentage (e.g., 20 for 20%)
+    /// </summary>
+    public decimal? ShippingTaxRate { get; init; }
 }

@@ -67,6 +67,16 @@ public class StorefrontBasketDto
     public string DisplayCurrencySymbol { get; set; } = "";
     public decimal ExchangeRate { get; set; } = 1.0m;
 
+    // Tax-inclusive display (when DisplayPricesIncTax setting is enabled)
+    public bool DisplayPricesIncTax { get; set; }
+    public decimal TaxInclusiveDisplaySubTotal { get; set; }
+    public string FormattedTaxInclusiveDisplaySubTotal { get; set; } = "";
+    public decimal TaxInclusiveDisplayShipping { get; set; }
+    public string FormattedTaxInclusiveDisplayShipping { get; set; } = "";
+    public decimal TaxInclusiveDisplayDiscount { get; set; }
+    public string FormattedTaxInclusiveDisplayDiscount { get; set; } = "";
+    public string? TaxIncludedMessage { get; set; }
+
     public int ItemCount { get; set; }
     public bool IsEmpty { get; set; }
 
@@ -113,6 +123,10 @@ public class StorefrontLineItemDto
     public string FormattedDisplayUnitPrice { get; set; } = "";
     public string FormattedDisplayLineTotal { get; set; } = "";
 
+    // Tax info (for tax-inclusive display calculations)
+    public decimal TaxRate { get; set; }
+    public bool IsTaxable { get; set; }
+
     public string LineItemType { get; set; } = "";
     public string? DependantLineItemSku { get; set; }
 }
@@ -150,6 +164,16 @@ public class EstimatedShippingDto
     /// </summary>
     public decimal DisplayTax { get; set; }
     public string FormattedDisplayTax { get; set; } = "";
+
+    // Tax-inclusive display (when DisplayPricesIncTax setting is enabled)
+    public bool DisplayPricesIncTax { get; set; }
+    public decimal TaxInclusiveDisplaySubTotal { get; set; }
+    public string FormattedTaxInclusiveDisplaySubTotal { get; set; } = "";
+    public decimal TaxInclusiveDisplayShipping { get; set; }
+    public string FormattedTaxInclusiveDisplayShipping { get; set; } = "";
+    public decimal TaxInclusiveDisplayDiscount { get; set; }
+    public string FormattedTaxInclusiveDisplayDiscount { get; set; } = "";
+    public string? TaxIncludedMessage { get; set; }
 
     public int GroupCount { get; set; }
     public string? Message { get; set; }

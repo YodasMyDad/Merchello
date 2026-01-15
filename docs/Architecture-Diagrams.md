@@ -64,10 +64,157 @@ Codes: Internal suffix-only (`ENG`), Display ISO 3166-2 (`GB-ENG`) | Regenerate:
 
 ### Tax
 `ITaxService`: `GetTaxGroups()`, `GetApplicableRateAsync()`, `GetShippingTaxOverrideAsync()`, `CreateShippingTaxOverrideAsync()`, `UpdateShippingTaxOverrideAsync()`, `DeleteShippingTaxOverrideAsync()`
-`ITaxProviderManager`: `GetActiveProviderAsync()` → `ITaxProvider.CalculateTaxAsync()` | Preview: `TaxApiController.PreviewCustomItemTax()`
+`ITaxProviderManager`: `GetActiveProviderAsync()` → `ITaxProvider.CalculateTaxAsync()`, `IsShippingTaxedForLocationAsync()`, `GetShippingTaxRateForLocationAsync()` | Preview: `TaxApiController.PreviewCustomItemTax()`
+
+### Shipping Tax Architecture
+
+**CRITICAL: Two methods MUST be called at system entry points**
+
+| Method | Purpose | Returns |
+|--------|---------|---------|
+| `IsShippingTaxedForLocationAsync(country, state)` | Determines IF shipping is taxable | `bool` |
+| `GetShippingTaxRateForLocationAsync(country, state)` | Gets the tax RATE to apply | `decimal?` |
+
+**Return Value Semantics for `GetShippingTaxRateForLocationAsync`:**
+- `0m` = Shipping explicitly NOT taxable (not proportional)
+- `decimal > 0` = Use this specific rate (from regional override or shipping tax group)
+- `null` = Use proportional calculation (EU/UK VAT compliant weighted average)
+
+**Entry Points That MUST Call These Methods:**
+1. `CheckoutService.CalculateBasketAsync()` - Basket calculations
+2. `StorefrontContextService.GetDisplayContextAsync()` - Display context population
+3. `InvoiceService.CalculateShippingTaxAsync()` - Invoice totals (fallback path)
+
+**Flow:**
+```
+Entry Point → IsShippingTaxedForLocationAsync() + GetShippingTaxRateForLocationAsync()
+    ↓
+Parameters (IsShippingTaxable, ShippingTaxRate)
+    ↓
+LineItemService / TaxCalculationService (uses parameters, not provider)
+    ↓
+Display: StorefrontDisplayContext (ShippingTaxRate for tax-inclusive UI)
+```
+
+**Priority System (ManualTaxProvider):**
+1. Regional shipping tax override with `ShippingTaxGroupId = null` → NOT taxed (0m)
+2. Regional shipping tax override with `ShippingTaxGroupId` → Use that group's rate
+3. Global shipping tax group configured → Use that group's rate
+4. No group configured → Proportional calculation (null)
+
+**Proportional Calculation (centralized):**
+When `ShippingTaxRate` is null, use `ITaxCalculationService.CalculateProportionalShippingTax()`:
+- Formula: `shippingTax = shippingAmount × (lineItemTax / taxableSubtotal)`
+- EU/UK VAT compliant weighted average for mixed-rate orders
+- Single implementation used by: `TaxCalculationService`, `ManualTaxProvider`, `InvoiceService`
+
+**DO NOT:**
+- Hardcode shipping tax rates
+- Calculate shipping tax without consulting the provider methods
+- Assume shipping is always taxable or always at a fixed rate
+- Duplicate proportional calculation logic - use `CalculateProportionalShippingTax()`
 
 ### Currency
-`ICurrencyService`: `Round()`, `ToMinorUnits()`, `FromMinorUnits()` | `IExchangeRateCache`: `GetRateAsync()`
+`ICurrencyService`: `Round()`, `ToMinorUnits()`, `FromMinorUnits()` | `IExchangeRateCache`: `GetRateAsync()`, `GetRateQuoteAsync()`
+
+---
+
+## Multi-Currency & Tax-Inclusive Display
+
+### ⚠️ CRITICAL: Checkout/Payment vs Display Values
+
+**Display amounts should NEVER be used in checkout or payment flows.**
+
+| Context | Method | Direction | Use For |
+|---------|--------|-----------|---------|
+| **UI Display** | `basket.GetDisplayAmounts()` | MULTIPLY by rate | Product pages, cart UI, price labels |
+| **Checkout/Payment** | `ConvertToPresentmentCurrency()` | DIVIDE by rate | Invoice creation, payment processing |
+
+**Why the difference?** Display amounts show customers what they'll pay in their selected currency. Checkout/payment amounts are the actual transaction values calculated at invoice creation when the exchange rate is locked.
+
+**Bug Example (Fixed):** Express checkout showed PayPal £61.73 (display) but tried to capture £83.98 (store amount incorrectly used). Always use the invoice calculation path for anything involving money changing hands.
+
+**Affected endpoints (fixed):** `GetExpressCheckoutConfig`, `CreateExpressPaymentIntent` - both now use the invoice calculation path with pre-calculated shipping.
+
+```csharp
+// ❌ WRONG - Using display amounts for payment
+var displayAmounts = basket.GetDisplayAmounts(rate, currencyService, currency);
+config.Amount = displayAmounts.Total;  // PayPal sees display-converted amount
+
+// ✅ CORRECT - Using invoice calculation path for payment
+var pricingQuote = await exchangeRateCache.GetRateQuoteAsync(presentmentCurrency, storeCurrency, ct);
+var total = currencyService.Round(basket.Total / pricingQuote.Rate, presentmentCurrency);
+config.Amount = total;  // PayPal sees same amount as invoice will have
+```
+
+### Shopify-Style Currency Architecture
+
+**Flow:** `Product(Store$) → Basket(Store$) → Display(on-the-fly) → Invoice(rate locked) → Payment(invoice values)`
+
+| Stage | Currency | Rate |
+|-------|----------|------|
+| Product prices | Store currency (e.g., USD) | N/A |
+| Basket amounts | Store currency | N/A |
+| Display to customer | Customer's currency (e.g., GBP) | On-the-fly from cache |
+| Invoice creation | Customer's currency | **Locked at creation** |
+| Payment processing | Customer's currency | Uses locked invoice rate |
+| Reporting (`TotalInStoreCurrency`) | Store currency | Reverse-calculated for aggregation |
+
+**Trade-off:** Slight price fluctuation between browse/checkout acceptable (industry standard).
+
+**Invoice Fields:**
+- `CurrencyCode` - Presentment (customer) currency
+- `StoreCurrencyCode` - Store's base currency
+- `PricingExchangeRate` - Rate locked at invoice creation
+- `PricingExchangeRateSource` - Provider name (for audit)
+- `PricingExchangeRateTimestampUtc` - When rate was captured
+- `TotalInStoreCurrency` - For aggregated reporting
+
+### Tax-Inclusive Display
+
+**Principle:** Products stored NET (ex-tax); tax applied for display only when `DisplayPricesIncTax = true`.
+
+**Calculation Order:**
+```
+DB Price (NET, Store Currency)
+    → Apply Tax Rate (based on customer's country)
+    → Convert to Display Currency
+    → Display to Customer
+```
+
+**Example (USD store, UK customer, 20% VAT, GBP display at 0.80 rate):**
+```
+Stored:   $100.00 USD (NET)
+Calc:     $100 × 1.20 (tax) × 0.80 (currency) = £96.00
+Display:  £96.00 inc VAT
+```
+
+**StorefrontDisplayContext:** Combines currency and tax settings:
+- Currency: `CurrencyCode`, `CurrencySymbol`, `DecimalPlaces`, `ExchangeRate`
+- Tax: `DisplayPricesIncTax`, `TaxCountryCode`, `TaxRegionCode`
+- Shipping: `IsShippingTaxable`, `ShippingTaxRate`
+
+**What `DisplayPricesIncTax` Affects:**
+- Product listings and detail pages (tax baked into displayed price)
+- Cart line items (shown tax-inclusive for UX consistency)
+
+**What It Does NOT Affect:**
+- Basket storage (stays NET in store currency)
+- `LineItemService.CalculateFromLineItems()` (already handles tax separately)
+- Invoice creation and payment (use calculated values, not display values)
+
+### Extension Methods
+
+**Display (UI only):**
+- `basket.GetDisplayAmounts(displayContext, currencyService)` - Basket totals for UI
+- `lineItem.GetDisplayLineItemTotal(displayContext, currencyService)` - Line item for UI
+- `product.GetDisplayPriceAsync(displayContext, taxService, currencyService)` - Product price for UI
+
+**Checkout/Invoice (transactions):**
+- `currencyService.ConvertToPresentmentCurrency(amount, rate, currency)` - Centralized conversion (divides by rate)
+- `InvoiceService.ApplyPricingRateToStoreAmounts(invoice)` - Calculate `TotalInStoreCurrency` for reporting
+
+---
 
 ### Reporting
 `IReportingService`: `GetSalesBreakdownAsync()`(TotalCost,GrossProfit,GrossProfitMargin), `GetBestSellersAsync()`, `GetOrderStatsAsync()`, `GetDashboardStatsAsync()`, `GetOrdersForExportAsync()`

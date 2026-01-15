@@ -906,30 +906,67 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
 
         try
         {
+            // First, get the transaction to check its current status
+            var transaction = await _gateway.Transaction.FindAsync(request.TransactionId);
+            if (transaction is null)
+            {
+                return RefundResult.Failure("Transaction not found.");
+            }
+
+            var status = transaction.Status;
+            var isPartialRefund = request.Amount.HasValue && request.Amount.Value < transaction.Amount;
+
+            // Determine the appropriate operation based on transaction status
+            // Void: works for Authorized, SubmittedForSettlement, SettlementPending
+            // Refund: works for Settling, Settled
             Result<Transaction> result;
 
-            if (request.Amount.HasValue)
+            if (status == TransactionStatus.SETTLED || status == TransactionStatus.SETTLING)
             {
-                // Partial refund
-                result = await _gateway.Transaction.RefundAsync(
-                    request.TransactionId,
-                    request.Amount.Value);
+                // Transaction is settled/settling - use refund
+                result = request.Amount.HasValue
+                    ? await _gateway.Transaction.RefundAsync(request.TransactionId, request.Amount.Value)
+                    : await _gateway.Transaction.RefundAsync(request.TransactionId);
+            }
+            else if (status == TransactionStatus.AUTHORIZED ||
+                     status == TransactionStatus.SUBMITTED_FOR_SETTLEMENT ||
+                     status == TransactionStatus.SETTLEMENT_PENDING)
+            {
+                // Transaction not yet settled - use void
+                if (isPartialRefund)
+                {
+                    return RefundResult.Failure(
+                        "Partial refunds are not available until the transaction settles (typically overnight). " +
+                        "You can process a full refund now, or wait until tomorrow for a partial refund.");
+                }
+
+                result = await _gateway.Transaction.VoidAsync(request.TransactionId);
             }
             else
             {
-                // Full refund
-                result = await _gateway.Transaction.RefundAsync(request.TransactionId);
+                // Transaction is in a terminal state that cannot be reversed
+                return RefundResult.Failure(
+                    $"Transaction cannot be refunded. Current status: {status}. " +
+                    "Only transactions that are authorized, submitted for settlement, settling, or settled can be reversed.");
             }
 
             if (result.IsSuccess())
             {
+                var refundId = result.Target.Id;
+
+                // For voids, the Target.Id is the same as the original transaction.
+                // Generate a unique refund ID to avoid UNIQUE constraint violation.
+                if (string.Equals(refundId, request.TransactionId, StringComparison.OrdinalIgnoreCase))
+                {
+                    refundId = $"{request.TransactionId}-VOID-{DateTime.UtcNow:yyyyMMddHHmmss}";
+                }
+
                 return RefundResult.Successful(
-                    refundTransactionId: result.Target.Id,
+                    refundTransactionId: refundId,
                     amount: result.Target.Amount ?? request.Amount ?? 0);
             }
 
-            return RefundResult.Failure(
-                errorMessage: result.Message);
+            return RefundResult.Failure(errorMessage: result.Message);
         }
         catch (NotFoundException)
         {

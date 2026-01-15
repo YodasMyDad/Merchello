@@ -91,6 +91,42 @@ export function initOrderSummary() {
         },
 
         /**
+         * Get whether prices should be displayed including tax
+         * @returns {boolean}
+         */
+        get displayPricesIncTax() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.displayPricesIncTax ?? false;
+        },
+
+        /**
+         * Get the tax-inclusive subtotal
+         * @returns {number}
+         */
+        get taxInclusiveDisplaySubTotal() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.taxInclusiveDisplaySubTotal ?? 0;
+        },
+
+        /**
+         * Get the formatted tax-inclusive subtotal
+         * @returns {string}
+         */
+        get formattedTaxInclusiveDisplaySubTotal() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.formattedTaxInclusiveDisplaySubTotal ?? '';
+        },
+
+        /**
+         * Get the tax included message (e.g., "Including £10.17 in taxes")
+         * @returns {string|null}
+         */
+        get taxIncludedMessage() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.taxIncludedMessage ?? null;
+        },
+
+        /**
          * Check if any discount operation is in progress
          * @returns {boolean}
          */

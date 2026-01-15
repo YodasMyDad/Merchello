@@ -38,6 +38,10 @@ public class CheckoutLineItemDto
     public string FormattedDisplayUnitPrice { get; set; } = "";
     public string FormattedDisplayLineTotal { get; set; } = "";
 
+    // Tax info (for tax-inclusive display calculations)
+    public decimal TaxRate { get; set; }
+    public bool IsTaxable { get; set; }
+
     public LineItemType LineItemType { get; set; }
     public string? ImageUrl { get; set; }
 }

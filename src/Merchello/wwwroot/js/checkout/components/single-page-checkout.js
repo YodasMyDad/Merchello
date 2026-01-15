@@ -100,6 +100,7 @@ export function initSinglePageCheckout() {
             get paymentMethods() { return this.$store.checkout?.paymentMethods ?? []; },
             get selectedPaymentMethod() { return this.$store.checkout?.selectedPaymentMethod ?? null; },
             get paymentSession() { return this.$store.checkout?.paymentSession ?? null; },
+            get paymentFormInitializing() { return this.$store.checkout?.paymentFormInitializing ?? false; },
             get invoiceId() { return this.$store.checkout?.invoiceId ?? null; },
             get errors() { return this.$store.checkout?.errors ?? {}; },
             get generalError() { return this.$store.checkout?.generalError ?? ''; },
@@ -224,6 +225,18 @@ export function initSinglePageCheckout() {
                 this.announcement = '';
                 setTimeout(() => { this.announcement = message; }, 100);
                 this.$store.checkout?.announce(message);
+            },
+
+            /**
+             * Set the express checkout re-render skip flag
+             * Prevents express buttons from disappearing during payment form initialization
+             * @param {boolean} skip
+             */
+            setExpressReRenderSkip(skip) {
+                const expressEl = document.querySelector('[x-data="expressCheckout"]');
+                if (expressEl && expressEl._x_dataStack?.[0]) {
+                    expressEl._x_dataStack[0]._skipReRender = skip;
+                }
             },
 
             dispatchBasketUpdate() {
@@ -576,6 +589,12 @@ export function initSinglePageCheckout() {
                 const store = this.$store.checkout;
                 debouncer.cancel('captureAddress');
 
+                // Show skeleton loader while payment form initializes
+                store?.setPaymentFormInitializing(true);
+                // Prevent express buttons from re-rendering during payment init
+                // (normal shipping/basket changes will still update when flag is reset)
+                this.setExpressReRenderSkip(true);
+
                 try {
                     // Pre-save addresses before payment session creation
                     // Some providers need address data for fraud checks during session setup
@@ -590,7 +609,11 @@ export function initSinglePageCheckout() {
                         });
                     }
 
-                    if (requestId !== this._paymentInitRequestId) return;
+                    if (requestId !== this._paymentInitRequestId) {
+                        store?.setPaymentFormInitializing(false);
+                        this.setExpressReRenderSkip(false);
+                        return;
+                    }
 
                     const returnUrl = window.location.origin + '/checkout/return';
                     const cancelUrl = window.location.origin + '/checkout/cancel';
@@ -602,7 +625,11 @@ export function initSinglePageCheckout() {
                         cancelUrl
                     });
 
-                    if (requestId !== this._paymentInitRequestId) return;
+                    if (requestId !== this._paymentInitRequestId) {
+                        store?.setPaymentFormInitializing(false);
+                        this.setExpressReRenderSkip(false);
+                        return;
+                    }
 
                     if (payData.success && window.MerchelloPayment) {
                         store?.setPaymentSession(payData);
@@ -611,19 +638,39 @@ export function initSinglePageCheckout() {
 
                         await window.MerchelloPayment.handlePaymentFlow(payData, {
                             containerId,
-                            onReady: () => this.announce('Payment form ready'),
+                            onReady: () => {
+                                store?.setPaymentFormInitializing(false);
+                                this.setExpressReRenderSkip(false);
+                                this.announce('Payment form ready');
+                            },
                             onError: (err) => {
+                                store?.setPaymentFormInitializing(false);
+                                this.setExpressReRenderSkip(false);
                                 console.error('Payment form setup failed:', err);
                                 store?.setPaymentError(err.message || 'Failed to load payment form');
                             }
                         });
                     } else if (!payData.success) {
+                        store?.setPaymentFormInitializing(false);
+                        this.setExpressReRenderSkip(false);
                         console.error('Payment session creation failed:', payData.errorMessage);
                         store?.setPaymentMethod(null);
                         store?.setPaymentError(payData.errorMessage || 'Failed to initialize payment');
+                    } else {
+                        // Edge case: payData.success is true but MerchelloPayment handler not available
+                        store?.setPaymentFormInitializing(false);
+                        this.setExpressReRenderSkip(false);
+                        console.error('Payment handler not available');
+                        store?.setPaymentError('Payment system not available. Please refresh the page.');
                     }
                 } catch (error) {
-                    if (requestId !== this._paymentInitRequestId) return;
+                    if (requestId !== this._paymentInitRequestId) {
+                        store?.setPaymentFormInitializing(false);
+                        this.setExpressReRenderSkip(false);
+                        return;
+                    }
+                    store?.setPaymentFormInitializing(false);
+                    this.setExpressReRenderSkip(false);
                     console.error('Failed to initialize payment form:', error);
                     store?.setPaymentMethod(null);
                     store?.setPaymentError('Failed to load payment form. Please try again.');

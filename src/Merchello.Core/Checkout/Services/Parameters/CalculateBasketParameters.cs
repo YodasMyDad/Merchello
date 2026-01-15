@@ -23,9 +23,9 @@ public class CalculateBasketParameters
     public decimal DefaultTaxRate { get; init; } = 20m;
 
     /// <summary>
-    /// Whether shipping should be taxable. Defaults to true.
+    /// Whether shipping should be taxable. When null (default), queries the tax provider config.
     /// </summary>
-    public bool IsShippingTaxable { get; init; } = true;
+    public bool? IsShippingTaxable { get; init; }
 
     /// <summary>
     /// When set, use this shipping amount instead of auto-selecting from quotes.

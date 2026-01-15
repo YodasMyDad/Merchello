@@ -54,4 +54,19 @@ public interface ITaxCalculationService
     /// <param name="currencyCode">Currency code for rounding</param>
     /// <returns>Preview result with subtotal, tax amount, and total</returns>
     TaxPreviewResult PreviewTax(decimal price, int quantity, decimal taxRate, string currencyCode);
+
+    /// <summary>
+    /// Calculates shipping tax using proportional/weighted average of line item tax rates.
+    /// This is EU/UK VAT compliant for mixed-rate orders where no specific shipping tax rate is configured.
+    /// </summary>
+    /// <param name="shippingAmount">The shipping amount to tax</param>
+    /// <param name="lineItemTax">Total tax from line items</param>
+    /// <param name="taxableSubtotal">Total taxable subtotal from line items</param>
+    /// <param name="currencyCode">Currency code for rounding</param>
+    /// <returns>Calculated shipping tax amount</returns>
+    decimal CalculateProportionalShippingTax(
+        decimal shippingAmount,
+        decimal lineItemTax,
+        decimal taxableSubtotal,
+        string currencyCode);
 }

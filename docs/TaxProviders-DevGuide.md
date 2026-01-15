@@ -83,8 +83,17 @@ public interface ITaxProvider
     /// <summary>Validate configuration (test API credentials)</summary>
     Task<TaxProviderValidationResult> ValidateConfigurationAsync(
         CancellationToken cancellationToken = default);
+
+    /// <summary>Get shipping tax rate for a location (for display purposes)</summary>
+    /// <returns>Tax rate percentage (e.g., 20 for 20%), or null if rate requires full calculation</returns>
+    Task<decimal?> GetShippingTaxRateForLocationAsync(
+        string countryCode,
+        string? stateCode,
+        CancellationToken cancellationToken = default);
 }
 ```
+
+**Note on `GetShippingTaxRateForLocationAsync`:** This method supports tax-inclusive display pricing. Providers that can determine shipping tax rate statically (like ManualTaxProvider) should return the rate. API-based providers (like Avalara) that require a full calculation should return `null`.
 
 ---
 

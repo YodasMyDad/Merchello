@@ -1,6 +1,7 @@
 using Merchello.Core;
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Checkout.Dtos;
+using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
@@ -78,9 +79,10 @@ public class StorefrontApiController(
     {
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
 
-        // Get currency context for display conversion
-        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
-        var rate = currencyContext.ExchangeRate;
+        // Get full display context for currency conversion and tax-inclusive settings
+        var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
+        var rate = displayContext.ExchangeRate;
+        var symbol = displayContext.CurrencySymbol;
 
         if (basket == null || basket.LineItems.Count == 0)
         {
@@ -88,18 +90,21 @@ public class StorefrontApiController(
             {
                 IsEmpty = true,
                 CurrencySymbol = _settings.CurrencySymbol,
-                DisplayCurrencyCode = currencyContext.CurrencyCode,
-                DisplayCurrencySymbol = currencyContext.CurrencySymbol,
-                ExchangeRate = rate
+                DisplayCurrencyCode = displayContext.CurrencyCode,
+                DisplayCurrencySymbol = symbol,
+                ExchangeRate = rate,
+                DisplayPricesIncTax = displayContext.DisplayPricesIncTax
             });
         }
 
-        // Use centralized currency conversion service
+        // Use centralized method for basket totals (includes tax-inclusive calculations)
+        var displayAmounts = basket.GetDisplayAmounts(displayContext, currencyService);
+
+        // Use centralized currency conversion service for line items
         var items = basket.LineItems.Select(li =>
         {
-            var displayUnitPrice = currencyConversion.Convert(li.Amount, rate, currencyContext.CurrencyCode);
-            var lineTotal = li.Amount * li.Quantity;
-            var displayLineTotal = currencyConversion.Convert(lineTotal, rate, currencyContext.CurrencyCode);
+            var displayUnitPrice = li.GetDisplayLineItemUnitPrice(displayContext, currencyService);
+            var displayLineTotal = li.GetDisplayLineItemTotal(displayContext, currencyService);
 
             return new StorefrontLineItemDto
             {
@@ -115,24 +120,23 @@ public class StorefrontApiController(
                     }).ToList(),
                 Quantity = li.Quantity,
                 UnitPrice = li.Amount,
-                LineTotal = lineTotal,
+                LineTotal = li.Amount * li.Quantity,
                 FormattedUnitPrice = currencyConversion.Format(li.Amount, _settings.CurrencySymbol),
-                FormattedLineTotal = currencyConversion.Format(lineTotal, _settings.CurrencySymbol),
+                FormattedLineTotal = currencyConversion.Format(li.Amount * li.Quantity, _settings.CurrencySymbol),
                 DisplayUnitPrice = displayUnitPrice,
                 DisplayLineTotal = displayLineTotal,
-                FormattedDisplayUnitPrice = currencyConversion.Format(displayUnitPrice, currencyContext.CurrencySymbol),
-                FormattedDisplayLineTotal = currencyConversion.Format(displayLineTotal, currencyContext.CurrencySymbol),
+                FormattedDisplayUnitPrice = currencyConversion.Format(displayUnitPrice, symbol),
+                FormattedDisplayLineTotal = currencyConversion.Format(displayLineTotal, symbol),
                 LineItemType = li.LineItemType.ToString(),
                 DependantLineItemSku = li.DependantLineItemSku
             };
         }).ToList();
 
-        // Convert totals for display using centralized service
-        var displaySubTotal = currencyConversion.Convert(basket.SubTotal, rate, currencyContext.CurrencyCode);
-        var displayDiscount = currencyConversion.Convert(basket.Discount, rate, currencyContext.CurrencyCode);
-        var displayTax = currencyConversion.Convert(basket.Tax, rate, currencyContext.CurrencyCode);
-        var displayShipping = currencyConversion.Convert(basket.Shipping, rate, currencyContext.CurrencyCode);
-        var displayTotal = currencyConversion.Convert(basket.Total, rate, currencyContext.CurrencyCode);
+        // Calculate tax-inclusive subtotal from line items (excludes shipping tax)
+        var taxInclusiveSubTotal = basket.LineItems
+            .Where(li => li.LineItemType == Core.Accounting.Models.LineItemType.Product ||
+                         li.LineItemType == Core.Accounting.Models.LineItemType.Addon)
+            .Sum(li => li.GetDisplayLineItemTotal(displayContext, currencyService));
 
         return Ok(new StorefrontBasketDto
         {
@@ -147,19 +151,28 @@ public class StorefrontApiController(
             FormattedTax = currencyConversion.Format(basket.Tax, _settings.CurrencySymbol),
             FormattedTotal = currencyConversion.Format(basket.Total, _settings.CurrencySymbol),
             CurrencySymbol = _settings.CurrencySymbol,
-            DisplaySubTotal = displaySubTotal,
-            DisplayDiscount = displayDiscount,
-            DisplayTax = displayTax,
-            DisplayShipping = displayShipping,
-            DisplayTotal = displayTotal,
-            FormattedDisplaySubTotal = currencyConversion.Format(displaySubTotal, currencyContext.CurrencySymbol),
-            FormattedDisplayDiscount = currencyConversion.Format(displayDiscount, currencyContext.CurrencySymbol),
-            FormattedDisplayTax = currencyConversion.Format(displayTax, currencyContext.CurrencySymbol),
-            FormattedDisplayShipping = currencyConversion.Format(displayShipping, currencyContext.CurrencySymbol),
-            FormattedDisplayTotal = currencyConversion.Format(displayTotal, currencyContext.CurrencySymbol),
-            DisplayCurrencyCode = currencyContext.CurrencyCode,
-            DisplayCurrencySymbol = currencyContext.CurrencySymbol,
+            DisplaySubTotal = displayAmounts.SubTotal,
+            DisplayDiscount = displayAmounts.Discount,
+            DisplayTax = displayAmounts.Tax,
+            DisplayShipping = displayAmounts.Shipping,
+            DisplayTotal = displayAmounts.Total,
+            FormattedDisplaySubTotal = currencyConversion.Format(displayAmounts.SubTotal, symbol),
+            FormattedDisplayDiscount = currencyConversion.Format(displayAmounts.Discount, symbol),
+            FormattedDisplayTax = currencyConversion.Format(displayAmounts.Tax, symbol),
+            FormattedDisplayShipping = currencyConversion.Format(displayAmounts.Shipping, symbol),
+            FormattedDisplayTotal = currencyConversion.Format(displayAmounts.Total, symbol),
+            DisplayCurrencyCode = displayContext.CurrencyCode,
+            DisplayCurrencySymbol = symbol,
             ExchangeRate = rate,
+            // Tax-inclusive display properties
+            DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
+            TaxInclusiveDisplaySubTotal = taxInclusiveSubTotal,
+            FormattedTaxInclusiveDisplaySubTotal = currencyConversion.Format(taxInclusiveSubTotal, symbol),
+            TaxInclusiveDisplayShipping = displayAmounts.TaxInclusiveShipping,
+            FormattedTaxInclusiveDisplayShipping = currencyConversion.Format(displayAmounts.TaxInclusiveShipping, symbol),
+            TaxInclusiveDisplayDiscount = displayAmounts.TaxInclusiveDiscount,
+            FormattedTaxInclusiveDisplayDiscount = currencyConversion.Format(displayAmounts.TaxInclusiveDiscount, symbol),
+            TaxIncludedMessage = displayAmounts.TaxIncludedMessage,
             ItemCount = basket.LineItems.Sum(li => li.Quantity),
             IsEmpty = false
         });
@@ -523,12 +536,19 @@ public class StorefrontApiController(
             ShippingAmountOverride = estimatedShipping
         }, ct);
 
-        // Get currency context for display conversion using centralized service
-        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
-        var rate = currencyContext.ExchangeRate;
-        var displayEstimatedShipping = currencyConversion.Convert(estimatedShipping, rate, currencyContext.CurrencyCode);
-        var displayTotal = currencyConversion.Convert(basket.Total, rate, currencyContext.CurrencyCode);
-        var displayTax = currencyConversion.Convert(basket.Tax, rate, currencyContext.CurrencyCode);
+        // Get full display context for currency conversion and tax-inclusive settings
+        var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
+        var symbol = displayContext.CurrencySymbol;
+
+        // Use centralized method for basket totals (includes tax-inclusive calculations)
+        var displayAmounts = basket.GetDisplayAmounts(displayContext, currencyService);
+        var displayEstimatedShipping = currencyConversion.Convert(estimatedShipping, displayContext.ExchangeRate, displayContext.CurrencyCode);
+
+        // Calculate tax-inclusive subtotal from line items (excludes shipping tax)
+        var taxInclusiveSubTotal = basket.LineItems
+            .Where(li => li.LineItemType == Core.Accounting.Models.LineItemType.Product ||
+                         li.LineItemType == Core.Accounting.Models.LineItemType.Addon)
+            .Sum(li => li.GetDisplayLineItemTotal(displayContext, currencyService));
 
         return Ok(new EstimatedShippingDto
         {
@@ -536,11 +556,20 @@ public class StorefrontApiController(
             EstimatedShipping = estimatedShipping,
             FormattedEstimatedShipping = currencyConversion.Format(estimatedShipping, _settings.CurrencySymbol),
             DisplayEstimatedShipping = displayEstimatedShipping,
-            FormattedDisplayEstimatedShipping = currencyConversion.Format(displayEstimatedShipping, currencyContext.CurrencySymbol),
-            DisplayTotal = displayTotal,
-            FormattedDisplayTotal = currencyConversion.Format(displayTotal, currencyContext.CurrencySymbol),
-            DisplayTax = displayTax,
-            FormattedDisplayTax = currencyConversion.Format(displayTax, currencyContext.CurrencySymbol),
+            FormattedDisplayEstimatedShipping = currencyConversion.Format(displayEstimatedShipping, symbol),
+            DisplayTotal = displayAmounts.Total,
+            FormattedDisplayTotal = currencyConversion.Format(displayAmounts.Total, symbol),
+            DisplayTax = displayAmounts.Tax,
+            FormattedDisplayTax = currencyConversion.Format(displayAmounts.Tax, symbol),
+            // Tax-inclusive display properties
+            DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
+            TaxInclusiveDisplaySubTotal = taxInclusiveSubTotal,
+            FormattedTaxInclusiveDisplaySubTotal = currencyConversion.Format(taxInclusiveSubTotal, symbol),
+            TaxInclusiveDisplayShipping = displayAmounts.TaxInclusiveShipping,
+            FormattedTaxInclusiveDisplayShipping = currencyConversion.Format(displayAmounts.TaxInclusiveShipping, symbol),
+            TaxInclusiveDisplayDiscount = displayAmounts.TaxInclusiveDiscount,
+            FormattedTaxInclusiveDisplayDiscount = currencyConversion.Format(displayAmounts.TaxInclusiveDiscount, symbol),
+            TaxIncludedMessage = displayAmounts.TaxIncludedMessage,
             GroupCount = groupingResult.Groups.Count
         });
     }

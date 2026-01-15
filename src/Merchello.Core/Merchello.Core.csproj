@@ -50,7 +50,7 @@
     <PackageReference Include="Mjml.Net" Version="4.6.0" />
 
     <!-- Provider dependencies -->
-    <PackageReference Include="Avalara.AvaTax" Version="25.9.0" />
+    <PackageReference Include="Avalara.AvaTax" Version="25.12.0" />
     <PackageReference Include="Braintree" Version="5.38.0" />
     <PackageReference Include="PayPalServerSDK" Version="2.1.0" />
     <PackageReference Include="Stripe.net" Version="50.1.0" />

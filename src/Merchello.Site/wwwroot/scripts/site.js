@@ -490,6 +490,16 @@ document.addEventListener('alpine:init', () => {
         isLoadingShipping: false,
         hasShippingEstimate: false,
 
+        // Tax-inclusive display state
+        displayPricesIncTax: config.displayPricesIncTax || false,
+        taxInclusiveDisplaySubTotal: config.taxInclusiveDisplaySubTotal || 0,
+        formattedTaxInclusiveDisplaySubTotal: config.formattedTaxInclusiveDisplaySubTotal || '',
+        taxInclusiveDisplayShipping: config.taxInclusiveDisplayShipping || 0,
+        formattedTaxInclusiveDisplayShipping: config.formattedTaxInclusiveDisplayShipping || '',
+        taxInclusiveDisplayDiscount: config.taxInclusiveDisplayDiscount || 0,
+        formattedTaxInclusiveDisplayDiscount: config.formattedTaxInclusiveDisplayDiscount || '',
+        taxIncludedMessage: config.taxIncludedMessage || null,
+
         // Computed
         get productItems() {
             return this.items.filter(item => item.lineItemType === 'Product');
@@ -612,6 +622,25 @@ document.addEventListener('alpine:init', () => {
                         this.displayTax = data.displayTax;
                         this.formattedDisplayTax = data.formattedDisplayTax || '';
                     }
+                    // Update tax-inclusive display values from server
+                    if (data.displayPricesIncTax !== undefined) {
+                        this.displayPricesIncTax = data.displayPricesIncTax;
+                    }
+                    if (data.taxInclusiveDisplaySubTotal !== undefined) {
+                        this.taxInclusiveDisplaySubTotal = data.taxInclusiveDisplaySubTotal;
+                        this.formattedTaxInclusiveDisplaySubTotal = data.formattedTaxInclusiveDisplaySubTotal || '';
+                    }
+                    if (data.taxInclusiveDisplayShipping !== undefined) {
+                        this.taxInclusiveDisplayShipping = data.taxInclusiveDisplayShipping;
+                        this.formattedTaxInclusiveDisplayShipping = data.formattedTaxInclusiveDisplayShipping || '';
+                    }
+                    if (data.taxInclusiveDisplayDiscount !== undefined) {
+                        this.taxInclusiveDisplayDiscount = data.taxInclusiveDisplayDiscount;
+                        this.formattedTaxInclusiveDisplayDiscount = data.formattedTaxInclusiveDisplayDiscount || '';
+                    }
+                    if (data.taxIncludedMessage !== undefined) {
+                        this.taxIncludedMessage = data.taxIncludedMessage;
+                    }
                 } else {
                     this.hasShippingEstimate = false;
                 }
@@ -651,6 +680,16 @@ document.addEventListener('alpine:init', () => {
             this.currencySymbol = data.currencySymbol || this.currencySymbol;
             this.itemCount = data.itemCount;
             this.isEmpty = data.isEmpty;
+
+            // Tax-inclusive display properties
+            this.displayPricesIncTax = data.displayPricesIncTax || false;
+            this.taxInclusiveDisplaySubTotal = data.taxInclusiveDisplaySubTotal || 0;
+            this.formattedTaxInclusiveDisplaySubTotal = data.formattedTaxInclusiveDisplaySubTotal || '';
+            this.taxInclusiveDisplayShipping = data.taxInclusiveDisplayShipping || 0;
+            this.formattedTaxInclusiveDisplayShipping = data.formattedTaxInclusiveDisplayShipping || '';
+            this.taxInclusiveDisplayDiscount = data.taxInclusiveDisplayDiscount || 0;
+            this.formattedTaxInclusiveDisplayDiscount = data.formattedTaxInclusiveDisplayDiscount || '';
+            this.taxIncludedMessage = data.taxIncludedMessage || null;
 
             // Update global basket store
             Alpine.store('basket').update(data.itemCount, data.total, data.formattedTotal);

@@ -158,4 +158,26 @@ public class CheckoutViewModel
     /// Pre-calculated display discount in customer's selected currency.
     /// </summary>
     public decimal DisplayDiscount { get; init; }
+
+    // Tax-inclusive display (when DisplayPricesIncTax setting is enabled)
+
+    /// <summary>
+    /// Whether prices are displayed including tax.
+    /// </summary>
+    public bool DisplayPricesIncTax { get; init; }
+
+    /// <summary>
+    /// Subtotal including tax in display currency (for tax-inclusive display).
+    /// </summary>
+    public decimal TaxInclusiveDisplaySubTotal { get; init; }
+
+    /// <summary>
+    /// Formatted subtotal including tax in display currency.
+    /// </summary>
+    public string? FormattedTaxInclusiveDisplaySubTotal { get; init; }
+
+    /// <summary>
+    /// Tax included message (e.g., "Including £10.17 in taxes").
+    /// </summary>
+    public string? TaxIncludedMessage { get; init; }
 }

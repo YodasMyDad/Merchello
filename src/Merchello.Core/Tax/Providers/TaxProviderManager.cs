@@ -1,5 +1,6 @@
 using Merchello.Core.Data;
 using Merchello.Core.Tax.Models;
+using Merchello.Core.Tax.Providers.BuiltIn;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Tax.Providers.Models;
 using Merchello.Core.Shared.Reflection;
@@ -237,6 +238,39 @@ public class TaxProviderManager(
         }
 
         return success;
+    }
+
+    public async Task<bool> IsShippingTaxedForLocationAsync(
+        string countryCode,
+        string? stateCode,
+        CancellationToken cancellationToken = default)
+    {
+        var activeProvider = await GetActiveProviderAsync(cancellationToken);
+        if (activeProvider == null)
+            return false; // No active provider = no tax
+
+        // For ManualTaxProvider, use its specific implementation
+        if (activeProvider.Provider is ManualTaxProvider manualProvider)
+        {
+            return await manualProvider.IsShippingTaxedForLocationAsync(countryCode, stateCode, cancellationToken);
+        }
+
+        // For other providers (Avalara, etc.), assume shipping is taxed if provider is active
+        // Each provider can implement its own logic if needed
+        return true;
+    }
+
+    public async Task<decimal?> GetShippingTaxRateForLocationAsync(
+        string countryCode,
+        string? stateCode,
+        CancellationToken cancellationToken = default)
+    {
+        var activeProvider = await GetActiveProviderAsync(cancellationToken);
+        if (activeProvider?.Provider == null)
+            return null;
+
+        return await activeProvider.Provider.GetShippingTaxRateForLocationAsync(
+            countryCode, stateCode, cancellationToken);
     }
 
     private void RefreshCache()

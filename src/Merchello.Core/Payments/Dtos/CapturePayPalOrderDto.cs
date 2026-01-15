@@ -21,6 +21,12 @@ public class CaptureWidgetOrderDto
     /// Required for capturing the payment.
     /// </summary>
     public Guid? InvoiceId { get; set; }
+
+    /// <summary>
+    /// Optional method alias to identify the payment method used.
+    /// Used for display purposes on confirmation page (e.g., "PayPal", "Credit/Debit Card").
+    /// </summary>
+    public string? MethodAlias { get; set; }
 }
 
 /// <summary>

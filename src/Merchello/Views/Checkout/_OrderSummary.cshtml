@@ -32,6 +32,16 @@
     var displayTax = isReadonly ? (confirmation?.DisplayTax ?? 0) : (model?.DisplayTax ?? 0);
     var displayTotal = isReadonly ? (confirmation?.DisplayTotal ?? 0) : (model?.DisplayTotal ?? 0);
 
+    // Tax-inclusive display
+    var displayPricesIncTax = isReadonly ? (confirmation?.DisplayPricesIncTax ?? false) : (model?.DisplayPricesIncTax ?? false);
+    var taxInclusiveDisplaySubTotal = isReadonly
+        ? (confirmation?.TaxInclusiveDisplaySubTotal ?? 0)
+        : (model?.TaxInclusiveDisplaySubTotal ?? 0);
+    var formattedTaxInclusiveDisplaySubTotal = isReadonly
+        ? (confirmation?.FormattedTaxInclusiveDisplaySubTotal ?? "")
+        : (model?.FormattedTaxInclusiveDisplaySubTotal ?? "");
+    var taxIncludedMessage = isReadonly ? confirmation?.TaxIncludedMessage : model?.TaxIncludedMessage;
+
 }
 
 <div class="bg-[#fafafa] lg:bg-transparent" @Html.Raw(isReadonly ? "" : "x-data=\"orderSummary\"")>
@@ -117,9 +127,16 @@
                                 }
                             }
                         </div>
-                        <!-- Price -->
+                        <!-- Price: apply tax-inclusive when enabled -->
                         <div class="text-sm font-medium text-gray-900">
-                            @item.FormattedDisplayLineTotal
+                            @{
+                                var confirmLineAmount = item.DisplayLineTotal;
+                                if (displayPricesIncTax && item.IsTaxable && item.TaxRate > 0)
+                                {
+                                    confirmLineAmount = item.DisplayLineTotal * (1 + (item.TaxRate / 100m));
+                                }
+                            }
+                            @displayCurrencySymbol@confirmLineAmount.ToString(numberFormat)
                         </div>
                     </div>
                 }
@@ -164,9 +181,17 @@
                                 }
                             }
                         </div>
-                        <!-- Price -->
+                        <!-- Price: apply tax-inclusive when enabled -->
                         <div class="text-sm font-medium text-gray-900">
-                            @displayCurrencySymbol@(Math.Round((item.Amount * item.Quantity) * exchangeRate, decimalPlaces).ToString(numberFormat))
+                            @{
+                                var lineAmount = item.Amount * item.Quantity;
+                                if (displayPricesIncTax && item.IsTaxable && item.TaxRate > 0)
+                                {
+                                    lineAmount *= (1 + (item.TaxRate / 100m));
+                                }
+                                var displayLineAmount = Math.Round(lineAmount * exchangeRate, decimalPlaces);
+                            }
+                            @displayCurrencySymbol@displayLineAmount.ToString(numberFormat)
                         </div>
                     </div>
                 }
@@ -236,16 +261,36 @@
 
         <!-- Totals (Shopify style) -->
         <div class="border-t border-gray-200 pt-4 space-y-2">
-            <!-- Subtotal -->
+            <!-- Subtotal: show tax-inclusive when enabled -->
             <div class="flex justify-between text-sm">
                 <span class="text-gray-600">Subtotal</span>
                 @if (isReadonly)
                 {
-                    <span class="text-gray-900 font-medium">@confirmation?.FormattedDisplaySubTotal</span>
+                    @if (displayPricesIncTax)
+                    {
+                        <span class="text-gray-900 font-medium">@formattedTaxInclusiveDisplaySubTotal</span>
+                    }
+                    else
+                    {
+                        <span class="text-gray-900 font-medium">@confirmation?.FormattedDisplaySubTotal</span>
+                    }
+                }
+                else if (isSinglePage)
+                {
+                    <!-- For single-page checkout, Alpine.js handles tax-inclusive display -->
+                    <span class="text-gray-900 font-medium"
+                          x-text="displayPricesIncTax ? formattedTaxInclusiveDisplaySubTotal : formatCurrency(subTotal)"></span>
                 }
                 else
                 {
-                    <span class="text-gray-900 font-medium">@(basket != null ? $"{displayCurrencySymbol}{displaySubTotal.ToString(numberFormat)}" : "--")</span>
+                    @if (displayPricesIncTax)
+                    {
+                        <span class="text-gray-900 font-medium">@(basket != null ? $"{displayCurrencySymbol}{taxInclusiveDisplaySubTotal.ToString(numberFormat)}" : "--")</span>
+                    }
+                    else
+                    {
+                        <span class="text-gray-900 font-medium">@(basket != null ? $"{displayCurrencySymbol}{displaySubTotal.ToString(numberFormat)}" : "--")</span>
+                    }
                 }
             </div>
 
@@ -300,38 +345,51 @@
                 }
             </div>
 
-            <!-- Tax -->
-            <div class="flex justify-between text-sm">
-                <span class="text-gray-600">Tax</span>
-                @if (isReadonly)
+            <!-- Tax: hide when tax-inclusive (tax is already included in subtotal) -->
+            @if (isReadonly)
+            {
+                @if (!displayPricesIncTax)
                 {
-                    @if (displayTax > 0)
-                    {
-                        <span class="text-gray-900 font-medium">@confirmation?.FormattedDisplayTax</span>
-                    }
-                    else
-                    {
-                        <span class="text-gray-500 text-xs">Included in total</span>
-                    }
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-600">Tax</span>
+                        @if (displayTax > 0)
+                        {
+                            <span class="text-gray-900 font-medium">@confirmation?.FormattedDisplayTax</span>
+                        }
+                        else
+                        {
+                            <span class="text-gray-500 text-xs">Included in total</span>
+                        }
+                    </div>
                 }
-                else if (isSinglePage)
-                {
+            }
+            else if (isSinglePage)
+            {
+                <!-- For single-page checkout, Alpine.js controls visibility based on displayPricesIncTax -->
+                <div class="flex justify-between text-sm" x-show="!displayPricesIncTax">
+                    <span class="text-gray-600">Tax</span>
                     <template x-if="tax > 0">
                         <span class="text-gray-900 font-medium" x-text="formatCurrency(tax)"></span>
                     </template>
                     <template x-if="tax === 0">
                         <span class="text-gray-500 text-xs">Included in total</span>
                     </template>
-                }
-                else if (basket?.Tax > 0)
-                {
-                    <span class="text-gray-900 font-medium">@($"{displayCurrencySymbol}{displayTax.ToString(numberFormat)}")</span>
-                }
-                else
-                {
-                    <span class="text-gray-500 text-xs">Calculated at next step</span>
-                }
-            </div>
+                </div>
+            }
+            else if (!displayPricesIncTax)
+            {
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-600">Tax</span>
+                    @if (basket?.Tax > 0)
+                    {
+                        <span class="text-gray-900 font-medium">@($"{displayCurrencySymbol}{displayTax.ToString(numberFormat)}")</span>
+                    }
+                    else
+                    {
+                        <span class="text-gray-500 text-xs">Calculated at next step</span>
+                    }
+                </div>
+            }
 
             <!-- Total -->
             <div class="flex justify-between items-baseline pt-4 mt-2 border-t border-gray-200">
@@ -352,6 +410,23 @@
                     }
                 </div>
             </div>
+
+            <!-- Tax included message (Shopify style) -->
+            @if (isReadonly && displayPricesIncTax && !string.IsNullOrEmpty(taxIncludedMessage))
+            {
+                <div class="text-gray-500 text-sm text-right mt-1">@taxIncludedMessage</div>
+            }
+            else if (isSinglePage)
+            {
+                <!-- For single-page checkout, Alpine.js controls visibility -->
+                <div class="text-gray-500 text-sm text-right mt-1"
+                     x-show="displayPricesIncTax && taxIncludedMessage"
+                     x-text="taxIncludedMessage"></div>
+            }
+            else if (displayPricesIncTax && !string.IsNullOrEmpty(taxIncludedMessage))
+            {
+                <div class="text-gray-500 text-sm text-right mt-1">@taxIncludedMessage</div>
+            }
         </div>
 
         @if (isReadonly && displayDiscount > 0)

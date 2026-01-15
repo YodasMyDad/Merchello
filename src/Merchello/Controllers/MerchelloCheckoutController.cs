@@ -7,6 +7,7 @@ using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services;
 using Merchello.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -106,6 +107,73 @@ public class MerchelloCheckoutController(
                 return Redirect(redirectUrl);
             }
 
+            // Enrich confirmation DTO with display currency conversion and tax-inclusive values
+            if (confirmation != null)
+            {
+                var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
+
+                // Use the same helper as checkout - pass invoice amounts for proper conversion
+                var displayAmounts = DisplayCurrencyExtensions.GetDisplayAmounts(
+                    confirmation.Total,
+                    confirmation.SubTotal,
+                    confirmation.Shipping,
+                    confirmation.Tax,
+                    confirmation.Discount,
+                    displayContext,
+                    currencyService);
+
+                // Apply display currency info
+                confirmation.ExchangeRate = displayContext.ExchangeRate;
+                confirmation.DisplayCurrencyCode = displayContext.CurrencyCode;
+                confirmation.DisplayCurrencySymbol = displayContext.CurrencySymbol;
+                confirmation.DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax;
+
+                var symbol = displayContext.CurrencySymbol;
+                var format = $"N{displayContext.DecimalPlaces}";
+
+                // Apply converted amounts
+                confirmation.DisplayTotal = displayAmounts.Total;
+                confirmation.FormattedDisplayTotal = $"{symbol}{displayAmounts.Total.ToString(format)}";
+                confirmation.DisplaySubTotal = displayAmounts.SubTotal;
+                confirmation.FormattedDisplaySubTotal = $"{symbol}{displayAmounts.SubTotal.ToString(format)}";
+                confirmation.DisplayShipping = displayAmounts.Shipping;
+                confirmation.FormattedDisplayShipping = $"{symbol}{displayAmounts.Shipping.ToString(format)}";
+                confirmation.DisplayTax = displayAmounts.Tax;
+                confirmation.FormattedDisplayTax = $"{symbol}{displayAmounts.Tax.ToString(format)}";
+                confirmation.DisplayDiscount = displayAmounts.Discount;
+                confirmation.FormattedDisplayDiscount = $"{symbol}{displayAmounts.Discount.ToString(format)}";
+
+                confirmation.TaxIncludedMessage = displayAmounts.TaxIncludedMessage;
+
+                // Convert line item display values to display currency
+                var rate = displayContext.ExchangeRate;
+                var currency = displayContext.CurrencyCode;
+                foreach (var li in confirmation.LineItems)
+                {
+                    li.DisplayUnitPrice = currencyService.Round(li.UnitPrice * rate, currency);
+                    li.DisplayLineTotal = currencyService.Round(li.LineTotal * rate, currency);
+                    li.FormattedDisplayUnitPrice = $"{symbol}{li.DisplayUnitPrice.ToString(format)}";
+                    li.FormattedDisplayLineTotal = $"{symbol}{li.DisplayLineTotal.ToString(format)}";
+                }
+
+                // Calculate tax-inclusive subtotal from line items (excludes shipping tax)
+                var taxInclusiveSubTotal = confirmation.LineItems
+                    .Where(li => li.LineItemType == Core.Accounting.Models.LineItemType.Product ||
+                                 li.LineItemType == Core.Accounting.Models.LineItemType.Addon)
+                    .Sum(li =>
+                    {
+                        var amount = li.DisplayLineTotal;
+                        if (displayContext.DisplayPricesIncTax && li.IsTaxable && li.TaxRate > 0)
+                        {
+                            amount *= 1 + (li.TaxRate / 100m);
+                        }
+                        return currencyService.Round(amount, currency);
+                    });
+
+                confirmation.TaxInclusiveDisplaySubTotal = taxInclusiveSubTotal;
+                confirmation.FormattedTaxInclusiveDisplaySubTotal = $"{symbol}{taxInclusiveSubTotal.ToString(format)}";
+            }
+
             // Pre-serialize line items for analytics (avoid JSON in view)
             string? lineItemsJson = null;
             if (confirmation?.LineItems != null)
@@ -165,11 +233,11 @@ public class MerchelloCheckoutController(
             return Redirect("/");
         }
 
-        // Get customer's currency context for display
-        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
-        var displayCurrencyCode = currencyContext.CurrencyCode;
-        var displayCurrencySymbol = currencyContext.CurrencySymbol;
-        var exchangeRate = currencyContext.ExchangeRate;
+        // Get full display context (currency + tax-inclusive settings)
+        var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
+        var displayCurrencyCode = displayContext.CurrencyCode;
+        var displayCurrencySymbol = displayContext.CurrencySymbol;
+        var exchangeRate = displayContext.ExchangeRate;
 
         // Load checkout session if basket exists
         var session = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
@@ -212,12 +280,13 @@ public class MerchelloCheckoutController(
                 // Update basket with calculated totals
                 basket = initResult.ResultObject.Basket;
 
-                // Get shipping groups with selections - use display currency for formatted costs
+                // Get shipping groups with selections - use display context for tax-inclusive pricing
                 shippingGroups = MapOrderGroupsToDto(
                     initResult.ResultObject.GroupingResult,
                     displayCurrencySymbol,
                     initResult.ResultObject.AutoSelectedShippingOptions,
-                    exchangeRate);
+                    displayContext,
+                    currencyService);
             }
         }
 
@@ -227,11 +296,14 @@ public class MerchelloCheckoutController(
         // Check if there are any active discount codes to show the discount input
         var showDiscountCode = await discountService.HasActiveCodeDiscountsAsync(ct);
 
-        // Calculate display amounts using extension method for proper currency rounding
-        var displayAmounts = basket.GetDisplayAmounts(
-            exchangeRate,
-            currencyService,
-            displayCurrencyCode);
+        // Calculate display amounts using centralized method (includes tax-inclusive calculations)
+        var displayAmounts = basket.GetDisplayAmounts(displayContext, currencyService);
+
+        // Calculate tax-inclusive subtotal from line items (excludes shipping tax)
+        var taxInclusiveSubTotal = basket.LineItems
+            .Where(li => li.LineItemType == Core.Accounting.Models.LineItemType.Product ||
+                         li.LineItemType == Core.Accounting.Models.LineItemType.Addon)
+            .Sum(li => li.GetDisplayLineItemTotal(displayContext, currencyService));
 
         var viewModel = new CheckoutViewModel(
             CheckoutStep.Information,
@@ -248,13 +320,18 @@ public class MerchelloCheckoutController(
             DisplayCurrencyCode = displayCurrencyCode,
             DisplayCurrencySymbol = displayCurrencySymbol,
             ExchangeRate = exchangeRate,
-            CurrencyDecimalPlaces = currencyContext.DecimalPlaces,
+            CurrencyDecimalPlaces = displayContext.DecimalPlaces,
             ShowDiscountCode = showDiscountCode,
             DisplayTotal = displayAmounts.Total,
             DisplaySubTotal = displayAmounts.SubTotal,
             DisplayShipping = displayAmounts.Shipping,
             DisplayTax = displayAmounts.Tax,
-            DisplayDiscount = displayAmounts.Discount
+            DisplayDiscount = displayAmounts.Discount,
+            // Tax-inclusive display properties
+            DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
+            TaxInclusiveDisplaySubTotal = taxInclusiveSubTotal,
+            FormattedTaxInclusiveDisplaySubTotal = $"{displayCurrencySymbol}{taxInclusiveSubTotal:N2}",
+            TaxIncludedMessage = displayAmounts.TaxIncludedMessage
         };
 
         return View("~/Views/Checkout/SinglePage.cshtml", viewModel);
@@ -264,8 +341,11 @@ public class MerchelloCheckoutController(
         Core.Checkout.Strategies.Models.OrderGroupingResult result,
         string currencySymbol,
         Dictionary<Guid, Guid>? selectedOptions,
-        decimal exchangeRate = 1m)
+        StorefrontDisplayContext displayContext,
+        ICurrencyService currencyService)
     {
+        var exchangeRate = displayContext.ExchangeRate;
+
         return result.Groups.Select(group => new ShippingGroupDto
         {
             GroupId = group.GroupId,
@@ -274,7 +354,7 @@ public class MerchelloCheckoutController(
             LineItems = group.LineItems.Select(li =>
             {
                 var lineTotal = li.Amount * li.Quantity;
-                var displayLineTotal = lineTotal * exchangeRate;
+                var displayLineTotal = currencyService.Round(lineTotal * exchangeRate, displayContext.CurrencyCode);
                 return new ShippingGroupLineItemDto
                 {
                     Id = li.LineItemId,
@@ -294,7 +374,8 @@ public class MerchelloCheckoutController(
             }).ToList(),
             ShippingOptions = group.AvailableShippingOptions.Select(opt =>
             {
-                var displayCost = opt.Cost * exchangeRate;
+                var displayCost = DisplayCurrencyExtensions.GetDisplayShippingOptionCost(
+                    opt.Cost, displayContext, currencyService);
                 return new ShippingOptionDto
                 {
                     Id = opt.ShippingOptionId,

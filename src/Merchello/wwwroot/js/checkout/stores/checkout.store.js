@@ -169,6 +169,16 @@ export function initCheckoutStore(initialData = {}) {
             discount: initialData.basket?.discount ?? 0
         },
 
+        // Tax-inclusive display state
+        /** @type {boolean} */
+        displayPricesIncTax: initialData.displayPricesIncTax ?? false,
+        /** @type {number} */
+        taxInclusiveDisplaySubTotal: initialData.taxInclusiveDisplaySubTotal ?? 0,
+        /** @type {string} */
+        formattedTaxInclusiveDisplaySubTotal: initialData.formattedTaxInclusiveDisplaySubTotal ?? '',
+        /** @type {string|null} */
+        taxIncludedMessage: initialData.taxIncludedMessage ?? null,
+
         /** @type {CurrencyState} */
         currency: {
             code: initialData.currency?.code ?? 'GBP',
@@ -224,6 +234,9 @@ export function initCheckoutStore(initialData = {}) {
 
         /** @type {string|null} */
         invoiceId: null,
+
+        /** @type {boolean} */
+        paymentFormInitializing: false,
 
         // ============================================
         // UI STATE
@@ -376,6 +389,18 @@ export function initCheckoutStore(initialData = {}) {
                     symbol: data.displayCurrencySymbol ?? this.currency.symbol
                 };
             }
+
+            // Update tax-inclusive display properties
+            if (data.displayPricesIncTax !== undefined) {
+                this.displayPricesIncTax = data.displayPricesIncTax;
+            }
+            if (data.taxInclusiveDisplaySubTotal !== undefined) {
+                this.taxInclusiveDisplaySubTotal = data.taxInclusiveDisplaySubTotal;
+                this.formattedTaxInclusiveDisplaySubTotal = data.formattedTaxInclusiveDisplaySubTotal ?? '';
+            }
+            if (data.taxIncludedMessage !== undefined) {
+                this.taxIncludedMessage = data.taxIncludedMessage;
+            }
         },
 
         /**
@@ -495,6 +520,14 @@ export function initCheckoutStore(initialData = {}) {
             if (error) {
                 announcer.announceError(error);
             }
+        },
+
+        /**
+         * Set payment form initializing state (for skeleton loader)
+         * @param {boolean} initializing
+         */
+        setPaymentFormInitializing(initializing) {
+            this.paymentFormInitializing = initializing;
         },
 
         // ============================================

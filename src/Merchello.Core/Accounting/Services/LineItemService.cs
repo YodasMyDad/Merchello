@@ -52,6 +52,7 @@ public class LineItemService(
         var defaultTaxRate = parameters.DefaultTaxRate;
         var currencyCode = parameters.CurrencyCode;
         var isShippingTaxable = parameters.IsShippingTaxable;
+        var shippingTaxRate = parameters.ShippingTaxRate;
 
         // Separate product/custom items from discount items
         var productItems = lineItems.Where(li =>
@@ -228,7 +229,8 @@ public class LineItemService(
                 TotalTaxableAmount = totalTaxableAmount,
                 ShippingAmount = shippingAmount,
                 IsShippingTaxable = isShippingTaxable,
-                DefaultTaxRate = defaultTaxRate
+                DefaultTaxRate = defaultTaxRate,
+                ShippingTaxRate = shippingTaxRate
             },
             currencyCode);
 

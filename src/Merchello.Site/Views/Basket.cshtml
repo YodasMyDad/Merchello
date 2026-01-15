@@ -187,14 +187,17 @@
                             <h5 class="mb-0">Order Summary</h5>
                         </div>
                         <div class="card-body">
+                            <!-- Subtotal: show tax-inclusive when enabled -->
                             <div class="d-flex justify-content-between mb-2">
                                 <span>Subtotal</span>
-                                <span x-text="formattedDisplaySubTotal"></span>
+                                <span x-text="displayPricesIncTax ? formattedTaxInclusiveDisplaySubTotal : formattedDisplaySubTotal"></span>
                             </div>
-                            <div class="d-flex justify-content-between mb-2" x-show="discount > 0">
-                                <span class="text-success">Discount</span>
-                                <span class="text-success" x-text="'-' + formattedDisplayDiscount"></span>
-                            </div>
+                            <template x-if="discount > 0">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-success">Discount</span>
+                                    <span class="text-success" x-text="'-' + (displayPricesIncTax ? formattedTaxInclusiveDisplayDiscount : formattedDisplayDiscount)"></span>
+                                </div>
+                            </template>
                             <!-- Estimated Shipping -->
                             <div class="d-flex justify-content-between mb-2">
                                 <span>
@@ -207,20 +210,28 @@
                                     </template>
                                 </span>
                                 <template x-if="hasShippingEstimate && !isLoadingShipping">
-                                    <span x-text="formattedDisplayEstimatedShipping"></span>
+                                    <span x-text="displayPricesIncTax ? formattedTaxInclusiveDisplayShipping : formattedDisplayEstimatedShipping"></span>
                                 </template>
                                 <template x-if="!hasShippingEstimate && !isLoadingShipping">
                                     <small class="text-muted">Calculated at checkout</small>
                                 </template>
                             </div>
-                            <div class="d-flex justify-content-between mb-2">
-                                <span>Tax</span>
-                                <span x-text="formattedDisplayTax"></span>
-                            </div>
+                            <!-- Tax: hide when tax-inclusive (tax is already included in subtotal) -->
+                            <template x-if="!displayPricesIncTax">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Tax</span>
+                                    <span x-text="formattedDisplayTax"></span>
+                                </div>
+                            </template>
                             <hr>
                             <div class="d-flex justify-content-between mb-3">
                                 <strong x-text="hasShippingEstimate ? 'Est. Total' : 'Total'"></strong>
                                 <strong class="fs-5" x-text="formattedEstimatedTotal"></strong>
+                            </div>
+                            <!-- Tax included message (Shopify style) -->
+                            <div class="text-muted small text-end mb-3"
+                                 x-show="displayPricesIncTax && taxIncludedMessage"
+                                 x-text="taxIncludedMessage">
                             </div>
 
                             <!-- Checkout Button -->

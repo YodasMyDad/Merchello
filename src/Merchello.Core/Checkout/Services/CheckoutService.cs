@@ -34,6 +34,7 @@ using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Customers.Services.Parameters;
+using Merchello.Core.Tax.Providers.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -67,7 +68,8 @@ public class CheckoutService(
     ILocationsService? locationsService = null,
     ICheckoutMemberService? checkoutMemberService = null,
     ICustomerService? customerService = null,
-    IAbandonedCheckoutService? abandonedCheckoutService = null) : ICheckoutService
+    IAbandonedCheckoutService? abandonedCheckoutService = null,
+    ITaxProviderManager? taxProviderManager = null) : ICheckoutService
 {
     private readonly ILocationsService _locationsService = locationsService ?? new NoopLocationsService();
     private readonly MerchelloSettings _settings = settings.Value;
@@ -273,14 +275,25 @@ public class CheckoutService(
         var basket = parameters.Basket;
         var countryCode = parameters.CountryCode;
         var defaultTaxRate = parameters.DefaultTaxRate;
-        var isShippingTaxable = parameters.IsShippingTaxable;
 
         // Resolve country code from settings if not provided
         var resolvedCountryCode = countryCode ?? _settings.DefaultShippingCountry ?? "US";
+        var stateCode = basket.ShippingAddress.CountyState.RegionCode;
+
+        // Query tax provider for shipping taxability and rate if not explicitly provided
+        var isShippingTaxable = parameters.IsShippingTaxable
+            ?? (taxProviderManager != null
+                ? await taxProviderManager.IsShippingTaxedForLocationAsync(resolvedCountryCode, stateCode, cancellationToken)
+                : false);
+
+        // Get the shipping tax rate from the provider (respects regional overrides, global config, etc.)
+        // Returns: specific rate, 0m (not taxable), or null (use proportional calculation)
+        var shippingTaxRate = taxProviderManager != null
+            ? await taxProviderManager.GetShippingTaxRateForLocationAsync(resolvedCountryCode, stateCode, cancellationToken)
+            : null;
 
         basket.Errors = basket.Errors.Where(error => !error.IsShippingError).ToList();
 
-        var stateCode = basket.ShippingAddress.CountyState.RegionCode;
         var shippingQuotes = (await shippingQuoteService
             .GetQuotesAsync(basket, resolvedCountryCode, stateCode, cancellationToken))
             .ToList();
@@ -318,7 +331,8 @@ public class CheckoutService(
             ShippingAmount = shippingCost,
             DefaultTaxRate = defaultTaxRate,
             CurrencyCode = currencyCode,
-            IsShippingTaxable = isShippingTaxable
+            IsShippingTaxable = isShippingTaxable,
+            ShippingTaxRate = shippingTaxRate
         });
 
         basket.SubTotal = calcResult.SubTotal;
@@ -849,6 +863,24 @@ public class CheckoutService(
 
         result.ResultObject = basket;
         return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<Basket> EnsureBasketCurrencyAsync(
+        Basket basket,
+        string currencyCode,
+        string currencySymbol,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(basket.Currency) ||
+            !string.Equals(basket.Currency, currencyCode, StringComparison.OrdinalIgnoreCase))
+        {
+            basket.Currency = currencyCode;
+            basket.CurrencySymbol = currencySymbol;
+            await SaveBasketAsync(basket, cancellationToken);
+        }
+
+        return basket;
     }
 
     /// <summary>
@@ -1701,6 +1733,9 @@ public class CheckoutService(
                         DisplayLineTotal = lineTotal,
                         FormattedDisplayUnitPrice = FormatPrice(li.Amount, currencySymbol),
                         FormattedDisplayLineTotal = FormatPrice(lineTotal, currencySymbol),
+                        // Tax info for tax-inclusive display
+                        TaxRate = li.TaxRate,
+                        IsTaxable = li.IsTaxable,
                         LineItemType = li.LineItemType,
                         ImageUrl = imageUrl
                     });

@@ -1,0 +1,2011 @@
+# Universal Commerce Protocol (UCP) Integration
+
+## Overview
+
+The Universal Commerce Protocol (UCP) is an open-source standard developed by Google in collaboration with Shopify, Stripe, Visa, Mastercard, and other industry leaders. It enables "agentic commerce" - allowing AI agents to conduct commerce on behalf of users.
+
+**Current Status**: Spec version 2026-01-11 (newly released)
+**Initial Rollout**: Google AI Mode in Search, Gemini app (US only)
+**Timeline**: Global expansion "in coming months"
+
+### What UCP Enables
+
+1. **Discovery** - Merchants publish a manifest at `/.well-known/ucp` describing their capabilities
+2. **Checkout Sessions** - AI agents create and manage checkout sessions via standardized API
+3. **Payment Handlers** - Separates payment instruments (wallets) from handlers (processors)
+4. **Order Lifecycle** - Standardized order tracking, fulfillment updates, and returns
+5. **Identity Linking** - OAuth 2.0 based account linking for personalized experiences
+
+### Industry Backing
+
+Co-developed with Google and endorsed by 25+ global partners including:
+- **Platforms**: Shopify, Etsy, Wayfair, Target, Walmart
+- **Payments**: Stripe, Adyen, Visa, Mastercard, American Express
+- **Retailers**: Best Buy, Flipkart, Macy's, The Home Depot, Zalando
+
+---
+
+## Official Resources
+
+- [UCP Specification](https://ucp.dev/specification/overview/)
+- [HTTP/REST Binding](https://ucp.dev/specification/checkout-rest/)
+- [Google Developers UCP Guide](https://developers.google.com/merchant/ucp)
+- [Google Pay Payment Handler](https://developers.google.com/merchant/ucp/guides/google-pay-payment-handler)
+- [Business Profile Guide](https://developers.google.com/merchant/ucp/guides/business-profile)
+- [Order Lifecycle](https://developers.google.com/merchant/ucp/guides/orders)
+- [Identity Linking](https://developers.google.com/merchant/ucp/guides/identity-linking)
+- [UCP GitHub Repository](https://github.com/Universal-Commerce-Protocol/ucp)
+- [UCP Samples (Python & Node.js)](https://github.com/Universal-Commerce-Protocol/samples)
+- [Google Developers Blog - UCP Overview](https://developers.googleblog.com/under-the-hood-universal-commerce-protocol-ucp/)
+- [Shopify Engineering - Building UCP](https://shopify.engineering/ucp)
+
+---
+
+## UCP Specification Summary
+
+### Protocol Architecture
+
+UCP implements a **layered protocol design** inspired by TCP/IP:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Extensions Layer                      │
+│   Domain-specific schemas (Discount, Fulfillment, etc.) │
+├─────────────────────────────────────────────────────────┤
+│                   Capabilities Layer                     │
+│    Major functional areas (Checkout, Order, Identity)   │
+├─────────────────────────────────────────────────────────┤
+│                  Shopping Service Layer                  │
+│   Core primitives (session, line items, totals, status) │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Capabilities & Extensions
+
+**Core Capabilities:**
+
+| Capability | Namespace | Purpose |
+|------------|-----------|---------|
+| Checkout | `dev.ucp.shopping.checkout` | Cart management, tax calculation, payment |
+| Order | `dev.ucp.shopping.order` | Post-purchase lifecycle, fulfillment, adjustments |
+| Identity Linking | `dev.ucp.common.identity_linking` | OAuth 2.0 account authorization |
+
+**Extensions (augment Checkout):**
+
+| Extension | Namespace | Purpose |
+|-----------|-----------|---------|
+| Discount | `dev.ucp.shopping.discount` | Discount code application and validation |
+| Fulfillment | `dev.ucp.shopping.fulfillment` | Shipping, pickup, delivery options |
+| Buyer Consent | `dev.ucp.shopping.buyer_consent` | Marketing, analytics consent tracking |
+| AP2 Mandates | `dev.ucp.shopping.ap2_mandates` | Cryptographic payment authorization |
+
+### Checkout Session States
+
+UCP implements a **three-state checkout machine**:
+
+```
+                    ┌──────────────┐
+                    │  incomplete  │  Missing required information
+                    └──────┬───────┘
+                           │
+              ┌────────────┴────────────┐
+              ▼                         ▼
+    ┌───────────────────┐    ┌──────────────────────┐
+    │ requires_escalation│    │  ready_for_complete  │
+    │  (needs user input)│    │   (can finalize)     │
+    └─────────┬─────────┘    └──────────┬───────────┘
+              │                         │
+              │    ┌───────────────┐    │
+              └───►│   completed   │◄───┘
+                   └───────────────┘
+```
+
+**Status Values:**
+- `incomplete` - Missing required information; agent attempts API resolution
+- `requires_escalation` - Buyer input needed; agent hands off via `continue_url`
+- `ready_for_complete` - All data collected; agent can finalize programmatically
+- `complete_in_progress` - Payment processing in progress
+- `completed` - Order successfully created
+- `canceled` - Session terminated
+
+### REST API Endpoints
+
+All endpoints require HTTPS with **TLS 1.3 minimum**.
+
+| Operation | Method | Route | Purpose |
+|-----------|--------|-------|---------|
+| Create | POST | `/checkout-sessions` | Initiate checkout |
+| Retrieve | GET | `/checkout-sessions/{id}` | Fetch session state |
+| Update | PUT | `/checkout-sessions/{id}` | Modify session data |
+| Complete | POST | `/checkout-sessions/{id}/complete` | Finalize order |
+| Cancel | POST | `/checkout-sessions/{id}/cancel` | Terminate session |
+
+**Example Create Request:**
+
+```http
+POST /checkout-sessions HTTP/1.1
+Host: merchant.example.com
+Content-Type: application/json
+UCP-Agent: profile="https://platform.example/profile"
+Idempotency-Key: abc123
+
+{
+  "line_items": [
+    {
+      "id": "li_1",
+      "item": {
+        "id": "product_123",
+        "title": "Red T-Shirt",
+        "price": 2500
+      },
+      "quantity": 2
+    }
+  ],
+  "currency": "USD"
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "ucp": {
+    "version": "2026-01-11",
+    "capabilities": ["dev.ucp.shopping.checkout"]
+  },
+  "id": "chk_1234567890",
+  "status": "incomplete",
+  "currency": "USD",
+  "line_items": [...],
+  "totals": {
+    "subtotal": 5000,
+    "tax": 400,
+    "total": 5400
+  },
+  "messages": [
+    {
+      "type": "error",
+      "code": "missing",
+      "path": "$.buyer",
+      "content": "Buyer information required",
+      "severity": "requires_buyer_input"
+    }
+  ],
+  "payment": {
+    "handlers": [...]
+  }
+}
+```
+
+### Authentication & Headers
+
+**Required Headers:**
+
+| Header | Format | Purpose |
+|--------|--------|---------|
+| `UCP-Agent` | `profile="https://platform.example/profile"` | Platform identification |
+| `Content-Type` | `application/json` | Required for all requests |
+| `Idempotency-Key` | Unique string | Prevent duplicate operations |
+
+**Optional Headers:**
+
+| Header | Format | Purpose |
+|--------|--------|---------|
+| `Request-Signature` | Detached JWT (RFC 7797) | Request authenticity |
+| `Request-Id` | UUID | Request tracing |
+
+**Authentication Methods:**
+- Open APIs (no authentication)
+- API Keys via `X-API-Key` header
+- OAuth 2.0 bearer tokens
+- Mutual TLS
+
+### Data Format Requirements
+
+| Data Type | Format | Example |
+|-----------|--------|---------|
+| Amounts | Minor units (cents) | `2500` = $25.00 |
+| Timestamps | RFC 3339 | `2026-01-15T10:30:00Z` |
+| Phone | E.164 | `+14155551234` |
+| Country | ISO 3166-1 alpha-2 | `US`, `GB` |
+| Currency | ISO 4217 | `USD`, `EUR` |
+
+### Business Profile (Manifest)
+
+Published at `/.well-known/ucp`:
+
+```json
+{
+  "ucp": {
+    "version": "2026-01-11",
+    "services": {
+      "shopping": {
+        "rest": {
+          "endpoint": "https://merchant.example.com/api/v1",
+          "schema": "https://ucp.dev/services/shopping/rest.openapi.json"
+        }
+      }
+    },
+    "capabilities": [
+      {
+        "name": "dev.ucp.shopping.checkout",
+        "version": "2026-01-11",
+        "spec": "https://ucp.dev/specifications/checkout.md",
+        "schema": "https://ucp.dev/schemas/shopping/checkout.json"
+      },
+      {
+        "name": "dev.ucp.shopping.discount",
+        "version": "2026-01-11",
+        "spec": "https://ucp.dev/specifications/discount.md",
+        "schema": "https://ucp.dev/schemas/shopping/discount.json",
+        "extends": "dev.ucp.shopping.checkout"
+      },
+      {
+        "name": "dev.ucp.shopping.fulfillment",
+        "version": "2026-01-11",
+        "spec": "https://ucp.dev/specifications/fulfillment.md",
+        "schema": "https://ucp.dev/schemas/shopping/fulfillment.json",
+        "extends": "dev.ucp.shopping.checkout"
+      }
+    ]
+  },
+  "payment": {
+    "handlers": [...]
+  },
+  "signing_keys": [
+    {
+      "kty": "EC",
+      "kid": "key-2026-01",
+      "crv": "P-256",
+      "x": "...",
+      "y": "..."
+    }
+  ]
+}
+```
+
+---
+
+## UCP Capabilities Detail
+
+### Discount Extension
+
+Enables discount code application during checkout.
+
+**Structure:**
+
+```json
+{
+  "discounts": {
+    "codes": ["SAVE20"],
+    "applied": [
+      {
+        "code": "SAVE20",
+        "title": "20% Off Order",
+        "amount": 1000,
+        "automatic": false,
+        "method": "across",
+        "priority": 1,
+        "allocation": [
+          {
+            "target": "$.line_items[0]",
+            "amount": 500
+          },
+          {
+            "target": "$.line_items[1]",
+            "amount": 500
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Allocation Methods:**
+- `each` - Applied independently per eligible item
+- `across` - Split proportionally by value across targets
+
+**Rejection Codes:**
+- `discount_code_expired`
+- `discount_code_invalid`
+- `discount_code_already_applied`
+- `discount_code_combination_disallowed`
+- `discount_code_user_not_logged_in`
+- `discount_code_user_ineligible`
+
+### Fulfillment Extension
+
+Enables shipping and pickup options during checkout.
+
+**Structure:**
+
+```json
+{
+  "fulfillment": {
+    "methods": [
+      {
+        "type": "shipping",
+        "line_item_ids": ["li_1", "li_2"],
+        "destinations": [
+          {
+            "type": "postal_address",
+            "address": {...}
+          }
+        ],
+        "groups": [
+          {
+            "id": "grp_1",
+            "line_item_ids": ["li_1", "li_2"],
+            "selected_option_id": "opt_standard",
+            "options": [
+              {
+                "id": "opt_standard",
+                "title": "Standard Shipping",
+                "description": "5-7 business days",
+                "totals": [
+                  {"type": "fulfillment", "amount": 599}
+                ],
+                "earliest_fulfillment_time": "2026-01-20",
+                "latest_fulfillment_time": "2026-01-22"
+              },
+              {
+                "id": "opt_express",
+                "title": "Express Shipping",
+                "description": "2-3 business days",
+                "totals": [
+                  {"type": "fulfillment", "amount": 1299}
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Method Types:**
+- `shipping` - Delivery to address
+- `pickup` - Collection from retail location
+
+### Order Capability
+
+Post-purchase order lifecycle management via webhooks.
+
+**Order Structure:**
+
+```json
+{
+  "id": "ord_123",
+  "checkout_id": "chk_456",
+  "permalink_url": "https://merchant.example.com/orders/ord_123",
+  "line_items": [
+    {
+      "id": "li_1",
+      "item": {"id": "prod_1", "title": "T-Shirt", "price": 2500},
+      "quantity": {"total": 2, "fulfilled": 1},
+      "totals": {"subtotal": 5000, "total": 5000},
+      "status": "partial"
+    }
+  ],
+  "fulfillment": {
+    "expectations": [...],
+    "events": [
+      {
+        "occurred_at": "2026-01-16T14:30:00Z",
+        "type": "shipped",
+        "line_items": [{"id": "li_1", "quantity": 1}],
+        "tracking": {
+          "number": "1Z999AA10123456784",
+          "url": "https://tracking.example.com/..."
+        }
+      }
+    ]
+  },
+  "adjustments": [
+    {
+      "type": "refund",
+      "amount": 2500,
+      "status": "completed",
+      "line_items": [{"id": "li_1", "quantity": 1}]
+    }
+  ]
+}
+```
+
+**Fulfillment Event Types:**
+- `processing`, `shipped`, `in_transit`, `delivered`
+- `failed_attempt`, `canceled`, `undeliverable`, `returned_to_sender`
+
+**Adjustment Types:**
+- `refund`, `return`, `credit`, `price_adjustment`, `dispute`, `cancellation`
+
+**Webhook Requirements:**
+- Sign all payloads using detached JWT (RFC 7797)
+- Include `Request-Signature` header with key ID
+- Send complete order entity on updates (not deltas)
+- Platform responds with 2xx status codes
+
+### Identity Linking Capability
+
+OAuth 2.0 based account authorization.
+
+**Requirements:**
+- Implement OAuth 2.0 Authorization Code flow (RFC 6749 4.1)
+- Publish metadata at `/.well-known/oauth-authorization-server`
+- Support HTTP Basic Authentication at Token Endpoint
+- Implement token revocation (RFC 7009)
+
+**Scope:**
+```
+ucp:scopes:checkout_session
+```
+Grants: Get, Create, Update, Delete, Cancel, Complete operations.
+
+---
+
+## Payment Handler Model
+
+UCP separates **instruments** (what consumers use) from **handlers** (processing specifications).
+
+### Architecture
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│    Platform     │     │    Business     │     │  Credential     │
+│  (Agent/App)    │     │   (Merchant)    │     │   Provider      │
+└────────┬────────┘     └────────┬────────┘     └────────┬────────┘
+         │                       │                       │
+         │  1. Discover handlers │                       │
+         │◄──────────────────────┤                       │
+         │                       │                       │
+         │  2. Acquire credential│                       │
+         │──────────────────────────────────────────────►│
+         │                       │                       │
+         │  3. Return opaque token                       │
+         │◄──────────────────────────────────────────────┤
+         │                       │                       │
+         │  4. Submit to complete│                       │
+         │──────────────────────►│                       │
+         │                       │                       │
+         │                       │  5. Process via PSP   │
+         │                       │──────────────────────►│
+```
+
+### Handler Structure
+
+```json
+{
+  "payment": {
+    "handlers": [
+      {
+        "id": "com.google.pay",
+        "name": "Google Pay",
+        "config_schema": {...},
+        "instrument_schemas": [
+          {"type": "card_payment_instrument"}
+        ],
+        "tokenization": {
+          "type": "PUSH",
+          "gateway": "stripe",
+          "gateway_merchant_id": "acct_xxx"
+        }
+      }
+    ]
+  }
+}
+```
+
+### Google Pay Handler Example
+
+```json
+{
+  "id": "com.google.pay",
+  "version": "2026-01-11",
+  "config": {
+    "api_version": 2,
+    "api_version_minor": 0,
+    "environment": "PRODUCTION",
+    "merchant_info": {
+      "merchant_name": "Example Store",
+      "merchant_id": "BCR2DN4T...",
+      "merchant_origin": "https://merchant.example.com"
+    },
+    "allowed_payment_methods": [
+      {
+        "type": "CARD",
+        "parameters": {
+          "allowed_auth_methods": ["PAN_ONLY", "CRYPTOGRAM_3DS"],
+          "allowed_card_networks": ["VISA", "MASTERCARD"]
+        },
+        "tokenization_specification": {
+          "type": "PAYMENT_GATEWAY",
+          "parameters": {
+            "gateway": "stripe",
+            "gateway_merchant_id": "acct_xxx"
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Merchello Compatibility Assessment
+
+### High Compatibility
+
+| UCP Concept | Merchello Equivalent | Notes |
+|-------------|---------------------|-------|
+| Checkout session | `CheckoutSession` + `Basket` | Similar session-based model |
+| Line items | `Basket.LineItems` | Direct mapping |
+| Buyer info | `CheckoutSession` addresses | Same data structure |
+| Discounts | `IDiscountEngine` | Codes and automatic discounts |
+| Fulfillment | `IShippingService` | Warehouse-based shipping groups |
+| Order lifecycle | Invoice + Notifications | Event system exists |
+| Totals structure | `CheckoutTotalsDto` | Same breakdown pattern |
+
+### Requires New Implementation
+
+| UCP Concept | Status | Notes |
+|-------------|--------|-------|
+| `/.well-known/ucp` manifest | Not implemented | Needs new endpoint |
+| Payment handlers | Partial | Different model than payment providers |
+| Capability negotiation | Not implemented | Server-selects model |
+| Agent authentication | Not implemented | `UCP-Agent` header parsing |
+| Request signatures | Not implemented | JWT signing/verification |
+| Identity linking | Not implemented | OAuth 2.0 integration |
+
+---
+
+## Implementation Strategy
+
+Merchello adopts a **foundation-first approach** - building extensibility infrastructure that:
+
+1. Benefits Merchello regardless of UCP adoption
+2. Makes future UCP integration straightforward
+3. Avoids wasted effort if the UCP spec evolves
+
+When UCP stabilizes, full implementation requires only:
+- Creating protocol-specific adapter classes
+- Adding UCP DTOs and mapping
+- Registering in dependency injection
+
+---
+
+## Architecture
+
+### Protocol Adapter Pattern
+
+```
+                    ┌─────────────────────────────────────┐
+                    │     External Protocol Request        │
+                    │    (UCP, future protocols)           │
+                    └─────────────────┬───────────────────┘
+                                      │
+                    ┌─────────────────▼───────────────────┐
+                    │    AgentAuthenticationMiddleware     │
+                    │    (validates agent identity)        │
+                    └─────────────────┬───────────────────┘
+                                      │
+                    ┌─────────────────▼───────────────────┐
+                    │    CommerceProtocolManager           │
+                    │    (routes to correct adapter)       │
+                    └─────────────────┬───────────────────┘
+                                      │
+          ┌───────────────────────────┼───────────────────────────┐
+          │                           │                           │
+┌─────────▼─────────┐     ┌──────────▼──────────┐     ┌─────────▼─────────┐
+│ UCPProtocolAdapter │     │  FutureProtocol     │     │  AnotherProtocol  │
+│ (when implemented) │     │      Adapter        │     │      Adapter      │
+└─────────┬─────────┘     └──────────┬──────────┘     └─────────┬─────────┘
+          │                           │                           │
+          └───────────────────────────┼───────────────────────────┘
+                                      │
+                    ┌─────────────────▼───────────────────┐
+                    │   CheckoutSessionState (shared)      │
+                    │   Protocol-agnostic model            │
+                    └─────────────────┬───────────────────┘
+                                      │
+                    ┌─────────────────▼───────────────────┐
+                    │        CheckoutService               │
+                    │   (existing Merchello service)       │
+                    └─────────────────────────────────────┘
+```
+
+### ExtensionManager Integration
+
+Protocol adapters are discovered using Merchello's existing `ExtensionManager` pattern:
+
+```csharp
+// Discovery flow (consistent with other providers)
+ExtensionManager → scan assemblies → discover ICommerceProtocolAdapter → DI create → cache
+
+// Similar to existing patterns:
+// - IShippingProvider → ShippingProviderManager
+// - IPaymentProvider → PaymentProviderManager
+// - ITaxProvider → TaxProviderManager
+// - ICommerceProtocolAdapter → CommerceProtocolManager
+```
+
+### File Structure
+
+```
+src/Merchello.Core/Protocols/
+├── Interfaces/
+│   ├── ICommerceProtocolAdapter.cs      # Protocol adapter contract
+│   ├── ICommerceProtocolManager.cs      # Adapter registry contract
+│   ├── IAgentAuthenticator.cs           # Agent auth contract
+│   └── IWebhookSigner.cs                # Webhook signing contract
+├── CommerceProtocolManager.cs           # Adapter registry implementation
+├── CommerceProtocolAdapterMetadata.cs   # Provider metadata
+├── ProtocolConstants.cs                 # Well-known paths, capability names
+├── Models/
+│   ├── CheckoutSessionState.cs          # Protocol-agnostic session
+│   ├── CheckoutLineItemState.cs         # Line item representation
+│   ├── CheckoutAddressState.cs          # Address representation
+│   ├── CheckoutTotalsState.cs           # Totals representation
+│   ├── CheckoutDiscountState.cs         # Discount representation
+│   ├── CheckoutFulfillmentState.cs      # Fulfillment representation
+│   ├── CheckoutMessageState.cs          # Validation messages
+│   └── ProtocolCapability.cs            # Capability declaration
+├── Authentication/
+│   ├── AgentAuthenticationResult.cs     # Auth result model
+│   ├── AgentIdentity.cs                 # Authenticated agent info
+│   └── AgentAuthenticationMiddleware.cs # Request authentication
+├── Payments/
+│   ├── IPaymentHandlerExporter.cs       # Payment export contract
+│   └── PaymentHandlerExporter.cs        # Export implementation
+├── Webhooks/
+│   ├── WebhookSigner.cs                 # JWT signing implementation
+│   └── WebhookSignatureVerifier.cs      # Signature verification
+└── Notifications/
+    ├── AgentAuthenticatingNotification.cs
+    ├── AgentAuthenticatedNotification.cs
+    ├── ProtocolSessionCreatingNotification.cs
+    ├── ProtocolSessionCreatedNotification.cs
+    ├── ProtocolSessionUpdatingNotification.cs
+    └── ProtocolSessionCompletedNotification.cs
+
+src/Merchello/
+├── Controllers/
+│   └── WellKnownController.cs           # /.well-known/{protocol} endpoint
+└── Middleware/
+    └── AgentAuthenticationMiddleware.cs # Request authentication
+```
+
+---
+
+## Integration with Merchello Providers
+
+The protocol adapter infrastructure sits **above** existing services. It does **not** replace providers - it exposes them to external protocols.
+
+### Provider Architecture Overview
+
+```
+                    ┌─────────────────────────────────────┐
+                    │     External Protocol Request        │
+                    │         (e.g., UCP Agent)            │
+                    └─────────────────┬───────────────────┘
+                                      │
+                    ┌─────────────────▼───────────────────┐
+                    │    ICommerceProtocolAdapter          │
+                    │    (translates protocol format)      │
+                    └─────────────────┬───────────────────┘
+                                      │
+          ┌───────────────────────────┼───────────────────────────┐
+          │                           │                           │
+┌─────────▼─────────┐     ┌──────────▼──────────┐     ┌─────────▼─────────┐
+│  IPaymentProvider  │     │ IShippingProvider   │     │   ITaxProvider    │
+│      Manager       │     │      Manager        │     │      Manager      │
+└─────────┬─────────┘     └──────────┬──────────┘     └─────────┬─────────┘
+          │                           │                           │
+          ▼                           ▼                           ▼
+┌─────────────────┐       ┌──────────────────┐       ┌───────────────────┐
+│ Stripe, Braintree│       │ FedEx, UPS, etc. │       │ Manual, Avalara   │
+│ PayPal, Manual   │       │ Flat-rate, Table │       │ TaxJar, etc.      │
+└─────────────────┘       └──────────────────┘       └───────────────────┘
+```
+
+### Payment Provider Export
+
+UCP's "payment handler" model differs from Merchello's payment provider model. The `IPaymentHandlerExporter` bridges this gap:
+
+**Merchello Model:**
+- Providers (Stripe, Braintree) contain multiple payment methods
+- Each method has an `IntegrationType` (Redirect, HostedFields, ExpressCheckout)
+- Configuration is provider-level
+
+**UCP Model:**
+- Payment handlers are specifications (how to process an instrument)
+- Instruments are payment methods (credit card, Apple Pay)
+- Handlers are advertised per checkout session
+
+**Mapping:**
+
+```csharp
+public class PaymentHandlerExporter : IPaymentHandlerExporter
+{
+    private readonly IPaymentProviderManager _paymentProviderManager;
+
+    public async Task<IReadOnlyList<ProtocolPaymentHandler>> ExportHandlersAsync(
+        string protocolName,
+        CancellationToken ct)
+    {
+        if (protocolName != "ucp") return [];
+
+        var handlers = new List<ProtocolPaymentHandler>();
+
+        foreach (var provider in _paymentProviderManager.GetEnabledProviders())
+        {
+            foreach (var method in provider.GetAvailablePaymentMethods())
+            {
+                handlers.Add(new ProtocolPaymentHandler
+                {
+                    HandlerId = $"{provider.Metadata.Alias}:{method.Alias}",
+                    Name = method.Name,
+                    Type = MapIntegrationType(method.IntegrationType),
+                    SupportsExpressCheckout = method.SupportsExpressCheckout,
+                    InstrumentSchemas = MapInstruments(method)
+                });
+            }
+        }
+
+        return handlers;
+    }
+
+    private static string MapIntegrationType(PaymentIntegrationType type) => type switch
+    {
+        PaymentIntegrationType.Redirect => "redirect",
+        PaymentIntegrationType.HostedFields => "tokenized",
+        PaymentIntegrationType.ExpressCheckout => "wallet",
+        PaymentIntegrationType.DirectForm => "form",
+        _ => "unknown"
+    };
+}
+```
+
+### Shipping Provider Export
+
+Protocol adapters expose shipping options calculated by Merchello's shipping providers:
+
+```csharp
+public class ShippingOptionExporter
+{
+    private readonly IShippingService _shippingService;
+
+    public async Task<CheckoutFulfillmentState> GetFulfillmentStateAsync(
+        CheckoutSessionState session,
+        CancellationToken ct)
+    {
+        var result = await _shippingService.GetShippingOptionsForBasket(
+            basketId: Guid.Parse(session.SessionId),
+            shippingAddress: MapAddress(session.ShippingAddress),
+            ct);
+
+        return new CheckoutFulfillmentState
+        {
+            Methods =
+            [
+                new FulfillmentMethodState
+                {
+                    Type = "shipping",
+                    LineItemIds = session.LineItems.Select(li => li.LineItemId).ToList(),
+                    Groups = result.WarehouseGroups.Select(g => new FulfillmentGroupState
+                    {
+                        GroupId = g.WarehouseId.ToString(),
+                        GroupName = g.WarehouseName,
+                        LineItemIds = g.LineItems.Select(li => li.Id.ToString()).ToList(),
+                        Options = g.AvailableShippingOptions.Select(opt => new FulfillmentOptionState
+                        {
+                            OptionId = opt.ShippingOptionId.ToString(),
+                            Title = opt.Name,
+                            Description = opt.Description,
+                            Amount = opt.Cost,
+                            Currency = session.Currency,
+                            EstimatedDeliveryDays = opt.EstimatedDeliveryDays
+                        }).ToList()
+                    }).ToList()
+                }
+            ]
+        };
+    }
+}
+```
+
+### Tax Provider Integration
+
+Tax calculation is handled transparently - the protocol adapter uses `CheckoutService` which internally calls the configured `ITaxProvider`:
+
+```csharp
+// In UCPProtocolAdapter (future implementation)
+public async Task<ProtocolResponse> UpdateSessionAsync(
+    string sessionId,
+    object request,
+    AgentIdentity? agent,
+    CancellationToken ct)
+{
+    var ucpRequest = (UCPUpdateSessionRequest)request;
+
+    // Save addresses via CheckoutService
+    // (internally calculates tax using configured ITaxProvider)
+    var result = await _checkoutService.SaveAddressesAsync(new SaveAddressesParameters
+    {
+        BasketId = Guid.Parse(sessionId),
+        BillingAddress = MapAddress(ucpRequest.BuyerInfo.BillingAddress),
+        ShippingAddress = MapAddress(ucpRequest.BuyerInfo.ShippingAddress),
+        ShippingSameAsBilling = ucpRequest.BuyerInfo.ShippingSameAsBilling
+    }, ct);
+
+    var state = await _checkoutService.GetSessionStateAsync(Guid.Parse(sessionId), ct);
+
+    return ProtocolResponse.Ok(MapToUCPSession(state));
+}
+```
+
+---
+
+## Core Interfaces
+
+### ICommerceProtocolAdapter
+
+```csharp
+namespace Merchello.Core.Protocols.Interfaces;
+
+/// <summary>
+/// Adapter for translating between external commerce protocols and Merchello's internal models.
+/// Implement this interface for each protocol (UCP, etc.) to enable agent-based commerce.
+/// </summary>
+public interface ICommerceProtocolAdapter
+{
+    /// <summary>
+    /// Provider metadata for ExtensionManager discovery.
+    /// Contains Alias, DisplayName, Version, and capability flags.
+    /// </summary>
+    CommerceProtocolAdapterMetadata Metadata { get; }
+
+    /// <summary>
+    /// Whether this adapter is enabled and ready to handle requests.
+    /// </summary>
+    bool IsEnabled { get; }
+
+    /// <summary>
+    /// Generates the protocol manifest/profile for discovery.
+    /// For UCP: Returns the /.well-known/ucp profile JSON.
+    /// </summary>
+    Task<object> GenerateManifestAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates a new checkout session from a protocol-specific request.
+    /// </summary>
+    Task<ProtocolResponse> CreateSessionAsync(
+        object request,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Retrieves a checkout session in protocol-specific format.
+    /// </summary>
+    Task<ProtocolResponse> GetSessionAsync(
+        string sessionId,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Updates a checkout session from a protocol-specific request.
+    /// </summary>
+    Task<ProtocolResponse> UpdateSessionAsync(
+        string sessionId,
+        object request,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Completes a checkout session (payment processing).
+    /// </summary>
+    Task<ProtocolResponse> CompleteSessionAsync(
+        string sessionId,
+        object paymentData,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Cancels a checkout session.
+    /// </summary>
+    Task<ProtocolResponse> CancelSessionAsync(
+        string sessionId,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Retrieves an order in protocol-specific format.
+    /// </summary>
+    Task<ProtocolResponse> GetOrderAsync(
+        string orderId,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets available payment handlers in protocol-specific format.
+    /// </summary>
+    Task<object> GetPaymentHandlersAsync(
+        string? sessionId,
+        CancellationToken ct = default);
+}
+```
+
+### CommerceProtocolAdapterMetadata
+
+```csharp
+namespace Merchello.Core.Protocols;
+
+/// <summary>
+/// Metadata describing a protocol adapter.
+/// Follows existing provider patterns (TaxProviderMetadata, PaymentProviderMetadata).
+/// </summary>
+public record CommerceProtocolAdapterMetadata(
+    /// <summary>
+    /// Unique identifier for the protocol (e.g., "ucp").
+    /// Case-insensitive, used for routing and configuration.
+    /// </summary>
+    string Alias,
+
+    /// <summary>
+    /// Human-readable name for the protocol.
+    /// </summary>
+    string DisplayName,
+
+    /// <summary>
+    /// Protocol version this adapter implements (YYYY-MM-DD format).
+    /// </summary>
+    string Version,
+
+    /// <summary>
+    /// Optional icon for backoffice display.
+    /// </summary>
+    string? Icon = null,
+
+    /// <summary>
+    /// Optional description of the protocol.
+    /// </summary>
+    string? Description = null,
+
+    /// <summary>
+    /// Whether this adapter supports the Identity Linking capability.
+    /// </summary>
+    bool SupportsIdentityLinking = false,
+
+    /// <summary>
+    /// Whether this adapter supports Order lifecycle webhooks.
+    /// </summary>
+    bool SupportsOrderWebhooks = false,
+
+    /// <summary>
+    /// Setup instructions for backoffice display.
+    /// </summary>
+    string? SetupInstructions = null
+);
+```
+
+### ICommerceProtocolManager
+
+```csharp
+namespace Merchello.Core.Protocols.Interfaces;
+
+/// <summary>
+/// Manages registration and resolution of commerce protocol adapters.
+/// Uses ExtensionManager pattern for discovery.
+/// </summary>
+public interface ICommerceProtocolManager
+{
+    /// <summary>
+    /// Gets all registered protocol adapters (cached).
+    /// Use GetAdaptersAsync() for initial load.
+    /// </summary>
+    IReadOnlyList<ICommerceProtocolAdapter> Adapters { get; }
+
+    /// <summary>
+    /// Loads all protocol adapters asynchronously.
+    /// Call during startup; results are cached in Adapters property.
+    /// </summary>
+    Task<IReadOnlyList<ICommerceProtocolAdapter>> GetAdaptersAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets an adapter by alias (case-insensitive).
+    /// </summary>
+    ICommerceProtocolAdapter? GetAdapter(string alias);
+
+    /// <summary>
+    /// Checks if a protocol alias is supported.
+    /// </summary>
+    bool IsProtocolSupported(string alias);
+
+    /// <summary>
+    /// Gets all enabled protocol aliases.
+    /// </summary>
+    IReadOnlyList<string> GetEnabledProtocols();
+
+    /// <summary>
+    /// Gets cached manifest for a protocol.
+    /// </summary>
+    Task<object?> GetCachedManifestAsync(string alias, CancellationToken ct = default);
+}
+```
+
+### IAgentAuthenticator
+
+```csharp
+namespace Merchello.Core.Protocols.Authentication;
+
+/// <summary>
+/// Authenticates external agents making protocol requests.
+/// </summary>
+public interface IAgentAuthenticator
+{
+    /// <summary>
+    /// Protocol alias this authenticator handles (e.g., "ucp").
+    /// </summary>
+    string Alias { get; }
+
+    /// <summary>
+    /// Authenticates an incoming request.
+    /// For UCP: Parses UCP-Agent header (RFC 8941 Dictionary Structured Field), validates signatures.
+    /// </summary>
+    Task<AgentAuthenticationResult> AuthenticateAsync(
+        HttpRequest request,
+        CancellationToken ct = default);
+}
+```
+
+### IWebhookSigner
+
+```csharp
+namespace Merchello.Core.Protocols.Webhooks;
+
+/// <summary>
+/// Signs and verifies webhook payloads using detached JWT (RFC 7797).
+/// </summary>
+public interface IWebhookSigner
+{
+    /// <summary>
+    /// Signs a webhook payload.
+    /// </summary>
+    /// <param name="payload">JSON payload to sign</param>
+    /// <param name="keyId">Key ID from signing_keys</param>
+    /// <returns>Detached JWT signature</returns>
+    string Sign(string payload, string keyId);
+
+    /// <summary>
+    /// Verifies a webhook signature.
+    /// </summary>
+    /// <param name="payload">JSON payload</param>
+    /// <param name="signature">Request-Signature header value</param>
+    /// <param name="signingKeys">Public keys from /.well-known/ucp</param>
+    bool Verify(string payload, string signature, IReadOnlyList<JsonWebKey> signingKeys);
+}
+```
+
+---
+
+## Protocol-Agnostic Models
+
+### CheckoutSessionState
+
+```csharp
+namespace Merchello.Core.Protocols.Models;
+
+/// <summary>
+/// Protocol-agnostic representation of a checkout session.
+/// </summary>
+public class CheckoutSessionState
+{
+    public required string SessionId { get; init; }
+
+    /// <summary>
+    /// Session status: incomplete, requires_escalation, ready_for_complete,
+    /// complete_in_progress, completed, canceled
+    /// </summary>
+    public required string Status { get; init; }
+
+    public required DateTimeOffset CreatedAt { get; init; }
+    public required DateTimeOffset UpdatedAt { get; init; }
+    public DateTimeOffset? ExpiresAt { get; init; }
+
+    /// <summary>
+    /// ISO 4217 currency code.
+    /// </summary>
+    public required string Currency { get; init; }
+
+    public required IReadOnlyList<CheckoutLineItemState> LineItems { get; init; }
+    public CheckoutAddressState? BillingAddress { get; init; }
+    public CheckoutAddressState? ShippingAddress { get; init; }
+    public bool ShippingSameAsBilling { get; init; }
+
+    public IReadOnlyList<CheckoutDiscountState> Discounts { get; init; } = [];
+    public CheckoutFulfillmentState? Fulfillment { get; init; }
+    public required CheckoutTotalsState Totals { get; init; }
+
+    /// <summary>
+    /// Validation messages (errors, warnings, info).
+    /// </summary>
+    public IReadOnlyList<CheckoutMessageState> Messages { get; init; } = [];
+
+    /// <summary>
+    /// URL for escalation handoff when status is requires_escalation.
+    /// </summary>
+    public string? ContinueUrl { get; init; }
+
+    /// <summary>
+    /// Available payment handlers.
+    /// </summary>
+    public IReadOnlyList<ProtocolPaymentHandler> PaymentHandlers { get; init; } = [];
+
+    public string? BuyerEmail { get; init; }
+    public IReadOnlyDictionary<string, object>? Metadata { get; init; }
+}
+```
+
+### CheckoutLineItemState
+
+```csharp
+namespace Merchello.Core.Protocols.Models;
+
+public class CheckoutLineItemState
+{
+    public required string LineItemId { get; init; }
+    public string? ProductId { get; init; }
+    public string? VariantId { get; init; }
+    public required string Sku { get; init; }
+    public required string Name { get; init; }
+    public string? Description { get; init; }
+    public required int Quantity { get; init; }
+
+    /// <summary>
+    /// Unit price in minor units (cents).
+    /// </summary>
+    public required long UnitPrice { get; init; }
+
+    /// <summary>
+    /// Line total in minor units (quantity * unit price).
+    /// </summary>
+    public required long LineTotal { get; init; }
+
+    public long DiscountAmount { get; init; }
+    public long TaxAmount { get; init; }
+    public required long FinalTotal { get; init; }
+    public bool RequiresShipping { get; init; } = true;
+    public string? ImageUrl { get; init; }
+    public string? ProductUrl { get; init; }
+    public IReadOnlyList<CheckoutLineItemOption>? SelectedOptions { get; init; }
+}
+
+public class CheckoutLineItemOption
+{
+    public required string Name { get; init; }
+    public required string Value { get; init; }
+}
+```
+
+### CheckoutTotalsState
+
+```csharp
+namespace Merchello.Core.Protocols.Models;
+
+public class CheckoutTotalsState
+{
+    /// <summary>
+    /// All amounts in minor units (cents).
+    /// </summary>
+    public required long Subtotal { get; init; }
+    public long ItemsDiscount { get; init; }
+    public long Discount { get; init; }
+    public long Fulfillment { get; init; }
+    public long Tax { get; init; }
+    public required long Total { get; init; }
+    public required string Currency { get; init; }
+
+    public IReadOnlyList<CheckoutTotalBreakdown>? Breakdown { get; init; }
+}
+
+public class CheckoutTotalBreakdown
+{
+    public required string Label { get; init; }
+    public required long Amount { get; init; }
+
+    /// <summary>
+    /// Type: items_discount, subtotal, discount, fulfillment, tax, fee, total
+    /// </summary>
+    public required string Type { get; init; }
+}
+```
+
+### CheckoutAddressState
+
+```csharp
+namespace Merchello.Core.Protocols.Models;
+
+public class CheckoutAddressState
+{
+    public string? FirstName { get; init; }
+    public string? LastName { get; init; }
+    public string? Company { get; init; }
+    public string? Address1 { get; init; }
+    public string? Address2 { get; init; }
+    public string? City { get; init; }
+
+    /// <summary>
+    /// State/Province name.
+    /// </summary>
+    public string? Region { get; init; }
+
+    /// <summary>
+    /// State/Province code.
+    /// </summary>
+    public string? RegionCode { get; init; }
+
+    public string? PostalCode { get; init; }
+    public string? Country { get; init; }
+
+    /// <summary>
+    /// ISO 3166-1 alpha-2 country code.
+    /// </summary>
+    public string? CountryCode { get; init; }
+
+    /// <summary>
+    /// E.164 format phone number.
+    /// </summary>
+    public string? Phone { get; init; }
+
+    public string? Email { get; init; }
+}
+```
+
+### CheckoutDiscountState
+
+```csharp
+namespace Merchello.Core.Protocols.Models;
+
+public class CheckoutDiscountState
+{
+    public required string DiscountId { get; init; }
+    public string? Code { get; init; }
+    public required string Name { get; init; }
+
+    /// <summary>
+    /// Type: percentage, fixed_amount, free_shipping, buy_x_get_y
+    /// </summary>
+    public required string Type { get; init; }
+
+    /// <summary>
+    /// Amount in minor units (cents).
+    /// </summary>
+    public required long Amount { get; init; }
+
+    public bool IsAutomatic { get; init; }
+
+    /// <summary>
+    /// Allocation method: each, across
+    /// </summary>
+    public string? Method { get; init; }
+
+    public int? Priority { get; init; }
+    public IReadOnlyList<DiscountAllocation>? Allocation { get; init; }
+}
+
+public class DiscountAllocation
+{
+    /// <summary>
+    /// JSONPath target (e.g., $.line_items[0])
+    /// </summary>
+    public required string Target { get; init; }
+
+    public required long Amount { get; init; }
+}
+```
+
+### CheckoutFulfillmentState
+
+```csharp
+namespace Merchello.Core.Protocols.Models;
+
+public class CheckoutFulfillmentState
+{
+    public required IReadOnlyList<FulfillmentMethodState> Methods { get; init; }
+}
+
+public class FulfillmentMethodState
+{
+    /// <summary>
+    /// Type: shipping, pickup
+    /// </summary>
+    public required string Type { get; init; }
+
+    public required IReadOnlyList<string> LineItemIds { get; init; }
+    public IReadOnlyList<FulfillmentDestinationState>? Destinations { get; init; }
+    public required IReadOnlyList<FulfillmentGroupState> Groups { get; init; }
+}
+
+public class FulfillmentGroupState
+{
+    public required string GroupId { get; init; }
+    public string? GroupName { get; init; }
+    public required IReadOnlyList<string> LineItemIds { get; init; }
+    public string? SelectedOptionId { get; init; }
+    public required IReadOnlyList<FulfillmentOptionState> Options { get; init; }
+}
+
+public class FulfillmentOptionState
+{
+    public required string OptionId { get; init; }
+    public required string Title { get; init; }
+    public string? Description { get; init; }
+
+    /// <summary>
+    /// Amount in minor units (cents).
+    /// </summary>
+    public required long Amount { get; init; }
+
+    public required string Currency { get; init; }
+    public string? EarliestFulfillmentTime { get; init; }
+    public string? LatestFulfillmentTime { get; init; }
+    public int? EstimatedDeliveryDays { get; init; }
+}
+
+public class FulfillmentDestinationState
+{
+    /// <summary>
+    /// Type: postal_address, retail_location
+    /// </summary>
+    public required string Type { get; init; }
+
+    public CheckoutAddressState? Address { get; init; }
+    public RetailLocationState? RetailLocation { get; init; }
+}
+
+public class RetailLocationState
+{
+    public required string LocationId { get; init; }
+    public required string Name { get; init; }
+    public CheckoutAddressState? Address { get; init; }
+}
+```
+
+### CheckoutMessageState
+
+```csharp
+namespace Merchello.Core.Protocols.Models;
+
+public class CheckoutMessageState
+{
+    /// <summary>
+    /// Type: error, warning, info
+    /// </summary>
+    public required string Type { get; init; }
+
+    /// <summary>
+    /// Error code: missing, invalid, out_of_stock, payment_declined, etc.
+    /// </summary>
+    public required string Code { get; init; }
+
+    /// <summary>
+    /// JSONPath to affected field (e.g., $.buyer.email)
+    /// </summary>
+    public string? Path { get; init; }
+
+    public required string Content { get; init; }
+
+    /// <summary>
+    /// Severity: recoverable, requires_buyer_input, requires_buyer_review
+    /// </summary>
+    public string? Severity { get; init; }
+}
+```
+
+---
+
+## Authentication Models
+
+### AgentAuthenticationResult
+
+```csharp
+namespace Merchello.Core.Protocols.Authentication;
+
+public class AgentAuthenticationResult
+{
+    public required bool IsAuthenticated { get; init; }
+    public AgentIdentity? Identity { get; init; }
+    public string? ErrorMessage { get; init; }
+    public string? ErrorCode { get; init; }
+
+    public static AgentAuthenticationResult Success(AgentIdentity identity) => new()
+    {
+        IsAuthenticated = true,
+        Identity = identity
+    };
+
+    public static AgentAuthenticationResult Failure(string message, string? code = null) => new()
+    {
+        IsAuthenticated = false,
+        ErrorMessage = message,
+        ErrorCode = code
+    };
+
+    public static AgentAuthenticationResult Anonymous() => new()
+    {
+        IsAuthenticated = false
+    };
+}
+```
+
+### AgentIdentity
+
+```csharp
+namespace Merchello.Core.Protocols.Authentication;
+
+public class AgentIdentity
+{
+    /// <summary>
+    /// Unique agent identifier.
+    /// </summary>
+    public required string AgentId { get; init; }
+
+    /// <summary>
+    /// Agent profile URI (from UCP-Agent header).
+    /// </summary>
+    public string? ProfileUri { get; init; }
+
+    public required string Protocol { get; init; }
+    public IReadOnlyList<string> Capabilities { get; init; } = [];
+    public DateTimeOffset? ExpiresAt { get; init; }
+    public IReadOnlyDictionary<string, object>? Claims { get; init; }
+}
+```
+
+### UCP-Agent Header Parsing
+
+UCP requires parsing the `UCP-Agent` header as an RFC 8941 Dictionary Structured Field:
+
+```http
+UCP-Agent: profile="https://platform.example/profile"
+```
+
+**Parsing Example:**
+
+```csharp
+using System.Text.RegularExpressions;
+
+public static class UcpAgentHeaderParser
+{
+    private static readonly Regex DictionaryFieldPattern =
+        new(@"(\w+)=""([^""]+)""", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Parses RFC 8941 Dictionary Structured Field from UCP-Agent header.
+    /// </summary>
+    public static Dictionary<string, string> Parse(string headerValue)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (Match match in DictionaryFieldPattern.Matches(headerValue))
+        {
+            if (match.Groups.Count == 3)
+            {
+                result[match.Groups[1].Value] = match.Groups[2].Value;
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Extracts agent profile URI from UCP-Agent header.
+    /// </summary>
+    public static string? GetProfileUri(HttpRequest request)
+    {
+        if (!request.Headers.TryGetValue("UCP-Agent", out var headerValues))
+            return null;
+
+        var parsed = Parse(headerValues.ToString());
+        return parsed.TryGetValue("profile", out var profile) ? profile : null;
+    }
+}
+```
+
+---
+
+## Protocol Response
+
+```csharp
+namespace Merchello.Core.Protocols;
+
+public class ProtocolResponse
+{
+    public required bool Success { get; init; }
+    public required int StatusCode { get; init; }
+    public object? Data { get; init; }
+    public ProtocolError? Error { get; init; }
+
+    public static ProtocolResponse Ok(object data) => new()
+    {
+        Success = true,
+        StatusCode = 200,
+        Data = data
+    };
+
+    public static ProtocolResponse Created(object data) => new()
+    {
+        Success = true,
+        StatusCode = 201,
+        Data = data
+    };
+
+    public static ProtocolResponse NotFound(string message) => new()
+    {
+        Success = false,
+        StatusCode = 404,
+        Error = new ProtocolError { Code = "not_found", Message = message }
+    };
+
+    public static ProtocolResponse BadRequest(string message, string? code = null) => new()
+    {
+        Success = false,
+        StatusCode = 400,
+        Error = new ProtocolError { Code = code ?? "bad_request", Message = message }
+    };
+
+    public static ProtocolResponse Unauthorized(string message) => new()
+    {
+        Success = false,
+        StatusCode = 401,
+        Error = new ProtocolError { Code = "unauthorized", Message = message }
+    };
+
+    public static ProtocolResponse Conflict(string message) => new()
+    {
+        Success = false,
+        StatusCode = 409,
+        Error = new ProtocolError { Code = "conflict", Message = message }
+    };
+
+    /// <summary>
+    /// Returns version_unsupported error per UCP spec when platform version > business version.
+    /// </summary>
+    public static ProtocolResponse VersionUnsupported(string requestedVersion, string supportedVersion) => new()
+    {
+        Success = false,
+        StatusCode = 400,
+        Error = new ProtocolError
+        {
+            Code = "version_unsupported",
+            Message = $"Protocol version '{requestedVersion}' is not supported. Maximum supported version: '{supportedVersion}'."
+        }
+    };
+}
+
+public class ProtocolError
+{
+    public required string Code { get; init; }
+    public required string Message { get; init; }
+    public IReadOnlyDictionary<string, string[]>? Details { get; init; }
+}
+
+/// <summary>
+/// UCP spec requires every response to include version and active capabilities.
+/// Wrap all protocol responses in this envelope.
+/// </summary>
+public class ProtocolResponseEnvelope
+{
+    public required UcpMetadata Ucp { get; init; }
+    public required object Data { get; init; }
+}
+
+/// <summary>
+/// UCP metadata included in every response per spec requirement.
+/// </summary>
+public class UcpMetadata
+{
+    /// <summary>
+    /// Protocol version (YYYY-MM-DD format).
+    /// </summary>
+    public required string Version { get; init; }
+
+    /// <summary>
+    /// Active capabilities for this session (e.g., "dev.ucp.shopping.checkout").
+    /// </summary>
+    public required IReadOnlyList<string> Capabilities { get; init; }
+}
+```
+
+---
+
+## Notification Events
+
+Protocol events integrate with Merchello's notification system for extensibility.
+
+| Notification | Cancelable | Handler Priority | Use Case |
+|-------------|------------|------------------|----------|
+| `AgentAuthenticatingNotification` | Yes | 100 | Validate/block agents |
+| `AgentAuthenticatedNotification` | No | 1000 | Audit logging |
+| `ProtocolSessionCreatingNotification` | Yes | 100 | Pre-creation validation |
+| `ProtocolSessionCreatedNotification` | No | 1000 | External integrations |
+| `ProtocolSessionUpdatingNotification` | Yes | 100 | Validation hooks |
+| `ProtocolSessionUpdatedNotification` | No | 1000 | State sync |
+| `ProtocolSessionCompletingNotification` | Yes | 100 | Pre-complete validation |
+| `ProtocolSessionCompletedNotification` | No | 2000 | Post-checkout processing |
+| `ProtocolWebhookSendingNotification` | Yes | 100 | Filter/modify payloads |
+| `ProtocolWebhookSentNotification` | No | 1000 | Delivery logging |
+
+**Example Handler:**
+
+```csharp
+[NotificationHandlerPriority(100)]
+public class AgentBlocklistHandler : INotificationAsyncHandler<AgentAuthenticatingNotification>
+{
+    private readonly IAgentBlocklistService _blocklist;
+
+    public async Task HandleAsync(AgentAuthenticatingNotification notification, CancellationToken ct)
+    {
+        if (await _blocklist.IsBlockedAsync(notification.AgentId, ct))
+        {
+            notification.CancelOperation("Agent is blocked");
+        }
+    }
+}
+```
+
+---
+
+## Caching Strategy
+
+Protocol manifests and capabilities are cached for performance:
+
+| Cache Key | TTL | Purpose |
+|-----------|-----|---------|
+| `merchello:protocols:manifest:{protocolName}` | 60 min | Generated manifest JSON |
+| `merchello:protocols:capabilities:{protocolName}` | 60 min | Capability intersection |
+| `merchello:protocols:signing-keys` | 24 hr | JWK signing keys |
+
+**Implementation:**
+
+```csharp
+public class CommerceProtocolManager : ICommerceProtocolManager
+{
+    private readonly ICacheService _cache;
+
+    public async Task<object?> GetCachedManifestAsync(string protocolName, CancellationToken ct)
+    {
+        var cacheKey = $"merchello:protocols:manifest:{protocolName}";
+
+        return await _cache.GetOrCreateAsync(cacheKey, async () =>
+        {
+            var adapter = GetAdapter(protocolName);
+            return adapter != null ? await adapter.GenerateManifestAsync(ct) : null;
+        }, TimeSpan.FromMinutes(60), ["protocols"]);
+    }
+}
+```
+
+---
+
+## Webhook Security
+
+### Signing Requirements
+
+UCP requires all outbound webhooks to be signed using detached JWT (RFC 7797):
+
+```csharp
+public class WebhookSigner : IWebhookSigner
+{
+    private readonly ISigningKeyStore _keyStore;
+
+    public string Sign(string payload, string keyId)
+    {
+        var key = _keyStore.GetPrivateKey(keyId);
+        var header = new JwtHeader(new SigningCredentials(key, SecurityAlgorithms.EcdsaSha256))
+        {
+            ["kid"] = keyId
+        };
+
+        // Create detached signature (payload not included in JWT)
+        var payloadHash = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
+        var claims = new JwtPayload
+        {
+            ["payload_hash"] = Convert.ToBase64String(payloadHash),
+            ["iat"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+        };
+
+        var token = new JwtSecurityToken(header, claims);
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    public bool Verify(string payload, string signature, IReadOnlyList<JsonWebKey> signingKeys)
+    {
+        var handler = new JwtSecurityTokenHandler();
+        var token = handler.ReadJwtToken(signature);
+
+        var keyId = token.Header.Kid;
+        var key = signingKeys.FirstOrDefault(k => k.Kid == keyId);
+        if (key == null) return false;
+
+        var payloadHash = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
+        var expectedHash = token.Payload["payload_hash"]?.ToString();
+
+        return expectedHash == Convert.ToBase64String(payloadHash);
+    }
+}
+```
+
+### Request-Signature Header
+
+Outbound webhooks include:
+
+```http
+POST /webhooks/partners/{partner_id}/events/order HTTP/1.1
+Host: platform.example.com
+Content-Type: application/json
+Request-Signature: eyJhbGciOiJFUzI1NiIsImtpZCI6ImtleS0yMDI2LTAxIn0...
+
+{
+  "id": "ord_123",
+  "checkout_id": "chk_456",
+  ...
+}
+```
+
+---
+
+## Configuration
+
+```json
+{
+  "Merchello": {
+    "Protocols": {
+      "Enabled": true,
+      "WellKnownPath": "/.well-known",
+      "ManifestCacheDurationMinutes": 60,
+      "RequireHttps": true,
+      "MinimumTlsVersion": "1.3",
+      "UCP": {
+        "Enabled": false,
+        "Version": "2026-01-11",
+        "RequireAuthentication": true,
+        "AllowedAgents": ["*"],
+        "SigningKeyRotationDays": 90,
+        "WebhookTimeoutSeconds": 30,
+        "WebhookRetryCount": 3,
+        "Capabilities": {
+          "Checkout": true,
+          "Order": true,
+          "IdentityLinking": false
+        },
+        "Extensions": {
+          "Discount": true,
+          "Fulfillment": true,
+          "BuyerConsent": false,
+          "AP2Mandates": false
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+## Implementation Tasks
+
+### Phase 1: Core Infrastructure
+
+1. Create `Protocols` folder structure in `Merchello.Core`
+2. Implement `ICommerceProtocolAdapter` interface
+3. Implement `CommerceProtocolManager` using ExtensionManager pattern
+4. Create `CommerceProtocolAdapterMetadata` class
+5. Create protocol-agnostic models
+6. Add protocol notifications
+7. Register services in DI
+8. Add caching for manifests
+
+### Phase 2: Authentication Infrastructure
+
+1. Implement `IAgentAuthenticator` interface
+2. Create `AgentAuthenticationMiddleware`
+3. Add UCP-Agent header parsing (Dictionary Structured Field)
+4. Implement request signature validation
+5. Add notification hooks for auth events
+
+### Phase 3: Well-Known Endpoint
+
+1. Create `WellKnownController`
+2. Route `/.well-known/{protocol}` to protocol adapters
+3. Return 404 when no adapter registered
+4. Add caching headers
+
+### Phase 4: Checkout Service Extensions
+
+1. Add `GetSessionStateAsync` method to `ICheckoutService`
+2. Add `GetMessagesAsync` for validation messages
+3. Implement mapping from `Basket`/`CheckoutSession` to `CheckoutSessionState`
+4. Add fulfillment state mapping
+5. Add discount state mapping
+6. Add unit tests for mapping
+
+### Phase 5: Payment Handler Export
+
+1. Implement `IPaymentHandlerExporter`
+2. Add Google Pay handler support
+3. Add tokenization type mapping
+4. Support protocol-specific formatting
+
+### Phase 6: Webhook Infrastructure
+
+1. Implement `IWebhookSigner`
+2. Add JWK key management and rotation
+3. Add signature verification middleware
+4. Implement order event webhooks
+
+---
+
+## Future: Full UCP Implementation
+
+When the UCP specification stabilizes, implementing full support requires:
+
+### New Files
+
+```
+src/Merchello.Core/Protocols/UCP/
+├── UCPProtocolAdapter.cs           # ICommerceProtocolAdapter implementation
+├── UCPAgentAuthenticator.cs        # IAgentAuthenticator implementation
+├── UCPManifestGenerator.cs         # Generates /.well-known/ucp profile
+├── UCPCapabilities.cs              # Capability definitions
+├── Dtos/
+│   ├── UCPCheckoutSessionDto.cs    # UCP-specific session format
+│   ├── UCPLineItemDto.cs
+│   ├── UCPPaymentHandlerDto.cs
+│   ├── UCPOrderDto.cs
+│   └── UCPFulfillmentDto.cs
+└── Mapping/
+    └── UCPMapper.cs                # Maps to/from CheckoutSessionState
+```
+
+### Registration
+
+```csharp
+// In Startup/DI configuration
+services.AddSingleton<ICommerceProtocolAdapter, UCPProtocolAdapter>();
+services.AddSingleton<IAgentAuthenticator, UCPAgentAuthenticator>();
+```
+
+### UCP-Specific Features
+
+1. **Capability Negotiation** - Server-selects model per UCP spec
+2. **Payment Handler Format** - UCP's instrument/handler separation
+3. **Extension Schema Composition** - `allOf` JSON Schema composition
+4. **AP2 Mandates** - Cryptographic authorization proof (optional)
+5. **Identity Linking** - OAuth 2.0 integration
+
+---
+
+## Testing Strategy
+
+### Unit Tests
+
+1. `CommerceProtocolManagerTests` - Adapter registration/resolution
+2. `CheckoutSessionStateMappingTests` - Model mapping accuracy
+3. `AgentAuthenticationTests` - Auth success/failure scenarios
+4. `PaymentHandlerExporterTests` - Export formatting
+5. `WebhookSignerTests` - JWT signing/verification
+6. `ProtocolNotificationTests` - Notification dispatch
+
+### Integration Tests
+
+1. `WellKnownEndpointTests` - Returns 404 when no adapter, correct manifest when present
+2. `ProtocolCheckoutFlowTests` - End-to-end session lifecycle
+3. `WebhookDeliveryTests` - Signed webhook delivery
+4. Existing checkout tests pass (no regression)
+
+---
+
+## Post-Implementation Tasks
+
+When the protocol infrastructure is implemented, the following documentation updates are required:
+
+- [ ] **Update `docs/Architecture-Diagrams.md`** - Add Protocol Systems section documenting:
+  - `ICommerceProtocolAdapter` interface and `CommerceProtocolManager`
+  - Protocol notification events (Authenticating/Authenticated, SessionCreating/Created, etc.)
+  - Integration with existing services (CheckoutService, IPaymentProviderManager, IShippingService)
+  - Caching prefixes (`merchello:protocols:*`)
+  - Add to Extension Points section: `Protocol:ICommerceProtocolAdapter→CommerceProtocolManager`
+
+---
+
+## Glossary
+
+| Term | Definition |
+|------|------------|
+| **Agent** | An AI or software system acting on behalf of a user (e.g., Google Gemini, ChatGPT) |
+| **Capability** | A major functional area a merchant supports (e.g., Checkout, Order) |
+| **Extension** | An optional enhancement to a capability (e.g., Discounts extend Checkout) |
+| **Handler** | A payment processing specification (how to process a payment instrument) |
+| **Instrument** | A payment method (credit card, Apple Pay, Google Pay) |
+| **Manifest** | A JSON document at `/.well-known/ucp` describing capabilities |
+| **Platform** | The consumer surface hosting the agent (Google AI Mode, Gemini app) |
+| **Protocol** | A standardized communication format (UCP, future standards) |
+| **Session** | A stateful checkout interaction between agent and merchant |
+| **Escalation** | Handoff to merchant checkout when agent cannot complete programmatically |
+
+---
+
+## Document Review Summary
+
+*Reviewed: 2026-01-15 against UCP spec v2026-01-11*
+
+### Compliance Status
+
+| Area | Status |
+|------|--------|
+| UCP Specification | Compliant |
+| Architecture Alignment | Excellent |
+| Provider Pattern Consistency | Consistent |
+| Notification Naming | Consistent |
+
+### Key Design Decisions
+
+1. **Foundation-first approach** - Build extensibility infrastructure before full UCP implementation, allowing the spec to stabilize while providing immediate benefits to Merchello.
+
+2. **Protocol adapter pattern** - Adapters sit above existing services (`CheckoutService`, `IShippingService`, `IPaymentProviderManager`), translating between external protocols and internal models without replacing existing functionality.
+
+3. **ExtensionManager integration** - Protocol adapters use the same discovery pattern as other providers, ensuring consistency and enabling third-party protocol implementations.
+
+4. **Notification system integration** - Protocol events use existing `MerchelloNotification` and `MerchelloCancelableNotification<T>` base classes, maintaining consistency with established patterns.
+
+### Spec Compliance Checklist
+
+- [x] Manifest at `/.well-known/ucp` with capabilities and payment handlers
+- [x] REST endpoints: Create, Get, Update, Complete, Cancel
+- [x] Checkout session states (incomplete, requires_escalation, ready_for_complete, etc.)
+- [x] Minor units for all monetary amounts
+- [x] ISO formats (country: alpha-2, currency: 4217, phone: E.164)
+- [x] Payment handler model with instrument/handler separation
+- [x] Capability namespaces (`dev.ucp.*`)
+- [x] Discount extension with allocation methods
+- [x] Fulfillment extension with shipping groups
+- [x] Order capability with webhook signatures
+- [x] TLS 1.3 minimum requirement
+- [x] `ucp` field in all responses (via `ProtocolResponseEnvelope`)
+- [x] Version negotiation error handling (`version_unsupported`)
+- [x] UCP-Agent header parsing (RFC 8941)
+
+### Architecture Alignment
+
+The protocol infrastructure correctly:
+- Uses services layer for business logic (never direct DbContext access)
+- Delegates to factories for object creation
+- Maps warehouse groups to fulfillment groups
+- Exposes existing providers to external protocols
+- Integrates with caching via `ICacheService`
+
+---
+
+## References
+
+- [UCP Official Site](https://ucp.dev/)
+- [UCP Specification Overview](https://ucp.dev/specification/overview/)
+- [HTTP/REST Binding](https://ucp.dev/specification/checkout-rest/)
+- [Discount Extension](https://ucp.dev/specification/discount/)
+- [Fulfillment Extension](https://ucp.dev/specification/fulfillment/)
+- [Order Capability](https://ucp.dev/specification/order/)
+- [Identity Linking](https://ucp.dev/specification/identity-linking/)
+- [Google Merchant UCP Guide](https://developers.google.com/merchant/ucp)
+- [Google Pay Payment Handler](https://developers.google.com/merchant/ucp/guides/google-pay-payment-handler)
+- [Business Profile Guide](https://developers.google.com/merchant/ucp/guides/business-profile)
+- [Order Lifecycle Guide](https://developers.google.com/merchant/ucp/guides/orders)
+- [Identity Linking Guide](https://developers.google.com/merchant/ucp/guides/identity-linking)
+- [UCP GitHub - Specification](https://github.com/Universal-Commerce-Protocol/ucp)
+- [UCP GitHub - Samples](https://github.com/Universal-Commerce-Protocol/samples)
+- [Google Developers Blog - UCP](https://developers.googleblog.com/under-the-hood-universal-commerce-protocol-ucp/)
+- [Shopify Engineering - Building UCP](https://shopify.engineering/ucp)
+- [Google Blog - Agentic Commerce](https://blog.google/products/ads-commerce/agentic-commerce-ai-tools-protocol-retailers-platforms/)

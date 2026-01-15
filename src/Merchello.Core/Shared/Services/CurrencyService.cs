@@ -95,6 +95,14 @@ public class CurrencyService(IOptions<MerchelloSettings> settings) : ICurrencySe
         return minorUnits / factor;
     }
 
+    /// <inheritdoc />
+    public decimal ConvertToPresentmentCurrency(decimal storeCurrencyAmount, decimal exchangeRate, string presentmentCurrency)
+    {
+        // Rate is presentment → store, so divide to convert store → presentment
+        // Example: $100 USD with rate 1.36 (GBP→USD) = £73.53 GBP
+        return Round(storeCurrencyAmount / exchangeRate, presentmentCurrency);
+    }
+
     private static string NormalizeCurrencyCode(string currencyCode)
         => string.IsNullOrWhiteSpace(currencyCode) ? "USD" : currencyCode.Trim().ToUpperInvariant();
 

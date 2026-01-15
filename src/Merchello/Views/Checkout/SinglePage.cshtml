@@ -46,6 +46,11 @@
         code = displayCurrencyCode,
         symbol = displayCurrencySymbol
     },
+    // Tax-inclusive display
+    displayPricesIncTax = Model.DisplayPricesIncTax,
+    taxInclusiveDisplaySubTotal = Model.TaxInclusiveDisplaySubTotal,
+    formattedTaxInclusiveDisplaySubTotal = Model.FormattedTaxInclusiveDisplaySubTotal ?? "",
+    taxIncludedMessage = Model.TaxIncludedMessage,
     exchangeRate = exchangeRate,
     email = basket?.BillingAddress?.Email ?? "",
     billing = new {
@@ -449,13 +454,19 @@
 
                     <!-- Payment form container (for hosted fields/widget integrations) -->
                     <div id="payment-form-container" x-show="selectedPaymentMethod && (selectedPaymentMethod.integrationType === 10 || selectedPaymentMethod.integrationType === 30)" x-cloak>
+                        <!-- Skeleton loader while payment form initializes -->
+                        <div x-show="paymentFormInitializing" class="space-y-3">
+                            <div class="h-10 checkout-skeleton rounded-lg"></div>
+                            <div class="h-10 checkout-skeleton rounded-lg"></div>
+                            <div class="h-10 checkout-skeleton rounded-lg"></div>
+                        </div>
                         <!-- Email required message for DirectForm payment methods -->
-                        <div x-show="!form.email" class="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
+                        <div x-show="!paymentFormInitializing && !form.email" x-cloak class="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
                             <p class="text-sm text-amber-700">Please enter your email address above to continue with payment.</p>
                         </div>
-                        <div id="hosted-fields-container"></div>
-                        <div id="widget-container"></div>
-                        <div id="direct-form-container"></div>
+                        <div x-show="!paymentFormInitializing" x-cloak id="hosted-fields-container"></div>
+                        <div x-show="!paymentFormInitializing" x-cloak id="widget-container"></div>
+                        <div x-show="!paymentFormInitializing" x-cloak id="direct-form-container"></div>
                     </div>
 
                     <!-- Redirect payment methods (shown as buttons below the form) -->

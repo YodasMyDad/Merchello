@@ -59,7 +59,7 @@
         }
     </style>
 </head>
-<body class="font-body antialiased min-h-screen flex flex-col">
+<body class="font-body antialiased min-h-screen">
     <!-- Header with Logo -->
     <header class="checkout-header border-b border-gray-200">
         <div class="max-w-6xl mx-auto px-4 py-4">
@@ -142,8 +142,8 @@
     }
 
     <!-- Main Content -->
-    <main class="flex-1 overflow-x-hidden flex flex-col">
-        <div class="max-w-6xl mx-auto px-4 lg:px-8 flex-1 flex flex-col">
+    <main class="overflow-x-hidden">
+        <div class="max-w-6xl mx-auto px-4 lg:px-8">
             @RenderBody()
         </div>
     </main>

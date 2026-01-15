@@ -71,6 +71,9 @@ export function initExpressCheckout() {
         /** @type {number} */
         _lastKnownAmount: 0,
 
+        /** @type {boolean} - Skip re-renders during payment form initialization */
+        _skipReRender: false,
+
         /**
          * Initialize the component
          */
@@ -97,6 +100,8 @@ export function initExpressCheckout() {
 
                 // Listen for basket updates to keep express checkout in sync
                 document.addEventListener('merchello:basket-updated', (e) => {
+                    // Skip re-renders during payment form initialization to prevent buttons from disappearing
+                    if (this._skipReRender) return;
                     if (!this.hasExpressMethods || !this.config || !e.detail) return;
 
                     const oldAmount = this.config.amount;

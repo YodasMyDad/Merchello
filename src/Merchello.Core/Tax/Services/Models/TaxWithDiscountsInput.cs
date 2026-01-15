@@ -28,14 +28,22 @@ public class TaxWithDiscountsInput
     public decimal ShippingAmount { get; init; }
 
     /// <summary>
-    /// Whether shipping should be taxed.
+    /// Whether shipping should be taxed. Should come from ITaxProviderManager.IsShippingTaxedForLocationAsync().
     /// </summary>
     public bool IsShippingTaxable { get; init; }
 
     /// <summary>
-    /// Default tax rate for shipping (as percentage, e.g., 8.25 for 8.25%).
+    /// Default tax rate used when line items don't have their own TaxRate set.
     /// </summary>
     public decimal DefaultTaxRate { get; init; }
+
+    /// <summary>
+    /// The specific shipping tax rate to use. Should come from ITaxProviderManager.GetShippingTaxRateForLocationAsync().
+    /// - null = use proportional calculation (weighted average of line item rates)
+    /// - 0m = shipping is explicitly not taxable
+    /// - positive value = use this specific rate percentage (e.g., 20 for 20%)
+    /// </summary>
+    public decimal? ShippingTaxRate { get; init; }
 }
 
 /// <summary>

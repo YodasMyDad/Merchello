@@ -5,6 +5,8 @@ using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Tax.Providers.BuiltIn;
 using Merchello.Core.Tax.Providers.Models;
+using Merchello.Core.Tax.Services;
+using Merchello.Core.Tax.Services.Interfaces;
 using Moq;
 using Shouldly;
 using Xunit;
@@ -18,6 +20,7 @@ public class ManualTaxProviderTests
 {
     private readonly Mock<ITaxService> _taxServiceMock = new();
     private readonly Mock<ICurrencyService> _currencyServiceMock = new();
+    private readonly ITaxCalculationService _taxCalculationService;
     private readonly ManualTaxProvider _provider;
 
     public ManualTaxProviderTests()
@@ -32,7 +35,10 @@ public class ManualTaxProviderTests
             .Setup(x => x.GetShippingTaxOverrideAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((ShippingTaxOverride?)null);
 
-        _provider = new ManualTaxProvider(_taxServiceMock.Object, _currencyServiceMock.Object);
+        // Create real TaxCalculationService (uses the same currency service mock)
+        _taxCalculationService = new TaxCalculationService(_currencyServiceMock.Object);
+
+        _provider = new ManualTaxProvider(_taxServiceMock.Object, _currencyServiceMock.Object, _taxCalculationService);
     }
 
     [Fact]
@@ -682,6 +688,461 @@ public class ManualTaxProviderTests
         _taxServiceMock.Verify(
             x => x.GetApplicableRateAsync(configShippingTaxGroupId, "US", "CA", It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    #endregion
+
+    #region IsShippingTaxedForLocation Tests (Display Context)
+
+    [Fact]
+    public async Task IsShippingTaxedForLocationAsync_NoOverride_DefaultConfig_ReturnsFalse()
+    {
+        // Arrange - No override, default config (isShippingTaxable = false)
+        // This is the default state when "Tax Shipping" checkbox is unchecked
+
+        // Act
+        var result = await _provider.IsShippingTaxedForLocationAsync("US", "CA");
+
+        // Assert
+        result.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task IsShippingTaxedForLocationAsync_NoOverride_ConfigEnabled_ReturnsTrue()
+    {
+        // Arrange - No override, but isShippingTaxable = true in config
+        await _provider.ConfigureAsync(new TaxProviderConfiguration(new Dictionary<string, string>
+        {
+            { "isShippingTaxable", "true" }
+        }));
+
+        // Act
+        var result = await _provider.IsShippingTaxedForLocationAsync("US", "CA");
+
+        // Assert
+        result.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task IsShippingTaxedForLocationAsync_RegionalOverride_NullTaxGroup_ReturnsFalse()
+    {
+        // Arrange - Regional override with ShippingTaxGroupId = null means "no shipping tax in this region"
+        _taxServiceMock
+            .Setup(x => x.GetShippingTaxOverrideAsync("US", "AL", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShippingTaxOverride
+            {
+                CountryCode = "US",
+                StateOrProvinceCode = "AL",
+                ShippingTaxGroupId = null // Explicitly no shipping tax
+            });
+
+        // Even if global config says shipping is taxable, override takes precedence
+        await _provider.ConfigureAsync(new TaxProviderConfiguration(new Dictionary<string, string>
+        {
+            { "isShippingTaxable", "true" }
+        }));
+
+        // Act
+        var result = await _provider.IsShippingTaxedForLocationAsync("US", "AL");
+
+        // Assert
+        result.ShouldBeFalse(); // Override says no shipping tax
+    }
+
+    [Fact]
+    public async Task IsShippingTaxedForLocationAsync_RegionalOverride_WithTaxGroup_ReturnsTrue()
+    {
+        // Arrange - Regional override with a specific TaxGroupId means shipping IS taxed
+        var shippingTaxGroupId = Guid.NewGuid();
+        _taxServiceMock
+            .Setup(x => x.GetShippingTaxOverrideAsync("GB", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShippingTaxOverride
+            {
+                CountryCode = "GB",
+                StateOrProvinceCode = null,
+                ShippingTaxGroupId = shippingTaxGroupId
+            });
+
+        // Even if global config says shipping is NOT taxable, override takes precedence
+        // (no config = default false)
+
+        // Act
+        var result = await _provider.IsShippingTaxedForLocationAsync("GB", null);
+
+        // Assert
+        result.ShouldBeTrue(); // Override has a tax group = shipping is taxed
+    }
+
+    [Fact]
+    public async Task IsShippingTaxedForLocationAsync_RegionalOverride_TakesPrecedence_OverGlobalConfig()
+    {
+        // Arrange - This test verifies the 4-tier priority system for display purposes
+        // Priority 1: Regional override with null → NOT taxed (this test)
+        // Priority 2: Regional override with TaxGroupId → taxed
+        // Priority 3: Global isShippingTaxable = false → NOT taxed
+        // Priority 4: Global isShippingTaxable = true → taxed
+
+        // Global config says shipping IS taxable
+        await _provider.ConfigureAsync(new TaxProviderConfiguration(new Dictionary<string, string>
+        {
+            { "isShippingTaxable", "true" },
+            { "shippingTaxGroupId", Guid.NewGuid().ToString() }
+        }));
+
+        // But regional override says NO shipping tax for California
+        _taxServiceMock
+            .Setup(x => x.GetShippingTaxOverrideAsync("US", "CA", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShippingTaxOverride
+            {
+                CountryCode = "US",
+                StateOrProvinceCode = "CA",
+                ShippingTaxGroupId = null // No shipping tax in California
+            });
+
+        // Act
+        var result = await _provider.IsShippingTaxedForLocationAsync("US", "CA");
+
+        // Assert - Regional override takes precedence
+        result.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task IsShippingTaxedForLocationAsync_DifferentRegions_ReturnDifferentResults()
+    {
+        // Arrange - Verify that different regions can have different shipping tax rules
+        // California: No shipping tax (override)
+        // Texas: Shipping is taxed (override with TaxGroupId)
+        // New York: Falls back to global config
+
+        var texasShippingTaxGroupId = Guid.NewGuid();
+
+        _taxServiceMock
+            .Setup(x => x.GetShippingTaxOverrideAsync("US", "CA", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShippingTaxOverride
+            {
+                CountryCode = "US",
+                StateOrProvinceCode = "CA",
+                ShippingTaxGroupId = null
+            });
+
+        _taxServiceMock
+            .Setup(x => x.GetShippingTaxOverrideAsync("US", "TX", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShippingTaxOverride
+            {
+                CountryCode = "US",
+                StateOrProvinceCode = "TX",
+                ShippingTaxGroupId = texasShippingTaxGroupId
+            });
+
+        // New York has no override (returns null from mock by default)
+
+        // Global config: shipping is NOT taxable (default)
+
+        // Act & Assert
+        var californiaResult = await _provider.IsShippingTaxedForLocationAsync("US", "CA");
+        californiaResult.ShouldBeFalse(); // Override: null TaxGroupId
+
+        var texasResult = await _provider.IsShippingTaxedForLocationAsync("US", "TX");
+        texasResult.ShouldBeTrue(); // Override: has TaxGroupId
+
+        var newYorkResult = await _provider.IsShippingTaxedForLocationAsync("US", "NY");
+        newYorkResult.ShouldBeFalse(); // No override, falls back to global config (false)
+    }
+
+    [Fact]
+    public async Task IsShippingTaxedForLocationAsync_ConsistentWithTaxCalculation()
+    {
+        // Arrange - The IsShippingTaxedForLocationAsync result should be consistent
+        // with whether CalculateTaxAsync returns ShippingTax > 0
+
+        var itemTaxGroupId = Guid.NewGuid();
+
+        // Config: shipping is taxable with proportional rate
+        await _provider.ConfigureAsync(new TaxProviderConfiguration(new Dictionary<string, string>
+        {
+            { "isShippingTaxable", "true" }
+        }));
+
+        _taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(itemTaxGroupId, "GB", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m);
+
+        var request = new TaxCalculationRequest
+        {
+            ShippingAddress = CreateAddress("GB", null),
+            CurrencyCode = "GBP",
+            ShippingAmount = 10m,
+            LineItems =
+            [
+                new TaxableLineItem
+                {
+                    Sku = "TEST-001",
+                    Name = "Test Product",
+                    Amount = 100m,
+                    Quantity = 1,
+                    TaxGroupId = itemTaxGroupId
+                }
+            ]
+        };
+
+        // Act
+        var isShippingTaxed = await _provider.IsShippingTaxedForLocationAsync("GB", null);
+        var taxResult = await _provider.CalculateTaxAsync(request);
+
+        // Assert - Both should agree that shipping is taxed
+        isShippingTaxed.ShouldBeTrue();
+        taxResult.ShippingTax.ShouldBeGreaterThan(0);
+    }
+
+    #endregion
+
+    #region GetShippingTaxRateForLocation Tests
+
+    [Fact]
+    public async Task GetShippingTaxRateForLocationAsync_NoOverride_DefaultConfig_ReturnsZero()
+    {
+        // Arrange - No override, default config (isShippingTaxable = false)
+        // When shipping is not taxable, rate should be 0
+
+        // Act
+        var result = await _provider.GetShippingTaxRateForLocationAsync("US", "CA");
+
+        // Assert
+        result.ShouldBe(0m);
+    }
+
+    [Fact]
+    public async Task GetShippingTaxRateForLocationAsync_NoOverride_ConfigEnabledNoTaxGroup_ReturnsNull()
+    {
+        // Arrange - Shipping taxable but no tax group configured (proportional mode)
+        await _provider.ConfigureAsync(new TaxProviderConfiguration(new Dictionary<string, string>
+        {
+            { "isShippingTaxable", "true" }
+            // No shippingTaxGroupId - uses proportional calculation which requires line items
+        }));
+
+        // Act
+        var result = await _provider.GetShippingTaxRateForLocationAsync("US", "CA");
+
+        // Assert - null because rate can only be determined with line items (proportional)
+        result.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task GetShippingTaxRateForLocationAsync_RegionalOverride_NullTaxGroup_ReturnsZero()
+    {
+        // Arrange - Regional override explicitly says no shipping tax
+        _taxServiceMock
+            .Setup(x => x.GetShippingTaxOverrideAsync("US", "AL", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShippingTaxOverride
+            {
+                CountryCode = "US",
+                StateOrProvinceCode = "AL",
+                ShippingTaxGroupId = null // Explicitly no shipping tax
+            });
+
+        // Act
+        var result = await _provider.GetShippingTaxRateForLocationAsync("US", "AL");
+
+        // Assert
+        result.ShouldBe(0m);
+    }
+
+    [Fact]
+    public async Task GetShippingTaxRateForLocationAsync_RegionalOverride_WithTaxGroup_ReturnsRate()
+    {
+        // Arrange - Regional override with specific tax group
+        var shippingTaxGroupId = Guid.NewGuid();
+
+        _taxServiceMock
+            .Setup(x => x.GetShippingTaxOverrideAsync("GB", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShippingTaxOverride
+            {
+                CountryCode = "GB",
+                StateOrProvinceCode = null,
+                ShippingTaxGroupId = shippingTaxGroupId
+            });
+
+        _taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(shippingTaxGroupId, "GB", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m); // 20% UK VAT
+
+        // Act
+        var result = await _provider.GetShippingTaxRateForLocationAsync("GB", null);
+
+        // Assert
+        result.ShouldBe(20m);
+    }
+
+    [Fact]
+    public async Task GetShippingTaxRateForLocationAsync_ConfiguredShippingTaxGroup_ReturnsRate()
+    {
+        // Arrange - Provider configured with shipping tax group
+        var shippingTaxGroupId = Guid.NewGuid();
+
+        await _provider.ConfigureAsync(new TaxProviderConfiguration(new Dictionary<string, string>
+        {
+            { "isShippingTaxable", "true" },
+            { "shippingTaxGroupId", shippingTaxGroupId.ToString() }
+        }));
+
+        _taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(shippingTaxGroupId, "GB", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m);
+
+        // Act
+        var result = await _provider.GetShippingTaxRateForLocationAsync("GB", null);
+
+        // Assert
+        result.ShouldBe(20m);
+    }
+
+    [Fact]
+    public async Task GetShippingTaxRateForLocationAsync_DifferentRegions_ReturnDifferentRates()
+    {
+        // Arrange - Different regions have different shipping tax rates
+        var ukShippingTaxGroupId = Guid.NewGuid();
+        var usShippingTaxGroupId = Guid.NewGuid();
+
+        _taxServiceMock
+            .Setup(x => x.GetShippingTaxOverrideAsync("GB", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShippingTaxOverride
+            {
+                CountryCode = "GB",
+                ShippingTaxGroupId = ukShippingTaxGroupId
+            });
+
+        _taxServiceMock
+            .Setup(x => x.GetShippingTaxOverrideAsync("US", "TX", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShippingTaxOverride
+            {
+                CountryCode = "US",
+                StateOrProvinceCode = "TX",
+                ShippingTaxGroupId = usShippingTaxGroupId
+            });
+
+        _taxServiceMock
+            .Setup(x => x.GetShippingTaxOverrideAsync("US", "AL", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShippingTaxOverride
+            {
+                CountryCode = "US",
+                StateOrProvinceCode = "AL",
+                ShippingTaxGroupId = null // No shipping tax in Alabama
+            });
+
+        _taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(ukShippingTaxGroupId, "GB", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m);
+
+        _taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(usShippingTaxGroupId, "US", "TX", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(6.25m);
+
+        // Act & Assert
+        var ukRate = await _provider.GetShippingTaxRateForLocationAsync("GB", null);
+        ukRate.ShouldBe(20m);
+
+        var texasRate = await _provider.GetShippingTaxRateForLocationAsync("US", "TX");
+        texasRate.ShouldBe(6.25m);
+
+        var alabamaRate = await _provider.GetShippingTaxRateForLocationAsync("US", "AL");
+        alabamaRate.ShouldBe(0m); // Explicitly no shipping tax
+    }
+
+    [Fact]
+    public async Task GetShippingTaxRateForLocationAsync_RegionalOverrideTakesPrecedence_OverConfig()
+    {
+        // Arrange - Both regional override and config exist, regional takes precedence
+        var configShippingTaxGroupId = Guid.NewGuid();
+        var overrideShippingTaxGroupId = Guid.NewGuid();
+
+        // Configure with one tax group (10%)
+        await _provider.ConfigureAsync(new TaxProviderConfiguration(new Dictionary<string, string>
+        {
+            { "isShippingTaxable", "true" },
+            { "shippingTaxGroupId", configShippingTaxGroupId.ToString() }
+        }));
+
+        // Override with different tax group (5%)
+        _taxServiceMock
+            .Setup(x => x.GetShippingTaxOverrideAsync("US", "CA", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ShippingTaxOverride
+            {
+                CountryCode = "US",
+                StateOrProvinceCode = "CA",
+                ShippingTaxGroupId = overrideShippingTaxGroupId
+            });
+
+        _taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(configShippingTaxGroupId, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(10m);
+
+        _taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(overrideShippingTaxGroupId, "US", "CA", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(5m);
+
+        // Act
+        var result = await _provider.GetShippingTaxRateForLocationAsync("US", "CA");
+
+        // Assert - Should use override rate (5%), not config rate (10%)
+        result.ShouldBe(5m);
+
+        // Verify override was used, not config
+        _taxServiceMock.Verify(
+            x => x.GetApplicableRateAsync(overrideShippingTaxGroupId, "US", "CA", It.IsAny<CancellationToken>()),
+            Times.Once);
+        _taxServiceMock.Verify(
+            x => x.GetApplicableRateAsync(configShippingTaxGroupId, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task GetShippingTaxRateForLocationAsync_ConsistentWithTaxCalculation()
+    {
+        // Arrange - The rate from GetShippingTaxRateForLocationAsync should match
+        // the effective rate used in CalculateTaxAsync
+        var itemTaxGroupId = Guid.NewGuid();
+        var shippingTaxGroupId = Guid.NewGuid();
+
+        await _provider.ConfigureAsync(new TaxProviderConfiguration(new Dictionary<string, string>
+        {
+            { "isShippingTaxable", "true" },
+            { "shippingTaxGroupId", shippingTaxGroupId.ToString() }
+        }));
+
+        _taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(itemTaxGroupId, "GB", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m);
+
+        _taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(shippingTaxGroupId, "GB", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m);
+
+        var request = new TaxCalculationRequest
+        {
+            ShippingAddress = CreateAddress("GB", null),
+            CurrencyCode = "GBP",
+            ShippingAmount = 10m,
+            LineItems =
+            [
+                new TaxableLineItem
+                {
+                    Sku = "TEST-001",
+                    Name = "Test Product",
+                    Amount = 100m,
+                    Quantity = 1,
+                    TaxGroupId = itemTaxGroupId
+                }
+            ]
+        };
+
+        // Act
+        var rate = await _provider.GetShippingTaxRateForLocationAsync("GB", null);
+        var taxResult = await _provider.CalculateTaxAsync(request);
+
+        // Assert - Rate should be 20%, and shipping tax should be 10 * 20% = 2
+        rate.ShouldBe(20m);
+        taxResult.ShippingTax.ShouldBe(2m); // 10 * 20% = 2
     }
 
     #endregion

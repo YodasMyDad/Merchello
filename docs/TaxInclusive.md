@@ -371,6 +371,22 @@ Line items in the basket need to show prices consistently with product pages:
 
 This may require updating `StorefrontBasketDto` to include display prices per line item.
 
+#### 4.3 Shipping Tax Rate Sourcing
+
+**IMPORTANT:** Shipping tax rate is now sourced directly from the tax provider via `ITaxProviderManager.GetShippingTaxRateForLocationAsync()`.
+
+The `StorefrontDisplayContext` includes:
+- `IsShippingTaxable` (bool) - whether shipping is taxable for the location
+- `ShippingTaxRate` (decimal?) - the actual shipping tax rate percentage from the provider
+
+**How it works:**
+1. `StorefrontContextService.GetDisplayContextAsync()` calls `taxProviderManager.GetShippingTaxRateForLocationAsync()`
+2. `ManualTaxProvider` returns the rate based on 4-tier priority (regional override → config → tax group → null for proportional)
+3. API-based providers (Avalara) return `null` (rate requires full calculation)
+4. `DisplayCurrencyExtensions.GetDisplayAmounts()` uses `ShippingTaxRate` for tax-inclusive shipping display
+
+**Note:** Shipping can have a **different tax rate** than products via shipping tax overrides. The shipping tax rate is NOT derived from product tax rates.
+
 ---
 
 ### Phase 5: Frontend Updates
