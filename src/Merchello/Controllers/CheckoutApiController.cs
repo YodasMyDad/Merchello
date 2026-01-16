@@ -286,7 +286,8 @@ public class CheckoutApiController(
             CountryCode = request.CountryCode,
             StateCode = request.StateCode,
             AutoSelectCheapestShipping = request.AutoSelectCheapestShipping,
-            Email = request.Email
+            Email = request.Email,
+            PreviousShippingSelections = request.PreviousShippingSelections
         }, ct);
 
         if (!result.Successful)

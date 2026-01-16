@@ -18,6 +18,11 @@ const BASE_URL = '/api/merchello/checkout';
  * @property {number} tax
  * @property {number} subtotal
  * @property {number} discount
+ * @property {number} [displayTotal] - Total in display currency
+ * @property {number} [displayShipping] - Shipping in display currency
+ * @property {number} [displayTax] - Tax in display currency
+ * @property {number} [displaySubTotal] - Subtotal in display currency
+ * @property {number} [displayDiscount] - Discount in display currency
  */
 
 /**
@@ -104,6 +109,7 @@ export const checkoutApi = {
      * @param {string} [data.stateCode]
      * @param {boolean} [data.autoSelectCheapestShipping]
      * @param {string} [data.email]
+     * @param {Object.<string, string>} [data.previousShippingSelections] - Previous shipping selections to restore (groupId -> optionId)
      * @returns {Promise<{success: boolean, message?: string, basket?: BasketTotals & {errors?: BasketError[]}, shippingGroups?: ShippingGroup[]}>}
      */
     initialize(data) {
