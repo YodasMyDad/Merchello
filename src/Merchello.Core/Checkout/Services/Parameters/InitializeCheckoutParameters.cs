@@ -31,4 +31,10 @@ public class InitializeCheckoutParameters
     /// Optional email for session tracking.
     /// </summary>
     public string? Email { get; init; }
+
+    /// <summary>
+    /// Previously selected shipping options to restore (groupId -> optionId).
+    /// When provided, these selections are validated and used instead of auto-selecting cheapest.
+    /// </summary>
+    public Dictionary<string, string>? PreviousShippingSelections { get; init; }
 }

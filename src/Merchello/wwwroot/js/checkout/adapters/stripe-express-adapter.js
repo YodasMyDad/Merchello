@@ -244,6 +244,37 @@
                     countryCode: billingDetails.address.country || ''
                 } : null
             };
+        },
+
+        /**
+         * Clean up all express buttons (called by express-checkout.js)
+         */
+        async teardownAll() {
+            await this.teardown();
+        },
+
+        /**
+         * Clean up Stripe express checkout element
+         * Destroys the element and resets state so a fresh instance can be created
+         */
+        async teardown() {
+            try {
+                if (expressCheckoutElement) {
+                    // Stripe's destroy() removes the element and cleans up event listeners
+                    expressCheckoutElement.destroy();
+                    expressCheckoutElement = null;
+                }
+
+                // Reset elements instance so it gets recreated with new amount on next render
+                // This is important when basket total changes (e.g., shipping rate selection)
+                if (elementsInstance) {
+                    elementsInstance = null;
+                }
+
+                currentConfig = null;
+            } catch (e) {
+                console.warn('Error during Stripe express teardown:', e);
+            }
         }
     };
 

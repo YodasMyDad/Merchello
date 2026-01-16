@@ -26,4 +26,11 @@ public class InitializeCheckoutRequestDto
     /// Optional email for session tracking.
     /// </summary>
     public string? Email { get; set; }
+
+    /// <summary>
+    /// Previously selected shipping options to restore (groupId -> optionId).
+    /// When provided, these selections are validated and used instead of auto-selecting cheapest.
+    /// This allows the frontend to persist user's shipping preferences across address changes.
+    /// </summary>
+    public Dictionary<string, string>? PreviousShippingSelections { get; set; }
 }

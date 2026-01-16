@@ -83,6 +83,54 @@ public static class ShippingAutoSelector
         }
     }
 
+    /// <summary>
+    /// Validates and restores previous shipping selections from frontend.
+    /// Returns valid selections where the shipping option still exists for the group.
+    /// Groups without a valid previous selection will need to use fallback (e.g., auto-select cheapest).
+    /// </summary>
+    /// <param name="groups">The order groups with available shipping options.</param>
+    /// <param name="previousSelections">Frontend selections (groupId string -> optionId string).</param>
+    /// <returns>Validated selections (GroupId Guid -> OptionId Guid) for groups with valid previous selections.</returns>
+    public static Dictionary<Guid, Guid> ValidatePreviousSelections(
+        IEnumerable<OrderGroup> groups,
+        Dictionary<string, string>? previousSelections)
+    {
+        var validSelections = new Dictionary<Guid, Guid>();
+
+        if (previousSelections == null || previousSelections.Count == 0)
+        {
+            return validSelections;
+        }
+
+        foreach (var group in groups)
+        {
+            var groupIdStr = group.GroupId.ToString();
+
+            // Try to find a previous selection for this group
+            if (!previousSelections.TryGetValue(groupIdStr, out var optionIdStr))
+            {
+                continue;
+            }
+
+            // Parse the option ID
+            if (!Guid.TryParse(optionIdStr, out var optionId))
+            {
+                continue;
+            }
+
+            // Validate the option still exists for this group
+            var optionExists = group.AvailableShippingOptions
+                .Any(o => o.ShippingOptionId == optionId);
+
+            if (optionExists)
+            {
+                validSelections[group.GroupId] = optionId;
+            }
+        }
+
+        return validSelections;
+    }
+
     private static Guid? SelectCheapest(IEnumerable<ShippingOptionInfo> options)
     {
         return options

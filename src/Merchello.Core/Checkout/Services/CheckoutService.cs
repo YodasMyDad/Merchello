@@ -1920,26 +1920,56 @@ public class CheckoutService(
             }
         }
 
-        // Auto-select cheapest shipping if requested
-        var autoSelectedOptions = new Dictionary<Guid, Guid>();
+        // Determine shipping selections: restore previous selections if valid, otherwise auto-select
+        var finalSelections = new Dictionary<Guid, Guid>();
         decimal combinedShippingTotal = 0;
+        var shippingAutoSelected = false;
 
-        if (parameters.AutoSelectCheapestShipping && groupingResult.Groups.Count > 0)
+        if (groupingResult.Groups.Count > 0)
         {
-            // Use the auto-selector utility
-            autoSelectedOptions = ShippingAutoSelector.SelectOptions(
+            // First, try to validate and restore previous selections from frontend
+            var validPreviousSelections = ShippingAutoSelector.ValidatePreviousSelections(
                 groupingResult.Groups,
-                ShippingAutoSelectStrategy.Cheapest);
+                parameters.PreviousShippingSelections);
 
-            // Apply selections to groups
-            ShippingAutoSelector.ApplySelectionsToGroups(groupingResult.Groups, autoSelectedOptions);
+            // Start with valid previous selections
+            foreach (var selection in validPreviousSelections)
+            {
+                finalSelections[selection.Key] = selection.Value;
+            }
 
-            // Calculate combined shipping total
+            // For groups without a valid previous selection, auto-select cheapest if enabled
+            if (parameters.AutoSelectCheapestShipping)
+            {
+                var groupsNeedingAutoSelect = groupingResult.Groups
+                    .Where(g => !finalSelections.ContainsKey(g.GroupId))
+                    .ToList();
+
+                if (groupsNeedingAutoSelect.Count > 0)
+                {
+                    var autoSelectedOptions = ShippingAutoSelector.SelectOptions(
+                        groupsNeedingAutoSelect,
+                        ShippingAutoSelectStrategy.Cheapest);
+
+                    foreach (var selection in autoSelectedOptions)
+                    {
+                        finalSelections[selection.Key] = selection.Value;
+                    }
+
+                    // Only mark as auto-selected if we actually auto-selected (not restored)
+                    shippingAutoSelected = autoSelectedOptions.Count > 0 && validPreviousSelections.Count == 0;
+                }
+            }
+
+            // Apply all selections to groups
+            ShippingAutoSelector.ApplySelectionsToGroups(groupingResult.Groups, finalSelections);
+
+            // Calculate combined shipping total from final selections
             combinedShippingTotal = ShippingAutoSelector.CalculateCombinedTotal(
                 groupingResult.Groups,
-                autoSelectedOptions);
+                finalSelections);
 
-            // Recalculate totals with the auto-selected shipping amount
+            // Recalculate totals with the selected shipping amount
             await CalculateBasketAsync(new CalculateBasketParameters
             {
                 Basket = basket,
@@ -1947,10 +1977,10 @@ public class CheckoutService(
                 ShippingAmountOverride = combinedShippingTotal
             }, cancellationToken);
 
-            // Save auto-selections to session
+            // Save selections to session
             await checkoutSessionService.SaveShippingSelectionsAsync(
                 basket.Id,
-                autoSelectedOptions,
+                finalSelections,
                 null,
                 cancellationToken);
         }
@@ -1983,9 +2013,9 @@ public class CheckoutService(
         {
             Basket = basket,
             GroupingResult = groupingResult,
-            AutoSelectedShippingOptions = autoSelectedOptions,
+            AutoSelectedShippingOptions = finalSelections,
             CombinedShippingTotal = combinedShippingTotal,
-            ShippingAutoSelected = parameters.AutoSelectCheapestShipping && autoSelectedOptions.Count > 0
+            ShippingAutoSelected = shippingAutoSelected
         };
 
         return result;

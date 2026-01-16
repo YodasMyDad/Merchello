@@ -88,6 +88,13 @@ export function initExpressCheckout() {
             const wasSkipping = this._skipReRender;
             this._skipReRender = skip;
 
+            // When skip becomes true, cancel any pending debounced re-render
+            // to prevent it from firing while we're supposed to be skipping
+            if (skip && this._reRenderTimeout) {
+                clearTimeout(this._reRenderTimeout);
+                this._reRenderTimeout = null;
+            }
+
             // When transitioning from skip=true to skip=false,
             // check if we need to do a pending re-render
             if (wasSkipping && !skip && this._pendingReRender) {
@@ -150,6 +157,11 @@ export function initExpressCheckout() {
                         // but mark that we need to re-render later
                         if (this._skipReRender) {
                             this._pendingReRender = true;
+                            // Also cancel any pending debounced re-render from before skip was set
+                            if (this._reRenderTimeout) {
+                                clearTimeout(this._reRenderTimeout);
+                                this._reRenderTimeout = null;
+                            }
                             return;
                         }
 
@@ -246,7 +258,8 @@ export function initExpressCheckout() {
                 const adapter = window.MerchelloExpressAdapters[key];
                 if (adapter && !tornDown.has(adapter) && typeof adapter.teardownAll === 'function') {
                     try {
-                        adapter.teardownAll();
+                        // Await teardown to ensure PayPal buttons are fully closed before re-rendering
+                        await adapter.teardownAll();
                         tornDown.add(adapter);
                     } catch (e) {
                         console.warn(`Failed to teardown adapter ${key}:`, e);

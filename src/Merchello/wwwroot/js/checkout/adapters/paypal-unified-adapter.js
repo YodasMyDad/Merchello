@@ -117,9 +117,10 @@
                     return;
                 }
 
-                // Create unique container
+                // Create unique container with timestamp to avoid PayPal SDK ID conflicts
+                const uniqueId = `paypal-express-${method.methodAlias}-${Date.now()}`;
                 const elementContainer = document.createElement('div');
-                elementContainer.id = 'paypal-express-' + method.methodAlias;
+                elementContainer.id = uniqueId;
                 elementContainer.style.width = '100%';
                 container.appendChild(elementContainer);
 
@@ -243,10 +244,7 @@
                         providerAlias: method.providerAlias || 'paypal',
                         methodAlias: method.methodAlias,
                         amount: config.amount,
-                        currency: config.currency,
-                        subTotal: config.subTotal,
-                        shipping: config.shipping,
-                        tax: config.tax
+                        currency: config.currency
                     })
                 });
 
@@ -390,29 +388,31 @@
         /**
          * Clean up all express buttons (called by express-checkout.js)
          */
-        teardownAll() {
-            this.teardown();
+        async teardownAll() {
+            await this.teardown();
         },
 
         /**
          * Clean up resources
          */
-        teardown(methodAlias) {
+        async teardown(methodAlias) {
             if (methodAlias) {
                 // Teardown specific button
                 const entry = renderedButtons[methodAlias];
                 if (entry) {
                     try {
-                        entry.button?.close?.();
+                        // PayPal's close() may be async - await it to ensure cleanup completes
+                        await entry.button?.close?.();
                     } catch (e) { /* ignore */ }
                     document.getElementById(entry.containerId)?.remove();
                     delete renderedButtons[methodAlias];
                 }
             } else {
-                // Teardown all
-                Object.keys(renderedButtons).forEach(alias => {
-                    this.teardown(alias);
-                });
+                // Teardown all - await each to ensure proper cleanup
+                const aliases = Object.keys(renderedButtons);
+                for (const alias of aliases) {
+                    await this.teardown(alias);
+                }
 
                 // Clear standard payment state
                 const buttonContainer = currentContainer?.querySelector('#paypal-button-container');

@@ -33,6 +33,10 @@ const PAYMENT_CONTAINER_IDS = {
     [IntegrationType.DirectForm]: 'direct-form-container'
 };
 
+// Checkout callback URLs
+const getCheckoutReturnUrl = () => `${window.location.origin}/checkout/return`;
+const getCheckoutCancelUrl = () => `${window.location.origin}/checkout/cancel`;
+
 /**
  * Initialize the single page checkout Alpine.data component
  */
@@ -71,7 +75,6 @@ export function initSinglePageCheckout() {
 
             cardPaymentMethods: [],
             redirectPaymentMethods: [],
-            selectedPaymentMethodKey: '',
 
             // ============================================
             // Private State
@@ -109,6 +112,7 @@ export function initSinglePageCheckout() {
             get basketTotal() { return this.$store.checkout?.basket?.total ?? 0; },
             get basketShipping() { return this.$store.checkout?.basket?.shipping ?? 0; },
             get basketTax() { return this.$store.checkout?.basket?.tax ?? 0; },
+            get basketSubtotal() { return this.$store.checkout?.basket?.subtotal ?? 0; },
             get currencySymbol() { return this.$store.checkout?.currency?.symbol ?? '£'; },
 
             // ============================================
@@ -166,12 +170,9 @@ export function initSinglePageCheckout() {
             // ============================================
 
             async init() {
-                const store = this.$store.checkout;
-                const initialData = this.getInitialDataFromStore();
-
                 // Sync local state from store
-                this.shippingSameAsBilling = store?.form?.sameAsBilling ?? true;
-                this._shippingCalculated = (store?.shippingGroups?.length ?? 0) > 0;
+                this.shippingSameAsBilling = this.$store.checkout?.form?.sameAsBilling ?? true;
+                this._shippingCalculated = (this.$store.checkout?.shippingGroups?.length ?? 0) > 0;
 
                 // Load regions for initial countries
                 if (this.form.billing.countryCode) {
@@ -216,16 +217,8 @@ export function initSinglePageCheckout() {
                 });
             },
 
-            getInitialDataFromStore() {
-                return {
-                    email: this.$store.checkout?.form?.email ?? '',
-                    billing: this.$store.checkout?.form?.billing ?? {},
-                    shipping: this.$store.checkout?.form?.shipping ?? {}
-                };
-            },
-
             // ============================================
-            // Helper Methods (kept for template compatibility)
+            // Helper Methods
             // ============================================
 
             announce(message) {
@@ -258,7 +251,7 @@ export function initSinglePageCheckout() {
                         shipping: this.basketShipping,
                         tax: this.basketTax,
                         total: this.basketTotal,
-                        subTotal: this.basketTotal - this.basketShipping - this.basketTax
+                        subTotal: this.basketSubtotal
                     }
                 }));
                 this.$store.checkout?.updateBasket({
@@ -296,6 +289,62 @@ export function initSinglePageCheckout() {
             isPaymentMethodSelected(method) {
                 return this.selectedPaymentMethod?.providerAlias === method.providerAlias &&
                        this.selectedPaymentMethod?.methodAlias === method.methodAlias;
+            },
+
+            /**
+             * Check if the integration type requires a payment form (HostedFields or DirectForm)
+             * @param {number} integrationType
+             * @returns {boolean}
+             */
+            requiresPaymentForm(integrationType) {
+                return [IntegrationType.HostedFields, IntegrationType.DirectForm].includes(integrationType);
+            },
+
+            /**
+             * Check if current payment session matches the selected payment method
+             * @returns {boolean}
+             */
+            get paymentSessionMatchesMethod() {
+                return this.paymentSession &&
+                    this.paymentSession.providerAlias === this.selectedPaymentMethod?.providerAlias &&
+                    this.paymentSession.methodAlias === (this.selectedPaymentMethod?.methodAlias || null);
+            },
+
+            /**
+             * Check if express checkout re-render should be skipped
+             * (when we have an active payment form that will be re-initialized)
+             * @returns {boolean}
+             */
+            shouldSkipExpressReRender() {
+                // Skip re-renders while payment form is being initialized
+                // (paymentSession is temporarily null during reinit)
+                if (this.paymentFormInitializing) return true;
+
+                return this.paymentSession &&
+                    this.requiresPaymentForm(this.paymentSession.integrationType) &&
+                    this.selectedPaymentMethod;
+            },
+
+            /**
+             * Update basket in store and dispatch event, then reinitialize payment form if active.
+             * Handles the express checkout re-render skip flag to prevent UI flickering.
+             * @param {{ total?: number, shipping?: number, tax?: number, subtotal?: number }} basketUpdate
+             */
+            async updateBasketAndReinitPayment(basketUpdate) {
+                this.$store.checkout?.updateBasket(basketUpdate);
+
+                const willReinitPayment = this.shouldSkipExpressReRender();
+                if (willReinitPayment) {
+                    this.setExpressReRenderSkip(true);
+                }
+
+                this.dispatchBasketUpdate();
+
+                if (willReinitPayment) {
+                    await this.reinitializePaymentFormIfActive();
+                } else {
+                    this.setExpressReRenderSkip(false);
+                }
             },
 
             // ============================================
@@ -435,7 +484,8 @@ export function initSinglePageCheckout() {
                         countryCode: this.form.shipping.countryCode,
                         stateCode: this.form.shipping.stateCode,
                         autoSelectCheapestShipping: true,
-                        email: this.form.email
+                        email: this.form.email,
+                        previousShippingSelections: this.shippingSelections
                     });
 
                     if (requestId !== this._shippingRequestId) return;
@@ -448,33 +498,15 @@ export function initSinglePageCheckout() {
                             }
                         });
 
-                        // Build selections, preserving user's previous choice if still valid
+                        // Build selections from API response - backend has already validated and applied
+                        // previous selections or auto-selected cheapest as appropriate
                         const selections = {};
                         groups.forEach(g => {
-                            // Try lookup by groupId first
-                            let previousSelection = this.shippingSelections[g.groupId];
-
-                            // Fallback: try lookup by warehouseId (handles groupId changes when available options change)
-                            if (!previousSelection && g.warehouseId) {
-                                previousSelection = this.shippingSelections[g.warehouseId];
-                            }
-
-                            const previousSelectionStillValid = previousSelection &&
-                                g.shippingOptions?.some(o => o.id === previousSelection);
-
-                            let selectedOptionId;
-                            if (previousSelectionStillValid) {
-                                selectedOptionId = previousSelection;
-                            } else if (g.selectedShippingOptionId) {
-                                const optionExists = g.shippingOptions?.some(o => o.id === g.selectedShippingOptionId);
-                                if (optionExists) selectedOptionId = g.selectedShippingOptionId;
-                            }
-
-                            if (selectedOptionId) {
-                                selections[g.groupId] = selectedOptionId;
-                                // Also store by warehouseId for future fallback lookups
+                            if (g.selectedShippingOptionId) {
+                                selections[g.groupId] = g.selectedShippingOptionId;
+                                // Also store by warehouseId for future lookups
                                 if (g.warehouseId) {
-                                    selections[g.warehouseId] = selectedOptionId;
+                                    selections[g.warehouseId] = g.selectedShippingOptionId;
                                 }
                             }
                         });
@@ -482,15 +514,13 @@ export function initSinglePageCheckout() {
                         store?.updateShipping(groups, selections);
 
                         if (data.basket) {
-                            store?.updateBasket({
+                            // Trust the API response - backend calculates totals with correct shipping selections
+                            await this.updateBasketAndReinitPayment({
                                 total: data.basket.displayTotal ?? data.basket.total,
                                 shipping: data.basket.displayShipping ?? data.basket.shipping ?? 0,
-                                tax: data.basket.displayTax ?? data.basket.tax ?? 0
+                                tax: data.basket.displayTax ?? data.basket.tax ?? 0,
+                                subtotal: data.basket.displaySubTotal ?? data.basket.subtotal ?? 0
                             });
-                            this.dispatchBasketUpdate();
-
-                            // Re-initialize payment form with new totals (shows skeleton immediately)
-                            await this.reinitializePaymentFormIfActive();
 
                             if (data.basket.errors?.length > 0) {
                                 const shippingErrors = data.basket.errors.filter(e => e.isShippingError);
@@ -518,6 +548,7 @@ export function initSinglePageCheckout() {
                     if (requestId !== this._shippingRequestId) return;
                     console.error('Failed to calculate shipping:', error);
                     store?.setShippingError('An error occurred while calculating shipping.');
+                    store.itemAvailabilityErrors = [];
                     store.allItemsShippable = false;
                     store?.updateShipping([], {});
                 } finally {
@@ -539,17 +570,14 @@ export function initSinglePageCheckout() {
                 try {
                     const data = await checkoutApi.saveShipping(this.shippingSelections);
                     if (data.success && data.basket) {
-                        this.$store.checkout?.updateBasket({
+                        await this.updateBasketAndReinitPayment({
                             total: data.basket.displayTotal ?? data.basket.total,
                             shipping: data.basket.displayShipping ?? data.basket.shipping ?? 0,
                             tax: data.basket.displayTax ?? data.basket.tax ?? 0
                         });
-                        this.dispatchBasketUpdate();
-
-                        // Re-initialize payment form with new totals (shows skeleton immediately)
-                        await this.reinitializePaymentFormIfActive();
                     }
                 } catch (error) {
+                    this.setExpressReRenderSkip(false);
                     console.error('Failed to update shipping totals:', error);
                 }
             },
@@ -570,7 +598,7 @@ export function initSinglePageCheckout() {
                 // Only re-init for HostedFields/DirectForm types that have an active session
                 // PayPal/Widget types handle amount updates differently (via express checkout re-render)
                 if (!this.paymentSession) return;
-                if (![IntegrationType.HostedFields, IntegrationType.DirectForm].includes(this.paymentSession.integrationType)) return;
+                if (!this.requiresPaymentForm(this.paymentSession.integrationType)) return;
                 if (!this.selectedPaymentMethod) return;
 
                 // Clear any pending re-init to debounce rapid changes
@@ -652,7 +680,7 @@ export function initSinglePageCheckout() {
 
             async initializePaymentForm(method) {
                 if (!method) return;
-                if (![IntegrationType.HostedFields, IntegrationType.DirectForm].includes(method.integrationType)) return;
+                if (!this.requiresPaymentForm(method.integrationType)) return;
 
                 const requestId = ++this._paymentInitRequestId;
                 const store = this.$store.checkout;
@@ -684,14 +712,11 @@ export function initSinglePageCheckout() {
                         return;
                     }
 
-                    const returnUrl = window.location.origin + '/checkout/return';
-                    const cancelUrl = window.location.origin + '/checkout/cancel';
-
                     const payData = await checkoutApi.initiatePayment({
                         providerAlias: method.providerAlias,
                         methodAlias: method.methodAlias || null,
-                        returnUrl,
-                        cancelUrl
+                        returnUrl: getCheckoutReturnUrl(),
+                        cancelUrl: getCheckoutCancelUrl()
                     });
 
                     if (requestId !== this._paymentInitRequestId) {
@@ -834,9 +859,10 @@ export function initSinglePageCheckout() {
                         if (window.MerchelloSinglePageAnalytics) {
                             window.MerchelloSinglePageAnalytics.trackContactInfo(this.form.email);
                         }
-                        this.captureEmail();
+                        this.captureEmail().catch(err => console.error('Email capture failed:', err));
                         if (this.selectedPaymentMethod && !this.paymentSession) {
-                            this.initializePaymentForm(this.selectedPaymentMethod);
+                            this.initializePaymentForm(this.selectedPaymentMethod)
+                                .catch(err => console.error('Payment form init failed:', err));
                         }
                     }
                 } else if (field.startsWith('billing.') || field.startsWith('shipping.')) {
@@ -913,21 +939,15 @@ export function initSinglePageCheckout() {
                     const shippingData = await checkoutApi.saveShipping(this.shippingSelections);
                     if (!shippingData.success) throw new Error(shippingData.message || 'Failed to save shipping');
 
-                    const sessionMatchesMethod = this.paymentSession &&
-                        this.paymentSession.providerAlias === this.selectedPaymentMethod.providerAlias &&
-                        this.paymentSession.methodAlias === (this.selectedPaymentMethod.methodAlias || null);
-
                     let payData;
-                    if (sessionMatchesMethod) {
+                    if (this.paymentSessionMatchesMethod) {
                         payData = this.paymentSession;
                     } else {
-                        const returnUrl = window.location.origin + '/checkout/return';
-                        const cancelUrl = window.location.origin + '/checkout/cancel';
                         payData = await checkoutApi.initiatePayment({
                             providerAlias: this.selectedPaymentMethod.providerAlias,
                             methodAlias: this.selectedPaymentMethod.methodAlias || null,
-                            returnUrl,
-                            cancelUrl
+                            returnUrl: getCheckoutReturnUrl(),
+                            cancelUrl: getCheckoutCancelUrl()
                         });
                         if (!payData.success) throw new Error(payData.errorMessage || 'Failed to initiate payment');
                         store?.setPaymentSession(payData);
@@ -939,7 +959,7 @@ export function initSinglePageCheckout() {
                     }
 
                     if (window.MerchelloPayment) {
-                        if (!sessionMatchesMethod) {
+                        if (!this.paymentSessionMatchesMethod) {
                             const containerId = PAYMENT_CONTAINER_IDS[payData.integrationType] || 'hosted-fields-container';
 
                             await window.MerchelloPayment.handlePaymentFlow(payData, {
