@@ -185,6 +185,13 @@ public class OrderConfirmationDto
     public string? TaxIncludedMessage { get; set; }
 
     /// <summary>
+    /// The effective shipping tax rate calculated for this invoice (for proportional/weighted mode).
+    /// Used to display tax-inclusive shipping when no specific rate is configured.
+    /// Null if shipping is not taxable or a specific rate was used from the tax provider.
+    /// </summary>
+    public decimal? EffectiveShippingTaxRate { get; set; }
+
+    /// <summary>
     /// Shipping method information per order/shipment group.
     /// </summary>
     public List<ShipmentSummaryDto> Shipments { get; set; } = [];

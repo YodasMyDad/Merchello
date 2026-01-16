@@ -63,6 +63,13 @@ public class Basket
     public decimal Tax { get; set; }
 
     /// <summary>
+    /// Effective shipping tax rate percentage (weighted average of line item rates).
+    /// Used for tax-inclusive display when shipping uses proportional calculation.
+    /// Null when shipping is not taxable or a specific rate was configured.
+    /// </summary>
+    public decimal? EffectiveShippingTaxRate { get; set; }
+
+    /// <summary>
     /// Holds the Total of the basket
     /// </summary>
     public decimal Total { get; set; }

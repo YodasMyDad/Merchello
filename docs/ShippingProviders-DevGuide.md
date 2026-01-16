@@ -83,6 +83,8 @@ External providers must declare their supported service types via `GetSupportedS
 - **DRY**: Display names defined once, not duplicated in code
 - **UI Generation**: Dropdowns auto-generated from provider metadata
 
+The `ShippingServiceType` record is defined in [ShippingServiceType.cs](../src/Merchello.Core/Shipping/Models/ShippingServiceType.cs):
+
 ```csharp
 /// <summary>
 /// Concrete model for shipping service types.
@@ -394,22 +396,26 @@ When implementing a new provider, verify that:
 ## Example 1: FedEx (Real-Time Rates)
 
 ```csharp
-public class FedExShippingProvider : ShippingProviderBase
+public class FedExShippingProvider(
+    IOptions<MerchelloSettings> settings,
+    IExchangeRateCache exchangeRateCache,
+    ICurrencyService currencyService) : ShippingProviderBase, IDisposable
 {
-    private string? _accountNumber;
-    private string? _apiKey;
-    private string? _secretKey;
-    private bool _useProduction;
+    private readonly MerchelloSettings _settings = settings.Value;
+    private readonly IExchangeRateCache _exchangeRateCache = exchangeRateCache;
+    private readonly ICurrencyService _currencyService = currencyService;
+
+    private FedExApiClient? _apiClient;
 
     public override ShippingProviderMetadata Metadata => new()
     {
         Key = "fedex",
         DisplayName = "FedEx",
         Icon = "icon-truck",
-        Description = "Real-time FedEx shipping rates",
+        Description = "Real-time FedEx shipping rates via FedEx REST API",
         SupportsRealTimeRates = true,
         SupportsTracking = true,
-        SupportsLabelGeneration = true,
+        SupportsLabelGeneration = false,
         SupportsDeliveryDateSelection = false,
         SupportsInternational = true,
         RequiresFullAddress = true,
@@ -428,8 +434,12 @@ public class FedExShippingProvider : ShippingProviderBase
     [
         new ShippingServiceType { Code = "FEDEX_GROUND", DisplayName = "FedEx Ground", ProviderKey = "fedex" },
         new ShippingServiceType { Code = "FEDEX_2_DAY", DisplayName = "FedEx 2Day", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "FEDEX_2_DAY_AM", DisplayName = "FedEx 2Day A.M.", ProviderKey = "fedex" },
         new ShippingServiceType { Code = "STANDARD_OVERNIGHT", DisplayName = "FedEx Standard Overnight", ProviderKey = "fedex" },
-        new ShippingServiceType { Code = "PRIORITY_OVERNIGHT", DisplayName = "FedEx Priority Overnight", ProviderKey = "fedex" }
+        new ShippingServiceType { Code = "PRIORITY_OVERNIGHT", DisplayName = "FedEx Priority Overnight", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "FIRST_OVERNIGHT", DisplayName = "FedEx First Overnight", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "INTERNATIONAL_ECONOMY", DisplayName = "FedEx International Economy", ProviderKey = "fedex" },
+        new ShippingServiceType { Code = "INTERNATIONAL_PRIORITY", DisplayName = "FedEx International Priority", ProviderKey = "fedex" }
     ];
 
     // O(1) lookup for service type resolution
@@ -443,17 +453,18 @@ public class FedExShippingProvider : ShippingProviderBase
         return ValueTask.FromResult(SupportedServiceTypes);
     }
 
-    // GLOBAL CONFIG: API credentials
+    // GLOBAL CONFIG: API credentials (uses OAuth with Client ID/Secret)
     public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken ct = default)
     {
         return ValueTask.FromResult<IEnumerable<ShippingProviderConfigurationField>>(
         [
+            new() { Key = "clientId", Label = "API Key (Client ID)", FieldType = ConfigurationFieldType.Text, IsRequired = true },
+            new() { Key = "clientSecret", Label = "Secret Key", FieldType = ConfigurationFieldType.Password, IsSensitive = true, IsRequired = true },
             new() { Key = "accountNumber", Label = "Account Number", FieldType = ConfigurationFieldType.Text, IsRequired = true },
-            new() { Key = "apiKey", Label = "API Key", FieldType = ConfigurationFieldType.Password, IsSensitive = true, IsRequired = true },
-            new() { Key = "secretKey", Label = "Secret Key", FieldType = ConfigurationFieldType.Password, IsSensitive = true, IsRequired = true },
             new() { Key = "environment", Label = "Environment", FieldType = ConfigurationFieldType.Select, IsRequired = true,
-                    Options = [new("sandbox", "Sandbox"), new("production", "Production")] }
+                    DefaultValue = "sandbox",
+                    Options = [new("sandbox", "Sandbox (Testing)"), new("production", "Production (Live)")] }
         ]);
     }
 
@@ -466,50 +477,79 @@ public class FedExShippingProvider : ShippingProviderBase
             new() { Key = "name", Label = "Method Name", FieldType = ConfigurationFieldType.Text, IsRequired = false,
                     Placeholder = "e.g., FedEx Ground (optional, defaults to service type name)" },
             new() { Key = "markup", Label = "Markup %", FieldType = ConfigurationFieldType.Percentage,
-                    Description = "Percentage to add to FedEx rates" }
+                    Description = "Percentage to add to FedEx rates", DefaultValue = "0" }
         ]);
     }
 
-    public override ValueTask ConfigureAsync(ShippingProviderConfiguration? config, CancellationToken ct = default)
+    public override async ValueTask ConfigureAsync(ShippingProviderConfiguration? config, CancellationToken ct = default)
     {
-        if (config?.SettingsJson != null)
-        {
-            var settings = JsonSerializer.Deserialize<Dictionary<string, string>>(config.SettingsJson);
-            _accountNumber = settings?.GetValueOrDefault("accountNumber");
-            _apiKey = settings?.GetValueOrDefault("apiKey");
-            _secretKey = settings?.GetValueOrDefault("secretKey");
-        }
-        _useProduction = !(config?.IsTestMode ?? true);
-        return ValueTask.CompletedTask;
+        await base.ConfigureAsync(config, ct);
+
+        if (config?.SettingsJson == null) return;
+
+        var settings = JsonSerializer.Deserialize<Dictionary<string, string>>(config.SettingsJson);
+        if (settings == null) return;
+
+        var clientId = settings.GetValueOrDefault("clientId");
+        var clientSecret = settings.GetValueOrDefault("clientSecret");
+        var accountNumber = settings.GetValueOrDefault("accountNumber");
+        var environment = settings.GetValueOrDefault("environment") ?? "sandbox";
+
+        if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret) || string.IsNullOrEmpty(accountNumber))
+            return;
+
+        var useSandbox = environment.Equals("sandbox", StringComparison.OrdinalIgnoreCase);
+        _apiClient = new FedExApiClient(clientId, clientSecret, accountNumber, useSandbox);
     }
 
     public override bool IsAvailableFor(ShippingQuoteRequest request)
     {
         if (request.IsEstimateMode) return false;
-        return request.Items.Any(i => i.IsShippable && i.TotalWeightKg > 0);
+        if (_apiClient == null) return false;
+        return request.Items.Any(i => i.IsShippable && (i.TotalWeightKg ?? 0) > 0);
     }
 
     public override async Task<ShippingRateQuote?> GetRatesAsync(
         ShippingQuoteRequest request, CancellationToken ct = default)
     {
-        if (!IsAvailableFor(request)) return null;
+        if (!IsAvailableFor(request) || _apiClient == null) return null;
 
-        var response = await _fedexClient.GetRatesAsync(/* ... */, ct);
+        var requestCurrency = request.CurrencyCode ?? _settings.StoreCurrencyCode;
+        var response = await _apiClient.GetRatesAsync(/* ... */, ct);
+
+        // Get exchange rate if FedEx currency differs from request currency
+        var fedexCurrency = response.Currency ?? "USD";
+        decimal? exchangeRate = null;
+        if (!string.Equals(fedexCurrency, requestCurrency, StringComparison.OrdinalIgnoreCase))
+        {
+            exchangeRate = await _exchangeRateCache.GetRateAsync(fedexCurrency, requestCurrency, ct);
+        }
 
         var serviceLevels = response.Rates.Select(rate =>
         {
             // Resolve concrete service type from lookup
             var serviceType = ServiceTypeLookup.GetValueOrDefault(rate.ServiceType);
 
+            // Convert currency if needed
+            var totalCost = rate.TotalCharge;
+            var displayCurrency = requestCurrency;
+            if (exchangeRate.HasValue)
+            {
+                totalCost = _currencyService.Round(totalCost * exchangeRate.Value, requestCurrency);
+            }
+            else if (!string.Equals(fedexCurrency, requestCurrency, StringComparison.OrdinalIgnoreCase))
+            {
+                displayCurrency = fedexCurrency; // No exchange rate, use original currency
+            }
+
             return new ShippingServiceLevel
             {
-                ServiceCode = $"fedex-{rate.ServiceType.ToLower()}",
+                ServiceCode = $"fedex-{rate.ServiceType.ToLowerInvariant()}",
                 ServiceName = serviceType?.DisplayName ?? rate.ServiceName,
-                TotalCost = rate.TotalCharge,
-                CurrencyCode = rate.Currency,
+                TotalCost = totalCost,
+                CurrencyCode = displayCurrency,
                 TransitTime = TimeSpan.FromDays(rate.TransitDays),
                 EstimatedDeliveryDate = rate.DeliveryDate,
-                // Set the concrete ServiceType property
                 ServiceType = serviceType ?? new ShippingServiceType
                 {
                     Code = rate.ServiceType,
@@ -538,8 +578,6 @@ public class FedExShippingProvider : ShippingProviderBase
         IReadOnlyList<ShippingOptionSnapshot> shippingOptions,
         CancellationToken ct = default)
     {
-        if (!IsAvailableFor(request)) return null;
-
         var allRates = await GetRatesAsync(request, ct);
         if (allRates == null) return null;
 
@@ -553,7 +591,11 @@ public class FedExShippingProvider : ShippingProviderBase
                     string.Equals(o.ServiceType, sl.ServiceType!.Code, StringComparison.OrdinalIgnoreCase));
 
                 var markup = GetMarkupFromSettings(option?.ProviderSettings);
-                var adjustedCost = sl.TotalCost * (1 + markup / 100);
+                var adjustedCost = sl.TotalCost * (1 + markup / 100m);
+                if (markup > 0)
+                {
+                    adjustedCost = _currencyService.Round(adjustedCost, sl.CurrencyCode);
+                }
 
                 return new ShippingServiceLevel
                 {
@@ -580,9 +622,16 @@ public class FedExShippingProvider : ShippingProviderBase
     private static decimal GetMarkupFromSettings(string? providerSettingsJson)
     {
         if (string.IsNullOrEmpty(providerSettingsJson)) return 0;
-        var settings = JsonSerializer.Deserialize<Dictionary<string, string>>(providerSettingsJson);
-        return decimal.TryParse(settings?.GetValueOrDefault("markup"), out var m) ? m : 0;
+        try
+        {
+            var settings = JsonSerializer.Deserialize<Dictionary<string, string>>(providerSettingsJson);
+            return decimal.TryParse(settings?.GetValueOrDefault("markup"), NumberStyles.Number,
+                CultureInfo.InvariantCulture, out var m) ? m : 0;
+        }
+        catch (JsonException) { return 0; }
     }
+
+    public void Dispose() => _apiClient?.Dispose();
 }
 ```
 
@@ -591,18 +640,23 @@ public class FedExShippingProvider : ShippingProviderBase
 ## Example 2: UPS (with Tracking)
 
 ```csharp
-public class UpsShippingProvider : ShippingProviderBase
+public class UpsShippingProvider(
+    IOptions<MerchelloSettings> settings,
+    IExchangeRateCache exchangeRateCache,
+    ICurrencyService currencyService) : ShippingProviderBase, IDisposable
 {
-    private string? _accessKey;
-    private string? _userId;
-    private string? _password;
+    private readonly MerchelloSettings _settings = settings.Value;
+    private readonly IExchangeRateCache _exchangeRateCache = exchangeRateCache;
+    private readonly ICurrencyService _currencyService = currencyService;
+
+    private UpsApiClient? _apiClient;
 
     public override ShippingProviderMetadata Metadata => new()
     {
         Key = "ups",
         DisplayName = "UPS",
         Icon = "icon-truck",
-        Description = "UPS shipping rates with tracking support",
+        Description = "Real-time UPS shipping rates via UPS REST API",
         SupportsRealTimeRates = true,
         SupportsTracking = true,
         SupportsLabelGeneration = false,
@@ -618,13 +672,24 @@ public class UpsShippingProvider : ShippingProviderBase
         }
     };
 
-    // Define supported service types
+    // Define supported service types (domestic + international)
     private static readonly IReadOnlyList<ShippingServiceType> SupportedServiceTypes =
     [
-        new ShippingServiceType { Code = "03", DisplayName = "UPS Ground", ProviderKey = "ups" },
-        new ShippingServiceType { Code = "02", DisplayName = "UPS 2nd Day Air", ProviderKey = "ups" },
+        // Domestic US Services
+        new ShippingServiceType { Code = "14", DisplayName = "UPS Next Day Air Early", ProviderKey = "ups" },
         new ShippingServiceType { Code = "01", DisplayName = "UPS Next Day Air", ProviderKey = "ups" },
-        new ShippingServiceType { Code = "14", DisplayName = "UPS Next Day Air Early", ProviderKey = "ups" }
+        new ShippingServiceType { Code = "13", DisplayName = "UPS Next Day Air Saver", ProviderKey = "ups" },
+        new ShippingServiceType { Code = "59", DisplayName = "UPS 2nd Day Air A.M.", ProviderKey = "ups" },
+        new ShippingServiceType { Code = "02", DisplayName = "UPS 2nd Day Air", ProviderKey = "ups" },
+        new ShippingServiceType { Code = "12", DisplayName = "UPS 3 Day Select", ProviderKey = "ups" },
+        new ShippingServiceType { Code = "03", DisplayName = "UPS Ground", ProviderKey = "ups" },
+        // International Services
+        new ShippingServiceType { Code = "07", DisplayName = "UPS Worldwide Express", ProviderKey = "ups" },
+        new ShippingServiceType { Code = "54", DisplayName = "UPS Worldwide Express Plus", ProviderKey = "ups" },
+        new ShippingServiceType { Code = "08", DisplayName = "UPS Worldwide Expedited", ProviderKey = "ups" },
+        new ShippingServiceType { Code = "65", DisplayName = "UPS Worldwide Saver", ProviderKey = "ups" },
+        new ShippingServiceType { Code = "11", DisplayName = "UPS Standard", ProviderKey = "ups" },
+        new ShippingServiceType { Code = "96", DisplayName = "UPS Worldwide Express Freight", ProviderKey = "ups" }
     ];
 
     private static readonly Dictionary<string, ShippingServiceType> ServiceTypeLookup =
@@ -636,16 +701,21 @@ public class UpsShippingProvider : ShippingProviderBase
         return ValueTask.FromResult(SupportedServiceTypes);
     }
 
-    // Global config: API credentials
+    // Global config: OAuth credentials (UPS uses OAuth with Client ID/Secret)
     public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken ct = default)
     {
         return ValueTask.FromResult<IEnumerable<ShippingProviderConfigurationField>>(
         [
-            new() { Key = "accessKey", Label = "Access Key", FieldType = ConfigurationFieldType.Password, IsSensitive = true, IsRequired = true },
-            new() { Key = "userId", Label = "User ID", FieldType = ConfigurationFieldType.Text, IsRequired = true },
-            new() { Key = "password", Label = "Password", FieldType = ConfigurationFieldType.Password, IsSensitive = true, IsRequired = true },
-            new() { Key = "accountNumber", Label = "Account Number", FieldType = ConfigurationFieldType.Text, IsRequired = true }
+            new() { Key = "clientId", Label = "Client ID", FieldType = ConfigurationFieldType.Text, IsRequired = true },
+            new() { Key = "clientSecret", Label = "Client Secret", FieldType = ConfigurationFieldType.Password, IsSensitive = true, IsRequired = true },
+            new() { Key = "accountNumber", Label = "Account Number", FieldType = ConfigurationFieldType.Text, IsRequired = true,
+                    Description = "Your UPS Account/Shipper Number (6 digits)" },
+            new() { Key = "environment", Label = "Environment", FieldType = ConfigurationFieldType.Select, IsRequired = true,
+                    DefaultValue = "sandbox",
+                    Options = [new("sandbox", "Sandbox (Testing)"), new("production", "Production (Live)")] },
+            new() { Key = "useNegotiatedRates", Label = "Use Negotiated Rates", FieldType = ConfigurationFieldType.Checkbox,
+                    Description = "Enable to use your negotiated/contract rates", DefaultValue = "false" }
         ]);
     }
 
@@ -656,52 +726,86 @@ public class UpsShippingProvider : ShippingProviderBase
         return ValueTask.FromResult<IEnumerable<ShippingProviderConfigurationField>>(
         [
             new() { Key = "name", Label = "Display Name", FieldType = ConfigurationFieldType.Text, IsRequired = false },
-            new() { Key = "markup", Label = "Markup %", FieldType = ConfigurationFieldType.Percentage }
+            new() { Key = "markup", Label = "Markup %", FieldType = ConfigurationFieldType.Percentage, DefaultValue = "0" }
         ]);
     }
 
-    public override ValueTask ConfigureAsync(ShippingProviderConfiguration? config, CancellationToken ct = default)
+    public override async ValueTask ConfigureAsync(ShippingProviderConfiguration? config, CancellationToken ct = default)
     {
-        if (config?.SettingsJson != null)
-        {
-            var settings = JsonSerializer.Deserialize<Dictionary<string, string>>(config.SettingsJson);
-            _accessKey = settings?.GetValueOrDefault("accessKey");
-            _userId = settings?.GetValueOrDefault("userId");
-            _password = settings?.GetValueOrDefault("password");
-        }
-        return ValueTask.CompletedTask;
+        await base.ConfigureAsync(config, ct);
+
+        if (config?.SettingsJson == null) return;
+
+        var settings = JsonSerializer.Deserialize<Dictionary<string, string>>(config.SettingsJson);
+        if (settings == null) return;
+
+        var clientId = settings.GetValueOrDefault("clientId");
+        var clientSecret = settings.GetValueOrDefault("clientSecret");
+        var accountNumber = settings.GetValueOrDefault("accountNumber");
+        var environment = settings.GetValueOrDefault("environment") ?? "sandbox";
+        var useNegotiatedRates = settings.GetValueOrDefault("useNegotiatedRates")?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
+
+        if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret) || string.IsNullOrEmpty(accountNumber))
+            return;
+
+        var useSandbox = environment.Equals("sandbox", StringComparison.OrdinalIgnoreCase);
+        _apiClient = new UpsApiClient(clientId, clientSecret, accountNumber, useSandbox, useNegotiatedRates);
     }
 
     public override bool IsAvailableFor(ShippingQuoteRequest request)
     {
-        return !request.IsEstimateMode && request.Items.Any(i => i.IsShippable);
+        if (request.IsEstimateMode) return false;
+        if (_apiClient == null) return false;
+        return request.Items.Any(i => i.IsShippable && (i.TotalWeightKg ?? 0) > 0);
     }
 
     public override async Task<ShippingRateQuote?> GetRatesAsync(
         ShippingQuoteRequest request, CancellationToken ct = default)
     {
-        if (!IsAvailableFor(request)) return null;
+        if (!IsAvailableFor(request) || _apiClient == null) return null;
 
-        var rates = await _upsClient.GetRatesAsync(/* ... */);
+        var requestCurrency = request.CurrencyCode ?? _settings.StoreCurrencyCode;
+        var response = await _apiClient.GetRatesAsync(/* ... */, ct);
+
+        // Get exchange rate if UPS currency differs from request currency
+        var upsCurrency = response.RatedShipment?.FirstOrDefault()?.TotalCharges?.CurrencyCode ?? "USD";
+        decimal? exchangeRate = null;
+        if (!string.Equals(upsCurrency, requestCurrency, StringComparison.OrdinalIgnoreCase))
+        {
+            exchangeRate = await _exchangeRateCache.GetRateAsync(upsCurrency, requestCurrency, ct);
+        }
 
         return new ShippingRateQuote
         {
             ProviderKey = Metadata.Key,
             ProviderName = Metadata.DisplayName,
-            ServiceLevels = rates.Select(r =>
+            ServiceLevels = response.RatedShipment?.Select(r =>
             {
-                var serviceType = ServiceTypeLookup.GetValueOrDefault(r.ServiceCode);
+                var serviceType = ServiceTypeLookup.GetValueOrDefault(r.Service?.Code ?? "");
+
+                // Convert currency if needed
+                var totalCost = decimal.Parse(r.TotalCharges?.MonetaryValue ?? "0", CultureInfo.InvariantCulture);
+                var displayCurrency = requestCurrency;
+                if (exchangeRate.HasValue)
+                {
+                    totalCost = _currencyService.Round(totalCost * exchangeRate.Value, requestCurrency);
+                }
+                else if (!string.Equals(upsCurrency, requestCurrency, StringComparison.OrdinalIgnoreCase))
+                {
+                    displayCurrency = upsCurrency;
+                }
+
                 return new ShippingServiceLevel
                 {
-                    ServiceCode = $"ups-{r.ServiceCode}",
-                    ServiceName = serviceType?.DisplayName ?? r.ServiceDescription,
-                    TotalCost = r.TotalCharges,
-                    CurrencyCode = r.CurrencyCode,
-                    EstimatedDeliveryDate = r.GuaranteedDeliveryDate,
+                    ServiceCode = $"ups-{r.Service?.Code}",
+                    ServiceName = serviceType?.DisplayName ?? r.Service?.Description ?? r.Service?.Code ?? "",
+                    TotalCost = totalCost,
+                    CurrencyCode = displayCurrency,
+                    EstimatedDeliveryDate = ParseArrivalDate(r.TimeInTransit?.ServiceSummary?.EstimatedArrival?.Arrival?.Date),
                     ServiceType = serviceType ?? new ShippingServiceType
                     {
-                        Code = r.ServiceCode,
-                        DisplayName = r.ServiceDescription,
+                        Code = r.Service?.Code ?? "",
+                        DisplayName = r.Service?.Description ?? r.Service?.Code ?? "",
                         ProviderKey = Metadata.Key
                     },
                     ExtendedProperties = new Dictionary<string, string>
@@ -709,9 +813,17 @@ public class UpsShippingProvider : ShippingProviderBase
                         ["trackingUrlTemplate"] = "https://www.ups.com/track?tracknum={trackingNumber}"
                     }
                 };
-            }).ToList()
+            }).ToList() ?? []
         };
     }
+
+    private static DateTime? ParseArrivalDate(string? dateStr)
+    {
+        if (string.IsNullOrEmpty(dateStr)) return null;
+        return DateTime.TryParseExact(dateStr, "yyyyMMdd", null, DateTimeStyles.None, out var d) ? d : null;
+    }
+
+    public void Dispose() => _apiClient?.Dispose();
 }
 ```
 
@@ -1178,7 +1290,7 @@ return new ShippingServiceLevel
 
 - Sensitive config values (API keys) should be encrypted at rest
 - Consider caching carrier API responses (rates cached 10 mins by default)
-- Use `IsTestMode` from configuration to switch between sandbox/production
+- Use an `environment` configuration field (stored in `SettingsJson`) to switch between sandbox/production
 - Providers auto-discovered via assembly scanning - no DI registration needed
 - Return `null` from `GetRatesAsync` if provider cannot service the request
 - External providers **must** implement `GetSupportedServiceTypesAsync` to declare available service types

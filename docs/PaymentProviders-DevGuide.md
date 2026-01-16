@@ -754,121 +754,128 @@ Reference using the `/_content/{AssemblyName}/` pattern:
 private const string MyProviderAdapterUrl = "/_content/MyCompany.Merchello.MyProvider/adapters/myprovider-payment-adapter.js";
 ```
 
-**Built-in providers** (Stripe, Braintree, PayPal) ship their adapters in the main `Merchello` RCL:
+**Built-in providers** (Stripe, Braintree, PayPal) use relative paths (served from wwwroot):
 ```csharp
-// Built-in adapter URLs
-"/_content/Merchello/js/checkout/adapters/stripe-payment-adapter.js"
-"/_content/Merchello/js/checkout/adapters/braintree-payment-adapter.js"
-"/_content/Merchello/js/checkout/adapters/paypal-unified-adapter.js"  // Handles both standard and express
+// Built-in adapter URLs (relative paths)
+"/js/checkout/adapters/stripe-payment-adapter.js"
+"/js/checkout/adapters/stripe-card-elements-adapter.js"  // Individual card fields
+"/js/checkout/adapters/braintree-payment-adapter.js"
+"/js/checkout/adapters/paypal-unified-adapter.js"  // Handles both standard and express
 ```
 
 ### Adapter Structure
+
+Adapters use a unified interface that supports both standard and express checkout. Use `adapter-interface.js` helpers for registration.
 
 ```javascript
 /**
  * MyProvider Payment Adapter
  */
-(function() {
-    'use strict';
+import { registerAdapter, createAdapterConfig } from './adapter-interface.js';
 
-    let currentSession = null;
+let currentSession = null;
 
-    const myProviderAdapter = {
-        /**
-         * Render the payment UI
-         * @param {HTMLElement} container - Container to render into
-         * @param {Object} session - PaymentSessionResult from server
-         * @param {Object} checkout - MerchelloPayment instance
-         */
-        async render(container, session, checkout) {
-            currentSession = session;
-            const config = session.sdkConfiguration || {};
+const myProviderAdapter = {
+    // Adapter configuration - declares capabilities
+    config: createAdapterConfig('MyProvider', {
+        supportsStandard: true,   // Can handle standard checkout
+        supportsExpress: false    // Set true if supporting express checkout
+    }),
 
-            // Wait for SDK to be available (loaded via session.jsSdkUrl)
-            if (typeof MyProviderSDK === 'undefined') {
-                throw new Error('MyProvider SDK not loaded');
-            }
+    /**
+     * Render the payment UI
+     * @param {HTMLElement} container - Container to render into
+     * @param {Object} sessionOrConfig - PaymentSessionResult (standard) or ExpressConfig (express)
+     * @param {Object} context - { isExpress, session?, checkout?, method? }
+     */
+    async render(container, sessionOrConfig, context) {
+        currentSession = sessionOrConfig;
+        const config = sessionOrConfig.sdkConfiguration || {};
 
-            // Create container structure
-            container.innerHTML = `
-                <div class="myprovider-wrapper">
-                    <div id="myprovider-element"></div>
-                    <div id="myprovider-errors" class="text-red-600 text-sm mt-2 hidden"></div>
-                </div>
-            `;
-
-            // Initialize SDK and render payment element
-            await MyProviderSDK.init(config.publicKey);
-            await MyProviderSDK.mount('#myprovider-element');
-        },
-
-        /**
-         * Submit the payment
-         * @param {string} invoiceId - Invoice being paid
-         * @param {Object} options - Additional options
-         * @returns {Promise<Object>} Payment result
-         */
-        async submit(invoiceId, options = {}) {
-            try {
-                // Get payment token from SDK
-                const token = await MyProviderSDK.createToken();
-
-                // Submit to server
-                const response = await fetch('/api/merchello/checkout/process-payment', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        invoiceId,
-                        providerAlias: currentSession.providerAlias,
-                        methodAlias: currentSession.methodAlias,
-                        paymentMethodToken: token
-                    })
-                });
-
-                return await response.json();
-            } catch (error) {
-                return { success: false, error: error.message };
-            }
-        },
-
-        /**
-         * Get payment token without submitting (for backoffice testing)
-         * @returns {Promise<Object>} Token result
-         */
-        async tokenize() {
-            try {
-                const token = await MyProviderSDK.createToken();
-                return { success: true, nonce: token };
-            } catch (error) {
-                return { success: false, error: error.message };
-            }
-        },
-
-        /**
-         * Clean up when switching methods
-         */
-        teardown() {
-            MyProviderSDK?.unmount();
-            currentSession = null;
-        },
-
-        /**
-         * Show error in container
-         */
-        showError(container, message) {
-            container.innerHTML = `
-                <div class="text-red-600 p-4 bg-red-50 rounded-lg">
-                    <p class="font-medium">Payment Setup Error</p>
-                    <p>${message}</p>
-                </div>
-            `;
+        // Wait for SDK to be available (loaded via session.javaScriptSdkUrl)
+        if (typeof MyProviderSDK === 'undefined') {
+            throw new Error('MyProvider SDK not loaded');
         }
-    };
 
-    // Register the adapter
-    window.MerchelloPaymentAdapters = window.MerchelloPaymentAdapters || {};
-    window.MerchelloPaymentAdapters['myprovider'] = myProviderAdapter;
-})();
+        // Create container structure
+        container.innerHTML = `
+            <div class="myprovider-wrapper">
+                <div id="myprovider-element"></div>
+                <div id="myprovider-errors" class="text-red-600 text-sm mt-2 hidden"></div>
+            </div>
+        `;
+
+        // Initialize SDK and render payment element
+        await MyProviderSDK.init(config.publicKey);
+        await MyProviderSDK.mount('#myprovider-element');
+    },
+
+    /**
+     * Submit the payment (for form-based flows)
+     * @param {string} sessionId - Session ID
+     * @param {Object} data - Additional data
+     * @returns {Promise<Object>} Payment result
+     */
+    async submit(sessionId, data = {}) {
+        try {
+            // Get payment token from SDK
+            const token = await MyProviderSDK.createToken();
+
+            // Submit to server
+            const response = await fetch('/api/merchello/checkout/process-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    invoiceId: data.invoiceId,
+                    providerAlias: currentSession.providerAlias,
+                    methodAlias: currentSession.methodAlias,
+                    paymentMethodToken: token
+                })
+            });
+
+            return await response.json();
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    },
+
+    /**
+     * Get payment token without submitting (for backoffice testing)
+     * @returns {Promise<Object>} Token result
+     */
+    async tokenize() {
+        try {
+            const token = await MyProviderSDK.createToken();
+            return { success: true, nonce: token };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    },
+
+    /**
+     * Clean up when switching methods
+     * @param {string} sessionId - Optional session ID
+     */
+    teardown(sessionId) {
+        MyProviderSDK?.unmount();
+        currentSession = null;
+    },
+
+    /**
+     * Extract customer data from provider response (for express checkout)
+     * Only needed if supportsExpress is true
+     */
+    extractCustomerData(data, context) {
+        return {
+            email: data.email,
+            fullName: data.name,
+            shippingAddress: data.shippingAddress
+        };
+    }
+};
+
+// Register the adapter (auto-registers for standard and express based on config)
+registerAdapter('myprovider', myProviderAdapter);
 ```
 
 ### Provider Session Creation
@@ -898,12 +905,13 @@ public override async Task<PaymentSessionResult> CreatePaymentSessionAsync(
 }
 ```
 
-### Method Icons
+### Method Icons and Regional Availability
 
-Provide SVG icons for your payment methods:
+Provide SVG icons and optionally specify regional availability for your payment methods:
 
 ```csharp
 private const string CardIconSvg = """<svg class="w-8 h-5" viewBox="0 0 32 20"...>...</svg>""";
+private const string CheckoutCardIconSvg = """<svg class="w-6 h-6" viewBox="0 0 24 24"...>...</svg>""";
 
 public override IReadOnlyList<PaymentMethodDefinition> GetAvailablePaymentMethods() =>
 [
@@ -911,13 +919,31 @@ public override IReadOnlyList<PaymentMethodDefinition> GetAvailablePaymentMethod
     {
         Alias = "cards",
         DisplayName = "Credit/Debit Card",
-        IconHtml = CardIconSvg,  // Provider-controlled icon
+        IconHtml = CardIconSvg,              // Admin UI icon
+        CheckoutIconHtml = CheckoutCardIconSvg, // Customer checkout icon (optional)
         MethodType = PaymentMethodTypes.Cards,
         IntegrationType = PaymentIntegrationType.HostedFields,
         // ...
+    },
+    new PaymentMethodDefinition
+    {
+        Alias = "ideal",
+        DisplayName = "iDEAL",
+        MethodType = null,  // Region-specific, no deduplication
+        IntegrationType = PaymentIntegrationType.Widget,
+        // Specify regional availability
+        SupportedRegions =
+        [
+            new PaymentMethodRegion { Code = "NL", Name = "Netherlands" }
+        ]
     }
 ];
 ```
+
+**Icon Properties:**
+- `IconHtml` - SVG markup for admin/backoffice UI
+- `CheckoutIconHtml` - Separate SVG for customer checkout (optional, falls back to IconHtml)
+- `CheckoutStyle` - Optional inline styles for checkout appearance
 
 ### Widget Adapters (PayPal-style)
 
@@ -957,17 +983,35 @@ const paypalAdapter = {
 
 ## Notes
 
+### Security & Discovery
 - Sensitive config values (API keys) should be encrypted at rest
 - Webhook endpoints are public (no auth) - validate signatures
 - Consider rate limiting webhooks
-- Use idempotency keys to prevent duplicate payments
 - Providers auto-discovered via assembly scanning - no DI registration needed
+
+### Payment Processing
+- Use `IdempotencyKey` in `ProcessPaymentRequest` to prevent duplicate payments (valid 24 hours)
 - Express checkout methods collect customer data from the provider
 - Risk scores are nullable - many payments won't have fraud data
+- `PaymentResult` includes optional settlement data (`SettlementCurrency`, `SettlementAmount`, `SettlementExchangeRate`)
+- Use `SkipPaymentRecording = true` in `PaymentResult` for methods like Purchase Order where payment is received later
+
+### Adapters
 - Adapters are loaded dynamically - no checkout code changes needed for new providers
-- Backoffice test modal has 4 tabs: Session, Payment Form, Express Checkout, Webhooks
 - Implement `tokenize()` in adapters to enable Payment Form testing in backoffice
-- Implement `GetWebhookEventTemplatesAsync()` and `GenerateTestWebhookPayloadAsync()` for webhook simulation
 - Widget flow endpoints (`/{providerAlias}/create-order`, `/{providerAlias}/capture-order`) work with any provider
-- Set `IconHtml` in `PaymentMethodDefinition` to provide custom SVG icons for your payment methods
-- Express checkout buttons use CSS classes based on method type (e.g., `express-button-applepay`). Unknown types fall back to `express-button-default` - provide your own CSS or use the default styling
+- Express checkout buttons use CSS classes based on method type (e.g., `express-button-applepay`)
+
+### UI & Icons
+- Set `IconHtml` for admin UI and `CheckoutIconHtml` for customer checkout
+- Use `SupportedRegions` to indicate regional availability (shown in backoffice)
+- Unknown method types fall back to `express-button-default` CSS class
+
+### Testing
+- Backoffice test modal has 4 tabs: Session, Payment Form, Express Checkout, Webhooks
+- Implement `GetWebhookEventTemplatesAsync()` and `GenerateTestWebhookPayloadAsync()` for webhook simulation
+
+### Payment Links
+- Set `SupportsPaymentLinks = true` in `PaymentProviderMetadata` if your provider supports payment links
+- Implement `CreatePaymentLinkAsync()` and `DeactivatePaymentLinkAsync()`
+- Payment links allow admins to generate shareable URLs for invoice payment

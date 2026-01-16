@@ -3,9 +3,10 @@ using Merchello.Core.Accounting.Models;
 namespace Merchello.Core.Tax.Services.Models;
 
 /// <summary>
-/// Input for centralized tax calculation.
+/// Input for calculating tax on line items only (products).
+/// Does NOT include shipping - use <see cref="OrderTaxInput"/> for complete order tax.
 /// </summary>
-public class TaxCalculationInput
+public class LineItemTaxInput
 {
     /// <summary>
     /// Line items to calculate tax for.

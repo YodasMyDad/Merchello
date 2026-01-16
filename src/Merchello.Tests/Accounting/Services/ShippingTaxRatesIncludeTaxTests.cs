@@ -1,3 +1,4 @@
+using Merchello.Core;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Handlers.Interfaces;
 using Merchello.Core.Accounting.Models;
@@ -151,7 +152,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
     {
         var taxProviderMock = new Mock<ITaxProvider>();
         taxProviderMock
-            .Setup(x => x.CalculateTaxAsync(It.IsAny<TaxCalculationRequest>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.CalculateOrderTaxAsync(It.IsAny<TaxCalculationRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((TaxCalculationRequest req, CancellationToken ct) =>
             {
                 // Calculate 10% shipping tax on the taxable shipping amount
@@ -462,6 +463,240 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         // Assert
         result.ResultObject.ShouldBeTrue();
         // No shipping cost = no shipping tax to calculate
+    }
+
+    #endregion
+
+    #region Proportional Shipping Tax Tests
+
+    /// <summary>
+    /// Creates an InvoiceService configured for proportional shipping tax (ShippingTaxRate = null).
+    /// This mode calculates shipping tax using the weighted average of line item tax rates.
+    /// Uses a shared DbContext to ensure changes persist across scope calls.
+    /// </summary>
+    private InvoiceService CreateInvoiceServiceWithProportionalTaxMock(MerchelloDbContext sharedDbContext)
+    {
+        var scopeProvider = CreateScopeProviderWithSharedContext(sharedDbContext);
+        var shippingServiceMock = new Mock<IShippingService>();
+
+        shippingServiceMock
+            .Setup(x => x.GetShippingOptionByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid id, CancellationToken ct) => new ShippingOption
+            {
+                Id = id,
+                Name = "Test Shipping",
+                ProviderKey = id.ToString()
+            });
+
+        // Provider with RatesIncludeTax = false so shipping is taxed
+        var shippingProviderManagerMock = new Mock<IShippingProviderManager>();
+        var provider = CreateMockShippingProvider("test-provider", ratesIncludeTax: false);
+        shippingProviderManagerMock
+            .Setup(x => x.GetProviderAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(provider);
+
+        var inventoryService = new Mock<IInventoryService>().Object;
+        var statusHandler = _fixture.GetService<IOrderStatusHandler>();
+        var paymentService = new Mock<IPaymentService>().Object;
+        var customerService = new Mock<ICustomerService>().Object;
+        var checkoutService = new Lazy<ICheckoutService>(() => new Mock<ICheckoutService>().Object);
+        var notificationPublisher = new Mock<IMerchelloNotificationPublisher>().Object;
+        var exchangeRateCacheMock = new Mock<IExchangeRateCache>();
+        exchangeRateCacheMock.Setup(x => x.GetRateQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExchangeRateQuote(1m, DateTime.UtcNow, "mock"));
+
+        var settings = Options.Create(new MerchelloSettings
+        {
+            DefaultRounding = MidpointRounding.AwayFromZero,
+            StoreCurrencyCode = "GBP"
+        });
+        var currencyService = new CurrencyService(settings);
+        var taxCalculationService = new TaxCalculationService(currencyService);
+        var lineItemService = new LineItemService(currencyService, taxCalculationService);
+        var discountService = new Mock<IDiscountService>().Object;
+
+        var taxServiceMock = new Mock<ITaxService>();
+        taxServiceMock.Setup(x => x.GetApplicableRateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m); // Default 20% rate
+
+        // Configure tax provider manager for PROPORTIONAL shipping tax (returns null for rate)
+        var taxProviderManagerMock = new Mock<ITaxProviderManager>();
+        taxProviderManagerMock
+            .Setup(x => x.IsShippingTaxedForLocationAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true); // Shipping IS taxable
+
+        taxProviderManagerMock
+            .Setup(x => x.GetShippingTaxRateForLocationAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((decimal?)null); // null = proportional calculation
+
+        var strategyResolver = new Mock<IOrderGroupingStrategyResolver>().Object;
+        var logger = new Mock<ILogger<InvoiceService>>().Object;
+
+        var invoiceFactory = new InvoiceFactory(currencyService);
+        var orderFactory = new OrderFactory();
+        var lineItemFactory = new LineItemFactory();
+
+        return new InvoiceService(
+            scopeProvider,
+            shippingServiceMock.Object,
+            shippingProviderManagerMock.Object,
+            inventoryService,
+            statusHandler,
+            paymentService,
+            customerService,
+            checkoutService,
+            strategyResolver,
+            notificationPublisher,
+            exchangeRateCacheMock.Object,
+            currencyService,
+            lineItemService,
+            discountService,
+            taxServiceMock.Object,
+            taxProviderManagerMock.Object,
+            taxCalculationService,
+            invoiceFactory,
+            orderFactory,
+            lineItemFactory,
+            settings,
+            logger);
+    }
+
+    /// <summary>
+    /// Creates a scope provider that shares the same DbContext across all scope calls.
+    /// This ensures changes persist and are visible across multiple operations.
+    /// </summary>
+    private IEFCoreScopeProvider<MerchelloDbContext> CreateScopeProviderWithSharedContext(MerchelloDbContext sharedDbContext)
+    {
+        var scopeProviderMock = new Mock<IEFCoreScopeProvider<MerchelloDbContext>>();
+        scopeProviderMock
+            .Setup(p => p.CreateScope(It.IsAny<RepositoryCacheMode>(), It.IsAny<bool?>()))
+            .Returns(() =>
+            {
+                var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync<Task>(It.IsAny<Func<MerchelloDbContext, Task>>()))
+                    .Returns((Func<MerchelloDbContext, Task> func) => func(sharedDbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Invoice?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Invoice?>> func) => func(sharedDbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Invoice>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<Invoice>>> func) => func(sharedDbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ShippingOption?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<ShippingOption?>> func) => func(sharedDbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<int>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<int>> func) => func(sharedDbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<bool>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<bool>> func) => func(sharedDbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Order?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Order?>> func) => func(sharedDbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Order>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<Order>>> func) => func(sharedDbContext));
+
+                scopeMock.Setup(s => s.Complete()).Returns(true);
+                scopeMock.Setup(s => s.Dispose());
+
+                return scopeMock.Object;
+            });
+
+        return scopeProviderMock.Object;
+    }
+
+    [Fact]
+    public async Task RecalculateInvoiceTotals_ProportionalShipping_ConfiguresProportionalTaxMode()
+    {
+        // Arrange - Verify that when ShippingTaxRate = null (proportional mode),
+        // the service correctly processes orders with mixed tax rate items.
+        // NOTE: The actual proportional calculation (weighted average) is tested in
+        // TaxCalculationServiceTests.CalculateOrderTax_ProportionalShipping_* tests.
+        var invoiceService = CreateInvoiceServiceWithProportionalTaxMock(_fixture.CreateDbContext());
+        var dataBuilder = _fixture.CreateDataBuilder();
+
+        var customer = dataBuilder.CreateCustomer();
+        var warehouse = dataBuilder.CreateWarehouse();
+        var shippingOption = dataBuilder.CreateShippingOption(warehouse: warehouse, fixedCost: 10m);
+
+        var invoice = dataBuilder.CreateInvoice(customer.Email, 0m, customer);
+        invoice.CurrencyCode = "GBP";
+        invoice.ShippingAddress = new Address { CountryCode = "GB" };
+
+        var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption);
+        order.ShippingCost = 10m;
+        order.ShippingOptionId = Guid.NewGuid();
+
+        // Create line items with DIFFERENT tax rates (mixed-rate order)
+        var lineItem1 = dataBuilder.CreateLineItem(order, name: "Standard Rate Item", amount: 100m);
+        lineItem1.TaxRate = 20m; // 20% VAT
+        lineItem1.IsTaxable = true;
+        lineItem1.Quantity = 1;
+
+        var lineItem2 = dataBuilder.CreateLineItem(order, name: "Reduced Rate Item", amount: 100m);
+        lineItem2.TaxRate = 5m; // 5% reduced VAT
+        lineItem2.IsTaxable = true;
+        lineItem2.Quantity = 1;
+
+        await dataBuilder.SaveChangesAsync();
+
+        // Act - Trigger order processing with proportional tax mode configured
+        var result = await invoiceService.UpdateOrderStatusAsync(order.Id, OrderStatus.Processing);
+
+        // Assert - Verifies the proportional tax configuration flows through without error
+        // The tax provider manager mock is configured to return null for ShippingTaxRate
+        // (triggering proportional calculation mode)
+        result.ResultObject.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task RecalculateInvoiceTotals_ProportionalShipping_WithSingleTaxRate_ProcessesSuccessfully()
+    {
+        // Arrange - Verify proportional mode works when all items have the same tax rate.
+        // NOTE: The actual calculation is tested in TaxCalculationServiceTests.
+        var invoiceService = CreateInvoiceServiceWithProportionalTaxMock(_fixture.CreateDbContext());
+        var dataBuilder = _fixture.CreateDataBuilder();
+
+        var customer = dataBuilder.CreateCustomer();
+        var warehouse = dataBuilder.CreateWarehouse();
+        var shippingOption = dataBuilder.CreateShippingOption(warehouse: warehouse, fixedCost: 10m);
+
+        var invoice = dataBuilder.CreateInvoice(customer.Email, 0m, customer);
+        invoice.CurrencyCode = "GBP";
+        invoice.ShippingAddress = new Address { CountryCode = "GB" };
+
+        var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption);
+        order.ShippingCost = 10m;
+        order.ShippingOptionId = Guid.NewGuid();
+
+        // Create line items with SAME tax rate
+        var lineItem1 = dataBuilder.CreateLineItem(order, name: "Item 1", amount: 100m);
+        lineItem1.TaxRate = 20m;
+        lineItem1.IsTaxable = true;
+        lineItem1.Quantity = 1;
+
+        var lineItem2 = dataBuilder.CreateLineItem(order, name: "Item 2", amount: 50m);
+        lineItem2.TaxRate = 20m;
+        lineItem2.IsTaxable = true;
+        lineItem2.Quantity = 1;
+
+        await dataBuilder.SaveChangesAsync();
+
+        // Act
+        var result = await invoiceService.UpdateOrderStatusAsync(order.Id, OrderStatus.Processing);
+
+        // Assert - Processing succeeds with proportional tax mode
+        result.ResultObject.ShouldBeTrue();
     }
 
     #endregion

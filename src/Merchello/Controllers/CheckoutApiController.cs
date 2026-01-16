@@ -316,25 +316,30 @@ public class CheckoutApiController(
         // Get display context for tax-inclusive pricing
         var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
         var displayCurrencySymbol = displayContext.CurrencySymbol;
-        var exchangeRate = displayContext.ExchangeRate;
 
         var shippingGroups = MapOrderGroupsToDto(
             initResult.GroupingResult,
             displayCurrencySymbol,
             initResult.AutoSelectedShippingOptions,
             displayContext,
-            currencyService);
+            currencyService,
+            initResult.Basket.EffectiveShippingTaxRate);
+
+        // Use basket's effective shipping tax rate for combined total when context rate is null (proportional mode)
+        var effectiveContext = displayContext.ShippingTaxRate.HasValue
+            ? displayContext
+            : displayContext with { ShippingTaxRate = initResult.Basket.EffectiveShippingTaxRate };
 
         // Apply same tax-inclusive logic to combined shipping total for consistency
         var displayCombinedShippingTotal = DisplayCurrencyExtensions.GetDisplayShippingOptionCost(
             initResult.CombinedShippingTotal,
-            displayContext,
+            effectiveContext,
             currencyService);
 
         return Ok(new InitializeCheckoutResponseDto
         {
             Success = true,
-            Basket = MapBasketToDto(initResult.Basket, displayContext.CurrencyCode, displayCurrencySymbol, exchangeRate),
+            Basket = MapBasketToDto(initResult.Basket, displayContext),
             ShippingGroups = shippingGroups,
             CombinedShippingTotal = displayCombinedShippingTotal,
             FormattedCombinedShippingTotal = currencyConversion.Format(displayCombinedShippingTotal, displayCurrencySymbol),
@@ -381,12 +386,13 @@ public class CheckoutApiController(
             displayContext.CurrencySymbol,
             session.SelectedShippingOptions,
             displayContext,
-            currencyService);
+            currencyService,
+            basket.EffectiveShippingTaxRate);
 
         return Ok(new SelectShippingResponseDto
         {
             Success = true,
-            Basket = MapBasketToDto(basket, displayContext.CurrencyCode, displayContext.CurrencySymbol, displayContext.ExchangeRate),
+            Basket = MapBasketToDto(basket, displayContext),
             ShippingGroups = shippingGroups
         });
     }
@@ -556,13 +562,14 @@ public class CheckoutApiController(
         {
             Success = true,
             Message = "Shipping selections saved successfully.",
-            Basket = MapBasketToDto(updatedBasket, displayContext.CurrencyCode, displayContext.CurrencySymbol, displayContext.ExchangeRate),
+            Basket = MapBasketToDto(updatedBasket, displayContext),
             ShippingGroups = MapOrderGroupsToDto(
                 updatedGroupingResult,
                 displayContext.CurrencySymbol,
                 updatedSession.SelectedShippingOptions,
                 displayContext,
-                currencyService)
+                currencyService,
+                updatedBasket.EffectiveShippingTaxRate)
         });
     }
 
@@ -1078,6 +1085,131 @@ public class CheckoutApiController(
         };
     }
 
+    /// <summary>
+    /// Maps basket to DTO with proper tax-inclusive display amounts.
+    /// Uses StorefrontDisplayContext to apply tax-inclusive shipping when configured.
+    /// </summary>
+    private CheckoutBasketDto MapBasketToDto(
+        Basket basket,
+        StorefrontDisplayContext displayContext)
+    {
+        var storeCurrencySymbol = basket.CurrencySymbol ?? _settings.CurrencySymbol;
+        var displayCurrencyCode = displayContext.CurrencyCode;
+        var displayCurrencySymbol = displayContext.CurrencySymbol;
+        var exchangeRate = displayContext.ExchangeRate;
+
+        var lineItems = basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Product
+                      || li.LineItemType == LineItemType.Custom
+                      || li.LineItemType == LineItemType.Addon)
+            .Select(li =>
+            {
+                var displayUnitPrice = li.GetDisplayLineItemUnitPrice(displayContext, currencyService);
+                var displayLineTotal = li.GetDisplayLineItemTotal(displayContext, currencyService);
+
+                return new CheckoutLineItemDto
+                {
+                    Id = li.Id,
+                    Sku = li.Sku ?? "",
+                    Name = li.Name ?? "",
+                    ProductRootName = li.GetProductRootName(),
+                    SelectedOptions = li.GetSelectedOptions()
+                        .Select(o => new SelectedOptionDto
+                        {
+                            OptionName = o.OptionName,
+                            ValueName = o.ValueName
+                        }).ToList(),
+                    Quantity = li.Quantity,
+                    UnitPrice = displayUnitPrice,
+                    LineTotal = displayLineTotal,
+                    FormattedUnitPrice = currencyConversion.Format(displayUnitPrice, displayCurrencySymbol),
+                    FormattedLineTotal = currencyConversion.Format(displayLineTotal, displayCurrencySymbol),
+                    LineItemType = li.LineItemType
+                };
+            })
+            .ToList();
+
+        var appliedDiscounts = basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Discount)
+            .Select(li =>
+            {
+                li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var discountIdObj);
+                li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCode, out var discountCodeObj);
+
+                var discountAmount = Math.Abs(li.Amount * li.Quantity);
+                var displayDiscountAmount = currencyConversion.Convert(discountAmount, exchangeRate, displayCurrencyCode);
+
+                return new AppliedDiscountDto
+                {
+                    Id = discountIdObj is string discountIdStr && Guid.TryParse(discountIdStr, out var discountId)
+                        ? discountId
+                        : li.Id,
+                    Name = li.Name ?? "Discount",
+                    Code = discountCodeObj?.ToString(),
+                    Amount = displayDiscountAmount,
+                    FormattedAmount = currencyConversion.Format(displayDiscountAmount, displayCurrencySymbol),
+                    IsAutomatic = discountCodeObj == null
+                };
+            })
+            .ToList();
+
+        // Use basket's effective shipping tax rate when context rate is null (proportional mode)
+        var effectiveContext = displayContext.ShippingTaxRate.HasValue
+            ? displayContext
+            : displayContext with { ShippingTaxRate = basket.EffectiveShippingTaxRate };
+
+        // Get display amounts with proper tax-inclusive calculations
+        var displayAmounts = basket.GetDisplayAmounts(effectiveContext, currencyService);
+
+        return new CheckoutBasketDto
+        {
+            Id = basket.Id,
+            LineItems = lineItems,
+
+            // Store currency amounts (for calculations/backend)
+            SubTotal = basket.SubTotal,
+            Discount = basket.Discount,
+            AdjustedSubTotal = basket.AdjustedSubTotal,
+            Tax = basket.Tax,
+            Shipping = basket.Shipping,
+            Total = basket.Total,
+            FormattedSubTotal = basket.SubTotal.FormatWithSymbol(storeCurrencySymbol),
+            FormattedDiscount = basket.Discount.FormatWithSymbol(storeCurrencySymbol),
+            FormattedAdjustedSubTotal = basket.AdjustedSubTotal.FormatWithSymbol(storeCurrencySymbol),
+            FormattedTax = basket.Tax.FormatWithSymbol(storeCurrencySymbol),
+            FormattedShipping = basket.Shipping.FormatWithSymbol(storeCurrencySymbol),
+            FormattedTotal = basket.Total.FormatWithSymbol(storeCurrencySymbol),
+            Currency = basket.Currency ?? _settings.StoreCurrencyCode,
+            CurrencySymbol = storeCurrencySymbol,
+
+            // Display currency amounts (customer's selected currency, tax-inclusive when configured)
+            DisplaySubTotal = displayAmounts.SubTotal,
+            DisplayDiscount = displayAmounts.Discount,
+            DisplayTax = displayAmounts.Tax,
+            DisplayShipping = displayAmounts.Shipping,
+            DisplayTotal = displayAmounts.Total,
+            FormattedDisplaySubTotal = currencyConversion.Format(displayAmounts.SubTotal, displayCurrencySymbol),
+            FormattedDisplayDiscount = currencyConversion.Format(displayAmounts.Discount, displayCurrencySymbol),
+            FormattedDisplayTax = currencyConversion.Format(displayAmounts.Tax, displayCurrencySymbol),
+            FormattedDisplayShipping = currencyConversion.Format(displayAmounts.Shipping, displayCurrencySymbol),
+            FormattedDisplayTotal = currencyConversion.Format(displayAmounts.Total, displayCurrencySymbol),
+            DisplayCurrencyCode = displayCurrencyCode,
+            DisplayCurrencySymbol = displayCurrencySymbol,
+            ExchangeRate = exchangeRate,
+
+            BillingAddress = MapAddressToDto(basket.BillingAddress),
+            ShippingAddress = MapAddressToDto(basket.ShippingAddress),
+            AppliedDiscounts = appliedDiscounts,
+            Errors = basket.Errors.Select(e => new BasketErrorDto
+            {
+                Message = e.Message,
+                RelatedLineItemId = e.RelatedLineItemId,
+                IsShippingError = e.IsShippingError
+            }).ToList(),
+            IsEmpty = basket.LineItems.Count == 0
+        };
+    }
+
     private async Task<CheckoutBasketDto> MapBasketToDtoWithCurrencyAsync(Basket basket, CancellationToken ct)
     {
         var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
@@ -1117,9 +1249,15 @@ public class CheckoutApiController(
         string currencySymbol,
         Dictionary<Guid, Guid>? selectedOptions,
         StorefrontDisplayContext displayContext,
-        ICurrencyService currencyService)
+        ICurrencyService currencyService,
+        decimal? effectiveShippingTaxRate = null)
     {
         var exchangeRate = displayContext.ExchangeRate;
+
+        // Use basket's effective shipping tax rate when context rate is null (proportional mode)
+        var effectiveContext = displayContext.ShippingTaxRate.HasValue
+            ? displayContext
+            : displayContext with { ShippingTaxRate = effectiveShippingTaxRate };
 
         return result.Groups.Select(group => new ShippingGroupDto
         {
@@ -1150,7 +1288,7 @@ public class CheckoutApiController(
             ShippingOptions = group.AvailableShippingOptions.Select(opt =>
             {
                 var displayCost = DisplayCurrencyExtensions.GetDisplayShippingOptionCost(
-                    opt.Cost, displayContext, currencyService);
+                    opt.Cost, effectiveContext, currencyService);
                 return new ShippingOptionDto
                 {
                     Id = opt.ShippingOptionId,

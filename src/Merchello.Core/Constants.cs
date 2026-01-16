@@ -52,6 +52,7 @@ public static class Constants
         // Tax
         public const string TaxGroupId = "TaxGroupId";
         public const string TaxGroupName = "TaxGroupName";
+        public const string EffectiveShippingTaxRate = "EffectiveShippingTaxRate";
 
         // Physical dimensions
         public const string WeightKg = "WeightKg";

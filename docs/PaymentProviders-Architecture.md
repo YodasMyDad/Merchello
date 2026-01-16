@@ -29,23 +29,50 @@ Methods can be individually enabled/disabled and have different integration type
 |-----------------|---------|
 | `IPaymentProvider` | Provider contract - defines gateway capabilities |
 | `PaymentProviderBase` | Base class with default implementations |
-| `PaymentProviderMetadata` | Immutable provider metadata (alias, refunds, webhooks) |
-| `PaymentMethodDefinition` | Defines a checkout option (integration type, express checkout) |
+| `PaymentProviderMetadata` | Immutable provider metadata (alias, refunds, webhooks, payment links) |
+| `PaymentMethodDefinition` | Defines a checkout option (integration type, express checkout, regions) |
 | `IPaymentProviderManager` | Discovery, configuration, method management |
 | `IPaymentService` | Payment orchestration, refunds, status |
+
+### IPaymentProvider Interface
+
+**Required Methods (4):**
+- `Metadata` - Provider name, alias, and capabilities
+- `GetAvailablePaymentMethods()` - Declare supported payment methods
+- `CreatePaymentSessionAsync()` - Create payment session with SDK config
+- `ProcessPaymentAsync()` - Process the payment result
+
+**Optional Methods (defaults in PaymentProviderBase):**
+- `GetConfigurationFieldsAsync()` - Returns empty (no config needed)
+- `ConfigureAsync()` - Stores configuration automatically
+- `GetExpressCheckoutClientConfigAsync()` - Returns null (no express checkout)
+- `ProcessExpressCheckoutAsync()` - Returns "not supported"
+- `CapturePaymentAsync()` - Returns "not supported"
+- `RefundPaymentAsync()` - Returns "not supported"
+- `ValidateWebhookAsync()` - Returns false
+- `ProcessWebhookAsync()` - Returns "not supported"
+- `GetWebhookEventTemplatesAsync()` - Returns empty list
+- `GenerateTestWebhookPayloadAsync()` - Returns empty payload
+- `CreatePaymentLinkAsync()` - Returns "not supported"
+- `DeactivatePaymentLinkAsync()` - Returns false
 
 ## Key Models
 
 | Model | Purpose |
 |-------|---------|
-| `PaymentMethodDefinition` | Defines a payment method a provider supports |
-| `PaymentMethodSetting` | Persisted method settings (enabled, sort order) |
-| `PaymentMethodType` | Category/type of method for deduplication (Cards, ApplePay, etc.) |
+| `PaymentMethodDefinition` | Defines a payment method with integration type, regions, icons |
+| `PaymentMethodSetting` | Persisted method settings (enabled, sort order, display override) |
+| `PaymentMethodTypes` | String constants for deduplication (Cards, ApplePay, etc.) |
 | `PaymentSessionResult` | Session creation response (redirect URL, adapter URL, SDK config) |
-| `ProcessPaymentRequest` | Standard payment processing request |
+| `PaymentResult` | Payment processing result with status, settlement data, risk score |
+| `ProcessPaymentRequest` | Standard payment processing request with idempotency support |
 | `ExpressCheckoutRequest` | Express checkout request with customer data |
 | `ExpressCheckoutResult` | Express checkout processing result |
+| `ExpressCheckoutClientConfig` | Client SDK configuration for express checkout buttons |
 | `PaymentIntegrationType` | How method integrates with checkout UI |
+| `PaymentLinkRequest` | Request to create a shareable payment link |
+| `PaymentLinkResult` | Payment link creation result with URL |
+| `PaymentCaptureResult` | Result of capturing an authorized payment |
 | `WebhookEventTemplate` | Template for simulating webhook events |
 | `TestWebhookParameters` | Parameters for generating test webhook payloads |
 
@@ -76,7 +103,7 @@ adapter.submit() → POST /api/merchello/checkout/process-payment
 | `AdapterUrl` | URL to the JavaScript adapter file |
 | `ProviderAlias` | Provider identifier for adapter lookup |
 | `MethodAlias` | Method identifier passed to adapter |
-| `JsSdkUrl` | URL to provider's SDK (Stripe.js, Braintree, etc.) |
+| `JavaScriptSdkUrl` | URL to provider's SDK (Stripe.js, Braintree, etc.) |
 | `SdkConfiguration` | Provider-specific SDK configuration |
 | `ClientSecret` or `ClientToken` | Authentication token for SDK |
 
@@ -93,36 +120,56 @@ Use these factory methods on `PaymentSessionResult` to create properly configure
 
 ### Adapter Interface
 
-Adapters register with `window.MerchelloPaymentAdapters` and must implement:
+Adapters use a unified interface supporting both standard and express checkout. Adapters register with `window.MerchelloPaymentAdapters` (standard) and `window.MerchelloExpressAdapters` (express):
 
 ```javascript
 window.MerchelloPaymentAdapters['provider-alias'] = {
-    // Render payment UI into container
-    async render(container, session, checkout) { },
+    // Adapter configuration
+    config: {
+        name: 'Provider Name',
+        supportsStandard: true,  // Can handle standard checkout
+        supportsExpress: false   // Can handle express checkout
+    },
 
-    // Submit payment - called when user clicks Pay
+    // Render payment UI into container
+    // context: { isExpress, session?, checkout?, method? }
+    async render(container, sessionOrConfig, context) { },
+
+    // Submit payment - called when user clicks Pay (for form-based flows)
     // Returns: { success: boolean, error?: string, transactionId?: string }
-    async submit(invoiceId, options) { },
+    async submit(sessionId, data) { },
 
     // Get payment token without submitting (for backoffice testing)
     // Returns: { success: boolean, nonce?: string, error?: string, isButtonFlow?: boolean }
     async tokenize() { },
 
     // Cleanup when switching methods
-    teardown() { }
+    teardown(sessionId) { },
+
+    // Extract customer data from provider response (for express checkout)
+    extractCustomerData(data, context) { }
 };
 ```
 
+**Registry Functions (from adapter-interface.js):**
+- `registerAdapter(name, adapter)` - Registers for both standard and express based on config
+- `getAdapter(name, forExpress)` - Gets adapter by name
+- `hasAdapter(name, forExpress)` - Checks if registered
+- `unregisterAdapter(name)` - Removes adapter
+
 ### Built-in Adapters
+
+Built-in adapters use relative paths (served from wwwroot). Third-party providers use `/_content/{AssemblyName}/` paths.
 
 | Provider | Adapter URL | Purpose |
 |----------|-------------|---------|
-| Stripe | `/_content/Merchello/js/checkout/adapters/stripe-payment-adapter.js` | Cards (Elements) |
-| Stripe Express | `/_content/Merchello/js/checkout/adapters/stripe-express-adapter.js` | Apple Pay, Google Pay, Link |
-| Braintree | `/_content/Merchello/js/checkout/adapters/braintree-payment-adapter.js` | Cards (Hosted Fields) |
-| Braintree Express | `/_content/Merchello/js/checkout/adapters/braintree-express-adapter.js` | PayPal, Apple Pay, Google Pay, Venmo |
-| Braintree Local | `/_content/Merchello/js/checkout/adapters/braintree-local-payment-adapter.js` | iDEAL, Bancontact, SEPA, EPS, P24 |
-| PayPal | `/_content/Merchello/js/checkout/adapters/paypal-unified-adapter.js` | PayPal, Pay Later (standard + express) |
+| Stripe | `/js/checkout/adapters/stripe-payment-adapter.js` | Cards (Payment Element) |
+| Stripe Card Elements | `/js/checkout/adapters/stripe-card-elements-adapter.js` | Cards (Individual fields) |
+| Stripe Express | `/js/checkout/adapters/stripe-express-adapter.js` | Apple Pay, Google Pay, Link |
+| Braintree | `/js/checkout/adapters/braintree-payment-adapter.js` | Cards (Hosted Fields) |
+| Braintree Express | `/js/checkout/adapters/braintree-express-adapter.js` | PayPal, Apple Pay, Google Pay, Venmo |
+| Braintree Local | `/js/checkout/adapters/braintree-local-payment-adapter.js` | iDEAL, Bancontact, SEPA, EPS, P24 |
+| PayPal | `/js/checkout/adapters/paypal-unified-adapter.js` | PayPal, Pay Later (standard + express) |
 
 ### RCL Requirement for Third-Party Providers
 
@@ -173,8 +220,13 @@ PaymentProvider (Stripe)
 #### Stripe
 - Location: `Providers/Stripe/StripePaymentProvider.cs`
 - NuGet: `Stripe.net`
-- Methods: Cards (Redirect or Hosted Fields), Apple Pay, Google Pay, Link
-- Supports refunds, partial refunds, auth-and-capture
+- Methods: Cards (Payment Element or Card Elements), Apple Pay, Google Pay, Link
+- Supports refunds, partial refunds, auth-and-capture, payment links
+- Webhook endpoint: `/umbraco/merchello/webhooks/payments/stripe`
+- Required webhook events:
+  - `checkout.session.completed`
+  - `payment_intent.succeeded`, `payment_intent.payment_failed`
+  - `charge.refunded`, `charge.dispute.created`
 
 #### PayPal
 - Location: `Providers/PayPal/PayPalPaymentProvider.cs`
@@ -187,7 +239,7 @@ PaymentProvider (Stripe)
   - `PAYMENT.CAPTURE.COMPLETED`
   - `PAYMENT.CAPTURE.DENIED`
   - `PAYMENT.CAPTURE.REFUNDED`
-- Supports refunds, partial refunds, auth-and-capture
+- Supports refunds, partial refunds, auth-and-capture, payment links
 - Pay Later available in US, UK, AU, FR, DE, ES, IT
 
 #### Braintree
@@ -347,27 +399,33 @@ src/Merchello.Core/Payments/
 │   ├── PaymentProviderManager.cs
 │   └── RegisteredPaymentProvider.cs
 ├── Models/
-│   ├── PaymentMethodDefinition.cs          # Method definition with MethodType
+│   ├── PaymentMethodDefinition.cs          # Method definition with MethodType, icons, regions
 │   ├── PaymentMethodTypes.cs               # String constants for deduplication
 │   ├── PaymentMethodSetting.cs             # Persisted method settings
-│   ├── ExpressCheckoutRequest.cs           # NEW
-│   ├── ExpressCheckoutResult.cs            # NEW
-│   ├── ExpressCheckoutCustomerData.cs      # NEW
-│   ├── ExpressCheckoutAddress.cs           # NEW
+│   ├── PaymentMethodRegion.cs              # Region availability for methods
+│   ├── PaymentMethodCheckoutStyle.cs       # Checkout styling options
+│   ├── ExpressCheckoutRequest.cs
+│   ├── ExpressCheckoutResult.cs
+│   ├── ExpressCheckoutCustomerData.cs
+│   ├── ExpressCheckoutAddress.cs
+│   ├── ExpressCheckoutClientConfig.cs      # SDK config for express buttons
 │   ├── PaymentType.cs
 │   ├── PaymentIntegrationType.cs
 │   ├── InvoicePaymentStatus.cs
 │   ├── PaymentProviderSetting.cs
 │   ├── PaymentRequest.cs
 │   ├── PaymentSessionResult.cs
-│   ├── ProcessPaymentRequest.cs
-│   ├── PaymentResult.cs
+│   ├── ProcessPaymentRequest.cs            # Includes IdempotencyKey
+│   ├── PaymentResult.cs                    # Includes settlement data, risk score
+│   ├── PaymentCaptureResult.cs             # Auth-and-capture result
+│   ├── PaymentLinkRequest.cs               # Payment link creation
+│   ├── PaymentLinkResult.cs                # Payment link result
 │   ├── CheckoutFormField.cs
 │   ├── RefundRequest.cs
 │   ├── RefundResult.cs
 │   ├── WebhookProcessingResult.cs
-│   ├── WebhookEventTemplate.cs            # Webhook test templates
-│   └── TestWebhookParameters.cs           # Test webhook parameters
+│   ├── WebhookEventTemplate.cs             # Webhook test templates
+│   └── TestWebhookParameters.cs            # Test webhook parameters
 ├── Services/
 │   ├── Interfaces/IPaymentService.cs
 │   └── PaymentService.cs
@@ -391,12 +449,19 @@ src/Merchello/Controllers/
 ### Checkout (Public)
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
-| GET | `/api/merchello/checkout/express-methods` | Get express checkout methods |
 | GET | `/api/merchello/checkout/payment-methods` | Get standard payment methods |
-| POST | `/api/merchello/checkout/{invoiceId}/pay` | Create payment session |
+| GET | `/api/merchello/checkout/express-methods` | Get express checkout methods |
+| GET | `/api/merchello/checkout/express-config` | Get express checkout SDK config |
+| POST | `/api/merchello/checkout/pay` | Create invoice from basket and start payment |
+| POST | `/api/merchello/checkout/{invoiceId}/pay` | Create payment session for existing invoice |
+| POST | `/api/merchello/checkout/process-payment` | Process HostedFields payment (nonce/token) |
+| POST | `/api/merchello/checkout/process-direct-payment` | Process DirectForm payment (form data) |
 | POST | `/api/merchello/checkout/express` | Complete express checkout |
+| POST | `/api/merchello/checkout/express-payment-intent` | Create express payment intent (Stripe) |
 | POST | `/api/merchello/checkout/{providerAlias}/create-order` | Create widget order (PayPal-style flow) |
 | POST | `/api/merchello/checkout/{providerAlias}/capture-order` | Capture widget order after approval |
+| GET | `/api/merchello/checkout/return` | Handle return from payment gateway |
+| GET | `/api/merchello/checkout/cancel` | Handle cancel from payment gateway |
 
 **Widget Flow Note:** The `create-order` and `capture-order` endpoints support any provider implementing the widget payment pattern (create → approve → capture). Third-party providers can use these generic endpoints by passing their provider alias in the URL.
 

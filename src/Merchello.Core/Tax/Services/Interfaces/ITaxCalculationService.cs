@@ -9,23 +9,22 @@ namespace Merchello.Core.Tax.Services.Interfaces;
 public interface ITaxCalculationService
 {
     /// <summary>
-    /// Calculates tax for line items with proper discount pro-rating.
-    /// This is the single source of truth for tax calculation logic.
+    /// Calculates tax for line items only (products). Does NOT include shipping tax.
+    /// Use <see cref="CalculateOrderTax"/> when you need complete order tax including shipping.
     /// </summary>
     /// <param name="request">The tax calculation request with line items and discounts</param>
     /// <param name="currencyCode">Currency code for rounding</param>
     /// <returns>Tax calculation result with per-item breakdown</returns>
-    TaxCalculationSummary CalculateTax(TaxCalculationInput request, string currencyCode);
+    LineItemTaxSummary CalculateLineItemTax(LineItemTaxInput request, string currencyCode);
 
     /// <summary>
-    /// Calculates tax with full support for before-tax and after-tax discounts,
-    /// linked vs unlinked discounts, and shipping tax.
-    /// This method is used by LineItemService to ensure centralized tax logic.
+    /// Calculates complete order tax including line items (products) AND shipping.
+    /// Use this method for checkout totals and invoices.
     /// </summary>
-    /// <param name="input">The tax calculation input with discounts</param>
+    /// <param name="input">The tax calculation input with line items, discounts, and shipping</param>
     /// <param name="currencyCode">Currency code for rounding</param>
-    /// <returns>Tax calculation result with line item and shipping tax</returns>
-    TaxWithDiscountsResult CalculateTaxWithDiscounts(TaxWithDiscountsInput input, string currencyCode);
+    /// <returns>Tax calculation result with line item tax and shipping tax</returns>
+    OrderTaxResult CalculateOrderTax(OrderTaxInput input, string currencyCode);
 
     /// <summary>
     /// Calculates the taxable amount for a single line item after applying

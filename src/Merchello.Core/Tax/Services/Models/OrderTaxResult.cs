@@ -1,9 +1,9 @@
 namespace Merchello.Core.Tax.Services.Models;
 
 /// <summary>
-/// Result of tax calculation with discount support.
+/// Result of complete order tax calculation including line items (products) AND shipping.
 /// </summary>
-public class TaxWithDiscountsResult
+public class OrderTaxResult
 {
     /// <summary>
     /// Total tax amount (line items + shipping).

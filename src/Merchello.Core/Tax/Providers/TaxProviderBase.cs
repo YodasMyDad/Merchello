@@ -30,7 +30,7 @@ public abstract class TaxProviderBase : ITaxProvider
     }
 
     /// <inheritdoc />
-    public abstract Task<TaxCalculationResult> CalculateTaxAsync(
+    public abstract Task<TaxCalculationResult> CalculateOrderTaxAsync(
         TaxCalculationRequest request,
         CancellationToken cancellationToken = default);
 

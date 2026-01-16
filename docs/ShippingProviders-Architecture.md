@@ -17,11 +17,11 @@ Pluggable shipping provider system with built-in carriers (Flat Rate, FedEx, UPS
 
 | Interface/Class | Location |
 |-----------------|----------|
-| `IShippingProvider` | [IShippingProvider.cs](../src/Merchello.Core/Shipping/Providers/IShippingProvider.cs) |
+| `IShippingProvider` | [IShippingProvider.cs](../src/Merchello.Core/Shipping/Providers/Interfaces/IShippingProvider.cs) |
 | `ShippingProviderBase` | [ShippingProviderBase.cs](../src/Merchello.Core/Shipping/Providers/ShippingProviderBase.cs) |
 | `ShippingProviderMetadata` | [ShippingProviderMetadata.cs](../src/Merchello.Core/Shipping/Providers/ShippingProviderMetadata.cs) |
 | `ProviderConfigCapabilities` | [ProviderConfigCapabilities.cs](../src/Merchello.Core/Shipping/Providers/ProviderConfigCapabilities.cs) |
-| `IShippingProviderManager` | [IShippingProviderManager.cs](../src/Merchello.Core/Shipping/Providers/IShippingProviderManager.cs) |
+| `IShippingProviderManager` | [IShippingProviderManager.cs](../src/Merchello.Core/Shipping/Providers/Interfaces/IShippingProviderManager.cs) |
 | `ShippingProviderManager` | [ShippingProviderManager.cs](../src/Merchello.Core/Shipping/Providers/ShippingProviderManager.cs) |
 | `IShippingQuoteService` | [IShippingQuoteService.cs](../src/Merchello.Core/Shipping/Services/Interfaces/IShippingQuoteService.cs) |
 | `ShippingQuoteService` | [ShippingQuoteService.cs](../src/Merchello.Core/Shipping/Services/ShippingQuoteService.cs) |
@@ -33,6 +33,7 @@ Pluggable shipping provider system with built-in carriers (Flat Rate, FedEx, UPS
 | `ShippingQuoteRequest` | [ShippingQuoteRequest.cs](../src/Merchello.Core/Shipping/Providers/ShippingQuoteRequest.cs) |
 | `ShippingRateQuote` | [ShippingRateQuote.cs](../src/Merchello.Core/Shipping/Providers/ShippingRateQuote.cs) |
 | `ShippingServiceLevel` | [ShippingServiceLevel.cs](../src/Merchello.Core/Shipping/Providers/ShippingServiceLevel.cs) |
+| `ShippingServiceType` | [ShippingServiceType.cs](../src/Merchello.Core/Shipping/Models/ShippingServiceType.cs) |
 | `ShippingQuoteItem` | [ShippingQuoteItem.cs](../src/Merchello.Core/Shipping/Providers/ShippingQuoteItem.cs) |
 | `ShipmentPackage` | [ShipmentPackage.cs](../src/Merchello.Core/Shipping/Providers/ShipmentPackage.cs) |
 | `ShippingProviderConfiguration` | [ShippingProviderConfiguration.cs](../src/Merchello.Core/Shipping/Models/ShippingProviderConfiguration.cs) |
@@ -296,14 +297,15 @@ src/Merchello.Core/Shipping/
 │   │   ├── UpsShippingProvider.cs
 │   │   ├── UpsApiClient.cs
 │   │   └── Models/
-│   ├── IShippingProvider.cs
-│   ├── IShippingProviderManager.cs
+│   ├── Interfaces/
+│   │   ├── IShippingProvider.cs
+│   │   └── IShippingProviderManager.cs
 │   ├── ShippingProviderBase.cs
 │   ├── ShippingProviderManager.cs
 │   ├── ShippingProviderMetadata.cs
-│   ├── ProviderConfigCapabilities.cs           # NEW: Config capability flags
+│   ├── ProviderConfigCapabilities.cs
 │   ├── ShippingProviderConfigurationField.cs
-│   ├── ConfigurationFieldType.cs               # Updated: +Number, Currency, Percentage
+│   ├── ConfigurationFieldType.cs
 │   ├── SelectOption.cs
 │   ├── RegisteredShippingProvider.cs
 │   ├── ShippingQuoteRequest.cs
@@ -314,35 +316,40 @@ src/Merchello.Core/Shipping/
 │   ├── ShippingProductSnapshot.cs
 │   ├── ShippingOptionSnapshot.cs
 │   ├── ShippingCostSnapshot.cs
-│   └── ShippingWeightTierSnapshot.cs           # NEW: Weight tier for quote context
+│   └── ShippingWeightTierSnapshot.cs
 ├── Models/
 │   ├── ShippingProviderConfiguration.cs
-│   ├── ShippingOption.cs                       # +ProviderKey, ServiceType, ProviderSettings, IsEnabled
+│   ├── ShippingOption.cs
 │   ├── ShippingCost.cs
 │   ├── ShippingWeightTier.cs
 │   ├── ShippingOptionCountry.cs
+│   ├── ShippingServiceType.cs              # Service type model (FedEx Ground, UPS Next Day, etc.)
 │   ├── Shipment.cs
 │   └── ...
 ├── Services/
 │   ├── Interfaces/
 │   │   ├── IShippingService.cs
 │   │   ├── IShippingQuoteService.cs
-│   │   └── IShippingOptionService.cs
+│   │   ├── IShippingOptionService.cs
+│   │   └── IShippingCostResolver.cs
 │   ├── ShippingService.cs
 │   ├── ShippingQuoteService.cs
-│   └── ShippingOptionService.cs
+│   ├── ShippingOptionService.cs
+│   └── ShippingCostResolver.cs
 ├── Mapping/
 │   ├── ShippingProviderConfigurationDbMapping.cs
 │   ├── ShippingOptionDbMapping.cs
+│   ├── ShippingCostDbMapping.cs
 │   └── ShippingWeightTierDbMapping.cs
 └── Dtos/
-    ├── ShippingProviderDto.cs                  # Updated: +ProviderConfigCapabilitiesDto, etc.
+    ├── ShippingProviderDto.cs
     ├── ShippingProviderConfigurationDto.cs
-    ├── ShippingOptionDtos.cs                   # Updated: +ProviderKey, ProviderSettings fields
+    ├── ShippingOptionDto.cs
+    ├── TestShippingProviderDto.cs
     └── ...
 
 src/Merchello/Controllers/
-├── ShippingProvidersApiController.cs           # Updated: +method-config, available-for-warehouse
+├── ShippingProvidersApiController.cs
 └── ShippingOptionsApiController.cs
 ```
 

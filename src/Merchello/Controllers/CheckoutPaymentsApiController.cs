@@ -1086,12 +1086,33 @@ public class CheckoutPaymentsApiController(
                 });
             }
 
-            // Auto-select cheapest shipping option for each group
-            var autoSelectedShipping = ShippingAutoSelector.SelectOptions(
-                groupingResult.Groups,
-                ShippingAutoSelectStrategy.Cheapest);
+            // Check if user already has shipping selections in their session
+            var existingSession = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
 
-            if (autoSelectedShipping.Count == 0)
+            Dictionary<Guid, Guid> shippingSelections;
+
+            if (existingSession.SelectedShippingOptions.Count > 0)
+            {
+                // User already selected shipping on checkout page - use their selection
+                shippingSelections = existingSession.SelectedShippingOptions;
+
+                logger.LogInformation(
+                    "Express checkout: Using {Count} existing shipping selections from session for basket {BasketId}",
+                    shippingSelections.Count,
+                    basket.Id);
+            }
+            else
+            {
+                // No prior selection (true express checkout from cart) - auto-select cheapest
+                shippingSelections = ShippingAutoSelector.SelectOptions(groupingResult.Groups);
+
+                logger.LogInformation(
+                    "Express checkout: Auto-selected cheapest shipping for {Count} groups, basket {BasketId}",
+                    shippingSelections.Count,
+                    basket.Id);
+            }
+
+            if (shippingSelections.Count == 0)
             {
                 logger.LogWarning(
                     "Express checkout: No shipping options available for basket {BasketId}. Address not persisted.",
@@ -1116,7 +1137,7 @@ public class CheckoutPaymentsApiController(
             // Save shipping selections to session
             await checkoutSessionService.SaveShippingSelectionsAsync(
                 basket.Id,
-                autoSelectedShipping,
+                shippingSelections,
                 null,
                 cancellationToken);
 
@@ -1124,9 +1145,9 @@ public class CheckoutPaymentsApiController(
             var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
 
             logger.LogInformation(
-                "Express checkout: Auto-selected shipping for {GroupCount} groups, combined total: {Total}",
-                autoSelectedShipping.Count,
-                ShippingAutoSelector.CalculateCombinedTotal(groupingResult.Groups, autoSelectedShipping));
+                "Express checkout: Shipping selections saved for {GroupCount} groups, combined total: {Total}",
+                shippingSelections.Count,
+                ShippingAutoSelector.CalculateCombinedTotal(groupingResult.Groups, shippingSelections));
 
             // Create invoice from basket with the populated session
             var invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, cancellationToken);
@@ -1282,24 +1303,41 @@ public class CheckoutPaymentsApiController(
         var displayContext = await storefrontContextService.GetDisplayContextAsync(cancellationToken);
         var countryCode = displayContext.TaxCountryCode;
 
+        // Check if user already has shipping selections in their session (from checkout page)
+        var existingSession = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+        var shippingAddress = string.IsNullOrEmpty(existingSession.ShippingAddress.CountryCode)
+            ? new Address { CountryCode = countryCode }
+            : existingSession.ShippingAddress;
+
         // Pre-calculate shipping using same flow as ProcessExpressCheckout
         // This ensures the amount shown to PayPal matches what will be charged
         var estimatedShipping = 0m;
         var tempSession = new CheckoutSession
         {
             BasketId = basket.Id,
-            ShippingAddress = new Address { CountryCode = countryCode }
+            ShippingAddress = shippingAddress,
+            SelectedShippingOptions = existingSession.SelectedShippingOptions
         };
 
         var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, tempSession, cancellationToken);
         if (groupingResult.Success && groupingResult.Groups.Count > 0)
         {
-            var autoSelectedShipping = ShippingAutoSelector.SelectOptions(
-                groupingResult.Groups,
-                ShippingAutoSelectStrategy.Cheapest);
+            Dictionary<Guid, Guid> shippingSelections;
+
+            if (existingSession.SelectedShippingOptions.Count > 0)
+            {
+                // User already selected shipping on checkout page - use their selection
+                shippingSelections = existingSession.SelectedShippingOptions;
+            }
+            else
+            {
+                // No prior selection - auto-select cheapest for initial estimate
+                shippingSelections = ShippingAutoSelector.SelectOptions(groupingResult.Groups);
+            }
+
             estimatedShipping = ShippingAutoSelector.CalculateCombinedTotal(
                 groupingResult.Groups,
-                autoSelectedShipping);
+                shippingSelections);
         }
 
         // Recalculate basket with shipping to get accurate totals
@@ -1307,7 +1345,7 @@ public class CheckoutPaymentsApiController(
             new CalculateBasketParameters
             {
                 Basket = basket,
-                CountryCode = countryCode,
+                CountryCode = shippingAddress.CountryCode ?? countryCode,
                 ShippingAmountOverride = estimatedShipping
             },
             cancellationToken);
@@ -1465,23 +1503,40 @@ public class CheckoutPaymentsApiController(
         var displayContext = await storefrontContextService.GetDisplayContextAsync(cancellationToken);
         var countryCode = displayContext.TaxCountryCode;
 
-        // Pre-calculate shipping using same flow as ProcessExpressCheckout
+        // Check if user already has shipping selections in their session (from checkout page)
+        var existingSession = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+        var shippingAddress = string.IsNullOrEmpty(existingSession.ShippingAddress.CountryCode)
+            ? new Address { CountryCode = countryCode }
+            : existingSession.ShippingAddress;
+
+        // Calculate shipping - use existing selections if available, otherwise auto-select cheapest
         var estimatedShipping = 0m;
         var tempSession = new CheckoutSession
         {
             BasketId = basket.Id,
-            ShippingAddress = new Address { CountryCode = countryCode }
+            ShippingAddress = shippingAddress,
+            SelectedShippingOptions = existingSession.SelectedShippingOptions
         };
 
         var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, tempSession, cancellationToken);
         if (groupingResult.Success && groupingResult.Groups.Count > 0)
         {
-            var autoSelectedShipping = ShippingAutoSelector.SelectOptions(
-                groupingResult.Groups,
-                ShippingAutoSelectStrategy.Cheapest);
+            Dictionary<Guid, Guid> shippingSelections;
+
+            if (existingSession.SelectedShippingOptions.Count > 0)
+            {
+                // User already selected shipping on checkout page - use their selection
+                shippingSelections = existingSession.SelectedShippingOptions;
+            }
+            else
+            {
+                // No prior selection - auto-select cheapest for estimation
+                shippingSelections = ShippingAutoSelector.SelectOptions(groupingResult.Groups);
+            }
+
             estimatedShipping = ShippingAutoSelector.CalculateCombinedTotal(
                 groupingResult.Groups,
-                autoSelectedShipping);
+                shippingSelections);
         }
 
         // Recalculate basket with shipping to get accurate totals
@@ -1489,7 +1544,7 @@ public class CheckoutPaymentsApiController(
             new CalculateBasketParameters
             {
                 Basket = basket,
-                CountryCode = countryCode,
+                CountryCode = shippingAddress.CountryCode ?? countryCode,
                 ShippingAmountOverride = estimatedShipping
             },
             cancellationToken);
@@ -1999,18 +2054,21 @@ public class CheckoutPaymentsApiController(
         if (string.IsNullOrWhiteSpace(session.BillingAddress.CountryCode))
             return (false, "Billing country is required. Please complete the checkout information step first.");
 
-        // Validate shipping address
-        if (string.IsNullOrWhiteSpace(session.ShippingAddress.Name))
-            return (false, "Shipping name is required. Please complete the checkout information step first.");
+        // Validate shipping address (only if not same as billing)
+        if (!session.ShippingSameAsBilling)
+        {
+            if (string.IsNullOrWhiteSpace(session.ShippingAddress.Name))
+                return (false, "Shipping name is required. Please complete the checkout information step first.");
 
-        if (string.IsNullOrWhiteSpace(session.ShippingAddress.AddressOne))
-            return (false, "Shipping address is required. Please complete the checkout information step first.");
+            if (string.IsNullOrWhiteSpace(session.ShippingAddress.AddressOne))
+                return (false, "Shipping address is required. Please complete the checkout information step first.");
 
-        if (string.IsNullOrWhiteSpace(session.ShippingAddress.TownCity))
-            return (false, "Shipping city is required. Please complete the checkout information step first.");
+            if (string.IsNullOrWhiteSpace(session.ShippingAddress.TownCity))
+                return (false, "Shipping city is required. Please complete the checkout information step first.");
 
-        if (string.IsNullOrWhiteSpace(session.ShippingAddress.CountryCode))
-            return (false, "Shipping country is required. Please complete the checkout information step first.");
+            if (string.IsNullOrWhiteSpace(session.ShippingAddress.CountryCode))
+                return (false, "Shipping country is required. Please complete the checkout information step first.");
+        }
 
         return (true, null);
     }

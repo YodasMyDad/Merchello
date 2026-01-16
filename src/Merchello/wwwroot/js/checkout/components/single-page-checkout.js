@@ -81,6 +81,7 @@ export function initSinglePageCheckout() {
             _lastAddressHash: '',
             _shippingRequestId: 0,
             _paymentInitRequestId: 0,
+            _paymentReinitTimeout: null,
             _shippingCalculated: false,
             announcement: '',
 
@@ -207,6 +208,12 @@ export function initSinglePageCheckout() {
                 if (window.MerchelloSinglePageAnalytics) {
                     window.MerchelloSinglePageAnalytics.trackBegin();
                 }
+
+                // Listen for basket changes from other components (e.g., discounts)
+                // to re-initialize payment form with correct totals
+                document.addEventListener('merchello:payment-reinit-needed', () => {
+                    this.reinitializePaymentFormIfActive();
+                });
             },
 
             getInitialDataFromStore() {
@@ -235,7 +242,13 @@ export function initSinglePageCheckout() {
             setExpressReRenderSkip(skip) {
                 const expressEl = document.querySelector('[x-data="expressCheckout"]');
                 if (expressEl && expressEl._x_dataStack?.[0]) {
-                    expressEl._x_dataStack[0]._skipReRender = skip;
+                    const expressComponent = expressEl._x_dataStack[0];
+                    // Use the component's method if available (handles pending re-renders)
+                    if (typeof expressComponent.setSkipReRender === 'function') {
+                        expressComponent.setSkipReRender(skip);
+                    } else {
+                        expressComponent._skipReRender = skip;
+                    }
                 }
             },
 
@@ -438,15 +451,31 @@ export function initSinglePageCheckout() {
                         // Build selections, preserving user's previous choice if still valid
                         const selections = {};
                         groups.forEach(g => {
-                            const previousSelection = this.shippingSelections[g.groupId];
+                            // Try lookup by groupId first
+                            let previousSelection = this.shippingSelections[g.groupId];
+
+                            // Fallback: try lookup by warehouseId (handles groupId changes when available options change)
+                            if (!previousSelection && g.warehouseId) {
+                                previousSelection = this.shippingSelections[g.warehouseId];
+                            }
+
                             const previousSelectionStillValid = previousSelection &&
                                 g.shippingOptions?.some(o => o.id === previousSelection);
 
+                            let selectedOptionId;
                             if (previousSelectionStillValid) {
-                                selections[g.groupId] = previousSelection;
+                                selectedOptionId = previousSelection;
                             } else if (g.selectedShippingOptionId) {
                                 const optionExists = g.shippingOptions?.some(o => o.id === g.selectedShippingOptionId);
-                                if (optionExists) selections[g.groupId] = g.selectedShippingOptionId;
+                                if (optionExists) selectedOptionId = g.selectedShippingOptionId;
+                            }
+
+                            if (selectedOptionId) {
+                                selections[g.groupId] = selectedOptionId;
+                                // Also store by warehouseId for future fallback lookups
+                                if (g.warehouseId) {
+                                    selections[g.warehouseId] = selectedOptionId;
+                                }
                             }
                         });
 
@@ -459,6 +488,9 @@ export function initSinglePageCheckout() {
                                 tax: data.basket.displayTax ?? data.basket.tax ?? 0
                             });
                             this.dispatchBasketUpdate();
+
+                            // Re-initialize payment form with new totals (shows skeleton immediately)
+                            await this.reinitializePaymentFormIfActive();
 
                             if (data.basket.errors?.length > 0) {
                                 const shippingErrors = data.basket.errors.filter(e => e.isShippingError);
@@ -513,6 +545,9 @@ export function initSinglePageCheckout() {
                             tax: data.basket.displayTax ?? data.basket.tax ?? 0
                         });
                         this.dispatchBasketUpdate();
+
+                        // Re-initialize payment form with new totals (shows skeleton immediately)
+                        await this.reinitializePaymentFormIfActive();
                     }
                 } catch (error) {
                     console.error('Failed to update shipping totals:', error);
@@ -522,6 +557,40 @@ export function initSinglePageCheckout() {
             // ============================================
             // Payment Methods
             // ============================================
+
+            /**
+             * Re-initialize payment form if one is currently active.
+             * Called when basket totals change (shipping, discounts) to ensure
+             * the payment session has the correct amount.
+             * Debounced to prevent flickering during rapid shipping changes.
+             */
+            async reinitializePaymentFormIfActive() {
+                const store = this.$store.checkout;
+
+                // Only re-init for HostedFields/DirectForm types that have an active session
+                // PayPal/Widget types handle amount updates differently (via express checkout re-render)
+                if (!this.paymentSession) return;
+                if (![IntegrationType.HostedFields, IntegrationType.DirectForm].includes(this.paymentSession.integrationType)) return;
+                if (!this.selectedPaymentMethod) return;
+
+                // Clear any pending re-init to debounce rapid changes
+                if (this._paymentReinitTimeout) {
+                    clearTimeout(this._paymentReinitTimeout);
+                }
+
+                // Debounce re-init to prevent flickering (matches express checkout's 300ms)
+                this._paymentReinitTimeout = setTimeout(async () => {
+                    this._paymentReinitTimeout = null;
+
+                    // Re-check conditions after debounce (state may have changed)
+                    if (!this.paymentSession) return;
+                    if (!this.selectedPaymentMethod) return;
+
+                    // Clear session and re-initialize (shows skeleton immediately)
+                    store?.setPaymentSession(null);
+                    await this.initializePaymentForm(this.selectedPaymentMethod);
+                }, 300);
+            },
 
             async loadPaymentMethods() {
                 const store = this.$store.checkout;

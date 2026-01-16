@@ -26,9 +26,9 @@ public interface ITaxProvider
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Calculate tax for a set of line items.
+    /// Calculates complete order tax including line items (products) AND shipping.
     /// </summary>
-    Task<TaxCalculationResult> CalculateTaxAsync(
+    Task<TaxCalculationResult> CalculateOrderTaxAsync(
         TaxCalculationRequest request,
         CancellationToken cancellationToken = default);
 

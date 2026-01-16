@@ -341,6 +341,7 @@ public class CheckoutService(
         basket.Tax = calcResult.Tax;
         basket.Total = calcResult.Total;
         basket.Shipping = calcResult.Shipping;
+        basket.EffectiveShippingTaxRate = calcResult.EffectiveShippingTaxRate;
     }
 
     /// <summary>
@@ -1825,6 +1826,17 @@ public class CheckoutService(
 
             Shipments = shipments,
             PaymentMethod = paymentMethod,
+
+            // Tax-inclusive display support - read from ExtendedData
+            EffectiveShippingTaxRate = invoice.ExtendedData.TryGetValue(
+                Constants.ExtendedDataKeys.EffectiveShippingTaxRate, out var rateValue)
+                ? rateValue switch
+                {
+                    JsonElement je => je.GetDecimal(),
+                    decimal d => d,
+                    _ => Convert.ToDecimal(rateValue)
+                }
+                : null,
 
             // Order status
             IsCancelled = invoice.IsCancelled,

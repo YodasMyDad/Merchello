@@ -388,6 +388,13 @@
         },
 
         /**
+         * Clean up all express buttons (called by express-checkout.js)
+         */
+        teardownAll() {
+            this.teardown();
+        },
+
+        /**
          * Clean up resources
          */
         teardown(methodAlias) {

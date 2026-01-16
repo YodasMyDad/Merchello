@@ -24,10 +24,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     #region Tax Exempt Tests
 
     [Fact]
-    public void CalculateTax_WhenTaxExempt_ReturnsZeroTax()
+    public void CalculateLineItemTax_WhenTaxExempt_ReturnsZeroTax()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             IsTaxExempt = true,
             LineItems =
@@ -45,7 +45,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.TotalTax.ShouldBe(0m);
@@ -56,10 +56,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_WhenTaxExempt_WithMultipleItems_AllHaveZeroTax()
+    public void CalculateLineItemTax_WhenTaxExempt_WithMultipleItems_AllHaveZeroTax()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             IsTaxExempt = true,
             LineItems =
@@ -70,7 +70,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.TotalTax.ShouldBe(0m);
@@ -83,10 +83,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     #region Single Item Tax Tests
 
     [Fact]
-    public void CalculateTax_SingleTaxableItem_CalculatesCorrectTax()
+    public void CalculateLineItemTax_SingleTaxableItem_CalculatesCorrectTax()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -103,7 +103,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.TotalTax.ShouldBe(20m); // 100 * 20% = 20
@@ -115,10 +115,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_SingleTaxableItem_WithQuantity_CalculatesCorrectTax()
+    public void CalculateLineItemTax_SingleTaxableItem_WithQuantity_CalculatesCorrectTax()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -133,7 +133,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.LineItems[0].LineTotal.ShouldBe(150m); // 50 * 3
@@ -141,10 +141,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_NonTaxableItem_HasZeroTax()
+    public void CalculateLineItemTax_NonTaxableItem_HasZeroTax()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -159,7 +159,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.TotalTax.ShouldBe(0m);
@@ -167,10 +167,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_ZeroTaxRate_HasZeroTax()
+    public void CalculateLineItemTax_ZeroTaxRate_HasZeroTax()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -185,7 +185,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.TotalTax.ShouldBe(0m);
@@ -197,10 +197,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     #region Mixed Tax Rate Tests
 
     [Fact]
-    public void CalculateTax_MixedTaxRates_CalculatesEachCorrectly()
+    public void CalculateLineItemTax_MixedTaxRates_CalculatesEachCorrectly()
     {
         // Arrange - simulates standard VAT (20%) and zero-rated items (0%)
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -224,7 +224,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "GBP");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "GBP");
 
         // Assert
         result.TotalTax.ShouldBe(20m); // Only standard item taxed: 100 * 20%
@@ -237,10 +237,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_MixedTaxableAndNonTaxable_OnlyTaxesTaxableItems()
+    public void CalculateLineItemTax_MixedTaxableAndNonTaxable_OnlyTaxesTaxableItems()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -264,7 +264,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.TotalTax.ShouldBe(20m); // Only taxable item
@@ -278,10 +278,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     #region Percentage Discount Tests
 
     [Fact]
-    public void CalculateTax_WithPercentageDiscount_ReducesTaxableAmount()
+    public void CalculateLineItemTax_WithPercentageDiscount_ReducesTaxableAmount()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -298,7 +298,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.LineItems[0].LineTotal.ShouldBe(100m);
@@ -309,10 +309,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_WithPercentageDiscount_OnMultipleQuantity_CalculatesCorrectly()
+    public void CalculateLineItemTax_WithPercentageDiscount_OnMultipleQuantity_CalculatesCorrectly()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -329,7 +329,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.LineItems[0].LineTotal.ShouldBe(100m); // 50 * 2
@@ -343,10 +343,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     #region Fixed Amount Discount Tests
 
     [Fact]
-    public void CalculateTax_WithFixedDiscount_ReducesTaxableAmount()
+    public void CalculateLineItemTax_WithFixedDiscount_ReducesTaxableAmount()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -363,7 +363,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "GBP");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "GBP");
 
         // Assert
         result.LineItems[0].LineTotal.ShouldBe(100m);
@@ -373,10 +373,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_WithFixedDiscount_MultipleQuantity_MultipliesDiscount()
+    public void CalculateLineItemTax_WithFixedDiscount_MultipleQuantity_MultipliesDiscount()
     {
         // Arrange - Fixed discount is per unit
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -393,7 +393,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "GBP");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "GBP");
 
         // Assert
         result.LineItems[0].LineTotal.ShouldBe(150m); // 50 * 3
@@ -407,10 +407,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     #region Discount Cap Tests
 
     [Fact]
-    public void CalculateTax_DiscountExceedsLineTotal_CapsAtLineTotal()
+    public void CalculateLineItemTax_DiscountExceedsLineTotal_CapsAtLineTotal()
     {
         // Arrange - Discount would exceed line total
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -427,7 +427,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.LineItems[0].DiscountAmount.ShouldBe(50m); // Capped at line total
@@ -437,10 +437,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_PercentageDiscountOver100_CapsAt100Percent()
+    public void CalculateLineItemTax_PercentageDiscountOver100_CapsAt100Percent()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -457,7 +457,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.LineItems[0].DiscountAmount.ShouldBe(100m); // Capped at line total
@@ -469,10 +469,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     #region Order Discount Pro-Rating Tests
 
     [Fact]
-    public void CalculateTax_WithOrderDiscount_ProRatesAcrossTaxableItems()
+    public void CalculateLineItemTax_WithOrderDiscount_ProRatesAcrossTaxableItems()
     {
         // Arrange - Two items of equal value, order discount should be split evenly
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             OrderDiscountTotal = 20m, // £20 order discount
             LineItems =
@@ -497,7 +497,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "GBP");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "GBP");
 
         // Assert
         // Each item gets 50% of the order discount (since they're equal value)
@@ -517,10 +517,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_WithOrderDiscount_ProRatesProportionally()
+    public void CalculateLineItemTax_WithOrderDiscount_ProRatesProportionally()
     {
         // Arrange - Items with different values get proportional discount
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             OrderDiscountTotal = 30m,
             LineItems =
@@ -545,7 +545,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "GBP");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "GBP");
 
         // Assert
         var expensive = result.LineItems.First(li => li.Sku == "EXPENSIVE");
@@ -559,10 +559,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_WithOrderDiscount_NonTaxableItemsExcludedFromProRating()
+    public void CalculateLineItemTax_WithOrderDiscount_NonTaxableItemsExcludedFromProRating()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             OrderDiscountTotal = 20m,
             LineItems =
@@ -587,7 +587,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "GBP");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "GBP");
 
         // Assert
         // Only taxable item gets the order discount
@@ -601,10 +601,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_WithOrderAndLineDiscount_BothApplied()
+    public void CalculateLineItemTax_WithOrderAndLineDiscount_BothApplied()
     {
         // Arrange - Combine line item discount and order discount
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             OrderDiscountTotal = 10m,
             LineItems =
@@ -622,7 +622,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "GBP");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "GBP");
 
         // Assert
         result.LineItems[0].DiscountAmount.ShouldBe(15m);
@@ -636,10 +636,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     #region Currency Rounding Tests
 
     [Fact]
-    public void CalculateTax_WithJPY_RoundsToZeroDecimals()
+    public void CalculateLineItemTax_WithJPY_RoundsToZeroDecimals()
     {
         // Arrange - Japanese Yen has 0 decimal places
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -654,7 +654,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "JPY");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "JPY");
 
         // Assert
         result.TotalTax.ShouldBe(80m); // 1000 * 8% = 80
@@ -662,10 +662,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_WithUSD_RoundsToTwoDecimals()
+    public void CalculateLineItemTax_WithUSD_RoundsToTwoDecimals()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -680,7 +680,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         // 99.99 * 8.25% = 8.249175 → rounds to 8.25
@@ -688,10 +688,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_WithGBP_RoundsCorrectly()
+    public void CalculateLineItemTax_WithGBP_RoundsCorrectly()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -706,7 +706,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "GBP");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "GBP");
 
         // Assert
         // 33.33 * 20% = 6.666 → rounds to 6.67
@@ -813,16 +813,16 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     #region Edge Cases
 
     [Fact]
-    public void CalculateTax_EmptyLineItems_ReturnsZeroTax()
+    public void CalculateLineItemTax_EmptyLineItems_ReturnsZeroTax()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems = []
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.TotalTax.ShouldBe(0m);
@@ -830,12 +830,12 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_PreservesLineItemIdentifiers()
+    public void CalculateLineItemTax_PreservesLineItemIdentifiers()
     {
         // Arrange
         var id = Guid.NewGuid();
         var sku = "TEST-SKU-123";
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -852,7 +852,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.LineItems[0].Id.ShouldBe(id);
@@ -860,10 +860,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_NullDiscount_TreatedAsNoDiscount()
+    public void CalculateLineItemTax_NullDiscount_TreatedAsNoDiscount()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -880,7 +880,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.LineItems[0].DiscountAmount.ShouldBe(0m);
@@ -888,10 +888,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_ZeroDiscountValue_NoDiscountApplied()
+    public void CalculateLineItemTax_ZeroDiscountValue_NoDiscountApplied()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -908,17 +908,17 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         result.LineItems[0].DiscountAmount.ShouldBe(0m);
     }
 
     [Fact]
-    public void CalculateTax_VerySmallAmounts_HandlesCorrectly()
+    public void CalculateLineItemTax_VerySmallAmounts_HandlesCorrectly()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -933,7 +933,7 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         // 0.01 * 20% = 0.002 → rounds to 0.00
@@ -941,10 +941,10 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public void CalculateTax_LargeAmounts_HandlesCorrectly()
+    public void CalculateLineItemTax_LargeAmounts_HandlesCorrectly()
     {
         // Arrange
-        var input = new TaxCalculationInput
+        var input = new LineItemTaxInput
         {
             LineItems =
             [
@@ -959,11 +959,191 @@ public class TaxCalculationServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var result = _taxCalculationService.CalculateTax(input, "USD");
+        var result = _taxCalculationService.CalculateLineItemTax(input, "USD");
 
         // Assert
         // 999999.99 * 100 * 20% = 19999999.80
         result.TotalTax.ShouldBe(19999999.80m);
+    }
+
+    #endregion
+
+    #region CalculateOrderTax Shipping Tax Tests
+
+    [Fact]
+    public void CalculateOrderTax_ProportionalShipping_CalculatesWeightedAverage()
+    {
+        // Arrange - Two items at different tax rates
+        var input = new OrderTaxInput
+        {
+            TaxableItems =
+            [
+                new TaxableItemWithDiscounts { ItemTotal = 100m, TaxRate = 20m }, // £100 @ 20%
+                new TaxableItemWithDiscounts { ItemTotal = 100m, TaxRate = 10m } // £100 @ 10%
+            ],
+            ShippingAmount = 10m,
+            IsShippingTaxable = true,
+            ShippingTaxRate = null, // Proportional calculation
+            UnlinkedBeforeTaxDiscountTotal = 0,
+            TotalTaxableAmount = 200m
+        };
+
+        // Act
+        var result = _taxCalculationService.CalculateOrderTax(input, "GBP");
+
+        // Assert
+        // Line item tax: (100 * 0.20) + (100 * 0.10) = 30
+        result.LineItemTax.ShouldBe(30m);
+
+        // Weighted average rate: (100*20 + 100*10) / 200 = 15%
+        // Shipping tax: 10 * 0.15 = 1.50
+        result.ShippingTax.ShouldBe(1.50m);
+        result.TotalTax.ShouldBe(31.50m);
+    }
+
+    [Fact]
+    public void CalculateOrderTax_ExplicitShippingRate_UsesProvidedRate()
+    {
+        // Arrange
+        var input = new OrderTaxInput
+        {
+            TaxableItems =
+            [
+                new TaxableItemWithDiscounts { ItemTotal = 100m, TaxRate = 20m },
+                new TaxableItemWithDiscounts { ItemTotal = 100m, TaxRate = 10m }
+            ],
+            ShippingAmount = 10m,
+            IsShippingTaxable = true,
+            ShippingTaxRate = 20m, // Explicit 20% rate
+            UnlinkedBeforeTaxDiscountTotal = 0,
+            TotalTaxableAmount = 200m
+        };
+
+        // Act
+        var result = _taxCalculationService.CalculateOrderTax(input, "GBP");
+
+        // Assert
+        result.LineItemTax.ShouldBe(30m);
+        result.ShippingTax.ShouldBe(2m); // 10 * 0.20 = 2
+        result.TotalTax.ShouldBe(32m);
+    }
+
+    [Fact]
+    public void CalculateOrderTax_ZeroShippingRate_NoShippingTax()
+    {
+        // Arrange
+        var input = new OrderTaxInput
+        {
+            TaxableItems =
+            [
+                new TaxableItemWithDiscounts { ItemTotal = 100m, TaxRate = 20m }
+            ],
+            ShippingAmount = 10m,
+            IsShippingTaxable = true,
+            ShippingTaxRate = 0m, // Explicitly not taxable
+            UnlinkedBeforeTaxDiscountTotal = 0,
+            TotalTaxableAmount = 100m
+        };
+
+        // Act
+        var result = _taxCalculationService.CalculateOrderTax(input, "GBP");
+
+        // Assert
+        result.LineItemTax.ShouldBe(20m);
+        result.ShippingTax.ShouldBe(0m);
+        result.TotalTax.ShouldBe(20m);
+    }
+
+    [Fact]
+    public void CalculateOrderTax_ProportionalWithDiscounts_UsesPreDiscountTotalsForRate()
+    {
+        // Per architecture: "Shipping tax uses pre-discount item totals for weighted average"
+        var input = new OrderTaxInput
+        {
+            TaxableItems =
+            [
+                new TaxableItemWithDiscounts
+                {
+                    ItemTotal = 100m,
+                    TaxRate = 20m,
+                    LinkedDiscount = -20m // £20 discount on this item
+                },
+                new TaxableItemWithDiscounts { ItemTotal = 100m, TaxRate = 10m }
+            ],
+            ShippingAmount = 10m,
+            IsShippingTaxable = true,
+            ShippingTaxRate = null, // Proportional
+            UnlinkedBeforeTaxDiscountTotal = 0,
+            TotalTaxableAmount = 200m
+        };
+
+        // Act
+        var result = _taxCalculationService.CalculateOrderTax(input, "GBP");
+
+        // Assert
+        // Line item tax: (80 * 0.20) + (100 * 0.10) = 16 + 10 = 26
+        result.LineItemTax.ShouldBe(26m);
+
+        // Weighted average still uses pre-discount: (100*20 + 100*10) / 200 = 15%
+        // NOT: (80*20 + 100*10) / 180 = 14.44%
+        result.ShippingTax.ShouldBe(1.50m);
+        result.TotalTax.ShouldBe(27.50m);
+    }
+
+    [Fact]
+    public void CalculateOrderTax_ShippingNotTaxable_NoShippingTax()
+    {
+        // Arrange
+        var input = new OrderTaxInput
+        {
+            TaxableItems =
+            [
+                new TaxableItemWithDiscounts { ItemTotal = 100m, TaxRate = 20m }
+            ],
+            ShippingAmount = 10m,
+            IsShippingTaxable = false, // Shipping not taxable
+            ShippingTaxRate = null,
+            UnlinkedBeforeTaxDiscountTotal = 0,
+            TotalTaxableAmount = 100m
+        };
+
+        // Act
+        var result = _taxCalculationService.CalculateOrderTax(input, "GBP");
+
+        // Assert
+        result.LineItemTax.ShouldBe(20m);
+        result.ShippingTax.ShouldBe(0m);
+        result.TotalTax.ShouldBe(20m);
+    }
+
+    [Fact]
+    public void CalculateOrderTax_ProportionalShipping_RoundsPerCurrency()
+    {
+        // Arrange - JPY has 0 decimal places
+        var input = new OrderTaxInput
+        {
+            TaxableItems =
+            [
+                new TaxableItemWithDiscounts { ItemTotal = 1000m, TaxRate = 8m },
+                new TaxableItemWithDiscounts { ItemTotal = 500m, TaxRate = 10m }
+            ],
+            ShippingAmount = 500m,
+            IsShippingTaxable = true,
+            ShippingTaxRate = null,
+            UnlinkedBeforeTaxDiscountTotal = 0,
+            TotalTaxableAmount = 1500m
+        };
+
+        // Act
+        var result = _taxCalculationService.CalculateOrderTax(input, "JPY");
+
+        // Assert
+        // Line item tax: (1000 * 0.08) + (500 * 0.10) = 80 + 50 = 130
+        result.LineItemTax.ShouldBe(130m);
+
+        // Weighted rate: (1000*8 + 500*10) / 1500 = 13000/1500 = 8.67%
+        // Shipping tax: 500 * 0.0867 = 43.33 → rounded to 43 (JPY)
+        result.ShippingTax.ShouldBe(43m);
     }
 
     #endregion

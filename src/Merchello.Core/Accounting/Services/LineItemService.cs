@@ -221,8 +221,8 @@ public class LineItemService(
         }).ToList();
 
         // Use centralized tax calculation service
-        var taxResult = taxCalculationService.CalculateTaxWithDiscounts(
-            new TaxWithDiscountsInput
+        var taxResult = taxCalculationService.CalculateOrderTax(
+            new OrderTaxInput
             {
                 TaxableItems = taxableItemsInput,
                 UnlinkedBeforeTaxDiscountTotal = unlinkedBeforeTaxDiscountTotal,
@@ -244,6 +244,15 @@ public class LineItemService(
         // Total = AdjustedSubTotal + Tax + Shipping must hold true for displayed values
         var reconciledTax = Math.Max(0, total - adjustedSubTotal - shippingAmount);
 
+        // Calculate effective shipping tax rate for display purposes (proportional mode)
+        // This is the weighted average of line item tax rates, used when ShippingTaxRate is null
+        decimal? effectiveShippingTaxRate = null;
+        if (isShippingTaxable && !shippingTaxRate.HasValue && totalTaxableAmount > 0)
+        {
+            var weightedSum = taxableItemsInput.Aggregate(0m, (sum, i) => sum + (i.ItemTotal * i.TaxRate));
+            effectiveShippingTaxRate = weightedSum / totalTaxableAmount;
+        }
+
         return new CalculateLineItemsResult
         {
             SubTotal = subTotal,
@@ -251,7 +260,8 @@ public class LineItemService(
             AdjustedSubTotal = adjustedSubTotal,
             Tax = reconciledTax,
             Total = total,
-            Shipping = shippingAmount
+            Shipping = shippingAmount,
+            EffectiveShippingTaxRate = effectiveShippingTaxRate
         };
     }
 

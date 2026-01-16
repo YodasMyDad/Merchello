@@ -443,13 +443,19 @@ export function initCheckoutStore(initialData = {}) {
 
         /**
          * Set shipping selection for a group
+         * Also stores by warehouseId for fallback when groupId changes
          * @param {string} groupId
          * @param {string} optionId
          */
         setShippingSelection(groupId, optionId) {
+            // Find the warehouseId for this group (for fallback when groupId changes)
+            const group = this.shippingGroups?.find(g => g.groupId === groupId);
+            const warehouseId = group?.warehouseId;
+
             this.shippingSelections = {
                 ...this.shippingSelections,
-                [groupId]: optionId
+                [groupId]: optionId,
+                ...(warehouseId ? { [warehouseId]: optionId } : {})
             };
         },
 

@@ -75,8 +75,8 @@ public interface ITaxProvider
         TaxProviderConfiguration? configuration,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Calculate tax for line items at checkout</summary>
-    Task<TaxCalculationResult> CalculateTaxAsync(
+    /// <summary>Calculate complete order tax including line items AND shipping</summary>
+    Task<TaxCalculationResult> CalculateOrderTaxAsync(
         TaxCalculationRequest request,
         CancellationToken cancellationToken = default);
 
@@ -194,15 +194,20 @@ public class LineTaxResult
 | `Select` | Dropdown options |
 | `Url` | Endpoint URLs |
 | `Number` | Integer values |
+| `Currency` | Currency/decimal input with formatting |
+| `Percentage` | Percentage input (0-100) |
 
 ---
 
 ## Example 1: Manual Tax Provider (Built-in)
 
-The built-in provider wraps the existing TaxGroup/TaxGroupRate system.
+The built-in provider wraps the existing TaxGroup/TaxGroupRate system. It supports shipping tax via regional overrides or proportional (weighted average) calculation for EU/UK compliance.
 
 ```csharp
-public class ManualTaxProvider(ITaxService taxService) : TaxProviderBase
+public class ManualTaxProvider(
+    ITaxService taxService,
+    ICurrencyService currencyService,
+    ITaxCalculationService taxCalculationService) : TaxProviderBase
 {
     public override TaxProviderMetadata Metadata => new(
         Alias: "manual",
@@ -214,7 +219,32 @@ public class ManualTaxProvider(ITaxService taxService) : TaxProviderBase
         SetupInstructions: "Configure tax rates by editing Tax Groups in the Merchello section."
     );
 
-    public override async Task<TaxCalculationResult> CalculateTaxAsync(
+    public override ValueTask<IEnumerable<TaxProviderConfigurationField>> GetConfigurationFieldsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return ValueTask.FromResult<IEnumerable<TaxProviderConfigurationField>>(
+        [
+            new()
+            {
+                Key = "isShippingTaxable",
+                Label = "Tax Shipping",
+                FieldType = ConfigurationFieldType.Checkbox,
+                DefaultValue = "false",
+                IsRequired = false,
+                Description = "Enable tax on shipping costs. Regional overrides take precedence."
+            },
+            new()
+            {
+                Key = "shippingTaxGroupId",
+                Label = "Shipping Tax Group",
+                FieldType = ConfigurationFieldType.Text,
+                IsRequired = false,
+                Description = "Tax group for shipping. Leave empty for proportional rate (weighted average)."
+            }
+        ]);
+    }
+
+    public override async Task<TaxCalculationResult> CalculateOrderTaxAsync(
         TaxCalculationRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -235,6 +265,7 @@ public class ManualTaxProvider(ITaxService taxService) : TaxProviderBase
         var countryCode = request.ShippingAddress.CountryCode;
         var stateCode = request.ShippingAddress.CountyState?.RegionCode;
 
+        // Calculate line item taxes
         foreach (var item in request.LineItems)
         {
             decimal taxRate = 0;
@@ -250,9 +281,9 @@ public class ManualTaxProvider(ITaxService taxService) : TaxProviderBase
                     stateCode,
                     cancellationToken);
 
-                // Calculate tax using the extension method
+                // Calculate tax using currency-aware rounding
                 var lineTotal = item.Amount * item.Quantity;
-                taxAmount = lineTotal.PercentageAmount(taxRate);
+                taxAmount = lineTotal.PercentageAmount(taxRate, request.CurrencyCode, currencyService);
             }
 
             lineResults.Add(new LineTaxResult
@@ -267,13 +298,40 @@ public class ManualTaxProvider(ITaxService taxService) : TaxProviderBase
             });
         }
 
+        // Calculate shipping tax (4-tier priority: regional override → configured group → proportional → none)
+        decimal shippingTax = 0;
+        if (request.ShippingAmount > 0 && GetConfigBool("isShippingTaxable", false))
+        {
+            shippingTax = CalculateProportionalShippingTax(request, lineResults);
+        }
+
         return TaxCalculationResult.Successful(
-            totalTax: lineResults.Sum(r => r.TaxAmount),
-            lineResults: lineResults
+            totalTax: lineResults.Sum(r => r.TaxAmount) + shippingTax,
+            lineResults: lineResults,
+            shippingTax: shippingTax
         );
+    }
+
+    /// <summary>
+    /// Calculates shipping tax using proportional/weighted average (EU/UK compliant).
+    /// </summary>
+    private decimal CalculateProportionalShippingTax(
+        TaxCalculationRequest request,
+        List<LineTaxResult> lineResults)
+    {
+        var taxableSubtotal = request.LineItems
+            .Where(li => li.IsTaxable && li.TaxGroupId.HasValue)
+            .Sum(li => li.Amount * li.Quantity);
+
+        var lineItemTax = lineResults.Sum(r => r.TaxAmount);
+
+        return taxCalculationService.CalculateProportionalShippingTax(
+            request.ShippingAmount, lineItemTax, taxableSubtotal, request.CurrencyCode);
     }
 }
 ```
+
+> **Note:** The actual implementation includes additional features like regional shipping tax overrides and `GetShippingTaxRateForLocationAsync()` for tax-inclusive display pricing. See the source code at `src/Merchello.Core/Tax/Providers/BuiltIn/ManualTaxProvider.cs` for the complete implementation.
 
 ---
 
@@ -370,7 +428,7 @@ public class TaxJarProvider : TaxProviderBase
         ]);
     }
 
-    public override async Task<TaxCalculationResult> CalculateTaxAsync(
+    public override async Task<TaxCalculationResult> CalculateOrderTaxAsync(
         TaxCalculationRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -488,7 +546,7 @@ public class EuVatProvider : TaxProviderBase
         ]);
     }
 
-    public override async Task<TaxCalculationResult> CalculateTaxAsync(
+    public override async Task<TaxCalculationResult> CalculateOrderTaxAsync(
         TaxCalculationRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -647,7 +705,7 @@ public override async Task<TaxProviderValidationResult> ValidateConfigurationAsy
 public class MyTaxProviderTests
 {
     [Fact]
-    public async Task CalculateTaxAsync_WithValidAddress_ReturnsCorrectRate()
+    public async Task CalculateOrderTaxAsync_WithValidAddress_ReturnsCorrectRate()
     {
         // Arrange
         var provider = new MyTaxProvider();
@@ -667,7 +725,7 @@ public class MyTaxProviderTests
         };
 
         // Act
-        var result = await provider.CalculateTaxAsync(request);
+        var result = await provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -676,7 +734,7 @@ public class MyTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_TaxExempt_ReturnsZeroTax()
+    public async Task CalculateOrderTaxAsync_TaxExempt_ReturnsZeroTax()
     {
         // Arrange
         var provider = new MyTaxProvider();
@@ -689,7 +747,7 @@ public class MyTaxProviderTests
         };
 
         // Act
-        var result = await provider.CalculateTaxAsync(request);
+        var result = await provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();

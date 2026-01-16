@@ -12,7 +12,7 @@ namespace Merchello.Core.Tax.Services;
 public class TaxCalculationService(ICurrencyService currencyService) : ITaxCalculationService
 {
     /// <inheritdoc />
-    public TaxWithDiscountsResult CalculateTaxWithDiscounts(TaxWithDiscountsInput input, string currencyCode)
+    public OrderTaxResult CalculateOrderTax(OrderTaxInput input, string currencyCode)
     {
         decimal lineItemTax = 0;
 
@@ -74,7 +74,7 @@ public class TaxCalculationService(ICurrencyService currencyService) : ITaxCalcu
             }
         }
 
-        return new TaxWithDiscountsResult
+        return new OrderTaxResult
         {
             TotalTax = currencyService.Round(lineItemTax + shippingTax, currencyCode),
             LineItemTax = lineItemTax,
@@ -83,12 +83,12 @@ public class TaxCalculationService(ICurrencyService currencyService) : ITaxCalcu
     }
 
     /// <inheritdoc />
-    public TaxCalculationSummary CalculateTax(TaxCalculationInput request, string currencyCode)
+    public LineItemTaxSummary CalculateLineItemTax(LineItemTaxInput request, string currencyCode)
     {
         // Handle tax-exempt case
         if (request.IsTaxExempt)
         {
-            return new TaxCalculationSummary
+            return new LineItemTaxSummary
             {
                 TotalTax = 0,
                 LineItems = request.LineItems.Select(li => new LineItemTaxResult
@@ -159,7 +159,7 @@ public class TaxCalculationService(ICurrencyService currencyService) : ITaxCalcu
             });
         }
 
-        return new TaxCalculationSummary
+        return new LineItemTaxSummary
         {
             TotalTax = currencyService.Round(totalTax, currencyCode),
             LineItems = lineResults

@@ -52,7 +52,7 @@ public class ManualTaxProvider(
         ]);
     }
 
-    public override async Task<TaxCalculationResult> CalculateTaxAsync(
+    public override async Task<TaxCalculationResult> CalculateOrderTaxAsync(
         TaxCalculationRequest request,
         CancellationToken cancellationToken = default)
     {

@@ -112,63 +112,156 @@ public class MerchelloCheckoutController(
             {
                 var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
 
-                // Use the same helper as checkout - pass invoice amounts for proper conversion
-                var displayAmounts = DisplayCurrencyExtensions.GetDisplayAmounts(
-                    confirmation.Total,
-                    confirmation.SubTotal,
-                    confirmation.Shipping,
-                    confirmation.Tax,
-                    confirmation.Discount,
-                    displayContext,
-                    currencyService);
-
-                // Apply display currency info
-                confirmation.ExchangeRate = displayContext.ExchangeRate;
-                confirmation.DisplayCurrencyCode = displayContext.CurrencyCode;
-                confirmation.DisplayCurrencySymbol = displayContext.CurrencySymbol;
-                confirmation.DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax;
+                // Check if invoice currency matches display currency
+                // Invoice amounts are already stored in presentment currency (e.g., GBP)
+                // Only convert if customer is now viewing in a different currency
+                var invoiceCurrency = confirmation.DisplayCurrencyCode;
+                var needsConversion = !string.Equals(
+                    invoiceCurrency,
+                    displayContext.CurrencyCode,
+                    StringComparison.OrdinalIgnoreCase);
 
                 var symbol = displayContext.CurrencySymbol;
                 var format = $"N{displayContext.DecimalPlaces}";
-
-                // Apply converted amounts
-                confirmation.DisplayTotal = displayAmounts.Total;
-                confirmation.FormattedDisplayTotal = $"{symbol}{displayAmounts.Total.ToString(format)}";
-                confirmation.DisplaySubTotal = displayAmounts.SubTotal;
-                confirmation.FormattedDisplaySubTotal = $"{symbol}{displayAmounts.SubTotal.ToString(format)}";
-                confirmation.DisplayShipping = displayAmounts.Shipping;
-                confirmation.FormattedDisplayShipping = $"{symbol}{displayAmounts.Shipping.ToString(format)}";
-                confirmation.DisplayTax = displayAmounts.Tax;
-                confirmation.FormattedDisplayTax = $"{symbol}{displayAmounts.Tax.ToString(format)}";
-                confirmation.DisplayDiscount = displayAmounts.Discount;
-                confirmation.FormattedDisplayDiscount = $"{symbol}{displayAmounts.Discount.ToString(format)}";
-
-                confirmation.TaxIncludedMessage = displayAmounts.TaxIncludedMessage;
-
-                // Convert line item display values to display currency
-                var rate = displayContext.ExchangeRate;
                 var currency = displayContext.CurrencyCode;
-                foreach (var li in confirmation.LineItems)
+
+                if (needsConversion)
                 {
-                    li.DisplayUnitPrice = currencyService.Round(li.UnitPrice * rate, currency);
-                    li.DisplayLineTotal = currencyService.Round(li.LineTotal * rate, currency);
-                    li.FormattedDisplayUnitPrice = $"{symbol}{li.DisplayUnitPrice.ToString(format)}";
-                    li.FormattedDisplayLineTotal = $"{symbol}{li.DisplayLineTotal.ToString(format)}";
+                    // Different currency - apply conversion
+                    // Note: This converts using the current exchange rate from store currency
+                    // A future improvement could convert from invoice currency to display currency
+
+                    // Use invoice's effective shipping tax rate when context rate is null (proportional mode)
+                    // This allows tax-inclusive shipping display even when no specific rate is configured
+                    var effectiveContext = displayContext.ShippingTaxRate.HasValue
+                        ? displayContext
+                        : displayContext with { ShippingTaxRate = confirmation.EffectiveShippingTaxRate };
+
+                    var displayAmounts = DisplayCurrencyExtensions.GetDisplayAmounts(
+                        confirmation.Total,
+                        confirmation.SubTotal,
+                        confirmation.Shipping,
+                        confirmation.Tax,
+                        confirmation.Discount,
+                        effectiveContext,
+                        currencyService);
+
+                    confirmation.ExchangeRate = displayContext.ExchangeRate;
+                    confirmation.DisplayCurrencyCode = displayContext.CurrencyCode;
+                    confirmation.DisplayCurrencySymbol = displayContext.CurrencySymbol;
+                    confirmation.DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax;
+
+                    confirmation.DisplayTotal = displayAmounts.Total;
+                    confirmation.FormattedDisplayTotal = $"{symbol}{displayAmounts.Total.ToString(format)}";
+                    confirmation.DisplaySubTotal = displayAmounts.SubTotal;
+                    confirmation.FormattedDisplaySubTotal = $"{symbol}{displayAmounts.SubTotal.ToString(format)}";
+                    confirmation.DisplayShipping = displayAmounts.Shipping;
+                    confirmation.FormattedDisplayShipping = $"{symbol}{displayAmounts.Shipping.ToString(format)}";
+                    confirmation.DisplayTax = displayAmounts.Tax;
+                    confirmation.FormattedDisplayTax = $"{symbol}{displayAmounts.Tax.ToString(format)}";
+                    confirmation.DisplayDiscount = displayAmounts.Discount;
+                    confirmation.FormattedDisplayDiscount = $"{symbol}{displayAmounts.Discount.ToString(format)}";
+                    confirmation.TaxIncludedMessage = displayAmounts.TaxIncludedMessage;
+
+                    // Convert line item display values
+                    var rate = displayContext.ExchangeRate;
+                    foreach (var li in confirmation.LineItems)
+                    {
+                        li.DisplayUnitPrice = currencyService.Round(li.UnitPrice * rate, currency);
+                        li.DisplayLineTotal = currencyService.Round(li.LineTotal * rate, currency);
+                        li.FormattedDisplayUnitPrice = $"{symbol}{li.DisplayUnitPrice.ToString(format)}";
+                        li.FormattedDisplayLineTotal = $"{symbol}{li.DisplayLineTotal.ToString(format)}";
+                    }
+                }
+                else
+                {
+                    // Same currency - invoice amounts are already correct, just format them
+                    confirmation.ExchangeRate = 1m;
+                    confirmation.DisplayCurrencyCode = displayContext.CurrencyCode;
+                    confirmation.DisplayCurrencySymbol = displayContext.CurrencySymbol;
+                    confirmation.DisplayPricesIncTax = displayContext.DisplayPricesIncTax;
+
+                    // Use invoice amounts directly (already in correct currency)
+                    confirmation.FormattedDisplayTotal = $"{symbol}{confirmation.DisplayTotal.ToString(format)}";
+                    confirmation.FormattedDisplaySubTotal = $"{symbol}{confirmation.DisplaySubTotal.ToString(format)}";
+                    confirmation.FormattedDisplayShipping = $"{symbol}{confirmation.DisplayShipping.ToString(format)}";
+                    confirmation.FormattedDisplayTax = $"{symbol}{confirmation.DisplayTax.ToString(format)}";
+                    confirmation.FormattedDisplayDiscount = $"{symbol}{confirmation.DisplayDiscount.ToString(format)}";
+
+                    // Generate tax included message if applicable
+                    if (displayContext.DisplayPricesIncTax && confirmation.DisplayTax > 0)
+                    {
+                        confirmation.TaxIncludedMessage = $"Including {symbol}{confirmation.DisplayTax.ToString(format)} in taxes";
+                    }
+
+                    // Line item display values are already set from GetOrderConfirmationAsync
+                    // Just format them
+                    foreach (var li in confirmation.LineItems)
+                    {
+                        li.FormattedDisplayUnitPrice = $"{symbol}{li.DisplayUnitPrice.ToString(format)}";
+                        li.FormattedDisplayLineTotal = $"{symbol}{li.DisplayLineTotal.ToString(format)}";
+                    }
                 }
 
-                // Calculate tax-inclusive subtotal from line items (excludes shipping tax)
-                var taxInclusiveSubTotal = confirmation.LineItems
-                    .Where(li => li.LineItemType == Core.Accounting.Models.LineItemType.Product ||
-                                 li.LineItemType == Core.Accounting.Models.LineItemType.Addon)
-                    .Sum(li =>
+                // Calculate tax-inclusive subtotal from line items
+                var productItems = confirmation.LineItems
+                    .Where(li => li.LineItemType is Core.Accounting.Models.LineItemType.Product
+                              or Core.Accounting.Models.LineItemType.Custom
+                              or Core.Accounting.Models.LineItemType.Addon)
+                    .ToList();
+
+                var rawTaxInclusiveSubTotal = productItems.Sum(li =>
+                {
+                    var amount = li.DisplayLineTotal;
+                    if (displayContext.DisplayPricesIncTax && li.IsTaxable && li.TaxRate > 0)
                     {
-                        var amount = li.DisplayLineTotal;
-                        if (displayContext.DisplayPricesIncTax && li.IsTaxable && li.TaxRate > 0)
+                        amount *= 1 + (li.TaxRate / 100m);
+                    }
+                    return currencyService.Round(amount, currency);
+                });
+
+                // Calculate tax-inclusive shipping and discount for reconciliation
+                decimal taxInclusiveShipping = confirmation.DisplayShipping;
+                decimal taxInclusiveDiscount = confirmation.DisplayDiscount;
+
+                if (displayContext.DisplayPricesIncTax)
+                {
+                    // Apply shipping tax if needed (same currency case where it's not already applied)
+                    // Use provider rate if available, otherwise use invoice's effective rate (for proportional mode)
+                    if (displayContext.IsShippingTaxable && confirmation.DisplayShipping > 0 && !needsConversion)
+                    {
+                        // Try to get the shipping tax rate - first from provider, then from invoice's effective rate
+                        var shippingTaxRate = displayContext.ShippingTaxRate ?? confirmation.EffectiveShippingTaxRate;
+
+                        if (shippingTaxRate.HasValue && shippingTaxRate.Value > 0)
                         {
-                            amount *= 1 + (li.TaxRate / 100m);
+                            taxInclusiveShipping = currencyService.Round(
+                                confirmation.DisplayShipping * (1 + (shippingTaxRate.Value / 100m)),
+                                currency);
+
+                            // Update the displayed shipping to show tax-inclusive value
+                            confirmation.DisplayShipping = taxInclusiveShipping;
+                            confirmation.FormattedDisplayShipping = $"{symbol}{taxInclusiveShipping.ToString(format)}";
                         }
-                        return currencyService.Round(amount, currency);
-                    });
+                    }
+
+                    // Calculate tax-inclusive discount using effective tax rate
+                    if (confirmation.DisplayDiscount > 0 && confirmation.DisplaySubTotal > 0)
+                    {
+                        var effectiveTaxRate = confirmation.DisplayTax / confirmation.DisplaySubTotal;
+                        taxInclusiveDiscount = currencyService.Round(
+                            confirmation.DisplayDiscount * (1 + effectiveTaxRate),
+                            currency);
+                    }
+                }
+
+                // Use centralized reconciliation method
+                var taxInclusiveSubTotal = DisplayCurrencyExtensions.ReconcileTaxInclusiveSubTotal(
+                    rawTaxInclusiveSubTotal,
+                    productItems.Count,
+                    confirmation.DisplayTotal,
+                    taxInclusiveShipping,
+                    taxInclusiveDiscount);
 
                 confirmation.TaxInclusiveDisplaySubTotal = taxInclusiveSubTotal;
                 confirmation.FormattedTaxInclusiveDisplaySubTotal = $"{symbol}{taxInclusiveSubTotal.ToString(format)}";
@@ -286,7 +379,8 @@ public class MerchelloCheckoutController(
                     displayCurrencySymbol,
                     initResult.ResultObject.AutoSelectedShippingOptions,
                     displayContext,
-                    currencyService);
+                    currencyService,
+                    basket.EffectiveShippingTaxRate);
             }
         }
 
@@ -296,14 +390,8 @@ public class MerchelloCheckoutController(
         // Check if there are any active discount codes to show the discount input
         var showDiscountCode = await discountService.HasActiveCodeDiscountsAsync(ct);
 
-        // Calculate display amounts using centralized method (includes tax-inclusive calculations)
+        // Calculate display amounts using centralized method (includes tax-inclusive calculations and GROSS reconciliation)
         var displayAmounts = basket.GetDisplayAmounts(displayContext, currencyService);
-
-        // Calculate tax-inclusive subtotal from line items (excludes shipping tax)
-        var taxInclusiveSubTotal = basket.LineItems
-            .Where(li => li.LineItemType == Core.Accounting.Models.LineItemType.Product ||
-                         li.LineItemType == Core.Accounting.Models.LineItemType.Addon)
-            .Sum(li => li.GetDisplayLineItemTotal(displayContext, currencyService));
 
         var viewModel = new CheckoutViewModel(
             CheckoutStep.Information,
@@ -327,10 +415,10 @@ public class MerchelloCheckoutController(
             DisplayShipping = displayAmounts.Shipping,
             DisplayTax = displayAmounts.Tax,
             DisplayDiscount = displayAmounts.Discount,
-            // Tax-inclusive display properties
+            // Tax-inclusive display properties (use reconciled values from DisplayAmounts)
             DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
-            TaxInclusiveDisplaySubTotal = taxInclusiveSubTotal,
-            FormattedTaxInclusiveDisplaySubTotal = $"{displayCurrencySymbol}{taxInclusiveSubTotal:N2}",
+            TaxInclusiveDisplaySubTotal = displayAmounts.TaxInclusiveSubTotal,
+            FormattedTaxInclusiveDisplaySubTotal = $"{displayCurrencySymbol}{displayAmounts.TaxInclusiveSubTotal.ToString($"N{displayContext.DecimalPlaces}")}",
             TaxIncludedMessage = displayAmounts.TaxIncludedMessage
         };
 
@@ -342,9 +430,15 @@ public class MerchelloCheckoutController(
         string currencySymbol,
         Dictionary<Guid, Guid>? selectedOptions,
         StorefrontDisplayContext displayContext,
-        ICurrencyService currencyService)
+        ICurrencyService currencyService,
+        decimal? effectiveShippingTaxRate = null)
     {
         var exchangeRate = displayContext.ExchangeRate;
+
+        // Use basket's effective shipping tax rate when context rate is null (proportional mode)
+        var effectiveContext = displayContext.ShippingTaxRate.HasValue
+            ? displayContext
+            : displayContext with { ShippingTaxRate = effectiveShippingTaxRate };
 
         return result.Groups.Select(group => new ShippingGroupDto
         {
@@ -375,7 +469,7 @@ public class MerchelloCheckoutController(
             ShippingOptions = group.AvailableShippingOptions.Select(opt =>
             {
                 var displayCost = DisplayCurrencyExtensions.GetDisplayShippingOptionCost(
-                    opt.Cost, displayContext, currencyService);
+                    opt.Cost, effectiveContext, currencyService);
                 return new ShippingOptionDto
                 {
                     Id = opt.ShippingOptionId,

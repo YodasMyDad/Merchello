@@ -36,6 +36,7 @@ public static class DisplayCurrencyExtensions
     /// Get basket totals converted to display currency using StorefrontDisplayContext.
     /// Note: Basket totals already include tax (calculated by LineItemService).
     /// When DisplayPricesIncTax is enabled, also calculates tax-inclusive subtotal, shipping and message.
+    /// Includes GROSS-level reconciliation to ensure displayed tax-inclusive values sum to total.
     /// </summary>
     public static DisplayAmounts GetDisplayAmounts(
         this Basket? basket,
@@ -45,14 +46,55 @@ public static class DisplayCurrencyExtensions
         if (basket == null)
             return new DisplayAmounts(0, 0, 0, 0, 0);
 
-        return GetDisplayAmounts(
+        // Use basket's effective shipping tax rate when context rate is null (proportional mode)
+        // This allows tax-inclusive shipping display even when no specific rate is configured
+        var effectiveContext = displayContext.ShippingTaxRate.HasValue
+            ? displayContext
+            : displayContext with { ShippingTaxRate = basket.EffectiveShippingTaxRate };
+
+        var baseResult = GetDisplayAmounts(
             basket.Total,
             basket.SubTotal,
             basket.Shipping,
             basket.Tax,
             basket.Discount,
-            displayContext,
+            effectiveContext,
             currencyService);
+
+        // When DisplayPricesIncTax is enabled, apply GROSS-level reconciliation
+        // This ensures the sum of tax-inclusive values equals the display total
+        if (!displayContext.DisplayPricesIncTax)
+        {
+            return baseResult;
+        }
+
+        var rate = effectiveContext.ExchangeRate;
+        var currency = effectiveContext.CurrencyCode;
+
+        // Calculate raw GROSS subtotal by summing each line item's tax-inclusive amount
+        // This matches how controllers calculate display prices for individual line items
+        var productItems = basket.LineItems.Where(li =>
+            li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon).ToList();
+
+        var rawGrossSubTotal = productItems.Sum(li =>
+        {
+            var amount = li.Amount * li.Quantity;
+            if (li.IsTaxable && li.TaxRate > 0)
+            {
+                amount *= 1 + (li.TaxRate / 100m);
+            }
+            return currencyService.Round(amount * rate, currency);
+        });
+
+        // Use centralized reconciliation method
+        var reconciledGrossSubTotal = ReconcileTaxInclusiveSubTotal(
+            rawGrossSubTotal,
+            productItems.Count,
+            baseResult.Total,
+            baseResult.TaxInclusiveShipping,
+            baseResult.TaxInclusiveDiscount);
+
+        return baseResult with { TaxInclusiveSubTotal = reconciledGrossSubTotal };
     }
 
     /// <summary>
@@ -75,7 +117,10 @@ public static class DisplayCurrencyExtensions
         var displaySubTotal = currencyService.Round(subTotal * rate, currency);
         var displayDiscount = currencyService.Round(discount * rate, currency);
 
-        // Calculate shipping - apply tax if DisplayPricesIncTax is enabled and we have a rate
+        // Always calculate NET shipping for tax reconciliation formula
+        var netShipping = currencyService.Round(shippingAmount * rate, currency);
+
+        // Calculate shipping for display - apply tax if DisplayPricesIncTax is enabled and we have a rate
         decimal shipping;
         decimal taxInclusiveShipping;
 
@@ -92,16 +137,16 @@ public static class DisplayCurrencyExtensions
         else
         {
             // No rate available - show net shipping
-            shipping = currencyService.Round(shippingAmount * rate, currency);
+            shipping = netShipping;
             taxInclusiveShipping = shipping;
         }
 
         // Reconcile tax to prevent rounding discrepancies when currency conversion AND DisplayIncTax are both active
         // When each component is rounded independently, their sum may not equal the independently rounded total
         // This mirrors the reconciliation in LineItemService.CalculateFromLineItems
-        // Backend formula: total = (subTotal - discount) + tax + shipping
-        // So: tax = total - subTotal + discount - shipping (ensures displayed values sum correctly)
-        var tax = Math.Max(0, displayTotal - displaySubTotal + displayDiscount - shipping);
+        // Backend formula: total = (subTotal - discount) + tax + shipping (where shipping is NET)
+        // So: tax = total - subTotal + discount - netShipping (ensures displayed values sum correctly)
+        var tax = Math.Max(0, displayTotal - displaySubTotal + displayDiscount - netShipping);
 
         // Tax-inclusive calculations (subtotal is calculated from line items in the controller)
         var taxInclusiveSubTotal = displaySubTotal + tax;
@@ -244,6 +289,41 @@ public static class DisplayCurrencyExtensions
         }
 
         return currencyService.Round(cost * rate, currency);
+    }
+
+    /// <summary>
+    /// Reconcile tax-inclusive subtotal to ensure displayed values sum correctly.
+    /// Only applies reconciliation when there are multiple product items.
+    /// With a single item, the subtotal must match the line item exactly (customer expectation).
+    /// </summary>
+    /// <param name="rawGrossSubTotal">Sum of individually-rounded tax-inclusive line items</param>
+    /// <param name="productItemCount">Number of product/custom/addon line items</param>
+    /// <param name="displayTotal">The display total that values should sum to</param>
+    /// <param name="taxInclusiveShipping">Tax-inclusive shipping amount</param>
+    /// <param name="taxInclusiveDiscount">Tax-inclusive discount amount</param>
+    /// <returns>Reconciled tax-inclusive subtotal</returns>
+    public static decimal ReconcileTaxInclusiveSubTotal(
+        decimal rawGrossSubTotal,
+        int productItemCount,
+        decimal displayTotal,
+        decimal taxInclusiveShipping,
+        decimal taxInclusiveDiscount)
+    {
+        // Only apply GROSS reconciliation when there are multiple product items.
+        // With a single item, the subtotal must match the line item exactly.
+        // With multiple items, a 1p discrepancy is hidden in the sum, so we can reconcile.
+        if (productItemCount <= 1)
+        {
+            return rawGrossSubTotal;
+        }
+
+        // GROSS reconciliation formula:
+        // TaxInclusiveSubTotal + TaxInclusiveShipping - TaxInclusiveDiscount = displayTotal
+        var expectedSum = displayTotal;
+        var actualSum = rawGrossSubTotal + taxInclusiveShipping - taxInclusiveDiscount;
+        var discrepancy = expectedSum - actualSum;
+
+        return rawGrossSubTotal + discrepancy;
     }
 }
 

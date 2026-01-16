@@ -1541,7 +1541,7 @@ public class InvoiceService(
             var shippingTotal = currencyService.Round(orders.Sum(o => o.ShippingCost), currencyCode);
 
             // Use centralized calculation method - handles before-tax and after-tax discounts
-            // Shipping tax is handled separately via CalculateShippingTaxAsync, so IsShippingTaxable = false here
+            // Note: This is for display purposes only. The actual stored invoice.Tax includes shipping tax.
             var calcResult = lineItemService.CalculateFromLineItems(new CalculateLineItemsParameters
             {
                 LineItems = allLineItems,
@@ -2761,35 +2761,63 @@ public class InvoiceService(
         var allLineItems = orders.SelectMany(o => o.LineItems ?? []).ToList();
         var shippingTotal = orders.Sum(o => o.ShippingCost);
 
-        // Use centralized calculation method for line item taxes
+        // Get shipping tax settings from provider (same approach as CheckoutService.CalculateBasketAsync)
+        // This ensures invoice tax calculation matches checkout display
+        var countryCode = invoice.ShippingAddress?.CountryCode;
+        var stateCode = invoice.ShippingAddress?.CountyState?.RegionCode;
+
+        var isShippingTaxable = false;
+        decimal? shippingTaxRate = null;
+
+        if (!string.IsNullOrWhiteSpace(countryCode))
+        {
+            isShippingTaxable = await taxProviderManager.IsShippingTaxedForLocationAsync(
+                countryCode, stateCode, ct);
+
+            if (isShippingTaxable)
+            {
+                shippingTaxRate = await taxProviderManager.GetShippingTaxRateForLocationAsync(
+                    countryCode, stateCode, ct);
+            }
+        }
+
+        // Get taxable shipping amount (excludes shipping from providers with RatesIncludeTax = true)
+        var taxableShippingTotal = shippingTotal > 0
+            ? await GetTaxableShippingTotalAsync(invoice, shippingTotal, ct)
+            : 0m;
+
+        // Use centralized calculation method with unified shipping tax handling
         // IMPORTANT: We use the stored TaxRate on each line item, NOT the current TaxGroup rate.
         // This ensures historical invoices are not affected by future TaxGroup rate changes.
+        // Shipping tax is now calculated in the same pass as line item tax (same as checkout)
         var calcResult = lineItemService.CalculateFromLineItems(new CalculateLineItemsParameters
         {
             LineItems = allLineItems,
-            ShippingAmount = shippingTotal,
+            ShippingAmount = taxableShippingTotal,
             DefaultTaxRate = 0,
             CurrencyCode = currencyCode,
-            IsShippingTaxable = false, // Line item taxes only - shipping tax calculated via provider below
-            ShippingTaxRate = null // Not used when IsShippingTaxable = false
+            IsShippingTaxable = isShippingTaxable,
+            ShippingTaxRate = shippingTaxRate // null for proportional calculation
         });
 
-        // Calculate shipping tax via tax provider (uses centralized ManualTaxProvider logic)
-        // This respects regional overrides, global config, and proportional calculation
-        var shippingTax = 0m;
-        if (shippingTotal > 0 && invoice.ShippingAddress?.CountryCode != null)
-        {
-            shippingTax = await CalculateShippingTaxAsync(
-                invoice, allLineItems, shippingTotal, currencyCode, calcResult.Tax, ct);
-        }
-
-        // Update invoice with calculated values (including shipping tax)
+        // Update invoice with calculated values
         invoice.SubTotal = calcResult.SubTotal;
         invoice.Discount = calcResult.Discount;
         invoice.AdjustedSubTotal = calcResult.AdjustedSubTotal;
-        invoice.Tax = calcResult.Tax + shippingTax;
+        invoice.Tax = calcResult.Tax;
         invoice.Total = currencyService.Round(
             calcResult.AdjustedSubTotal + invoice.Tax + shippingTotal, currencyCode);
+
+        // Store effective shipping tax rate in ExtendedData (for proportional mode display)
+        if (calcResult.EffectiveShippingTaxRate.HasValue)
+        {
+            invoice.ExtendedData[Constants.ExtendedDataKeys.EffectiveShippingTaxRate] =
+                calcResult.EffectiveShippingTaxRate.Value;
+        }
+        else
+        {
+            invoice.ExtendedData.Remove(Constants.ExtendedDataKeys.EffectiveShippingTaxRate);
+        }
     }
 
     /// <summary>
@@ -2847,7 +2875,7 @@ public class InvoiceService(
                 ReferenceNumber = invoice.InvoiceNumber
             };
 
-            var taxResult = await activeProvider.Provider.CalculateTaxAsync(taxRequest, ct);
+            var taxResult = await activeProvider.Provider.CalculateOrderTaxAsync(taxRequest, ct);
             if (taxResult.Success)
             {
                 // If provider returned non-zero shipping tax, use it
@@ -4071,7 +4099,7 @@ public class InvoiceService(
             ]
         };
 
-        var result = await activeProvider.Provider.CalculateTaxAsync(request, cancellationToken);
+        var result = await activeProvider.Provider.CalculateOrderTaxAsync(request, cancellationToken);
         if (!result.Success)
         {
             logger.LogWarning("Tax provider calculation failed: {ErrorMessage}", result.ErrorMessage);

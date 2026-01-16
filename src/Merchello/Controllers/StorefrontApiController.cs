@@ -132,12 +132,6 @@ public class StorefrontApiController(
             };
         }).ToList();
 
-        // Calculate tax-inclusive subtotal from line items (excludes shipping tax)
-        var taxInclusiveSubTotal = basket.LineItems
-            .Where(li => li.LineItemType == Core.Accounting.Models.LineItemType.Product ||
-                         li.LineItemType == Core.Accounting.Models.LineItemType.Addon)
-            .Sum(li => li.GetDisplayLineItemTotal(displayContext, currencyService));
-
         return Ok(new StorefrontBasketDto
         {
             Items = items,
@@ -164,10 +158,10 @@ public class StorefrontApiController(
             DisplayCurrencyCode = displayContext.CurrencyCode,
             DisplayCurrencySymbol = symbol,
             ExchangeRate = rate,
-            // Tax-inclusive display properties
+            // Tax-inclusive display properties (use reconciled values from DisplayAmounts)
             DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
-            TaxInclusiveDisplaySubTotal = taxInclusiveSubTotal,
-            FormattedTaxInclusiveDisplaySubTotal = currencyConversion.Format(taxInclusiveSubTotal, symbol),
+            TaxInclusiveDisplaySubTotal = displayAmounts.TaxInclusiveSubTotal,
+            FormattedTaxInclusiveDisplaySubTotal = currencyConversion.Format(displayAmounts.TaxInclusiveSubTotal, symbol),
             TaxInclusiveDisplayShipping = displayAmounts.TaxInclusiveShipping,
             FormattedTaxInclusiveDisplayShipping = currencyConversion.Format(displayAmounts.TaxInclusiveShipping, symbol),
             TaxInclusiveDisplayDiscount = displayAmounts.TaxInclusiveDiscount,
@@ -544,12 +538,6 @@ public class StorefrontApiController(
         var displayAmounts = basket.GetDisplayAmounts(displayContext, currencyService);
         var displayEstimatedShipping = currencyConversion.Convert(estimatedShipping, displayContext.ExchangeRate, displayContext.CurrencyCode);
 
-        // Calculate tax-inclusive subtotal from line items (excludes shipping tax)
-        var taxInclusiveSubTotal = basket.LineItems
-            .Where(li => li.LineItemType == Core.Accounting.Models.LineItemType.Product ||
-                         li.LineItemType == Core.Accounting.Models.LineItemType.Addon)
-            .Sum(li => li.GetDisplayLineItemTotal(displayContext, currencyService));
-
         return Ok(new EstimatedShippingDto
         {
             Success = true,
@@ -561,10 +549,10 @@ public class StorefrontApiController(
             FormattedDisplayTotal = currencyConversion.Format(displayAmounts.Total, symbol),
             DisplayTax = displayAmounts.Tax,
             FormattedDisplayTax = currencyConversion.Format(displayAmounts.Tax, symbol),
-            // Tax-inclusive display properties
+            // Tax-inclusive display properties (use reconciled values from DisplayAmounts)
             DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
-            TaxInclusiveDisplaySubTotal = taxInclusiveSubTotal,
-            FormattedTaxInclusiveDisplaySubTotal = currencyConversion.Format(taxInclusiveSubTotal, symbol),
+            TaxInclusiveDisplaySubTotal = displayAmounts.TaxInclusiveSubTotal,
+            FormattedTaxInclusiveDisplaySubTotal = currencyConversion.Format(displayAmounts.TaxInclusiveSubTotal, symbol),
             TaxInclusiveDisplayShipping = displayAmounts.TaxInclusiveShipping,
             FormattedTaxInclusiveDisplayShipping = currencyConversion.Format(displayAmounts.TaxInclusiveShipping, symbol),
             TaxInclusiveDisplayDiscount = displayAmounts.TaxInclusiveDiscount,

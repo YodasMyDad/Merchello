@@ -74,6 +74,28 @@ export function initExpressCheckout() {
         /** @type {boolean} - Skip re-renders during payment form initialization */
         _skipReRender: false,
 
+        /** @type {boolean} - Track if a re-render was skipped and needs to be done later */
+        _pendingReRender: false,
+
+        /** @type {number} - Request ID for re-renders to handle cancellation */
+        _reRenderRequestId: 0,
+
+        /**
+         * Set the skip re-render flag with pending re-render support
+         * @param {boolean} skip
+         */
+        setSkipReRender(skip) {
+            const wasSkipping = this._skipReRender;
+            this._skipReRender = skip;
+
+            // When transitioning from skip=true to skip=false,
+            // check if we need to do a pending re-render
+            if (wasSkipping && !skip && this._pendingReRender) {
+                this._pendingReRender = false;
+                this.initializeExpressCheckout();
+            }
+        },
+
         /**
          * Initialize the component
          */
@@ -100,14 +122,13 @@ export function initExpressCheckout() {
 
                 // Listen for basket updates to keep express checkout in sync
                 document.addEventListener('merchello:basket-updated', (e) => {
-                    // Skip re-renders during payment form initialization to prevent buttons from disappearing
-                    if (this._skipReRender) return;
                     if (!this.hasExpressMethods || !this.config || !e.detail) return;
 
                     const oldAmount = this.config.amount;
                     const newAmount = e.detail.total ?? oldAmount;
 
-                    // Update all basket values to keep express checkout accurate
+                    // ALWAYS update config values - even when skipping re-render
+                    // This ensures the config stays in sync with the basket
                     if (e.detail.total !== undefined) {
                         this.config.amount = e.detail.total;
                     }
@@ -125,6 +146,13 @@ export function initExpressCheckout() {
                     // If so, re-render express buttons to show updated amounts
                     const amountChanged = Math.abs(newAmount - oldAmount) > 0.01;
                     if (amountChanged) {
+                        // Skip actual re-render during payment form initialization
+                        // but mark that we need to re-render later
+                        if (this._skipReRender) {
+                            this._pendingReRender = true;
+                            return;
+                        }
+
                         // Debounce re-render to avoid rapid flickering during shipping calculations
                         if (this._reRenderTimeout) {
                             clearTimeout(this._reRenderTimeout);
@@ -166,6 +194,9 @@ export function initExpressCheckout() {
             const methods = this.config?.methods;
             if (!methods || methods.length === 0) return;
 
+            // Increment request ID to invalidate any in-progress renders
+            const requestId = ++this._reRenderRequestId;
+
             // Set minimum height to prevent layout shift during re-render
             const currentHeight = container.offsetHeight;
             if (currentHeight > 0) {
@@ -174,11 +205,22 @@ export function initExpressCheckout() {
 
             // Teardown existing buttons before re-render
             await this.teardownExpressButtons();
+
+            // Check if this render was superseded by a newer one
+            if (requestId !== this._reRenderRequestId) {
+                return;
+            }
+
             container.innerHTML = '';
 
             // Render buttons directly to DOM container
             // PayPal SDK requires container to be in the actual DOM
             for (const method of methods) {
+                // Check if superseded before each method init (they can be slow)
+                if (requestId !== this._reRenderRequestId) {
+                    return;
+                }
+
                 try {
                     await this.initializeMethod(method, container);
                 } catch (err) {
@@ -186,8 +228,10 @@ export function initExpressCheckout() {
                 }
             }
 
-            // Remove minimum height after render complete
-            container.style.minHeight = '';
+            // Only remove minimum height if this render completed successfully
+            if (requestId === this._reRenderRequestId) {
+                container.style.minHeight = '';
+            }
         },
 
         /**

@@ -140,13 +140,13 @@ public class AvalaraTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_WhenNotConfigured_ReturnsFailed()
+    public async Task CalculateOrderTaxAsync_WhenNotConfigured_ReturnsFailed()
     {
         // Arrange - provider is not configured
         var request = CreateTaxRequest("US", "CA");
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeFalse();
@@ -155,7 +155,7 @@ public class AvalaraTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_WhenTaxExempt_ReturnsZeroTax()
+    public async Task CalculateOrderTaxAsync_WhenTaxExempt_ReturnsZeroTax()
     {
         // Arrange
         var request = new TaxCalculationRequest
@@ -176,7 +176,7 @@ public class AvalaraTaxProviderTests
         };
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -187,7 +187,7 @@ public class AvalaraTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_WithoutCountryCode_WhenNotConfigured_ReturnsNotConfiguredError()
+    public async Task CalculateOrderTaxAsync_WithoutCountryCode_WhenNotConfigured_ReturnsNotConfiguredError()
     {
         // Arrange - address without country code, provider not configured
         // Note: Without configuration, the "not configured" error will be returned first.
@@ -209,7 +209,7 @@ public class AvalaraTaxProviderTests
         };
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert - Provider returns "not configured" error first
         result.Success.ShouldBeFalse();
@@ -238,7 +238,7 @@ public class AvalaraTaxProviderTests
 
         // Try to calculate tax - should fail because client is null
         var request = CreateTaxRequest("US", "CA");
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeFalse();
@@ -247,7 +247,7 @@ public class AvalaraTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_EmptyLineItems_ReturnsSuccess()
+    public async Task CalculateOrderTaxAsync_EmptyLineItems_ReturnsSuccess()
     {
         // Arrange - tax exempt with empty line items
         var request = new TaxCalculationRequest
@@ -259,7 +259,7 @@ public class AvalaraTaxProviderTests
         };
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();

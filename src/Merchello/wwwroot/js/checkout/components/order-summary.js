@@ -169,6 +169,20 @@ export function initOrderSummary() {
                     // @ts-ignore - Alpine store
                     if (this.$store.checkout && data.basket) {
                         this.$store.checkout.updateBasket(data.basket);
+
+                        // Dispatch basket-updated using store getters (ensures consistent property mapping)
+                        // Store normalizes API response (e.g., displayTotal → total)
+                        document.dispatchEvent(new CustomEvent('merchello:basket-updated', {
+                            detail: {
+                                total: this.total,
+                                shipping: this.shipping,
+                                tax: this.tax,
+                                subTotal: this.subtotal
+                            }
+                        }));
+
+                        // Signal that hosted fields/direct form payment needs re-initialization
+                        document.dispatchEvent(new CustomEvent('merchello:payment-reinit-needed'));
                     }
 
                     // Notify parent components
@@ -213,6 +227,20 @@ export function initOrderSummary() {
                     // @ts-ignore - Alpine store
                     if (this.$store.checkout && data.basket) {
                         this.$store.checkout.updateBasket(data.basket);
+
+                        // Dispatch basket-updated using store getters (ensures consistent property mapping)
+                        // Store normalizes API response (e.g., displayTotal → total)
+                        document.dispatchEvent(new CustomEvent('merchello:basket-updated', {
+                            detail: {
+                                total: this.total,
+                                shipping: this.shipping,
+                                tax: this.tax,
+                                subTotal: this.subtotal
+                            }
+                        }));
+
+                        // Signal that hosted fields/direct form payment needs re-initialization
+                        document.dispatchEvent(new CustomEvent('merchello:payment-reinit-needed'));
                     }
 
                     // Notify parent components

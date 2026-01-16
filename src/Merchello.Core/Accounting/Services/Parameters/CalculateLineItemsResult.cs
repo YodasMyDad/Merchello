@@ -34,4 +34,11 @@ public record CalculateLineItemsResult
     /// Shipping amount (echoed back for convenience)
     /// </summary>
     public required decimal Shipping { get; init; }
+
+    /// <summary>
+    /// Effective shipping tax rate percentage used for proportional calculation.
+    /// This is the weighted average of line item tax rates.
+    /// Null when shipping is not taxable or a specific rate was configured.
+    /// </summary>
+    public decimal? EffectiveShippingTaxRate { get; init; }
 }

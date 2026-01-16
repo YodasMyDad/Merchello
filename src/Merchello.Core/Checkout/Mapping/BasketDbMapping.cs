@@ -29,5 +29,6 @@ public class BasketDbMapping : IEntityTypeConfiguration<Basket>
 
         builder.Ignore(x => x.Errors);
         builder.Ignore(x => x.AvailableShippingQuotes);
+        builder.Ignore(x => x.EffectiveShippingTaxRate);
     }
 }

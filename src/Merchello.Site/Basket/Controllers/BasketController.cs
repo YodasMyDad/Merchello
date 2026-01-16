@@ -106,12 +106,6 @@ public class BasketController(
                     Message = i.StatusMessage
                 });
 
-            // Calculate tax-inclusive subtotal from line items (sum of tax-inclusive line totals)
-            // This excludes shipping tax which shouldn't be in the subtotal
-            var taxInclusiveSubTotal = items
-                .Where(i => i.LineItemType == "Product" || i.LineItemType == "Addon")
-                .Sum(i => i.DisplayLineTotal);
-
             ViewBag.BasketData = new StorefrontBasketDto
             {
                 Items = items,
@@ -138,10 +132,10 @@ public class BasketController(
                 DisplayCurrencyCode = displayContext.CurrencyCode,
                 DisplayCurrencySymbol = symbol,
                 ExchangeRate = rate,
-                // Tax-inclusive display properties
+                // Tax-inclusive display properties (use reconciled values from DisplayAmounts)
                 DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
-                TaxInclusiveDisplaySubTotal = taxInclusiveSubTotal,
-                FormattedTaxInclusiveDisplaySubTotal = FormatDisplayPrice(taxInclusiveSubTotal, symbol),
+                TaxInclusiveDisplaySubTotal = displayAmounts.TaxInclusiveSubTotal,
+                FormattedTaxInclusiveDisplaySubTotal = FormatDisplayPrice(displayAmounts.TaxInclusiveSubTotal, symbol),
                 TaxInclusiveDisplayShipping = displayAmounts.TaxInclusiveShipping,
                 FormattedTaxInclusiveDisplayShipping = FormatDisplayPrice(displayAmounts.TaxInclusiveShipping, symbol),
                 TaxInclusiveDisplayDiscount = displayAmounts.TaxInclusiveDiscount,

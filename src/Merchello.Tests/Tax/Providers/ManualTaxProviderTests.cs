@@ -87,7 +87,7 @@ public class ManualTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_WithTaxGroup_AppliesCorrectRate()
+    public async Task CalculateOrderTaxAsync_WithTaxGroup_AppliesCorrectRate()
     {
         // Arrange
         var taxGroupId = Guid.NewGuid();
@@ -113,7 +113,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(8.25m); // 8.25% California tax rate
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -124,7 +124,7 @@ public class ManualTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_WithoutTaxGroup_AppliesZeroRate()
+    public async Task CalculateOrderTaxAsync_WithoutTaxGroup_AppliesZeroRate()
     {
         // Arrange
         var request = new TaxCalculationRequest
@@ -145,7 +145,7 @@ public class ManualTaxProviderTests
         };
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -156,7 +156,7 @@ public class ManualTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_MultipleItems_CalculatesCorrectTotal()
+    public async Task CalculateOrderTaxAsync_MultipleItems_CalculatesCorrectTotal()
     {
         // Arrange
         var taxGroupId = Guid.NewGuid();
@@ -190,7 +190,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(8m); // 8% tax rate
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -202,7 +202,7 @@ public class ManualTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_DifferentTaxGroups_AppliesDifferentRates()
+    public async Task CalculateOrderTaxAsync_DifferentTaxGroups_AppliesDifferentRates()
     {
         // Arrange
         var standardTaxGroupId = Guid.NewGuid();
@@ -242,7 +242,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(5m); // 5% reduced VAT
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -261,7 +261,7 @@ public class ManualTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_EmptyLineItems_ReturnsSuccess()
+    public async Task CalculateOrderTaxAsync_EmptyLineItems_ReturnsSuccess()
     {
         // Arrange
         var request = new TaxCalculationRequest
@@ -272,7 +272,7 @@ public class ManualTaxProviderTests
         };
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -293,7 +293,7 @@ public class ManualTaxProviderTests
     #region Shipping Tax Tests
 
     [Fact]
-    public async Task CalculateTaxAsync_WithShipping_NoOverride_NoConfig_ReturnsZeroShippingTax()
+    public async Task CalculateOrderTaxAsync_WithShipping_NoOverride_NoConfig_ReturnsZeroShippingTax()
     {
         // Arrange - No override, default config (shipping not taxable)
         var taxGroupId = Guid.NewGuid();
@@ -320,7 +320,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(8.25m);
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -329,7 +329,7 @@ public class ManualTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_WithShipping_RegionalOverride_TaxGroup_AppliesOverrideRate()
+    public async Task CalculateOrderTaxAsync_WithShipping_RegionalOverride_TaxGroup_AppliesOverrideRate()
     {
         // Arrange - Regional override with specific tax group for shipping
         var itemTaxGroupId = Guid.NewGuid();
@@ -371,7 +371,7 @@ public class ManualTaxProviderTests
         };
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -380,7 +380,7 @@ public class ManualTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_WithShipping_RegionalOverride_NullTaxGroup_NoShippingTax()
+    public async Task CalculateOrderTaxAsync_WithShipping_RegionalOverride_NullTaxGroup_NoShippingTax()
     {
         // Arrange - Regional override with null tax group (shipping never taxed in this region)
         // Line items are still taxed; only shipping is exempt due to regional override
@@ -418,7 +418,7 @@ public class ManualTaxProviderTests
         };
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -427,7 +427,7 @@ public class ManualTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_WithShipping_ConfiguredTaxGroup_AppliesConfiguredRate()
+    public async Task CalculateOrderTaxAsync_WithShipping_ConfiguredTaxGroup_AppliesConfiguredRate()
     {
         // Arrange - No regional override, but provider configured with shipping tax group
         var itemTaxGroupId = Guid.NewGuid();
@@ -467,7 +467,7 @@ public class ManualTaxProviderTests
         };
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -476,7 +476,7 @@ public class ManualTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_WithShipping_ProportionalRate_MixedTaxRates()
+    public async Task CalculateOrderTaxAsync_WithShipping_ProportionalRate_MixedTaxRates()
     {
         // Arrange - No regional override, no configured tax group, but shipping is taxable
         // Uses proportional (weighted average) calculation - EU/UK compliant
@@ -524,7 +524,7 @@ public class ManualTaxProviderTests
         };
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -538,7 +538,7 @@ public class ManualTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_WithShipping_ProportionalRate_OnlyNonTaxableItems_NoShippingTax()
+    public async Task CalculateOrderTaxAsync_WithShipping_ProportionalRate_OnlyNonTaxableItems_NoShippingTax()
     {
         // Arrange - Proportional shipping tax, but no taxable items
         await _provider.ConfigureAsync(new TaxProviderConfiguration(new Dictionary<string, string>
@@ -566,7 +566,7 @@ public class ManualTaxProviderTests
         };
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -575,7 +575,7 @@ public class ManualTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_WithShipping_ZeroShippingAmount_NoShippingTax()
+    public async Task CalculateOrderTaxAsync_WithShipping_ZeroShippingAmount_NoShippingTax()
     {
         // Arrange
         var taxGroupId = Guid.NewGuid();
@@ -608,7 +608,7 @@ public class ManualTaxProviderTests
         };
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -617,7 +617,7 @@ public class ManualTaxProviderTests
     }
 
     [Fact]
-    public async Task CalculateTaxAsync_WithShipping_RegionalOverrideTakesPrecedence_OverConfig()
+    public async Task CalculateOrderTaxAsync_WithShipping_RegionalOverrideTakesPrecedence_OverConfig()
     {
         // Arrange - Both regional override and config exist, regional takes precedence
         var itemTaxGroupId = Guid.NewGuid();
@@ -674,7 +674,7 @@ public class ManualTaxProviderTests
         };
 
         // Act
-        var result = await _provider.CalculateTaxAsync(request);
+        var result = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert
         result.Success.ShouldBeTrue();
@@ -853,7 +853,7 @@ public class ManualTaxProviderTests
     public async Task IsShippingTaxedForLocationAsync_ConsistentWithTaxCalculation()
     {
         // Arrange - The IsShippingTaxedForLocationAsync result should be consistent
-        // with whether CalculateTaxAsync returns ShippingTax > 0
+        // with whether CalculateOrderTaxAsync returns ShippingTax > 0
 
         var itemTaxGroupId = Guid.NewGuid();
 
@@ -887,7 +887,7 @@ public class ManualTaxProviderTests
 
         // Act
         var isShippingTaxed = await _provider.IsShippingTaxedForLocationAsync("GB", null);
-        var taxResult = await _provider.CalculateTaxAsync(request);
+        var taxResult = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert - Both should agree that shipping is taxed
         isShippingTaxed.ShouldBeTrue();
@@ -1100,7 +1100,7 @@ public class ManualTaxProviderTests
     public async Task GetShippingTaxRateForLocationAsync_ConsistentWithTaxCalculation()
     {
         // Arrange - The rate from GetShippingTaxRateForLocationAsync should match
-        // the effective rate used in CalculateTaxAsync
+        // the effective rate used in CalculateOrderTaxAsync
         var itemTaxGroupId = Guid.NewGuid();
         var shippingTaxGroupId = Guid.NewGuid();
 
@@ -1138,7 +1138,7 @@ public class ManualTaxProviderTests
 
         // Act
         var rate = await _provider.GetShippingTaxRateForLocationAsync("GB", null);
-        var taxResult = await _provider.CalculateTaxAsync(request);
+        var taxResult = await _provider.CalculateOrderTaxAsync(request);
 
         // Assert - Rate should be 20%, and shipping tax should be 10 * 20% = 2
         rate.ShouldBe(20m);

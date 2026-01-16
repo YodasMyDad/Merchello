@@ -2,19 +2,14 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Checkout.Strategies.Models;
-using Merchello.Core.ExchangeRates.Models;
-using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
-using Merchello.Core.Shared.Models;
-using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Parameters;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
 using Xunit;
@@ -24,8 +19,6 @@ namespace Merchello.Tests.Checkout.Strategies;
 public class DefaultOrderGroupingStrategyTests
 {
     private readonly Mock<IWarehouseService> _warehouseServiceMock;
-    private readonly Mock<IExchangeRateCache> _exchangeRateCacheMock;
-    private readonly Mock<ICurrencyService> _currencyServiceMock;
     private readonly Mock<IShippingCostResolver> _shippingCostResolverMock;
     private readonly Mock<ILogger<DefaultOrderGroupingStrategy>> _loggerMock;
     private readonly DefaultOrderGroupingStrategy _strategy;
@@ -33,12 +26,6 @@ public class DefaultOrderGroupingStrategyTests
     public DefaultOrderGroupingStrategyTests()
     {
         _warehouseServiceMock = new Mock<IWarehouseService>();
-        _exchangeRateCacheMock = new Mock<IExchangeRateCache>();
-        _exchangeRateCacheMock.Setup(x => x.GetRateQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ExchangeRateQuote(1m, DateTime.UtcNow, "mock"));
-        _currencyServiceMock = new Mock<ICurrencyService>();
-        _currencyServiceMock.Setup(x => x.Round(It.IsAny<decimal>(), It.IsAny<string>()))
-            .Returns((decimal amount, string _) => Math.Round(amount, 2));
         _shippingCostResolverMock = new Mock<IShippingCostResolver>();
         _shippingCostResolverMock.Setup(x => x.GetTotalShippingCost(
                 It.IsAny<ShippingOption>(),
@@ -46,14 +33,10 @@ public class DefaultOrderGroupingStrategyTests
                 It.IsAny<string?>(),
                 It.IsAny<decimal?>()))
             .Returns((ShippingOption so, string _, string? __, decimal? ___) => so.FixedCost ?? 0);
-        var settings = Options.Create(new MerchelloSettings { StoreCurrencyCode = "USD" });
         _loggerMock = new Mock<ILogger<DefaultOrderGroupingStrategy>>();
         _strategy = new DefaultOrderGroupingStrategy(
             _warehouseServiceMock.Object,
-            _exchangeRateCacheMock.Object,
-            _currencyServiceMock.Object,
             _shippingCostResolverMock.Object,
-            settings,
             _loggerMock.Object);
     }
 

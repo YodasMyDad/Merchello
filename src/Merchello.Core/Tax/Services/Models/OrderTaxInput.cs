@@ -1,10 +1,10 @@
 namespace Merchello.Core.Tax.Services.Models;
 
 /// <summary>
-/// Input for tax calculation with before-tax and after-tax discount support.
-/// This is used by LineItemService to delegate tax calculations to the centralized tax service.
+/// Input for calculating complete order tax including line items (products) AND shipping.
+/// Use this for checkout totals and invoices.
 /// </summary>
-public class TaxWithDiscountsInput
+public class OrderTaxInput
 {
     /// <summary>
     /// Taxable line items with their totals, tax rates, and pre-calculated discount amounts.
