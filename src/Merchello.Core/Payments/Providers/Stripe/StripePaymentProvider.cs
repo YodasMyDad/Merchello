@@ -117,6 +117,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
                - `payment_intent.succeeded`
                - `payment_intent.payment_failed`
                - `charge.refunded`
+               - `charge.dispute.created`
             5. Click **"Add endpoint"**
             6. Click **"Reveal"** under "Signing secret" and copy the `whsec_...` value
 

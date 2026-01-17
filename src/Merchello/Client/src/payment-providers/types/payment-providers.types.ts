@@ -207,8 +207,10 @@ export type PaymentMethodType = (typeof PaymentMethodTypes)[keyof typeof Payment
 export interface CheckoutPaymentPreviewDto {
   /** Express checkout methods that will appear (Apple Pay, Google Pay, etc.) */
   expressMethods: CheckoutMethodPreviewDto[];
-  /** Standard payment methods that will appear (Cards, PayPal, etc.) */
+  /** Standard payment methods that will appear as form-based options (Cards via HostedFields/DirectForm). Deduplicated by MethodType. */
   standardMethods: CheckoutMethodPreviewDto[];
+  /** Redirect payment methods that will appear in the "Or pay with" section. NOT deduplicated. */
+  redirectMethods: CheckoutMethodPreviewDto[];
   /** Methods that are enabled but hidden because another provider's method of the same type has a lower sort order */
   hiddenMethods: CheckoutMethodPreviewDto[];
 }

@@ -147,12 +147,20 @@ Cancel       → Release (Reserved -= qty)
 - `SaveAddressesAsync()` - Save addresses (stores marketing opt-in in `CheckoutSession.AcceptsMarketing`)
 
 **IAbandonedCheckoutService:**
-- `TrackCheckoutActivityAsync()` - Track customer checkout progress
-- `DetectAbandonedCheckoutsAsync()` - Find abandoned carts
+- `TrackCheckoutActivityAsync()` - Track customer checkout progress (resets Recovered/Abandoned → Active for re-abandonment)
+- `DetectAbandonedCheckoutsAsync()` - Find abandoned carts (only processes Active status)
 - `SendScheduledRecoveryEmailsAsync()` - Send recovery email sequence
-- `RestoreBasketFromRecoveryAsync()` - Restore basket from recovery link
-- `MarkAsConvertedAsync()` - Mark recovered checkout as converted
+- `RestoreBasketFromRecoveryAsync()` - Restore basket from recovery link (validates item availability)
+- `MarkAsConvertedAsync()` - Mark checkout as converted (called for Active, Abandoned, or Recovered)
 - `GetStatsAsync()` - Get abandonment statistics
+
+**Abandoned Checkout Status Lifecycle:**
+```
+Active → Abandoned → Recovered → Converted
+   ↑         ↓           ↓
+   └─────────┴───────────┘  (activity resets to Active, enables re-abandonment)
+                         └→ Expired (recovery window closed)
+```
 
 ### 2.4 Invoices & Orders
 

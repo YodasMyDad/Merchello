@@ -41,9 +41,22 @@ public class AbandonedCheckoutService(
             var existing = await db.AbandonedCheckouts
                 .FirstOrDefaultAsync(ac => ac.BasketId == basketId, ct);
 
-            if (existing != null && existing.Status == AbandonedCheckoutStatus.Active)
+            if (existing != null)
             {
                 existing.LastActivityUtc = DateTime.UtcNow;
+
+                // Reset recovered/abandoned checkouts to active when new activity detected
+                // This allows the detection job to re-abandon them if the user leaves again
+                if (existing.Status == AbandonedCheckoutStatus.Recovered ||
+                    existing.Status == AbandonedCheckoutStatus.Abandoned)
+                {
+                    existing.Status = AbandonedCheckoutStatus.Active;
+                    existing.RecoveryEmailsSent = 0;
+                    existing.DateAbandoned = null;
+                    // Note: We preserve DateRecovered for analytics - it indicates this checkout
+                    // went through the recovery flow at some point
+                }
+
                 await db.SaveChangesAsync(ct);
             }
         });
@@ -64,6 +77,18 @@ public class AbandonedCheckoutService(
             {
                 // Update existing record
                 existing.LastActivityUtc = DateTime.UtcNow;
+
+                // Reset recovered/abandoned checkouts to active when new activity detected
+                // This allows the detection job to re-abandon them if the user leaves again
+                if (existing.Status == AbandonedCheckoutStatus.Recovered ||
+                    existing.Status == AbandonedCheckoutStatus.Abandoned)
+                {
+                    existing.Status = AbandonedCheckoutStatus.Active;
+                    existing.RecoveryEmailsSent = 0;
+                    existing.DateAbandoned = null;
+                    // Note: We preserve DateRecovered for analytics - it indicates this checkout
+                    // went through the recovery flow at some point
+                }
 
                 // Update email if provided and different
                 if (!string.IsNullOrWhiteSpace(email) && existing.Email != email)

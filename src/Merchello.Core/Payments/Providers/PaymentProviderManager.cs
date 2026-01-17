@@ -534,9 +534,11 @@ public class PaymentProviderManager(
         // Apply deduplication and track winners/losers
         List<CheckoutMethodPreviewDto> expressMethods = [];
         List<CheckoutMethodPreviewDto> standardMethods = [];
+        List<CheckoutMethodPreviewDto> redirectMethods = [];
         List<CheckoutMethodPreviewDto> hiddenMethods = [];
 
         // Track winners per MethodType for express and standard separately
+        // Redirect methods are NOT deduplicated - they go in their own "Or pay with" section
         var expressWinners = new Dictionary<string, CheckoutMethodPreviewDto>();
         var standardWinners = new Dictionary<string, CheckoutMethodPreviewDto>();
 
@@ -550,6 +552,15 @@ public class PaymentProviderManager(
                 .FirstOrDefault(m => string.Equals(m.Alias, method.MethodAlias, StringComparison.OrdinalIgnoreCase));
 
             var isExpress = methodDef?.IsExpressCheckout ?? false;
+            var isRedirect = methodDef?.IntegrationType == PaymentIntegrationType.Redirect;
+
+            // Redirect methods go to their own section and are NOT deduplicated
+            // They appear in the "Or pay with" section, similar to express checkout
+            if (isRedirect && !isExpress)
+            {
+                redirectMethods.Add(method);
+                continue;
+            }
 
             if (string.IsNullOrEmpty(method.MethodType))
             {
@@ -585,15 +596,20 @@ public class PaymentProviderManager(
         {
             ExpressMethods = expressMethods,
             StandardMethods = standardMethods,
+            RedirectMethods = redirectMethods,
             HiddenMethods = hiddenMethods
         };
     }
 
     /// <summary>
     /// Deduplicates payment methods by MethodType.
-    /// For methods with a defined type (not null/Custom), only the one with lowest SortOrder is kept.
-    /// This prevents duplicate buttons when multiple providers offer the same payment method
-    /// (e.g., both Stripe and Braintree offering Apple Pay).
+    /// For form-based methods (HostedFields, DirectForm) with a defined type, only the one with lowest SortOrder is kept.
+    /// This prevents duplicate card forms when multiple providers offer the same payment method
+    /// (e.g., both Stripe and Braintree offering card payments).
+    ///
+    /// Redirect methods are NOT deduplicated - they appear individually in the "Or pay with" section,
+    /// similar to express checkout methods. This allows multiple redirect options to coexist
+    /// (e.g., Stripe Checkout redirect alongside PayPal redirect).
     /// </summary>
     private List<PaymentMethodDto> DeduplicateByMethodType(List<PaymentMethodDto> methods)
     {
@@ -602,6 +618,14 @@ public class PaymentProviderManager(
 
         foreach (var method in methods.OrderBy(m => m.SortOrder).ThenBy(m => m.DisplayName))
         {
+            // Redirect methods are NOT deduplicated - shown individually like express checkout.
+            // They appear in the "Or pay with" section, not as radio options competing with form-based methods.
+            if (method.IntegrationType == PaymentIntegrationType.Redirect)
+            {
+                result.Add(method);
+                continue;
+            }
+
             // Methods without a MethodType are not deduplicated
             if (string.IsNullOrEmpty(method.MethodType))
             {
@@ -609,7 +633,7 @@ public class PaymentProviderManager(
                 continue;
             }
 
-            // For typed methods, only include the first one (lowest sort order)
+            // For typed form-based methods, only include the first one (lowest sort order)
             if (!seenMethodTypes.TryGetValue(method.MethodType, out var existingMethod))
             {
                 seenMethodTypes[method.MethodType] = method;

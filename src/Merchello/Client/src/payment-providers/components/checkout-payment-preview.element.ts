@@ -133,6 +133,7 @@ export class MerchelloCheckoutPaymentPreviewElement extends UmbElementMixin(LitE
     return (
       this._preview.expressMethods.length > 0 ||
       this._preview.standardMethods.length > 0 ||
+      this._preview.redirectMethods.length > 0 ||
       this._preview.hiddenMethods.length > 0
     );
   }
@@ -194,6 +195,7 @@ export class MerchelloCheckoutPaymentPreviewElement extends UmbElementMixin(LitE
               <div class="preview-content">
                 ${this._renderSection("Express Checkout", this._preview?.expressMethods ?? [])}
                 ${this._renderSection("Standard Payment", this._preview?.standardMethods ?? [])}
+                ${this._renderSection("Or Pay With", this._preview?.redirectMethods ?? [])}
                 ${this._preview?.hiddenMethods.length
                   ? html`
                       <div class="hidden-section">

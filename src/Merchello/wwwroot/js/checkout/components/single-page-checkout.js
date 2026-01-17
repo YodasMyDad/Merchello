@@ -75,16 +75,61 @@ export function initSinglePageCheckout() {
 
             cardPaymentMethods: [],
             redirectPaymentMethods: [],
+            selectedPaymentMethodKey: '',
 
             // ============================================
             // Private State
             // ============================================
+            //
+            // CONCURRENCY & STATE MANAGEMENT
+            // ------------------------------
+            // This checkout has several patterns to prevent race conditions,
+            // duplicate requests, and stale data issues:
+            //
+            // 1. REQUEST ID PATTERN (_shippingRequestId, _paymentInitRequestId)
+            //    Async operations increment a request ID before starting.
+            //    When the response arrives, we check if our ID still matches
+            //    the current ID. If not, a newer request was made and we
+            //    discard this stale response. This prevents:
+            //    - Old shipping calculations overwriting newer ones
+            //    - Old payment sessions replacing current ones
+            //
+            // 2. DEDUPLICATION PATTERN (_emailCaptured, _lastAddressHash)
+            //    Before making API calls, we check if the data has changed.
+            //    This prevents redundant server calls when:
+            //    - User tabs through fields without changing values
+            //    - Same address is submitted multiple times
+            //
+            // 3. PHANTOM ORDER PREVENTION (isSubmitting guard)
+            //    During order submission, we skip payment form re-initialization.
+            //    Without this, basket updates during submit would clear the
+            //    payment session, triggering new invoice creation. See
+            //    reinitializePaymentFormIfActive() for the guard.
+            //
+            // 4. EXPRESS CHECKOUT RE-RENDER SKIP (_skipReRender flag)
+            //    When initializing hosted payment forms (Braintree, etc.),
+            //    we temporarily prevent express checkout buttons (PayPal)
+            //    from re-rendering. This prevents UI flicker where buttons
+            //    disappear and reappear during payment form setup.
+            //
+            // 5. DEBOUNCED RE-INITIALIZATION (_paymentReinitTimeout)
+            //    When basket totals change (shipping, discounts), we need to
+            //    re-init the payment form with the new amount. We debounce
+            //    this at 300ms to match express checkout timing and prevent
+            //    rapid flickering during fast changes.
+            //
 
+            /** @type {string} Last email successfully captured - prevents duplicate capture calls */
             _emailCaptured: '',
+            /** @type {string} Hash of last captured address data - prevents duplicate capture calls */
             _lastAddressHash: '',
+            /** @type {number} Incrementing ID for shipping requests - used to discard stale responses */
             _shippingRequestId: 0,
+            /** @type {number} Incrementing ID for payment init requests - used to discard stale responses */
             _paymentInitRequestId: 0,
+            /** @type {number|null} Timeout handle for debounced payment re-init */
             _paymentReinitTimeout: null,
+            /** @type {boolean} Whether shipping has been calculated at least once */
             _shippingCalculated: false,
             announcement: '',
 
@@ -210,8 +255,11 @@ export function initSinglePageCheckout() {
                     window.MerchelloSinglePageAnalytics.trackBegin();
                 }
 
-                // Listen for basket changes from other components (e.g., discounts)
-                // to re-initialize payment form with correct totals
+                // CROSS-COMPONENT COORDINATION: Other components (e.g., discount code input,
+                // basket quantity changes) fire this event when basket totals change.
+                // We must re-initialize the payment form so the session has the correct amount.
+                // Note: reinitializePaymentFormIfActive() has the isSubmitting guard
+                // to prevent phantom orders during submission.
                 document.addEventListener('merchello:payment-reinit-needed', () => {
                     this.reinitializePaymentFormIfActive();
                 });
@@ -367,6 +415,14 @@ export function initSinglePageCheckout() {
                     this.debouncedCalculateShipping();
                 }
                 this.debouncedCaptureAddress();
+
+                // Clear payment error if billing info is now complete
+                const hasBillingInfo = this.form.billing.name &&
+                                       this.form.billing.address1 &&
+                                       this.form.billing.countryCode;
+                if (hasBillingInfo && this.$store.checkout?.paymentError === 'Please complete your billing address first.') {
+                    this.$store.checkout?.setPaymentError(null);
+                }
             },
 
             onBillingStateChange() {
@@ -385,6 +441,14 @@ export function initSinglePageCheckout() {
                     this.debouncedCalculateShipping();
                 }
                 this.debouncedCaptureAddress();
+
+                // Clear payment error if billing info is now complete
+                const hasBillingInfo = this.form.billing.name &&
+                                       this.form.billing.address1 &&
+                                       this.form.billing.countryCode;
+                if (hasBillingInfo && this.$store.checkout?.paymentError === 'Please complete your billing address first.') {
+                    this.$store.checkout?.setPaymentError(null);
+                }
             },
 
             async onShippingCountryChange() {
@@ -415,6 +479,8 @@ export function initSinglePageCheckout() {
             // ============================================
 
             async captureEmail() {
+                // DEDUPLICATION: Skip if email unchanged since last capture.
+                // Prevents redundant API calls when user tabs through fields.
                 if (!this.form.email || this._emailCaptured === this.form.email) return;
                 try {
                     const response = await checkoutApi.captureEmail(this.form.email);
@@ -431,6 +497,10 @@ export function initSinglePageCheckout() {
             },
 
             async captureAddress() {
+                // DEDUPLICATION: Hash current address data and compare to last capture.
+                // This prevents redundant API calls when address hasn't actually changed.
+                // Important for abandoned cart recovery - we want to capture changes,
+                // but not spam the server with identical data.
                 const addressHash = JSON.stringify({
                     email: this.form.email,
                     billing: this.form.billing,
@@ -474,6 +544,9 @@ export function initSinglePageCheckout() {
             async calculateShipping() {
                 if (!this.canCalculateShipping) return;
 
+                // REQUEST ID PATTERN: Increment before async call, check after.
+                // If user changes address quickly, multiple requests fire.
+                // Only the latest request (matching current ID) updates state.
                 const requestId = ++this._shippingRequestId;
                 const store = this.$store.checkout;
                 store?.setShippingLoading(true);
@@ -488,6 +561,8 @@ export function initSinglePageCheckout() {
                         previousShippingSelections: this.shippingSelections
                     });
 
+                    // STALE RESPONSE CHECK: A newer request was made while we waited.
+                    // Discard this response to avoid overwriting fresher data.
                     if (requestId !== this._shippingRequestId) return;
 
                     if (data.success) {
@@ -588,12 +663,35 @@ export function initSinglePageCheckout() {
 
             /**
              * Re-initialize payment form if one is currently active.
-             * Called when basket totals change (shipping, discounts) to ensure
-             * the payment session has the correct amount.
-             * Debounced to prevent flickering during rapid shipping changes.
+             *
+             * WHEN THIS IS CALLED:
+             * - Shipping option changes (different cost)
+             * - Discount code applied/removed
+             * - Basket quantity changes
+             * - Any event that fires 'merchello:payment-reinit-needed'
+             *
+             * WHY RE-INIT IS NEEDED:
+             * Payment sessions (especially for hosted fields like Braintree) are
+             * created with a specific amount. If the basket total changes after
+             * session creation, the payment would be for the wrong amount.
+             * Re-initializing creates a new session with the correct total.
+             *
+             * DEBOUNCE (300ms):
+             * Matches the express checkout button re-render timing. This prevents
+             * UI flicker when multiple rapid changes occur (e.g., user quickly
+             * clicking through shipping options).
              */
             async reinitializePaymentFormIfActive() {
                 const store = this.$store.checkout;
+
+                // PHANTOM ORDER PREVENTION: During order submission, basket updates
+                // (from backend recalculations) can trigger this function. If we
+                // re-init the payment form during submit, it would:
+                // 1. Clear the current payment session
+                // 2. Create a new invoice on backend (initiate-payment creates invoices)
+                // 3. Result in duplicate/phantom orders
+                // The isSubmitting flag blocks this dangerous path.
+                if (store?.isSubmitting) return;
 
                 // Only re-init for HostedFields/DirectForm types that have an active session
                 // PayPal/Widget types handle amount updates differently (via express checkout re-render)
@@ -606,15 +704,21 @@ export function initSinglePageCheckout() {
                     clearTimeout(this._paymentReinitTimeout);
                 }
 
-                // Debounce re-init to prevent flickering (matches express checkout's 300ms)
+                // DEBOUNCE: Wait 300ms before re-initializing. This value is intentionally
+                // matched to the express checkout button re-render delay. Benefits:
+                // 1. Prevents multiple rapid re-inits when user clicks through options
+                // 2. Allows final basket state to settle before creating new session
+                // 3. Reduces API calls and improves perceived performance
                 this._paymentReinitTimeout = setTimeout(async () => {
                     this._paymentReinitTimeout = null;
 
-                    // Re-check conditions after debounce (state may have changed)
+                    // Re-check conditions after debounce - state may have changed during wait.
+                    // User might have selected a different payment method or cleared session.
                     if (!this.paymentSession) return;
                     if (!this.selectedPaymentMethod) return;
 
-                    // Clear session and re-initialize (shows skeleton immediately)
+                    // Clear current session (shows skeleton loader) and create fresh one
+                    // with the updated basket total.
                     store?.setPaymentSession(null);
                     await this.initializePaymentForm(this.selectedPaymentMethod);
                 }, 300);
@@ -655,6 +759,7 @@ export function initSinglePageCheckout() {
                 if (!hasBillingInfo) {
                     store?.setPaymentMethod(null);
                     store?.setPaymentError('Please complete your billing address first.');
+                    this.selectedPaymentMethodKey = '';
                     return;
                 }
 
@@ -678,24 +783,46 @@ export function initSinglePageCheckout() {
                 }
             },
 
+            /**
+             * Initialize the payment form for hosted fields or direct form integrations.
+             *
+             * CRITICAL FLOW:
+             * 1. Cancel pending address captures (we'll save fresh data)
+             * 2. Set express re-render skip to prevent PayPal button flicker
+             * 3. Pre-save addresses (some providers need this for fraud checks)
+             * 4. Create payment session (this may create an invoice on backend)
+             * 5. Render the payment form in the appropriate container
+             * 6. Clear the re-render skip flag when done
+             *
+             * REQUEST ID PATTERN is used here too - if user rapidly clicks
+             * different payment methods, only the latest one takes effect.
+             *
+             * @param {object} method - The payment method to initialize
+             */
             async initializePaymentForm(method) {
                 if (!method) return;
                 if (!this.requiresPaymentForm(method.integrationType)) return;
 
+                // REQUEST ID PATTERN: Track this request to handle rapid method switching.
                 const requestId = ++this._paymentInitRequestId;
                 const store = this.$store.checkout;
+
+                // Cancel pending address capture - we'll save fresh data below
                 debouncer.cancel('captureAddress');
 
                 // Show skeleton loader while payment form initializes
                 store?.setPaymentFormInitializing(true);
-                // Prevent express buttons from re-rendering during payment init
-                // (normal shipping/basket changes will still update when flag is reset)
+
+                // EXPRESS RE-RENDER SKIP: Temporarily prevent PayPal/express buttons
+                // from disappearing while we set up the hosted payment form.
+                // The flag is cleared in onReady/onError callbacks below.
                 this.setExpressReRenderSkip(true);
 
                 try {
-                    // Pre-save addresses before payment session creation
-                    // Some providers need address data for fraud checks during session setup
-                    // Note: submitOrder() also saves addresses to include password for account creation
+                    // PRE-SAVE ADDRESSES: Some payment providers (e.g., Braintree with
+                    // fraud tools) need customer address data during session creation
+                    // for risk assessment. We save here so the backend has current data.
+                    // Note: submitOrder() also saves addresses (includes password for account creation)
                     if (this.form.billing.name && this.form.billing.address1 && this.form.billing.countryCode) {
                         await checkoutApi.saveAddresses({
                             email: this.form.email,
@@ -706,12 +833,16 @@ export function initSinglePageCheckout() {
                         });
                     }
 
+                    // STALE RESPONSE CHECK: User may have clicked a different payment
+                    // method while addresses were saving. Abort if this request is stale.
                     if (requestId !== this._paymentInitRequestId) {
                         store?.setPaymentFormInitializing(false);
                         this.setExpressReRenderSkip(false);
                         return;
                     }
 
+                    // Create the payment session. This may create an invoice on the backend
+                    // with current basket totals. The invoice ID is returned in payData.
                     const payData = await checkoutApi.initiatePayment({
                         providerAlias: method.providerAlias,
                         methodAlias: method.methodAlias || null,
@@ -905,6 +1036,23 @@ export function initSinglePageCheckout() {
             // Order Submission
             // ============================================
 
+            /**
+             * Submit the order for payment processing.
+             *
+             * CRITICAL FLOW:
+             * 1. Validate all form fields
+             * 2. Set isSubmitting = true (blocks payment form re-init, see PHANTOM ORDER PREVENTION)
+             * 3. Save addresses to backend (with optional password for account creation)
+             * 4. Save shipping selections to backend
+             * 5. Get or create payment session
+             * 6. For redirect payments: redirect to provider
+             * 7. For hosted fields: submit payment via MerchelloPayment handler
+             * 8. On success: redirect to confirmation page
+             *
+             * IMPORTANT: The isSubmitting flag MUST be set before any async operations
+             * that might trigger basket updates. This prevents the reinitializePaymentFormIfActive()
+             * function from creating new invoices during the submission process.
+             */
             async submitOrder() {
                 const store = this.$store.checkout;
 
@@ -920,11 +1068,16 @@ export function initSinglePageCheckout() {
                     return;
                 }
 
+                // CRITICAL: Set isSubmitting BEFORE any async calls.
+                // This flag prevents reinitializePaymentFormIfActive() from running
+                // during submission, which would create phantom orders.
                 store?.setSubmitting(true);
                 store?.setGeneralError('');
                 this.announce('Processing your order...');
 
                 try {
+                    // Save addresses first - backend needs this for invoice creation.
+                    // Also includes password if user is creating an account.
                     const addressData = await checkoutApi.saveAddresses({
                         email: this.form.email,
                         billingAddress: this.form.billing,
@@ -939,6 +1092,10 @@ export function initSinglePageCheckout() {
                     const shippingData = await checkoutApi.saveShipping(this.shippingSelections);
                     if (!shippingData.success) throw new Error(shippingData.message || 'Failed to save shipping');
 
+                    // PAYMENT SESSION REUSE: If we already have a valid payment session
+                    // for the selected method (created when user selected the payment method),
+                    // reuse it. This prevents creating duplicate invoices.
+                    // If session doesn't match (e.g., user changed method), create new one.
                     let payData;
                     if (this.paymentSessionMatchesMethod) {
                         payData = this.paymentSession;
@@ -954,7 +1111,7 @@ export function initSinglePageCheckout() {
                     }
 
                     if (payData.integrationType === 0 && payData.redirectUrl) {
-                        safeRedirect(payData.redirectUrl);
+                        safeRedirect(payData.redirectUrl, '/checkout', true);
                         return;
                     }
 

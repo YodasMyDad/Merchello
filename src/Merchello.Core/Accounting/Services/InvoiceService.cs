@@ -519,13 +519,18 @@ public class InvoiceService(
 
         scope.Complete();
 
-        // Track abandoned cart conversion (if this checkout was recovered)
+        // Track abandoned cart conversion (if this checkout was tracked for abandonment)
+        // We mark as converted for Active, Abandoned, or Recovered statuses:
+        // - Active: User was tracked but completed before being marked as abandoned
+        // - Abandoned: User was marked as abandoned but returned and completed
+        // - Recovered: User clicked recovery link and completed
+        // We skip Converted (already done) and Expired (historical record)
         if (abandonedCheckoutService != null)
         {
             var abandonedCheckout = await abandonedCheckoutService.GetByBasketIdAsync(basket.Id);
             if (abandonedCheckout != null &&
-                (abandonedCheckout.Status == AbandonedCheckoutStatus.Abandoned ||
-                 abandonedCheckout.Status == AbandonedCheckoutStatus.Recovered))
+                abandonedCheckout.Status != AbandonedCheckoutStatus.Converted &&
+                abandonedCheckout.Status != AbandonedCheckoutStatus.Expired)
             {
                 await abandonedCheckoutService.MarkAsConvertedAsync(abandonedCheckout.Id, invoice.Id);
             }

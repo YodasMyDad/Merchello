@@ -12,9 +12,16 @@ public class CheckoutPaymentPreviewDto
     public List<CheckoutMethodPreviewDto> ExpressMethods { get; set; } = [];
 
     /// <summary>
-    /// Standard payment methods that will appear (Cards, PayPal, etc.).
+    /// Standard payment methods that will appear as form-based options (Cards via HostedFields/DirectForm).
+    /// These are deduplicated by MethodType.
     /// </summary>
     public List<CheckoutMethodPreviewDto> StandardMethods { get; set; } = [];
+
+    /// <summary>
+    /// Redirect payment methods that will appear in the "Or pay with" section.
+    /// These are NOT deduplicated - all enabled redirect methods are shown.
+    /// </summary>
+    public List<CheckoutMethodPreviewDto> RedirectMethods { get; set; } = [];
 
     /// <summary>
     /// Methods that are enabled but hidden because another provider's method

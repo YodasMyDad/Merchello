@@ -1149,14 +1149,27 @@ public class CheckoutPaymentsApiController(
                 shippingSelections.Count,
                 ShippingAutoSelector.CalculateCombinedTotal(groupingResult.Groups, shippingSelections));
 
-            // Create invoice from basket with the populated session
-            var invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, cancellationToken);
-
-            logger.LogInformation(
-                "Express checkout: Invoice {InvoiceId} created from basket {BasketId} for {Email}",
-                invoice.Id,
-                basket.Id,
-                request.CustomerData.Email);
+            // Check for existing unpaid invoice to prevent phantom orders
+            // This handles cases where express checkout is triggered multiple times
+            var existingInvoice = await invoiceService.GetUnpaidInvoiceForBasketAsync(basket.Id, cancellationToken);
+            Invoice invoice;
+            if (existingInvoice != null)
+            {
+                logger.LogInformation(
+                    "Express checkout: Reusing existing unpaid invoice {InvoiceId} for basket {BasketId}",
+                    existingInvoice.Id,
+                    basket.Id);
+                invoice = existingInvoice;
+            }
+            else
+            {
+                invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, cancellationToken);
+                logger.LogInformation(
+                    "Express checkout: Invoice {InvoiceId} created from basket {BasketId} for {Email}",
+                    invoice.Id,
+                    basket.Id,
+                    request.CustomerData.Email);
+            }
 
             // Store invoice ID in session for ownership validation during payment
             await checkoutSessionService.SetInvoiceIdAsync(basket.Id, invoice.Id, cancellationToken);
@@ -1730,14 +1743,28 @@ public class CheckoutPaymentsApiController(
                 });
             }
 
-            // Create invoice from basket if not already created
-            var invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, cancellationToken);
-
-            logger.LogInformation(
-                "Widget create-order ({Provider}): Invoice {InvoiceId} created from basket {BasketId}",
-                providerAlias,
-                invoice.Id,
-                basket.Id);
+            // Check for existing unpaid invoice to prevent phantom orders
+            // This handles cases where widget checkout is triggered multiple times (e.g., PayPal button clicked repeatedly)
+            var existingInvoice = await invoiceService.GetUnpaidInvoiceForBasketAsync(basket.Id, cancellationToken);
+            Invoice invoice;
+            if (existingInvoice != null)
+            {
+                logger.LogInformation(
+                    "Widget create-order ({Provider}): Reusing existing unpaid invoice {InvoiceId} for basket {BasketId}",
+                    providerAlias,
+                    existingInvoice.Id,
+                    basket.Id);
+                invoice = existingInvoice;
+            }
+            else
+            {
+                invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, cancellationToken);
+                logger.LogInformation(
+                    "Widget create-order ({Provider}): Invoice {InvoiceId} created from basket {BasketId}",
+                    providerAlias,
+                    invoice.Id,
+                    basket.Id);
+            }
 
             // Store invoice ID in session for ownership validation during payment
             await checkoutSessionService.SetInvoiceIdAsync(basket.Id, invoice.Id, cancellationToken);
