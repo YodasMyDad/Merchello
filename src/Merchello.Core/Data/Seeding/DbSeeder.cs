@@ -50,6 +50,11 @@ public class DbSeeder(
     ISupplierService supplierService,
     ILogger<DbSeeder> logger)
 {
+    /// <summary>
+    /// Tracks the UK Domestic Only shipping option ID for country-restricted products.
+    /// </summary>
+    private Guid _ukOnlyShippingOptionId;
+
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
         // Check if already seeded (via service)
@@ -86,12 +91,12 @@ public class DbSeeder(
         var warehouses = await CreateWarehousesAsync(ukSupplier, usSupplier, cancellationToken);
         logger.LogDebug("Created {Count} warehouses across UK, EU, and US", warehouses.Length);
 
-        // 6. Create Filter Groups & Filters via service
-        await CreateFiltersAsync(cancellationToken);
-        logger.LogDebug("Created color and size filter groups");
+        // 6. Create Filter Groups & Filters via service (returns lookups for variant assignment)
+        var (colorFilters, sizeFilters) = await CreateFiltersAsync(cancellationToken);
+        logger.LogDebug("Created color ({ColorCount}) and size ({SizeCount}) filters", colorFilters.Count, sizeFilters.Count);
 
         // 7. Create all products with various configurations (via ProductService)
-        await CreateProductsAsync(ukVat, productTypes, collections, warehouses);
+        await CreateProductsAsync(ukVat, productTypes, collections, warehouses, colorFilters, sizeFilters);
         logger.LogInformation("Merchello seed data: Created products");
 
         // 8. Create customers explicitly (before invoices so we can use them for segments)
@@ -311,12 +316,27 @@ public class DbSeeder(
             ],
             ShippingOptions =
             [
-                new ShippingOptionConfig { Name = "Standard Delivery", DaysFrom = 3, DaysTo = 5, Cost = 4.99m },
-                new ShippingOptionConfig { Name = "Express Delivery", DaysFrom = 1, DaysTo = 2, Cost = 7.99m },
-                new ShippingOptionConfig { Name = "Next Day", DaysFrom = 1, DaysTo = 1, Cost = 9.99m, IsNextDay = true },
-                new ShippingOptionConfig { Name = "International Tracked", DaysFrom = 7, DaysTo = 14, Cost = 14.99m }
+                // FREE UK shipping (threshold-based - UI handles eligibility, cost=0 signals free)
+                new ShippingOptionConfig { Name = "Free UK Standard (Orders £50+)", DaysFrom = 5, DaysTo = 7, Cost = 0m },
+
+                // Royal Mail branded options
+                new ShippingOptionConfig { Name = "Royal Mail 2nd Class", DaysFrom = 3, DaysTo = 5, Cost = 3.49m },
+                new ShippingOptionConfig { Name = "Royal Mail 1st Class", DaysFrom = 1, DaysTo = 2, Cost = 4.99m },
+                new ShippingOptionConfig { Name = "Royal Mail Signed For", DaysFrom = 1, DaysTo = 2, Cost = 5.99m },
+                new ShippingOptionConfig { Name = "Royal Mail Special Delivery", DaysFrom = 1, DaysTo = 1, Cost = 9.99m, IsNextDay = true },
+
+                // UK-ONLY option (for country-restricted products)
+                new ShippingOptionConfig { Name = "UK Domestic Only", DaysFrom = 2, DaysTo = 4, Cost = 4.49m },
+
+                // International from UK warehouse
+                new ShippingOptionConfig { Name = "Royal Mail International Tracked", DaysFrom = 7, DaysTo = 14, Cost = 14.99m }
             ]
         }, cancellationToken);
+
+        // Capture UK-only shipping option ID for country-restricted products
+        var ukWarehouse = ukWarehouseResult.ResultObject!;
+        _ukOnlyShippingOptionId = ukWarehouse.ShippingOptions?
+            .FirstOrDefault(so => so.Name == "UK Domestic Only")?.Id ?? Guid.Empty;
 
         // EU Distribution Hub - serves continental Europe
         var euWarehouseResult = await warehouseService.CreateWarehouse(new CreateWarehouseParameters
@@ -355,9 +375,17 @@ public class DbSeeder(
             ],
             ShippingOptions =
             [
-                new ShippingOptionConfig { Name = "Standard Delivery", DaysFrom = 3, DaysTo = 5, Cost = 5.99m },
-                new ShippingOptionConfig { Name = "Express Delivery", DaysFrom = 1, DaysTo = 2, Cost = 9.99m },
-                new ShippingOptionConfig { Name = "Economy", DaysFrom = 7, DaysTo = 10, Cost = 3.99m }
+                // DHL branded options for EU
+                new ShippingOptionConfig { Name = "DHL Standard EU", DaysFrom = 3, DaysTo = 5, Cost = 5.99m },
+                new ShippingOptionConfig { Name = "DHL Express EU", DaysFrom = 1, DaysTo = 2, Cost = 12.99m },
+                new ShippingOptionConfig { Name = "DHL Express Next Day EU", DaysFrom = 1, DaysTo = 1, Cost = 18.99m, IsNextDay = true },
+
+                // DPD options
+                new ShippingOptionConfig { Name = "DPD Classic", DaysFrom = 4, DaysTo = 6, Cost = 4.99m },
+                new ShippingOptionConfig { Name = "DPD Predict", DaysFrom = 2, DaysTo = 3, Cost = 7.99m },
+
+                // Economy option
+                new ShippingOptionConfig { Name = "PostNL Economy", DaysFrom = 7, DaysTo = 10, Cost = 3.49m }
             ]
         }, cancellationToken);
 
@@ -387,15 +415,26 @@ public class DbSeeder(
             ],
             ShippingOptions =
             [
-                // Flat-rate options
-                new ShippingOptionConfig { Name = "Ground Shipping", DaysFrom = 5, DaysTo = 7, Cost = 6.99m },
-                new ShippingOptionConfig { Name = "Priority Shipping", DaysFrom = 2, DaysTo = 3, Cost = 12.99m },
-                new ShippingOptionConfig { Name = "Overnight", DaysFrom = 1, DaysTo = 1, Cost = 24.99m, IsNextDay = true },
-                new ShippingOptionConfig { Name = "International", DaysFrom = 10, DaysTo = 14, Cost = 19.99m },
+                // FREE US shipping (threshold-based)
+                new ShippingOptionConfig { Name = "Free US Standard (Orders $75+)", DaysFrom = 5, DaysTo = 8, Cost = 0m },
+
+                // USPS branded options
+                new ShippingOptionConfig { Name = "USPS Ground Advantage", DaysFrom = 5, DaysTo = 7, Cost = 5.99m },
+                new ShippingOptionConfig { Name = "USPS Priority Mail", DaysFrom = 2, DaysTo = 3, Cost = 9.99m },
+                new ShippingOptionConfig { Name = "USPS Priority Express", DaysFrom = 1, DaysTo = 2, Cost = 26.99m },
+
+                // UPS branded options
+                new ShippingOptionConfig { Name = "UPS Ground (East)", DaysFrom = 4, DaysTo = 6, Cost = 7.99m },
+                new ShippingOptionConfig { Name = "UPS 3 Day Select", DaysFrom = 3, DaysTo = 3, Cost = 14.99m },
+                new ShippingOptionConfig { Name = "UPS Next Day Air (East)", DaysFrom = 1, DaysTo = 1, Cost = 34.99m, IsNextDay = true },
+
                 // FedEx options
                 new ShippingOptionConfig { Name = "FedEx Ground", DaysFrom = 5, DaysTo = 7, Cost = 8.99m, ProviderKey = "fedex", ServiceType = "FEDEX_GROUND" },
                 new ShippingOptionConfig { Name = "FedEx 2Day", DaysFrom = 2, DaysTo = 2, Cost = 15.99m, ProviderKey = "fedex", ServiceType = "FEDEX_2_DAY" },
-                new ShippingOptionConfig { Name = "FedEx Priority Overnight", DaysFrom = 1, DaysTo = 1, Cost = 29.99m, ProviderKey = "fedex", ServiceType = "PRIORITY_OVERNIGHT", IsNextDay = true }
+                new ShippingOptionConfig { Name = "FedEx Priority Overnight", DaysFrom = 1, DaysTo = 1, Cost = 29.99m, ProviderKey = "fedex", ServiceType = "PRIORITY_OVERNIGHT", IsNextDay = true },
+
+                // International from US East
+                new ShippingOptionConfig { Name = "USPS Priority Intl (East)", DaysFrom = 10, DaysTo = 14, Cost = 24.99m }
             ]
         }, cancellationToken);
 
@@ -434,15 +473,25 @@ public class DbSeeder(
             ],
             ShippingOptions =
             [
-                // Flat-rate options
-                new ShippingOptionConfig { Name = "Ground Shipping", DaysFrom = 5, DaysTo = 7, Cost = 6.99m },
-                new ShippingOptionConfig { Name = "Priority Shipping", DaysFrom = 2, DaysTo = 3, Cost = 12.99m },
-                new ShippingOptionConfig { Name = "Overnight", DaysFrom = 1, DaysTo = 1, Cost = 24.99m, IsNextDay = true },
-                new ShippingOptionConfig { Name = "International", DaysFrom = 10, DaysTo = 14, Cost = 19.99m },
-                // FedEx options
-                new ShippingOptionConfig { Name = "FedEx Ground", DaysFrom = 5, DaysTo = 7, Cost = 8.99m, ProviderKey = "fedex", ServiceType = "FEDEX_GROUND" },
-                new ShippingOptionConfig { Name = "FedEx 2Day", DaysFrom = 2, DaysTo = 2, Cost = 15.99m, ProviderKey = "fedex", ServiceType = "FEDEX_2_DAY" },
-                new ShippingOptionConfig { Name = "FedEx Priority Overnight", DaysFrom = 1, DaysTo = 1, Cost = 29.99m, ProviderKey = "fedex", ServiceType = "PRIORITY_OVERNIGHT", IsNextDay = true }
+                // FREE US West shipping (threshold-based)
+                new ShippingOptionConfig { Name = "Free West Coast (Orders $75+)", DaysFrom = 4, DaysTo = 6, Cost = 0m },
+
+                // USPS branded options (West Coast delivery times)
+                new ShippingOptionConfig { Name = "USPS Ground Advantage (West)", DaysFrom = 4, DaysTo = 6, Cost = 5.49m },
+                new ShippingOptionConfig { Name = "USPS Priority Mail (West)", DaysFrom = 2, DaysTo = 3, Cost = 8.99m },
+
+                // UPS branded options
+                new ShippingOptionConfig { Name = "UPS Ground (West)", DaysFrom = 3, DaysTo = 5, Cost = 6.99m },
+                new ShippingOptionConfig { Name = "UPS 2nd Day Air (West)", DaysFrom = 2, DaysTo = 2, Cost = 18.99m },
+                new ShippingOptionConfig { Name = "UPS Next Day Air Saver (West)", DaysFrom = 1, DaysTo = 1, Cost = 32.99m, IsNextDay = true },
+
+                // FedEx options (West Coast)
+                new ShippingOptionConfig { Name = "FedEx Ground (West)", DaysFrom = 4, DaysTo = 6, Cost = 7.99m, ProviderKey = "fedex", ServiceType = "FEDEX_GROUND" },
+                new ShippingOptionConfig { Name = "FedEx Express Saver (West)", DaysFrom = 3, DaysTo = 3, Cost = 12.99m, ProviderKey = "fedex", ServiceType = "FEDEX_EXPRESS_SAVER" },
+                new ShippingOptionConfig { Name = "FedEx 2Day (West)", DaysFrom = 2, DaysTo = 2, Cost = 14.99m, ProviderKey = "fedex", ServiceType = "FEDEX_2_DAY" },
+
+                // International from US West (Mexico/Canada focus)
+                new ShippingOptionConfig { Name = "USPS Priority Intl (West)", DaysFrom = 8, DaysTo = 12, Cost = 22.99m }
             ]
         }, cancellationToken);
 
@@ -454,8 +503,14 @@ public class DbSeeder(
         ];
     }
 
-    private async Task CreateFiltersAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Creates filter groups and filters, returning lookups for assigning to variants.
+    /// </summary>
+    private async Task<(Dictionary<string, Guid> colorFilters, Dictionary<string, Guid> sizeFilters)> CreateFiltersAsync(CancellationToken cancellationToken)
     {
+        Dictionary<string, Guid> colorFilters = [];
+        Dictionary<string, Guid> sizeFilters = [];
+
         // Extended color palette with hex values
         var colors = new (string Name, string? HexColour)[]
         {
@@ -470,12 +525,17 @@ public class DbSeeder(
         {
             foreach (var (name, hexColour) in colors)
             {
-                await productService.CreateFilter(new CreateFilterParameters
+                var filterResult = await productService.CreateFilter(new CreateFilterParameters
                 {
                     FilterGroupId = colorGroupResult.ResultObject.Id,
                     Name = name,
                     HexColour = hexColour
                 }, cancellationToken);
+
+                if (filterResult.ResultObject != null)
+                {
+                    colorFilters[name] = filterResult.ResultObject.Id;
+                }
             }
         }
 
@@ -486,13 +546,20 @@ public class DbSeeder(
         {
             foreach (var size in sizes)
             {
-                await productService.CreateFilter(new CreateFilterParameters
+                var filterResult = await productService.CreateFilter(new CreateFilterParameters
                 {
                     FilterGroupId = sizeGroupResult.ResultObject.Id,
                     Name = size
                 }, cancellationToken);
+
+                if (filterResult.ResultObject != null)
+                {
+                    sizeFilters[size] = filterResult.ResultObject.Id;
+                }
             }
         }
+
+        return (colorFilters, sizeFilters);
     }
 
     private async Task<List<Customer>> CreateCustomersAsync(CancellationToken cancellationToken)
@@ -639,197 +706,211 @@ public class DbSeeder(
         TaxGroup taxGroup,
         Dictionary<string, ProductType> productTypes,
         Dictionary<string, ProductCollection> collections,
-        Warehouse[] warehouses)
+        Warehouse[] warehouses,
+        Dictionary<string, Guid> colorFilters,
+        Dictionary<string, Guid> sizeFilters)
     {
         // Warehouse indices: 0=UK, 1=EU, 2=US-East, 3=US-West
         var standardSizes = new[] { "S", "M", "L", "XL" };
         var extendedSizes = new[] { "XS", "S", "M", "L", "XL", "2XL" };
 
+        // Local helper that captures filter mappings for all product creation calls
+        async Task CreateProduct(
+            string name, string description, decimal price, ProductType productType,
+            List<ProductCollection> productCollections, decimal weight,
+            string[]? colors, string[]? sizes,
+            List<(int warehouseIndex, int minStock, int maxStock, bool trackStock)> stockConfig)
+        {
+            await CreateProductAsync(name, description, price, taxGroup, productType,
+                productCollections, weight, colors, sizes, warehouses, stockConfig,
+                colorFilters, sizeFilters);
+        }
+
         // ============ T-SHIRTS (6 products) - All 4 warehouses, UK priority ============
 
         // Classic Cotton Tee - HIGH STOCK in all 4 warehouses (global bestseller)
-        await CreateProductAsync("Classic Cotton Tee",
+        await CreateProduct("Classic Cotton Tee",
             "Comfortable 100% cotton t-shirt with a classic fit. A wardrobe staple.",
-            19.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
+            19.99m, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
             0.2m, ["Black", "White", "Navy"], standardSizes,
-            warehouses, [(0, 50, 100, true), (1, 40, 80, true), (2, 35, 70, true), (3, 30, 60, true)]);
+            [(0, 50, 100, true), (1, 40, 80, true), (2, 35, 70, true), (3, 30, 60, true)]);
 
         // Premium V-Neck - LOW STOCK across warehouses
-        await CreateProductAsync("Premium V-Neck",
+        await CreateProduct("Premium V-Neck",
             "Premium quality v-neck t-shirt with a modern fit. Limited availability.",
-            24.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
+            24.99m, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
             0.2m, ["Grey", "White", "Burgundy"], standardSizes,
-            warehouses, [(0, 3, 8, true), (1, 5, 12, true), (2, 4, 10, true), (3, 2, 6, true)]);
+            [(0, 3, 8, true), (1, 5, 12, true), (2, 4, 10, true), (3, 2, 6, true)]);
 
         // Organic Crew Neck - REGIONAL SHORTAGE (only in US warehouses)
-        await CreateProductAsync("Organic Crew Neck",
+        await CreateProduct("Organic Crew Neck",
             "100% organic cotton crew neck, sustainably produced.",
-            27.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
+            27.99m, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
             0.2m, ["Forest Green", "Black", "Natural"], standardSizes,
-            warehouses, [(0, 0, 0, true), (1, 0, 0, true), (2, 15, 25, true), (3, 10, 20, true)]);
+            [(0, 0, 0, true), (1, 0, 0, true), (2, 15, 25, true), (3, 10, 20, true)]);
 
         // Graphic Print Tee - MIXED STOCK levels
-        await CreateProductAsync("Graphic Print Tee",
+        await CreateProduct("Graphic Print Tee",
             "Bold graphic print t-shirt for statement style.",
-            22.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
+            22.99m, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
             0.2m, ["White", "Black", "Red"], standardSizes,
-            warehouses, [(0, 5, 15, true), (1, 8, 20, true), (2, 25, 50, true), (3, 20, 40, true)]);
+            [(0, 5, 15, true), (1, 8, 20, true), (2, 25, 50, true), (3, 20, 40, true)]);
 
         // Long Sleeve Tee - Good stock in UK/EU, lower in US
-        await CreateProductAsync("Long Sleeve Tee",
+        await CreateProduct("Long Sleeve Tee",
             "Long sleeve cotton t-shirt perfect for layering.",
-            29.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
+            29.99m, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
             0.25m, ["Navy", "Grey", "Black"], standardSizes,
-            warehouses, [(0, 20, 40, true), (1, 25, 45, true), (2, 10, 20, true), (3, 8, 15, true)]);
+            [(0, 20, 40, true), (1, 25, 45, true), (2, 10, 20, true), (3, 8, 15, true)]);
 
         // Sold Out Limited Tee - OUT OF STOCK everywhere (for OOS UI testing)
-        await CreateProductAsync("Limited Edition Tee",
+        await CreateProduct("Limited Edition Tee",
             "Exclusive limited edition t-shirt. Currently sold out.",
-            34.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
+            34.99m, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
             0.2m, ["Black", "White"], standardSizes,
-            warehouses, [(0, 0, 0, true), (1, 0, 0, true), (2, 0, 0, true), (3, 0, 0, true)]);
+            [(0, 0, 0, true), (1, 0, 0, true), (2, 0, 0, true), (3, 0, 0, true)]);
 
         // ============ HOODIES (3 products) - UK, EU, US-East only ============
 
         // Premium Hoodie - SPLIT STOCK scenario (UK:50, EU:30, US-E:10, US-W:0)
-        await CreateProductAsync("Premium Pullover Hoodie",
+        await CreateProduct("Premium Pullover Hoodie",
             "Heavyweight premium hoodie with kangaroo pocket. Soft brushed fleece interior.",
-            59.99m, taxGroup, productTypes["hoodie"], [collections["clothing"], collections["hoodies"]],
+            59.99m, productTypes["hoodie"], [collections["clothing"], collections["hoodies"]],
             0.6m, ["Black", "Navy", "Heather Grey", "Burgundy"], extendedSizes,
-            warehouses, [(0, 40, 60, true), (1, 25, 35, true), (2, 8, 15, true)]);
+            [(0, 40, 60, true), (1, 25, 35, true), (2, 8, 15, true)]);
 
         // Zip-Up Hoodie - UK and EU only
-        await CreateProductAsync("Classic Zip Hoodie",
+        await CreateProduct("Classic Zip Hoodie",
             "Full zip hoodie with metal zipper and split kangaroo pockets.",
-            64.99m, taxGroup, productTypes["hoodie"], [collections["clothing"], collections["hoodies"]],
+            64.99m, productTypes["hoodie"], [collections["clothing"], collections["hoodies"]],
             0.65m, ["Black", "Charcoal", "Navy"], standardSizes,
-            warehouses, [(0, 20, 40, true), (1, 15, 30, true), (2, 10, 20, true)]);
+            [(0, 20, 40, true), (1, 15, 30, true), (2, 10, 20, true)]);
 
         // Lightweight Hoodie - EU warehouse only (summer item)
-        await CreateProductAsync("Lightweight Summer Hoodie",
+        await CreateProduct("Lightweight Summer Hoodie",
             "Breathable lightweight hoodie perfect for cool summer evenings.",
-            44.99m, taxGroup, productTypes["hoodie"], [collections["clothing"], collections["hoodies"]],
+            44.99m, productTypes["hoodie"], [collections["clothing"], collections["hoodies"]],
             0.4m, ["White", "Sky Blue", "Grey"], standardSizes,
-            warehouses, [(1, 30, 60, true)]);
+            [(1, 30, 60, true)]);
 
         // ============ POLO SHIRTS (2 products) - US PRIORITY (US-E→US-W→UK) ============
 
         // Classic Polo - US priority, available in UK too
-        await CreateProductAsync("Classic Pique Polo",
+        await CreateProduct("Classic Pique Polo",
             "Timeless pique polo shirt with ribbed collar and cuffs.",
-            34.99m, taxGroup, productTypes["polo"], [collections["clothing"], collections["polos"]],
+            34.99m, productTypes["polo"], [collections["clothing"], collections["polos"]],
             0.3m, ["White", "Navy", "Black", "Royal Blue", "Burgundy"], standardSizes,
-            warehouses, [(2, 30, 50, true), (3, 25, 45, true), (0, 15, 30, true)]);
+            [(2, 30, 50, true), (3, 25, 45, true), (0, 15, 30, true)]);
 
         // Performance Polo - US warehouses only
-        await CreateProductAsync("Performance Polo",
+        await CreateProduct("Performance Polo",
             "Moisture-wicking performance polo, perfect for golf or active wear.",
-            39.99m, taxGroup, productTypes["polo"], [collections["clothing"], collections["polos"]],
+            39.99m, productTypes["polo"], [collections["clothing"], collections["polos"]],
             0.25m, ["White", "Black", "Grey", "Navy"], standardSizes,
-            warehouses, [(2, 20, 40, true), (3, 15, 30, true), (0, 8, 15, true)]);
+            [(2, 20, 40, true), (3, 15, 30, true), (0, 8, 15, true)]);
 
         // ============ JACKETS (3 products) - UK and EU only (cold climate) ============
 
         // Bomber Jacket - LIMITED stock, UK and EU only
-        await CreateProductAsync("Classic Bomber Jacket",
+        await CreateProduct("Classic Bomber Jacket",
             "Retro-style bomber jacket with ribbed cuffs and hem.",
-            89.99m, taxGroup, productTypes["jacket"], [collections["clothing"], collections["jackets"]],
+            89.99m, productTypes["jacket"], [collections["clothing"], collections["jackets"]],
             0.8m, ["Black", "Olive"], extendedSizes,
-            warehouses, [(0, 5, 12, true), (1, 4, 10, true)]);
+            [(0, 5, 12, true), (1, 4, 10, true)]);
 
         // Denim Jacket - LOW STOCK UK/EU only
-        await CreateProductAsync("Denim Jacket",
+        await CreateProduct("Denim Jacket",
             "Classic denim jacket with button front and chest pockets.",
-            79.99m, taxGroup, productTypes["jacket"], [collections["clothing"], collections["jackets"]],
+            79.99m, productTypes["jacket"], [collections["clothing"], collections["jackets"]],
             0.9m, ["Navy", "Black", "Sky Blue"], extendedSizes,
-            warehouses, [(0, 5, 12, true), (1, 4, 10, true)]);
+            [(0, 5, 12, true), (1, 4, 10, true)]);
 
         // Softshell Jacket - UK and EU
-        await CreateProductAsync("Softshell Jacket",
+        await CreateProduct("Softshell Jacket",
             "Water-resistant softshell jacket with fleece lining.",
-            99.99m, taxGroup, productTypes["jacket"], [collections["clothing"], collections["jackets"]],
+            99.99m, productTypes["jacket"], [collections["clothing"], collections["jackets"]],
             0.7m, ["Black", "Charcoal", "Navy"], extendedSizes,
-            warehouses, [(0, 12, 25, true), (1, 10, 20, true)]);
+            [(0, 12, 25, true), (1, 10, 20, true)]);
 
         // ============ CAPS & HATS (3 products) - All 4 warehouses, varied priorities ============
 
         // Baseball Cap - All warehouses, UK priority
-        await CreateProductAsync("Classic Baseball Cap",
+        await CreateProduct("Classic Baseball Cap",
             "Adjustable cotton twill baseball cap with curved brim.",
-            19.99m, taxGroup, productTypes["cap"], [collections["headwear"]],
+            19.99m, productTypes["cap"], [collections["headwear"]],
             0.1m, ["Black", "Navy", "White", "Red", "Grey", "Olive"], null,
-            warehouses, [(0, 40, 70, true), (1, 30, 55, true), (2, 25, 45, true), (3, 20, 40, true)]);
+            [(0, 40, 70, true), (1, 30, 55, true), (2, 25, 45, true), (3, 20, 40, true)]);
 
         // Snapback - US priority
-        await CreateProductAsync("Snapback Cap",
+        await CreateProduct("Snapback Cap",
             "Flat brim snapback cap with adjustable strap.",
-            24.99m, taxGroup, productTypes["cap"], [collections["headwear"]],
+            24.99m, productTypes["cap"], [collections["headwear"]],
             0.12m, ["Black", "Navy", "Heather Grey", "Burgundy"], null,
-            warehouses, [(2, 30, 50, true), (3, 25, 45, true), (0, 15, 30, true), (1, 10, 25, true)]);
+            [(2, 30, 50, true), (3, 25, 45, true), (0, 15, 30, true), (1, 10, 25, true)]);
 
         // Beanie - UK/EU priority (winter item)
-        await CreateProductAsync("Knit Beanie",
+        await CreateProduct("Knit Beanie",
             "Warm knit beanie with fold-up cuff.",
-            14.99m, taxGroup, productTypes["cap"], [collections["headwear"]],
+            14.99m, productTypes["cap"], [collections["headwear"]],
             0.08m, ["Black", "Grey", "Navy", "Burgundy", "Forest Green"], null,
-            warehouses, [(0, 50, 90, true), (1, 40, 70, true), (2, 20, 35, true), (3, 15, 30, true)]);
+            [(0, 50, 90, true), (1, 40, 70, true), (2, 20, 35, true), (3, 15, 30, true)]);
 
         // ============ BAGS (3 products) - UK, US-East, US-West ============
 
         // Canvas Tote - HIGH STOCK, all warehouses
-        await CreateProductAsync("Canvas Tote Bag",
+        await CreateProduct("Canvas Tote Bag",
             "Sturdy canvas tote bag with reinforced handles.",
-            14.99m, taxGroup, productTypes["bag"], [collections["bags"]],
+            14.99m, productTypes["bag"], [collections["bags"]],
             0.3m, ["Natural", "Black", "Navy", "Grey"], null,
-            warehouses, [(0, 60, 100, true), (2, 50, 90, true), (3, 45, 80, true)]);
+            [(0, 60, 100, true), (2, 50, 90, true), (3, 45, 80, true)]);
 
         // Backpack - UK and US
-        await CreateProductAsync("Classic Backpack",
+        await CreateProduct("Classic Backpack",
             "Durable everyday backpack with laptop compartment.",
-            49.99m, taxGroup, productTypes["bag"], [collections["bags"]],
+            49.99m, productTypes["bag"], [collections["bags"]],
             0.5m, ["Black", "Navy", "Grey"], ["S", "L"],
-            warehouses, [(0, 20, 40, true), (2, 15, 30, true), (3, 12, 25, true)]);
+            [(0, 20, 40, true), (2, 15, 30, true), (3, 12, 25, true)]);
 
         // Gym Bag - UK and US
-        await CreateProductAsync("Duffle Gym Bag",
+        await CreateProduct("Duffle Gym Bag",
             "Spacious duffle bag with shoe compartment.",
-            39.99m, taxGroup, productTypes["bag"], [collections["bags"]],
+            39.99m, productTypes["bag"], [collections["bags"]],
             0.4m, ["Black", "Navy", "Charcoal"], null,
-            warehouses, [(0, 25, 45, true), (2, 20, 35, true), (3, 15, 30, true)]);
+            [(0, 25, 45, true), (2, 20, 35, true), (3, 15, 30, true)]);
 
         // ============ MUGS (2 products) - fragile items ============
 
         // Ceramic Mug - UK, US warehouses LOW STOCK for multi-warehouse split testing
         // US-East has priority 3, US-West has priority 4, so US-East is checked first
         // Both US warehouses need low stock to force split (neither can fulfill 5 alone)
-        await CreateProductAsync("Ceramic Mug (11oz)",
+        await CreateProduct("Ceramic Mug (11oz)",
             "Classic 11oz ceramic mug, dishwasher and microwave safe.",
-            12.99m, taxGroup, productTypes["mug"], [collections["drinkware"]],
+            12.99m, productTypes["mug"], [collections["drinkware"]],
             0.35m, ["White", "Black", "Navy", "Red", "Pink", "Sky Blue", "Grey", "Forest Green"], null,
-            warehouses, [(0, 60, 100, true), (3, 2, 3, true), (2, 3, 4, true)]);
+            [(0, 60, 100, true), (3, 2, 3, true), (2, 3, 4, true)]);
 
         // Travel Mug - UK and US-East
-        await CreateProductAsync("Insulated Travel Mug",
+        await CreateProduct("Insulated Travel Mug",
             "16oz stainless steel travel mug with leak-proof lid.",
-            24.99m, taxGroup, productTypes["mug"], [collections["drinkware"]],
+            24.99m, productTypes["mug"], [collections["drinkware"]],
             0.4m, ["Black", "White", "Navy", "Red"], null,
-            warehouses, [(0, 30, 55, true), (2, 25, 45, true)]);
+            [(0, 30, 55, true), (2, 25, 45, true)]);
 
         // ============ ACCESSORIES (2 products) - UK only ============
 
         // Sticker Pack - UK only, UNTRACKED
-        await CreateProductAsync("Sticker Pack (10 pcs)",
+        await CreateProduct("Sticker Pack (10 pcs)",
             "Assorted vinyl sticker pack, weatherproof and durable.",
-            9.99m, taxGroup, productTypes["accessories"], [collections["accessories"]],
+            9.99m, productTypes["accessories"], [collections["accessories"]],
             0.05m, null, null,
-            warehouses, [(0, 0, 0, false)]);
+            [(0, 0, 0, false)]);
 
         // Poster Print - UK only, UNTRACKED (print on demand)
-        await CreateProductAsync("Art Print Poster",
+        await CreateProduct("Art Print Poster",
             "High-quality giclée art print on premium paper.",
-            19.99m, taxGroup, productTypes["accessories"], [collections["accessories"]],
+            19.99m, productTypes["accessories"], [collections["accessories"]],
             0.1m, null, ["A4", "A3", "A2"],
-            warehouses, [(0, 0, 0, false)]);
+            [(0, 0, 0, false)]);
 
         // Gift Cards - AMOUNT VARIANTS, DIGITAL
         await CreateProductWithAmountVariantsAsync("Gift Card",
@@ -838,11 +919,36 @@ public class DbSeeder(
             warehouses[0], [25m, 50m, 75m, 100m]);
 
         // Custom Print Service - NO VARIANTS, MADE TO ORDER
-        await CreateProductAsync("Custom Print Service",
+        await CreateProduct("Custom Print Service",
             "Made-to-order custom print service. Upload your design!",
-            34.99m, taxGroup, productTypes["digital"], [collections["digital"]],
+            34.99m, productTypes["digital"], [collections["digital"]],
             0.2m, null, null,
-            warehouses, [(0, 0, 0, false), (1, 0, 0, false)]);
+            [(0, 0, 0, false), (1, 0, 0, false)]);
+
+        // ============ UK-ONLY PRODUCTS (for testing country restrictions) ============
+        // These products can ONLY be shipped within the UK using the "UK Domestic Only" shipping option.
+        // This tests the UI restriction where non-UK customers cannot purchase these items.
+
+        // UK Exclusive Vintage Tee - UK delivery ONLY (licensing restrictions)
+        await CreateUkOnlyProductAsync("UK Exclusive Vintage Tee",
+            "Limited edition vintage t-shirt featuring iconic British designs. Only available for UK delivery due to licensing restrictions.",
+            29.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
+            0.25m, ["Black", "White", "Burgundy"], standardSizes,
+            warehouses, [(0, 20, 40, true)], colorFilters, sizeFilters);
+
+        // UK Heritage Hoodie - UK delivery ONLY (exclusive collection)
+        await CreateUkOnlyProductAsync("Heritage Collection Hoodie",
+            "Part of our exclusive UK Heritage Collection featuring traditional British craftsmanship. UK delivery only.",
+            69.99m, taxGroup, productTypes["hoodie"], [collections["clothing"], collections["hoodies"]],
+            0.65m, ["Burgundy", "Forest Green", "Navy"], extendedSizes,
+            warehouses, [(0, 15, 30, true)], colorFilters, sizeFilters);
+
+        // UK Collectible Mug - UK delivery ONLY (fragile/limited)
+        await CreateUkOnlyProductAsync("UK Collectible Mug",
+            "Limited edition collectible bone china mug with British heritage designs. Due to fragility, only ships within the UK.",
+            16.99m, taxGroup, productTypes["mug"], [collections["drinkware"]],
+            0.4m, ["White", "Black"], null,
+            warehouses, [(0, 30, 50, true)], colorFilters, null);
     }
 
     private async Task CreateProductAsync(
@@ -856,7 +962,9 @@ public class DbSeeder(
         string[]? colors,
         string[]? sizes,
         Warehouse[] warehouses,
-        List<(int warehouseIndex, int minStock, int maxStock, bool trackStock)> stockConfig)
+        List<(int warehouseIndex, int minStock, int maxStock, bool trackStock)> stockConfig,
+        Dictionary<string, Guid>? colorFilters = null,
+        Dictionary<string, Guid>? sizeFilters = null)
     {
         // Create warehouse list with priorities
         var warehouseList = stockConfig.Select(s => (warehouses[s.warehouseIndex], s.warehouseIndex + 1)).ToList();
@@ -879,7 +987,9 @@ public class DbSeeder(
             colors: colors,
             sizes: sizes,
             warehouses: warehouseList,
-            warehouseStockRanges: remappedStockConfig);
+            warehouseStockRanges: remappedStockConfig,
+            colorFilters: colorFilters,
+            sizeFilters: sizeFilters);
     }
 
     private async Task CreateProductWithAmountVariantsAsync(
@@ -906,6 +1016,72 @@ public class DbSeeder(
                 sizes: null,
                 warehouses: [(warehouse, 1)],
                 warehouseStockRanges: [(0, 0, 0, false)]);
+        }
+    }
+
+    /// <summary>
+    /// Creates a product restricted to UK-only shipping.
+    /// Uses ExcludeList mode to exclude all shipping options except the UK Domestic Only option.
+    /// This tests the shipping restriction infrastructure and allows testing UI restrictions for non-UK customers.
+    /// </summary>
+    private async Task CreateUkOnlyProductAsync(
+        string name,
+        string description,
+        decimal price,
+        TaxGroup taxGroup,
+        ProductType productType,
+        List<ProductCollection> productCollections,
+        decimal weight,
+        string[]? colors,
+        string[]? sizes,
+        Warehouse[] warehouses,
+        List<(int warehouseIndex, int minStock, int maxStock, bool trackStock)> stockConfig,
+        Dictionary<string, Guid>? colorFilters = null,
+        Dictionary<string, Guid>? sizeFilters = null)
+    {
+        // Create warehouse list with priorities
+        var warehouseList = stockConfig.Select(s => (warehouses[s.warehouseIndex], s.warehouseIndex + 1)).ToList();
+
+        // Remap stockConfig indices to be 0-based relative to warehouseList
+        var remappedStockConfig = stockConfig
+            .Select((s, localIndex) => (localIndex, s.minStock, s.maxStock, s.trackStock))
+            .ToList();
+
+        // Create the product normally first
+        var result = await productService.CreateProductRootWithVariantsAsync(
+            name,
+            description,
+            price,
+            taxGroup,
+            productType,
+            collections: productCollections,
+            weight: weight,
+            colors: colors,
+            sizes: sizes,
+            warehouses: warehouseList,
+            warehouseStockRanges: remappedStockConfig,
+            colorFilters: colorFilters,
+            sizeFilters: sizeFilters);
+
+        if (result.ResultObject == null || _ukOnlyShippingOptionId == Guid.Empty)
+        {
+            logger.LogWarning("Could not create UK-only product: {Name}", name);
+            return;
+        }
+
+        // Get all shipping options from UK warehouse except the UK-only one
+        var ukWarehouse = warehouses[0]; // UK is always index 0
+        var optionsToExclude = ukWarehouse.ShippingOptions?
+            .Where(so => so.Id != _ukOnlyShippingOptionId)
+            .Select(so => so.Id)
+            .ToList() ?? [];
+
+        // Set shipping exclusions (all options except UK Domestic Only)
+        if (optionsToExclude.Count > 0)
+        {
+            await productService.UpdateProductRootExcludedShippingOptionsAsync(
+                result.ResultObject.Id, optionsToExclude, default);
+            logger.LogDebug("Set UK-only shipping restriction for: {Name}", name);
         }
     }
 
@@ -1095,7 +1271,7 @@ public class DbSeeder(
         var refundCount = 0;
 
         // Manual payment methods for variety
-        var manualPaymentMethods = new[] { "Bank Transfer", "Cash", "Check", "Phone Order" };
+        var manualPaymentMethods = new[] { "Bank Transfer", "Cash", "Check", "Phone Order", "Wire Transfer", "Direct Debit", "Store Credit" };
         // Carriers for flat-rate shipments
         var flatRateCarriers = new[] { "Royal Mail", "DHL", "Hermes", "USPS", "UPS" };
 
@@ -1339,6 +1515,39 @@ public class DbSeeder(
                     }, cancellationToken);
                 return overpayResult.ResultObject;
 
+            case PaymentScenario.PurchaseOrder:
+                // Purchase Order payment - B2B scenario with PO number
+                var poNumber = $"PO-{DateTime.UtcNow:yyyyMMdd}-{random.Next(10000, 99999)}";
+
+                // Set the PO number on the invoice
+                await invoiceService.UpdatePurchaseOrderAsync(invoice.Id, poNumber, cancellationToken);
+
+                // 40% of PO orders are paid, 60% remain unpaid (awaiting payment)
+                if (random.Next(100) < 40)
+                {
+                    // Record payment using manual provider
+                    var poPaymentResult = await paymentService.RecordPaymentAsync(
+                        new RecordPaymentParameters
+                        {
+                            InvoiceId = invoice.Id,
+                            ProviderAlias = Constants.PaymentProviders.Aliases.Manual,
+                            TransactionId = $"po_txn_{Guid.NewGuid():N}",
+                            Amount = invoiceTotal,
+                            Description = $"Payment received for PO: {poNumber}"
+                        }, cancellationToken);
+                    return poPaymentResult.ResultObject;
+                }
+
+                // For unpaid PO orders, add a note
+                await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
+                {
+                    InvoiceId = invoice.Id,
+                    Text = $"Purchase Order {poNumber} submitted. Awaiting payment per agreed terms.",
+                    VisibleToCustomer = true,
+                    AuthorName = "System"
+                }, cancellationToken);
+                return null;
+
             case PaymentScenario.Refunded:
                 // Full payment first (will be refunded later)
                 var refundableResult = await paymentService.RecordPaymentAsync(
@@ -1452,6 +1661,18 @@ public class DbSeeder(
                 Text = $"Payment of {invoice.CurrencySymbol}{payment.Amount:F2} received via {paymentMethod}",
                 VisibleToCustomer = true,
                 AuthorName = "System"
+            }, cancellationToken);
+        }
+
+        // Purchase Order specific notes
+        if (paymentScenario == PaymentScenario.PurchaseOrder && payment != null)
+        {
+            await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
+            {
+                InvoiceId = invoice.Id,
+                Text = $"Payment of {invoice.CurrencySymbol}{payment.Amount:F2} received against Purchase Order",
+                VisibleToCustomer = true,
+                AuthorName = "Accounts"
             }, cancellationToken);
         }
 
@@ -1665,31 +1886,36 @@ public class DbSeeder(
                     var targetDueDate = now.AddDays(dueDaysOffset);
                     await invoiceService.SetDueDateAsync(invoice.Id, targetDueDate, cancellationToken);
 
-                    // Handle payment scenarios
+                    // Handle payment scenarios for account customers - always use Purchase Order
+                    var poNumber = $"PO-{customer.Email.Split('@')[0].ToUpper()}-{random.Next(10000, 99999)}";
+                    await invoiceService.UpdatePurchaseOrderAsync(invoice.Id, poNumber, cancellationToken);
+
                     if (partialPay)
                     {
-                        // Pay 50% of the invoice
+                        // Partial payment against PO
                         await paymentService.RecordManualPaymentAsync(
                             new RecordManualPaymentParameters
                             {
                                 InvoiceId = invoice.Id,
                                 Amount = Math.Round(invoice.Total * 0.5m, 2),
                                 PaymentMethod = "Bank Transfer",
-                                Description = "Partial payment on account (seeded)"
+                                Description = $"Partial payment against PO: {poNumber}"
                             }, cancellationToken);
                     }
                     else if (!unpaid)
                     {
-                        // Pay full amount
-                        await paymentService.RecordManualPaymentAsync(
-                            new RecordManualPaymentParameters
+                        // Full payment against PO
+                        await paymentService.RecordPaymentAsync(
+                            new RecordPaymentParameters
                             {
                                 InvoiceId = invoice.Id,
+                                ProviderAlias = Constants.PaymentProviders.Aliases.Manual,
+                                TransactionId = $"po_account_{Guid.NewGuid():N}",
                                 Amount = invoice.Total,
-                                PaymentMethod = "Bank Transfer",
-                                Description = "Full payment on account (seeded)"
+                                Description = $"Payment received for PO: {poNumber}"
                             }, cancellationToken);
                     }
+                    // else: unpaid - just has PO number, awaiting payment per terms
 
                     invoicesCreated++;
                     logger.LogDebug("Created account invoice for {Customer}: {Scenario}",
@@ -1778,14 +2004,14 @@ public class DbSeeder(
         var percent = index * 100 / total;
         return percent switch
         {
-            < 50 => PaymentScenario.StripeFull,      // 50% Stripe full payment
-            < 70 => PaymentScenario.ManualFull,      // 20% Manual full payment
-            < 75 => PaymentScenario.PartialPayment,  // 5% Partial payment
-            < 78 => PaymentScenario.SplitPayment,    // 3% Split payment
-            < 80 => PaymentScenario.Overpayment,     // 2% Overpayment
-            < 95 => PaymentScenario.Unpaid,          // 15% Unpaid
-            < 98 => PaymentScenario.StripeFull,      // 3% Failed then success (simplified to success)
-            _ => PaymentScenario.Refunded            // 2% Refunded
+            < 35 => PaymentScenario.StripeFull,      // 35% Stripe full payment
+            < 50 => PaymentScenario.ManualFull,      // 15% Manual full payment (Bank Transfer, Cash, etc.)
+            < 60 => PaymentScenario.PurchaseOrder,   // 10% Purchase Order (B2B)
+            < 67 => PaymentScenario.PartialPayment,  // 7% Partial payment
+            < 72 => PaymentScenario.SplitPayment,    // 5% Split payment
+            < 75 => PaymentScenario.Overpayment,     // 3% Overpayment
+            < 90 => PaymentScenario.Unpaid,          // 15% Unpaid
+            _ => PaymentScenario.Refunded            // 10% Refunded
         };
     }
 
@@ -1859,7 +2085,8 @@ public class DbSeeder(
         PartialPayment,
         SplitPayment,
         Overpayment,
-        Refunded
+        Refunded,
+        PurchaseOrder  // B2B Purchase Order payment
     }
 
     /// <summary>

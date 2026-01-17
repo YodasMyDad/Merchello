@@ -1431,10 +1431,19 @@ public class CheckoutService(
         billingAddress = changingNotification.BillingAddress;
         shippingAddress = changingNotification.ShippingAddress;
 
+        // Check if addresses actually changed to avoid phantom invoice creation
+        // When the same addresses are re-submitted, we don't want to invalidate existing unpaid invoices
+        var addressesChanged = !AddressesEqual(basket.BillingAddress, billingAddress) ||
+                               !AddressesEqual(basket.ShippingAddress, shippingAddress);
+
+        // Capture totals before recalculation to detect if discounts/taxes changed
+        var previousTotal = basket.Total;
+        var previousDiscount = basket.Discount;
+        var previousTax = basket.Tax;
+
         // Update basket addresses
         basket.BillingAddress = billingAddress;
         basket.ShippingAddress = shippingAddress;
-        basket.DateUpdated = DateTime.UtcNow;
 
         // Recalculate with the new shipping address country
         await CalculateBasketAsync(new CalculateBasketParameters
@@ -1445,6 +1454,17 @@ public class CheckoutService(
 
         // Apply automatic discounts (e.g., "Free shipping in UK", "10% off orders over £100")
         basket = await RefreshAutomaticDiscountsAsync(basket, shippingAddress.CountryCode, cancellationToken);
+
+        // Update timestamp if addresses changed OR if totals changed after recalculation
+        // This ensures invoice dedup creates a new invoice when discounts/taxes change
+        var totalsChanged = basket.Total != previousTotal ||
+                            basket.Discount != previousDiscount ||
+                            basket.Tax != previousTax;
+
+        if (addressesChanged || totalsChanged)
+        {
+            basket.DateUpdated = DateTime.UtcNow;
+        }
 
         // Save to database
         using var scope = efCoreScopeProvider.CreateScope();
@@ -1583,6 +1603,16 @@ public class CheckoutService(
         // Use potentially modified selections from handlers
         selections = changingNotification.ShippingSelections;
 
+        // Check if shipping selections actually changed to avoid phantom invoice creation
+        // When the same selections are re-submitted, we don't want to invalidate existing unpaid invoices
+        var selectionsChanged = !ShippingSelectionsEqual(session.SelectedShippingOptions, selections);
+
+        // Capture totals before recalculation to detect if discounts/taxes changed
+        var previousTotal = basket.Total;
+        var previousDiscount = basket.Discount;
+        var previousTax = basket.Tax;
+        var previousShipping = basket.Shipping;
+
         // Update session with selections
         session.SelectedShippingOptions = selections;
         if (deliveryDates != null)
@@ -1619,8 +1649,6 @@ public class CheckoutService(
             }
         }
 
-        basket.DateUpdated = DateTime.UtcNow;
-
         // Recalculate totals with the selected shipping amount
         await CalculateBasketAsync(new CalculateBasketParameters
         {
@@ -1634,6 +1662,18 @@ public class CheckoutService(
             basket,
             session.ShippingAddress.CountryCode,
             cancellationToken);
+
+        // Update timestamp if selections changed OR if totals changed after recalculation
+        // This ensures invoice dedup creates a new invoice when shipping/discounts/taxes change
+        var totalsChanged = basket.Total != previousTotal ||
+                            basket.Discount != previousDiscount ||
+                            basket.Tax != previousTax ||
+                            basket.Shipping != previousShipping;
+
+        if (selectionsChanged || totalsChanged)
+        {
+            basket.DateUpdated = DateTime.UtcNow;
+        }
 
         // Save basket to database
         using var scope = efCoreScopeProvider.CreateScope();
@@ -2073,6 +2113,68 @@ public class CheckoutService(
         }
 
         return Task.FromResult<(bool, string?)>((true, null));
+    }
+
+    /// <summary>
+    /// Compares two addresses for equality.
+    /// Used to detect if addresses have actually changed to avoid unnecessary basket timestamp updates.
+    /// </summary>
+    private static bool AddressesEqual(Address? a, Address? b)
+    {
+        if (a == null && b == null)
+        {
+            return true;
+        }
+
+        if (a == null || b == null)
+        {
+            return false;
+        }
+
+        return string.Equals(a.Name, b.Name, StringComparison.Ordinal) &&
+               string.Equals(a.Company, b.Company, StringComparison.Ordinal) &&
+               string.Equals(a.AddressOne, b.AddressOne, StringComparison.Ordinal) &&
+               string.Equals(a.AddressTwo, b.AddressTwo, StringComparison.Ordinal) &&
+               string.Equals(a.TownCity, b.TownCity, StringComparison.Ordinal) &&
+               string.Equals(a.CountyState.RegionCode, b.CountyState.RegionCode, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(a.PostalCode, b.PostalCode, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(a.CountryCode, b.CountryCode, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(a.Phone, b.Phone, StringComparison.Ordinal) &&
+               string.Equals(a.Email, b.Email, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Compares two shipping selection dictionaries for equality.
+    /// Used to detect if shipping selections have actually changed to avoid unnecessary basket timestamp updates.
+    /// </summary>
+    private static bool ShippingSelectionsEqual(
+        IReadOnlyDictionary<Guid, Guid>? existing,
+        IReadOnlyDictionary<Guid, Guid>? newSelections)
+    {
+        if (existing == null && newSelections == null)
+        {
+            return true;
+        }
+
+        if (existing == null || newSelections == null)
+        {
+            return false;
+        }
+
+        if (existing.Count != newSelections.Count)
+        {
+            return false;
+        }
+
+        foreach (var kvp in existing)
+        {
+            if (!newSelections.TryGetValue(kvp.Key, out var newValue) || newValue != kvp.Value)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private sealed class NoopLocationsService : ILocationsService

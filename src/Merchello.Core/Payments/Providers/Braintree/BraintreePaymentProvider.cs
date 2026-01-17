@@ -134,6 +134,9 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
                - `Dispute: Opened`
                - `Dispute: Lost`
                - `Dispute: Won`
+               - `Local Payment: Completed` (if using iDEAL, Bancontact, etc.)
+               - `Local Payment: Reversed` (if using local payment methods)
+               - `Local Payment: Expired` (if using local payment methods)
             5. Click **Create**
 
             ### 4. Enable PayPal (Optional)
@@ -184,7 +187,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             | `5555 5555 5555 4444` | Mastercard success |
             | `378282246310005` | American Express success |
 
-            **3D Secure test cards** (use expiry `01/28` - month 01, current year + 3):
+            **3D Secure test cards** (use expiry month `01` and any future year, e.g. `01/29`):
 
             | Card Number | Result |
             |-------------|--------|

@@ -891,13 +891,46 @@ public class CheckoutApiController(
             return NotFound(new { success = false, message = errorMessage });
         }
 
+        var basket = result.ResultObject;
+
+        // Check availability of recovered items (stock may have changed since abandonment)
+        var availability = await storefrontContext.GetBasketAvailabilityAsync(
+            basket.LineItems,
+            basket.ShippingAddress.CountryCode,
+            basket.ShippingAddress.CountyState?.RegionCode,
+            ct);
+
+        // Build a lookup of line items by ID for enriching availability info
+        var lineItemLookup = basket.LineItems.ToDictionary(li => li.Id);
+
+        var unavailableItems = availability.Items
+            .Where(i => !i.CanShipToLocation || !i.HasStock)
+            .Select(i =>
+            {
+                lineItemLookup.TryGetValue(i.LineItemId, out var lineItem);
+                return new
+                {
+                    lineItemId = i.LineItemId,
+                    sku = lineItem?.Sku,
+                    name = lineItem?.Name,
+                    hasStock = i.HasStock,
+                    canShipToLocation = i.CanShipToLocation,
+                    statusMessage = i.StatusMessage
+                };
+            })
+            .ToList();
+
         // Return the recovered basket as a checkout basket DTO
-        var basketDto = await MapBasketToDtoWithCurrencyAsync(result.ResultObject, ct);
+        var basketDto = await MapBasketToDtoWithCurrencyAsync(basket, ct);
         return Ok(new
         {
             success = true,
-            message = "Your basket has been restored.",
-            basket = basketDto
+            message = unavailableItems.Count > 0
+                ? "Your basket has been restored, but some items may no longer be available."
+                : "Your basket has been restored.",
+            basket = basketDto,
+            hasUnavailableItems = unavailableItems.Count > 0,
+            unavailableItems
         });
     }
 

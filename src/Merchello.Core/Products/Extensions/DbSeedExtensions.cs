@@ -21,6 +21,7 @@ public static class ProductServiceDbSeedExtensions
     /// <summary>
     /// Creates a product root with auto-generated variants from colors and sizes.
     /// Uses ProductService methods internally to ensure proper variant key generation.
+    /// Optionally assigns filters to variants based on their color/size option values.
     /// </summary>
     public static async Task<CrudResult<ProductRoot>> CreateProductRootWithVariantsAsync(
         this IProductService productService,
@@ -37,6 +38,8 @@ public static class ProductServiceDbSeedExtensions
         List<(Warehouse warehouse, int priority)>? warehouses = null,
         List<(int warehouseIndex, int minStock, int maxStock, bool trackStock)>? warehouseStockRanges = null,
         decimal costOfGoodsPercentage = 0.4m,
+        Dictionary<string, Guid>? colorFilters = null,
+        Dictionary<string, Guid>? sizeFilters = null,
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<ProductRoot>();
@@ -145,9 +148,9 @@ public static class ProductServiceDbSeedExtensions
             // Step 4: Get product root with variants (SaveProductOptions auto-regenerates variants)
             var productRoot = await productService.GetProductRoot(productRootId, includeProducts: true, cancellationToken: cancellationToken);
 
-            if (productRoot != null && productRoot.Products.Any())
+            if (productRoot != null && productRoot.Products.Count > 0)
             {
-                // Step 5: Update variants with images and stock
+                // Step 5: Update variants with images, stock, and filters
                 foreach (var variant in productRoot.Products)
                 {
                     // Update variant with image (SKU already set by ProductService)
@@ -156,6 +159,16 @@ public static class ProductServiceDbSeedExtensions
                         Images = [Guid.NewGuid()], // Placeholder - real seeding would use actual media keys
                         AvailableForPurchase = true
                     }, cancellationToken);
+
+                    // Assign filters based on variant's option values (parsed from Name like "Black-M")
+                    if (colorFilters != null || sizeFilters != null)
+                    {
+                        var filterIds = GetFilterIdsForVariant(variant.Name, colors, sizes, colorFilters, sizeFilters);
+                        if (filterIds.Count > 0)
+                        {
+                            await productService.AssignFiltersToProduct(variant.Id, filterIds, cancellationToken);
+                        }
+                    }
 
                     // Update stock for each warehouse
                     if (warehouses != null && warehouseStockRanges != null)
@@ -240,7 +253,9 @@ public static class ProductServiceDbSeedExtensions
     private static string? ToRichTextEditorValue(string? plainText)
     {
         if (string.IsNullOrWhiteSpace(plainText))
+        {
             return null;
+        }
 
         // Wrap in paragraph tag and escape HTML entities in the text content
         var escapedText = HtmlEncoder.Default.Encode(plainText);
@@ -250,5 +265,60 @@ public static class ProductServiceDbSeedExtensions
         var richTextValue = new { markup, blocks = (object?)null };
 
         return JsonSerializer.Serialize(richTextValue);
+    }
+
+    /// <summary>
+    /// Extracts filter IDs for a variant based on its name (e.g., "Black-M" or "Navy-XL").
+    /// Matches the color and size parts of the variant name to the corresponding filter IDs.
+    /// </summary>
+    private static List<Guid> GetFilterIdsForVariant(
+        string? variantName,
+        string[]? colors,
+        string[]? sizes,
+        Dictionary<string, Guid>? colorFilters,
+        Dictionary<string, Guid>? sizeFilters)
+    {
+        List<Guid> filterIds = [];
+
+        if (string.IsNullOrEmpty(variantName))
+        {
+            return filterIds;
+        }
+
+        // Variant names are formatted as "Color-Size" (e.g., "Black-M", "Navy-XL")
+        // or just "Color" or "Size" if only one option type exists
+        var parts = variantName.Split('-');
+
+        // Try to match each part against known colors and sizes
+        foreach (var part in parts)
+        {
+            var trimmedPart = part.Trim();
+
+            // Check if this part is a known color
+            if (colors != null && colorFilters != null)
+            {
+                var matchedColor = colors.FirstOrDefault(c =>
+                    string.Equals(c, trimmedPart, StringComparison.OrdinalIgnoreCase));
+
+                if (matchedColor != null && colorFilters.TryGetValue(matchedColor, out var colorFilterId))
+                {
+                    filterIds.Add(colorFilterId);
+                }
+            }
+
+            // Check if this part is a known size
+            if (sizes != null && sizeFilters != null)
+            {
+                var matchedSize = sizes.FirstOrDefault(s =>
+                    string.Equals(s, trimmedPart, StringComparison.OrdinalIgnoreCase));
+
+                if (matchedSize != null && sizeFilters.TryGetValue(matchedSize, out var sizeFilterId))
+                {
+                    filterIds.Add(sizeFilterId);
+                }
+            }
+        }
+
+        return filterIds;
     }
 }

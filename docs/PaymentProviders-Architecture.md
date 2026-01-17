@@ -230,7 +230,7 @@ PaymentProvider (Stripe)
 
 #### PayPal
 - Location: `Providers/PayPal/PayPalPaymentProvider.cs`
-- NuGet: `PayPalServerSDK` (v1.1.1+)
+- NuGet: `PayPalServerSDK` (v2.1.0+)
 - Methods: PayPal (Widget, Express Checkout), Pay Later (Widget)
 - Configuration: Client ID, Client Secret, Webhook ID, optional Brand Name
 - Webhook endpoint: `/umbraco/merchello/webhooks/payments/paypal`
@@ -244,7 +244,7 @@ PaymentProvider (Stripe)
 
 #### Braintree
 - Location: `Providers/Braintree/BraintreePaymentProvider.cs`
-- NuGet: `Braintree` (v5.38.0+)
+- NuGet: `Braintree` (v5.36.0+)
 - Methods:
   - Cards (Hosted Fields with 3D Secure 2)
   - PayPal, Apple Pay, Google Pay, Venmo (Express Checkout)
