@@ -23,6 +23,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Media;
+using Umbraco.Cms.Core.PropertyEditors;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Controllers;
 
@@ -41,6 +44,8 @@ public class CheckoutPaymentsApiController(
     IStorefrontContextService storefrontContextService,
     ICurrencyService currencyService,
     IExchangeRateCache exchangeRateCache,
+    IMediaService mediaService,
+    MediaUrlGeneratorCollection mediaUrlGenerators,
     IOptions<MerchelloSettings> settings,
     ILogger<CheckoutPaymentsApiController> logger) : ControllerBase
 {
@@ -53,7 +58,34 @@ public class CheckoutPaymentsApiController(
     [ProducesResponseType<IReadOnlyCollection<PaymentMethodDto>>(StatusCodes.Status200OK)]
     public async Task<IReadOnlyCollection<PaymentMethodDto>> GetPaymentMethods(CancellationToken cancellationToken = default)
     {
-        return await providerManager.GetCheckoutPaymentMethodsAsync(cancellationToken);
+        var methods = await providerManager.GetCheckoutPaymentMethodsAsync(cancellationToken);
+
+        // Resolve custom icon URLs for methods with IconMediaKey
+        foreach (var method in methods.Where(m => m.IconMediaKey.HasValue))
+        {
+            method.IconMediaUrl = ResolveMediaUrl(method.IconMediaKey!.Value);
+        }
+
+        return methods;
+    }
+
+    /// <summary>
+    /// Resolves a media key to a URL.
+    /// </summary>
+    private string? ResolveMediaUrl(Guid mediaKey)
+    {
+        var media = mediaService.GetById(mediaKey);
+        if (media == null)
+        {
+            return null;
+        }
+
+        if (mediaUrlGenerators.TryGetMediaPath(media.ContentType.Alias, media.GetValue<string>("umbracoFile"), out var mediaPath))
+        {
+            return mediaPath;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -2098,6 +2130,64 @@ public class CheckoutPaymentsApiController(
         }
 
         return (true, null);
+    }
+
+    // =====================================================
+    // Wallet Payment Validation
+    // =====================================================
+
+    /// <summary>
+    /// Validate an Apple Pay merchant session.
+    /// Called during Apple Pay's onvalidatemerchant event to validate the merchant identity.
+    /// </summary>
+    /// <param name="request">The validation request containing the Apple validation URL.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpPost("worldpay/apple-pay-validate")]
+    [ProducesResponseType<object>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ValidateWorldPayApplePayMerchant(
+        [FromBody] ApplePayValidationRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.ValidationUrl))
+        {
+            return BadRequest(new { success = false, error = "ValidationUrl is required." });
+        }
+
+        // Validate the URL is from Apple (security check)
+        if (!Uri.TryCreate(request.ValidationUrl, UriKind.Absolute, out var uri) ||
+            !uri.Host.EndsWith(".apple.com", StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning("Apple Pay validation rejected: invalid URL host {Url}", request.ValidationUrl);
+            return BadRequest(new { success = false, error = "Invalid validation URL." });
+        }
+
+        // Get the WorldPay provider
+        var provider = await providerManager.GetProviderAsync("worldpay", requireEnabled: true, cancellationToken);
+        if (provider == null)
+        {
+            return BadRequest(new { success = false, error = "WorldPay provider is not available." });
+        }
+
+        // Cast to WorldPayPaymentProvider to access the validation method
+        if (provider.Provider is not global::Merchello.Core.Payments.Providers.WorldPay.WorldPayPaymentProvider worldPayProvider)
+        {
+            return BadRequest(new { success = false, error = "Invalid provider type." });
+        }
+
+        // Validate the merchant session
+        var merchantSession = await worldPayProvider.ValidateApplePayMerchantAsync(
+            request.ValidationUrl,
+            request.DisplayName ?? settings.Value.StoreName ?? "Store",
+            cancellationToken);
+
+        if (merchantSession == null)
+        {
+            logger.LogWarning("Apple Pay merchant validation failed for URL: {Url}", request.ValidationUrl);
+            return BadRequest(new { success = false, error = "Merchant validation failed." });
+        }
+
+        return Ok(merchantSession);
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using Merchello.Core.Payments.Models;
+using Merchello.Core.Shared.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -30,6 +31,13 @@ public class PaymentMethodSettingDbMapping : IEntityTypeConfiguration<PaymentMet
 
         // Nullable bool - null means use provider's default
         builder.Property(x => x.ShowInCheckout);
+
+        // Optional Umbraco media key for custom icon
+        builder.Property(x => x.IconMediaKey);
+
+        // Optional checkout style override (JSON, ~500 chars for 6 color values)
+        builder.Property(x => x.CheckoutStyleOverride)
+            .ToNullableJsonConversion(500);
 
         // Foreign key relationship to PaymentProviderSetting
         builder.HasOne(x => x.ProviderSetting)

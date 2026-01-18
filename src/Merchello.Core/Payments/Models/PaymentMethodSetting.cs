@@ -44,6 +44,18 @@ public class PaymentMethodSetting
     public bool? ShowInCheckout { get; set; }
 
     /// <summary>
+    /// Optional Umbraco media key for custom checkout icon.
+    /// If set, overrides the provider's default icon.
+    /// </summary>
+    public Guid? IconMediaKey { get; set; }
+
+    /// <summary>
+    /// Optional checkout style override (stored as JSON).
+    /// If set, overrides the provider's default checkout style.
+    /// </summary>
+    public PaymentMethodCheckoutStyle? CheckoutStyleOverride { get; set; }
+
+    /// <summary>
     /// When this setting was created.
     /// </summary>
     public DateTime DateCreated { get; set; }

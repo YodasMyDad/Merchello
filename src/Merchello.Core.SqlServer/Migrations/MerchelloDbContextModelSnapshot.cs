@@ -1279,6 +1279,10 @@ namespace Merchello.Core.SqlServer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CheckoutStyleOverride")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("datetime2");
 
@@ -1288,6 +1292,9 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<string>("DisplayNameOverride")
                         .HasMaxLength(250)
                         .HasColumnType("nvarchar(250)");
+
+                    b.Property<Guid?>("IconMediaKey")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("bit");

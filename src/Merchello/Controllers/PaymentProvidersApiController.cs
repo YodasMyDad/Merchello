@@ -10,6 +10,9 @@ using Merchello.Core.Shared.Dtos;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Media;
+using Umbraco.Cms.Core.PropertyEditors;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Controllers;
 
@@ -20,7 +23,9 @@ namespace Merchello.Controllers;
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class PaymentProvidersApiController(
     IPaymentProviderManager providerManager,
-    IOptions<MerchelloSettings> merchelloSettings) : MerchelloApiControllerBase
+    IOptions<MerchelloSettings> merchelloSettings,
+    IMediaService mediaService,
+    MediaUrlGeneratorCollection mediaUrlGenerators) : MerchelloApiControllerBase
 {
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
 
@@ -674,18 +679,40 @@ public class PaymentProvidersApiController(
         var methodSettings = await providerManager.GetMethodSettingsAsync(id, cancellationToken);
 
         // 5. Map to DTOs, merging definition with settings
-        var result = methodDefinitions.Select(def =>
+        List<PaymentMethodSettingDto> result = [];
+        foreach (var def in methodDefinitions)
         {
             var persisted = methodSettings.FirstOrDefault(ms =>
                 string.Equals(ms.MethodAlias, def.Alias, StringComparison.OrdinalIgnoreCase));
 
-            return new PaymentMethodSettingDto
+            // Resolve icon media URL if a custom icon is set
+            string? iconMediaUrl = null;
+            if (persisted?.IconMediaKey.HasValue == true)
+            {
+                iconMediaUrl = ResolveMediaUrl(persisted.IconMediaKey.Value);
+            }
+
+            result.Add(new PaymentMethodSettingDto
             {
                 MethodAlias = def.Alias,
                 DisplayName = persisted?.DisplayNameOverride ?? def.DisplayName,
                 DefaultDisplayName = def.DisplayName,
+                DisplayNameOverride = persisted?.DisplayNameOverride,
                 Icon = def.Icon,
                 IconHtml = def.IconHtml,
+                IconMediaKey = persisted?.IconMediaKey,
+                IconMediaUrl = iconMediaUrl,
+                CheckoutStyleOverride = persisted?.CheckoutStyleOverride != null
+                    ? new PaymentMethodCheckoutStyleDto
+                    {
+                        BackgroundColor = persisted.CheckoutStyleOverride.BackgroundColor,
+                        BorderColor = persisted.CheckoutStyleOverride.BorderColor,
+                        TextColor = persisted.CheckoutStyleOverride.TextColor,
+                        SelectedBackgroundColor = persisted.CheckoutStyleOverride.SelectedBackgroundColor,
+                        SelectedBorderColor = persisted.CheckoutStyleOverride.SelectedBorderColor,
+                        SelectedTextColor = persisted.CheckoutStyleOverride.SelectedTextColor
+                    }
+                    : null,
                 Description = def.Description,
                 IsEnabled = persisted?.IsEnabled ?? true, // Default enabled if no setting
                 SortOrder = persisted?.SortOrder ?? def.DefaultSortOrder,
@@ -696,17 +723,14 @@ public class PaymentProvidersApiController(
                     Code = r.Code,
                     Name = r.Name
                 }).ToList()
-            };
-        })
-        .OrderBy(m => m.SortOrder)
-        .ThenBy(m => m.DisplayName)
-        .ToList();
+            });
+        }
 
-        return Ok(result);
+        return Ok(result.OrderBy(m => m.SortOrder).ThenBy(m => m.DisplayName).ToList());
     }
 
     /// <summary>
-    /// Update a payment method setting (enable/disable).
+    /// Update a payment method setting (enable/disable, display name, icon, style).
     /// </summary>
     [HttpPut("payment-providers/{id:guid}/methods/{alias}")]
     [ProducesResponseType<List<PaymentMethodSettingDto>>(StatusCodes.Status200OK)]
@@ -718,14 +742,10 @@ public class PaymentProvidersApiController(
         [FromBody] UpdatePaymentMethodSettingDto request,
         CancellationToken cancellationToken = default)
     {
-        // Update enabled status if provided
-        if (request.IsEnabled.HasValue)
+        var result = await providerManager.UpdateMethodSettingAsync(id, alias, request, cancellationToken);
+        if (!result.Successful)
         {
-            var result = await providerManager.SetMethodEnabledAsync(id, alias, request.IsEnabled.Value, cancellationToken);
-            if (!result.Successful)
-            {
-                return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to update method.");
-            }
+            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to update method.");
         }
 
         // Return the updated method settings list
@@ -760,6 +780,25 @@ public class PaymentProvidersApiController(
     // ============================================
     // Mapping Helpers
     // ============================================
+
+    /// <summary>
+    /// Resolves a media key to a URL.
+    /// </summary>
+    private string? ResolveMediaUrl(Guid mediaKey)
+    {
+        var media = mediaService.GetById(mediaKey);
+        if (media == null)
+        {
+            return null;
+        }
+
+        if (mediaUrlGenerators.TryGetMediaPath(media.ContentType.Alias, media.GetValue<string>("umbracoFile"), out var mediaPath))
+        {
+            return mediaPath;
+        }
+
+        return null;
+    }
 
     private static PaymentProviderDto MapToProviderDto(RegisteredPaymentProvider registered)
     {

@@ -789,12 +789,17 @@ const MerchelloPayment = {
 
     /**
      * Gets the payment icon for a method
-     * Prefers checkoutIconHtml, falls back to iconHtml, then icon URL, then default icons
+     * Prefers custom icon (iconMediaUrl), then checkoutIconHtml, iconHtml, icon URL, then default icons
      * @param {Object} method - Payment method object
      * @returns {string} HTML for the payment icon
      */
     getMethodIcon(method) {
-        // Prefer checkoutIconHtml (explicit checkout-specific icon)
+        // First, check for custom uploaded icon (admin override from media library)
+        if (method.iconMediaUrl) {
+            return `<img src="${this.escapeHtml(method.iconMediaUrl)}" alt="${this.escapeHtml(method.displayName)}" class="h-6 w-auto" />`;
+        }
+
+        // Prefer checkoutIconHtml (explicit checkout-specific icon from provider)
         if (method.checkoutIconHtml) {
             return method.checkoutIconHtml;
         }

@@ -2,14 +2,17 @@ import { html, css, nothing, unsafeHTML } from "@umbraco-cms/backoffice/external
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
+import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import { UmbSorterController } from "@umbraco-cms/backoffice/sorter";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
+import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { PaymentMethodSettingDto, PaymentMethodRegionDto } from '@payment-providers/types/payment-providers.types.js';
 import type {
   PaymentMethodsConfigModalData,
   PaymentMethodsConfigModalValue,
 } from "./payment-methods-config-modal.token.js";
+import { MERCHELLO_PAYMENT_METHOD_EDIT_MODAL } from "./payment-method-edit-modal.token.js";
 import { getBrandIconSvg } from "../utils/brand-icons.js";
 
 /** Map of country/region codes to flag emojis */
@@ -41,6 +44,7 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
 
   #isConnected = false;
   #notificationContext?: UmbNotificationContext;
+  #modalManagerContext?: UmbModalManagerContext;
 
   // Sorter for payment methods
   #methodSorter = new UmbSorterController<PaymentMethodSettingDto>(this, {
@@ -59,6 +63,9 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
     super();
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
+    });
+    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
+      this.#modalManagerContext = context;
     });
   }
 
@@ -150,6 +157,25 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
     this.modalContext?.submit();
   }
 
+  private async _openEditModal(method: PaymentMethodSettingDto): Promise<void> {
+    const setting = this.data?.setting;
+    if (!setting || !this.#modalManagerContext) return;
+
+    const modalContext = this.#modalManagerContext.open(this, MERCHELLO_PAYMENT_METHOD_EDIT_MODAL, {
+      data: {
+        providerSettingId: setting.id,
+        method,
+      },
+    });
+
+    const result = await modalContext.onSubmit().catch(() => null);
+    if (result?.isChanged) {
+      this._hasChanges = true;
+      // Reload methods to get updated data
+      await this._loadMethods();
+    }
+  }
+
   private _renderMethodIcon(method: PaymentMethodSettingDto): unknown {
     // Prefer provider-defined iconHtml, fall back to hardcoded brand icons
     const svg = method.iconHtml ?? getBrandIconSvg(method.methodAlias);
@@ -191,12 +217,25 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
             </div>
           </div>
         </div>
-        <uui-toggle
-          .checked=${method.isEnabled}
-          ?disabled=${this._isSaving}
-          @change=${() => this._handleToggle(method)}
-          label="${method.isEnabled ? 'Enabled' : 'Disabled'}"
-        ></uui-toggle>
+        <div class="method-actions">
+          <uui-button
+            compact
+            label="Edit"
+            look="secondary"
+            @click=${(e: Event) => {
+              e.stopPropagation();
+              this._openEditModal(method);
+            }}
+          >
+            <uui-icon name="icon-edit"></uui-icon>
+          </uui-button>
+          <uui-toggle
+            .checked=${method.isEnabled}
+            ?disabled=${this._isSaving}
+            @change=${() => this._handleToggle(method)}
+            label="${method.isEnabled ? 'Enabled' : 'Disabled'}"
+          ></uui-toggle>
+        </div>
       </div>
     `;
   }
@@ -226,8 +265,7 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
 
                 <p class="description">
                   Enable or disable individual payment methods for this provider.
-                  Disabled methods will not appear at checkout.
-                  Drag to reorder methods.
+                  Drag to reorder. Click Edit to customize display name, icon, and styling.
                 </p>
 
                 <div class="methods-list">
@@ -387,6 +425,16 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
       border-radius: 10px;
       font-size: 0.625rem;
       font-weight: 500;
+    }
+
+    .method-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+    }
+
+    .method-actions uui-button {
+      --uui-button-height: 28px;
     }
 
     .no-methods {

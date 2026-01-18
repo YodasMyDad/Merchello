@@ -255,18 +255,42 @@ export interface PaymentMethodRegionDto {
   name: string;
 }
 
+/** Checkout style customization for payment method display */
+export interface PaymentMethodCheckoutStyleDto {
+  /** Background color (e.g., "#f8f9fa" or "rgba(0,112,186,0.05)") */
+  backgroundColor?: string | null;
+  /** Border color (e.g., "#dee2e6") */
+  borderColor?: string | null;
+  /** Text/label color (e.g., "#333333") */
+  textColor?: string | null;
+  /** Background color when selected */
+  selectedBackgroundColor?: string | null;
+  /** Border color when selected */
+  selectedBorderColor?: string | null;
+  /** Text color when selected */
+  selectedTextColor?: string | null;
+}
+
 /** Settings for a payment method within a provider */
 export interface PaymentMethodSettingDto {
   /** Method alias (e.g., "cards", "applepay") */
   methodAlias: string;
-  /** Current display name */
+  /** Current display name (overridden or default) */
   displayName: string;
   /** Original display name from provider */
   defaultDisplayName?: string;
+  /** Custom display name override (null = use default) */
+  displayNameOverride?: string | null;
   /** Icon identifier */
   icon?: string;
   /** Icon HTML/SVG */
   iconHtml?: string;
+  /** Custom icon media key (Umbraco media GUID) */
+  iconMediaKey?: string | null;
+  /** Resolved URL for the custom icon media */
+  iconMediaUrl?: string | null;
+  /** Custom checkout style override */
+  checkoutStyleOverride?: PaymentMethodCheckoutStyleDto | null;
   /** Method description */
   description?: string;
   /** Whether the method is enabled */
@@ -285,6 +309,16 @@ export interface PaymentMethodSettingDto {
 export interface UpdatePaymentMethodSettingDto {
   /** Whether the method is enabled */
   isEnabled?: boolean;
+  /** Custom display name override. Set to empty string to clear and use provider default. */
+  displayNameOverride?: string | null;
+  /** Umbraco media key for custom checkout icon */
+  iconMediaKey?: string | null;
+  /** Whether to clear the icon (set IconMediaKey to null) */
+  clearIcon?: boolean;
+  /** Checkout style override */
+  checkoutStyleOverride?: PaymentMethodCheckoutStyleDto | null;
+  /** Whether to clear the checkout style (reset to provider defaults) */
+  clearCheckoutStyle?: boolean;
 }
 
 // ============================================

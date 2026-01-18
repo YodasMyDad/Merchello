@@ -158,6 +158,20 @@ public interface IPaymentProviderManager
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Update a payment method setting with display name, icon, and style overrides.
+    /// </summary>
+    /// <param name="providerSettingId">The provider setting ID.</param>
+    /// <param name="methodAlias">The method alias (e.g., "cards", "applepay").</param>
+    /// <param name="request">The update request containing overrides.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result containing the updated method setting.</returns>
+    Task<CrudResult<PaymentMethodSetting>> UpdateMethodSettingAsync(
+        Guid providerSettingId,
+        string methodAlias,
+        UpdatePaymentMethodSettingDto request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Update the sort order of payment methods for a provider.
     /// </summary>
     /// <param name="providerSettingId">The provider setting ID.</param>

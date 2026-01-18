@@ -47,6 +47,20 @@ public class PaymentMethodDto
     public string? CheckoutIconHtml { get; set; }
 
     /// <summary>
+    /// Custom icon media key (Umbraco media GUID) for checkout display.
+    /// If set, this overrides the provider's default icon.
+    /// </summary>
+    [JsonPropertyName("iconMediaKey")]
+    public Guid? IconMediaKey { get; set; }
+
+    /// <summary>
+    /// Resolved URL for the custom icon media.
+    /// Populated by the API layer when IconMediaKey is set.
+    /// </summary>
+    [JsonPropertyName("iconMediaUrl")]
+    public string? IconMediaUrl { get; set; }
+
+    /// <summary>
     /// Custom styling for the payment method container in checkout.
     /// </summary>
     [JsonPropertyName("checkoutStyle")]

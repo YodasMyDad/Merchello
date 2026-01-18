@@ -22,6 +22,11 @@ public class PaymentMethodSettingDto
     public string? DefaultDisplayName { get; set; }
 
     /// <summary>
+    /// Custom display name override. Null if using provider default.
+    /// </summary>
+    public string? DisplayNameOverride { get; set; }
+
+    /// <summary>
     /// Icon identifier.
     /// </summary>
     public string? Icon { get; set; }
@@ -30,6 +35,21 @@ public class PaymentMethodSettingDto
     /// Icon HTML/SVG markup for the payment method.
     /// </summary>
     public string? IconHtml { get; set; }
+
+    /// <summary>
+    /// Custom icon media key (Umbraco media). Null if using provider default.
+    /// </summary>
+    public Guid? IconMediaKey { get; set; }
+
+    /// <summary>
+    /// Resolved URL for custom icon media. Null if no custom icon or media not found.
+    /// </summary>
+    public string? IconMediaUrl { get; set; }
+
+    /// <summary>
+    /// Custom checkout style override. Null if using provider default.
+    /// </summary>
+    public PaymentMethodCheckoutStyleDto? CheckoutStyleOverride { get; set; }
 
     /// <summary>
     /// Method description.

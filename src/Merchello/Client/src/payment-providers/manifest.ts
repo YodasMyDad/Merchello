@@ -36,6 +36,14 @@ export const manifests: Array<UmbExtensionManifest> = [
     js: () => import("./modals/payment-methods-config-modal.element.js"),
   },
 
+  // Modal for editing a single payment method's display settings
+  {
+    type: "modal",
+    alias: "Merchello.PaymentMethod.Edit.Modal",
+    name: "Payment Method Edit Modal",
+    js: () => import("./modals/payment-method-edit-modal.element.js"),
+  },
+
   // Modal for displaying setup instructions
   {
     type: "modal",

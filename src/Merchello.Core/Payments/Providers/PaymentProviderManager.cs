@@ -407,6 +407,20 @@ public class PaymentProviderManager(
                     continue;
                 }
 
+                // Resolve checkout style - custom style takes precedence over provider default
+                var styleSource = methodSetting?.CheckoutStyleOverride ?? methodDef.CheckoutStyle;
+                var checkoutStyle = styleSource != null
+                    ? new PaymentMethodCheckoutStyleDto
+                    {
+                        BackgroundColor = styleSource.BackgroundColor,
+                        BorderColor = styleSource.BorderColor,
+                        TextColor = styleSource.TextColor,
+                        SelectedBackgroundColor = styleSource.SelectedBackgroundColor,
+                        SelectedBorderColor = styleSource.SelectedBorderColor,
+                        SelectedTextColor = styleSource.SelectedTextColor
+                    }
+                    : null;
+
                 methods.Add(new PaymentMethodDto
                 {
                     ProviderAlias = registered.Metadata.Alias,
@@ -415,17 +429,8 @@ public class PaymentProviderManager(
                     Icon = methodDef.Icon,
                     IconHtml = methodDef.IconHtml,
                     CheckoutIconHtml = methodDef.CheckoutIconHtml,
-                    CheckoutStyle = methodDef.CheckoutStyle != null
-                        ? new PaymentMethodCheckoutStyleDto
-                        {
-                            BackgroundColor = methodDef.CheckoutStyle.BackgroundColor,
-                            BorderColor = methodDef.CheckoutStyle.BorderColor,
-                            TextColor = methodDef.CheckoutStyle.TextColor,
-                            SelectedBackgroundColor = methodDef.CheckoutStyle.SelectedBackgroundColor,
-                            SelectedBorderColor = methodDef.CheckoutStyle.SelectedBorderColor,
-                            SelectedTextColor = methodDef.CheckoutStyle.SelectedTextColor
-                        }
-                        : null,
+                    IconMediaKey = methodSetting?.IconMediaKey,
+                    CheckoutStyle = checkoutStyle,
                     Description = methodDef.Description,
                     IntegrationType = methodDef.IntegrationType,
                     IsExpressCheckout = methodDef.IsExpressCheckout,
@@ -744,6 +749,162 @@ public class PaymentProviderManager(
                     DateCreated = DateTime.UtcNow,
                     DateUpdated = DateTime.UtcNow
                 };
+                db.PaymentMethodSettings.Add(newSetting);
+                result.ResultObject = newSetting;
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+        });
+        scope.Complete();
+
+        RefreshCache();
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<CrudResult<PaymentMethodSetting>> UpdateMethodSettingAsync(
+        Guid providerSettingId,
+        string methodAlias,
+        UpdatePaymentMethodSettingDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<PaymentMethodSetting>();
+
+        // Validate provider exists and has this method
+        var providerSetting = await GetProviderSettingAsync(providerSettingId, cancellationToken);
+        if (providerSetting == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Payment provider setting with ID '{providerSettingId}' was not found.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        var provider = await GetProviderAsync(providerSetting.ProviderAlias, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Payment provider '{providerSetting.ProviderAlias}' was not found.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        var methodDef = provider.Provider.GetAvailablePaymentMethods()
+            .FirstOrDefault(m => string.Equals(m.Alias, methodAlias, StringComparison.OrdinalIgnoreCase));
+
+        if (methodDef == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Payment method '{methodAlias}' is not available for provider '{providerSetting.ProviderAlias}'.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<Task>(async db =>
+        {
+            var existing = await db.PaymentMethodSettings
+                .FirstOrDefaultAsync(ms =>
+                    ms.PaymentProviderSettingId == providerSettingId &&
+                    ms.MethodAlias == methodAlias,
+                    cancellationToken);
+
+            if (existing != null)
+            {
+                // Update existing setting
+                if (request.IsEnabled.HasValue)
+                {
+                    existing.IsEnabled = request.IsEnabled.Value;
+                }
+
+                // DisplayNameOverride: empty string clears it, null means no change
+                if (request.DisplayNameOverride != null)
+                {
+                    existing.DisplayNameOverride = string.IsNullOrWhiteSpace(request.DisplayNameOverride)
+                        ? null
+                        : request.DisplayNameOverride;
+                }
+
+                // IconMediaKey: ClearIcon takes precedence
+                if (request.ClearIcon)
+                {
+                    existing.IconMediaKey = null;
+                }
+                else if (request.IconMediaKey.HasValue)
+                {
+                    existing.IconMediaKey = request.IconMediaKey.Value;
+                }
+
+                // CheckoutStyleOverride: ClearCheckoutStyle takes precedence
+                if (request.ClearCheckoutStyle)
+                {
+                    existing.CheckoutStyleOverride = null;
+                }
+                else if (request.CheckoutStyleOverride != null)
+                {
+                    existing.CheckoutStyleOverride = new PaymentMethodCheckoutStyle
+                    {
+                        BackgroundColor = request.CheckoutStyleOverride.BackgroundColor,
+                        BorderColor = request.CheckoutStyleOverride.BorderColor,
+                        TextColor = request.CheckoutStyleOverride.TextColor,
+                        SelectedBackgroundColor = request.CheckoutStyleOverride.SelectedBackgroundColor,
+                        SelectedBorderColor = request.CheckoutStyleOverride.SelectedBorderColor,
+                        SelectedTextColor = request.CheckoutStyleOverride.SelectedTextColor
+                    };
+
+                    // If all style properties are empty, set to null
+                    if (existing.CheckoutStyleOverride.IsEmpty)
+                    {
+                        existing.CheckoutStyleOverride = null;
+                    }
+                }
+
+                existing.DateUpdated = DateTime.UtcNow;
+                result.ResultObject = existing;
+            }
+            else
+            {
+                // Create new method setting
+                var newSetting = new PaymentMethodSetting
+                {
+                    Id = GuidExtensions.NewSequentialGuid,
+                    PaymentProviderSettingId = providerSettingId,
+                    MethodAlias = methodAlias,
+                    IsEnabled = request.IsEnabled ?? true,
+                    SortOrder = methodDef.DefaultSortOrder,
+                    DisplayNameOverride = string.IsNullOrWhiteSpace(request.DisplayNameOverride)
+                        ? null
+                        : request.DisplayNameOverride,
+                    IconMediaKey = request.ClearIcon ? null : request.IconMediaKey,
+                    DateCreated = DateTime.UtcNow,
+                    DateUpdated = DateTime.UtcNow
+                };
+
+                // Set checkout style override if provided
+                if (!request.ClearCheckoutStyle && request.CheckoutStyleOverride != null)
+                {
+                    newSetting.CheckoutStyleOverride = new PaymentMethodCheckoutStyle
+                    {
+                        BackgroundColor = request.CheckoutStyleOverride.BackgroundColor,
+                        BorderColor = request.CheckoutStyleOverride.BorderColor,
+                        TextColor = request.CheckoutStyleOverride.TextColor,
+                        SelectedBackgroundColor = request.CheckoutStyleOverride.SelectedBackgroundColor,
+                        SelectedBorderColor = request.CheckoutStyleOverride.SelectedBorderColor,
+                        SelectedTextColor = request.CheckoutStyleOverride.SelectedTextColor
+                    };
+
+                    if (newSetting.CheckoutStyleOverride.IsEmpty)
+                    {
+                        newSetting.CheckoutStyleOverride = null;
+                    }
+                }
+
                 db.PaymentMethodSettings.Add(newSetting);
                 result.ResultObject = newSetting;
             }

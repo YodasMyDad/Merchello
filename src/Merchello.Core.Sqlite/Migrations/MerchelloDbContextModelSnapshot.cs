@@ -1272,6 +1272,10 @@ namespace Merchello.Core.Sqlite.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("CheckoutStyleOverride")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("TEXT");
 
@@ -1280,6 +1284,9 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("DisplayNameOverride")
                         .HasMaxLength(250)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("IconMediaKey")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsEnabled")
