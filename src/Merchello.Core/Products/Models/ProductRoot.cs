@@ -125,5 +125,12 @@ public class ProductRoot
     /// Example: "Gallery" -> ~/Views/Products/Gallery.cshtml
     /// </summary>
     public string? ViewAlias { get; set; }
+
+    /// <summary>
+    /// Extended data dictionary for storing additional product metadata.
+    /// Used for digital product settings, custom attributes, plugin data, etc.
+    /// Keys should use Constants.ExtendedDataKeys for consistency.
+    /// </summary>
+    public Dictionary<string, object> ExtendedData { get; set; } = [];
 }
 

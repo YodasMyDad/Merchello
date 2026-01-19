@@ -52,6 +52,8 @@
     formattedTaxInclusiveDisplaySubTotal = Model.FormattedTaxInclusiveDisplaySubTotal ?? "",
     taxIncludedMessage = Model.TaxIncludedMessage,
     exchangeRate = exchangeRate,
+    isLoggedIn = Model.IsLoggedIn,
+    hasDigitalProducts = Model.HasDigitalProducts,
     email = basket?.BillingAddress?.Email ?? "",
     billing = new {
         name = basket?.BillingAddress?.Name ?? "",
@@ -149,9 +151,9 @@
 
                     <!-- Create Account Option -->
                     <div class="mt-2">
-                        <!-- Toggle link (hidden when account section is shown) -->
+                        <!-- Toggle link (hidden for logged-in users, existing accounts, or when account section is shown) -->
                         <button type="button"
-                                x-show="!showAccountSection"
+                                x-show="showCreateAccountButton"
                                 @@click="showAccountSection = true; checkEmailForAccount()"
                                 class="text-sm text-accent hover:underline">
                             Create an account for faster checkout next time
@@ -159,6 +161,12 @@
 
                         <!-- Account Section (login or create) -->
                         <div x-show="showAccountSection" x-cloak x-transition class="mt-2 space-y-2">
+                            <!-- Account required message for digital products -->
+                            <div x-show="$store.checkout?.hasDigitalProducts && !$store.checkout?.isLoggedIn && !isSignedIn"
+                                 class="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                                <strong>Account required:</strong> Digital products in your cart require an account to access your downloads.
+                            </div>
+
                             <!-- Header with mode indicator -->
                             <div class="flex items-center justify-between">
                                 <label for="password" class="block text-xs font-medium text-gray-700">
@@ -166,6 +174,7 @@
                                     <span x-show="!hasExistingAccount">Create a password</span>
                                 </label>
                                 <button type="button"
+                                        x-show="!($store.checkout?.hasDigitalProducts && !$store.checkout?.isLoggedIn)"
                                         @@click="cancelAccountSection()"
                                         class="text-xs text-gray-500 hover:text-gray-700">
                                     Cancel

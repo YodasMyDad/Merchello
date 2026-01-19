@@ -16,7 +16,7 @@ namespace Merchello.Core.Notifications.Handlers;
 /// This demonstrates dogfooding the notification system for internal Merchello functionality.
 /// </summary>
 [NotificationHandlerPriority(2000)] // Run late, after main business logic
-internal class InvoiceTimelineHandler(
+public class InvoiceTimelineHandler(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     ICurrencyService currencyService,
     ILogger<InvoiceTimelineHandler> logger)

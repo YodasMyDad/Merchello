@@ -1,3 +1,4 @@
+using Merchello.Core.DigitalProducts.Notifications;
 using Merchello.Core.Email.Services.Interfaces;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Base;
@@ -45,7 +46,8 @@ public class EmailNotificationHandler(
       INotificationAsyncHandler<CheckoutAbandonedReminderNotification>,
       INotificationAsyncHandler<CheckoutAbandonedFinalNotification>,
       INotificationAsyncHandler<CheckoutRecoveredNotification>,
-      INotificationAsyncHandler<CheckoutRecoveryConvertedNotification>
+      INotificationAsyncHandler<CheckoutRecoveryConvertedNotification>,
+      INotificationAsyncHandler<DigitalProductDeliveredNotification>
 {
     private readonly EmailSettings _settings = options.Value;
 
@@ -159,6 +161,13 @@ public class EmailNotificationHandler(
 
     public Task HandleAsync(CheckoutRecoveryConvertedNotification notification, CancellationToken ct)
         => ProcessEmailsAsync(Constants.EmailTopics.CheckoutConverted, notification, notification.InvoiceId, "Invoice", ct);
+
+    #endregion
+
+    #region Digital Products
+
+    public Task HandleAsync(DigitalProductDeliveredNotification notification, CancellationToken ct)
+        => ProcessEmailsAsync(Constants.EmailTopics.DigitalProductDelivered, notification, notification.Invoice.Id, "Invoice", ct);
 
     #endregion
 

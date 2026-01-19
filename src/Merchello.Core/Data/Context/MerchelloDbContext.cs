@@ -2,6 +2,7 @@ using System.Reflection;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Customers.Models;
+using Merchello.Core.DigitalProducts.Models;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Email.Models;
 using Merchello.Core.ExchangeRates.Models;
@@ -93,6 +94,9 @@ public class MerchelloDbContext : DbContext
 
     // Email DbSets
     public DbSet<EmailConfiguration> EmailConfigurations => Set<EmailConfiguration>();
+
+    // Digital Products DbSets
+    public DbSet<DownloadLink> DownloadLinks => Set<DownloadLink>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

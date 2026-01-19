@@ -18,6 +18,36 @@ Implement complete digital product functionality including file storage, secure 
 
 ## Phase 1: Data Model
 
+### 1.0 Add ExtendedData to ProductRoot (Prerequisite)
+
+ProductRoot needs an `ExtendedData` dictionary (matching the pattern used by `Invoice`, `LineItem`, `Warehouse`, etc.) to store digital product settings via constant keys.
+
+**File:** `src/Merchello.Core/Products/Models/ProductRoot.cs`
+
+Add property:
+```csharp
+/// <summary>
+/// Extended data dictionary for storing additional product metadata.
+/// Used for digital product settings, custom attributes, plugin data, etc.
+/// Keys should use Constants.ExtendedDataKeys for consistency.
+/// </summary>
+public Dictionary<string, object> ExtendedData { get; set; } = [];
+```
+
+**File:** `src/Merchello.Core/Products/Mapping/ProductRootDbMapping.cs`
+
+Add JSON column mapping using the existing extension method:
+```csharp
+builder.Property(x => x.ExtendedData).ToJsonConversion(3000);
+```
+
+**Migration:** Run after adding property:
+```powershell
+.\scripts\add-migration.ps1 -Name AddProductRootExtendedData
+```
+
+---
+
 ### 1.1 New Enum
 **New File:** `src/Merchello.Core/DigitalProducts/Models/DigitalDeliveryMethod.cs`
 ```csharp
@@ -38,6 +68,7 @@ Add to `ExtendedDataKeys` class:
 public const string DigitalDeliveryMethod = "DigitalDeliveryMethod";    // "InstantDownload" or "EmailDelivered"
 public const string DigitalFileIds = "DigitalFileIds";                  // JSON array of Umbraco Media IDs
 public const string DownloadLinkExpiryDays = "DownloadLinkExpiryDays";  // int as string, 0 = unlimited
+public const string MaxDownloadsPerLink = "MaxDownloadsPerLink";        // int as string, 0 = unlimited
 ```
 
 ### 1.3 ExtendedData Helper Extensions
@@ -80,6 +111,16 @@ public static class ProductRootDigitalExtensions
 
     public static void SetDownloadLinkExpiryDays(this ProductRoot product, int days)
         => product.ExtendedData[Constants.ExtendedDataKeys.DownloadLinkExpiryDays] = days.ToString();
+
+    public static int GetMaxDownloadsPerLink(this ProductRoot product)
+    {
+        if (product.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.MaxDownloadsPerLink, out var value))
+            return int.TryParse(value?.ToString(), out var max) ? max : 0;
+        return 0;  // 0 = unlimited
+    }
+
+    public static void SetMaxDownloadsPerLink(this ProductRoot product, int maxDownloads)
+        => product.ExtendedData[Constants.ExtendedDataKeys.MaxDownloadsPerLink] = maxDownloads.ToString();
 }
 ```
 
@@ -87,6 +128,8 @@ public static class ProductRootDigitalExtensions
 **New File:** `src/Merchello.Core/DigitalProducts/Models/DownloadLink.cs`
 
 ```csharp
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Merchello.Core.DigitalProducts.Models;
 
 public class DownloadLink
@@ -94,27 +137,66 @@ public class DownloadLink
     public Guid Id { get; set; }
     public Guid InvoiceId { get; set; }
     public Guid LineItemId { get; set; }
-    public Guid? CustomerId { get; set; }  // Nullable for guest checkouts
+    public Guid CustomerId { get; set; }  // Required - digital products require account
     public string MediaId { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string Token { get; set; } = string.Empty;  // HMAC-signed secure token
     public DateTime? ExpiresUtc { get; set; }
+    public int? MaxDownloads { get; set; }  // null = unlimited
     public int DownloadCount { get; set; }
     public DateTime? LastDownloadUtc { get; set; }
     public DateTime DateCreated { get; set; }  // Set by DB mapping
-    public bool IsValid => !ExpiresUtc.HasValue || ExpiresUtc > DateTime.UtcNow;
+    public bool IsValid =>
+        (!ExpiresUtc.HasValue || ExpiresUtc > DateTime.UtcNow) &&
+        (!MaxDownloads.HasValue || DownloadCount < MaxDownloads);
+
+    /// <summary>
+    /// The full download URL. Not persisted - built at runtime by the service.
+    /// </summary>
+    [NotMapped]
+    public string DownloadUrl { get; set; } = string.Empty;
 }
 ```
 
+**Note:** `DownloadUrl` is built by `IDigitalProductService` using `MerchelloSettings.WebsiteUrl` to ensure correct base URL regardless of deployment configuration (reverse proxy, custom domain, etc.).
+
 ### 1.5 Database Mapping & Migration
 **New File:** `src/Merchello.Core/DigitalProducts/Mapping/DownloadLinkDbMapping.cs`
+
+```csharp
+using Merchello.Core.DigitalProducts.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Merchello.Core.DigitalProducts.Mapping;
+
+public class DownloadLinkDbMapping : IEntityTypeConfiguration<DownloadLink>
+{
+    public void Configure(EntityTypeBuilder<DownloadLink> builder)
+    {
+        builder.ToTable("merchelloDownloadLinks");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Token).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.MediaId).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.FileName).HasMaxLength(500);
+        builder.Property(x => x.DateCreated).HasDefaultValueSql("GETUTCDATE()");
+
+        builder.HasIndex(x => x.Token).IsUnique();
+        builder.HasIndex(x => x.InvoiceId);
+        builder.HasIndex(x => x.CustomerId);
+
+        builder.Ignore(x => x.IsValid);      // Computed property
+        builder.Ignore(x => x.DownloadUrl);  // Runtime property
+    }
+}
+```
 
 **Update:** `src/Merchello.Core/Data/Context/MerchelloDbContext.cs`
 ```csharp
 public DbSet<DownloadLink> DownloadLinks => Set<DownloadLink>();
 ```
 
-**Note:** No ProductRoot table changes needed - digital settings stored in ExtendedData (JSON column).
+**Note:** ProductRoot.ExtendedData was added in Phase 1.0 - digital settings stored there via constant keys.
 
 Update DTOs (convenience properties that map to/from ExtendedData):
 - `CreateProductRootDto` / `UpdateProductRootDto` - add digital product fields
@@ -125,11 +207,13 @@ Update DTOs (convenience properties that map to/from ExtendedData):
 public string? DigitalDeliveryMethod { get; set; }  // "InstantDownload" or "EmailDelivered"
 public List<string>? DigitalFileIds { get; set; }
 public int? DownloadLinkExpiryDays { get; set; }
+public int? MaxDownloadsPerLink { get; set; }  // 0 = unlimited
 
 // Add to ProductRootDetailDto:
 public string? DigitalDeliveryMethod { get; set; }
 public List<string>? DigitalFileIds { get; set; }
 public int? DownloadLinkExpiryDays { get; set; }
+public int? MaxDownloadsPerLink { get; set; }
 ```
 
 **ProductService mapping:** Use extension methods to map DTO fields to/from ExtendedData during create/update/read operations.
@@ -143,6 +227,12 @@ Run migration script after changes:
 **New File:** `src/Merchello.Core/DigitalProducts/Factories/DownloadLinkFactory.cs`
 
 ```csharp
+using System.Security.Cryptography;
+using System.Text;
+using Merchello.Core.DigitalProducts.Models;
+using Merchello.Core.DigitalProducts.Services.Parameters;
+using Merchello.Core.Shared.Models;
+
 namespace Merchello.Core.DigitalProducts.Factories;
 
 public class DownloadLinkFactory(MerchelloSettings settings)
@@ -150,27 +240,29 @@ public class DownloadLinkFactory(MerchelloSettings settings)
     public DownloadLink Create(CreateDownloadLinkParameters parameters)
     {
         var expiryDays = parameters.ExpiryDays ?? settings.DefaultDownloadLinkExpiryDays;
+        var linkId = Guid.NewGuid();
 
         return new DownloadLink
         {
-            Id = Guid.NewGuid(),
+            Id = linkId,
             InvoiceId = parameters.InvoiceId,
             LineItemId = parameters.LineItemId,
             CustomerId = parameters.CustomerId,
             MediaId = parameters.MediaId,
             FileName = parameters.FileName,
-            Token = GenerateSecureToken(parameters),
+            Token = GenerateSecureToken(linkId, parameters),
             ExpiresUtc = expiryDays > 0 ? DateTime.UtcNow.AddDays(expiryDays) : null,
+            MaxDownloads = parameters.MaxDownloads > 0 ? parameters.MaxDownloads : null,
             DownloadCount = 0
         };
     }
 
-    private string GenerateSecureToken(CreateDownloadLinkParameters parameters)
+    private string GenerateSecureToken(Guid linkId, CreateDownloadLinkParameters parameters)
     {
-        var payload = $"{parameters.InvoiceId}:{parameters.CustomerId}:{parameters.MediaId}";
+        var payload = $"{linkId}:{parameters.CustomerId}:{parameters.MediaId}";
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(settings.DownloadTokenSecret));
         var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
-        return $"{parameters.InvoiceId:N}-{Convert.ToBase64String(hash).Replace("+", "-").Replace("/", "_").TrimEnd('=')}";
+        return $"{linkId:N}-{Convert.ToBase64String(hash).Replace("+", "-").Replace("/", "_").TrimEnd('=')}";
     }
 }
 ```
@@ -197,6 +289,24 @@ Task<bool> IsDigitalOnlyInvoiceAsync(Guid invoiceId, CancellationToken ct);
 Task<CrudResult<List<DownloadLink>>> RegenerateDownloadLinksAsync(RegenerateDownloadLinksParameters parameters, CancellationToken ct);
 ```
 
+**URL Building:** All methods that return `DownloadLink` objects populate the `DownloadUrl` property:
+```csharp
+// In DigitalProductService
+private void PopulateDownloadUrls(IEnumerable<DownloadLink> links)
+{
+    var baseUrl = _settings.WebsiteUrl.TrimEnd('/');
+    foreach (var link in links)
+    {
+        link.DownloadUrl = $"{baseUrl}/api/merchello/downloads/{link.Token}";
+    }
+}
+```
+
+This ensures download links work correctly regardless of:
+- Reverse proxy configuration
+- Custom domain setup
+- Umbraco virtual directory hosting
+
 ### 2.1.1 DI Registration
 Register service in `MerchelloBuilderExtensions.cs`:
 ```csharp
@@ -217,6 +327,65 @@ public class CreateDownloadLinksParameters
 }
 ```
 
+**Implementation Note:** The service internally:
+1. Loads the invoice with line items
+2. For each line item with a ProductId, fetches the product to get `IsDigitalProduct` and `DigitalFileIds` from ExtendedData
+3. For each digital file, creates a DownloadLink with the configured expiry
+4. Saves all links to the database in a single transaction
+
+```csharp
+// In DigitalProductService.CreateDownloadLinksAsync (pseudocode)
+
+// Idempotency check - return existing links if already created
+var existingLinks = await _dbContext.DownloadLinks
+    .Where(l => l.InvoiceId == parameters.InvoiceId)
+    .ToListAsync(ct);
+
+if (existingLinks.Count > 0)
+{
+    PopulateDownloadUrls(existingLinks);
+    return CrudResult<List<DownloadLink>>.Success(existingLinks);
+}
+
+var invoice = await _invoiceService.GetAsync(parameters.InvoiceId, ct);
+var links = new List<DownloadLink>();
+
+foreach (var lineItem in invoice.LineItems.Where(li => li.ProductId.HasValue))
+{
+    var product = await _productService.GetProductRootAsync(lineItem.ProductId.Value, ct);
+    if (product?.IsDigitalProduct != true) continue;
+
+    var fileIds = product.GetDigitalFileIds();
+    var expiryDays = product.GetDownloadLinkExpiryDays();
+
+    var maxDownloads = product.GetMaxDownloadsPerLink();
+
+    foreach (var mediaId in fileIds)
+    {
+        // Use Umbraco's IMediaService to get media file details
+        // Inject: IMediaService _umbracoMediaService (from Umbraco.Cms.Core.Services)
+        var media = _umbracoMediaService.GetById(Guid.Parse(mediaId));
+        links.Add(_factory.Create(new CreateDownloadLinkParameters
+        {
+            InvoiceId = invoice.Id,
+            LineItemId = lineItem.Id,
+            CustomerId = invoice.CustomerId!.Value,  // Required - digital products require account
+            MediaId = mediaId,
+            FileName = media?.Name ?? "Download",
+            ExpiryDays = expiryDays,
+            MaxDownloads = maxDownloads > 0 ? maxDownloads : null
+        }));
+    }
+}
+
+// Save all links
+await _dbContext.DownloadLinks.AddRangeAsync(links, ct);
+await _dbContext.SaveChangesAsync(ct);
+
+PopulateDownloadUrls(links);
+return CrudResult<List<DownloadLink>>.Success(links);
+```
+
 **New File:** `CreateDownloadLinkParameters.cs` (used by factory)
 ```csharp
 namespace Merchello.Core.DigitalProducts.Services.Parameters;
@@ -225,10 +394,11 @@ public class CreateDownloadLinkParameters
 {
     public required Guid InvoiceId { get; init; }
     public required Guid LineItemId { get; init; }
-    public Guid? CustomerId { get; init; }
+    public required Guid CustomerId { get; init; }  // Required - digital products require account
     public required string MediaId { get; init; }
     public required string FileName { get; init; }
     public int? ExpiryDays { get; init; }
+    public int? MaxDownloads { get; init; }  // 0 or null = unlimited
 }
 ```
 
@@ -239,7 +409,7 @@ namespace Merchello.Core.DigitalProducts.Services.Parameters;
 public class ValidateDownloadTokenParameters
 {
     public required string Token { get; init; }
-    public Guid? CustomerId { get; init; }
+    public Guid? CustomerId { get; init; }  // Optional for validation - if provided, verifies ownership
 }
 ```
 
@@ -252,6 +422,21 @@ public class RegenerateDownloadLinksParameters
     public required Guid InvoiceId { get; init; }
     public int? NewExpiryDays { get; init; }
 }
+```
+
+**Implementation Note:** Regeneration **invalidates old links** before creating new ones:
+```csharp
+// In DigitalProductService.RegenerateDownloadLinksAsync
+// Delete existing links (invalidates old tokens)
+var oldLinks = await _dbContext.DownloadLinks
+    .Where(l => l.InvoiceId == parameters.InvoiceId)
+    .ToListAsync(ct);
+
+_dbContext.DownloadLinks.RemoveRange(oldLinks);
+await _dbContext.SaveChangesAsync(ct);
+
+// Create fresh links with new tokens, reset expiry and download counts
+// ... proceeds to create new links using product settings or override expiry ...
 ```
 
 **New File:** `GetCustomerDownloadsParameters.cs`
@@ -270,7 +455,36 @@ Token format: `{linkId:N}-{hmacSignature}`
 
 - Signature: HMAC-SHA256(`{linkId}:{customerId}:{mediaId}`, secretKey)
 - URL-safe Base64 encoding
-- Constant-time comparison for validation
+- Constant-time comparison for validation (prevents timing attacks)
+
+**Token Validation Implementation:**
+```csharp
+// In DigitalProductService.ValidateDownloadTokenAsync
+private bool ValidateTokenSignature(DownloadLink link, string providedToken)
+{
+    // Recompute expected token
+    var payload = $"{link.Id}:{link.CustomerId}:{link.MediaId}";
+    using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_settings.DownloadTokenSecret));
+    var expectedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
+
+    // Extract hash from provided token (after the hyphen)
+    var parts = providedToken.Split('-', 2);
+    if (parts.Length != 2) return false;
+
+    var providedHashBase64 = parts[1].Replace("-", "+").Replace("_", "/");
+    // Pad base64 if needed
+    switch (providedHashBase64.Length % 4)
+    {
+        case 2: providedHashBase64 += "=="; break;
+        case 3: providedHashBase64 += "="; break;
+    }
+
+    var providedHash = Convert.FromBase64String(providedHashBase64);
+
+    // CRITICAL: Use constant-time comparison to prevent timing attacks
+    return CryptographicOperations.FixedTimeEquals(expectedHash, providedHash);
+}
+```
 
 ### 2.3 Download Controller
 **New File:** `src/Merchello/Controllers/DownloadsController.cs`
@@ -333,7 +547,153 @@ For mixed orders:
 - Physical items: normal fulfillment flow
 - Digital items: links created immediately, accessible regardless of shipment status
 
-### 3.3 Constants
+### 3.3 Delivery Method Behavior
+
+| Method | Confirmation Page | Email | Notes |
+|--------|------------------|-------|-------|
+| **InstantDownload** | ✅ Shows download links | ✅ Sends email | Customer sees links immediately + gets email backup |
+| **EmailDelivered** | ❌ Hidden | ✅ Sends email only | For license keys, time-sensitive content, etc. |
+
+### 3.4 Checkout Account Requirement for Digital Products
+
+**Requirement:** Customers purchasing digital products must create an account (or sign in) to access their downloads later.
+
+#### Backend Changes
+
+**File:** `src/Merchello.Core/Checkout/Services/CheckoutService.cs`
+
+Add method to detect digital products in basket:
+```csharp
+public async Task<bool> BasketHasDigitalProductsAsync(Basket basket, CancellationToken ct = default)
+{
+    if (basket?.LineItems == null) return false;
+
+    foreach (var item in basket.LineItems.Where(li => li.ProductId.HasValue))
+    {
+        var product = await _productService.GetProductRootAsync(item.ProductId!.Value, ct);
+        if (product?.IsDigitalProduct == true)
+            return true;
+    }
+    return false;
+}
+```
+
+**File:** `src/Merchello/Models/CheckoutViewModel.cs`
+
+Add property:
+```csharp
+/// <summary>
+/// Whether the basket contains digital products (requires account creation).
+/// </summary>
+public bool HasDigitalProducts { get; set; }
+```
+
+**File:** `src/Merchello/Controllers/CheckoutController.cs`
+
+Set the flag when building the view model:
+```csharp
+var viewModel = new CheckoutViewModel
+{
+    // ... existing properties
+    HasDigitalProducts = await _checkoutService.BasketHasDigitalProductsAsync(basket, ct)
+};
+```
+
+#### Frontend Changes
+
+**File:** `src/Merchello/Views/Checkout/SinglePage.cshtml`
+
+Add to initial data JSON:
+```csharp
+hasDigitalProducts = Model.HasDigitalProducts,
+```
+
+**File:** `src/Merchello/wwwroot/js/checkout/stores/checkout.store.js`
+
+Add to store state:
+```javascript
+/** @type {boolean} Whether basket contains digital products (requires account) */
+hasDigitalProducts: initialData.hasDigitalProducts ?? false,
+```
+
+**File:** `src/Merchello/wwwroot/js/checkout/components/single-page-checkout.js`
+
+Modify `init()`:
+```javascript
+async init() {
+    // ... existing init code ...
+
+    // Force account creation section open for digital products
+    const store = this.$store.checkout;
+    if (store?.hasDigitalProducts && !store?.isLoggedIn) {
+        this.showAccountSection = true;
+        // Check if email has existing account once email is entered
+        if (this.form.email) {
+            await this.checkEmailForAccount();
+        }
+    }
+}
+```
+
+Modify `cancelAccountSection()`:
+```javascript
+cancelAccountSection() {
+    // Don't allow canceling if digital products require account
+    if (this.$store.checkout?.hasDigitalProducts && !this.$store.checkout?.isLoggedIn) {
+        return; // Can't cancel - account required
+    }
+
+    this.showAccountSection = false;
+    // ... rest of existing code
+}
+```
+
+Modify `canSubmit` getter:
+```javascript
+get canSubmit() {
+    // ... existing validation ...
+
+    // Digital products require account (signed in OR valid password for new account)
+    const store = this.$store.checkout;
+    if (store?.hasDigitalProducts && !store?.isLoggedIn) {
+        // Must either have signed in during checkout OR have valid password for new account
+        if (!this.isSignedIn && (!this.form.password || !this.passwordValid)) {
+            return false;
+        }
+    }
+
+    return /* existing conditions */;
+}
+```
+
+**File:** `src/Merchello/Views/Checkout/SinglePage.cshtml`
+
+Add message explaining why account is required:
+```html
+<!-- Account required message for digital products -->
+<div x-show="$store.checkout?.hasDigitalProducts && !$store.checkout?.isLoggedIn && !isSignedIn"
+     class="text-xs text-blue-600 bg-blue-50 p-2 rounded mb-2">
+    <strong>Account required:</strong> Digital products in your cart require an account to access your downloads.
+</div>
+```
+
+Hide cancel button when account is required:
+```html
+<button type="button"
+        x-show="!($store.checkout?.hasDigitalProducts && !$store.checkout?.isLoggedIn)"
+        @@click="cancelAccountSection()"
+        class="text-xs text-gray-500 hover:text-gray-700">
+    Cancel
+</button>
+```
+
+#### Email Check Integration
+
+The existing email check flow (`checkEmailForAccountVisibility()` called on email blur) already checks if an account exists. For digital products:
+- If account exists: User must sign in (existing flow works)
+- If no account: User must create password (enforced by `canSubmit`)
+
+### 3.5 Constants
 **File:** `src/Merchello.Core/Constants.cs`
 
 Add to `ExtendedDataKeys`:
@@ -520,13 +880,13 @@ public Task HandleAsync(DigitalProductDeliveredNotification notification, Cancel
       </tr>
       @foreach (var link in Model.Notification.DownloadLinks)
       {
-        var downloadUrl = $"{Model.Store.WebsiteUrl}/api/merchello/downloads/{link.Token}";
+        @* DownloadUrl is pre-built by the service using the configured base URL *@
         var expiryText = link.ExpiresUtc.HasValue
             ? link.ExpiresUtc.Value.ToString("MMM dd, yyyy")
             : "Never";
         <tr style="border-bottom: 1px solid #ecedee;">
           <td style="padding: 15px 0;">
-            <a href="@downloadUrl" style="color: #007bff; text-decoration: none; font-weight: 500;">
+            <a href="@link.DownloadUrl" style="color: #007bff; text-decoration: none; font-weight: 500;">
               @link.FileName
             </a>
           </td>
@@ -618,6 +978,12 @@ When `isDigitalProduct` is checked, show new panel:
     description="0 = links never expire">
     <uui-input type="number" min="0" value="30" />
   </umb-property-layout>
+
+  <!-- Max Downloads -->
+  <umb-property-layout label="Max Downloads Per Link"
+    description="0 = unlimited downloads">
+    <uui-input type="number" min="0" value="0" />
+  </umb-property-layout>
 </uui-box>
 ```
 
@@ -631,6 +997,7 @@ export type DigitalDeliveryMethod = 'InstantDownload' | 'EmailDelivered';
 digitalDeliveryMethod?: DigitalDeliveryMethod;
 digitalFileIds?: string[];
 downloadLinkExpiryDays?: number;
+maxDownloadsPerLink?: number;  // 0 = unlimited
 ```
 
 ### 5.4 Order Confirmation
@@ -645,9 +1012,12 @@ public class DownloadLinkDto
     public string DownloadUrl { get; set; } = string.Empty;
     public DateTime? ExpiresUtc { get; set; }
     public string ProductName { get; set; } = string.Empty;
+    public int? MaxDownloads { get; set; }  // null = unlimited
     public int DownloadCount { get; set; }
+    public int? RemainingDownloads { get; set; }  // null = unlimited, computed: MaxDownloads - DownloadCount
     public DateTime? LastDownloadUtc { get; set; }
     public bool IsExpired { get; set; }
+    public bool IsDownloadLimitReached { get; set; }  // true if MaxDownloads reached
 }
 ```
 
@@ -658,10 +1028,10 @@ Add `DownloadLinks` property to checkout completion response.
 
 Display for each download link:
 - Product name, File name
-- Download count
+- Download count / Max downloads (e.g., "3 / 10" or "3 / ∞")
 - Last download date
 - Expiry date and status
-- "Regenerate Link" button (resets expiry)
+- "Regenerate Links" button (invalidates old links, creates new ones with fresh expiry and reset download counts)
 
 ---
 
@@ -671,17 +1041,50 @@ Display for each download link:
 **File:** `src/Merchello.Core/Shared/Models/MerchelloSettings.cs`
 
 ```csharp
+/// <summary>
+/// Base URL of the storefront (e.g., "https://shop.example.com").
+/// Used for building absolute URLs for download links, emails, and webhooks.
+/// </summary>
+public string WebsiteUrl { get; set; } = "";  // REQUIRED: must be configured
+
 public string DownloadTokenSecret { get; set; } = "";  // REQUIRED: strong random key
 public int DefaultDownloadLinkExpiryDays { get; set; } = 30;
+public int DefaultMaxDownloadsPerLink { get; set; } = 0;  // 0 = unlimited
 ```
 
 ### 6.2 appsettings.json Example
 ```json
 {
   "Merchello": {
+    "WebsiteUrl": "https://shop.example.com",
     "DownloadTokenSecret": "your-strong-secret-key-here-32chars",
-    "DefaultDownloadLinkExpiryDays": 30
+    "DefaultDownloadLinkExpiryDays": 30,
+    "DefaultMaxDownloadsPerLink": 0
   }
+}
+```
+
+### 6.3 Startup Validation
+
+**File:** `src/Merchello.Core/Startup.cs`
+
+Add validation to ensure required settings are configured:
+```csharp
+// In ConfigureServices or builder configuration section
+var settings = configuration.GetSection("Merchello").Get<MerchelloSettings>();
+
+if (string.IsNullOrEmpty(settings?.WebsiteUrl))
+{
+    throw new InvalidOperationException(
+        "Merchello:WebsiteUrl must be configured (e.g., \"https://shop.example.com\"). " +
+        "This is required for generating download links and email URLs.");
+}
+
+if (string.IsNullOrEmpty(settings?.DownloadTokenSecret) || settings.DownloadTokenSecret.Length < 32)
+{
+    throw new InvalidOperationException(
+        "Merchello:DownloadTokenSecret must be configured with at least 32 characters for digital product security. " +
+        "Generate a secure random key and add it to appsettings.json.");
 }
 ```
 
@@ -744,6 +1147,8 @@ DigitalProducts/
 ### Modified Files
 | File | Changes |
 |------|---------|
+| `Products/Models/ProductRoot.cs` | Add `ExtendedData` dictionary property |
+| `Products/Mapping/ProductRootDbMapping.cs` | Add `.ToJsonConversion(3000)` for ExtendedData |
 | `Products/Dtos/CreateProductRootDto.cs` | Add digital convenience fields (map to ExtendedData) |
 | `Products/Dtos/UpdateProductRootDto.cs` | Add digital convenience fields (map to ExtendedData) |
 | `Products/Dtos/ProductRootDetailDto.cs` | Add digital convenience fields (map from ExtendedData) |
@@ -754,12 +1159,18 @@ DigitalProducts/
 | `Email/Handlers/EmailNotificationHandler.cs` | Handle digital notification |
 | `Webhooks/Services/WebhookTopicRegistry.cs` | Register digital delivery topic |
 | `Webhooks/Handlers/WebhookNotificationHandler.cs` | Handle digital notification |
-| `Shared/Models/MerchelloSettings.cs` | Add config options |
+| `Shared/Models/MerchelloSettings.cs` | Add WebsiteUrl, DownloadTokenSecret, DefaultDownloadLinkExpiryDays, DefaultMaxDownloadsPerLink |
 | `Composing/MerchelloBuilderExtensions.cs` | Register IDigitalProductService, DownloadLinkFactory |
-| `Startup.cs` | Register notification handlers for email and webhooks |
+| `Startup.cs` | Register notification handlers, rate limiting |
 | `Client/src/products/components/product-detail.element.ts` | Digital product panel |
 | `Client/src/products/components/product-options-*.element.ts` | Force add-ons only for digital products |
 | `Client/src/products/types/product.types.ts` | TypeScript types |
+| `Checkout/Services/CheckoutService.cs` | Add `BasketHasDigitalProducts()` method |
+| `Models/CheckoutViewModel.cs` | Add `HasDigitalProducts` property |
+| `Controllers/CheckoutController.cs` | Set `HasDigitalProducts` flag |
+| `Views/Checkout/SinglePage.cshtml` | Add `hasDigitalProducts` to initial data, account required message |
+| `wwwroot/js/checkout/stores/checkout.store.js` | Add `hasDigitalProducts` state |
+| `wwwroot/js/checkout/components/single-page-checkout.js` | Force account section, update `canSubmit` |
 
 ---
 
@@ -771,6 +1182,11 @@ DigitalProducts/
 3. Verify download endpoint streams file correctly
 4. Verify token validation rejects tampered/expired tokens
 5. Verify digital-only orders auto-complete
+6. Verify max downloads limit is enforced (returns error after limit reached)
+7. Verify idempotent link creation (duplicate payment webhook returns existing links)
+8. Verify link regeneration invalidates old tokens and creates new ones
+9. Verify `DownloadTokenSecret` validation fails startup if not configured or < 32 chars
+10. Verify token validation uses constant-time comparison (no timing side-channel)
 
 ### Frontend Testing
 1. Toggle "Digital Product" checkbox, verify panel appears
@@ -778,6 +1194,26 @@ DigitalProducts/
 3. **Add product options to digital product, verify IsVariant toggle is hidden/disabled and forced to false (add-on only)**
 4. Purchase digital product, verify links on confirmation page
 5. Admin view: verify download history displays correctly
+
+### Checkout Account Requirement Testing
+1. Add digital product to cart as guest
+2. Navigate to checkout, verify:
+   - Account section is automatically expanded
+   - Message explains "Account required: Digital products in your cart require an account"
+   - Cancel button is hidden/disabled
+   - Cannot submit without valid password or signing in
+3. Enter email that has existing account:
+   - Verify sign-in prompt appears
+   - Complete sign-in, verify can proceed
+4. Enter email without existing account:
+   - Verify password field shows
+   - Enter invalid password, verify error
+   - Enter valid password, verify can proceed
+5. Add mix of digital and physical products:
+   - Verify account section still required (digital products present)
+6. Logged-in user adds digital product:
+   - Verify account section not shown (already authenticated)
+   - Verify can proceed normally
 
 ### Email Testing
 1. In Merchello backoffice, navigate to Email Builder
@@ -805,3 +1241,86 @@ DigitalProducts/
 - [ ] Rate limiting on download endpoint
 - [ ] Media files not directly exposed (proxied through controller)
 - [ ] Token expiry enforced server-side
+- [ ] Max download count enforced server-side
+- [ ] Digital products require account creation (no guest checkout)
+
+---
+
+## Rate Limiting Implementation
+
+### Download Endpoint Rate Limiting
+
+Implement rate limiting on the download endpoint to prevent abuse.
+
+**File:** `src/Merchello/Controllers/DownloadsController.cs`
+
+Use ASP.NET Core's built-in rate limiting (requires .NET 7+):
+
+```csharp
+[ApiController]
+[Route("api/merchello/downloads")]
+public class DownloadsController(
+    IDigitalProductService digitalProductService,
+    IMediaService mediaService,
+    ILogger<DownloadsController> logger) : ControllerBase
+{
+    /// <summary>
+    /// Download a file using a secure token.
+    /// Rate limited to 30 requests per minute per IP.
+    /// </summary>
+    [HttpGet("{token}")]
+    [EnableRateLimiting("downloads")]
+    public async Task<IActionResult> Download(string token, CancellationToken ct)
+    {
+        // Validate token and stream file...
+    }
+}
+```
+
+**File:** `src/Merchello/Startup.cs` (or Program.cs)
+
+Configure the rate limiting policy:
+```csharp
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("downloads", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 30;           // 30 requests
+        limiterOptions.Window = TimeSpan.FromMinutes(1);  // per minute
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 5;             // Allow 5 queued requests
+    });
+
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await context.HttpContext.Response.WriteAsync(
+            "Too many download requests. Please wait before trying again.", token);
+    };
+});
+
+// In Configure/app pipeline:
+app.UseRateLimiter();
+```
+
+### Additional Rate Limiting Considerations
+
+| Endpoint | Rate Limit | Window | Notes |
+|----------|------------|--------|-------|
+| `GET /api/merchello/downloads/{token}` | 30 | 1 min | Per IP, prevents bulk downloading |
+| `POST /api/merchello/downloads/regenerate` | 5 | 1 hour | Per customer, prevents link abuse |
+
+**Alternative: Per-Customer Rate Limiting**
+
+For authenticated endpoints, rate limit by customer ID instead of IP:
+```csharp
+options.AddPolicy("customer-downloads", context =>
+{
+    var customerId = context.User?.FindFirst("CustomerId")?.Value ?? context.Connection.RemoteIpAddress?.ToString();
+    return RateLimitPartition.GetFixedWindowLimiter(customerId, _ => new FixedWindowRateLimiterOptions
+    {
+        PermitLimit = 30,
+        Window = TimeSpan.FromMinutes(1)
+    });
+});
+```

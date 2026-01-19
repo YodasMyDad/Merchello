@@ -192,6 +192,15 @@ export function initSinglePageCheckout() {
                     this.form.shipping.postalCode
                 );
 
+                // Digital products require account (signed in OR valid password for new account)
+                const store = this.$store.checkout;
+                if (store?.hasDigitalProducts && !store?.isLoggedIn) {
+                    // Must either have signed in during checkout OR have valid password for new account
+                    if (!this.isSignedIn && (!this.form.password || !this.passwordValid)) {
+                        return false;
+                    }
+                }
+
                 return this.allItemsShippable &&
                        this.allShippingSelected &&
                        !this.shippingLoading &&
@@ -210,6 +219,18 @@ export function initSinglePageCheckout() {
                 return calculateShippingTotal(this.shippingGroups, this.shippingSelections);
             },
 
+            /**
+             * Whether to show the "Create an account" button.
+             * Hidden when:
+             * - User is already logged in
+             * - Email belongs to an existing account (set after email blur check)
+             * - User has already expanded the account section
+             */
+            get showCreateAccountButton() {
+                const store = this.$store.checkout;
+                return !store?.isLoggedIn && !store?.emailHasAccount && !this.showAccountSection;
+            },
+
             // ============================================
             // Lifecycle
             // ============================================
@@ -218,6 +239,12 @@ export function initSinglePageCheckout() {
                 // Sync local state from store
                 this.shippingSameAsBilling = this.$store.checkout?.form?.sameAsBilling ?? true;
                 this._shippingCalculated = (this.$store.checkout?.shippingGroups?.length ?? 0) > 0;
+
+                // Force account creation section open for digital products
+                const store = this.$store.checkout;
+                if (store?.hasDigitalProducts && !store?.isLoggedIn) {
+                    this.showAccountSection = true;
+                }
 
                 // Load regions for initial countries
                 if (this.form.billing.countryCode) {
@@ -919,6 +946,25 @@ export function initSinglePageCheckout() {
                 }
             },
 
+            /**
+             * Check if email belongs to an existing account (for hiding create account button).
+             * This is a silent check that only updates store state - it does NOT trigger sign-in flow.
+             * Used on email blur to hide the "Create an account" button for existing customers.
+             */
+            async checkEmailForAccountVisibility() {
+                if (!this.form.email) return;
+                const store = this.$store.checkout;
+
+                try {
+                    const data = await checkoutApi.checkEmail(this.form.email);
+                    store?.setEmailHasAccount(data.hasExistingAccount === true);
+                } catch {
+                    // Silently fail - don't disrupt checkout flow
+                    // Keep button visible if check fails
+                    store?.setEmailHasAccount(false);
+                }
+            },
+
             async validatePassword() {
                 if (!this.form.password) {
                     this.passwordErrors = [];
@@ -959,6 +1005,12 @@ export function initSinglePageCheckout() {
             },
 
             cancelAccountSection() {
+                // Don't allow canceling if digital products require account
+                const store = this.$store.checkout;
+                if (store?.hasDigitalProducts && !store?.isLoggedIn) {
+                    return; // Can't cancel - account required for digital products
+                }
+
                 this.showAccountSection = false;
                 this.form.password = '';
                 this.passwordErrors = [];
@@ -991,6 +1043,14 @@ export function initSinglePageCheckout() {
                             window.MerchelloSinglePageAnalytics.trackContactInfo(this.form.email);
                         }
                         this.captureEmail().catch(err => console.error('Email capture failed:', err));
+
+                        // Check if email belongs to an existing account (for hiding create account button)
+                        // Only check if user is not already logged in
+                        if (!store?.isLoggedIn) {
+                            this.checkEmailForAccountVisibility()
+                                .catch(err => console.error('Email account check failed:', err));
+                        }
+
                         if (this.selectedPaymentMethod && !this.paymentSession) {
                             this.initializePaymentForm(this.selectedPaymentMethod)
                                 .catch(err => console.error('Payment form init failed:', err));

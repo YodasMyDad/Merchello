@@ -42,6 +42,9 @@ public class ProductRootDbMapping : IEntityTypeConfiguration<ProductRoot>
         // View selection for front-end rendering
         builder.Property(x => x.ViewAlias).HasMaxLength(200);
 
+        // Extended data for digital products and plugin metadata
+        builder.Property(x => x.ExtendedData).ToJsonConversion(3000);
+
         // Index for front-end URL routing performance
         builder.HasIndex(x => x.RootUrl);
         builder.HasIndex(x => x.ProductTypeId);

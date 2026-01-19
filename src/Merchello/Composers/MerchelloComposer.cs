@@ -1,18 +1,13 @@
+using System.Threading.RateLimiting;
 using Asp.Versioning;
-using Merchello.Core;
-using Merchello.Core.Accounting.Handlers;
-using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Data;
-using Merchello.Core.Data.Handlers;
-using Merchello.Core.Payments.Handlers;
-using Merchello.Core.Tax.Handlers;
-using Merchello.Email.Services;
-using Merchello.Factories;
-using Merchello.Routing;
-using Merchello.Services;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Razor;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -26,7 +21,6 @@ using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Api.Management.OpenApi;
 using Umbraco.Cms.Api.Common.OpenApi;
-using Umbraco.Cms.Core.Routing;
 
 namespace Merchello.Composers
 {
@@ -34,15 +28,15 @@ namespace Merchello.Composers
     /// Main Merchello composer for Umbraco web applications.
     /// </summary>
     /// <remarks>
-    /// <para>This composer handles web-specific registrations that require Umbraco.Cms.Web.Common:</para>
+    /// <para>This composer registers Merchello with Umbraco and configures web-specific settings:</para>
     /// <list type="bullet">
-    ///   <item><description>Calls AddMerch() to register all core Merchello services</description></item>
-    ///   <item><description>Registers web-specific services (e.g., CheckoutMemberService)</description></item>
-    ///   <item><description>Configures startup handlers (migrations, seeding, data types)</description></item>
-    ///   <item><description>Registers content finders for product and checkout URL routing</description></item>
+    ///   <item><description>Calls AddMerch() to register all Merchello services, handlers, and content finders</description></item>
+    ///   <item><description>Configures rate limiting for download endpoints</description></item>
+    ///   <item><description>Configures Razor view locations for email templates</description></item>
     ///   <item><description>Configures Swagger/OpenAPI for the backoffice API</description></item>
     /// </list>
     /// <para>
+    /// All service registrations are centralized in Startup.AddMerch().
     /// Database-specific composers (EFCoreSqlServerComposer, EFCoreSqliteComposer) handle
     /// migration providers separately based on the configured database provider.
     /// </para>
@@ -52,64 +46,44 @@ namespace Merchello.Composers
         public void Compose(IUmbracoBuilder builder)
         {
             // =====================================================
-            // Core Services
+            // Core Services & Handlers
             // =====================================================
-            // Registers all Merchello services, factories, and background jobs.
-            // See Merchello.Core.Startup.AddMerch() for full registration details.
+            // Registers all Merchello services, factories, background jobs,
+            // notification handlers, startup handlers, and content finders.
+            // See Merchello.Startup.AddMerch() for full registration details.
 
             builder.AddMerch();
 
             // =====================================================
-            // Web-Specific Services
+            // Rate Limiting
             // =====================================================
-            // Services that require Umbraco.Cms.Web.Common (not available in Core project).
+            // Configure rate limiting for download endpoints to prevent abuse.
+            // Middleware is auto-registered via MerchelloStartupFilter.
 
-            // CheckoutMemberService requires IMemberSignInManager for member authentication
-            builder.Services.AddScoped<ICheckoutMemberService, CheckoutMemberService>();
+            builder.Services.AddRateLimiter(options =>
+            {
+                // Fixed window limiter for download endpoint
+                options.AddFixedWindowLimiter("downloads", limiterOptions =>
+                {
+                    limiterOptions.PermitLimit = 30;                    // 30 requests
+                    limiterOptions.Window = TimeSpan.FromMinutes(1);    // per minute
+                    limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                    limiterOptions.QueueLimit = 5;                      // Allow 5 queued requests
+                });
 
-            // EmailRazorViewRenderer for rendering email templates with MJML support
-            builder.Services.AddScoped<IEmailRazorViewRenderer, EmailRazorViewRenderer>();
+                options.OnRejected = async (context, token) =>
+                {
+                    context.HttpContext.Response.StatusCode = 429; // TooManyRequests
+                    await context.HttpContext.Response.WriteAsync(
+                        "Too many download requests. Please wait before trying again.", token);
+                };
+            });
 
-            // =====================================================
-            // Startup Notification Handlers
-            // =====================================================
-            // These run once when Umbraco starts, in registration order.
-
-            // 1. Run EF Core migrations to ensure database schema is up to date
-            builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, RunMerchMigration>();
-
-            // 2. Seed initial data (countries, currencies, etc.) if database is empty
-            builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, SeedDataNotificationHandler>();
-
-            // 3. Ensure built-in payment providers (Manual Payment) exist and are enabled
-            builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, EnsureBuiltInPaymentProvidersHandler>();
-
-            // 4. Initialize Merchello DataTypes (Product Description TipTap editor)
-            builder.Services.AddSingleton<MerchelloDataTypeInitializer>();
-            builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, InitializeMerchelloDataTypesHandler>();
-
-            // 5. Seed US shipping tax overrides (states where shipping is not taxable)
-            builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, EnsureShippingTaxOverridesHandler>();
+            // Register startup filter to add rate limiter middleware to pipeline
+            builder.Services.AddTransient<IStartupFilter, MerchelloStartupFilter>();
 
             // =====================================================
-            // Front-End Rendering
-            // =====================================================
-            // Factories and services for rendering products on the public storefront.
-
-            builder.Services.AddScoped<MerchelloPublishedElementFactory>();
-            builder.Services.AddScoped<IMerchelloViewModelFactory, MerchelloViewModelFactory>();
-            builder.Services.AddSingleton<IRichTextRenderer, RichTextRenderer>();
-
-            // =====================================================
-            // Content Finders (URL Routing)
-            // =====================================================
-            // Custom content finders for product and checkout URL routing.
-
-            builder.ContentFinders().InsertAfter<ContentFinderByUrlNew, ProductContentFinder>();
-            builder.ContentFinders().InsertAfter<ProductContentFinder, CheckoutContentFinder>();
-
-            // =====================================================
-            // Razor & Swagger Configuration
+            // Razor View Locations
             // =====================================================
 
             // Add standard MVC view locations for Razor views
@@ -121,6 +95,10 @@ namespace Merchello.Composers
                 options.ViewLocationFormats.Add("/Views/Emails/{0}.cshtml");
                 options.ViewLocationFormats.Add("/Views/Emails/Shared/{0}.cshtml");
             });
+
+            // =====================================================
+            // Swagger/OpenAPI Configuration
+            // =====================================================
 
             // Custom operation ID handler for cleaner Swagger method names
             builder.Services.AddSingleton<IOperationIdHandler, CustomOperationHandler>();
@@ -141,16 +119,9 @@ namespace Merchello.Composers
                 {
                     Title = "Merchello Backoffice API",
                     Version = "1.0",
-                    // Contact = new OpenApiContact
-                    // {
-                    //     Name = "Some Developer",
-                    //     Email = "you@company.com",
-                    //     Url = new Uri("https://company.com")
-                    // }
                 });
 
-                // Enable Umbraco authentication for the "Example" Swagger document
-                // PR: https://github.com/umbraco/Umbraco-CMS/pull/15699
+                // Enable Umbraco authentication for the Merchello Swagger document
                 opt.OperationFilter<MerchelloOperationSecurityFilter>();
             });
         }
@@ -175,6 +146,26 @@ namespace Merchello.Composers
             }
 
             public override string Handle(ApiDescription apiDescription) => $"{apiDescription.ActionDescriptor.RouteValues["action"]}";
+        }
+    }
+
+    /// <summary>
+    /// Startup filter that adds Merchello middleware to the request pipeline.
+    /// This allows middleware to be added from the NuGet package without requiring
+    /// changes to the consuming application's Program.cs.
+    /// </summary>
+    public class MerchelloStartupFilter : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
+        {
+            return app =>
+            {
+                // Add rate limiter middleware before other middleware
+                app.UseRateLimiter();
+
+                // Continue with the rest of the pipeline
+                next(app);
+            };
         }
     }
 

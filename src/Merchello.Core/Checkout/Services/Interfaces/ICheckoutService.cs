@@ -289,4 +289,13 @@ public interface ICheckoutService
     Task<CrudResult<InitializeCheckoutResult>> InitializeCheckoutAsync(
         InitializeCheckoutParameters parameters,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks if the basket contains any digital products.
+    /// Used to enforce account creation for digital product purchases.
+    /// </summary>
+    /// <param name="basket">The basket to check.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if basket contains digital products.</returns>
+    Task<bool> BasketHasDigitalProductsAsync(Basket basket, CancellationToken cancellationToken = default);
 }

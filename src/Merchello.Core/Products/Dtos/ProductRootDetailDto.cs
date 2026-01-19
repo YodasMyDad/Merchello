@@ -14,6 +14,28 @@ public class ProductRootDetailDto
     public string? GoogleShoppingFeedCategory { get; set; }
     public bool IsDigitalProduct { get; set; }
 
+    // Digital product settings (mapped from ExtendedData)
+
+    /// <summary>
+    /// How digital products are delivered: "InstantDownload" or "EmailDelivered".
+    /// </summary>
+    public string? DigitalDeliveryMethod { get; set; }
+
+    /// <summary>
+    /// List of Umbraco Media IDs for digital files.
+    /// </summary>
+    public List<string>? DigitalFileIds { get; set; }
+
+    /// <summary>
+    /// Number of days download links remain valid. 0 = never expires.
+    /// </summary>
+    public int? DownloadLinkExpiryDays { get; set; }
+
+    /// <summary>
+    /// Maximum downloads per link. 0 = unlimited.
+    /// </summary>
+    public int? MaxDownloadsPerLink { get; set; }
+
     /// <summary>
     /// Aggregate stock status across all variants.
     /// Calculated by backend - frontend should use this instead of deriving status locally.

@@ -2177,6 +2177,21 @@ public class CheckoutService(
         return true;
     }
 
+    /// <inheritdoc />
+    public async Task<bool> BasketHasDigitalProductsAsync(Basket basket, CancellationToken cancellationToken = default)
+    {
+        foreach (var lineItem in basket.LineItems.Where(li => li.ProductId.HasValue))
+        {
+            var product = await productService.GetProductRoot(lineItem.ProductId!.Value, cancellationToken: cancellationToken);
+            if (product is { IsDigitalProduct: true })
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private sealed class NoopLocationsService : ILocationsService
     {
         public Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesAsync(CancellationToken ct = default)
