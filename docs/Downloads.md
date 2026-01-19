@@ -10,6 +10,10 @@ Implement complete digital product functionality including file storage, secure 
 - Configurable link expiry (days), unlimited downloads during validity
 - Digital-only orders auto-complete on successful payment
 
+**Constraints:**
+- **No variants for digital products** - UI forces all product options to be add-ons only (IsVariant = false)
+- **Use ExtendedData** - Digital settings stored via ProductRoot.ExtendedData with constant keys (no new model properties)
+
 ---
 
 ## Phase 1: Data Model
@@ -26,17 +30,60 @@ public enum DigitalDeliveryMethod
 }
 ```
 
-### 1.2 Extend ProductRoot
-**File:** `src/Merchello.Core/Products/Models/ProductRoot.cs`
+### 1.2 ExtendedData Keys (No ProductRoot Changes)
+**File:** `src/Merchello.Core/Constants.cs`
 
-Add properties:
+Add to `ExtendedDataKeys` class:
 ```csharp
-public DigitalDeliveryMethod DigitalDeliveryMethod { get; set; } = DigitalDeliveryMethod.InstantDownload;
-public List<string> DigitalFileIds { get; set; } = [];  // Umbraco Media IDs
-public int DownloadLinkExpiryDays { get; set; } = 30;   // 0 = unlimited
+public const string DigitalDeliveryMethod = "DigitalDeliveryMethod";    // "InstantDownload" or "EmailDelivered"
+public const string DigitalFileIds = "DigitalFileIds";                  // JSON array of Umbraco Media IDs
+public const string DownloadLinkExpiryDays = "DownloadLinkExpiryDays";  // int as string, 0 = unlimited
 ```
 
-### 1.3 New Entity: DownloadLink
+### 1.3 ExtendedData Helper Extensions
+**New File:** `src/Merchello.Core/DigitalProducts/Extensions/ProductRootDigitalExtensions.cs`
+```csharp
+using System.Text.Json;
+using Merchello.Core.DigitalProducts.Models;
+using Merchello.Core.Products.Models;
+
+namespace Merchello.Core.DigitalProducts.Extensions;
+
+public static class ProductRootDigitalExtensions
+{
+    public static DigitalDeliveryMethod GetDigitalDeliveryMethod(this ProductRoot product)
+    {
+        if (product.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DigitalDeliveryMethod, out var value))
+            return Enum.Parse<DigitalDeliveryMethod>(value?.ToString() ?? "InstantDownload");
+        return DigitalDeliveryMethod.InstantDownload;
+    }
+
+    public static void SetDigitalDeliveryMethod(this ProductRoot product, DigitalDeliveryMethod method)
+        => product.ExtendedData[Constants.ExtendedDataKeys.DigitalDeliveryMethod] = method.ToString();
+
+    public static List<string> GetDigitalFileIds(this ProductRoot product)
+    {
+        if (product.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DigitalFileIds, out var value))
+            return JsonSerializer.Deserialize<List<string>>(value?.ToString() ?? "[]") ?? [];
+        return [];
+    }
+
+    public static void SetDigitalFileIds(this ProductRoot product, List<string> fileIds)
+        => product.ExtendedData[Constants.ExtendedDataKeys.DigitalFileIds] = JsonSerializer.Serialize(fileIds);
+
+    public static int GetDownloadLinkExpiryDays(this ProductRoot product)
+    {
+        if (product.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DownloadLinkExpiryDays, out var value))
+            return int.TryParse(value?.ToString(), out var days) ? days : 30;
+        return 30;
+    }
+
+    public static void SetDownloadLinkExpiryDays(this ProductRoot product, int days)
+        => product.ExtendedData[Constants.ExtendedDataKeys.DownloadLinkExpiryDays] = days.ToString();
+}
+```
+
+### 1.4 New Entity: DownloadLink
 **New File:** `src/Merchello.Core/DigitalProducts/Models/DownloadLink.cs`
 
 ```csharp
@@ -59,7 +106,7 @@ public class DownloadLink
 }
 ```
 
-### 1.4 Database Mapping & Migration
+### 1.5 Database Mapping & Migration
 **New File:** `src/Merchello.Core/DigitalProducts/Mapping/DownloadLinkDbMapping.cs`
 
 **Update:** `src/Merchello.Core/Data/Context/MerchelloDbContext.cs`
@@ -67,13 +114,65 @@ public class DownloadLink
 public DbSet<DownloadLink> DownloadLinks => Set<DownloadLink>();
 ```
 
-Update DTOs:
+**Note:** No ProductRoot table changes needed - digital settings stored in ExtendedData (JSON column).
+
+Update DTOs (convenience properties that map to/from ExtendedData):
 - `CreateProductRootDto` / `UpdateProductRootDto` - add digital product fields
 - `ProductRootDetailDto` - add digital product fields for reads
 
+```csharp
+// Add to CreateProductRootDto and UpdateProductRootDto:
+public string? DigitalDeliveryMethod { get; set; }  // "InstantDownload" or "EmailDelivered"
+public List<string>? DigitalFileIds { get; set; }
+public int? DownloadLinkExpiryDays { get; set; }
+
+// Add to ProductRootDetailDto:
+public string? DigitalDeliveryMethod { get; set; }
+public List<string>? DigitalFileIds { get; set; }
+public int? DownloadLinkExpiryDays { get; set; }
+```
+
+**ProductService mapping:** Use extension methods to map DTO fields to/from ExtendedData during create/update/read operations.
+
 Run migration script after changes:
 ```powershell
-.\scripts\add-migration.ps1 -Name AddDigitalProducts
+.\scripts\add-migration.ps1 -Name AddDownloadLinks
+```
+
+### 1.6 Factory
+**New File:** `src/Merchello.Core/DigitalProducts/Factories/DownloadLinkFactory.cs`
+
+```csharp
+namespace Merchello.Core.DigitalProducts.Factories;
+
+public class DownloadLinkFactory(MerchelloSettings settings)
+{
+    public DownloadLink Create(CreateDownloadLinkParameters parameters)
+    {
+        var expiryDays = parameters.ExpiryDays ?? settings.DefaultDownloadLinkExpiryDays;
+
+        return new DownloadLink
+        {
+            Id = Guid.NewGuid(),
+            InvoiceId = parameters.InvoiceId,
+            LineItemId = parameters.LineItemId,
+            CustomerId = parameters.CustomerId,
+            MediaId = parameters.MediaId,
+            FileName = parameters.FileName,
+            Token = GenerateSecureToken(parameters),
+            ExpiresUtc = expiryDays > 0 ? DateTime.UtcNow.AddDays(expiryDays) : null,
+            DownloadCount = 0
+        };
+    }
+
+    private string GenerateSecureToken(CreateDownloadLinkParameters parameters)
+    {
+        var payload = $"{parameters.InvoiceId}:{parameters.CustomerId}:{parameters.MediaId}";
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(settings.DownloadTokenSecret));
+        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
+        return $"{parameters.InvoiceId:N}-{Convert.ToBase64String(hash).Replace("+", "-").Replace("/", "_").TrimEnd('=')}";
+    }
+}
 ```
 
 ---
@@ -89,19 +188,81 @@ Run migration script after changes:
 
 Key methods:
 ```csharp
-Task<List<DownloadLink>> CreateDownloadLinksAsync(Guid invoiceId, CancellationToken ct);
-Task<DownloadLink?> ValidateDownloadTokenAsync(string token, Guid? customerId, CancellationToken ct);
-Task RecordDownloadAsync(Guid downloadLinkId, CancellationToken ct);
-Task<List<DownloadLink>> GetCustomerDownloadsAsync(Guid customerId, CancellationToken ct);
+Task<CrudResult<List<DownloadLink>>> CreateDownloadLinksAsync(CreateDownloadLinksParameters parameters, CancellationToken ct);
+Task<CrudResult<DownloadLink>> ValidateDownloadTokenAsync(ValidateDownloadTokenParameters parameters, CancellationToken ct);
+Task<CrudResult> RecordDownloadAsync(Guid downloadLinkId, CancellationToken ct);
+Task<List<DownloadLink>> GetCustomerDownloadsAsync(GetCustomerDownloadsParameters parameters, CancellationToken ct);
 Task<List<DownloadLink>> GetInvoiceDownloadsAsync(Guid invoiceId, CancellationToken ct);
 Task<bool> IsDigitalOnlyInvoiceAsync(Guid invoiceId, CancellationToken ct);
-Task<List<DownloadLink>> RegenerateDownloadLinksAsync(Guid invoiceId, CancellationToken ct);
+Task<CrudResult<List<DownloadLink>>> RegenerateDownloadLinksAsync(RegenerateDownloadLinksParameters parameters, CancellationToken ct);
 ```
 
 ### 2.1.1 DI Registration
 Register service in `MerchelloBuilderExtensions.cs`:
 ```csharp
 services.AddScoped<IDigitalProductService, DigitalProductService>();
+services.AddSingleton<DownloadLinkFactory>();
+```
+
+### 2.1.2 Service Parameters (RORO Pattern)
+**New Folder:** `src/Merchello.Core/DigitalProducts/Services/Parameters/`
+
+**New File:** `CreateDownloadLinksParameters.cs`
+```csharp
+namespace Merchello.Core.DigitalProducts.Services.Parameters;
+
+public class CreateDownloadLinksParameters
+{
+    public required Guid InvoiceId { get; init; }
+}
+```
+
+**New File:** `CreateDownloadLinkParameters.cs` (used by factory)
+```csharp
+namespace Merchello.Core.DigitalProducts.Services.Parameters;
+
+public class CreateDownloadLinkParameters
+{
+    public required Guid InvoiceId { get; init; }
+    public required Guid LineItemId { get; init; }
+    public Guid? CustomerId { get; init; }
+    public required string MediaId { get; init; }
+    public required string FileName { get; init; }
+    public int? ExpiryDays { get; init; }
+}
+```
+
+**New File:** `ValidateDownloadTokenParameters.cs`
+```csharp
+namespace Merchello.Core.DigitalProducts.Services.Parameters;
+
+public class ValidateDownloadTokenParameters
+{
+    public required string Token { get; init; }
+    public Guid? CustomerId { get; init; }
+}
+```
+
+**New File:** `RegenerateDownloadLinksParameters.cs`
+```csharp
+namespace Merchello.Core.DigitalProducts.Services.Parameters;
+
+public class RegenerateDownloadLinksParameters
+{
+    public required Guid InvoiceId { get; init; }
+    public int? NewExpiryDays { get; init; }
+}
+```
+
+**New File:** `GetCustomerDownloadsParameters.cs`
+```csharp
+namespace Merchello.Core.DigitalProducts.Services.Parameters;
+
+public class GetCustomerDownloadsParameters
+{
+    public required Guid CustomerId { get; init; }
+    public bool IncludeExpired { get; init; } = false;
+}
 ```
 
 ### 2.2 Secure Token Generation
@@ -261,18 +422,176 @@ public Task HandleAsync(DigitalProductDeliveredNotification notification, Cancel
     => ProcessEmailsAsync(Constants.EmailTopics.DigitalProductDelivered, notification, notification.Invoice.Id, "Invoice", ct);
 ```
 
-### 4.5 Available Tokens
-- `{{invoice.invoiceNumber}}`
-- `{{invoice.billingAddress.email}}`
-- `{{invoice.billingAddress.firstName}}`
-- `{{downloadLinks}}` (enumerable for iteration in template)
-- `{{store.name}}`, `{{store.websiteUrl}}`
+### 4.5 Available Tokens (for Config Expressions)
+
+Tokens are used in email configuration fields (To, From, Subject) and are resolved by the `EmailTokenResolver`:
+
+```
+{{invoice.invoiceNumber}}
+{{invoice.billingAddress.email}}
+{{invoice.billingAddress.name}}
+{{store.name}}
+{{store.websiteUrl}}
+{{store.supportEmail}}
+```
+
+**Important:** Tokens are for simple values only. The `DownloadLinks` collection is rendered in templates via Razor `@foreach`, not token substitution. See section 4.7 for the template example.
+
+### 4.6 Webhook Topic
+**File:** `src/Merchello.Core/Constants.cs`
+
+Add to `WebhookTopics`:
+```csharp
+public const string DigitalDelivered = "digital.delivered";
+```
+
+**File:** `src/Merchello.Core/Webhooks/Services/WebhookTopicRegistry.cs`
+
+Add using statement:
+```csharp
+using Merchello.Core.DigitalProducts.Notifications;
+```
+
+Add to topic dictionary:
+```csharp
+[Constants.WebhookTopics.DigitalDelivered] = new WebhookTopic
+{
+    Topic = Constants.WebhookTopics.DigitalDelivered,
+    DisplayName = "Digital Product Delivered",
+    Description = "Triggered when digital product download links are ready.",
+    Category = "Digital Products",
+    NotificationType = typeof(DigitalProductDeliveredNotification)
+}
+```
+
+**File:** `src/Merchello.Core/Webhooks/Handlers/WebhookNotificationHandler.cs`
+
+Add using statement:
+```csharp
+using Merchello.Core.DigitalProducts.Notifications;
+```
+
+Add the notification interface to class declaration:
+```csharp
+INotificationAsyncHandler<DigitalProductDeliveredNotification>
+```
+
+Add handler method:
+```csharp
+public Task HandleAsync(DigitalProductDeliveredNotification notification, CancellationToken ct)
+    => ProcessWebhooksAsync(Constants.WebhookTopics.DigitalDelivered, notification, notification.Invoice.Id, "Invoice", ct);
+```
+
+### 4.7 Email Template
+**New File:** `src/Merchello.Site/Views/Emails/DigitalProductDelivered.cshtml`
+
+```cshtml
+@using Merchello.Core.Email.Models
+@using Merchello.Core.DigitalProducts.Notifications
+@using Merchello.Email.Extensions
+@model EmailModel<DigitalProductDeliveredNotification>
+
+@Html.Mjml().EmailStart(
+    "Your Digital Products Are Ready",
+    "Download your files now")
+
+@Html.Mjml().Header(Model.Store)
+
+<mj-section>
+  <mj-column>
+    @Html.Mjml().Heading("Your Downloads Are Ready!")
+    @Html.Mjml().Text($"Hi {Model.Notification.Invoice.BillingAddress?.Name ?? "there"},")
+    <mj-text>
+      Thank you for your purchase! Your digital products are ready for download.
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+@* Download Links Section *@
+@if (Model.Notification.DownloadLinks.Count > 0)
+{
+<mj-section padding="0 20px">
+  <mj-column>
+    <mj-text font-weight="bold" font-size="16px">Your Downloads</mj-text>
+    <mj-table>
+      <tr style="border-bottom: 1px solid #ecedee;">
+        <th style="padding: 10px 0; text-align: left;">File</th>
+        <th style="padding: 10px 0; text-align: right;">Expires</th>
+      </tr>
+      @foreach (var link in Model.Notification.DownloadLinks)
+      {
+        var downloadUrl = $"{Model.Store.WebsiteUrl}/api/merchello/downloads/{link.Token}";
+        var expiryText = link.ExpiresUtc.HasValue
+            ? link.ExpiresUtc.Value.ToString("MMM dd, yyyy")
+            : "Never";
+        <tr style="border-bottom: 1px solid #ecedee;">
+          <td style="padding: 15px 0;">
+            <a href="@downloadUrl" style="color: #007bff; text-decoration: none; font-weight: 500;">
+              @link.FileName
+            </a>
+          </td>
+          <td style="padding: 15px 0; text-align: right; color: #666;">
+            @expiryText
+          </td>
+        </tr>
+      }
+    </mj-table>
+  </mj-column>
+</mj-section>
+}
+
+<mj-section>
+  <mj-column>
+    @Html.Mjml().Spacer(20)
+    <mj-text font-size="13px" color="#666">
+      <strong>Important:</strong> Your download links
+      @if (Model.Notification.DownloadLinks.FirstOrDefault()?.ExpiresUtc != null)
+      {
+        <span>will expire. Please download your files before the expiry date.</span>
+      }
+      else
+      {
+        <span>do not expire, but we recommend downloading and backing up your files.</span>
+      }
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+@Html.Mjml().Footer(Model.Store)
+@Html.Mjml().EmailEnd()
+```
+
+### 4.8 Handler Registration
+**File:** `src/Merchello.Core/Startup.cs`
+
+Add after other email/webhook handlers (around line 330):
+
+```csharp
+// Digital Products
+builder.AddNotificationAsyncHandler<DigitalProductDeliveredNotification, EmailNotificationHandler>();
+builder.AddNotificationAsyncHandler<DigitalProductDeliveredNotification, WebhookNotificationHandler>();
+```
 
 ---
 
 ## Phase 5: Frontend UI
 
-### 5.1 Product Workspace - Digital Panel
+### 5.1 Product Options - Force Add-ons for Digital Products
+**File:** `src/Merchello/Client/src/products/components/product-options-editor.element.ts` (or equivalent)
+
+When `isDigitalProduct === true`:
+- Hide or disable the "Is Variant" toggle/checkbox on product options
+- Force `isVariant = false` for all options added to digital products
+- Show info message: "Digital products use add-on options only (no variants)"
+
+```typescript
+// In product options editor, when adding/editing an option:
+if (this.isDigitalProduct) {
+  option.isVariant = false;  // Force add-on mode
+}
+```
+
+### 5.2 Product Workspace - Digital Panel
 **File:** `src/Merchello/Client/src/products/components/product-detail.element.ts`
 
 When `isDigitalProduct` is checked, show new panel:
@@ -302,7 +621,7 @@ When `isDigitalProduct` is checked, show new panel:
 </uui-box>
 ```
 
-### 5.2 TypeScript Types
+### 5.3 TypeScript Types
 **File:** `src/Merchello/Client/src/products/types/product.types.ts`
 
 ```typescript
@@ -314,7 +633,7 @@ digitalFileIds?: string[];
 downloadLinkExpiryDays?: number;
 ```
 
-### 5.3 Order Confirmation
+### 5.4 Order Confirmation
 For "Instant Download" products, display download links on confirmation page.
 
 **New DTO:** `src/Merchello.Core/DigitalProducts/Dtos/DownloadLinkDto.cs`
@@ -334,7 +653,7 @@ public class DownloadLinkDto
 
 Add `DownloadLinks` property to checkout completion response.
 
-### 5.4 Admin Order View - Downloads Tab
+### 5.5 Admin Order View - Downloads Tab
 **New File:** `src/Merchello/Client/src/orders/components/order-downloads.element.ts`
 
 Display for each download link:
@@ -370,35 +689,76 @@ public int DefaultDownloadLinkExpiryDays { get; set; } = 30;
 
 ## File Summary
 
+### Module Structure
+```
+DigitalProducts/
+├── Dtos/
+│   └── DownloadLinkDto.cs
+├── Extensions/
+│   └── ProductRootDigitalExtensions.cs
+├── Factories/
+│   └── DownloadLinkFactory.cs
+├── Handlers/
+│   └── DigitalProductPaymentHandler.cs
+├── Mapping/
+│   └── DownloadLinkDbMapping.cs
+├── Models/
+│   ├── DigitalDeliveryMethod.cs
+│   └── DownloadLink.cs
+├── Notifications/
+│   └── DigitalProductDeliveredNotification.cs
+└── Services/
+    ├── Interfaces/
+    │   └── IDigitalProductService.cs
+    ├── Parameters/
+    │   ├── CreateDownloadLinksParameters.cs
+    │   ├── CreateDownloadLinkParameters.cs
+    │   ├── GetCustomerDownloadsParameters.cs
+    │   ├── RegenerateDownloadLinksParameters.cs
+    │   └── ValidateDownloadTokenParameters.cs
+    └── DigitalProductService.cs
+```
+
 ### New Files
 | File | Purpose |
 |------|---------|
 | `DigitalProducts/Models/DigitalDeliveryMethod.cs` | Delivery method enum |
 | `DigitalProducts/Models/DownloadLink.cs` | Download link entity |
+| `DigitalProducts/Extensions/ProductRootDigitalExtensions.cs` | ExtendedData helper methods |
 | `DigitalProducts/Dtos/DownloadLinkDto.cs` | API DTO |
+| `DigitalProducts/Factories/DownloadLinkFactory.cs` | Factory for creating download links |
 | `DigitalProducts/Mapping/DownloadLinkDbMapping.cs` | EF Core mapping |
 | `DigitalProducts/Services/Interfaces/IDigitalProductService.cs` | Service interface |
 | `DigitalProducts/Services/DigitalProductService.cs` | Service implementation |
+| `DigitalProducts/Services/Parameters/CreateDownloadLinksParameters.cs` | RORO parameter object |
+| `DigitalProducts/Services/Parameters/CreateDownloadLinkParameters.cs` | Factory parameter object |
+| `DigitalProducts/Services/Parameters/ValidateDownloadTokenParameters.cs` | RORO parameter object |
+| `DigitalProducts/Services/Parameters/RegenerateDownloadLinksParameters.cs` | RORO parameter object |
+| `DigitalProducts/Services/Parameters/GetCustomerDownloadsParameters.cs` | RORO parameter object |
 | `DigitalProducts/Handlers/DigitalProductPaymentHandler.cs` | Payment notification handler |
-| `DigitalProducts/Notifications/DigitalProductDeliveredNotification.cs` | Email notification |
+| `DigitalProducts/Notifications/DigitalProductDeliveredNotification.cs` | Email/webhook notification |
 | `Controllers/DownloadsController.cs` | Download API endpoints |
 | `Client/src/orders/components/order-downloads.element.ts` | Admin downloads view |
+| `Views/Emails/DigitalProductDelivered.cshtml` | Email template for digital delivery |
 
 ### Modified Files
 | File | Changes |
 |------|---------|
-| `Products/Models/ProductRoot.cs` | Add digital product fields |
-| `Products/Dtos/CreateProductRootDto.cs` | Add digital fields |
-| `Products/Dtos/UpdateProductRootDto.cs` | Add digital fields |
-| `Products/Dtos/ProductRootDetailDto.cs` | Add digital fields |
-| `Products/Mapping/ProductRootDbMapping.cs` | Map new columns |
+| `Products/Dtos/CreateProductRootDto.cs` | Add digital convenience fields (map to ExtendedData) |
+| `Products/Dtos/UpdateProductRootDto.cs` | Add digital convenience fields (map to ExtendedData) |
+| `Products/Dtos/ProductRootDetailDto.cs` | Add digital convenience fields (map from ExtendedData) |
+| `Products/Services/ProductService.cs` | Map DTO digital fields to/from ExtendedData |
 | `Data/Context/MerchelloDbContext.cs` | Add DownloadLinks DbSet |
-| `Constants.cs` | Add ExtendedDataKeys, EmailTopics |
+| `Constants.cs` | Add ExtendedDataKeys, EmailTopics, WebhookTopics |
 | `Email/Services/EmailTopicRegistry.cs` | Register digital delivery topic |
 | `Email/Handlers/EmailNotificationHandler.cs` | Handle digital notification |
+| `Webhooks/Services/WebhookTopicRegistry.cs` | Register digital delivery topic |
+| `Webhooks/Handlers/WebhookNotificationHandler.cs` | Handle digital notification |
 | `Shared/Models/MerchelloSettings.cs` | Add config options |
-| `Composing/MerchelloBuilderExtensions.cs` | Register IDigitalProductService |
+| `Composing/MerchelloBuilderExtensions.cs` | Register IDigitalProductService, DownloadLinkFactory |
+| `Startup.cs` | Register notification handlers for email and webhooks |
 | `Client/src/products/components/product-detail.element.ts` | Digital product panel |
+| `Client/src/products/components/product-options-*.element.ts` | Force add-ons only for digital products |
 | `Client/src/products/types/product.types.ts` | TypeScript types |
 
 ---
@@ -415,14 +775,26 @@ public int DefaultDownloadLinkExpiryDays { get; set; } = 30;
 ### Frontend Testing
 1. Toggle "Digital Product" checkbox, verify panel appears
 2. Select files via media picker, verify saved
-3. Purchase digital product, verify links on confirmation page
-4. Admin view: verify download history displays correctly
+3. **Add product options to digital product, verify IsVariant toggle is hidden/disabled and forced to false (add-on only)**
+4. Purchase digital product, verify links on confirmation page
+5. Admin view: verify download history displays correctly
 
 ### Email Testing
-1. Configure email for `digital.delivered` topic
-2. Purchase with "Email Delivered" method
-3. Verify email received with download links
-4. Verify token in email link works
+1. In Merchello backoffice, navigate to Email Builder
+2. Create new email configuration:
+   - **Topic:** `digital.delivered`
+   - **Template:** `DigitalProductDelivered.cshtml`
+   - **To:** `{{invoice.billingAddress.email}}`
+   - **Subject:** `Your downloads for Order #{{invoice.invoiceNumber}} are ready`
+   - **From:** (use store default or custom)
+3. Create a digital product with "Email Delivered" delivery method
+4. Purchase the digital product
+5. Verify email received with:
+   - Correct recipient
+   - Download links rendered as clickable table rows
+   - Expiry dates displayed (or "Never" for non-expiring)
+6. Click download link in email and verify file downloads correctly
+7. Test expired link returns appropriate error
 
 ---
 

@@ -488,15 +488,18 @@ public class AbandonedCheckoutService(
                 .Where(ac => ac.Status == AbandonedCheckoutStatus.Converted)
                 .CountAsync(ct);
 
-            var valueAbandoned = await query
+            // Cast to double for SQLite compatibility (avoids ef_sum error)
+            var valueAbandoned = (decimal)await query
                 .Where(ac => ac.Status == AbandonedCheckoutStatus.Abandoned ||
                             ac.Status == AbandonedCheckoutStatus.Recovered ||
                             ac.Status == AbandonedCheckoutStatus.Converted)
-                .SumAsync(ac => ac.BasketTotal, ct);
+                .Select(ac => (double)ac.BasketTotal)
+                .SumAsync(ct);
 
-            var valueRecovered = await query
+            var valueRecovered = (decimal)await query
                 .Where(ac => ac.Status == AbandonedCheckoutStatus.Converted)
-                .SumAsync(ac => ac.BasketTotal, ct);
+                .Select(ac => (double)ac.BasketTotal)
+                .SumAsync(ct);
 
             return new AbandonedCheckoutStatsDto
             {

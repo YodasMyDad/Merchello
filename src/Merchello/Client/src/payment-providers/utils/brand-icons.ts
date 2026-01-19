@@ -30,6 +30,9 @@ export const BRAND_ICONS: Record<string, string> = {
   // Braintree logo (simplified tree icon)
   braintree: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L4 7v10l8 5 8-5V7l-8-5zm0 2.18L18 8v8l-6 3.75L6 16V8l6-3.82z" fill="#003366"/><path d="M12 6l-4 2.5v5L12 16l4-2.5v-5L12 6zm0 1.55l2.5 1.56v3.12L12 13.8l-2.5-1.56V9.1L12 7.55z" fill="#003366"/></svg>`,
 
+  // WorldPay "W" logo
+  worldpay: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2 6l3.5 12h2.5l2-7 2 7h2.5l3.5-12h-2.5l-2.25 8-2.25-8h-2l-2.25 8-2.25-8H2z" fill="#DF1B26"/></svg>`,
+
   // iDEAL (Netherlands)
   ideal: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#CC0066"/><text x="12" y="14" text-anchor="middle" fill="white" font-size="8" font-weight="bold" font-family="Arial, sans-serif">iDEAL</text></svg>`,
 
@@ -81,6 +84,7 @@ export function getProviderIconSvg(providerAlias: string): string | null {
   if (alias === 'stripe') return BRAND_ICONS.stripe;
   if (alias === 'braintree') return BRAND_ICONS.braintree;
   if (alias === 'paypal') return BRAND_ICONS.paypal;
+  if (alias === 'worldpay') return BRAND_ICONS.worldpay;
   if (alias === 'manual') return BRAND_ICONS.manual;
   return null;
 }

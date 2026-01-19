@@ -398,15 +398,11 @@ public interface IEmailTopicRegistry
 ```csharp
 public interface IEmailTokenResolver
 {
-    string ResolveTokens<TNotification>(string template, EmailModel<TNotification> model)
-        where TNotification : MerchelloNotification;
-
+    // Synchronous methods - token resolution is CPU-bound, no async needed
+    string ResolveTokens(string template, object model);
+    string? ResolveToken(string path, object model);
     IReadOnlyList<TokenInfo> GetAvailableTokens(string topic);
-    IReadOnlyList<TokenInfo> GetAvailableTokens<TNotification>()
-        where TNotification : MerchelloNotification;
-
-    string? ResolveToken<TNotification>(string path, EmailModel<TNotification> model)
-        where TNotification : MerchelloNotification;
+    IReadOnlyList<TokenInfo> GetAvailableTokens(Type notificationType);
 }
 ```
 
@@ -430,12 +426,12 @@ public interface IEmailConfigurationService
     Task<EmailConfiguration?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<EmailConfiguration>> GetByTopicAsync(string topic, CancellationToken ct = default);
     Task<IReadOnlyList<EmailConfiguration>> GetEnabledByTopicAsync(string topic, CancellationToken ct = default);
-    Task<IReadOnlyList<EmailConfiguration>> GetByCategoryAsync(string category, CancellationToken ct = default);
+    Task<IReadOnlyDictionary<string, IReadOnlyList<EmailConfiguration>>> GetByCategoryAsync(CancellationToken ct = default);
     Task<PaginatedList<EmailConfiguration>> QueryAsync(EmailConfigurationQueryParameters parameters, CancellationToken ct = default);
     Task<CrudResult<EmailConfiguration>> CreateAsync(CreateEmailConfigurationParameters parameters, CancellationToken ct = default);
     Task<CrudResult<EmailConfiguration>> UpdateAsync(UpdateEmailConfigurationParameters parameters, CancellationToken ct = default);
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
-    Task<bool> ToggleEnabledAsync(Guid id, CancellationToken ct = default);
+    Task<CrudResult<EmailConfiguration>> ToggleEnabledAsync(Guid id, CancellationToken ct = default);
     Task IncrementSentCountAsync(Guid id, CancellationToken ct = default);
     Task IncrementFailedCountAsync(Guid id, CancellationToken ct = default);
 }
