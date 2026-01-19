@@ -157,6 +157,19 @@ export function initCheckoutStore(initialData = {}) {
         },
 
         // ============================================
+        // ACCOUNT STATE
+        // ============================================
+
+        /** @type {boolean} Whether the current user is logged in as a member (from server) */
+        isLoggedIn: initialData.isLoggedIn ?? false,
+
+        /** @type {boolean} Whether the entered email belongs to an existing account */
+        emailHasAccount: false,
+
+        /** @type {boolean} Whether basket contains digital products (requires account) */
+        hasDigitalProducts: initialData.hasDigitalProducts ?? false,
+
+        // ============================================
         // BASKET STATE
         // ============================================
 
@@ -355,6 +368,15 @@ export function initCheckoutStore(initialData = {}) {
             if (value) {
                 this.syncShippingFromBilling();
             }
+        },
+
+        /**
+         * Set whether the email has an existing account.
+         * Used to hide the "Create an account" button for existing customers.
+         * @param {boolean} hasAccount
+         */
+        setEmailHasAccount(hasAccount) {
+            this.emailHasAccount = hasAccount;
         },
 
         // ============================================

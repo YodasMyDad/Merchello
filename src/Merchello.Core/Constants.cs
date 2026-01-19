@@ -63,6 +63,12 @@ public static class Constants
         // Currency conversion audit trail
         public const string OriginalCurrency = "OriginalCurrency";
         public const string OriginalAmount = "OriginalAmount";
+
+        // Digital products
+        public const string DigitalDeliveryMethod = "DigitalDeliveryMethod";    // "InstantDownload" or "EmailDelivered"
+        public const string DigitalFileIds = "DigitalFileIds";                  // JSON array of Umbraco Media IDs
+        public const string DownloadLinkExpiryDays = "DownloadLinkExpiryDays";  // int as string, 0 = unlimited
+        public const string MaxDownloadsPerLink = "MaxDownloadsPerLink";        // int as string, 0 = unlimited
     }
 
     public static class CacheKeys
@@ -236,6 +242,9 @@ public static class Constants
 
         // Test
         public const string TestPing = "test.ping";
+
+        // Digital Products
+        public const string DigitalDelivered = "digital.delivered";
     }
 
     public static class EmailTopics
@@ -280,6 +289,9 @@ public static class Constants
         public const string CheckoutAbandonedFinal = "checkout.abandoned.final";
         public const string CheckoutRecovered = "checkout.recovered";
         public const string CheckoutConverted = "checkout.converted";
+
+        // Digital Products
+        public const string DigitalProductDelivered = "digital.delivered";
     }
 
     public static class StatusLabels

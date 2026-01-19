@@ -245,6 +245,15 @@ public class WebhookTopicRegistry : IWebhookTopicRegistry
             DisplayName = "Basket Updated",
             Description = "Triggered when a basket is modified",
             Category = "Baskets"
+        },
+
+        // Digital Products
+        [Constants.WebhookTopics.DigitalDelivered] = new WebhookTopic
+        {
+            Key = Constants.WebhookTopics.DigitalDelivered,
+            DisplayName = "Digital Product Delivered",
+            Description = "Triggered when download links are ready for digital products",
+            Category = "Digital Products"
         }
     };
 

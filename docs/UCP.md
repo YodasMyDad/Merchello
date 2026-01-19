@@ -935,6 +935,17 @@ public interface ICommerceProtocolAdapter
     Task<object> GetPaymentHandlersAsync(
         string? sessionId,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Filters the manifest to the intersection of agent and business capabilities.
+    /// Implements UCP's "server-selects" negotiation model where the business
+    /// returns only capabilities both parties support.
+    /// Returns null if no common capabilities exist.
+    /// </summary>
+    Task<object?> NegotiateCapabilitiesAsync(
+        object fullManifest,
+        IReadOnlyList<string> agentCapabilities,
+        CancellationToken ct = default);
 }
 ```
 
@@ -1030,9 +1041,18 @@ public interface ICommerceProtocolManager
     IReadOnlyList<string> GetEnabledProtocols();
 
     /// <summary>
-    /// Gets cached manifest for a protocol.
+    /// Gets cached manifest for a protocol (full, unfiltered).
     /// </summary>
     Task<object?> GetCachedManifestAsync(string alias, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets manifest filtered to the intersection of agent and business capabilities.
+    /// Implements UCP's "server-selects" negotiation model.
+    /// </summary>
+    Task<object?> GetNegotiatedManifestAsync(
+        string alias,
+        AgentIdentity? agent,
+        CancellationToken ct = default);
 }
 ```
 
@@ -1473,32 +1493,33 @@ UCP requires parsing the `UCP-Agent` header as an RFC 8941 Dictionary Structured
 UCP-Agent: profile="https://platform.example/profile"
 ```
 
-**Parsing Example:**
+**Required Package:** [StructuredFieldValues](https://www.nuget.org/packages/StructuredFieldValues) (RFC 8941 compliant parser)
+
+```bash
+dotnet add package StructuredFieldValues
+```
+
+**Implementation:**
 
 ```csharp
-using System.Text.RegularExpressions;
+using Sfv;
 
 public static class UcpAgentHeaderParser
 {
-    private static readonly Regex DictionaryFieldPattern =
-        new(@"(\w+)=""([^""]+)""", RegexOptions.Compiled);
-
     /// <summary>
     /// Parses RFC 8941 Dictionary Structured Field from UCP-Agent header.
+    /// Uses StructuredFieldValues NuGet for full RFC 8941 compliance.
     /// </summary>
-    public static Dictionary<string, string> Parse(string headerValue)
+    public static Dictionary<string, object?> Parse(string headerValue)
     {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (Match match in DictionaryFieldPattern.Matches(headerValue))
+        if (!Rfc8941.TryParseDictionary(headerValue, out var dictionary))
         {
-            if (match.Groups.Count == 3)
-            {
-                result[match.Groups[1].Value] = match.Groups[2].Value;
-            }
+            return [];
         }
 
-        return result;
+        return dictionary.ToDictionary(
+            kvp => kvp.Key,
+            kvp => kvp.Value.Value.Value);
     }
 
     /// <summary>
@@ -1509,9 +1530,43 @@ public static class UcpAgentHeaderParser
         if (!request.Headers.TryGetValue("UCP-Agent", out var headerValues))
             return null;
 
-        var parsed = Parse(headerValues.ToString());
-        return parsed.TryGetValue("profile", out var profile) ? profile : null;
+        if (!Rfc8941.TryParseDictionary(headerValues.ToString(), out var dictionary))
+            return null;
+
+        return dictionary.TryGetValue("profile", out var profileItem)
+            ? profileItem.Value.Value as string
+            : null;
     }
+
+    /// <summary>
+    /// Validates and extracts all UCP-Agent parameters.
+    /// </summary>
+    public static UcpAgentInfo? ParseAgentInfo(HttpRequest request)
+    {
+        if (!request.Headers.TryGetValue("UCP-Agent", out var headerValues))
+            return null;
+
+        if (!Rfc8941.TryParseDictionary(headerValues.ToString(), out var dictionary))
+            return null;
+
+        var profile = dictionary.TryGetValue("profile", out var p) ? p.Value.Value as string : null;
+        var version = dictionary.TryGetValue("version", out var v) ? v.Value.Value as string : null;
+
+        if (string.IsNullOrEmpty(profile))
+            return null;
+
+        return new UcpAgentInfo
+        {
+            ProfileUri = profile,
+            Version = version
+        };
+    }
+}
+
+public class UcpAgentInfo
+{
+    public required string ProfileUri { get; init; }
+    public string? Version { get; init; }
 }
 ```
 
@@ -1669,6 +1724,14 @@ Protocol manifests and capabilities are cached for performance:
 | `merchello:protocols:capabilities:{protocolName}` | 60 min | Capability intersection |
 | `merchello:protocols:signing-keys` | 24 hr | JWK signing keys |
 
+### Server-Selects Capability Negotiation
+
+UCP uses a **server-selects** model where the business (merchant) returns the intersection of:
+1. Capabilities the platform (agent) advertises support for
+2. Capabilities the business has implemented and enabled
+
+This means the manifest returned may need to be dynamically filtered per-request based on the requesting agent's profile. For static manifests (no per-agent customization), caching works directly. For dynamic scenarios, cache the full manifest and filter at request time.
+
 **Implementation:**
 
 ```csharp
@@ -1676,6 +1739,10 @@ public class CommerceProtocolManager : ICommerceProtocolManager
 {
     private readonly ICacheService _cache;
 
+    /// <summary>
+    /// Gets the full cached manifest. For server-selects negotiation,
+    /// use GetNegotiatedManifestAsync to filter based on agent capabilities.
+    /// </summary>
     public async Task<object?> GetCachedManifestAsync(string protocolName, CancellationToken ct)
     {
         var cacheKey = $"merchello:protocols:manifest:{protocolName}";
@@ -1686,6 +1753,27 @@ public class CommerceProtocolManager : ICommerceProtocolManager
             return adapter != null ? await adapter.GenerateManifestAsync(ct) : null;
         }, TimeSpan.FromMinutes(60), ["protocols"]);
     }
+
+    /// <summary>
+    /// Returns manifest filtered to the intersection of agent and business capabilities.
+    /// Per UCP spec, the business (server) selects from the intersection.
+    /// </summary>
+    public async Task<object?> GetNegotiatedManifestAsync(
+        string protocolName,
+        AgentIdentity? agent,
+        CancellationToken ct)
+    {
+        var fullManifest = await GetCachedManifestAsync(protocolName, ct);
+        if (fullManifest == null || agent?.Capabilities == null || agent.Capabilities.Count == 0)
+            return fullManifest;
+
+        var adapter = GetAdapter(protocolName);
+        if (adapter == null)
+            return fullManifest;
+
+        // Filter manifest to intersection of capabilities
+        return await adapter.NegotiateCapabilitiesAsync(fullManifest, agent.Capabilities, ct);
+    }
 }
 ```
 
@@ -1695,49 +1783,135 @@ public class CommerceProtocolManager : ICommerceProtocolManager
 
 ### Signing Requirements
 
-UCP requires all outbound webhooks to be signed using detached JWT (RFC 7797):
+UCP requires all outbound webhooks to be signed using detached JWT (RFC 7797).
+
+**Required Package:** [jose-jwt](https://www.nuget.org/packages/jose-jwt/) (RFC 7797 compliant implementation)
+
+```bash
+dotnet add package jose-jwt
+```
+
+**RFC 7797 Key Points:**
+- The `b64` header parameter set to `false` indicates unencoded payload
+- The `crit` header MUST include `b64` to ensure non-compliant implementations reject the JWS
+- Detached mode omits the payload from the token; it's transmitted separately
+
+**Implementation:**
 
 ```csharp
+using Jose;
+using System.Security.Cryptography;
+
 public class WebhookSigner : IWebhookSigner
 {
     private readonly ISigningKeyStore _keyStore;
 
+    /// <summary>
+    /// Signs a webhook payload using RFC 7797 detached JWT.
+    /// The payload is not base64url-encoded and is detached from the token.
+    /// </summary>
     public string Sign(string payload, string keyId)
     {
-        var key = _keyStore.GetPrivateKey(keyId);
-        var header = new JwtHeader(new SigningCredentials(key, SecurityAlgorithms.EcdsaSha256))
+        var key = _keyStore.GetEcdsaPrivateKey(keyId);
+
+        // RFC 7797: Detached signature with unencoded payload
+        // The "crit" header MUST include "b64" per RFC 7797 Section 7
+        var extraHeaders = new Dictionary<string, object>
         {
-            ["kid"] = keyId
+            ["kid"] = keyId,
+            ["b64"] = false,
+            ["crit"] = new[] { "b64" }
         };
 
-        // Create detached signature (payload not included in JWT)
-        var payloadHash = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
-        var claims = new JwtPayload
-        {
-            ["payload_hash"] = Convert.ToBase64String(payloadHash),
-            ["iat"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-        };
+        // jose-jwt handles RFC 7797 detached signatures natively
+        var token = JWT.Encode(
+            payload,
+            key,
+            JwsAlgorithm.ES256,
+            extraHeaders: extraHeaders,
+            options: new JwtOptions
+            {
+                DetachPayload = true,
+                EncodePayload = false  // RFC 7797: b64=false
+            });
 
-        var token = new JwtSecurityToken(header, claims);
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        return token;
     }
 
+    /// <summary>
+    /// Verifies a detached JWT signature against the webhook payload.
+    /// </summary>
     public bool Verify(string payload, string signature, IReadOnlyList<JsonWebKey> signingKeys)
     {
-        var handler = new JwtSecurityTokenHandler();
-        var token = handler.ReadJwtToken(signature);
+        try
+        {
+            // Extract kid from unverified header to find the right key
+            var headers = JWT.Headers(signature);
+            if (!headers.TryGetValue("kid", out var kidObj) || kidObj is not string keyId)
+                return false;
 
-        var keyId = token.Header.Kid;
-        var key = signingKeys.FirstOrDefault(k => k.Kid == keyId);
-        if (key == null) return false;
+            var jwk = signingKeys.FirstOrDefault(k => k.Kid == keyId);
+            if (jwk == null)
+                return false;
 
-        var payloadHash = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
-        var expectedHash = token.Payload["payload_hash"]?.ToString();
+            var key = ConvertJwkToEcdsa(jwk);
 
-        return expectedHash == Convert.ToBase64String(payloadHash);
+            // Verify with detached payload
+            JWT.Decode(
+                signature,
+                key,
+                JwsAlgorithm.ES256,
+                settings: new JwtSettings(),
+                payload: Encoding.UTF8.GetBytes(payload));
+
+            return true;
+        }
+        catch (IntegrityException)
+        {
+            return false;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static ECDsa ConvertJwkToEcdsa(JsonWebKey jwk)
+    {
+        var ecdsa = ECDsa.Create(new ECParameters
+        {
+            Curve = ECCurve.NamedCurves.nistP256,
+            Q = new ECPoint
+            {
+                X = Base64UrlDecode(jwk.X!),
+                Y = Base64UrlDecode(jwk.Y!)
+            }
+        });
+        return ecdsa;
+    }
+
+    private static byte[] Base64UrlDecode(string input)
+    {
+        var padded = input.Replace('-', '+').Replace('_', '/');
+        switch (padded.Length % 4)
+        {
+            case 2: padded += "=="; break;
+            case 3: padded += "="; break;
+        }
+        return Convert.FromBase64String(padded);
     }
 }
 ```
+
+**Detached JWT Format:**
+
+A detached JWT has the format `header..signature` (note the empty payload section between dots):
+
+```
+eyJhbGciOiJFUzI1NiIsImtpZCI6ImtleS0yMDI2LTAxIiwiYjY0IjpmYWxzZSwiY3JpdCI6WyJiNjQiXX0..MEUCIQCz8...
+```
+
+The actual payload is transmitted in the HTTP body, and the signature covers the raw (unencoded) payload bytes.
 
 ### Request-Signature Header
 

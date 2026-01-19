@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Security;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Cms.Web.Common.Controllers;
 
@@ -33,7 +34,8 @@ public class MerchelloCheckoutController(
     ICheckoutSessionService checkoutSessionService,
     IStorefrontContextService storefrontContext,
     IDiscountService discountService,
-    ICurrencyService currencyService)
+    ICurrencyService currencyService,
+    IMemberManager memberManager)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
 {
     private readonly CheckoutSettings _settings = checkoutSettings.Value;
@@ -390,6 +392,13 @@ public class MerchelloCheckoutController(
         // Check if there are any active discount codes to show the discount input
         var showDiscountCode = await discountService.HasActiveCodeDiscountsAsync(ct);
 
+        // Check if the current user is logged in as a member
+        var currentMember = await memberManager.GetCurrentMemberAsync();
+        var isLoggedIn = currentMember != null;
+
+        // Check if basket contains digital products (requires account creation)
+        var hasDigitalProducts = await checkoutService.BasketHasDigitalProductsAsync(basket, ct);
+
         // Calculate display amounts using centralized method (includes tax-inclusive calculations and GROSS reconciliation)
         var displayAmounts = basket.GetDisplayAmounts(displayContext, currencyService);
 
@@ -410,6 +419,8 @@ public class MerchelloCheckoutController(
             ExchangeRate = exchangeRate,
             CurrencyDecimalPlaces = displayContext.DecimalPlaces,
             ShowDiscountCode = showDiscountCode,
+            IsLoggedIn = isLoggedIn,
+            HasDigitalProducts = hasDigitalProducts,
             DisplayTotal = displayAmounts.Total,
             DisplaySubTotal = displayAmounts.SubTotal,
             DisplayShipping = displayAmounts.Shipping,

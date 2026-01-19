@@ -1,4 +1,5 @@
 using System.Reflection;
+using Merchello.Composers;
 using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Accounting.Handlers.Interfaces;
 using Merchello.Core.Accounting.Services;
@@ -14,6 +15,7 @@ using Merchello.Core.Customers.Factories;
 using Merchello.Core.Customers.Services;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
+using Merchello.Core.Data.Handlers;
 using Merchello.Core.Discounts.Factories;
 using Merchello.Core.Discounts.Services;
 using Merchello.Core.Discounts.Services.Calculators;
@@ -54,6 +56,7 @@ using Merchello.Core.Notifications.Payment;
 using Merchello.Core.Notifications.Product;
 using Merchello.Core.Notifications.Shipment;
 using Merchello.Core.Payments.Factories;
+using Merchello.Core.Payments.Handlers;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Payments.Services;
@@ -66,6 +69,7 @@ using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Core.Reporting.Services;
 using Merchello.Core.Reporting.Services.Interfaces;
+using Merchello.Core.Tax.Handlers;
 using Merchello.Core.Tax.Providers;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Tax.Services;
@@ -86,18 +90,27 @@ using Merchello.Core.Accounting;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Locality.Factories;
 using Merchello.Core.Warehouses.Factories;
+using Merchello.Email.Services;
+using Merchello.Factories;
+using Merchello.Routing;
+using Merchello.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.DependencyInjection;
+using Umbraco.Cms.Core.Notifications;
+using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Persistence.EFCore;
 using Umbraco.Extensions;
 
-namespace Merchello.Core;
+namespace Merchello;
 
+/// <summary>
+/// Extension methods for adding Merchello services to the Umbraco builder.
+/// </summary>
 public static class Startup
 {
     /// <summary>
-    /// Adds Merchello services to the Umbraco builder.
+    /// Adds all Merchello services to the Umbraco builder.
     /// </summary>
     /// <remarks>
     /// <para>Registration is organized into sections:</para>
@@ -106,10 +119,12 @@ public static class Startup
     ///   <item><description>Infrastructure - Singletons for caching, currency, and locality services</description></item>
     ///   <item><description>Factories - Stateless object creators for domain models</description></item>
     ///   <item><description>Services - Scoped services organized by feature domain</description></item>
+    ///   <item><description>Web Services - Services requiring ASP.NET Core / Umbraco Web dependencies</description></item>
     ///   <item><description>Background Services - Hosted services for scheduled tasks</description></item>
     ///   <item><description>Notification Handlers - Event handlers for webhooks and emails</description></item>
+    ///   <item><description>Startup Handlers - One-time initialization on application start</description></item>
+    ///   <item><description>Content Finders - URL routing for products and checkout</description></item>
     /// </list>
-    /// <para>Web-specific services (requiring Umbraco.Cms.Web.Common) are registered in MerchelloComposer.</para>
     /// </remarks>
     /// <param name="builder">The Umbraco builder to add services to.</param>
     /// <param name="pluginAssemblies">Optional assemblies containing payment/shipping provider plugins.</param>
@@ -205,8 +220,6 @@ public static class Startup
         builder.Services.AddScoped(sp => new Lazy<ICheckoutService>(() => sp.GetRequiredService<ICheckoutService>()));
         builder.Services.AddScoped<ICheckoutSessionService, CheckoutSessionService>();
         builder.Services.AddScoped<ICheckoutValidator, CheckoutValidator>();
-        // Note: ICheckoutMemberService is registered in MerchelloComposer (web project)
-        // because it depends on Umbraco.Cms.Web.Common.Security (IMemberSignInManager)
         builder.Services.AddScoped<IInvoiceService, InvoiceService>();
         builder.Services.AddScoped<IInvoiceReminderService, InvoiceReminderService>();
         builder.Services.AddScoped<ILineItemService, LineItemService>();
@@ -228,6 +241,10 @@ public static class Startup
         // Products & Inventory
         builder.Services.AddScoped<IProductService, ProductService>();
         builder.Services.AddScoped<IInventoryService, InventoryService>();
+
+        // Digital Products
+        builder.Services.AddSingleton<Core.DigitalProducts.Factories.DownloadLinkFactory>();
+        builder.Services.AddScoped<Core.DigitalProducts.Services.Interfaces.IDigitalProductService, Core.DigitalProducts.Services.DigitalProductService>();
 
         // Payments
         builder.Services.AddScoped<IPaymentProviderManager, PaymentProviderManager>();
@@ -291,6 +308,21 @@ public static class Startup
         builder.Services.AddScoped<DbSeeder>();
         builder.Services.AddScoped<ExtensionManager>();
         builder.Services.AddScoped<IMerchelloNotificationPublisher, MerchelloNotificationPublisher>();
+
+        // =====================================================
+        // Web Services (require ASP.NET Core / Umbraco Web)
+        // =====================================================
+
+        // Checkout member service (requires IMemberSignInManager from Umbraco.Cms.Web.Common)
+        builder.Services.AddScoped<ICheckoutMemberService, CheckoutMemberService>();
+
+        // Email rendering (requires Razor view engine)
+        builder.Services.AddScoped<IEmailRazorViewRenderer, EmailRazorViewRenderer>();
+
+        // Front-End Rendering
+        builder.Services.AddScoped<MerchelloPublishedElementFactory>();
+        builder.Services.AddScoped<IMerchelloViewModelFactory, MerchelloViewModelFactory>();
+        builder.Services.AddSingleton<IRichTextRenderer, RichTextRenderer>();
 
         // =====================================================
         // Background Services (Hosted Services)
@@ -363,6 +395,16 @@ public static class Startup
         builder.AddNotificationAsyncHandler<CheckoutAbandonedFinalNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<CheckoutRecoveredNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<CheckoutRecoveryConvertedNotification, WebhookNotificationHandler>();
+        // Digital Products
+        builder.AddNotificationAsyncHandler<Core.DigitalProducts.Notifications.DigitalProductDeliveredNotification, WebhookNotificationHandler>();
+
+        // -----------------------------------------------------
+        // Digital Product Handlers
+        // -----------------------------------------------------
+        // Handle digital product delivery when payment is successful.
+        // Creates download links and auto-completes digital-only orders.
+
+        builder.AddNotificationAsyncHandler<PaymentCreatedNotification, Core.DigitalProducts.Handlers.DigitalProductPaymentHandler>();
 
         // -----------------------------------------------------
         // Email Handlers
@@ -398,6 +440,37 @@ public static class Startup
         builder.AddNotificationAsyncHandler<CheckoutAbandonedFinalNotification, EmailNotificationHandler>();
         builder.AddNotificationAsyncHandler<CheckoutRecoveredNotification, EmailNotificationHandler>();
         builder.AddNotificationAsyncHandler<CheckoutRecoveryConvertedNotification, EmailNotificationHandler>();
+        // Digital Products
+        builder.AddNotificationAsyncHandler<Core.DigitalProducts.Notifications.DigitalProductDeliveredNotification, EmailNotificationHandler>();
+
+        // =====================================================
+        // Startup Handlers
+        // =====================================================
+        // These run once when Umbraco starts, in registration order.
+
+        // 1. Run EF Core migrations to ensure database schema is up to date
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, RunMerchMigration>();
+
+        // 2. Seed initial data (countries, currencies, etc.) if database is empty
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, SeedDataNotificationHandler>();
+
+        // 3. Ensure built-in payment providers (Manual Payment) exist and are enabled
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, EnsureBuiltInPaymentProvidersHandler>();
+
+        // 4. Initialize Merchello DataTypes (Product Description TipTap editor)
+        builder.Services.AddSingleton<MerchelloDataTypeInitializer>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, InitializeMerchelloDataTypesHandler>();
+
+        // 5. Seed US shipping tax overrides (states where shipping is not taxable)
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, EnsureShippingTaxOverridesHandler>();
+
+        // =====================================================
+        // Content Finders
+        // =====================================================
+        // Custom content finders for product and checkout URL routing.
+
+        builder.ContentFinders().InsertAfter<ContentFinderByUrlNew, ProductContentFinder>();
+        builder.ContentFinders().InsertAfter<ProductContentFinder, CheckoutContentFinder>();
 
         // =====================================================
         // Plugin Assembly Discovery
@@ -408,6 +481,7 @@ public static class Startup
             .ToList();
 
         assembliesToScan.Add(typeof(Startup).Assembly);
+        assembliesToScan.Add(typeof(MerchelloDbContext).Assembly);
 
         var providerAssemblies = DiscoverProviderAssemblies();
         assembliesToScan.AddRange(providerAssemblies);

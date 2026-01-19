@@ -161,4 +161,30 @@ public class MerchelloSettings
     /// Default: "Member" (Umbraco's default member type)
     /// </summary>
     public string DefaultMemberTypeAlias { get; set; } = "Member";
+
+    // Digital Products
+
+    /// <summary>
+    /// The public website URL used for generating download links (e.g., "https://store.example.com").
+    /// Required for digital product functionality.
+    /// </summary>
+    public string WebsiteUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Secret key for HMAC-signing download tokens. Must be at least 32 characters.
+    /// Generate with: new Guid().ToString("N") + new Guid().ToString("N")
+    /// </summary>
+    public string DownloadTokenSecret { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Default number of days download links remain valid. 0 = never expires.
+    /// Products can override this per-product.
+    /// </summary>
+    public int DefaultDownloadLinkExpiryDays { get; set; } = 30;
+
+    /// <summary>
+    /// Default maximum downloads per link. 0 = unlimited.
+    /// Products can override this per-product.
+    /// </summary>
+    public int DefaultMaxDownloadsPerLink { get; set; } = 0;
 }

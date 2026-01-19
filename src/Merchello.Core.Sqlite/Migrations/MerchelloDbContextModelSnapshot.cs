@@ -881,6 +881,65 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.ToTable("merchelloCustomerTags", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.DigitalProducts.Models.DownloadLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateCreated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<int>("DownloadCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ExpiresUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastDownloadUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("LineItemId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("MaxDownloads")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MediaId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.ToTable("merchelloDownloadLinks", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.Discounts.Models.Discount", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1567,6 +1626,11 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ElementPropertyData")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExtendedData")
+                        .IsRequired()
+                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("GoogleShoppingFeedCategory")

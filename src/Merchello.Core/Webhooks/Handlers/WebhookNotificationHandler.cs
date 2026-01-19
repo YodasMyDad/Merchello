@@ -1,3 +1,4 @@
+using Merchello.Core.DigitalProducts.Notifications;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Notifications.CustomerNotifications;
@@ -53,7 +54,8 @@ public class WebhookNotificationHandler(
       INotificationAsyncHandler<CheckoutAbandonedReminderNotification>,
       INotificationAsyncHandler<CheckoutAbandonedFinalNotification>,
       INotificationAsyncHandler<CheckoutRecoveredNotification>,
-      INotificationAsyncHandler<CheckoutRecoveryConvertedNotification>
+      INotificationAsyncHandler<CheckoutRecoveryConvertedNotification>,
+      INotificationAsyncHandler<DigitalProductDeliveredNotification>
 {
     private readonly WebhookSettings _settings = options.Value;
 
@@ -369,6 +371,27 @@ public class WebhookNotificationHandler(
             notification.OriginalAbandonmentDate,
             notification.RecoveredDate
         }, notification.AbandonedCheckoutId, "AbandonedCheckout", ct);
+
+    #endregion
+
+    #region Digital Products
+
+    public Task HandleAsync(DigitalProductDeliveredNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.DigitalDelivered, new
+        {
+            InvoiceId = notification.Invoice.Id,
+            InvoiceNumber = notification.Invoice.InvoiceNumber,
+            CustomerEmail = notification.Invoice.BillingAddress.Email,
+            DownloadLinkCount = notification.DownloadLinks.Count,
+            DownloadLinks = notification.DownloadLinks.Select(l => new
+            {
+                l.Id,
+                l.FileName,
+                l.DownloadUrl,
+                l.ExpiresUtc,
+                l.MaxDownloads
+            })
+        }, notification.Invoice.Id, "Invoice", ct);
 
     #endregion
 

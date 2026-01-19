@@ -1,3 +1,4 @@
+using Merchello.Core.DigitalProducts.Notifications;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Email.Services.Interfaces;
 using Merchello.Core.Notifications.CheckoutNotifications;
@@ -254,6 +255,16 @@ public class EmailTopicRegistry : IEmailTopicRegistry
                 Description = "Triggered when a recovered checkout is converted to an order. Use for success tracking.",
                 Category = "Checkout",
                 NotificationType = typeof(CheckoutRecoveryConvertedNotification)
+            },
+
+            // Digital Products
+            [Constants.EmailTopics.DigitalProductDelivered] = new EmailTopic
+            {
+                Topic = Constants.EmailTopics.DigitalProductDelivered,
+                DisplayName = "Digital Product Delivered",
+                Description = "Triggered when download links are ready for digital products. Use for delivery emails with download links.",
+                Category = "Digital Products",
+                NotificationType = typeof(DigitalProductDeliveredNotification)
             }
         };
     }

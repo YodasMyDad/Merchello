@@ -128,6 +128,18 @@ public class CheckoutViewModel
     public bool ShowDiscountCode { get; init; }
 
     /// <summary>
+    /// Whether the current user is logged in as a member.
+    /// Used to hide the "Create an account" option for already-logged-in users.
+    /// </summary>
+    public bool IsLoggedIn { get; init; }
+
+    /// <summary>
+    /// Whether the basket contains any digital products.
+    /// When true, account creation is required for checkout.
+    /// </summary>
+    public bool HasDigitalProducts { get; init; }
+
+    /// <summary>
     /// Pre-serialized line items JSON for analytics tracking.
     /// Set by the controller to avoid JSON serialization in views.
     /// </summary>
