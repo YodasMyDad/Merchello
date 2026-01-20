@@ -31,12 +31,3 @@ public class CheckoutLineItemState
     public string? ProductUrl { get; init; }
     public IReadOnlyList<CheckoutLineItemOption>? SelectedOptions { get; init; }
 }
-
-/// <summary>
-/// A selected product option on a line item.
-/// </summary>
-public class CheckoutLineItemOption
-{
-    public required string Name { get; init; }
-    public required string Value { get; init; }
-}

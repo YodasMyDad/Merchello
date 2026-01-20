@@ -32,7 +32,7 @@ public class PaymentHandlerExporter(
                 {
                     handlers.Add(new ProtocolPaymentHandler
                     {
-                        HandlerId = $"{provider.Metadata.Key}:{method.Alias}",
+                        HandlerId = $"{provider.Metadata.Alias}:{method.Alias}",
                         Name = method.DisplayName,
                         Type = MapIntegrationType(method.IntegrationType),
                         SupportsExpressCheckout = method.IsExpressCheckout,
@@ -43,8 +43,8 @@ public class PaymentHandlerExporter(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to export payment methods from provider {ProviderKey}",
-                    provider.Metadata.Key);
+                logger.LogWarning(ex, "Failed to export payment methods from provider {ProviderAlias}",
+                    provider.Metadata.Alias);
             }
         }
 

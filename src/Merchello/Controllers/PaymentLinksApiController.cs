@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Merchello.Controllers.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
@@ -146,84 +147,4 @@ public class PaymentLinksApiController(IPaymentLinkService paymentLinkService) :
         IsPaid = info.IsPaid,
         HasActiveLink = info.HasActiveLink
     };
-}
-
-// DTOs for the API
-
-/// <summary>
-/// Request to create a payment link.
-/// </summary>
-public class CreatePaymentLinkRequest
-{
-    /// <summary>
-    /// The invoice ID to create a payment link for.
-    /// </summary>
-    public Guid InvoiceId { get; set; }
-
-    /// <summary>
-    /// The payment provider alias to use (e.g., "stripe", "paypal").
-    /// </summary>
-    public string ProviderAlias { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Payment link information returned from the API.
-/// </summary>
-public class PaymentLinkInfoDto
-{
-    /// <summary>
-    /// The shareable payment URL.
-    /// </summary>
-    public string? PaymentUrl { get; init; }
-
-    /// <summary>
-    /// Provider alias that created this link.
-    /// </summary>
-    public string? ProviderAlias { get; init; }
-
-    /// <summary>
-    /// Display name of the provider.
-    /// </summary>
-    public string? ProviderDisplayName { get; init; }
-
-    /// <summary>
-    /// When the link was created.
-    /// </summary>
-    public DateTime? CreatedAt { get; init; }
-
-    /// <summary>
-    /// Username of the staff member who created the link.
-    /// </summary>
-    public string? CreatedBy { get; init; }
-
-    /// <summary>
-    /// Whether the invoice has been paid.
-    /// </summary>
-    public bool IsPaid { get; init; }
-
-    /// <summary>
-    /// Whether there is an active (unpaid) payment link.
-    /// </summary>
-    public bool HasActiveLink { get; init; }
-}
-
-/// <summary>
-/// Payment provider that supports payment links.
-/// </summary>
-public class PaymentLinkProviderDto
-{
-    /// <summary>
-    /// Provider alias.
-    /// </summary>
-    public required string Alias { get; init; }
-
-    /// <summary>
-    /// Display name.
-    /// </summary>
-    public required string DisplayName { get; init; }
-
-    /// <summary>
-    /// Optional icon HTML/SVG.
-    /// </summary>
-    public string? IconHtml { get; init; }
 }

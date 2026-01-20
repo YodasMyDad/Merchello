@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Merchello.Controllers.Dtos;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
@@ -228,12 +229,4 @@ public class AbandonedCheckoutApiController(
             _ => "badge-default"
         };
     }
-}
-
-/// <summary>
-/// Result DTO for regenerate recovery link endpoint.
-/// </summary>
-public class RegenerateRecoveryLinkResultDto
-{
-    public string RecoveryLink { get; set; } = string.Empty;
 }

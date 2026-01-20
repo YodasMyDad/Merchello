@@ -1,3 +1,4 @@
+using Merchello.Core.Email.Models;
 using Merchello.Core.Email.Services.Interfaces;
 using Microsoft.Extensions.Logging;
 using Mjml.Net;

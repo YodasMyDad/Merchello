@@ -159,13 +159,3 @@ public class CheckoutSettings
     /// </example>
     public string? CustomScriptUrl { get; set; }
 }
-
-/// <summary>
-/// Logo position options for checkout header.
-/// </summary>
-public enum LogoPosition
-{
-    Left,
-    Center,
-    Right
-}

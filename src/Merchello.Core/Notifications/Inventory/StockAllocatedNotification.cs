@@ -5,6 +5,12 @@ namespace Merchello.Core.Notifications.Inventory;
 /// <summary>
 /// Notification published after stock has been allocated (permanently deducted).
 /// </summary>
+/// <remarks>
+/// Common use cases:
+/// - Sync allocation to external WMS or ERP systems
+/// - Update real-time inventory dashboards
+/// - Trigger reorder workflows when remaining stock hits threshold
+/// </remarks>
 public class StockAllocatedNotification(
     Guid productId,
     Guid warehouseId,

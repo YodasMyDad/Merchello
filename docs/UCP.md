@@ -430,9 +430,16 @@ Post-purchase order lifecycle management via webhooks.
 
 ### Identity Linking Capability
 
+> **Status: Future Capability**
+>
+> Identity Linking infrastructure is in place (configuration toggle, OAuth metadata endpoint),
+> but the OAuth authorization, token, and revocation endpoints (`/oauth/authorize`, `/oauth/token`,
+> `/oauth/revoke`) are not yet implemented. Keep `IdentityLinking: false` in configuration until
+> full implementation is complete.
+
 OAuth 2.0 based account authorization.
 
-**Requirements:**
+**Requirements (for future implementation):**
 - Implement OAuth 2.0 Authorization Code flow (RFC 6749 4.1)
 - Publish metadata at `/.well-known/oauth-authorization-server`
 - Support HTTP Basic Authentication at Token Endpoint
@@ -644,6 +651,7 @@ src/Merchello.Core/Protocols/
 ├── CommerceProtocolManager.cs           # Adapter registry implementation
 ├── CommerceProtocolAdapterMetadata.cs   # Provider metadata
 ├── ProtocolConstants.cs                 # Well-known paths, capability names
+├── ProtocolResponse.cs                  # Standardized API responses
 ├── Models/
 │   ├── CheckoutSessionState.cs          # Protocol-agnostic session
 │   ├── CheckoutLineItemState.cs         # Line item representation
@@ -652,28 +660,40 @@ src/Merchello.Core/Protocols/
 │   ├── CheckoutDiscountState.cs         # Discount representation
 │   ├── CheckoutFulfillmentState.cs      # Fulfillment representation
 │   ├── CheckoutMessageState.cs          # Validation messages
-│   └── ProtocolCapability.cs            # Capability declaration
+│   ├── ProtocolCapability.cs            # Capability declaration
+│   ├── ProtocolPaymentHandler.cs        # Payment handler info
+│   └── ProtocolSettings.cs              # Protocol configuration
 ├── Authentication/
 │   ├── AgentAuthenticationResult.cs     # Auth result model
 │   ├── AgentIdentity.cs                 # Authenticated agent info
-│   └── AgentAuthenticationMiddleware.cs # Request authentication
+│   └── UcpAgentHeaderParser.cs          # UCP-Agent header parser (RFC 8941)
 ├── Payments/
 │   ├── IPaymentHandlerExporter.cs       # Payment export contract
 │   └── PaymentHandlerExporter.cs        # Export implementation
 ├── Webhooks/
-│   ├── WebhookSigner.cs                 # JWT signing implementation
-│   └── WebhookSignatureVerifier.cs      # Signature verification
+│   ├── ISigningKeyStore.cs              # Signing key storage contract
+│   ├── IWebhookSigner.cs                # Webhook signing contract
+│   ├── SigningKeyStore.cs               # P-256 ECDSA key management
+│   └── WebhookSigner.cs                 # RFC 7797 detached JWT signing
+├── UCP/
+│   └── UCPProtocolAdapter.cs            # UCP protocol implementation
 └── Notifications/
     ├── AgentAuthenticatingNotification.cs
     ├── AgentAuthenticatedNotification.cs
     ├── ProtocolSessionCreatingNotification.cs
     ├── ProtocolSessionCreatedNotification.cs
     ├── ProtocolSessionUpdatingNotification.cs
-    └── ProtocolSessionCompletedNotification.cs
+    ├── ProtocolSessionUpdatedNotification.cs
+    ├── ProtocolSessionCompletingNotification.cs
+    ├── ProtocolSessionCompletedNotification.cs
+    ├── ProtocolWebhookSendingNotification.cs
+    └── ProtocolWebhookSentNotification.cs
 
 src/Merchello/
 ├── Controllers/
-│   └── WellKnownController.cs           # /.well-known/{protocol} endpoint
+│   ├── WellKnownController.cs           # /.well-known/{protocol} endpoint
+│   ├── UcpCheckoutSessionsController.cs # /api/v1/checkout-sessions endpoints
+│   └── UcpOrdersController.cs           # /api/v1/orders endpoints
 └── Middleware/
     └── AgentAuthenticationMiddleware.cs # Request authentication
 ```

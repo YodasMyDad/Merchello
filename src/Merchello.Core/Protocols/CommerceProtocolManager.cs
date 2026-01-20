@@ -10,14 +10,41 @@ namespace Merchello.Core.Protocols;
 /// Manages registration and resolution of commerce protocol adapters.
 /// Uses ExtensionManager pattern for discovery.
 /// </summary>
-public class CommerceProtocolManager(
-    ExtensionManager extensionManager,
-    ICacheService cacheService,
-    ILogger<CommerceProtocolManager> logger) : ICommerceProtocolManager, IDisposable
+public class CommerceProtocolManager : ICommerceProtocolManager, IDisposable
 {
+    private readonly ExtensionManager? _extensionManager;
+    private readonly ICacheService _cacheService;
+    private readonly ILogger<CommerceProtocolManager> _logger;
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private volatile IReadOnlyList<ICommerceProtocolAdapter>? _cachedAdapters;
     private bool _disposed;
+
+    /// <summary>
+    /// Primary constructor for production use with ExtensionManager discovery.
+    /// </summary>
+    public CommerceProtocolManager(
+        ExtensionManager extensionManager,
+        ICacheService cacheService,
+        ILogger<CommerceProtocolManager> logger)
+    {
+        _extensionManager = extensionManager;
+        _cacheService = cacheService;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Internal constructor for testing - accepts pre-built adapter list.
+    /// </summary>
+    internal CommerceProtocolManager(
+        IEnumerable<ICommerceProtocolAdapter> adapters,
+        ICacheService cacheService,
+        ILogger<CommerceProtocolManager> logger)
+    {
+        _extensionManager = null;
+        _cacheService = cacheService;
+        _logger = logger;
+        _cachedAdapters = adapters.ToList();
+    }
 
     /// <inheritdoc />
     public IReadOnlyList<ICommerceProtocolAdapter> Adapters => _cachedAdapters ?? [];
@@ -43,7 +70,9 @@ public class CommerceProtocolManager(
                 return cached;
             }
 
-            var adapterInstances = extensionManager.GetInstances<ICommerceProtocolAdapter>(useCaching: true)
+            // When using internal test constructor, _extensionManager is null but _cachedAdapters is pre-populated
+            // This code path only executes when _cachedAdapters is null, so _extensionManager must be set
+            var adapterInstances = _extensionManager!.GetInstances<ICommerceProtocolAdapter>(useCaching: true)
                 .Where(p => p != null)
                 .Cast<ICommerceProtocolAdapter>()
                 .ToList();
@@ -56,17 +85,17 @@ public class CommerceProtocolManager(
                 var metadata = adapter.Metadata;
                 if (string.IsNullOrWhiteSpace(metadata.Alias))
                 {
-                    logger.LogWarning("Protocol adapter {AdapterType} has an empty metadata alias and will be ignored.", adapter.GetType().FullName);
+                    _logger.LogWarning("Protocol adapter {AdapterType} has an empty metadata alias and will be ignored.", adapter.GetType().FullName);
                     continue;
                 }
 
                 if (!aliases.Add(metadata.Alias))
                 {
-                    logger.LogWarning("Duplicate protocol adapter alias '{Alias}' detected. Adapter {AdapterType} will be skipped.", metadata.Alias, adapter.GetType().FullName);
+                    _logger.LogWarning("Duplicate protocol adapter alias '{Alias}' detected. Adapter {AdapterType} will be skipped.", metadata.Alias, adapter.GetType().FullName);
                     continue;
                 }
 
-                logger.LogInformation("Registered protocol adapter: {Alias} ({DisplayName}) v{Version}",
+                _logger.LogInformation("Registered protocol adapter: {Alias} ({DisplayName}) v{Version}",
                     metadata.Alias, metadata.DisplayName, metadata.Version);
 
                 registeredAdapters.Add(adapter);
@@ -114,7 +143,7 @@ public class CommerceProtocolManager(
     {
         var cacheKey = $"{ProtocolConstants.CacheKeys.ManifestPrefix}{alias.ToLowerInvariant()}";
 
-        return await cacheService.GetOrCreateAsync(
+        return await _cacheService.GetOrCreateAsync(
             cacheKey,
             async _ =>
             {
@@ -177,7 +206,7 @@ public class CommerceProtocolManager(
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "Error disposing protocol adapter {Alias}", adapter.Metadata.Alias);
+                    _logger.LogWarning(ex, "Error disposing protocol adapter {Alias}", adapter.Metadata.Alias);
                 }
             }
         }

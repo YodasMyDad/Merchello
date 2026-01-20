@@ -7,6 +7,13 @@ namespace Merchello.Core.Notifications.CheckoutNotifications;
 /// Notification published before a discount code is applied to a basket.
 /// Handlers can cancel the operation.
 /// </summary>
+/// <remarks>
+/// Common use cases:
+/// - Apply custom validation rules beyond built-in discount eligibility
+/// - Enforce single-use codes via external tracking systems
+/// - Log discount usage attempts for marketing analytics
+/// - Block codes for specific customer segments or regions
+/// </remarks>
 public class DiscountCodeApplyingNotification(
     BasketModel basket,
     string discountCode) : MerchelloSimpleCancelableNotification

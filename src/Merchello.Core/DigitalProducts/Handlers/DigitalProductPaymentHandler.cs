@@ -9,6 +9,8 @@ using Merchello.Core.DigitalProducts.Services.Parameters;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.Payment;
+using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Products.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -25,6 +27,7 @@ namespace Merchello.Core.DigitalProducts.Handlers;
 public class DigitalProductPaymentHandler(
     IDigitalProductService digitalProductService,
     IInvoiceService invoiceService,
+    IPaymentService paymentService,
     IProductService productService,
     IMerchelloNotificationPublisher notificationPublisher,
     MerchelloDbContext dbContext,
@@ -41,6 +44,13 @@ public class DigitalProductPaymentHandler(
         try
         {
             var invoiceId = notification.Payment.InvoiceId;
+
+            // Only process when invoice is fully paid
+            var paymentStatus = await paymentService.GetInvoicePaymentStatusAsync(invoiceId, ct);
+            if (paymentStatus != InvoicePaymentStatus.Paid)
+            {
+                return;
+            }
 
             // Create download links for digital products
             var result = await digitalProductService.CreateDownloadLinksAsync(

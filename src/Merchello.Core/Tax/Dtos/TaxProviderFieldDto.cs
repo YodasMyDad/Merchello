@@ -15,12 +15,3 @@ public class TaxProviderFieldDto
     public string? Placeholder { get; init; }
     public List<TaxProviderFieldOptionDto>? Options { get; init; }
 }
-
-/// <summary>
-/// DTO for select option in a configuration field.
-/// </summary>
-public class TaxProviderFieldOptionDto
-{
-    public required string Value { get; init; }
-    public required string Label { get; init; }
-}

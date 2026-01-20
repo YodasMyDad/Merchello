@@ -301,6 +301,42 @@ See [Section 3: Tax System](#3-tax-system) for detailed shipping tax documentati
 - `GetOutstandingInvoicesPagedAsync()` - Paged outstanding invoices
 - `GenerateStatementPdfAsync()` - Generate PDF statement
 
+### 2.12 Digital Products
+
+**IDigitalProductService:**
+- `CreateDownloadLinksAsync()` - Create download links for invoice (idempotent)
+- `ValidateDownloadTokenAsync()` - Validate HMAC-signed download token
+- `RecordDownloadAsync()` - Record download and increment counter
+- `GetCustomerDownloadsAsync()` - Get customer's download links
+- `GetInvoiceDownloadsAsync()` - Get download links for invoice
+- `IsDigitalOnlyInvoiceAsync()` - Check if invoice contains only digital products
+- `RegenerateDownloadLinksAsync()` - Invalidate old links and create new ones
+
+**Digital Product Settings (via ExtendedData):**
+Digital products use `ProductRoot.ExtendedData` with constant keys (no new model properties):
+- `DigitalDeliveryMethod` - "InstantDownload" or "EmailDelivered"
+- `DigitalFileIds` - JSON array of Umbraco Media IDs
+- `DownloadLinkExpiryDays` - Link expiry (0 = unlimited)
+- `MaxDownloadsPerLink` - Download limit (0 = unlimited)
+
+**Delivery Methods:**
+
+| Method | Confirmation Page | Email | Use Case |
+|--------|------------------|-------|----------|
+| **InstantDownload** | ✅ Shows links | ✅ Sends email | Standard digital products |
+| **EmailDelivered** | ❌ Hidden | ✅ Email only | License keys, time-sensitive content |
+
+**Constraints:**
+- Digital products require customer account (no guest checkout)
+- Digital products cannot have variant options (add-ons only: `IsVariant = false`)
+- Digital-only orders auto-complete on successful payment
+
+**Security:**
+- HMAC-SHA256 token signing with constant-time comparison
+- Customer ownership verification
+- Rate limiting on download endpoint (30 requests/minute)
+- Token format: `{linkId:N}-{hmacSignature}`
+
 ---
 
 ## 3. Tax System
@@ -471,6 +507,59 @@ Single active provider at a time. **Built-in:** `ManualTaxProvider` (uses TaxGro
 **Config:** `"Merchello:OrderGroupingStrategy": "vendor-grouping"` (empty = warehouse default)
 
 **Default Strategy:** Groups by warehouse (stock → priority → region)
+
+### 4.6 Commerce Protocol Adapters
+
+Protocol adapters enable Merchello to expose checkout and order capabilities to external AI agents and platforms using standardized protocols like UCP (Universal Commerce Protocol).
+
+**ICommerceProtocolAdapter Interface:**
+
+| Category | Methods |
+|----------|---------|
+| **Identity** | `Alias`, `Metadata` |
+| **Discovery** | `GetManifestAsync()`, `GetNegotiatedManifestAsync()` |
+| **Checkout** | `GetSessionStateAsync()`, `UpdateSessionAsync()`, `CompleteSessionAsync()` |
+| **Orders** | `GetOrderAsync()`, `QueryOrdersAsync()` |
+
+**CommerceProtocolManager:**
+- Discovers adapters via `ExtensionManager`
+- Caches adapter instances
+- Routes protocol requests to appropriate adapter
+- Supports capability negotiation with agents
+
+**Agent Authentication (`AgentAuthenticationMiddleware`):**
+- Validates `UCP-Agent` header (RFC 8941 Dictionary Structured Field)
+- Checks agent against allowed list (`Merchello:Protocols:Ucp:AllowedAgents`)
+- Publishes `AgentAuthenticatingNotification` (cancelable) and `AgentAuthenticatedNotification`
+- Stores `AgentIdentity` in `HttpContext.Items` for controllers
+
+**Webhook Signing (`IWebhookSigner`, `ISigningKeyStore`):**
+- ES256 (ECDSA P-256) signatures for webhook payloads
+- RFC 7797 detached JWT format
+- Automatic key rotation support
+
+**Configuration:**
+```json
+{
+  "Merchello": {
+    "Protocols": {
+      "Enabled": true,
+      "ManifestCacheDurationMinutes": 60,
+      "RequireHttps": true,
+      "Ucp": {
+        "Enabled": false,
+        "RequireAuthentication": true,
+        "AllowedAgents": ["*"],
+        "Capabilities": {
+          "Checkout": true,
+          "Order": true,
+          "IdentityLinking": false
+        }
+      }
+    }
+  }
+}
+```
 
 ### Configuration Field Types
 
@@ -795,7 +884,10 @@ Discount → 1:1 → BuyXGetYConfig?, FreeShippingConfig?
 
 Invoice → 1:N → Order → Shipment (N:1 Warehouse)
 Invoice → 1:N → Payment (IdempotencyKey, WebhookEventId for dedup)
+Invoice → 1:N → DownloadLink (digital product downloads)
 Order → 1:N → LineItems
+
+DownloadLink → N:1 → Invoice, LineItem, Customer
 
 WebhookSubscription → 1:N → WebhookDelivery (cascade)
 ```
@@ -852,7 +944,28 @@ Basket → GroupItemsAsync() → Groups → Customer selects shipping → Invoic
 
 ## 8. Notification System
 
-### 8.1 Pattern
+### 8.1 Base Classes
+
+All notifications inherit from one of three base classes depending on their purpose:
+
+| Base Class | When to Use | Can Cancel? | Has Entity? |
+|------------|-------------|-------------|-------------|
+| `MerchelloNotification` | After events (read-only observation) | No | No |
+| `MerchelloCancelableNotification<T>` | Before events with entity modification | Yes | Yes |
+| `MerchelloSimpleCancelableNotification` | Before events without entity (e.g., stock operations) | Yes | No |
+
+**State Dictionary:** All notifications include a `State` dictionary for sharing data between handlers:
+
+```csharp
+// In a "Before" handler (priority 100):
+notification.State["originalPrice"] = product.Price;
+
+// In an "After" handler (priority 2000):
+if (notification.State.TryGetValue("originalPrice", out var price))
+    await auditService.LogPriceChange((decimal)price, product.Price);
+```
+
+### 8.2 Pattern
 
 Hook into CRUD for validation/modification/integration using `INotificationAsyncHandler<T>`.
 
@@ -893,7 +1006,7 @@ public class StockValidator : INotificationAsyncHandler<OrderCreatingNotificatio
 public class CrmSyncer : INotificationAsyncHandler<OrderCreatedNotification> { }
 ```
 
-### 8.2 Events by Domain
+### 8.3 Events by Domain
 
 **Standard CRUD Pattern:** Creating✓/Created, Saving✓/Saved, Deleting✓/Deleted (✓ = cancelable)
 
@@ -928,14 +1041,24 @@ public class CrmSyncer : INotificationAsyncHandler<OrderCreatedNotification> { }
 **Reminder Events** (InvoiceReminderJob):
 - InvoiceReminder, InvoiceOverdue
 
-**Exchange Events** (ExchangeRateRefreshJob):
-- Refreshed, FetchFailed
+**Exchange Rate Events** (ExchangeRateRefreshJob):
+- `ExchangeRatesRefreshedNotification` - Rates successfully fetched
+- `ExchangeRateFetchFailedNotification` - Fetch failed (includes `ConsecutiveFailureCount` for circuit-breaker patterns)
+
+**Digital Product Events** (DigitalProductPaymentHandler):
+- DigitalProductDelivered - Download links ready for delivery (triggers email/webhook)
 
 **Special Events:**
 - `InvoiceAggregateChangedNotification` - Fires on any Invoice/child change
 - `MerchelloCacheRefresherNotification` - Distributed cache invalidation
 
-### Integration Points
+**Protocol Events** (AgentAuthenticationMiddleware):
+- AgentAuthenticating✓/Authenticated - External agent authentication
+- ProtocolSessionCreating✓/Created - Protocol checkout session lifecycle
+- ProtocolSessionUpdating✓/Updated
+- ProtocolSessionCompleting✓/Completed
+
+### 8.4 Integration Points
 
 **Email:** `IEmailTopicRegistry` maps notifications → topics (e.g., `order.created` → Order Confirmation)
 
@@ -976,6 +1099,7 @@ Notification → WebhookNotificationHandler (2000) → IWebhookService.QueueDeli
 - Inventory: adjusted, low_stock, reserved, allocated
 - Checkout: abandoned, recovered, converted
 - Baskets: created, updated
+- Digital: delivered
 
 **Auth Types:** `HmacSha256` (default, `X-Merchello-Hmac-SHA256`), `HmacSha512`, `BearerToken`, `ApiKey`, `BasicAuth`, `None`
 
@@ -1033,6 +1157,7 @@ Notification → EmailNotificationHandler (2000) → IEmailConfigurationService.
 - Customers: created, updated, password_reset
 - Checkout: abandoned, recovered, converted
 - Inventory: low_stock
+- Digital: delivered
 
 **Tokens:** `{{order.customerEmail}}`, `{{order.billingAddress.name}}`, `{{store.name}}`, `{{store.websiteUrl}}`
 
@@ -1073,6 +1198,7 @@ All domain objects are created via factories for consistency, thread safety, and
 | `CustomerFactory` | `CreateFromEmail()`, `Create(params)` |
 | `CustomerSegmentFactory` | `Create(params)`, `CreateMember()` |
 | `DiscountFactory` | `Create(params)`, `CreateTargetRule()`, `CreateEligibilityRule()`, `CreateBuyXGetYConfig()`, `CreateFreeShippingConfig()` |
+| `DownloadLinkFactory` | `Create(params)` - Creates secure download link with HMAC token |
 
 ---
 
@@ -1221,6 +1347,51 @@ Checkout flow endpoints.
 | `/deliveries/{id}/retry` | POST | Retry delivery |
 | `/stats` | GET | Get delivery stats |
 | `/ping` | POST | Ping endpoint |
+
+### 13.4 Protocol Discovery API (`/.well-known`)
+
+Public endpoints for protocol discovery by external agents.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/.well-known/{protocol}` | GET | Get protocol manifest (e.g., `/.well-known/ucp`) |
+| `/.well-known/oauth-authorization-server` | GET | OAuth 2.0 metadata (when Identity Linking enabled) |
+
+**Headers:**
+- `UCP-Agent: profile="https://agent.example/profile", version="2026-01-11"` - Agent identification for capability negotiation
+
+**Response Headers:**
+- `Cache-Control: public, max-age=3600` - Manifest caching
+
+**Authentication:**
+- Manifest endpoint is public (for discovery)
+- Protocol operation endpoints require valid `UCP-Agent` header when `RequireAuthentication: true`
+
+### 13.5 Downloads API (`/api/merchello/downloads`)
+
+Secure file download endpoints for digital products.
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/{token}` | GET | None (token-based) | Download file using secure token |
+| `/customer` | GET | Required | Get customer's download links |
+| `/invoice/{invoiceId}` | GET | Required | Get download links for invoice |
+
+**Security:**
+- Download tokens are HMAC-SHA256 signed with constant-time validation
+- Rate limited to 30 requests/minute per IP
+- Customer ownership verified for authenticated endpoints
+
+**Token Format:**
+```
+{linkId:N}-{base64UrlEncodedHmacSignature}
+```
+
+**Response (Download):**
+- `200 OK` - File stream with `Content-Disposition: attachment`
+- `404 Not Found` - Invalid or expired token
+- `403 Forbidden` - Max downloads reached
+- `429 Too Many Requests` - Rate limit exceeded
 
 ---
 

@@ -79,6 +79,11 @@ using Merchello.Core.Webhooks.Handlers;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Core.Webhooks.Services;
 using Merchello.Core.Webhooks.Services.Interfaces;
+using Merchello.Core.Protocols;
+using Merchello.Core.Protocols.Interfaces;
+using Merchello.Core.Protocols.Models;
+using Merchello.Core.Protocols.Payments;
+using Merchello.Core.Protocols.Webhooks;
 using Merchello.Core.Email;
 using Merchello.Core.Email.Handlers;
 using Merchello.Core.Email.Services;
@@ -157,6 +162,8 @@ public static class Startup
         builder.Services.Configure<EmailSettings>(builder.Config.GetSection("Merchello:Email"));
         // Invoice payment reminder and overdue notification timing
         builder.Services.Configure<InvoiceReminderSettings>(builder.Config.GetSection("Merchello:Invoices:Reminders"));
+        // Protocol infrastructure settings (UCP, etc.)
+        builder.Services.Configure<ProtocolSettings>(builder.Config.GetSection("Merchello:Protocols"));
 
         // =====================================================
         // Infrastructure (Singletons)
@@ -308,6 +315,13 @@ public static class Startup
         builder.Services.AddScoped<DbSeeder>();
         builder.Services.AddScoped<ExtensionManager>();
         builder.Services.AddScoped<IMerchelloNotificationPublisher, MerchelloNotificationPublisher>();
+
+        // Protocols
+        builder.Services.AddScoped<ICommerceProtocolManager, CommerceProtocolManager>();
+        builder.Services.AddScoped<IPaymentHandlerExporter, PaymentHandlerExporter>();
+        builder.Services.AddSingleton<ISigningKeyStore, SigningKeyStore>();
+        builder.Services.AddSingleton<IWebhookSigner, WebhookSigner>();
+        // UCPProtocolAdapter is auto-discovered by ExtensionManager (implements ICommerceProtocolAdapter)
 
         // =====================================================
         // Web Services (require ASP.NET Core / Umbraco Web)

@@ -29,16 +29,3 @@ public class CheckoutDiscountState
     public int? Priority { get; init; }
     public IReadOnlyList<DiscountAllocation>? Allocation { get; init; }
 }
-
-/// <summary>
-/// How a discount is allocated across targets.
-/// </summary>
-public class DiscountAllocation
-{
-    /// <summary>
-    /// JSONPath target (e.g., $.line_items[0])
-    /// </summary>
-    public required string Target { get; init; }
-
-    public required long Amount { get; init; }
-}

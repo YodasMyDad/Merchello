@@ -6,6 +6,12 @@ namespace Merchello.Core.Notifications.Inventory;
 /// Notification published before a stock reservation is released.
 /// Handlers can cancel the operation.
 /// </summary>
+/// <remarks>
+/// Common use cases:
+/// - Validate release against external inventory systems
+/// - Apply custom hold periods before releasing
+/// - Block release for orders in dispute or under review
+/// </remarks>
 public class StockReleasingNotification(
     Guid productId,
     Guid warehouseId,

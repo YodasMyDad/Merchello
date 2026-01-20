@@ -35,6 +35,8 @@ using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Customers.Services.Parameters;
 using Merchello.Core.Tax.Providers.Interfaces;
+using Merchello.Core.Protocols;
+using Merchello.Core.Protocols.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -1567,7 +1569,16 @@ public class CheckoutService(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
-            db.Baskets.Update(basket);
+            // Check if basket exists in the database
+            var exists = await db.Baskets.AnyAsync(b => b.Id == basket.Id, cancellationToken);
+            if (exists)
+            {
+                db.Baskets.Update(basket);
+            }
+            else
+            {
+                db.Baskets.Add(basket);
+            }
             await db.SaveChangesAsync(cancellationToken);
         });
         scope.Complete();
@@ -2191,6 +2202,344 @@ public class CheckoutService(
 
         return false;
     }
+
+    /// <inheritdoc />
+    public async Task<CheckoutSessionState?> GetSessionStateAsync(
+        Guid basketId,
+        CancellationToken cancellationToken = default)
+    {
+        // Load basket directly from database
+        using var scope = efCoreScopeProvider.CreateScope();
+        var basket = await scope.ExecuteWithContextAsync(async db =>
+            await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken));
+
+        if (basket == null)
+        {
+            return null;
+        }
+
+        // Load checkout session
+        var session = await checkoutSessionService.GetSessionAsync(basketId, cancellationToken);
+
+        // Calculate order groups for fulfillment
+        OrderGroupingResult? orderGroups = null;
+        if (!string.IsNullOrEmpty(basket.ShippingAddress.CountryCode))
+        {
+            orderGroups = await GetOrderGroupsAsync(basket, session, cancellationToken);
+        }
+
+        // Determine session status
+        var status = DetermineSessionStatus(basket, session, orderGroups);
+
+        // Build messages from basket errors
+        var messages = MapProtocolMessages(basket);
+
+        // Map to protocol state
+        return new CheckoutSessionState
+        {
+            SessionId = basketId.ToString(),
+            Status = status,
+            CreatedAt = basket.DateCreated,
+            UpdatedAt = basket.DateUpdated,
+            ExpiresAt = session.CreatedAt.AddHours(24),
+            Currency = basket.Currency ?? _settings.StoreCurrencyCode,
+            LineItems = MapLineItems(basket),
+            BillingAddress = MapAddress(basket.BillingAddress),
+            ShippingAddress = MapAddress(basket.ShippingAddress),
+            ShippingSameAsBilling = session.ShippingSameAsBilling,
+            Discounts = MapDiscounts(basket),
+            Fulfillment = MapFulfillment(orderGroups, session, basket.Currency ?? _settings.StoreCurrencyCode),
+            Totals = MapTotals(basket),
+            Messages = messages,
+            ContinueUrl = status == ProtocolConstants.SessionStatus.RequiresEscalation
+                ? $"/checkout/{basketId}"
+                : null,
+            BuyerEmail = basket.BillingAddress.Email ?? basket.ShippingAddress.Email
+        };
+    }
+
+    private static string DetermineSessionStatus(Basket basket, CheckoutSession session, OrderGroupingResult? orderGroups)
+    {
+        // Check for errors
+        if (basket.Errors.Count > 0)
+        {
+            return ProtocolConstants.SessionStatus.Incomplete;
+        }
+
+        // Check if line items exist
+        if (basket.LineItems.Count == 0)
+        {
+            return ProtocolConstants.SessionStatus.Incomplete;
+        }
+
+        // Check billing address
+        if (string.IsNullOrEmpty(basket.BillingAddress.Email) ||
+            string.IsNullOrEmpty(basket.BillingAddress.CountryCode))
+        {
+            return ProtocolConstants.SessionStatus.Incomplete;
+        }
+
+        // Check shipping address for physical products
+        var hasPhysicalProducts = basket.LineItems.Any(li =>
+            li.LineItemType == LineItemType.Product && !IsDigitalProduct(li));
+
+        if (hasPhysicalProducts)
+        {
+            if (string.IsNullOrEmpty(basket.ShippingAddress.CountryCode))
+            {
+                return ProtocolConstants.SessionStatus.Incomplete;
+            }
+
+            // Check shipping selections
+            if (orderGroups?.Groups.Count > 0)
+            {
+                var allGroupsHaveSelection = orderGroups.Groups
+                    .All(g => g.SelectedShippingOptionId.HasValue ||
+                              session.SelectedShippingOptions.ContainsKey(g.GroupId));
+
+                if (!allGroupsHaveSelection)
+                {
+                    return ProtocolConstants.SessionStatus.Incomplete;
+                }
+            }
+        }
+
+        // All required info collected
+        return ProtocolConstants.SessionStatus.ReadyForComplete;
+    }
+
+    private static bool IsDigitalProduct(LineItem li)
+    {
+        return li.ExtendedData.TryGetValue("IsDigital", out var isDigital) && isDigital is true;
+    }
+
+    private static IReadOnlyList<CheckoutLineItemState> MapLineItems(Basket basket)
+    {
+        return basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Product)
+            .Select(li => new CheckoutLineItemState
+            {
+                LineItemId = li.Id.ToString(),
+                ProductId = li.ProductId?.ToString(),
+                VariantId = li.ExtendedData.TryGetValue("VariantId", out var vid) ? vid?.ToString() : null,
+                Sku = li.Sku ?? string.Empty,
+                Name = li.Name ?? string.Empty,
+                Description = li.ExtendedData.TryGetValue("Description", out var desc) ? desc?.ToString() : null,
+                Quantity = li.Quantity,
+                UnitPrice = ToMinorUnits(li.Amount),
+                LineTotal = ToMinorUnits(li.Amount * li.Quantity),
+                DiscountAmount = 0, // Line-level discounts would need additional calculation
+                TaxAmount = li.IsTaxable ? ToMinorUnits(li.Amount * li.Quantity * li.TaxRate / 100) : 0,
+                FinalTotal = ToMinorUnits(li.Amount * li.Quantity),
+                RequiresShipping = !li.ExtendedData.TryGetValue("IsDigital", out var isDigital) || isDigital is not true,
+                ImageUrl = li.ExtendedData.TryGetValue("ImageUrl", out var img) ? img?.ToString() : null,
+                ProductUrl = li.ExtendedData.TryGetValue("ProductUrl", out var url) ? url?.ToString() : null,
+                SelectedOptions = MapLineItemOptions(li)
+            })
+            .ToList();
+    }
+
+    private static IReadOnlyList<CheckoutLineItemOption>? MapLineItemOptions(LineItem li)
+    {
+        if (!li.ExtendedData.TryGetValue("SelectedOptions", out var optionsObj) || optionsObj is not IEnumerable<object> options)
+        {
+            return null;
+        }
+
+        var result = new List<CheckoutLineItemOption>();
+        foreach (var opt in options)
+        {
+            if (opt is IDictionary<string, object> dict &&
+                dict.TryGetValue("Name", out var name) &&
+                dict.TryGetValue("Value", out var value))
+            {
+                result.Add(new CheckoutLineItemOption
+                {
+                    Name = name?.ToString() ?? string.Empty,
+                    Value = value?.ToString() ?? string.Empty
+                });
+            }
+        }
+
+        return result.Count > 0 ? result : null;
+    }
+
+    private static CheckoutAddressState? MapAddress(Address address)
+    {
+        if (string.IsNullOrEmpty(address.CountryCode) && string.IsNullOrEmpty(address.Email))
+        {
+            return null;
+        }
+
+        // Split name into first/last if possible
+        var nameParts = (address.Name ?? string.Empty).Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+
+        return new CheckoutAddressState
+        {
+            FirstName = nameParts.Length > 0 ? nameParts[0] : null,
+            LastName = nameParts.Length > 1 ? nameParts[1] : null,
+            Company = address.Company,
+            Address1 = address.AddressOne,
+            Address2 = address.AddressTwo,
+            City = address.TownCity,
+            Region = address.CountyState.Name,
+            RegionCode = address.CountyState.RegionCode,
+            PostalCode = address.PostalCode,
+            Country = address.Country,
+            CountryCode = address.CountryCode,
+            Phone = address.Phone,
+            Email = address.Email
+        };
+    }
+
+    private static IReadOnlyList<CheckoutDiscountState> MapDiscounts(Basket basket)
+    {
+        return basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Discount)
+            .Select(li => new CheckoutDiscountState
+            {
+                DiscountId = li.Id.ToString(),
+                Code = li.ExtendedData.TryGetValue("DiscountCode", out var code) ? code?.ToString() : null,
+                Name = li.Name ?? "Discount",
+                Type = li.ExtendedData.TryGetValue("DiscountType", out var type)
+                    ? MapDiscountType(type?.ToString())
+                    : ProtocolConstants.DiscountTypes.FixedAmount,
+                Amount = ToMinorUnits(Math.Abs(li.Amount * li.Quantity)),
+                IsAutomatic = li.ExtendedData.TryGetValue("IsAutomatic", out var auto) && auto is true,
+                Method = ProtocolConstants.DiscountAllocationMethods.Across
+            })
+            .ToList();
+    }
+
+    private static string MapDiscountType(string? type) => type?.ToLowerInvariant() switch
+    {
+        "percentage" => ProtocolConstants.DiscountTypes.Percentage,
+        "freeshipping" or "free_shipping" => ProtocolConstants.DiscountTypes.FreeShipping,
+        "buyxgety" or "buy_x_get_y" => ProtocolConstants.DiscountTypes.BuyXGetY,
+        _ => ProtocolConstants.DiscountTypes.FixedAmount
+    };
+
+    private static CheckoutFulfillmentState? MapFulfillment(
+        OrderGroupingResult? orderGroups,
+        CheckoutSession? session,
+        string currency)
+    {
+        if (orderGroups?.Groups == null || orderGroups.Groups.Count == 0)
+        {
+            return null;
+        }
+
+        var allLineItemIds = orderGroups.Groups
+            .SelectMany(g => g.LineItems.Select(li => li.LineItemId.ToString()))
+            .Distinct()
+            .ToList();
+
+        return new CheckoutFulfillmentState
+        {
+            Methods =
+            [
+                new FulfillmentMethodState
+                {
+                    Type = ProtocolConstants.FulfillmentTypes.Shipping,
+                    LineItemIds = allLineItemIds,
+                    Groups = orderGroups.Groups.Select(g => new FulfillmentGroupState
+                    {
+                        GroupId = g.GroupId.ToString(),
+                        GroupName = g.GroupName,
+                        LineItemIds = g.LineItems.Select(li => li.LineItemId.ToString()).ToList(),
+                        SelectedOptionId = g.SelectedShippingOptionId?.ToString()
+                            ?? (session?.SelectedShippingOptions.TryGetValue(g.GroupId, out var selId) == true
+                                ? selId.ToString()
+                                : null),
+                        Options = g.AvailableShippingOptions.Select(opt => new FulfillmentOptionState
+                        {
+                            OptionId = opt.ShippingOptionId.ToString(),
+                            Title = opt.Name,
+                            Description = opt.DeliveryTimeDescription,
+                            Amount = ToMinorUnits(opt.Cost),
+                            Currency = currency,
+                            EstimatedDeliveryDays = opt.DaysTo > 0 ? opt.DaysTo : null
+                        }).ToList()
+                    }).ToList()
+                }
+            ]
+        };
+    }
+
+    private static CheckoutTotalsState MapTotals(Basket basket)
+    {
+        var currency = basket.Currency ?? "USD";
+
+        var breakdown = new List<CheckoutTotalBreakdown>
+        {
+            new() { Label = "Subtotal", Amount = ToMinorUnits(basket.SubTotal), Type = "subtotal" }
+        };
+
+        if (basket.Discount > 0)
+        {
+            breakdown.Add(new CheckoutTotalBreakdown { Label = "Discount", Amount = -ToMinorUnits(basket.Discount), Type = "discount" });
+        }
+
+        if (basket.Shipping > 0)
+        {
+            breakdown.Add(new CheckoutTotalBreakdown { Label = "Shipping", Amount = ToMinorUnits(basket.Shipping), Type = "fulfillment" });
+        }
+
+        if (basket.Tax > 0)
+        {
+            breakdown.Add(new CheckoutTotalBreakdown { Label = "Tax", Amount = ToMinorUnits(basket.Tax), Type = "tax" });
+        }
+
+        breakdown.Add(new CheckoutTotalBreakdown { Label = "Total", Amount = ToMinorUnits(basket.Total), Type = "total" });
+
+        return new CheckoutTotalsState
+        {
+            Subtotal = ToMinorUnits(basket.SubTotal),
+            ItemsDiscount = 0,
+            Discount = ToMinorUnits(basket.Discount),
+            Fulfillment = ToMinorUnits(basket.Shipping),
+            Tax = ToMinorUnits(basket.Tax),
+            Total = ToMinorUnits(basket.Total),
+            Currency = currency,
+            Breakdown = breakdown
+        };
+    }
+
+    private static IReadOnlyList<CheckoutMessageState> MapProtocolMessages(Basket basket)
+    {
+        return basket.Errors
+            .Select(e => new CheckoutMessageState
+            {
+                Type = ProtocolConstants.MessageTypes.Error,
+                Code = e.IsShippingError
+                    ? ProtocolConstants.MessageCodes.Invalid
+                    : (e.RelatedLineItemId.HasValue
+                        ? ProtocolConstants.MessageCodes.OutOfStock
+                        : ProtocolConstants.MessageCodes.Missing),
+                Path = e.RelatedLineItemId.HasValue
+                    ? $"$.line_items[?(@.id=='{e.RelatedLineItemId}')]"
+                    : (e.IsShippingError ? "$.fulfillment" : null),
+                Content = e.Message ?? "An error occurred",
+                Severity = ProtocolConstants.MessageSeverity.RequiresBuyerInput
+            })
+            .ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<Basket?> GetBasketByIdAsync(
+        Guid basketId,
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        return await scope.ExecuteWithContextAsync(async db =>
+            await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken));
+    }
+
+    /// <summary>
+    /// Converts a decimal amount to minor units (cents).
+    /// UCP requires all monetary amounts in minor units.
+    /// </summary>
+    private static long ToMinorUnits(decimal amount) => (long)Math.Round(amount * 100);
 
     private sealed class NoopLocationsService : ILocationsService
     {

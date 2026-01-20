@@ -10,6 +10,7 @@ using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Shared.Services.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PdfSharp.Drawing;

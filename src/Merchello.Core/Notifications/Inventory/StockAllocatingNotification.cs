@@ -6,6 +6,12 @@ namespace Merchello.Core.Notifications.Inventory;
 /// Notification published before stock is allocated (permanently deducted).
 /// Handlers can cancel the operation.
 /// </summary>
+/// <remarks>
+/// Common use cases:
+/// - Validate against external inventory before permanent deduction
+/// - Block allocation for items flagged for quality issues
+/// - Apply FIFO/LIFO or lot-based allocation rules
+/// </remarks>
 public class StockAllocatingNotification(
     Guid productId,
     Guid warehouseId,

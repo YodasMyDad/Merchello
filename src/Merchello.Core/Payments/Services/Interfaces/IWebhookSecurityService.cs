@@ -1,3 +1,5 @@
+using Merchello.Core.Payments.Models;
+
 namespace Merchello.Core.Payments.Services.Interfaces;
 
 /// <summary>
@@ -67,35 +69,4 @@ public interface IWebhookSecurityService
     /// <param name="providerAlias">The payment provider alias.</param>
     /// <param name="webhookEventId">The unique webhook event ID from the provider.</param>
     void ClearProcessingMarker(string providerAlias, string webhookEventId);
-}
-
-/// <summary>
-/// Types of webhook security events for audit logging.
-/// </summary>
-public enum WebhookSecurityEventType
-{
-    /// <summary>
-    /// Webhook signature validation failed.
-    /// </summary>
-    SignatureValidationFailed,
-
-    /// <summary>
-    /// Webhook was rejected due to rate limiting.
-    /// </summary>
-    RateLimited,
-
-    /// <summary>
-    /// Duplicate webhook was received (already processed).
-    /// </summary>
-    DuplicateWebhook,
-
-    /// <summary>
-    /// Webhook was processed successfully.
-    /// </summary>
-    ProcessedSuccessfully,
-
-    /// <summary>
-    /// Webhook processing failed.
-    /// </summary>
-    ProcessingFailed
 }

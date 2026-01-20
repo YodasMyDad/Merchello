@@ -9,6 +9,14 @@ using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Accounting.Handlers.Interfaces;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Caching.Services.Interfaces;
+using Merchello.Core.Protocols;
+using Merchello.Core.Protocols.Interfaces;
+using Merchello.Core.Protocols.Models;
+using Merchello.Core.Protocols.Payments;
+using Merchello.Core.Protocols.Webhooks;
+using Merchello.Core.Protocols.UCP;
+using Merchello.Core.Shared.Reflection;
 using Merchello.Core.Checkout;
 using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
@@ -65,6 +73,7 @@ using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
+using Merchello.Core.Shared.RateLimiting.Models;
 using Merchello.Core.Warehouses.Factories;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services;
@@ -277,7 +286,12 @@ public class ServiceTestFixture : IDisposable
         services.AddSingleton<SlugHelper>();
 
         // Settings
-        var merchelloSettings = new MerchelloSettings { StoreCurrencyCode = "USD", DefaultRounding = MidpointRounding.AwayFromZero };
+        var merchelloSettings = new MerchelloSettings
+        {
+            StoreCurrencyCode = "USD",
+            DefaultShippingCountry = "US",
+            DefaultRounding = MidpointRounding.AwayFromZero
+        };
         services.AddSingleton(Options.Create(merchelloSettings));
 
         // Currency services
@@ -554,6 +568,65 @@ public class ServiceTestFixture : IDisposable
         // Important: This creates a proper Lazy<ICheckoutService> that resolves to the real service
         services.AddScoped<ICheckoutService, CheckoutService>();
         services.AddScoped(sp => new Lazy<ICheckoutService>(() => sp.GetRequiredService<ICheckoutService>()));
+
+        // ============================================
+        // UCP Protocol Services (Protocol Integration Tests)
+        // ============================================
+
+        // Protocol settings
+        var protocolSettings = new ProtocolSettings
+        {
+            Enabled = true,
+            WellKnownPath = "/.well-known",
+            ManifestCacheDurationMinutes = 60,
+            RequireHttps = false, // Allow HTTP in tests
+            Ucp = new UcpSettings
+            {
+                Enabled = true,
+                Version = "2026-01-11",
+                RequireAuthentication = false,
+                AllowedAgents = ["*"],
+                SigningKeyRotationDays = 90,
+                Capabilities = new UcpCapabilitySettings
+                {
+                    Checkout = true,
+                    Order = true,
+                    IdentityLinking = false
+                },
+                Extensions = new UcpExtensionSettings
+                {
+                    Discount = true,
+                    Fulfillment = true,
+                    BuyerConsent = false,
+                    Ap2Mandates = false
+                }
+            }
+        };
+        services.AddSingleton(Options.Create(protocolSettings));
+
+        // Mock ICacheService (simple pass-through for tests)
+        var cacheServiceMock = new Mock<ICacheService>();
+        cacheServiceMock
+            .Setup(x => x.GetOrCreateAsync(
+                It.IsAny<string>(),
+                It.IsAny<Func<CancellationToken, Task<object?>>>(),
+                It.IsAny<TimeSpan?>(),
+                It.IsAny<IEnumerable<string>?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((string _, Func<CancellationToken, Task<object?>> factory, TimeSpan? _, IEnumerable<string>? _, CancellationToken ct) => factory(ct));
+        services.AddSingleton(cacheServiceMock.Object);
+
+        // Protocol infrastructure
+        services.AddSingleton<ISigningKeyStore, SigningKeyStore>();
+        services.AddSingleton<IWebhookSigner, WebhookSigner>();
+        services.AddScoped<IPaymentHandlerExporter, PaymentHandlerExporter>();
+
+        // ExtensionManager for protocol adapter discovery
+        services.AddScoped<ExtensionManager>();
+
+        // Register UCPProtocolAdapter directly (ExtensionManager will discover it)
+        services.AddScoped<ICommerceProtocolAdapter, UCPProtocolAdapter>();
+        services.AddScoped<ICommerceProtocolManager, CommerceProtocolManager>();
 
         _serviceProvider = services.BuildServiceProvider();
     }

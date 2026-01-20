@@ -11,12 +11,3 @@ public class WebhookTopicDto
     public string Category { get; set; } = string.Empty;
     public string? SamplePayload { get; set; }
 }
-
-/// <summary>
-/// DTO for webhook topics grouped by category.
-/// </summary>
-public class WebhookTopicCategoryDto
-{
-    public string Name { get; set; } = string.Empty;
-    public List<WebhookTopicDto> Topics { get; set; } = [];
-}

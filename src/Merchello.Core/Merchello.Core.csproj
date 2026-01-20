@@ -26,6 +26,11 @@
     </Target>
 
 
+  <!-- Allow test project to access internal members -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Merchello.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Umbraco EF Core integration -->
     <PackageReference Include="Umbraco.Cms.Persistence.EFCore" Version="*" />

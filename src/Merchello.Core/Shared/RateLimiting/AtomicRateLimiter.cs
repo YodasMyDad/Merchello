@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
+using Merchello.Core.Shared.RateLimiting.Models;
 
 namespace Merchello.Core.Shared.RateLimiting;
 

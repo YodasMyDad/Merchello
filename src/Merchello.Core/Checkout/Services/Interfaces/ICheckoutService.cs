@@ -7,6 +7,7 @@ using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Protocols.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Warehouses.Models;
 
@@ -298,4 +299,28 @@ public interface ICheckoutService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if basket contains digital products.</returns>
     Task<bool> BasketHasDigitalProductsAsync(Basket basket, CancellationToken cancellationToken = default);
+
+    // Protocol integration methods
+
+    /// <summary>
+    /// Gets the checkout session state in protocol-agnostic format.
+    /// Used by protocol adapters (UCP, etc.) to expose checkout state to external agents.
+    /// </summary>
+    /// <param name="basketId">The basket ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Protocol-agnostic session state, or null if basket not found.</returns>
+    Task<CheckoutSessionState?> GetSessionStateAsync(
+        Guid basketId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a basket by its ID directly from the database.
+    /// Used by protocol adapters (UCP, etc.) to load baskets for external agent sessions.
+    /// </summary>
+    /// <param name="basketId">The basket ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The basket, or null if not found.</returns>
+    Task<Basket?> GetBasketByIdAsync(
+        Guid basketId,
+        CancellationToken cancellationToken = default);
 }

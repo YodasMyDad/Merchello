@@ -1,5 +1,6 @@
 using Merchello.Core.Shared.RateLimiting;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
+using Merchello.Core.Shared.RateLimiting.Models;
 using Shouldly;
 using Xunit;
 

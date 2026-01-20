@@ -38,8 +38,11 @@ Read: `{Entity}Dto` | List: `{Entity}ListItemDto` | Detail: `{Entity}DetailDto` 
 
 Add/Remove = collection ops; Create/Delete = entity lifecycle. Internal: `{Entity}Request`/`{Entity}Result`
 
-## Classes & Errors
-- Models in separate files, nested `Models/` folder; never rename existing functions without permission
+## File Organization
+**One type per file** — every `class`, `record`, `enum`, and `interface` gets its own file. This applies everywhere: Dtos, Models, Parameters, Interfaces, Services. File name = type name (e.g., `DiscountOrderBy.cs` for `enum DiscountOrderBy`). Never combine multiple public types in one file, even if they're related.
+
+## Errors
+- Never rename existing functions without permission
 - Exceptions for exceptional cases; Data Annotations/FluentValidation; proper HTTP codes
 
 ## API/Performance

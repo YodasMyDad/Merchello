@@ -21,6 +21,7 @@ using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Api.Management.OpenApi;
 using Umbraco.Cms.Api.Common.OpenApi;
+using Merchello.Middleware;
 
 namespace Merchello.Composers
 {
@@ -162,6 +163,9 @@ namespace Merchello.Composers
             {
                 // Add rate limiter middleware before other middleware
                 app.UseRateLimiter();
+
+                // Add agent authentication middleware for protocol requests
+                app.UseAgentAuthentication();
 
                 // Continue with the rest of the pipeline
                 next(app);

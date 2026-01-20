@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting;
+using Merchello.Core.Accounting.Models;
 
 namespace Merchello.Core.Accounting.Services.Interfaces;
 
@@ -18,8 +19,3 @@ public interface IInvoiceReminderService
         InvoiceReminderSettings settings,
         CancellationToken cancellationToken = default);
 }
-
-/// <summary>
-/// Result of processing invoice reminders.
-/// </summary>
-public record InvoiceReminderResult(int DueSoonRemindersSent, int OverdueRemindersSent);

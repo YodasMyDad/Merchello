@@ -1,5 +1,6 @@
 using Merchello.Core.Shared.Services;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Shared.Services.Models;
 using Shouldly;
 using Xunit;
 

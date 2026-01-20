@@ -63,32 +63,3 @@ public class ProductQueryParameters
     /// </summary>
     public DateTime? PopularityToDate { get; set; }
 }
-
-/// <summary>
-/// Filter options for product availability
-/// </summary>
-public enum ProductAvailabilityFilter
-{
-    /// <summary>All products regardless of availability</summary>
-    All,
-    /// <summary>Only products that are available for purchase</summary>
-    Available,
-    /// <summary>Only products that are unavailable for purchase</summary>
-    Unavailable
-}
-
-/// <summary>
-/// Filter options for product stock status
-/// </summary>
-public enum ProductStockStatusFilter
-{
-    /// <summary>All products regardless of stock</summary>
-    All,
-    /// <summary>Products with stock above the low stock threshold</summary>
-    InStock,
-    /// <summary>Products with stock between 1 and the low stock threshold</summary>
-    LowStock,
-    /// <summary>Products with zero stock</summary>
-    OutOfStock
-}
-

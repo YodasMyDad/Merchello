@@ -85,9 +85,23 @@ public class WebhookSigner(
             }
 
             // Verify b64=false is in the crit header
-            if (!header.TryGetValue("b64", out var b64Value) || b64Value is not false)
+            // Note: JSON deserialization returns JsonElement, so we need to check it properly
+            if (!header.TryGetValue("b64", out var b64Value))
             {
-                logger.LogWarning("JWS header missing 'b64: false' claim");
+                logger.LogWarning("JWS header missing 'b64' claim");
+                return false;
+            }
+
+            var b64IsFalse = b64Value switch
+            {
+                false => true,
+                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.False => true,
+                _ => false
+            };
+
+            if (!b64IsFalse)
+            {
+                logger.LogWarning("JWS header 'b64' claim is not false");
                 return false;
             }
 

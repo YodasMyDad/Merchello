@@ -1,5 +1,3 @@
-using Merchello.Core.Products.Models;
-
 namespace Merchello.Core.Products.Dtos;
 
 /// <summary>
@@ -32,12 +30,4 @@ public class ShippingOptionExclusionDto
     /// Total number of variants for this product.
     /// </summary>
     public int TotalVariantCount { get; set; }
-}
-
-/// <summary>
-/// Request payload for updating shipping option exclusions.
-/// </summary>
-public class UpdateShippingExclusionsDto
-{
-    public List<Guid> ExcludedShippingOptionIds { get; set; } = [];
 }

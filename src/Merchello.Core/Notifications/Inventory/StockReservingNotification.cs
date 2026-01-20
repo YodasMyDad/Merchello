@@ -6,6 +6,12 @@ namespace Merchello.Core.Notifications.Inventory;
 /// Notification published before stock is reserved.
 /// Handlers can cancel the operation.
 /// </summary>
+/// <remarks>
+/// Common use cases:
+/// - Validate reservation against external inventory systems
+/// - Block reservations for items on hold (damage, recall)
+/// - Apply custom allocation rules or priority queues
+/// </remarks>
 public class StockReservingNotification(
     Guid productId,
     Guid warehouseId,

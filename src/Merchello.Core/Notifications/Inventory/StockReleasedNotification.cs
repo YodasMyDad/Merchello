@@ -5,6 +5,12 @@ namespace Merchello.Core.Notifications.Inventory;
 /// <summary>
 /// Notification published after a stock reservation has been released.
 /// </summary>
+/// <remarks>
+/// Common use cases:
+/// - Sync release to external WMS or ERP systems
+/// - Log release for inventory audit trails
+/// - Notify sales team that stock is available again
+/// </remarks>
 public class StockReleasedNotification(
     Guid productId,
     Guid warehouseId,

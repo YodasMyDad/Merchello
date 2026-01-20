@@ -66,39 +66,3 @@ public class ProtocolResponse
         }
     };
 }
-
-/// <summary>
-/// Error details for protocol responses.
-/// </summary>
-public class ProtocolError
-{
-    public required string Code { get; init; }
-    public required string Message { get; init; }
-    public IReadOnlyDictionary<string, string[]>? Details { get; init; }
-}
-
-/// <summary>
-/// UCP spec requires every response to include version and active capabilities.
-/// Wrap all protocol responses in this envelope.
-/// </summary>
-public class ProtocolResponseEnvelope
-{
-    public required UcpMetadata Ucp { get; init; }
-    public required object Data { get; init; }
-}
-
-/// <summary>
-/// UCP metadata included in every response per spec requirement.
-/// </summary>
-public class UcpMetadata
-{
-    /// <summary>
-    /// Protocol version (YYYY-MM-DD format).
-    /// </summary>
-    public required string Version { get; init; }
-
-    /// <summary>
-    /// Active capabilities for this session (e.g., "dev.ucp.shopping.checkout").
-    /// </summary>
-    public required IReadOnlyList<string> Capabilities { get; init; }
-}

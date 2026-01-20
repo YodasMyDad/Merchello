@@ -1,3 +1,4 @@
+using Merchello.Core.Shared.Services.Models;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 
@@ -100,47 +101,3 @@ public interface IPdfService
     /// </summary>
     PdfMargins Margins { get; }
 }
-
-/// <summary>
-/// Column definition for PDF tables.
-/// </summary>
-public record PdfTableColumn(string Header, double Width, PdfTextAlignment Alignment = PdfTextAlignment.Left);
-
-/// <summary>
-/// Text alignment options.
-/// </summary>
-public enum PdfTextAlignment
-{
-    Left,
-    Center,
-    Right
-}
-
-/// <summary>
-/// Page size options for PDF documents.
-/// </summary>
-public enum PdfPageSize
-{
-    A4,
-    Letter,
-    Legal
-}
-
-/// <summary>
-/// Standard fonts for PDF documents.
-/// </summary>
-public class PdfFonts
-{
-    public required XFont Title { get; init; }
-    public required XFont Subtitle { get; init; }
-    public required XFont Body { get; init; }
-    public required XFont BodyBold { get; init; }
-    public required XFont Small { get; init; }
-    public required XFont TableHeader { get; init; }
-    public required XFont TableBody { get; init; }
-}
-
-/// <summary>
-/// Standard margins for PDF documents.
-/// </summary>
-public record PdfMargins(double Left, double Right, double Top, double Bottom);

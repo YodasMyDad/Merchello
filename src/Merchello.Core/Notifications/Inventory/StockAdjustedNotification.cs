@@ -6,6 +6,13 @@ namespace Merchello.Core.Notifications.Inventory;
 /// Notification published after stock has been manually adjusted.
 /// This is used for manual stock corrections, transfers, or adjustments.
 /// </summary>
+/// <remarks>
+/// Common use cases:
+/// - Sync adjustments to external WMS or ERP systems
+/// - Log adjustments for inventory audit trails with reason tracking
+/// - Detect unusual adjustment patterns for loss prevention
+/// - Update accounting systems for inventory valuation
+/// </remarks>
 public class StockAdjustedNotification(
     Guid productId,
     Guid warehouseId,

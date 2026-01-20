@@ -21,30 +21,3 @@ public class AddonPricePreviewDto
     /// </summary>
     public decimal TotalPrice { get; set; }
 }
-
-/// <summary>
-/// Request for addon price preview
-/// </summary>
-public class AddonPricePreviewRequestDto
-{
-    /// <summary>
-    /// Selected add-on values
-    /// </summary>
-    public List<SelectedAddonDto> SelectedAddons { get; set; } = [];
-}
-
-/// <summary>
-/// A selected add-on option value
-/// </summary>
-public class SelectedAddonDto
-{
-    /// <summary>
-    /// Option ID
-    /// </summary>
-    public Guid OptionId { get; set; }
-
-    /// <summary>
-    /// Value ID
-    /// </summary>
-    public Guid ValueId { get; set; }
-}

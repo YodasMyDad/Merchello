@@ -1,4 +1,5 @@
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Shared.Services.Models;
 using PdfSharp.Drawing;
 using PdfSharp.Fonts;
 using PdfSharp.Pdf;

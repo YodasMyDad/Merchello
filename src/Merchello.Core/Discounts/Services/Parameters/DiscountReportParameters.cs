@@ -47,14 +47,3 @@ public class DiscountReportParameters
     /// </summary>
     public bool Descending { get; set; } = true;
 }
-
-/// <summary>
-/// Fields available for ordering discount usage reports.
-/// </summary>
-public enum DiscountReportOrderBy
-{
-    TotalUsage,
-    TotalDiscountAmount,
-    UniqueCustomers,
-    Name
-}

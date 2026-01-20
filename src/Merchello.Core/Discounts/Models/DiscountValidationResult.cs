@@ -38,21 +38,3 @@ public class DiscountValidationResult
         ErrorMessage = message
     };
 }
-
-/// <summary>
-/// Error codes for discount validation failures.
-/// </summary>
-public enum DiscountValidationErrorCode
-{
-    NotFound,
-    Inactive,
-    NotStarted,
-    Expired,
-    UsageLimitReached,
-    CustomerUsageLimitReached,
-    CustomerNotEligible,
-    MinimumRequirementNotMet,
-    NoApplicableProducts,
-    AlreadyApplied,
-    CannotCombine
-}

@@ -5,6 +5,12 @@ namespace Merchello.Core.Notifications.Inventory;
 /// <summary>
 /// Notification published after stock has been reserved.
 /// </summary>
+/// <remarks>
+/// Common use cases:
+/// - Sync reservation to external WMS or ERP systems
+/// - Log reservations for inventory audit trails
+/// - Trigger reorder workflows when remaining stock is low
+/// </remarks>
 public class StockReservedNotification(
     Guid productId,
     Guid warehouseId,

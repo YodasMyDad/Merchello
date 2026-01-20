@@ -12,6 +12,7 @@ using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.RateLimiting;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
+using Merchello.Core.Shared.RateLimiting.Models;
 using Merchello.Core.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;

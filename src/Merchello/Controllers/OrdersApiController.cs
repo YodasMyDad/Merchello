@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Merchello.Controllers.Dtos;
 using Merchello.Core;
 using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Extensions;
@@ -1214,37 +1215,4 @@ public class OrdersApiController(
 
         return Ok(response);
     }
-}
-
-/// <summary>
-/// DTO for outstanding orders page response
-/// </summary>
-public record OutstandingOrdersPageDto
-{
-    public List<OrderListItemDto> Items { get; init; } = [];
-    public int Page { get; init; }
-    public int PageSize { get; init; }
-    public int TotalItems { get; init; }
-    public int TotalPages { get; init; }
-}
-
-/// <summary>
-/// DTO for batch mark as paid request
-/// </summary>
-public record BatchMarkAsPaidDto
-{
-    public List<Guid> InvoiceIds { get; init; } = [];
-    public string PaymentMethod { get; init; } = string.Empty;
-    public string? Reference { get; init; }
-    public DateTime? DateReceived { get; init; }
-}
-
-/// <summary>
-/// DTO for batch mark as paid response
-/// </summary>
-public record BatchMarkAsPaidResultDto
-{
-    public int SuccessCount { get; init; }
-    public List<string> Messages { get; init; } = [];
-    public List<Guid> PaymentIds { get; init; } = [];
 }
