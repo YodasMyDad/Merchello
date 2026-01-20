@@ -61,6 +61,12 @@ export function initSinglePageCheckout() {
             signingIn: false,
             isSignedIn: false,
 
+            // Forgot password modal state
+            showForgotPasswordModal: false,
+            forgotPasswordLoading: false,
+            forgotPasswordSuccess: false,
+            forgotPasswordError: '',
+
             // ============================================
             // Local Address State (for template compatibility)
             // ============================================
@@ -1022,7 +1028,38 @@ export function initSinglePageCheckout() {
             },
 
             openForgotPassword() {
-                window.open('/forgot-password?email=' + encodeURIComponent(this.form.email), '_blank');
+                // Show inline modal instead of opening new tab
+                this.forgotPasswordError = '';
+                this.forgotPasswordSuccess = false;
+                this.forgotPasswordLoading = false;
+                this.showForgotPasswordModal = true;
+            },
+
+            closeForgotPasswordModal() {
+                this.showForgotPasswordModal = false;
+                // Reset state after close
+                setTimeout(() => {
+                    this.forgotPasswordError = '';
+                    this.forgotPasswordSuccess = false;
+                    this.forgotPasswordLoading = false;
+                }, 300);
+            },
+
+            async sendForgotPasswordEmail() {
+                if (!this.form.email || this.forgotPasswordLoading) return;
+
+                this.forgotPasswordLoading = true;
+                this.forgotPasswordError = '';
+
+                try {
+                    const result = await checkoutApi.forgotPassword(this.form.email);
+                    // Always show success (API returns success to prevent email enumeration)
+                    this.forgotPasswordSuccess = true;
+                } catch (err) {
+                    this.forgotPasswordError = 'Unable to send reset email. Please try again.';
+                } finally {
+                    this.forgotPasswordLoading = false;
+                }
             },
 
             // ============================================

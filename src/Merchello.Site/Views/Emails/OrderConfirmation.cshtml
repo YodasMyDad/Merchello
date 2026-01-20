@@ -1,21 +1,23 @@
 @using Merchello.Core.Email.Models
-@using Merchello.Core.Notifications.Order
+@using Merchello.Core.Notifications.Invoice
 @using Merchello.Email.Extensions
-@model EmailModel<OrderCreatedNotification>
+@model EmailModel<InvoiceSavedNotification>
 @*
     Order Confirmation Email Template
 
     This template demonstrates how to create responsive MJML emails using
     Merchello's email helpers. You can mix helpers with raw MJML as needed.
 
-    Model: EmailModel<OrderCreatedNotification>
-    - Model.Notification.Order - The order that was created
-    - Model.Notification.Order.Invoice - The associated invoice with billing/shipping addresses
+    Model: EmailModel<InvoiceSavedNotification>
+    - Model.Notification.Invoice - The invoice that was created
+    - Model.Notification.Invoice.BillingAddress - Billing address
+    - Model.Notification.Invoice.ShippingAddress - Shipping address
+    - Model.Notification.Invoice.Orders - Orders within this invoice
     - Model.Store - Store context (name, logo, contact info)
 *@
 
 @Html.Mjml().EmailStart(
-    $"Order #{Model.Notification.Order.Invoice?.InvoiceNumber} Confirmed",
+    $"Order #{Model.Notification.Invoice.InvoiceNumber} Confirmed",
     $"Thank you for your order!")
 
 @Html.Mjml().Header(Model.Store)
@@ -23,32 +25,29 @@
 <mj-section>
   <mj-column>
     @Html.Mjml().Heading("Order Confirmed")
-    @Html.Mjml().Text($"Hi {Model.Notification.Order.Invoice?.BillingAddress?.Name ?? "there"},")
+    @Html.Mjml().Text($"Hi {Model.Notification.Invoice.BillingAddress?.Name ?? "there"},")
     <mj-text>
       Thank you for your order! We've received it and will begin processing shortly.
       You'll receive another email when your order ships.
     </mj-text>
-    @Html.Mjml().Text($"Order #{Model.Notification.Order.Invoice?.InvoiceNumber}", bold: true)
+    @Html.Mjml().Text($"Order #{Model.Notification.Invoice.InvoiceNumber}", bold: true)
   </mj-column>
 </mj-section>
 
-@if (Model.Notification.Order.Invoice != null)
-{
-    @Html.Mjml().OrderSummary(Model.Notification.Order.Invoice)
-
-    <mj-section>
-      <mj-column>
-        @Html.Mjml().AddressBlock(Model.Notification.Order.Invoice.ShippingAddress, "Shipping Address")
-      </mj-column>
-      <mj-column>
-        @Html.Mjml().AddressBlock(Model.Notification.Order.Invoice.BillingAddress, "Billing Address")
-      </mj-column>
-    </mj-section>
-}
+@Html.Mjml().OrderSummary(Model.Notification.Invoice)
 
 <mj-section>
   <mj-column>
-    @Html.Mjml().Button("View Order", $"{Model.Store.WebsiteUrl}/account/orders/{Model.Notification.Order.Id}")
+    @Html.Mjml().AddressBlock(Model.Notification.Invoice.ShippingAddress, "Shipping Address")
+  </mj-column>
+  <mj-column>
+    @Html.Mjml().AddressBlock(Model.Notification.Invoice.BillingAddress, "Billing Address")
+  </mj-column>
+</mj-section>
+
+<mj-section>
+  <mj-column>
+    @Html.Mjml().Button("View Order", $"{Model.Store.WebsiteUrl}/account/orders/{Model.Notification.Invoice.Id}")
   </mj-column>
 </mj-section>
 

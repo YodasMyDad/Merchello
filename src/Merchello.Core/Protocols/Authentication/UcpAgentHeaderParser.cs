@@ -1,3 +1,5 @@
+using StructuredFieldValues;
+
 namespace Merchello.Core.Protocols.Authentication;
 
 /// <summary>
@@ -8,8 +10,7 @@ namespace Merchello.Core.Protocols.Authentication;
 /// <code>
 /// UCP-Agent: profile="https://platform.example/profile", version="2026-01-11"
 /// </code>
-/// This implementation provides basic parsing. For full RFC 8941 compliance,
-/// consider using the StructuredFieldValues NuGet package.
+/// This implementation uses the StructuredFieldValues NuGet package for full RFC 8941 compliance.
 /// </remarks>
 public static class UcpAgentHeaderParser
 {
@@ -20,29 +21,26 @@ public static class UcpAgentHeaderParser
     /// <returns>Dictionary of parsed values.</returns>
     public static Dictionary<string, string> Parse(string headerValue)
     {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
         if (string.IsNullOrWhiteSpace(headerValue))
         {
-            return result;
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
-        // Split on commas (RFC 8941 dictionary member separator)
-        var members = SplitMembers(headerValue);
-
-        foreach (var member in members)
+        // Use RFC 8941 compliant parser from StructuredFieldValues
+        var error = SfvParser.ParseDictionary(headerValue, out var dictionary);
+        if (error != null)
         {
-            var trimmed = member.Trim();
-            if (string.IsNullOrEmpty(trimmed))
-            {
-                continue;
-            }
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
 
-            // Parse key="value" or key=value format
-            var parsed = ParseMember(trimmed);
-            if (parsed.HasValue)
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (key, parsedItem) in dictionary)
+        {
+            var stringValue = ConvertToString(parsedItem.Value);
+            if (stringValue != null)
             {
-                result[parsed.Value.Key] = parsed.Value.Value;
+                result[key] = stringValue;
             }
         }
 
@@ -92,58 +90,25 @@ public static class UcpAgentHeaderParser
         };
     }
 
-    private static IEnumerable<string> SplitMembers(string headerValue)
+    /// <summary>
+    /// Converts an RFC 8941 value to its string representation.
+    /// Supports: String, Token, Integer, Decimal, Boolean, ByteSequence, DateTime.
+    /// </summary>
+    private static string? ConvertToString(object? value)
     {
-        // Split on commas, but respect quoted strings
-        var members = new List<string>();
-        var current = new System.Text.StringBuilder();
-        var inQuotes = false;
-
-        foreach (var c in headerValue)
+        return value switch
         {
-            if (c == '"')
-            {
-                inQuotes = !inQuotes;
-                current.Append(c);
-            }
-            else if (c == ',' && !inQuotes)
-            {
-                members.Add(current.ToString());
-                current.Clear();
-            }
-            else
-            {
-                current.Append(c);
-            }
-        }
-
-        if (current.Length > 0)
-        {
-            members.Add(current.ToString());
-        }
-
-        return members;
-    }
-
-    private static (string Key, string Value)? ParseMember(string member)
-    {
-        // Handle key="value" format
-        var equalsIndex = member.IndexOf('=');
-        if (equalsIndex < 1)
-        {
-            return null;
-        }
-
-        var key = member[..equalsIndex].Trim();
-        var value = member[(equalsIndex + 1)..].Trim();
-
-        // Remove quotes from value if present
-        if (value.StartsWith('"') && value.EndsWith('"') && value.Length >= 2)
-        {
-            value = value[1..^1];
-        }
-
-        return (key, value);
+            string s => s,
+            Token t => t.ToString(),
+            long l => l.ToString(),
+            decimal d => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            bool b => b ? "?1" : "?0",
+            ReadOnlyMemory<byte> bytes => Convert.ToBase64String(bytes.Span),
+            DateTime dt => dt.ToString("O"),
+            DisplayString ds => ds.ToString(),
+            null => null,
+            _ => value.ToString()
+        };
     }
 }
 

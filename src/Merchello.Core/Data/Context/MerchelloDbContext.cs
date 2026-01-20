@@ -8,6 +8,7 @@ using Merchello.Core.Email.Models;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Protocols.Webhooks.Models;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Tax.Models;
@@ -97,6 +98,9 @@ public class MerchelloDbContext : DbContext
 
     // Digital Products DbSets
     public DbSet<DownloadLink> DownloadLinks => Set<DownloadLink>();
+
+    // Protocol Signing Keys DbSets
+    public DbSet<SigningKey> SigningKeys => Set<SigningKey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

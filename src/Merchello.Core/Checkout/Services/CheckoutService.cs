@@ -2226,6 +2226,19 @@ public class CheckoutService(
         if (!string.IsNullOrEmpty(basket.ShippingAddress.CountryCode))
         {
             orderGroups = await GetOrderGroupsAsync(basket, session, cancellationToken);
+
+            // Propagate grouping errors (e.g., warehouse cannot serve region) to basket for protocol message mapping
+            foreach (var error in orderGroups.Errors)
+            {
+                if (!basket.Errors.Any(e => e.Message == error))
+                {
+                    basket.Errors.Add(new BasketError
+                    {
+                        Message = error,
+                        IsShippingError = true
+                    });
+                }
+            }
         }
 
         // Determine session status
@@ -2512,7 +2525,7 @@ public class CheckoutService(
             {
                 Type = ProtocolConstants.MessageTypes.Error,
                 Code = e.IsShippingError
-                    ? ProtocolConstants.MessageCodes.Invalid
+                    ? ProtocolConstants.MessageCodes.ShippingUnavailable
                     : (e.RelatedLineItemId.HasValue
                         ? ProtocolConstants.MessageCodes.OutOfStock
                         : ProtocolConstants.MessageCodes.Missing),

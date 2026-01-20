@@ -666,15 +666,19 @@ src/Merchello.Core/Protocols/
 ├── Authentication/
 │   ├── AgentAuthenticationResult.cs     # Auth result model
 │   ├── AgentIdentity.cs                 # Authenticated agent info
-│   └── UcpAgentHeaderParser.cs          # UCP-Agent header parser (RFC 8941)
+│   └── UcpAgentHeaderParser.cs          # UCP-Agent header parser (RFC 8941, uses StructuredFieldValues)
 ├── Payments/
 │   ├── IPaymentHandlerExporter.cs       # Payment export contract
 │   └── PaymentHandlerExporter.cs        # Export implementation
 ├── Webhooks/
 │   ├── ISigningKeyStore.cs              # Signing key storage contract
 │   ├── IWebhookSigner.cs                # Webhook signing contract
-│   ├── SigningKeyStore.cs               # P-256 ECDSA key management
-│   └── WebhookSigner.cs                 # RFC 7797 detached JWT signing
+│   ├── SigningKeyStore.cs               # P-256 ECDSA key management (DB-backed)
+│   ├── WebhookSigner.cs                 # RFC 7797 detached JWT signing
+│   ├── Models/
+│   │   └── SigningKey.cs                # EF Core entity for key persistence
+│   └── Mapping/
+│       └── SigningKeyDbMapping.cs       # EF Core configuration
 ├── UCP/
 │   └── UCPProtocolAdapter.cs            # UCP protocol implementation
 └── Notifications/
@@ -1522,7 +1526,7 @@ dotnet add package StructuredFieldValues
 **Implementation:**
 
 ```csharp
-using Sfv;
+using StructuredFieldValues;
 
 public static class UcpAgentHeaderParser
 {
@@ -1530,57 +1534,63 @@ public static class UcpAgentHeaderParser
     /// Parses RFC 8941 Dictionary Structured Field from UCP-Agent header.
     /// Uses StructuredFieldValues NuGet for full RFC 8941 compliance.
     /// </summary>
-    public static Dictionary<string, object?> Parse(string headerValue)
+    public static Dictionary<string, string> Parse(string headerValue)
     {
-        if (!Rfc8941.TryParseDictionary(headerValue, out var dictionary))
-        {
-            return [];
-        }
+        if (string.IsNullOrWhiteSpace(headerValue))
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        return dictionary.ToDictionary(
-            kvp => kvp.Key,
-            kvp => kvp.Value.Value.Value);
+        var error = SfvParser.ParseDictionary(headerValue, out var dictionary);
+        if (error != null)
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, parsedItem) in dictionary)
+        {
+            var stringValue = ConvertToString(parsedItem.Value);
+            if (stringValue != null)
+                result[key] = stringValue;
+        }
+        return result;
     }
 
     /// <summary>
     /// Extracts agent profile URI from UCP-Agent header.
     /// </summary>
-    public static string? GetProfileUri(HttpRequest request)
+    public static string? GetProfileUri(string headerValue)
     {
-        if (!request.Headers.TryGetValue("UCP-Agent", out var headerValues))
-            return null;
-
-        if (!Rfc8941.TryParseDictionary(headerValues.ToString(), out var dictionary))
-            return null;
-
-        return dictionary.TryGetValue("profile", out var profileItem)
-            ? profileItem.Value.Value as string
-            : null;
+        var parsed = Parse(headerValue);
+        return parsed.TryGetValue("profile", out var profile) ? profile : null;
     }
 
     /// <summary>
     /// Validates and extracts all UCP-Agent parameters.
     /// </summary>
-    public static UcpAgentInfo? ParseAgentInfo(HttpRequest request)
+    public static UcpAgentInfo? ParseAgentInfo(string headerValue)
     {
-        if (!request.Headers.TryGetValue("UCP-Agent", out var headerValues))
-            return null;
-
-        if (!Rfc8941.TryParseDictionary(headerValues.ToString(), out var dictionary))
-            return null;
-
-        var profile = dictionary.TryGetValue("profile", out var p) ? p.Value.Value as string : null;
-        var version = dictionary.TryGetValue("version", out var v) ? v.Value.Value as string : null;
-
-        if (string.IsNullOrEmpty(profile))
+        var parsed = Parse(headerValue);
+        if (!parsed.TryGetValue("profile", out var profile) || string.IsNullOrEmpty(profile))
             return null;
 
         return new UcpAgentInfo
         {
             ProfileUri = profile,
-            Version = version
+            Version = parsed.TryGetValue("version", out var version) ? version : null
         };
     }
+
+    private static string? ConvertToString(object? value) => value switch
+    {
+        string s => s,
+        Token t => t.ToString(),
+        long l => l.ToString(),
+        decimal d => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        bool b => b ? "?1" : "?0",
+        ReadOnlyMemory<byte> bytes => Convert.ToBase64String(bytes.Span),
+        DateTime dt => dt.ToString("O"),
+        DisplayString ds => ds.ToString(),
+        null => null,
+        _ => value.ToString()
+    };
 }
 
 public class UcpAgentInfo
@@ -2155,6 +2165,52 @@ When the protocol infrastructure is implemented, the following documentation upd
 3. **ExtensionManager integration** - Protocol adapters use the same discovery pattern as other providers, ensuring consistency and enabling third-party protocol implementations.
 
 4. **Notification system integration** - Protocol events use existing `MerchelloNotification` and `MerchelloCancelableNotification<T>` base classes, maintaining consistency with established patterns.
+
+### Invoice Source Tracking
+
+UCP orders are tracked via the `Invoice.Source` property, which records where the order originated. This enables analytics, reporting, and filtering by source.
+
+**UCP Source Data:**
+
+| Field | UCP Value | Description |
+|-------|-----------|-------------|
+| `Type` | `"ucp"` | Source type identifier |
+| `SourceId` | Agent ID | From UCP-Agent header profile |
+| `SourceName` | Agent name | Display name for reporting |
+| `ProfileUri` | Profile URL | Full UCP-Agent profile URI |
+| `ProtocolVersion` | `"2026-01-11"` | UCP spec version |
+| `SessionId` | Basket ID | Links to checkout session |
+
+**Querying UCP Orders:**
+
+```csharp
+// Query all UCP orders
+var ucpOrders = await invoiceService.QueryInvoices(new InvoiceQueryParameters
+{
+    SourceType = Constants.InvoiceSources.Ucp
+});
+
+// Check if an invoice came from UCP
+if (invoice.Source?.Type == Constants.InvoiceSources.Ucp)
+{
+    var agentId = invoice.Source.SourceId; // e.g., "google-gemini"
+    var protocolVersion = invoice.Source.ProtocolVersion;
+}
+```
+
+**Supported Source Types:**
+
+| Source Type | Description |
+|-------------|-------------|
+| `web` | Traditional web checkout (default) |
+| `ucp` | Universal Commerce Protocol (AI agents) |
+| `api` | Direct API integration |
+| `pos` | Point of sale |
+| `mobile` | Mobile application |
+| `draft` | Admin-created draft orders |
+| `import` | Imported from external system |
+
+---
 
 ### Spec Compliance Checklist
 

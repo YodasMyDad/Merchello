@@ -1,0 +1,85 @@
+@using Merchello.Core.Email.Models
+@using Merchello.Core.Notifications.CheckoutNotifications
+@using Merchello.Email.Extensions
+@model EmailModel<CheckoutAbandonedFirstNotification>
+@*
+    Abandoned Cart - First Email Template
+
+    This is the first email in the abandoned cart recovery sequence.
+    Sent shortly after checkout is detected as abandoned.
+    Tone: Friendly reminder, no pressure.
+
+    Model: EmailModel<CheckoutAbandonedFirstNotification>
+    - Model.Notification.CustomerEmail - Customer's email address
+    - Model.Notification.CustomerName - Customer's name
+    - Model.Notification.FormattedTotal - Basket total with currency symbol
+    - Model.Notification.ItemCount - Number of items in cart
+    - Model.Notification.RecoveryLink - URL to restore the cart
+    - Model.Store - Store context (name, logo, contact info)
+
+    Topic: checkout.abandoned.first
+*@
+
+@Html.Mjml().EmailStart(
+    "You left something behind!",
+    $"Your cart with {Model.Notification.ItemCount} item(s) is waiting for you")
+
+@Html.Mjml().Header(Model.Store)
+
+<mj-section>
+  <mj-column>
+    @Html.Mjml().Heading("You left something behind!")
+    @{
+        var greeting = !string.IsNullOrWhiteSpace(Model.Notification.CustomerName)
+            ? $"Hi {Model.Notification.CustomerName},"
+            : "Hi there,";
+    }
+    @Html.Mjml().Text(greeting)
+    <mj-text>
+      We noticed you didn't finish checking out. No worries - your items are still waiting for you!
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section padding="10px 20px">
+  <mj-column background-color="#f8f9fa" border-radius="8px" padding="20px">
+    <mj-text align="center" font-size="16px">
+      <strong>Your Cart Summary</strong>
+    </mj-text>
+    <mj-text align="center" font-size="14px" color="#666666">
+      @Model.Notification.ItemCount item(s) totalling
+    </mj-text>
+    <mj-text align="center" font-size="28px" font-weight="bold">
+      @Model.Notification.FormattedTotal
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section>
+  <mj-column>
+    @Html.Mjml().Button("Complete Your Order", Model.Notification.RecoveryLink ?? "#")
+  </mj-column>
+</mj-section>
+
+<mj-section>
+  <mj-column>
+    <mj-text font-size="13px" color="#666666" align="center">
+      Click the button above to pick up right where you left off.
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section>
+  <mj-column>
+    <mj-text font-size="12px" color="#999999">
+      If you have any questions or need assistance, we're here to help
+      @if (!string.IsNullOrEmpty(Model.Store.SupportEmail))
+      {
+        <text>at <a href="mailto:@Model.Store.SupportEmail" style="color: #999999;">@Model.Store.SupportEmail</a></text>
+      }.
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+@Html.Mjml().Footer(Model.Store)
+@Html.Mjml().EmailEnd()

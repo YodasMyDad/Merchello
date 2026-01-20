@@ -165,11 +165,29 @@ Active → Abandoned → Recovered → Converted
 ### 2.4 Invoices & Orders
 
 **IInvoiceService:**
-- `CreateOrderFromBasketAsync()` - Create invoice and orders from basket
+- `CreateOrderFromBasketAsync(basket, session, source?)` - Create invoice and orders from basket with optional source tracking
 - `PreviewInvoiceEditAsync()` - Preview edit without saving
 - `EditInvoiceAsync()` - Apply edits to invoice
 - `CreateDraftOrderAsync()` - Create draft order for manual entry
 - `CancelInvoiceAsync()` - Cancel invoice and release stock
+- `QueryInvoices(parameters)` - Query with filtering including `SourceType`
+
+**Invoice Source Tracking:**
+
+`Invoice.Source` tracks order origin for analytics and auditing:
+
+| Source Type | Use Case |
+|-------------|----------|
+| `web` | Traditional web checkout (default) |
+| `ucp` | UCP AI agents (Google Gemini, ChatGPT, etc.) |
+| `api` | Direct API integration |
+| `pos` | Point of sale |
+| `draft` | Admin-created orders |
+
+Use `Constants.InvoiceSources` for well-known values. Query by source:
+```csharp
+await invoiceService.QueryInvoices(new InvoiceQueryParameters { SourceType = "ucp" });
+```
 
 **ILineItemService:**
 - `CalculateFromLineItems()` - Calculate totals from line items
@@ -533,10 +551,17 @@ Protocol adapters enable Merchello to expose checkout and order capabilities to 
 - Publishes `AgentAuthenticatingNotification` (cancelable) and `AgentAuthenticatedNotification`
 - Stores `AgentIdentity` in `HttpContext.Items` for controllers
 
+**Order Source Tracking:**
+- UCP orders tracked via `Invoice.Source` with `Type = "ucp"`
+- Captures agent ID, profile URI, and protocol version
+- Enables filtering/reporting by source (see Section 2.4)
+
 **Webhook Signing (`IWebhookSigner`, `ISigningKeyStore`):**
 - ES256 (ECDSA P-256) signatures for webhook payloads
 - RFC 7797 detached JWT format
 - Automatic key rotation support
+- Signing keys persisted in `merchelloSigningKeys` table with in-memory caching
+- Supports multi-instance deployments (keys survive restarts)
 
 **Configuration:**
 ```json
@@ -1185,7 +1210,7 @@ All domain objects are created via factories for consistency, thread safety, and
 
 | Factory | Creates |
 |---------|---------|
-| `InvoiceFactory` | `FromBasket()`, `CreateDraft()` |
+| `InvoiceFactory` | `FromBasket(source?)`, `CreateDraft()` - Both set `Invoice.Source` for origin tracking |
 | `OrderFactory` | `Create(invoiceId, warehouseId, shippingOptionId, ...)` |
 | `PaymentFactory` | `CreatePayment()`, `CreateManualPayment()`, `CreateRefund()`, `CreateManualRefund()` |
 | `ShipmentFactory` | `Create(order, ...)`, `Create(orderId, warehouseId, ...)` |
@@ -1319,6 +1344,14 @@ Checkout flow endpoints.
 | `/check-email` | POST | Check if email exists |
 | `/validate-password` | POST | Validate password |
 | `/sign-in` | POST | Sign in customer |
+| `/forgot-password` | POST | Initiate password reset (rate-limited, always returns success) |
+| `/validate-reset-token` | POST | Validate password reset token |
+| `/reset-password` | POST | Complete password reset with new password |
+
+**Password Reset Page:**
+| Route | Description |
+|-------|-------------|
+| `/checkout/reset-password` | MVC page for password reset form (validates token from email link) |
 
 **Recovery:**
 | Endpoint | Method | Description |

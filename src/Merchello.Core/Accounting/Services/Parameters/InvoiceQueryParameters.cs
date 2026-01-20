@@ -54,6 +54,12 @@ public class InvoiceQueryParameters
     public string? Channel { get; set; }
 
     /// <summary>
+    /// Filter by source type (e.g., "web", "ucp", "api", "pos").
+    /// Use <see cref="Constants.InvoiceSources"/> for well-known values.
+    /// </summary>
+    public string? SourceType { get; set; }
+
+    /// <summary>
     /// Filter invoices created on or after this date
     /// </summary>
     public DateTime? DateFrom { get; set; }

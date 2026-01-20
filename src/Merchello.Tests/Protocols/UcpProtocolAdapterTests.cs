@@ -3,6 +3,7 @@ using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Protocols.UCP;
 using Merchello.Core.Protocols.UCP.Models;
 using Merchello.Tests.TestInfrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Xunit;
 
@@ -11,18 +12,31 @@ namespace Merchello.Tests.Protocols;
 /// <summary>
 /// Integration tests for UCPProtocolAdapter manifest generation and capability negotiation.
 /// </summary>
-[Collection("Integration Tests")]
-public class UcpProtocolAdapterTests : IClassFixture<ServiceTestFixture>
+[Collection("ServiceTests")]
+public class UcpProtocolAdapterTests : IAsyncLifetime
 {
     private readonly ServiceTestFixture _fixture;
-    private readonly ICommerceProtocolAdapter _adapter;
+    private IServiceScope _scope = null!;
+    private ICommerceProtocolAdapter _adapter = null!;
 
     public UcpProtocolAdapterTests(ServiceTestFixture fixture)
     {
         _fixture = fixture;
+    }
+
+    public Task InitializeAsync()
+    {
         _fixture.ResetDatabase();
         _fixture.MockHttpContext.ClearSession();
-        _adapter = fixture.GetService<ICommerceProtocolAdapter>();
+        _scope = _fixture.CreateScope();
+        _adapter = _scope.ServiceProvider.GetRequiredService<ICommerceProtocolAdapter>();
+        return Task.CompletedTask;
+    }
+
+    public Task DisposeAsync()
+    {
+        _scope.Dispose();
+        return Task.CompletedTask;
     }
 
     [Fact]

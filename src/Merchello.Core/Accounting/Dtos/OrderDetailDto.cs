@@ -16,6 +16,11 @@ public class OrderDetailDto
     public string Channel { get; set; } = string.Empty;
     public string? PurchaseOrder { get; set; }
 
+    /// <summary>
+    /// Source tracking information for analytics and auditing.
+    /// </summary>
+    public InvoiceSourceDto? Source { get; set; }
+
     public string CurrencyCode { get; set; } = string.Empty;
     public string CurrencySymbol { get; set; } = string.Empty;
     public string StoreCurrencyCode { get; set; } = string.Empty;

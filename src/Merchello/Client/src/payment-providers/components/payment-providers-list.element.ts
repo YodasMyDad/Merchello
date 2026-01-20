@@ -421,15 +421,13 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
           Toggle the switch to show or hide a provider from checkout.
           Drag to reorder how providers appear.
         </p>
-        ${this._configuredProviders.length === 0
-          ? html`<p class="no-items">No payment providers configured yet.</p>`
-          : html`
-              <div class="providers-list configured">
-                ${this._configuredProviders.map((setting) =>
-                  this._renderConfiguredProvider(setting)
-                )}
-              </div>
-            `}
+        <div class="providers-list configured">
+          ${this._configuredProviders.length === 0
+            ? html`<p class="no-items">No payment providers configured yet.</p>`
+            : this._configuredProviders.map((setting) =>
+                this._renderConfiguredProvider(setting)
+              )}
+        </div>
       </uui-box>
 
       <uui-box headline="Available Payment Providers">

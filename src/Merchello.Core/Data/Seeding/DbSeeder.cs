@@ -1225,7 +1225,7 @@ public class DbSeeder(
 
         // 7. Create invoice/orders via InvoiceService
         var invoice = await invoiceService.CreateOrderFromBasketAsync(
-            basket, checkoutSession, cancellationToken);
+            basket, checkoutSession, source: null, cancellationToken);
 
         // 8. Record payment (Stripe) via PaymentService
         await paymentService.RecordPaymentAsync(
@@ -1356,7 +1356,7 @@ public class DbSeeder(
             try
             {
                 var invoice = await invoiceService.CreateOrderFromBasketAsync(
-                    basket, checkoutSession, cancellationToken);
+                    basket, checkoutSession, source: null, cancellationToken);
 
                 // Track multi-warehouse orders
                 if (invoice.Orders?.Count > 1)
@@ -1880,7 +1880,7 @@ public class DbSeeder(
 
                     // Create invoice (DueDate is set automatically from customer's PaymentTermsDays)
                     var invoice = await invoiceService.CreateOrderFromBasketAsync(
-                        basket, checkoutSession, cancellationToken);
+                        basket, checkoutSession, source: null, cancellationToken);
 
                     // Adjust the DueDate to create the desired scenario
                     var targetDueDate = now.AddDays(dueDaysOffset);

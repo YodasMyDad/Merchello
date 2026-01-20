@@ -548,7 +548,9 @@ public class OrdersApiController(
             DeliveryMethod = deliveryMethod,
             DueDate = invoice.DueDate,
             IsOverdue = invoice.DueDate.HasValue && invoice.DueDate.Value < DateTime.UtcNow && paymentDetails.BalanceDue > 0,
-            DaysUntilDue = invoice.DueDate.HasValue ? (int)(invoice.DueDate.Value.Date - DateTime.UtcNow.Date).TotalDays : null
+            DaysUntilDue = invoice.DueDate.HasValue ? (int)(invoice.DueDate.Value.Date - DateTime.UtcNow.Date).TotalDays : null,
+            SourceType = invoice.Source?.Type,
+            SourceName = invoice.Source?.SourceName ?? invoice.Source?.DisplayName
         };
     }
 
@@ -665,7 +667,16 @@ public class OrdersApiController(
             CanFulfill = !invoice.IsCancelled && GetFulfillmentStatus(orders) != "Fulfilled",
             DueDate = invoice.DueDate,
             IsOverdue = invoice.DueDate.HasValue && invoice.DueDate.Value < DateTime.UtcNow && paymentDetails.BalanceDue > 0,
-            DaysUntilDue = invoice.DueDate.HasValue ? (int)(invoice.DueDate.Value.Date - DateTime.UtcNow.Date).TotalDays : null
+            DaysUntilDue = invoice.DueDate.HasValue ? (int)(invoice.DueDate.Value.Date - DateTime.UtcNow.Date).TotalDays : null,
+            Source = invoice.Source != null ? new InvoiceSourceDto
+            {
+                Type = invoice.Source.Type,
+                DisplayName = invoice.Source.DisplayName,
+                SourceId = invoice.Source.SourceId,
+                SourceName = invoice.Source.SourceName,
+                ProtocolVersion = invoice.Source.ProtocolVersion,
+                SessionId = invoice.Source.SessionId
+            } : null
         };
     }
 

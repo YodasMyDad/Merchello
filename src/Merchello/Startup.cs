@@ -319,8 +319,8 @@ public static class Startup
         // Protocols
         builder.Services.AddScoped<ICommerceProtocolManager, CommerceProtocolManager>();
         builder.Services.AddScoped<IPaymentHandlerExporter, PaymentHandlerExporter>();
-        builder.Services.AddSingleton<ISigningKeyStore, SigningKeyStore>();
-        builder.Services.AddSingleton<IWebhookSigner, WebhookSigner>();
+        builder.Services.AddScoped<ISigningKeyStore, SigningKeyStore>();
+        builder.Services.AddScoped<IWebhookSigner, WebhookSigner>();
         // UCPProtocolAdapter is auto-discovered by ExtensionManager (implements ICommerceProtocolAdapter)
 
         // =====================================================

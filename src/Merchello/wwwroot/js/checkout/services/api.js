@@ -251,6 +251,18 @@ export const checkoutApi = {
     },
 
     /**
+     * Request a password reset email
+     * @param {string} email
+     * @returns {Promise<{success: boolean, message: string}>}
+     */
+    forgotPassword(email) {
+        return fetchJson(`${BASE_URL}/forgot-password`, {
+            method: 'POST',
+            body: JSON.stringify({ email })
+        });
+    },
+
+    /**
      * Get available payment methods
      * @returns {Promise<PaymentMethod[]>}
      */

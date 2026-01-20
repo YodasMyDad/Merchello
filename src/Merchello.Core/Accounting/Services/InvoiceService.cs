@@ -83,6 +83,7 @@ public class InvoiceService(
     public async Task<Invoice> CreateOrderFromBasketAsync(
         Basket basket,
         CheckoutSession checkoutSession,
+        InvoiceSource? source = null,
         CancellationToken cancellationToken = default)
     {
         // Validate billing email exists
@@ -187,7 +188,8 @@ public class InvoiceService(
                 checkoutSession.ShippingAddress,
                 presentmentCurrency,
                 storeCurrency,
-                customer.Id);
+                customer.Id,
+                source);
 
             ExchangeRateQuote? pricingQuote = null;
             if (!string.Equals(presentmentCurrency, storeCurrency, StringComparison.OrdinalIgnoreCase))
@@ -1004,6 +1006,12 @@ public class InvoiceService(
             if (!string.IsNullOrWhiteSpace(parameters.Channel))
             {
                 query = query.Where(i => i.Channel == parameters.Channel);
+            }
+
+            // Apply source type filter
+            if (!string.IsNullOrWhiteSpace(parameters.SourceType))
+            {
+                query = query.Where(i => i.Source != null && i.Source.Type == parameters.SourceType);
             }
 
             // Apply date range filters

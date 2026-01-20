@@ -1,8 +1,7 @@
-using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Protocols.Webhooks;
-using Microsoft.Extensions.Logging;
+using Merchello.Tests.TestInfrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
-using Moq;
 using Shouldly;
 using Xunit;
 
@@ -11,28 +10,31 @@ namespace Merchello.Tests.Protocols;
 /// <summary>
 /// Tests for RFC 7797 detached JWT webhook signing.
 /// </summary>
-public class WebhookSignerTests : IDisposable
+[Collection("ServiceTests")]
+public class WebhookSignerTests : IAsyncLifetime
 {
-    private readonly SigningKeyStore _keyStore;
-    private readonly WebhookSigner _signer;
+    private readonly ServiceTestFixture _fixture;
+    private IServiceScope _scope = null!;
+    private ISigningKeyStore _keyStore = null!;
+    private IWebhookSigner _signer = null!;
 
-    public WebhookSignerTests()
+    public WebhookSignerTests(ServiceTestFixture fixture)
     {
-        var cacheServiceMock = new Mock<ICacheService>();
-        cacheServiceMock
-            .Setup(x => x.RemoveByTagAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        var keyStoreLoggerMock = new Mock<ILogger<SigningKeyStore>>();
-        var signerLoggerMock = new Mock<ILogger<WebhookSigner>>();
-
-        _keyStore = new SigningKeyStore(cacheServiceMock.Object, keyStoreLoggerMock.Object);
-        _signer = new WebhookSigner(_keyStore, signerLoggerMock.Object);
+        _fixture = fixture;
     }
 
-    public void Dispose()
+    public Task InitializeAsync()
     {
-        _keyStore.Dispose();
+        _scope = _fixture.CreateScope();
+        _keyStore = _scope.ServiceProvider.GetRequiredService<ISigningKeyStore>();
+        _signer = _scope.ServiceProvider.GetRequiredService<IWebhookSigner>();
+        return Task.CompletedTask;
+    }
+
+    public Task DisposeAsync()
+    {
+        _scope.Dispose();
+        return Task.CompletedTask;
     }
 
     [Fact]

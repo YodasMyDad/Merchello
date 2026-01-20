@@ -21,6 +21,7 @@ public class InvoiceFactory(ICurrencyService currencyService)
     /// <param name="presentmentCurrency">The presentment currency code.</param>
     /// <param name="storeCurrency">The store currency code.</param>
     /// <param name="customerId">The customer ID.</param>
+    /// <param name="source">Optional source tracking information. Defaults to web checkout if not provided.</param>
     /// <param name="hasAccountTerms">Whether the customer has account terms enabled.</param>
     /// <param name="paymentTermsDays">Payment terms in days (e.g., 30 for Net 30).</param>
     public Invoice CreateFromBasket(
@@ -31,6 +32,7 @@ public class InvoiceFactory(ICurrencyService currencyService)
         string presentmentCurrency,
         string storeCurrency,
         Guid customerId,
+        InvoiceSource? source = null,
         bool hasAccountTerms = false,
         int? paymentTermsDays = null)
     {
@@ -58,6 +60,13 @@ public class InvoiceFactory(ICurrencyService currencyService)
             Tax = basket.Tax,
             Total = basket.Total,
             DueDate = dueDate,
+            Source = source ?? new InvoiceSource
+            {
+                Type = Constants.InvoiceSources.Web,
+                DisplayName = "Online Store",
+                SessionId = basket.Id.ToString(),
+                RecordedAtUtc = now
+            },
             // Note: Discounts are now stored as LineItem with LineItemType.Discount on the Order,
             // not as Adjustments on the Invoice. The basket's discount line items will flow
             // through to the Order.LineItems during order creation.
@@ -119,6 +128,14 @@ public class InvoiceFactory(ICurrencyService currencyService)
             Tax = currencyService.Round(tax, currencyCode),
             Total = currencyService.Round(total, currencyCode),
             DueDate = dueDate,
+            Source = new InvoiceSource
+            {
+                Type = Constants.InvoiceSources.Draft,
+                DisplayName = "Draft order",
+                SourceId = authorId?.ToString(),
+                SourceName = authorName,
+                RecordedAtUtc = now
+            },
             DateCreated = now,
             DateUpdated = now,
             Notes =

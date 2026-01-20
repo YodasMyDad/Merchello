@@ -689,6 +689,83 @@ public class CheckoutApiController(
         return Ok(result);
     }
 
+    /// <summary>
+    /// Request a password reset email.
+    /// Always returns success to prevent email enumeration attacks.
+    /// </summary>
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto request, CancellationToken ct)
+    {
+        // Rate limit by IP address to prevent abuse
+        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var rateLimitKey = $"forgot-password:{clientIp}";
+        var rateLimitResult = rateLimiter.TryAcquire(rateLimitKey, 5, TimeSpan.FromMinutes(15));
+
+        if (!rateLimitResult.IsAllowed)
+        {
+            // Still return success to prevent enumeration, but log
+            logger.LogWarning("Rate limit exceeded for password reset from IP: {IP}", clientIp);
+            return Ok(new ForgotPasswordResultDto());
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return Ok(new ForgotPasswordResultDto());
+        }
+
+        var result = await checkoutMemberService.InitiatePasswordResetAsync(
+            request.Email.Trim(),
+            request.ResetBaseUrl,
+            ct);
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Validate a password reset token.
+    /// </summary>
+    [HttpPost("validate-reset-token")]
+    public async Task<IActionResult> ValidateResetToken([FromBody] ValidateResetTokenRequestDto request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Token))
+        {
+            return Ok(new ValidateResetTokenResultDto
+            {
+                IsValid = false,
+                ErrorMessage = "Invalid reset link."
+            });
+        }
+
+        var result = await checkoutMemberService.ValidateResetTokenAsync(request.Email, request.Token, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Reset password using a valid token.
+    /// </summary>
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) ||
+            string.IsNullOrWhiteSpace(request.Token) ||
+            string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            return BadRequest(new ResetPasswordResultDto
+            {
+                Success = false,
+                ErrorMessage = "All fields are required."
+            });
+        }
+
+        var result = await checkoutMemberService.ResetPasswordAsync(
+            request.Email,
+            request.Token,
+            request.NewPassword,
+            ct);
+
+        return Ok(result);
+    }
+
     #endregion
 
     #region Cart Recovery

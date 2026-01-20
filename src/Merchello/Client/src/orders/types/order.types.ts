@@ -172,6 +172,10 @@ export interface OrderListItemDto {
   dateCreated: string;
   customerName: string;
   channel: string;
+  /** Source type identifier (e.g., "web", "ucp", "api", "pos") */
+  sourceType?: string | null;
+  /** Source name/label for display (e.g., agent name, API key name) */
+  sourceName?: string | null;
   currencyCode: string;
   currencySymbol: string;
   storeCurrencyCode: string;
@@ -196,6 +200,22 @@ export interface OrderListItemDto {
   balanceDue?: number;
 }
 
+/** Invoice source tracking for analytics and auditing */
+export interface InvoiceSourceDto {
+  /** Source type identifier (e.g., "web", "ucp", "api", "pos") */
+  type: string;
+  /** Human-readable display name for the source */
+  displayName?: string | null;
+  /** Unique identifier for the source instance (e.g., agent ID, API key ID) */
+  sourceId?: string | null;
+  /** Name/label for the source instance */
+  sourceName?: string | null;
+  /** Protocol version if applicable (e.g., UCP version) */
+  protocolVersion?: string | null;
+  /** Session/transaction ID from the source system */
+  sessionId?: string | null;
+}
+
 export interface OrderDetailDto {
   id: string;
   customerId: string;
@@ -203,6 +223,8 @@ export interface OrderDetailDto {
   dateCreated: string;
   channel: string;
   purchaseOrder: string | null;
+  /** Source tracking information for analytics and auditing */
+  source?: InvoiceSourceDto | null;
   currencyCode: string;
   currencySymbol: string;
   storeCurrencyCode: string;

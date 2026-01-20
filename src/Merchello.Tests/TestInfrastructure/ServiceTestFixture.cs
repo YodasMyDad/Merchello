@@ -617,8 +617,8 @@ public class ServiceTestFixture : IDisposable
         services.AddSingleton(cacheServiceMock.Object);
 
         // Protocol infrastructure
-        services.AddSingleton<ISigningKeyStore, SigningKeyStore>();
-        services.AddSingleton<IWebhookSigner, WebhookSigner>();
+        services.AddScoped<ISigningKeyStore, SigningKeyStore>();
+        services.AddScoped<IWebhookSigner, WebhookSigner>();
         services.AddScoped<IPaymentHandlerExporter, PaymentHandlerExporter>();
 
         // ExtensionManager for protocol adapter discovery

@@ -191,4 +191,10 @@ public class Invoice
     /// Used for payment links, custom metadata, and integration data.
     /// </summary>
     public Dictionary<string, object> ExtendedData { get; set; } = [];
+
+    /// <summary>
+    /// Source tracking information for analytics and auditing.
+    /// Captures where and how the invoice was created (web checkout, UCP agent, API, POS, etc.).
+    /// </summary>
+    public InvoiceSource? Source { get; set; }
 }

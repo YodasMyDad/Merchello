@@ -341,12 +341,25 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             var invoice = await _invoiceService.GetUnpaidInvoiceForBasketAsync(basketId, ct);
             if (invoice == null)
             {
-                // Create invoice from basket
-                invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession, ct);
+                // Build source tracking info from agent identity
+                var source = new InvoiceSource
+                {
+                    Type = Constants.InvoiceSources.Ucp,
+                    DisplayName = "UCP Agent",
+                    SourceId = agentIdentity?.AgentId,
+                    SourceName = agentIdentity?.AgentId,
+                    ProfileUri = agentIdentity?.ProfileUri,
+                    ProtocolVersion = _protocolSettings.Ucp.Version,
+                    SessionId = sessionId
+                };
+
+                // Create invoice from basket with source tracking
+                invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession, source, ct);
                 _logger.LogInformation(
-                    "UCP: Invoice {InvoiceId} created from session {SessionId}",
+                    "UCP: Invoice {InvoiceId} created from session {SessionId} via agent {AgentId}",
                     invoice.Id,
-                    sessionId);
+                    sessionId,
+                    agentIdentity?.AgentId ?? "unknown");
             }
 
             // Build payment request

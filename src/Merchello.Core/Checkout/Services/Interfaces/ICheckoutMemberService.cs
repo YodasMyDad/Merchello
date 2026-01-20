@@ -56,4 +56,33 @@ public interface ICheckoutMemberService
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The member's Key (GUID) if found, null otherwise.</returns>
     Task<Guid?> GetMemberKeyByEmailAsync(string email, CancellationToken ct = default);
+
+    /// <summary>
+    /// Initiates a password reset for a member account.
+    /// Always returns success to prevent email enumeration attacks.
+    /// </summary>
+    /// <param name="email">The member's email address.</param>
+    /// <param name="resetBaseUrl">Optional base URL for the reset link. If not provided, uses settings.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Result (always success to prevent enumeration).</returns>
+    Task<ForgotPasswordResultDto> InitiatePasswordResetAsync(string email, string? resetBaseUrl = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Validates a password reset token.
+    /// </summary>
+    /// <param name="email">The member's email address.</param>
+    /// <param name="token">The reset token from the email link.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Result indicating whether the token is valid.</returns>
+    Task<ValidateResetTokenResultDto> ValidateResetTokenAsync(string email, string token, CancellationToken ct = default);
+
+    /// <summary>
+    /// Completes a password reset using a valid token.
+    /// </summary>
+    /// <param name="email">The member's email address.</param>
+    /// <param name="token">The reset token from the email link.</param>
+    /// <param name="newPassword">The new password.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Result with success status and any validation errors.</returns>
+    Task<ResetPasswordResultDto> ResetPasswordAsync(string email, string token, string newPassword, CancellationToken ct = default);
 }

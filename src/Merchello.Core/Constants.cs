@@ -404,4 +404,50 @@ public static class Constants
     {
         public const string DraftOrder = "Draft order";
     }
+
+    /// <summary>
+    /// Well-known invoice source types for tracking order origins.
+    /// </summary>
+    public static class InvoiceSources
+    {
+        /// <summary>
+        /// Traditional web checkout.
+        /// </summary>
+        public const string Web = "web";
+
+        /// <summary>
+        /// Universal Commerce Protocol (AI agents like Google Gemini, ChatGPT).
+        /// </summary>
+        public const string Ucp = "ucp";
+
+        /// <summary>
+        /// Direct API integration.
+        /// </summary>
+        public const string Api = "api";
+
+        /// <summary>
+        /// Point of Sale system.
+        /// </summary>
+        public const string Pos = "pos";
+
+        /// <summary>
+        /// Mobile application.
+        /// </summary>
+        public const string Mobile = "mobile";
+
+        /// <summary>
+        /// Admin-created draft order.
+        /// </summary>
+        public const string Draft = "draft";
+
+        /// <summary>
+        /// Import from external system.
+        /// </summary>
+        public const string Import = "import";
+
+        /// <summary>
+        /// Unknown/other source.
+        /// </summary>
+        public const string Other = "other";
+    }
 }

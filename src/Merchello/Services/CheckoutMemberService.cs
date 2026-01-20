@@ -1,8 +1,14 @@
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Customers.Models;
+using Merchello.Core.Customers.Services.Interfaces;
+using Merchello.Core.Notifications.CustomerNotifications;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Shared.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Security;
@@ -18,10 +24,15 @@ public class CheckoutMemberService(
     IMemberManager memberManager,
     IMemberSignInManager memberSignInManager,
     IMemberGroupService memberGroupService,
+    ICustomerService customerService,
+    IMerchelloNotificationPublisher notificationPublisher,
     IOptions<MerchelloSettings> settings,
-    IHttpContextAccessor httpContextAccessor) : ICheckoutMemberService
+    IOptions<IdentityOptions> identityOptions,
+    IHttpContextAccessor httpContextAccessor,
+    ILogger<CheckoutMemberService> logger) : ICheckoutMemberService
 {
     private readonly MerchelloSettings _settings = settings.Value;
+    private readonly IdentityOptions _identityOptions = identityOptions.Value;
 
     /// <summary>
     /// Number of failed login attempts before showing forgot password link.
@@ -147,5 +158,135 @@ public class CheckoutMemberService(
         var session = httpContextAccessor.HttpContext?.Session;
         var key = $"checkout_login_attempts_{email.ToLowerInvariant()}";
         session?.Remove(key);
+    }
+
+    /// <inheritdoc />
+    public async Task<ForgotPasswordResultDto> InitiatePasswordResetAsync(
+        string email,
+        string? resetBaseUrl = null,
+        CancellationToken ct = default)
+    {
+        // Always return success to prevent email enumeration
+        var result = new ForgotPasswordResultDto();
+
+        // Find member by email
+        var member = await memberManager.FindByEmailAsync(email);
+        if (member == null)
+        {
+            logger.LogDebug("Password reset requested for non-existent email: {Email}", email);
+            return result;
+        }
+
+        // Find or create customer for the notification
+        var customer = await customerService.GetByEmailAsync(email, ct);
+        customer ??= new Customer
+        {
+            Email = email,
+            FirstName = member.Name?.Split(' ').FirstOrDefault() ?? ""
+        };
+
+        // Generate reset token via Umbraco Identity
+        var token = await memberManager.GeneratePasswordResetTokenAsync(member);
+
+        // Build reset URL
+        var baseUrl = resetBaseUrl ?? $"{_settings.WebsiteUrl}/checkout/reset-password";
+        var resetUrl = $"{baseUrl}?email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}";
+
+        // Token expiry (display purposes - actual expiry managed by Umbraco Identity)
+        var expiresUtc = DateTime.UtcNow.AddHours(1);
+
+        // Publish notification for email handler
+        await notificationPublisher.PublishAsync(
+            new CustomerPasswordResetRequestedNotification(customer, token, resetUrl, expiresUtc),
+            ct);
+
+        logger.LogInformation("Password reset initiated for member: {Email}", email);
+
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<ValidateResetTokenResultDto> ValidateResetTokenAsync(
+        string email,
+        string token,
+        CancellationToken ct = default)
+    {
+        var member = await memberManager.FindByEmailAsync(email);
+        if (member == null)
+        {
+            return new ValidateResetTokenResultDto
+            {
+                IsValid = false,
+                ErrorMessage = "Invalid or expired reset link."
+            };
+        }
+
+        // Verify token using the configured password reset token provider
+        var tokenProvider = _identityOptions.Tokens.PasswordResetTokenProvider;
+        var isValid = await memberManager.VerifyUserTokenAsync(member, tokenProvider, "ResetPassword", token);
+
+        if (!isValid)
+        {
+            return new ValidateResetTokenResultDto
+            {
+                IsValid = false,
+                ErrorMessage = "This reset link has expired or is invalid. Please request a new one."
+            };
+        }
+
+        return new ValidateResetTokenResultDto
+        {
+            IsValid = true,
+            Email = email
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<ResetPasswordResultDto> ResetPasswordAsync(
+        string email,
+        string token,
+        string newPassword,
+        CancellationToken ct = default)
+    {
+        var member = await memberManager.FindByEmailAsync(email);
+        if (member == null)
+        {
+            return new ResetPasswordResultDto
+            {
+                Success = false,
+                ErrorMessage = "Invalid or expired reset link."
+            };
+        }
+
+        // Validate new password against requirements
+        var passwordValidation = await memberManager.ValidatePasswordAsync(newPassword);
+        if (!passwordValidation.Succeeded)
+        {
+            return new ResetPasswordResultDto
+            {
+                Success = false,
+                ErrorMessage = "Password does not meet requirements.",
+                ValidationErrors = passwordValidation.Errors.Select(e => e.Description).ToList()
+            };
+        }
+
+        // Reset the password
+        var resetResult = await memberManager.ResetPasswordAsync(member, token, newPassword);
+
+        if (!resetResult.Succeeded)
+        {
+            var errorMessage = resetResult.Errors.FirstOrDefault()?.Description
+                ?? "Unable to reset password. The link may have expired.";
+
+            return new ResetPasswordResultDto
+            {
+                Success = false,
+                ErrorMessage = errorMessage
+            };
+        }
+
+        logger.LogInformation("Password reset completed for member: {Email}", email);
+
+        return new ResetPasswordResultDto { Success = true };
     }
 }

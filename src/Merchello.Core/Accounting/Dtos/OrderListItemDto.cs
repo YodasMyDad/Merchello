@@ -14,6 +14,16 @@ public class OrderListItemDto
     public string Channel { get; set; } = string.Empty;
 
     /// <summary>
+    /// Source type identifier (e.g., "web", "ucp", "api", "pos").
+    /// </summary>
+    public string? SourceType { get; set; }
+
+    /// <summary>
+    /// Source name/label for display (e.g., agent name, API key name).
+    /// </summary>
+    public string? SourceName { get; set; }
+
+    /// <summary>
     /// Presentment currency (invoice currency).
     /// </summary>
     public string CurrencyCode { get; set; } = string.Empty;

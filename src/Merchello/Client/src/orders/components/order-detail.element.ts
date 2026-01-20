@@ -669,6 +669,40 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     return html`<div class="error">Order not found</div>`;
   }
 
+  /**
+   * Renders a source badge for non-web orders (UCP, API, POS, etc.)
+   */
+  private _renderSourceBadge(order: OrderDetailDto): unknown {
+    // Don't show badge for standard web orders
+    if (!order.source || order.source.type === "web") {
+      return nothing;
+    }
+
+    const sourceLabel = order.source.displayName || order.source.sourceName || order.source.type.toUpperCase();
+    const sourceClass = `source-${order.source.type}`;
+
+    return html`<span class="badge source ${sourceClass}" title="${this._getSourceTooltip(order)}">${sourceLabel}</span>`;
+  }
+
+  /**
+   * Gets tooltip text for source badge showing full details
+   */
+  private _getSourceTooltip(order: OrderDetailDto): string {
+    if (!order.source) return "";
+
+    const parts: string[] = [];
+    parts.push(`Source: ${order.source.displayName || order.source.type}`);
+
+    if (order.source.sourceId) {
+      parts.push(`ID: ${order.source.sourceId}`);
+    }
+    if (order.source.protocolVersion) {
+      parts.push(`Version: ${order.source.protocolVersion}`);
+    }
+
+    return parts.join("\n");
+  }
+
   override render() {
     if (this._isLoading) {
       return this._renderLoadingState();
@@ -698,6 +732,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
           <span class="badge ${getPaymentStatusBadgeClass(order.paymentStatus)}">${order.paymentStatusDisplay}</span>
           <span class="badge ${order.fulfillmentStatusCssClass}">${order.fulfillmentStatus}</span>
           ${order.isCancelled ? html`<span class="badge cancelled">Cancelled</span>` : nothing}
+          ${this._renderSourceBadge(order)}
         </div>
 
         <!-- Inner layout with tabs -->
@@ -1185,6 +1220,32 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     .badge.cancelled {
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
+    }
+
+    /* Source badges for non-web orders */
+    .badge.source {
+      background: var(--uui-color-current-standalone);
+      color: var(--uui-color-current-contrast);
+    }
+
+    .badge.source-ucp {
+      background: #7c3aed; /* Purple for AI/UCP agents */
+      color: white;
+    }
+
+    .badge.source-api {
+      background: #0891b2; /* Cyan for API */
+      color: white;
+    }
+
+    .badge.source-pos {
+      background: #ea580c; /* Orange for POS */
+      color: white;
+    }
+
+    .badge.source-draft {
+      background: var(--uui-color-border-standalone);
+      color: var(--uui-color-text);
     }
 
     .order-content {

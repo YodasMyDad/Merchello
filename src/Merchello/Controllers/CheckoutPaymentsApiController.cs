@@ -475,7 +475,7 @@ public class CheckoutPaymentsApiController(
             }
             else
             {
-                invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, cancellationToken);
+                invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
 
                 logger.LogInformation(
                     "Invoice {InvoiceId} created from basket {BasketId}",
@@ -814,7 +814,7 @@ public class CheckoutPaymentsApiController(
                 });
             }
 
-            invoice = await invoiceService.CreateOrderFromBasketAsync(currentBasket, session, cancellationToken);
+            invoice = await invoiceService.CreateOrderFromBasketAsync(currentBasket, session, source: null, cancellationToken);
             await checkoutSessionService.SetInvoiceIdAsync(currentBasket.Id, invoice.Id, cancellationToken);
             invoiceCreatedInThisRequest = true;
 
@@ -1195,7 +1195,7 @@ public class CheckoutPaymentsApiController(
             }
             else
             {
-                invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, cancellationToken);
+                invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
                 logger.LogInformation(
                     "Express checkout: Invoice {InvoiceId} created from basket {BasketId} for {Email}",
                     invoice.Id,
@@ -1790,7 +1790,7 @@ public class CheckoutPaymentsApiController(
             }
             else
             {
-                invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, cancellationToken);
+                invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
                 logger.LogInformation(
                     "Widget create-order ({Provider}): Invoice {InvoiceId} created from basket {BasketId}",
                     providerAlias,

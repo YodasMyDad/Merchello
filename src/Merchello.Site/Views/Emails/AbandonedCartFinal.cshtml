@@ -1,0 +1,86 @@
+@using Merchello.Core.Email.Models
+@using Merchello.Core.Notifications.CheckoutNotifications
+@using Merchello.Email.Extensions
+@model EmailModel<CheckoutAbandonedFinalNotification>
+@*
+    Abandoned Cart - Final Email Template
+
+    This is the final email in the abandoned cart recovery sequence.
+    Sent 48 hours after the reminder email (configurable).
+    Tone: Urgency, last chance.
+
+    Model: EmailModel<CheckoutAbandonedFinalNotification>
+    - Model.Notification.CustomerEmail - Customer's email address
+    - Model.Notification.CustomerName - Customer's name
+    - Model.Notification.FormattedTotal - Basket total with currency symbol
+    - Model.Notification.ItemCount - Number of items in cart
+    - Model.Notification.RecoveryLink - URL to restore the cart
+    - Model.Store - Store context (name, logo, contact info)
+
+    Topic: checkout.abandoned.final
+*@
+
+@Html.Mjml().EmailStart(
+    "Last chance - your cart expires soon",
+    "Don't miss out on your items")
+
+@Html.Mjml().Header(Model.Store)
+
+<mj-section>
+  <mj-column>
+    @Html.Mjml().Heading("Last chance!")
+    @{
+        var greeting = !string.IsNullOrWhiteSpace(Model.Notification.CustomerName)
+            ? $"Hi {Model.Notification.CustomerName},"
+            : "Hi there,";
+    }
+    @Html.Mjml().Text(greeting)
+    <mj-text>
+      This is a final reminder that your cart will expire soon. We can't hold your items much longer, so now's the time to complete your purchase.
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section padding="10px 20px">
+  <mj-column background-color="#fff3cd" border-radius="8px" padding="20px" border="1px solid #ffc107">
+    <mj-text align="center" font-size="14px" color="#856404">
+      <strong>Your cart is about to expire</strong>
+    </mj-text>
+    <mj-text align="center" font-size="14px" color="#666666" padding-top="10px">
+      @Model.Notification.ItemCount item(s) totalling
+    </mj-text>
+    <mj-text align="center" font-size="28px" font-weight="bold" color="#333333">
+      @Model.Notification.FormattedTotal
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section>
+  <mj-column>
+    @Html.Mjml().Button("Complete Your Order Now", Model.Notification.RecoveryLink ?? "#")
+  </mj-column>
+</mj-section>
+
+<mj-section>
+  <mj-column>
+    <mj-text font-size="13px" color="#666666" align="center">
+      Click the button above to secure your items before they're gone.
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section>
+  <mj-column>
+    <mj-text font-size="12px" color="#999999">
+      If you've decided not to purchase, no action is needed - your cart will simply expire.
+      If you have any questions, contact us
+      @if (!string.IsNullOrEmpty(Model.Store.SupportEmail))
+      {
+        <text>at <a href="mailto:@Model.Store.SupportEmail" style="color: #999999;">@Model.Store.SupportEmail</a></text>
+      }.
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+@Html.Mjml().Footer(Model.Store)
+@Html.Mjml().EmailEnd()

@@ -392,23 +392,21 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
         ${isExpanded
           ? html`
               <div class="filter-group-content">
-                ${filterGroup.filters && filterGroup.filters.length > 0
-                  ? html`
-                      <div class="filters-container" data-group-id=${filterGroup.id}>
-                        ${filterGroup.filters.map((f) => this._renderFilterItem(f, filterGroup.id))}
-                      </div>
-                    `
-                  : html`
-                      <div class="empty-filters">
-                        <span>No filters in this group.</span>
-                        <uui-button
-                          look="placeholder"
-                          label="Add your first filter"
-                          @click=${() => this._handleAddFilter(filterGroup)}>
-                          Add Filter
-                        </uui-button>
-                      </div>
-                    `}
+                <div class="filters-container" data-group-id=${filterGroup.id}>
+                  ${filterGroup.filters && filterGroup.filters.length > 0
+                    ? filterGroup.filters.map((f) => this._renderFilterItem(f, filterGroup.id))
+                    : html`
+                        <div class="empty-filters">
+                          <span>No filters in this group.</span>
+                          <uui-button
+                            look="placeholder"
+                            label="Add your first filter"
+                            @click=${() => this._handleAddFilter(filterGroup)}>
+                            Add Filter
+                          </uui-button>
+                        </div>
+                      `}
+                </div>
               </div>
             `
           : nothing}
@@ -423,14 +421,7 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
     if (this._errorMessage) {
       return this._renderErrorState();
     }
-    if (this._filterGroups.length === 0) {
-      return this._renderEmptyState();
-    }
-    return html`
-      <div class="filter-groups-container">
-        ${this._filterGroups.map((fg) => this._renderFilterGroupCard(fg))}
-      </div>
-    `;
+    return nothing;
   }
 
   override render() {
@@ -453,8 +444,17 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
             </span>
           </div>
 
-          <!-- Content -->
+          <!-- Loading/Error states -->
           ${this._renderContent()}
+
+          <!-- Always render container for sorter -->
+          <div class="filter-groups-container">
+            ${this._isLoading || this._errorMessage
+              ? nothing
+              : this._filterGroups.length === 0
+                ? this._renderEmptyState()
+                : this._filterGroups.map((fg) => this._renderFilterGroupCard(fg))}
+          </div>
         </div>
       </umb-body-layout>
     `;

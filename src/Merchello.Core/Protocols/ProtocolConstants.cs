@@ -75,6 +75,7 @@ public static class ProtocolConstants
         public const string Missing = "missing";
         public const string Invalid = "invalid";
         public const string OutOfStock = "out_of_stock";
+        public const string ShippingUnavailable = "shipping_unavailable";
         public const string PaymentDeclined = "payment_declined";
         public const string DiscountCodeExpired = "discount_code_expired";
         public const string DiscountCodeInvalid = "discount_code_invalid";

@@ -109,10 +109,10 @@ public class UcpAgentHeaderParserTests
     }
 
     [Fact]
-    public void Parse_IsCaseInsensitive()
+    public void Parse_WithLowercaseKeys_ExtractsCorrectly()
     {
-        // Arrange
-        var headerValue = "PROFILE=\"https://example.com\", VERSION=\"2026-01-11\"";
+        // Arrange - RFC 8941 keys must be lowercase
+        var headerValue = "profile=\"https://example.com\", version=\"2026-01-11\"";
 
         // Act
         var result = UcpAgentHeaderParser.Parse(headerValue);
@@ -120,6 +120,21 @@ public class UcpAgentHeaderParserTests
         // Assert
         result.ShouldContainKey("profile");
         result.ShouldContainKey("version");
+    }
+
+    [Fact]
+    public void Parse_LookupIsCaseInsensitive()
+    {
+        // Arrange - Keys stored as-is but lookup is case-insensitive
+        var headerValue = "profile=\"https://example.com\", version=\"2026-01-11\"";
+
+        // Act
+        var result = UcpAgentHeaderParser.Parse(headerValue);
+
+        // Assert - Can look up with any case
+        result.ShouldContainKey("PROFILE");
+        result.ShouldContainKey("Profile");
+        result.ShouldContainKey("VERSION");
     }
 
     [Fact]
@@ -259,16 +274,135 @@ public class UcpAgentHeaderParserTests
     }
 
     [Fact]
-    public void Parse_WithSpacesAroundEquals_TrimsCorrectly()
+    public void Parse_WithSpacesAroundEquals_ReturnsEmpty_Rfc8941Strict()
     {
-        // Arrange
+        // Arrange - RFC 8941 does NOT allow spaces around the equals sign
+        // This is intentionally different from lenient HTTP parsing
         var headerValue = "profile = \"https://example.com\" , version = \"1.0\"";
+
+        // Act
+        var result = UcpAgentHeaderParser.Parse(headerValue);
+
+        // Assert - RFC 8941 strict parser rejects invalid syntax
+        result.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Parse_WithSpaceAfterComma_ParsesCorrectly()
+    {
+        // Arrange - RFC 8941 allows optional whitespace after comma separator
+        var headerValue = "profile=\"https://example.com\",  version=\"1.0\"";
 
         // Act
         var result = UcpAgentHeaderParser.Parse(headerValue);
 
         // Assert
         result.ShouldContainKey("profile");
+        result.ShouldContainKey("version");
         result["profile"].ShouldBe("https://example.com");
+        result["version"].ShouldBe("1.0");
+    }
+
+    // RFC 8941 Advanced Type Tests (now supported via StructuredFieldValues package)
+
+    [Fact]
+    public void Parse_WithIntegerValue_ConvertsToString()
+    {
+        // Arrange - RFC 8941 integers are bare numbers
+        var headerValue = "profile=\"https://example.com\", priority=5";
+
+        // Act
+        var result = UcpAgentHeaderParser.Parse(headerValue);
+
+        // Assert
+        result.ShouldContainKey("priority");
+        result["priority"].ShouldBe("5");
+    }
+
+    [Fact]
+    public void Parse_WithBooleanTrue_ConvertsToRfc8941Format()
+    {
+        // Arrange - RFC 8941 boolean true is ?1
+        var headerValue = "profile=\"https://example.com\", enabled=?1";
+
+        // Act
+        var result = UcpAgentHeaderParser.Parse(headerValue);
+
+        // Assert
+        result.ShouldContainKey("enabled");
+        result["enabled"].ShouldBe("?1");
+    }
+
+    [Fact]
+    public void Parse_WithBooleanFalse_ConvertsToRfc8941Format()
+    {
+        // Arrange - RFC 8941 boolean false is ?0
+        var headerValue = "profile=\"https://example.com\", debug=?0";
+
+        // Act
+        var result = UcpAgentHeaderParser.Parse(headerValue);
+
+        // Assert
+        result.ShouldContainKey("debug");
+        result["debug"].ShouldBe("?0");
+    }
+
+    [Fact]
+    public void Parse_WithTokenValue_ExtractsCorrectly()
+    {
+        // Arrange - RFC 8941 tokens are unquoted alphanumeric identifiers
+        var headerValue = "profile=\"https://example.com\", type=checkout";
+
+        // Act
+        var result = UcpAgentHeaderParser.Parse(headerValue);
+
+        // Assert
+        result.ShouldContainKey("type");
+        result["type"].ShouldBe("checkout");
+    }
+
+    [Fact]
+    public void Parse_WithDecimalValue_ConvertsToString()
+    {
+        // Arrange - RFC 8941 decimals have up to 3 decimal places
+        var headerValue = "profile=\"https://example.com\", rate=0.75";
+
+        // Act
+        var result = UcpAgentHeaderParser.Parse(headerValue);
+
+        // Assert
+        result.ShouldContainKey("rate");
+        result["rate"].ShouldBe("0.75");
+    }
+
+    [Fact]
+    public void Parse_WithMixedTypes_ExtractsAll()
+    {
+        // Arrange - Mix of strings, integers, booleans, and tokens
+        var headerValue = "profile=\"https://example.com\", version=\"2026-01-11\", priority=10, enabled=?1, mode=production";
+
+        // Act
+        var result = UcpAgentHeaderParser.Parse(headerValue);
+
+        // Assert
+        result.Count.ShouldBe(5);
+        result["profile"].ShouldBe("https://example.com");
+        result["version"].ShouldBe("2026-01-11");
+        result["priority"].ShouldBe("10");
+        result["enabled"].ShouldBe("?1");
+        result["mode"].ShouldBe("production");
+    }
+
+    [Fact]
+    public void Parse_WithMalformedInput_ReturnsEmptyDictionary()
+    {
+        // Arrange - Invalid RFC 8941 format
+        var headerValue = "===invalid===";
+
+        // Act
+        var result = UcpAgentHeaderParser.Parse(headerValue);
+
+        // Assert
+        result.ShouldBeEmpty();
     }
 }
