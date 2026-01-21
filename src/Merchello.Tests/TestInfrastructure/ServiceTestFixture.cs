@@ -85,6 +85,11 @@ using Microsoft.AspNetCore.Http.Features;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Core.Webhooks.Services;
 using Merchello.Core.Webhooks.Services.Interfaces;
+using Merchello.Core.Fulfilment;
+using Merchello.Core.Fulfilment.Providers;
+using Merchello.Core.Fulfilment.Providers.Interfaces;
+using Merchello.Core.Fulfilment.Services;
+using Merchello.Core.Fulfilment.Services.Interfaces;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -218,6 +223,9 @@ public class ServiceTestFixture : IDisposable
 
     // Configurable exchange rate cache mock for multi-currency testing
     private Mock<IExchangeRateCache> _exchangeRateCacheMock = null!;
+
+    // Configurable fulfilment provider manager mock for fulfilment testing
+    private Mock<IFulfilmentProviderManager> _fulfilmentProviderManagerMock = null!;
 
     public MerchelloDbContext DbContext { get; private set; } = null!;
     public IServiceProvider ServiceProvider => _serviceProvider;
@@ -627,6 +635,39 @@ public class ServiceTestFixture : IDisposable
         // Register UCPProtocolAdapter directly (ExtensionManager will discover it)
         services.AddScoped<ICommerceProtocolAdapter, UCPProtocolAdapter>();
         services.AddScoped<ICommerceProtocolManager, CommerceProtocolManager>();
+
+        // ============================================
+        // Fulfilment Services (Fulfilment Integration Tests)
+        // ============================================
+
+        // Fulfilment settings
+        var fulfilmentSettings = new FulfilmentSettings
+        {
+            Enabled = true,
+            PollingIntervalMinutes = 15,
+            MaxRetryAttempts = 5,
+            RetryDelaysMinutes = [5, 15, 30, 60, 120],
+            InventorySyncIntervalMinutes = 60,
+            ProductSyncOnSave = false,
+            SyncLogRetentionDays = 30,
+            WebhookLogRetentionDays = 7
+        };
+        services.AddSingleton(Options.Create(fulfilmentSettings));
+
+        // Mock fulfilment provider manager
+        var fulfilmentProviderManagerMock = new Mock<IFulfilmentProviderManager>();
+        fulfilmentProviderManagerMock
+            .Setup(x => x.GetProvidersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<RegisteredFulfilmentProvider>());
+        fulfilmentProviderManagerMock
+            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<RegisteredFulfilmentProvider>());
+        _fulfilmentProviderManagerMock = fulfilmentProviderManagerMock;
+        services.AddSingleton(fulfilmentProviderManagerMock.Object);
+
+        // Fulfilment services (using DbContext directly for tests)
+        services.AddScoped<IFulfilmentService, Merchello.Core.Fulfilment.Services.FulfilmentService>();
+        services.AddScoped<IFulfilmentSyncService, Merchello.Core.Fulfilment.Services.FulfilmentSyncService>();
 
         _serviceProvider = services.BuildServiceProvider();
     }

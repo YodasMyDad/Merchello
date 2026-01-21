@@ -526,7 +526,25 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <uui-icon name="icon-box"></uui-icon>
             ${fulfillmentOrder.statusLabel}
           </span>
+          ${fulfillmentOrder.fulfilmentProviderName ? html`
+            <span class="fulfillment-provider-badge">
+              <uui-icon name="icon-server"></uui-icon>
+              ${fulfillmentOrder.fulfilmentProviderName}
+              ${fulfillmentOrder.fulfilmentProviderReference ? html`
+                <span class="fulfillment-provider-ref">#${fulfillmentOrder.fulfilmentProviderReference}</span>
+              ` : nothing}
+            </span>
+          ` : nothing}
         </div>
+        ${fulfillmentOrder.fulfilmentErrorMessage ? html`
+          <div class="fulfillment-error">
+            <uui-icon name="icon-alert"></uui-icon>
+            <span>${fulfillmentOrder.fulfilmentErrorMessage}</span>
+            ${fulfillmentOrder.fulfilmentRetryCount > 0 ? html`
+              <span class="fulfillment-retry-count">(${fulfillmentOrder.fulfilmentRetryCount} retries)</span>
+            ` : nothing}
+          </div>
+        ` : nothing}
         <div class="fulfillment-shipping-method">
             <uui-icon name="icon-truck"></uui-icon>
           <div class="fulfillment-shipping-details">
@@ -1305,6 +1323,10 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     }
 
     .fulfillment-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--uui-size-space-2);
       padding: var(--uui-size-space-4);
       border-bottom: 1px solid var(--uui-color-border);
     }
@@ -1333,6 +1355,48 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     .fulfillment-status-badge.cancelled {
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
+    }
+
+    .fulfillment-provider-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: 4px 10px;
+      border-radius: 16px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      background: var(--uui-color-surface-alt);
+      color: var(--uui-color-text);
+      margin-left: var(--uui-size-space-2);
+    }
+
+    .fulfillment-provider-badge uui-icon {
+      font-size: 0.875rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .fulfillment-provider-ref {
+      color: var(--uui-color-text-alt);
+      font-family: var(--uui-font-family-monospace, monospace);
+    }
+
+    .fulfillment-error {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3) var(--uui-size-space-4);
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
+      font-size: 0.875rem;
+    }
+
+    .fulfillment-error uui-icon {
+      flex-shrink: 0;
+    }
+
+    .fulfillment-retry-count {
+      opacity: 0.8;
+      font-size: 0.75rem;
     }
 
     .fulfillment-shipping-method {

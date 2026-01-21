@@ -121,7 +121,7 @@ public class InvoiceSavedPdfAttachment(
             yPosition += 20;
 
             // Totals
-            var totalsX = page.Width - pdfService.Margins.Right - 150;
+            var totalsX = page.Width.Point - pdfService.Margins.Right - 150;
 
             pdfService.DrawText(graphics, "Subtotal:", totalsX, yPosition);
             pdfService.DrawText(graphics, FormatCurrency(invoice.SubTotal, invoice.CurrencySymbol), totalsX + 80, yPosition);

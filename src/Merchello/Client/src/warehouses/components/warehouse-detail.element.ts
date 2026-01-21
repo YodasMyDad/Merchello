@@ -14,6 +14,7 @@ import { MERCHELLO_SERVICE_REGION_MODAL } from "@warehouses/modals/service-regio
 import { MERCHELLO_SUPPLIER_MODAL } from "@suppliers/modals/supplier-modal.token.js";
 import { MERCHELLO_SHIPPING_OPTION_DETAIL_MODAL } from "@shipping/modals/shipping-option-detail-modal.token.js";
 import type { ShippingOptionDto } from "@shipping/types/shipping.types.js";
+import type { FulfilmentProviderOptionDto } from "@fulfilment-providers/types/fulfilment-providers.types.js";
 import {
   navigateToWarehousesList,
   getWarehousesListHref,
@@ -42,6 +43,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
   @state() private _suppliers: SupplierDto[] = [];
   @state() private _countries: CountryInfo[] = [];
   @state() private _shippingOptions: ShippingOptionDto[] = [];
+  @state() private _fulfilmentProviderOptions: FulfilmentProviderOptionDto[] = [];
   @state() private _isDeletingRegion: string | null = null;
   @state() private _isDeletingOption: string | null = null;
 
@@ -78,6 +80,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     this._createRoutes();
     this._loadSuppliers();
     this._loadCountries();
+    this._loadFulfilmentProviders();
   }
 
   override disconnectedCallback(): void {
@@ -130,6 +133,14 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     }
   }
 
+  private async _loadFulfilmentProviders(): Promise<void> {
+    const { data } = await MerchelloApi.getFulfilmentProviderOptions();
+    if (!this.#isConnected) return;
+    if (data) {
+      this._fulfilmentProviderOptions = data;
+    }
+  }
+
   private async _loadShippingOptions(): Promise<void> {
     if (!this._warehouse?.id) return;
     const { data } = await MerchelloApi.getShippingOptions();
@@ -178,6 +189,24 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     ];
   }
 
+  private _getFulfilmentProviderOptions(): SelectOption[] {
+    return [
+      { name: "None (use supplier default)", value: "", selected: !this._formData.fulfilmentProviderConfigurationId },
+      ...this._fulfilmentProviderOptions
+        .filter(p => p.isEnabled)
+        .map((p) => ({
+          name: p.displayName,
+          value: p.configurationId,
+          selected: p.configurationId === this._formData.fulfilmentProviderConfigurationId,
+        })),
+    ];
+  }
+
+  private _handleFulfilmentProviderChange(e: Event): void {
+    const select = e.target as HTMLSelectElement;
+    this._formData = { ...this._formData, fulfilmentProviderConfigurationId: select.value || undefined };
+  }
+
   private _handleSupplierChange(e: Event): void {
     const select = e.target as HTMLSelectElement;
     const value = select.value;
@@ -223,6 +252,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
           name: this._formData.name || "",
           code: this._formData.code,
           supplierId: this._formData.supplierId,
+          fulfilmentProviderConfigurationId: this._formData.fulfilmentProviderConfigurationId,
           address: this._formData.address,
         });
 
@@ -251,6 +281,8 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
           code: this._formData.code,
           supplierId: this._formData.supplierId,
           shouldClearSupplierId: !this._formData.supplierId && !!this._warehouse?.supplierId,
+          fulfilmentProviderConfigurationId: this._formData.fulfilmentProviderConfigurationId,
+          shouldClearFulfilmentProviderId: !this._formData.fulfilmentProviderConfigurationId && !!this._warehouse?.fulfilmentProviderConfigurationId,
           address: this._formData.address,
         });
 
@@ -480,6 +512,16 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
                 .options=${this._getSupplierOptions()}
                 @change=${this._handleSupplierChange}>
               </uui-select>
+            </div>
+
+            <div class="form-field full-width">
+              <label>Fulfilment Provider Override</label>
+              <uui-select
+                label="Fulfilment Provider"
+                .options=${this._getFulfilmentProviderOptions()}
+                @change=${this._handleFulfilmentProviderChange}>
+              </uui-select>
+              <span class="field-hint">Optional: Override the supplier's default fulfilment provider for this warehouse</span>
             </div>
           </div>
         </uui-box>
@@ -1093,6 +1135,12 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
         margin: 0 0 var(--uui-size-space-4) 0;
         font-size: 0.875rem;
         color: var(--uui-color-text-alt);
+      }
+
+      .field-hint {
+        font-size: 0.75rem;
+        color: var(--uui-color-text-alt);
+        margin-top: var(--uui-size-space-1);
       }
 
       .form-grid {

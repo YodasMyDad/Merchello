@@ -85,7 +85,7 @@ public class FulfilmentRetryJob(
     private async Task ProcessRetryQueueAsync(CancellationToken stoppingToken)
     {
         using var scope = serviceScopeFactory.CreateScope();
-        var fulfilmentService = scope.ServiceProvider.GetRequiredService<FulfilmentService>();
+        var fulfilmentService = scope.ServiceProvider.GetRequiredService<IFulfilmentService>();
         var notificationPublisher = scope.ServiceProvider.GetRequiredService<IMerchelloNotificationPublisher>();
 
         // Get orders ready for retry

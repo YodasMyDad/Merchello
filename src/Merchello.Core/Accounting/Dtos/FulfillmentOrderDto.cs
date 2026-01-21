@@ -27,4 +27,36 @@ public class FulfillmentOrderDto
     public List<ShipmentDto> Shipments { get; set; } = [];
     public string DeliveryMethod { get; set; } = string.Empty;
     public decimal ShippingCost { get; set; }
+
+    // Fulfilment Provider Information
+
+    /// <summary>
+    /// Provider key (e.g., "shipbob", "shipmonk"). Null if manual fulfilment.
+    /// </summary>
+    public string? FulfilmentProviderKey { get; set; }
+
+    /// <summary>
+    /// Provider display name (e.g., "ShipBob", "ShipMonk"). Null if manual fulfilment.
+    /// </summary>
+    public string? FulfilmentProviderName { get; set; }
+
+    /// <summary>
+    /// 3PL's order reference (e.g., "SB-12345"). Null if not yet submitted or manual fulfilment.
+    /// </summary>
+    public string? FulfilmentProviderReference { get; set; }
+
+    /// <summary>
+    /// When the order was submitted to the fulfilment provider.
+    /// </summary>
+    public DateTime? FulfilmentSubmittedAt { get; set; }
+
+    /// <summary>
+    /// Error message if fulfilment submission failed.
+    /// </summary>
+    public string? FulfilmentErrorMessage { get; set; }
+
+    /// <summary>
+    /// Number of fulfilment submission retry attempts.
+    /// </summary>
+    public int FulfilmentRetryCount { get; set; }
 }

@@ -45,4 +45,9 @@ public interface IFulfilmentService
     /// Returns null if manual fulfilment.
     /// </summary>
     Task<FulfilmentProviderConfiguration?> ResolveProviderForWarehouseAsync(Guid warehouseId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets orders that are ready for retry based on retry count and delay.
+    /// </summary>
+    Task<IReadOnlyList<Order>> GetOrdersReadyForRetryAsync(CancellationToken cancellationToken = default);
 }

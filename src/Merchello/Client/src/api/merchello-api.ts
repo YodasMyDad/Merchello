@@ -197,6 +197,20 @@ import type {
   CheckoutFormFieldDto,
 } from '@payment-providers/types/payment-providers.types.js';
 
+// Import fulfilment provider types
+import type {
+  FulfilmentProviderDto,
+  FulfilmentProviderListItemDto,
+  FulfilmentProviderFieldDto,
+  CreateFulfilmentProviderDto,
+  UpdateFulfilmentProviderDto,
+  TestFulfilmentProviderResultDto,
+  FulfilmentSyncLogDto,
+  FulfilmentSyncLogPageDto,
+  FulfilmentSyncLogQueryParams,
+  FulfilmentProviderOptionDto,
+} from '@fulfilment-providers/types/fulfilment-providers.types.js';
+
 // Import shipping provider types
 import type {
   ShippingProviderDto,
@@ -1655,4 +1669,70 @@ export const MerchelloApi = {
   /** Regenerate recovery link for an abandoned checkout */
   regenerateRecoveryLink: (id: string) =>
     apiPost<RegenerateRecoveryLinkResultDto>(`abandoned-checkouts/${id}/regenerate-link`),
+
+  // ============================================
+  // Fulfilment Providers API
+  // ============================================
+
+  /** Get all available fulfilment providers (discovered from assemblies) */
+  getAvailableFulfilmentProviders: () =>
+    apiGet<FulfilmentProviderDto[]>('fulfilment-providers/available'),
+
+  /** Get all configured fulfilment provider settings */
+  getFulfilmentProviderConfigurations: () =>
+    apiGet<FulfilmentProviderListItemDto[]>('fulfilment-providers'),
+
+  /** Get a specific fulfilment provider configuration by ID */
+  getFulfilmentProviderConfiguration: (id: string) =>
+    apiGet<FulfilmentProviderDto>(`fulfilment-providers/${id}`),
+
+  /** Get configuration fields for a fulfilment provider */
+  getFulfilmentProviderFields: (key: string) =>
+    apiGet<FulfilmentProviderFieldDto[]>(`fulfilment-providers/${key}/fields`),
+
+  /** Create/enable a fulfilment provider */
+  createFulfilmentProvider: (data: CreateFulfilmentProviderDto) =>
+    apiPost<FulfilmentProviderDto>('fulfilment-providers', data),
+
+  /** Update a fulfilment provider configuration */
+  updateFulfilmentProvider: (id: string, data: UpdateFulfilmentProviderDto) =>
+    apiPut<FulfilmentProviderDto>(`fulfilment-providers/${id}`, data),
+
+  /** Delete a fulfilment provider configuration */
+  deleteFulfilmentProvider: (id: string) =>
+    apiDelete(`fulfilment-providers/${id}`),
+
+  /** Toggle fulfilment provider enabled status */
+  toggleFulfilmentProvider: (id: string, isEnabled: boolean) =>
+    apiPut<FulfilmentProviderDto>(`fulfilment-providers/${id}/toggle`, { isEnabled }),
+
+  /** Test a fulfilment provider connection */
+  testFulfilmentProvider: (id: string) =>
+    apiPost<TestFulfilmentProviderResultDto>(`fulfilment-providers/${id}/test`),
+
+  /** Get fulfilment provider options for dropdown selection */
+  getFulfilmentProviderOptions: () =>
+    apiGet<FulfilmentProviderOptionDto[]>('fulfilment-providers/options'),
+
+  // ============================================
+  // Fulfilment Sync Logs API
+  // ============================================
+
+  /** Get paginated fulfilment sync logs */
+  getFulfilmentSyncLogs: (params?: FulfilmentSyncLogQueryParams) => {
+    const queryString = buildQueryString(params as Record<string, unknown>);
+    return apiGet<FulfilmentSyncLogPageDto>(`fulfilment-providers/sync-logs${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Get a single sync log entry */
+  getFulfilmentSyncLog: (id: string) =>
+    apiGet<FulfilmentSyncLogDto>(`fulfilment-providers/sync-logs/${id}`),
+
+  /** Trigger a product sync for a provider */
+  triggerProductSync: (providerConfigId: string) =>
+    apiPost<FulfilmentSyncLogDto>(`fulfilment-providers/${providerConfigId}/sync/products`),
+
+  /** Trigger an inventory sync for a provider */
+  triggerInventorySync: (providerConfigId: string) =>
+    apiPost<FulfilmentSyncLogDto>(`fulfilment-providers/${providerConfigId}/sync/inventory`),
 };

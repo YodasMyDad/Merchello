@@ -254,6 +254,40 @@ public class WebhookTopicRegistry : IWebhookTopicRegistry
             DisplayName = "Digital Product Delivered",
             Description = "Triggered when download links are ready for digital products",
             Category = "Digital Products"
+        },
+
+        // Fulfilment
+        [Constants.WebhookTopics.FulfilmentSubmitted] = new WebhookTopic
+        {
+            Key = Constants.WebhookTopics.FulfilmentSubmitted,
+            DisplayName = "Fulfilment Submitted",
+            Description = "Triggered when an order is submitted to a fulfilment provider (3PL)",
+            Category = "Fulfilment",
+            SamplePayload = """{"orderId":"...","providerKey":"shipbob","providerReference":"SB-12345","submittedAt":"2025-01-21T10:30:00Z"}"""
+        },
+        [Constants.WebhookTopics.FulfilmentFailed] = new WebhookTopic
+        {
+            Key = Constants.WebhookTopics.FulfilmentFailed,
+            DisplayName = "Fulfilment Failed",
+            Description = "Triggered when fulfilment submission fails after max retries",
+            Category = "Fulfilment",
+            SamplePayload = """{"orderId":"...","providerKey":"shipbob","errorMessage":"Connection timeout","retryCount":5}"""
+        },
+        [Constants.WebhookTopics.FulfilmentInventoryUpdated] = new WebhookTopic
+        {
+            Key = Constants.WebhookTopics.FulfilmentInventoryUpdated,
+            DisplayName = "Fulfilment Inventory Updated",
+            Description = "Triggered when inventory is synced from a fulfilment provider",
+            Category = "Fulfilment",
+            SamplePayload = """{"providerKey":"shipbob","itemsProcessed":100,"itemsSucceeded":98,"itemsFailed":2}"""
+        },
+        [Constants.WebhookTopics.FulfilmentProductSynced] = new WebhookTopic
+        {
+            Key = Constants.WebhookTopics.FulfilmentProductSynced,
+            DisplayName = "Fulfilment Products Synced",
+            Description = "Triggered when products are synced to a fulfilment provider",
+            Category = "Fulfilment",
+            SamplePayload = """{"providerKey":"shipbob","itemsProcessed":50,"itemsSucceeded":48,"itemsFailed":2}"""
         }
     };
 

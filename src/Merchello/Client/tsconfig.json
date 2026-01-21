@@ -34,6 +34,7 @@
       "@entrypoints/*": [ "src/entrypoints/*" ],
       "@exchange-rate-providers/*": [ "src/exchange-rate-providers/*" ],
       "@filters/*": [ "src/filters/*" ],
+      "@fulfilment-providers/*": [ "src/fulfilment-providers/*" ],
       "@marketing/*": [ "src/marketing/*" ],
       "@orders/*": [ "src/orders/*" ],
       "@outstanding/*": [ "src/outstanding/*" ],

@@ -286,6 +286,7 @@ public static class Startup
         // Fulfilment
         builder.Services.AddScoped<IFulfilmentProviderManager, FulfilmentProviderManager>();
         builder.Services.AddScoped<IFulfilmentService, FulfilmentService>();
+        builder.Services.AddScoped<IFulfilmentSyncService, FulfilmentSyncService>();
 
         // Tax
         builder.Services.AddScoped<ITaxService, TaxService>();
@@ -368,6 +369,7 @@ public static class Startup
         builder.Services.AddHostedService<InvoiceReminderJob>();            // Sends payment reminder and overdue notifications
         builder.Services.AddHostedService<AbandonedCheckoutDetectionJob>(); // Detects abandoned carts and triggers recovery emails
         builder.Services.AddHostedService<FulfilmentRetryJob>();              // Retries failed fulfilment submissions to 3PLs
+        builder.Services.AddHostedService<FulfilmentPollingJob>();             // Polls 3PLs for order status updates
 
         // =====================================================
         // Notification Handlers
@@ -430,6 +432,11 @@ public static class Startup
         builder.AddNotificationAsyncHandler<CheckoutRecoveryConvertedNotification, WebhookNotificationHandler>();
         // Digital Products
         builder.AddNotificationAsyncHandler<Core.DigitalProducts.Notifications.DigitalProductDeliveredNotification, WebhookNotificationHandler>();
+        // Fulfilment
+        builder.AddNotificationAsyncHandler<Core.Fulfilment.Notifications.FulfilmentSubmittedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<Core.Fulfilment.Notifications.FulfilmentSubmissionFailedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<Core.Fulfilment.Notifications.FulfilmentInventoryUpdatedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<Core.Fulfilment.Notifications.FulfilmentProductSyncedNotification, WebhookNotificationHandler>();
 
         // -----------------------------------------------------
         // Digital Product Handlers

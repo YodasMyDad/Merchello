@@ -319,6 +319,21 @@ export interface FulfillmentOrderDto {
   shipments: ShipmentDto[];
   deliveryMethod: string;
   shippingCost: number;
+
+  // Fulfilment Provider Information
+
+  /** Provider key (e.g., "shipbob", "shipmonk"). Null if manual fulfilment. */
+  fulfilmentProviderKey: string | null;
+  /** Provider display name (e.g., "ShipBob", "ShipMonk"). Null if manual fulfilment. */
+  fulfilmentProviderName: string | null;
+  /** 3PL's order reference (e.g., "SB-12345"). Null if not yet submitted or manual fulfilment. */
+  fulfilmentProviderReference: string | null;
+  /** When the order was submitted to the fulfilment provider (ISO 8601). */
+  fulfilmentSubmittedAt: string | null;
+  /** Error message if fulfilment submission failed. */
+  fulfilmentErrorMessage: string | null;
+  /** Number of fulfilment submission retry attempts. */
+  fulfilmentRetryCount: number;
 }
 
 /** Selected product option for display (e.g., Color: Grey) */

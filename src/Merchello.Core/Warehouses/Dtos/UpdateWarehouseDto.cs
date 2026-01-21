@@ -14,5 +14,15 @@ public class UpdateWarehouseDto
     /// </summary>
     public bool ShouldClearSupplierId { get; set; }
 
+    /// <summary>
+    /// Optional fulfilment provider override for this warehouse.
+    /// </summary>
+    public Guid? FulfilmentProviderConfigurationId { get; set; }
+
+    /// <summary>
+    /// If true, clears the FulfilmentProviderConfigurationId (sets it to null).
+    /// </summary>
+    public bool ShouldClearFulfilmentProviderId { get; set; }
+
     public WarehouseAddressDto? Address { get; set; }
 }

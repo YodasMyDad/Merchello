@@ -151,14 +151,14 @@ public class OrderInvoicePdfAttachment(
             // Shipping line
             if (order.ShippingCost > 0)
             {
-                var shippingX = page.Width - pdfService.Margins.Right - 150;
+                var shippingX = page.Width.Point - pdfService.Margins.Right - 150;
                 pdfService.DrawText(graphics, "Shipping:", shippingX, yPosition);
                 pdfService.DrawText(graphics, FormatCurrency(order.ShippingCost, invoice.CurrencySymbol), shippingX + 80, yPosition);
                 yPosition += 18;
             }
 
             // Totals
-            var totalsX = page.Width - pdfService.Margins.Right - 150;
+            var totalsX = page.Width.Point - pdfService.Margins.Right - 150;
 
             pdfService.DrawText(graphics, "Subtotal:", totalsX, yPosition);
             pdfService.DrawText(graphics, FormatCurrency(invoice.SubTotal, invoice.CurrencySymbol), totalsX + 80, yPosition);

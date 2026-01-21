@@ -15,6 +15,7 @@ export default defineConfig({
       "@entrypoints": resolve(__dirname, "src/entrypoints"),
       "@exchange-rate-providers": resolve(__dirname, "src/exchange-rate-providers"),
       "@filters": resolve(__dirname, "src/filters"),
+      "@fulfilment-providers": resolve(__dirname, "src/fulfilment-providers"),
       "@marketing": resolve(__dirname, "src/marketing"),
       "@orders": resolve(__dirname, "src/orders"),
       "@outstanding": resolve(__dirname, "src/outstanding"),
