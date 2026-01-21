@@ -23,4 +23,9 @@ public interface IFulfilmentSyncService
     /// Gets sync history for a provider configuration.
     /// </summary>
     Task<PaginatedList<FulfilmentSyncLog>> GetSyncHistoryAsync(FulfilmentSyncLogQueryParameters parameters, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a specific sync log by ID.
+    /// </summary>
+    Task<FulfilmentSyncLog?> GetSyncLogByIdAsync(Guid id, CancellationToken cancellationToken = default);
 }

@@ -4,6 +4,8 @@ using Merchello.Core.Fulfilment.Dtos;
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Providers;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
+using Merchello.Core.Fulfilment.Services.Interfaces;
+using Merchello.Core.Fulfilment.Services.Parameters;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,7 +17,8 @@ namespace Merchello.Controllers;
 [ApiVersion("1.0")]
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class FulfilmentProvidersApiController(
-    IFulfilmentProviderManager providerManager) : MerchelloApiControllerBase
+    IFulfilmentProviderManager providerManager,
+    IFulfilmentSyncService syncService) : MerchelloApiControllerBase
 {
     /// <summary>
     /// Get all available fulfilment providers discovered from assemblies.
@@ -233,17 +236,157 @@ public class FulfilmentProvidersApiController(
             return NotFound("Provider configuration not found.");
         }
 
-        var result = await provider.Provider.TestConnectionAsync(cancellationToken);
+        var testResult = await provider.Provider.TestConnectionAsync(cancellationToken);
 
         return Ok(new TestFulfilmentProviderDto
         {
-            Success = result.Success,
-            ProviderVersion = result.ProviderVersion,
-            AccountName = result.AccountName,
-            WarehouseCount = result.WarehouseCount,
-            ErrorMessage = result.ErrorMessage,
-            ErrorCode = result.ErrorCode
+            Success = testResult.Success,
+            ProviderVersion = testResult.ProviderVersion,
+            AccountName = testResult.AccountName,
+            WarehouseCount = testResult.WarehouseCount,
+            ErrorMessage = testResult.ErrorMessage,
+            ErrorCode = testResult.ErrorCode
         });
+    }
+
+    /// <summary>
+    /// Get configured fulfilment providers for dropdown selection.
+    /// </summary>
+    [HttpGet("fulfilment-providers/options")]
+    [ProducesResponseType<List<FulfilmentProviderOptionDto>>(StatusCodes.Status200OK)]
+    public async Task<List<FulfilmentProviderOptionDto>> GetProviderOptions(CancellationToken cancellationToken = default)
+    {
+        var providers = await providerManager.GetProvidersAsync(cancellationToken);
+
+        return providers
+            .Where(p => p.Configuration != null)
+            .Select(p => new FulfilmentProviderOptionDto
+            {
+                ConfigurationId = p.Configuration!.Id,
+                DisplayName = p.DisplayName,
+                ProviderKey = p.Metadata.Key,
+                IsEnabled = p.IsEnabled
+            })
+            .ToList();
+    }
+
+    // ============================================
+    // Sync Log Endpoints
+    // ============================================
+
+    /// <summary>
+    /// Get paginated fulfilment sync logs.
+    /// </summary>
+    [HttpGet("fulfilment-providers/sync-logs")]
+    [ProducesResponseType<FulfilmentSyncLogPageDto>(StatusCodes.Status200OK)]
+    public async Task<FulfilmentSyncLogPageDto> GetSyncLogs(
+        [FromQuery] Guid? providerConfigurationId,
+        [FromQuery] FulfilmentSyncType? syncType,
+        [FromQuery] FulfilmentSyncStatus? status,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var parameters = new FulfilmentSyncLogQueryParameters
+        {
+            ProviderConfigurationId = providerConfigurationId,
+            SyncType = syncType,
+            Status = status,
+            Page = page,
+            PageSize = pageSize
+        };
+
+        var result = await syncService.GetSyncHistoryAsync(parameters, cancellationToken);
+
+        // Get provider display names for the logs
+        var providers = await providerManager.GetProvidersAsync(cancellationToken);
+        var providerLookup = providers
+            .Where(p => p.Configuration != null)
+            .ToDictionary(p => p.Configuration!.Id, p => p.DisplayName);
+
+        return new FulfilmentSyncLogPageDto
+        {
+            Items = result.Items.Select(log => MapToSyncLogDto(log, providerLookup)).ToList(),
+            Page = result.PageIndex,
+            PageSize = pageSize,
+            TotalItems = result.TotalItems,
+            TotalPages = result.TotalPages,
+            HasPreviousPage = result.HasPreviousPage,
+            HasNextPage = result.HasNextPage
+        };
+    }
+
+    /// <summary>
+    /// Get a specific sync log entry.
+    /// </summary>
+    [HttpGet("fulfilment-providers/sync-logs/{id:guid}")]
+    [ProducesResponseType<FulfilmentSyncLogDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetSyncLog(Guid id, CancellationToken cancellationToken = default)
+    {
+        var log = await syncService.GetSyncLogByIdAsync(id, cancellationToken);
+
+        if (log == null)
+        {
+            return NotFound();
+        }
+
+        var providers = await providerManager.GetProvidersAsync(cancellationToken);
+        var providerLookup = providers
+            .Where(p => p.Configuration != null)
+            .ToDictionary(p => p.Configuration!.Id, p => p.DisplayName);
+
+        return Ok(MapToSyncLogDto(log, providerLookup));
+    }
+
+    /// <summary>
+    /// Trigger a product sync for a provider.
+    /// </summary>
+    [HttpPost("fulfilment-providers/{id:guid}/sync/products")]
+    [ProducesResponseType<FulfilmentSyncLogDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TriggerProductSync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var provider = await providerManager.GetConfiguredProviderAsync(id, cancellationToken);
+
+        if (provider?.Configuration == null)
+        {
+            return NotFound("Provider configuration not found.");
+        }
+
+        var log = await syncService.SyncProductsAsync(id, cancellationToken);
+
+        var providerLookup = new Dictionary<Guid, string>
+        {
+            { id, provider.DisplayName }
+        };
+
+        return Ok(MapToSyncLogDto(log, providerLookup));
+    }
+
+    /// <summary>
+    /// Trigger an inventory sync for a provider.
+    /// </summary>
+    [HttpPost("fulfilment-providers/{id:guid}/sync/inventory")]
+    [ProducesResponseType<FulfilmentSyncLogDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TriggerInventorySync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var provider = await providerManager.GetConfiguredProviderAsync(id, cancellationToken);
+
+        if (provider?.Configuration == null)
+        {
+            return NotFound("Provider configuration not found.");
+        }
+
+        var log = await syncService.SyncInventoryAsync(id, cancellationToken);
+
+        var providerLookup = new Dictionary<Guid, string>
+        {
+            { id, provider.DisplayName }
+        };
+
+        return Ok(MapToSyncLogDto(log, providerLookup));
     }
 
     // ============================================
@@ -312,6 +455,24 @@ public class FulfilmentProvidersApiController(
                 Value = o.Value,
                 Label = o.Label
             }).ToList()
+        };
+    }
+
+    private static FulfilmentSyncLogDto MapToSyncLogDto(FulfilmentSyncLog log, Dictionary<Guid, string> providerLookup)
+    {
+        return new FulfilmentSyncLogDto
+        {
+            Id = log.Id,
+            ProviderConfigurationId = log.ProviderConfigurationId,
+            ProviderDisplayName = providerLookup.TryGetValue(log.ProviderConfigurationId, out var name) ? name : null,
+            SyncType = log.SyncType,
+            Status = log.Status,
+            ItemsProcessed = log.ItemsProcessed,
+            ItemsSucceeded = log.ItemsSucceeded,
+            ItemsFailed = log.ItemsFailed,
+            ErrorMessage = log.ErrorMessage,
+            StartedAt = log.StartedAt,
+            CompletedAt = log.CompletedAt
         };
     }
 }

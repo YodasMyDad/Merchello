@@ -1141,6 +1141,8 @@ public class InvoiceService(
                     .ThenInclude(o => o.LineItems)
                 .Include(i => i.Orders)!
                     .ThenInclude(o => o.Shipments)
+                .Include(i => i.Orders)!
+                    .ThenInclude(o => o.FulfilmentProviderConfiguration)
                 .Include(i => i.Payments)
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken));

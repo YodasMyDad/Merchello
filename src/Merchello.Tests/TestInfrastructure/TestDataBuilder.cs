@@ -757,6 +757,114 @@ public class TestDataBuilder
 
     #endregion
 
+    #region Fulfilment
+
+    /// <summary>
+    /// Creates a FulfilmentProviderConfiguration for testing
+    /// </summary>
+    public Merchello.Core.Fulfilment.Models.FulfilmentProviderConfiguration CreateFulfilmentProviderConfiguration(
+        string providerKey = "test-fulfilment",
+        string displayName = "Test Provider",
+        bool isEnabled = true,
+        Merchello.Core.Fulfilment.Models.InventorySyncMode inventorySyncMode = Merchello.Core.Fulfilment.Models.InventorySyncMode.Full,
+        string? settingsJson = null)
+    {
+        var config = new Merchello.Core.Fulfilment.Models.FulfilmentProviderConfiguration
+        {
+            Id = Guid.NewGuid(),
+            ProviderKey = providerKey,
+            DisplayName = displayName,
+            IsEnabled = isEnabled,
+            InventorySyncMode = inventorySyncMode,
+            SettingsJson = settingsJson ?? """{"apiKey":"test-key","sandbox":"true"}""",
+            SortOrder = 0,
+            CreateDate = DateTime.UtcNow,
+            UpdateDate = DateTime.UtcNow
+        };
+
+        _dbContext.FulfilmentProviderConfigurations.Add(config);
+        return config;
+    }
+
+    /// <summary>
+    /// Assigns a fulfilment provider to a warehouse
+    /// </summary>
+    public void AssignFulfilmentProviderToWarehouse(
+        Warehouse warehouse,
+        Merchello.Core.Fulfilment.Models.FulfilmentProviderConfiguration config)
+    {
+        warehouse.FulfilmentProviderConfigurationId = config.Id;
+        warehouse.FulfilmentProviderConfiguration = config;
+    }
+
+    /// <summary>
+    /// Assigns a default fulfilment provider to a supplier
+    /// </summary>
+    public void AssignDefaultFulfilmentProviderToSupplier(
+        Supplier supplier,
+        Merchello.Core.Fulfilment.Models.FulfilmentProviderConfiguration config)
+    {
+        supplier.DefaultFulfilmentProviderConfigurationId = config.Id;
+        supplier.DefaultFulfilmentProviderConfiguration = config;
+    }
+
+    /// <summary>
+    /// Creates an order that has been submitted to fulfilment
+    /// </summary>
+    public Order CreateSubmittedFulfilmentOrder(
+        Invoice? invoice = null,
+        Warehouse? warehouse = null,
+        Merchello.Core.Fulfilment.Models.FulfilmentProviderConfiguration? providerConfig = null,
+        string? providerReference = null)
+    {
+        invoice ??= CreateInvoice();
+        warehouse ??= CreateWarehouse();
+        providerConfig ??= CreateFulfilmentProviderConfiguration();
+
+        var shippingOption = CreateShippingOption(warehouse: warehouse);
+        var order = CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Processing);
+
+        order.FulfilmentProviderConfigurationId = providerConfig.Id;
+        order.FulfilmentProviderConfiguration = providerConfig;
+        order.FulfilmentProviderReference = providerReference ?? $"TEST-{Guid.NewGuid():N}"[..12].ToUpperInvariant();
+        order.FulfilmentSubmittedAt = DateTime.UtcNow;
+
+        return order;
+    }
+
+    /// <summary>
+    /// Creates a FulfilmentSyncLog entry
+    /// </summary>
+    public Merchello.Core.Fulfilment.Models.FulfilmentSyncLog CreateFulfilmentSyncLog(
+        Merchello.Core.Fulfilment.Models.FulfilmentProviderConfiguration config,
+        Merchello.Core.Fulfilment.Models.FulfilmentSyncType syncType = Merchello.Core.Fulfilment.Models.FulfilmentSyncType.ProductsOut,
+        Merchello.Core.Fulfilment.Models.FulfilmentSyncStatus status = Merchello.Core.Fulfilment.Models.FulfilmentSyncStatus.Completed,
+        int itemsProcessed = 10,
+        int itemsSucceeded = 10,
+        int itemsFailed = 0,
+        string? errorMessage = null)
+    {
+        var log = new Merchello.Core.Fulfilment.Models.FulfilmentSyncLog
+        {
+            Id = Guid.NewGuid(),
+            ProviderConfigurationId = config.Id,
+            ProviderConfiguration = config,
+            SyncType = syncType,
+            Status = status,
+            ItemsProcessed = itemsProcessed,
+            ItemsSucceeded = itemsSucceeded,
+            ItemsFailed = itemsFailed,
+            ErrorMessage = errorMessage,
+            StartedAt = DateTime.UtcNow.AddMinutes(-5),
+            CompletedAt = DateTime.UtcNow
+        };
+
+        _dbContext.FulfilmentSyncLogs.Add(log);
+        return log;
+    }
+
+    #endregion
+
     /// <summary>
     /// Persists all pending changes to the database
     /// </summary>

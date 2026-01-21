@@ -134,6 +134,7 @@ export class MerchelloEmailsWorkspaceContext
       bccExpression: null,
       fromExpression: null,
       description: null,
+      attachmentAliases: [],
       dateCreated: new Date().toISOString(),
       dateModified: new Date().toISOString(),
       totalSent: 0,

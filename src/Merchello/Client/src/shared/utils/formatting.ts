@@ -98,6 +98,15 @@ export function formatShortDate(dateString: string): string {
 }
 
 /**
+ * Format a date string as a localized date (e.g., "1/15/2024").
+ * @param dateString - ISO date string to format
+ * @returns Formatted date string
+ */
+export function formatDate(dateString: string): string {
+  return new Date(dateString).toLocaleDateString();
+}
+
+/**
  * Format a Date object to time string (e.g., "10:30 AM").
  * @param date - Date object to format
  * @returns Formatted time string

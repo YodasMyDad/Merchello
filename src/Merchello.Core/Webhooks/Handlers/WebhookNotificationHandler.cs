@@ -1,4 +1,5 @@
 using Merchello.Core.DigitalProducts.Notifications;
+using Merchello.Core.Fulfilment.Notifications;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Notifications.CustomerNotifications;
@@ -55,7 +56,11 @@ public class WebhookNotificationHandler(
       INotificationAsyncHandler<CheckoutAbandonedFinalNotification>,
       INotificationAsyncHandler<CheckoutRecoveredNotification>,
       INotificationAsyncHandler<CheckoutRecoveryConvertedNotification>,
-      INotificationAsyncHandler<DigitalProductDeliveredNotification>
+      INotificationAsyncHandler<DigitalProductDeliveredNotification>,
+      INotificationAsyncHandler<FulfilmentSubmittedNotification>,
+      INotificationAsyncHandler<FulfilmentSubmissionFailedNotification>,
+      INotificationAsyncHandler<FulfilmentInventoryUpdatedNotification>,
+      INotificationAsyncHandler<FulfilmentProductSyncedNotification>
 {
     private readonly WebhookSettings _settings = options.Value;
 
@@ -392,6 +397,48 @@ public class WebhookNotificationHandler(
                 l.MaxDownloads
             })
         }, notification.Invoice.Id, "Invoice", ct);
+
+    #endregion
+
+    #region Fulfilment
+
+    public Task HandleAsync(FulfilmentSubmittedNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.FulfilmentSubmitted, new
+        {
+            OrderId = notification.Order.Id,
+            ProviderKey = notification.ProviderConfiguration.ProviderKey,
+            ProviderReference = notification.ProviderReference,
+            SubmittedAt = notification.Order.FulfilmentSubmittedAt
+        }, notification.Order.Id, "Order", ct);
+
+    public Task HandleAsync(FulfilmentSubmissionFailedNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.FulfilmentFailed, new
+        {
+            OrderId = notification.Order.Id,
+            ProviderKey = notification.ProviderConfiguration.ProviderKey,
+            notification.ErrorMessage,
+            notification.RetryCount
+        }, notification.Order.Id, "Order", ct);
+
+    public Task HandleAsync(FulfilmentInventoryUpdatedNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.FulfilmentInventoryUpdated, new
+        {
+            ProviderKey = notification.ProviderConfiguration.ProviderKey,
+            notification.SyncLog.ItemsProcessed,
+            notification.SyncLog.ItemsSucceeded,
+            notification.SyncLog.ItemsFailed,
+            notification.SyncLog.CompletedAt
+        }, notification.ProviderConfiguration.Id, "FulfilmentProviderConfiguration", ct);
+
+    public Task HandleAsync(FulfilmentProductSyncedNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.FulfilmentProductSynced, new
+        {
+            ProviderKey = notification.ProviderConfiguration.ProviderKey,
+            notification.SyncLog.ItemsProcessed,
+            notification.SyncLog.ItemsSucceeded,
+            notification.SyncLog.ItemsFailed,
+            notification.SyncLog.CompletedAt
+        }, notification.ProviderConfiguration.Id, "FulfilmentProviderConfiguration", ct);
 
     #endregion
 

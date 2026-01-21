@@ -775,7 +775,15 @@ public class OrdersApiController(
                 Carrier = s.Carrier,
                 ShippedDate = s.ShippedDate,
                 ActualDeliveryDate = s.ActualDeliveryDate
-            }).ToList() ?? []
+            }).ToList() ?? [],
+
+            // Fulfilment provider information
+            FulfilmentProviderKey = order.FulfilmentProviderConfiguration?.ProviderKey,
+            FulfilmentProviderName = order.FulfilmentProviderConfiguration?.DisplayName,
+            FulfilmentProviderReference = order.FulfilmentProviderReference,
+            FulfilmentSubmittedAt = order.FulfilmentSubmittedAt,
+            FulfilmentErrorMessage = order.FulfilmentErrorMessage,
+            FulfilmentRetryCount = order.FulfilmentRetryCount
         };
     }
 

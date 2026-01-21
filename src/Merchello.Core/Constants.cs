@@ -266,6 +266,12 @@ public static class Constants
 
         // Digital Products
         public const string DigitalDelivered = "digital.delivered";
+
+        // Fulfilment
+        public const string FulfilmentSubmitted = "fulfilment.submitted";
+        public const string FulfilmentFailed = "fulfilment.failed";
+        public const string FulfilmentInventoryUpdated = "fulfilment.inventory_updated";
+        public const string FulfilmentProductSynced = "fulfilment.product_synced";
     }
 
     public static class EmailTopics

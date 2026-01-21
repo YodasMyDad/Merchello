@@ -3,6 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { SupplierModalData, SupplierModalValue } from "./supplier-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import type { FulfilmentProviderOptionDto } from "@fulfilment-providers/types/fulfilment-providers.types.js";
 
 @customElement("merchello-supplier-modal")
 export class MerchelloSupplierModalElement extends UmbModalBaseElement<
@@ -11,6 +12,9 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
 > {
   @state() private _name: string = "";
   @state() private _code: string = "";
+  @state() private _fulfilmentProviderConfigurationId: string = "";
+  @state() private _fulfilmentProviderOptions: FulfilmentProviderOptionDto[] = [];
+  @state() private _isLoadingProviders: boolean = false;
   @state() private _isSaving: boolean = false;
   @state() private _errors: Record<string, string> = {};
 
@@ -24,7 +28,16 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     if (this.data?.supplier) {
       this._name = this.data.supplier.name;
       this._code = this.data.supplier.code ?? "";
+      this._fulfilmentProviderConfigurationId = this.data.supplier.fulfilmentProviderConfigurationId ?? "";
     }
+    this._loadFulfilmentProviders();
+  }
+
+  private async _loadFulfilmentProviders(): Promise<void> {
+    this._isLoadingProviders = true;
+    const { data } = await MerchelloApi.getFulfilmentProviderOptions();
+    this._fulfilmentProviderOptions = data ?? [];
+    this._isLoadingProviders = false;
   }
 
   private _validate(): boolean {
@@ -55,6 +68,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       const { data, error } = await MerchelloApi.updateSupplier(supplierId, {
         name: this._name.trim(),
         code: this._code.trim() || undefined,
+        fulfilmentProviderConfigurationId: this._fulfilmentProviderConfigurationId || undefined,
       });
 
       this._isSaving = false;
@@ -71,6 +85,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       const { data, error } = await MerchelloApi.createSupplier({
         name: this._name.trim(),
         code: this._code.trim() || undefined,
+        fulfilmentProviderConfigurationId: this._fulfilmentProviderConfigurationId || undefined,
       });
 
       this._isSaving = false;
@@ -125,6 +140,29 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
             </uui-input>
             <span class="hint">Optional code for internal tracking or accounting systems</span>
           </div>
+
+          <div class="form-row">
+            <label for="fulfilment-provider">Fulfilment Provider</label>
+            ${this._isLoadingProviders
+              ? html`<uui-loader-bar></uui-loader-bar>`
+              : html`
+                  <uui-select
+                    id="fulfilment-provider"
+                    .options=${[
+                      { name: "None (manual fulfilment)", value: "", selected: !this._fulfilmentProviderConfigurationId },
+                      ...this._fulfilmentProviderOptions
+                        .filter(p => p.isEnabled)
+                        .map(p => ({
+                          name: p.displayName,
+                          value: p.configurationId,
+                          selected: p.configurationId === this._fulfilmentProviderConfigurationId
+                        }))
+                    ]}
+                    @change=${(e: Event) => (this._fulfilmentProviderConfigurationId = (e.target as HTMLSelectElement).value)}
+                  ></uui-select>
+                `}
+            <span class="hint">Default fulfilment provider for products from this supplier</span>
+          </div>
         </div>
 
         <div slot="actions">
@@ -170,7 +208,8 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       color: var(--uui-color-danger);
     }
 
-    uui-input {
+    uui-input,
+    uui-select {
       width: 100%;
     }
 

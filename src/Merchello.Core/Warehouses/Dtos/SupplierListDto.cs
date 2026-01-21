@@ -13,4 +13,14 @@ public class SupplierListDto
     /// Number of warehouses linked to this supplier.
     /// </summary>
     public int WarehouseCount { get; set; }
+
+    /// <summary>
+    /// The default fulfilment provider configuration ID for this supplier.
+    /// </summary>
+    public Guid? FulfilmentProviderConfigurationId { get; set; }
+
+    /// <summary>
+    /// Display name of the fulfilment provider (if set).
+    /// </summary>
+    public string? FulfilmentProviderName { get; set; }
 }

@@ -18,6 +18,10 @@ export interface WarehouseDetailDto {
   code?: string;
   supplierId?: string;
   supplierName?: string;
+  /** Optional fulfilment provider override for this warehouse */
+  fulfilmentProviderConfigurationId?: string;
+  /** Display name of the fulfilment provider override (if set) */
+  fulfilmentProviderName?: string;
   address: WarehouseAddressDto;
   serviceRegions: ServiceRegionDto[];
   shippingOptionCount: number;
@@ -55,6 +59,8 @@ export interface CreateWarehouseDto {
   name: string;
   code?: string;
   supplierId?: string;
+  /** Optional fulfilment provider override for this warehouse */
+  fulfilmentProviderConfigurationId?: string;
   address?: WarehouseAddressDto;
 }
 
@@ -63,6 +69,10 @@ export interface UpdateWarehouseDto {
   code?: string;
   supplierId?: string;
   shouldClearSupplierId?: boolean;
+  /** Optional fulfilment provider override for this warehouse */
+  fulfilmentProviderConfigurationId?: string;
+  /** If true, clears the fulfilment provider override */
+  shouldClearFulfilmentProviderId?: boolean;
   address?: WarehouseAddressDto;
 }
 

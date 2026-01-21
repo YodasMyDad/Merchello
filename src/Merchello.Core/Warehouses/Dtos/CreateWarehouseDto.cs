@@ -8,5 +8,11 @@ public class CreateWarehouseDto
     public required string Name { get; set; }
     public string? Code { get; set; }
     public Guid? SupplierId { get; set; }
+
+    /// <summary>
+    /// Optional fulfilment provider override for this warehouse.
+    /// </summary>
+    public Guid? FulfilmentProviderConfigurationId { get; set; }
+
     public WarehouseAddressDto? Address { get; set; }
 }

@@ -246,12 +246,12 @@ public class FulfilmentProviderManager(
     public void ClearCache()
     {
         DisposeProviders();
-        _cachedProviders = null;
     }
 
     private void DisposeProviders()
     {
-        var providers = _cachedProviders;
+        // Atomically exchange to prevent double-dispose if called concurrently
+        var providers = Interlocked.Exchange(ref _cachedProviders, null);
         if (providers == null) return;
 
         foreach (var registered in providers)
@@ -276,7 +276,6 @@ public class FulfilmentProviderManager(
         _disposed = true;
 
         DisposeProviders();
-        _cachedProviders = null;
         _cacheLock.Dispose();
 
         GC.SuppressFinalize(this);

@@ -1245,14 +1245,14 @@ public static class FulfilmentRetryPolicy
 
 ### Phase 3: Notifications
 - [x] Fulfilment notifications (FulfilmentSubmittingNotification, FulfilmentSubmittedNotification, FulfilmentSubmissionFailedNotification, FulfilmentInventoryUpdatedNotification, FulfilmentProductSyncedNotification)
-- [ ] Webhook topic registration
-- [ ] Backoffice order detail showing fulfilment status
+- [x] Webhook topic registration
+- [x] Backoffice order detail showing fulfilment status
 
 ### Phase 4: Sync Features
-- [ ] FulfilmentSyncService
-- [ ] Product sync flow
-- [ ] Inventory sync flow (Full/Delta)
-- [ ] FulfilmentPollingJob
+- [x] FulfilmentSyncService
+- [x] Product sync flow
+- [x] Inventory sync flow (Full/Delta)
+- [x] FulfilmentPollingJob
 
 ### Phase 5: Backoffice UI
 - [ ] Fulfilment workspaceView tab in Providers workspace (see [Backoffice UI Architecture](#backoffice-ui-architecture) below)
