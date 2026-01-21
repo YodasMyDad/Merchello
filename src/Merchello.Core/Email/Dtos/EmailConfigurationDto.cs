@@ -20,4 +20,9 @@ public class EmailConfigurationDto
     public int TotalSent { get; set; }
     public int TotalFailed { get; set; }
     public DateTime? LastSentUtc { get; set; }
+
+    /// <summary>
+    /// Attachment aliases enabled for this configuration.
+    /// </summary>
+    public List<string> AttachmentAliases { get; set; } = [];
 }

@@ -6,6 +6,7 @@ using Merchello.Core.DigitalProducts.Models;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Email.Models;
 using Merchello.Core.ExchangeRates.Models;
+using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Protocols.Webhooks.Models;
@@ -70,6 +71,11 @@ public class MerchelloDbContext : DbContext
     public DbSet<ShippingCost> ShippingCosts => Set<ShippingCost>();
     public DbSet<ShippingWeightTier> ShippingWeightTiers => Set<ShippingWeightTier>();
     public DbSet<ShippingProviderConfiguration> ShippingProviderConfigurations => Set<ShippingProviderConfiguration>();
+
+    // Fulfilment DbSets
+    public DbSet<FulfilmentProviderConfiguration> FulfilmentProviderConfigurations => Set<FulfilmentProviderConfiguration>();
+    public DbSet<FulfilmentSyncLog> FulfilmentSyncLogs => Set<FulfilmentSyncLog>();
+    public DbSet<FulfilmentWebhookLog> FulfilmentWebhookLogs => Set<FulfilmentWebhookLog>();
 
     // Payment Provider DbSets
     public DbSet<PaymentProviderSetting> PaymentProviderSettings => Set<PaymentProviderSetting>();

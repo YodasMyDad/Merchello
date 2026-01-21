@@ -156,6 +156,7 @@ public static class ProtocolConstants
         public const string ManifestPrefix = "merchello:protocols:manifest:";
         public const string CapabilitiesPrefix = "merchello:protocols:capabilities:";
         public const string SigningKeys = "merchello:protocols:signing-keys";
+        public const string AgentProfilePrefix = "merchello:protocols:agent-profile:";
     }
 
     /// <summary>
@@ -166,6 +167,7 @@ public static class ProtocolConstants
         public static readonly TimeSpan ManifestCache = TimeSpan.FromMinutes(60);
         public static readonly TimeSpan CapabilitiesCache = TimeSpan.FromMinutes(60);
         public static readonly TimeSpan SigningKeysCache = TimeSpan.FromHours(24);
+        public static readonly TimeSpan AgentProfileCache = TimeSpan.FromMinutes(30);
     }
 
     /// <summary>

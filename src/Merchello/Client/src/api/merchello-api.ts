@@ -361,6 +361,7 @@ import type {
   EmailTemplateDto,
   EmailPreviewDto,
   EmailSendTestResultDto,
+  EmailAttachmentDto,
 } from '@email/types/email.types.js';
 
 // Import webhook types
@@ -1538,6 +1539,14 @@ export const MerchelloApi = {
   /** Check if a template path exists */
   checkTemplateExists: (path: string) =>
     apiGet<boolean>(`emails/templates/exists?path=${encodeURIComponent(path)}`),
+
+  /** Get all available email attachments */
+  getEmailAttachments: () =>
+    apiGet<EmailAttachmentDto[]>('emails/attachments'),
+
+  /** Get available attachments for a specific topic */
+  getTopicAttachments: (topic: string) =>
+    apiGet<EmailAttachmentDto[]>(`emails/topics/${encodeURIComponent(topic)}/attachments`),
 
   // ============================================
   // Webhooks API

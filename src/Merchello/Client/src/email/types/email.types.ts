@@ -15,6 +15,7 @@ export interface EmailConfigurationDto {
   totalSent: number;
   totalFailed: number;
   lastSentUtc: string | null;
+  attachmentAliases: string[];
 }
 
 // Email configuration detail DTO (includes CC/BCC/From)
@@ -36,6 +37,7 @@ export interface CreateEmailConfigurationDto {
   bccExpression?: string | null;
   fromExpression?: string | null;
   description?: string | null;
+  attachmentAliases?: string[];
 }
 
 // Update email configuration DTO
@@ -50,6 +52,7 @@ export interface UpdateEmailConfigurationDto {
   bccExpression?: string | null;
   fromExpression?: string | null;
   description?: string | null;
+  attachmentAliases?: string[];
 }
 
 // Send test email DTO
@@ -128,4 +131,13 @@ export interface EmailSendTestResultDto {
   recipient: string | null;
   errorMessage: string | null;
   deliveryId: string | null;
+}
+
+// Email attachment DTO
+export interface EmailAttachmentDto {
+  alias: string;
+  displayName: string;
+  description: string | null;
+  iconSvg: string | null;
+  topic: string;
 }

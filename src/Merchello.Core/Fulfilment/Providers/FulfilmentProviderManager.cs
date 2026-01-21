@@ -1,0 +1,284 @@
+using Merchello.Core.Data;
+using Merchello.Core.Fulfilment.Models;
+using Merchello.Core.Fulfilment.Providers.Interfaces;
+using Merchello.Core.Shared.Reflection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Umbraco.Cms.Persistence.EFCore.Scoping;
+
+namespace Merchello.Core.Fulfilment.Providers;
+
+/// <summary>
+/// Discovers and configures fulfilment provider implementations.
+/// </summary>
+public class FulfilmentProviderManager(
+    ExtensionManager extensionManager,
+    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    ILogger<FulfilmentProviderManager> logger) : IFulfilmentProviderManager, IDisposable
+{
+    private readonly SemaphoreSlim _cacheLock = new(1, 1);
+    private volatile IReadOnlyCollection<RegisteredFulfilmentProvider>? _cachedProviders;
+    private bool _disposed;
+
+    public async Task<IReadOnlyCollection<RegisteredFulfilmentProvider>> GetProvidersAsync(CancellationToken cancellationToken = default)
+    {
+        var cached = _cachedProviders;
+        if (cached != null)
+        {
+            return cached;
+        }
+
+        await _cacheLock.WaitAsync(cancellationToken);
+        try
+        {
+            cached = _cachedProviders;
+            if (cached != null)
+            {
+                return cached;
+            }
+
+            var providerInstances = extensionManager.GetInstances<IFulfilmentProvider>(useCaching: true)
+                .Where(p => p != null)
+                .Cast<IFulfilmentProvider>()
+                .ToList();
+
+            using var scope = efCoreScopeProvider.CreateScope();
+            var configurations = await scope.ExecuteWithContextAsync(async db =>
+                await db.FulfilmentProviderConfigurations
+                    .AsNoTracking()
+                    .ToListAsync(cancellationToken));
+            scope.Complete();
+
+            List<RegisteredFulfilmentProvider> registeredProviders = [];
+            HashSet<string> keys = new(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var provider in providerInstances)
+            {
+                var metadata = provider.Metadata;
+                if (string.IsNullOrWhiteSpace(metadata.Key))
+                {
+                    logger.LogWarning("Fulfilment provider {ProviderType} has an empty metadata key and will be ignored.", provider.GetType().FullName);
+                    continue;
+                }
+
+                if (!keys.Add(metadata.Key))
+                {
+                    logger.LogWarning("Duplicate fulfilment provider key '{ProviderKey}' detected. Provider {ProviderType} will be skipped.", metadata.Key, provider.GetType().FullName);
+                    continue;
+                }
+
+                var configuration = configurations.FirstOrDefault(cfg =>
+                    string.Equals(cfg.ProviderKey, metadata.Key, StringComparison.OrdinalIgnoreCase));
+
+                try
+                {
+                    await provider.ConfigureAsync(configuration, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to configure fulfilment provider {ProviderKey}. Provider will be skipped.", metadata.Key);
+                    continue;
+                }
+
+                registeredProviders.Add(new RegisteredFulfilmentProvider(provider, configuration));
+            }
+
+            _cachedProviders = registeredProviders;
+            return registeredProviders;
+        }
+        finally
+        {
+            _cacheLock.Release();
+        }
+    }
+
+    public async Task<IReadOnlyCollection<RegisteredFulfilmentProvider>> GetEnabledProvidersAsync(CancellationToken cancellationToken = default)
+    {
+        var providers = await GetProvidersAsync(cancellationToken);
+        return providers
+            .Where(p => p.IsEnabled)
+            .OrderBy(p => p.SortOrder)
+            .ToList();
+    }
+
+    public async Task<RegisteredFulfilmentProvider?> GetProviderAsync(string providerKey, bool requireEnabled = true, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(providerKey))
+        {
+            return null;
+        }
+
+        var providers = await GetProvidersAsync(cancellationToken);
+        var provider = providers.FirstOrDefault(p =>
+            string.Equals(p.Metadata.Key, providerKey, StringComparison.OrdinalIgnoreCase));
+
+        if (provider == null)
+        {
+            return null;
+        }
+
+        if (requireEnabled && !provider.IsEnabled)
+        {
+            return null;
+        }
+
+        return provider;
+    }
+
+    public async Task<RegisteredFulfilmentProvider?> GetConfiguredProviderAsync(Guid configurationId, CancellationToken cancellationToken = default)
+    {
+        var providers = await GetProvidersAsync(cancellationToken);
+        return providers.FirstOrDefault(p => p.Configuration?.Id == configurationId);
+    }
+
+    public async Task<FulfilmentProviderConfiguration> SaveConfigurationAsync(FulfilmentProviderConfiguration configuration, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var existing = await db.FulfilmentProviderConfigurations
+                .FirstOrDefaultAsync(c => c.Id == configuration.Id, cancellationToken);
+
+            if (existing != null)
+            {
+                existing.DisplayName = configuration.DisplayName;
+                existing.IsEnabled = configuration.IsEnabled;
+                existing.InventorySyncMode = configuration.InventorySyncMode;
+                existing.SettingsJson = configuration.SettingsJson;
+                existing.SortOrder = configuration.SortOrder;
+                existing.UpdateDate = DateTime.UtcNow;
+                await db.SaveChangesAsync(cancellationToken);
+                return existing;
+            }
+
+            configuration.CreateDate = DateTime.UtcNow;
+            configuration.UpdateDate = DateTime.UtcNow;
+            db.FulfilmentProviderConfigurations.Add(configuration);
+            await db.SaveChangesAsync(cancellationToken);
+            return configuration;
+        });
+
+        scope.Complete();
+        ClearCache();
+        return result;
+    }
+
+    public async Task<bool> SetProviderEnabledAsync(Guid configurationId, bool enabled, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        var success = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var config = await db.FulfilmentProviderConfigurations
+                .FirstOrDefaultAsync(c => c.Id == configurationId, cancellationToken);
+
+            if (config == null)
+            {
+                return false;
+            }
+
+            config.IsEnabled = enabled;
+            config.UpdateDate = DateTime.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
+
+        scope.Complete();
+        ClearCache();
+        return success;
+    }
+
+    public async Task UpdateSortOrderAsync(IEnumerable<Guid> orderedIds, CancellationToken cancellationToken = default)
+    {
+        var idList = orderedIds.ToList();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            var configurations = await db.FulfilmentProviderConfigurations
+                .Where(c => idList.Contains(c.Id))
+                .ToListAsync(cancellationToken);
+
+            for (var i = 0; i < idList.Count; i++)
+            {
+                var config = configurations.FirstOrDefault(c => c.Id == idList[i]);
+                if (config != null)
+                {
+                    config.SortOrder = i;
+                    config.UpdateDate = DateTime.UtcNow;
+                }
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
+
+        scope.Complete();
+        ClearCache();
+    }
+
+    public async Task<bool> DeleteConfigurationAsync(Guid configurationId, CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        var success = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var config = await db.FulfilmentProviderConfigurations
+                .FirstOrDefaultAsync(c => c.Id == configurationId, cancellationToken);
+
+            if (config == null)
+            {
+                return false;
+            }
+
+            db.FulfilmentProviderConfigurations.Remove(config);
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
+
+        scope.Complete();
+        ClearCache();
+        return success;
+    }
+
+    public void ClearCache()
+    {
+        DisposeProviders();
+        _cachedProviders = null;
+    }
+
+    private void DisposeProviders()
+    {
+        var providers = _cachedProviders;
+        if (providers == null) return;
+
+        foreach (var registered in providers)
+        {
+            if (registered.Provider is IDisposable disposable)
+            {
+                try
+                {
+                    disposable.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Error disposing fulfilment provider {ProviderKey}", registered.Metadata.Key);
+                }
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        DisposeProviders();
+        _cachedProviders = null;
+        _cacheLock.Dispose();
+
+        GC.SuppressFinalize(this);
+    }
+}

@@ -71,6 +71,27 @@ public static class Constants
         public const string MaxDownloadsPerLink = "MaxDownloadsPerLink";        // int as string, 0 = unlimited
     }
 
+    /// <summary>
+    /// Keys used in InvoiceSource.Metadata for UCP-specific data.
+    /// </summary>
+    public static class UcpMetadataKeys
+    {
+        /// <summary>
+        /// Webhook URL for order lifecycle updates, extracted from agent profile.
+        /// </summary>
+        public const string WebhookUrl = "WebhookUrl";
+
+        /// <summary>
+        /// Agent's display name from profile.
+        /// </summary>
+        public const string AgentName = "AgentName";
+
+        /// <summary>
+        /// Capabilities supported by the agent.
+        /// </summary>
+        public const string AgentCapabilities = "AgentCapabilities";
+    }
+
     public static class CacheKeys
     {
         public const string ExchangeRatesPrefix = "merchello:exchange-rates:";

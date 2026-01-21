@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Extensions;
@@ -25,6 +26,16 @@ public class Warehouse
     /// Navigation property to the owning supplier
     /// </summary>
     public virtual Supplier? Supplier { get; set; }
+
+    /// <summary>
+    /// Optional override for fulfilment provider (overrides supplier default)
+    /// </summary>
+    public Guid? FulfilmentProviderConfigurationId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the fulfilment provider configuration
+    /// </summary>
+    public virtual FulfilmentProviderConfiguration? FulfilmentProviderConfiguration { get; set; }
 
     /// <summary>
     /// Warehouse name

@@ -1,3 +1,4 @@
+using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Warehouses.Models;
 using Microsoft.EntityFrameworkCore;
@@ -19,10 +20,16 @@ public class WarehouseDbMapping : IEntityTypeConfiguration<Warehouse>
         builder.Property(x => x.Address).ToJsonConversion(500);
         builder.Property(x => x.ExtendedData).ToJsonConversion(1000);
         builder.Property(x => x.AutomationMethod).HasMaxLength(1000);
+        builder.Property(x => x.FulfilmentProviderConfigurationId).IsRequired(false);
 
         // Unique constraint on warehouse code
         builder.HasIndex(x => x.Code).IsUnique();
 
         // Relationship to Supplier is configured in SupplierDbMapping
+
+        builder.HasOne(x => x.FulfilmentProviderConfiguration)
+            .WithMany()
+            .HasForeignKey(x => x.FulfilmentProviderConfigurationId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

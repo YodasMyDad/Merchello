@@ -2053,9 +2053,11 @@ Request-Signature: eyJhbGciOiJFUzI1NiIsImtpZCI6ImtleS0yMDI2LTAxIn0...
 
 ---
 
-## Future: Full UCP Implementation
+## UCP Implementation Status
 
-When the UCP specification stabilizes, implementing full support requires:
+UCP checkout capability and Order capability (webhooks) are fully implemented.
+
+### Reference: UCP-specific Implementation Details
 
 ### New Files
 
@@ -2071,6 +2073,13 @@ src/Merchello.Core/Protocols/UCP/
 │   ├── UCPPaymentHandlerDto.cs
 │   ├── UCPOrderDto.cs
 │   └── UCPFulfillmentDto.cs
+├── Handlers/
+│   └── UcpOrderWebhookHandler.cs   # Order lifecycle webhook handler
+├── Models/
+│   └── UcpAgentProfile.cs          # Agent profile models
+├── Services/
+│   ├── IUcpAgentProfileService.cs  # Agent profile service interface
+│   └── UcpAgentProfileService.cs   # Agent profile fetcher/cache
 └── Mapping/
     └── UCPMapper.cs                # Maps to/from CheckoutSessionState
 ```
@@ -2079,8 +2088,16 @@ src/Merchello.Core/Protocols/UCP/
 
 ```csharp
 // In Startup/DI configuration
-services.AddSingleton<ICommerceProtocolAdapter, UCPProtocolAdapter>();
-services.AddSingleton<IAgentAuthenticator, UCPAgentAuthenticator>();
+services.AddScoped<ICommerceProtocolManager, CommerceProtocolManager>();
+services.AddScoped<ISigningKeyStore, SigningKeyStore>();
+services.AddScoped<IWebhookSigner, WebhookSigner>();
+services.AddScoped<IUcpAgentProfileService, UcpAgentProfileService>();
+// UCPProtocolAdapter is auto-discovered by ExtensionManager (implements ICommerceProtocolAdapter)
+
+// Notification handlers for UCP order webhooks
+builder.AddNotificationAsyncHandler<OrderStatusChangedNotification, UcpOrderWebhookHandler>();
+builder.AddNotificationAsyncHandler<ShipmentCreatedNotification, UcpOrderWebhookHandler>();
+builder.AddNotificationAsyncHandler<ShipmentSavedNotification, UcpOrderWebhookHandler>();
 ```
 
 ### UCP-Specific Features
@@ -2090,6 +2107,154 @@ services.AddSingleton<IAgentAuthenticator, UCPAgentAuthenticator>();
 3. **Extension Schema Composition** - `allOf` JSON Schema composition
 4. **AP2 Mandates** - Cryptographic authorization proof (optional)
 5. **Identity Linking** - OAuth 2.0 integration
+
+---
+
+## UCP Order Webhooks Implementation
+
+**Status**: IMPLEMENTED
+
+### Implementation Overview
+
+UCP order lifecycle webhooks are fully implemented. When an order status changes, Merchello sends signed webhooks to the UCP agent's configured webhook URL.
+
+| Component | Status |
+|-----------|--------|
+| Checkout sessions (create/get/update/complete) | Implemented |
+| Order retrieval (`GetOrderAsync`) | Implemented |
+| Order webhooks (outbound to platforms) | Implemented |
+
+### Key Architecture: Invoice vs Order for UCP
+
+**Critical mapping:**
+- UCP "order" = Merchello **Invoice** (1:1)
+- Merchello Order = warehouse-level (N per Invoice)
+- UCP expects ONE order per checkout session
+
+`GetOrderAsync` aggregates multiple Merchello Orders into a single UCP response at the Invoice level. Webhooks do the same - aggregating at the Invoice level.
+
+### Webhook URL Discovery Flow
+
+The webhook URL comes from the **agent's profile capability config**:
+
+1. Agent sends `UCP-Agent` header with profile URI during checkout
+2. At checkout completion, Merchello fetches the agent's profile (cached for 30 minutes)
+3. Profile contains `capabilities[name="dev.ucp.shopping.order"].config.webhook_url`
+4. Webhook URL is stored in `Invoice.Source.Metadata["WebhookUrl"]`
+
+### Implementation Components
+
+| File | Purpose |
+|------|---------|
+| `IUcpAgentProfileService.cs` | Interface for fetching and caching agent profiles |
+| `UcpAgentProfileService.cs` | Implementation that fetches profiles via HTTP |
+| `UcpAgentProfile.cs` | Model representing the agent profile structure |
+| `UcpOrderWebhookHandler.cs` | Notification handler for order events |
+| `Constants.UcpMetadataKeys` | Keys for `Invoice.Source.Metadata` storage |
+
+### Data Flow
+
+```
+1. Checkout Completion (UCPProtocolAdapter.CompleteSessionAsync)
+   ├── Fetch agent profile from ProfileUri (via IUcpAgentProfileService)
+   ├── Extract webhook_url from Order capability config
+   ├── Store in InvoiceSource.Metadata["WebhookUrl"]
+   └── Create Invoice with source metadata
+
+2. Order Status Change
+   ├── OrderStatusChangedNotification fired
+   ├── UcpOrderWebhookHandler handles notification
+   ├── Check Invoice.Source.Type == "ucp"
+   ├── Get webhook URL from Invoice.Source.Metadata
+   ├── Build UCP order payload (aggregated at Invoice level)
+   ├── Sign payload with ES256 (RFC 7797 detached JWT)
+   └── POST to webhook URL with Request-Signature header
+```
+
+### Order Event Types
+
+| UCP Event | Merchello Trigger |
+|-----------|-------------------|
+| `order.processing` | Order status → Processing |
+| `order.shipped` | Order status → Shipped |
+| `order.delivered` | Order status → Completed or Shipment delivered |
+| `order.cancelled` | Order status → Cancelled |
+| `order.updated` | Any other status change |
+
+### Signing
+
+UCP webhooks are signed with RFC 7797 detached JWTs:
+- **Algorithm**: ES256 (ECDSA with P-256 and SHA-256)
+- **Format**: Detached payload (`header..signature`)
+- **Header**: `Request-Signature`
+- **Key rotation**: Automatic via `ISigningKeyStore`
+- **Public keys**: Available at `/.well-known/ucp` in `signing_keys` array
+
+### Webhook Payload Example
+
+```json
+{
+  "ucp": {
+    "version": "2026-01-11",
+    "capabilities": ["dev.ucp.shopping.order"]
+  },
+  "event": "order.shipped",
+  "id": "invoice-guid",
+  "checkout_id": "session-id",
+  "line_items": [
+    {
+      "id": "line-item-guid",
+      "product_id": "product-guid",
+      "sku": "SKU-123",
+      "name": "Product Name",
+      "quantity": { "total": 2, "fulfilled": 2 },
+      "totals": { "subtotal": 1999, "total": 1999 },
+      "status": "fulfilled"
+    }
+  ],
+  "totals": {
+    "subtotal": 1999,
+    "tax": 200,
+    "total": 2199
+  },
+  "fulfillment": {
+    "status": "fulfilled",
+    "events": [
+      {
+        "occurred_at": "2026-01-21T10:30:00Z",
+        "type": "shipped",
+        "tracking": {
+          "number": "1Z999AA10123456784",
+          "url": "https://tracking.example.com/..."
+        }
+      }
+    ]
+  },
+  "payment_status": "paid"
+}
+```
+
+### Configuration
+
+Webhook behavior is controlled via `ProtocolSettings.Ucp`:
+
+```json
+{
+  "Merchello": {
+    "Protocols": {
+      "Enabled": true,
+      "Ucp": {
+        "Enabled": true,
+        "Capabilities": {
+          "Order": true
+        },
+        "WebhookTimeoutSeconds": 30,
+        "WebhookRetryCount": 3
+      }
+    }
+  }
+}
+```
 
 ---
 

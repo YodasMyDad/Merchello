@@ -53,4 +53,16 @@ public class EmailSettings
     /// Theme settings for MJML email templates.
     /// </summary>
     public EmailThemeSettings Theme { get; set; } = new();
+
+    /// <summary>
+    /// Maximum size in bytes for a single attachment. Default: 10 MB.
+    /// Attachments exceeding this limit are logged and skipped.
+    /// </summary>
+    public long MaxAttachmentSizeBytes { get; set; } = 10 * 1024 * 1024;
+
+    /// <summary>
+    /// Maximum combined size in bytes for all attachments on a single email. Default: 25 MB.
+    /// Once this limit is reached, remaining attachments are logged and skipped.
+    /// </summary>
+    public long MaxTotalAttachmentSizeBytes { get; set; } = 25 * 1024 * 1024;
 }

@@ -1,4 +1,5 @@
 ﻿using Merchello.Core.Accounting.Models;
+using Merchello.Core.Shared.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -32,10 +33,25 @@ public class OrderDbMapping : IEntityTypeConfiguration<Order>
         builder.Property(x => x.CancelledDate).IsRequired(false);
         builder.Property(x => x.CancellationReason).HasMaxLength(1000);
         builder.Property(x => x.InternalNotes).HasMaxLength(2000);
+        builder.Property(x => x.ExtendedData).ToJsonConversion(3000);
+
+        // Fulfilment provider fields
+        builder.Property(x => x.FulfilmentProviderConfigurationId).IsRequired(false);
+        builder.Property(x => x.FulfilmentProviderReference).HasMaxLength(255);
+        builder.Property(x => x.FulfilmentSubmittedAt).IsRequired(false);
+        builder.Property(x => x.FulfilmentErrorMessage);
+        builder.Property(x => x.FulfilmentRetryCount).HasDefaultValue(0);
+
+        builder.HasOne(x => x.FulfilmentProviderConfiguration)
+            .WithMany()
+            .HasForeignKey(x => x.FulfilmentProviderConfigurationId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // Indexes for fulfillment queries
         builder.HasIndex(x => x.Status);
         builder.HasIndex(x => x.WarehouseId);
+        builder.HasIndex(x => x.FulfilmentProviderConfigurationId);
+        builder.HasIndex(x => x.FulfilmentProviderReference);
 
         // Index for reporting queries on completed orders
         builder.HasIndex(x => x.CompletedDate);

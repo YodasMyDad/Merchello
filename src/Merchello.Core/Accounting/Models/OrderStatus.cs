@@ -48,6 +48,11 @@ public enum OrderStatus
     /// <summary>
     /// Order is on hold (payment issue, fraud check, manual review required, etc.)
     /// </summary>
-    OnHold = 80
+    OnHold = 80,
+
+    /// <summary>
+    /// Submission to 3PL fulfilment provider failed after max retries
+    /// </summary>
+    FulfilmentFailed = 90
 }
 
