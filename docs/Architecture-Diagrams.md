@@ -586,6 +586,24 @@ Protocol adapters enable Merchello to expose checkout and order capabilities to 
 }
 ```
 
+### 4.7 Fulfilment Providers
+
+> **Note:** Fulfilment Provider system pending implementation. See [Fulfilment.md](Fulfilment.md) for full architecture spec. This section will be expanded after implementation.
+
+Pluggable system for 3PL (third-party logistics) integration. **Separate from Shipping Providers** - shipping calculates rates, fulfilment handles physical work.
+
+**IFulfilmentProvider Interface:**
+
+| Category | Methods |
+|----------|---------|
+| **Configuration** | `Metadata`, `GetConfigurationFieldsAsync()`, `ConfigureAsync()`, `TestConnectionAsync()` |
+| **Orders** | `SubmitOrderAsync()`, `CancelOrderAsync()` |
+| **Webhooks** | `ValidateWebhookAsync()`, `ProcessWebhookAsync()` |
+| **Polling** | `PollOrderStatusAsync()` |
+| **Sync** | `SyncProductsAsync()`, `GetInventoryLevelsAsync()` |
+
+**Built-in:** `ManualFulfilmentProvider`
+
 ### Configuration Field Types
 
 All providers use configuration fields: `Text`, `Password`, `Number`, `Checkbox`, `Select`, `Textarea`
@@ -914,6 +932,10 @@ Order → 1:N → LineItems
 
 DownloadLink → N:1 → Invoice, LineItem, Customer
 
+Order → 0:1 → FulfilmentProviderConfiguration
+Warehouse → 0:1 → FulfilmentProviderConfiguration
+Supplier → 0:1 → FulfilmentProviderConfiguration (default)
+
 WebhookSubscription → 1:N → WebhookDelivery (cascade)
 ```
 
@@ -1173,6 +1195,7 @@ Notification → EmailNotificationHandler (2000) → IEmailConfigurationService.
 - `IEmailTopicRegistry` - 13 topics / 7 categories
 - `IEmailTokenResolver` - Token replacement
 - `IEmailTemplateDiscoveryService` - Find templates
+- `IEmailAttachmentResolver` - Discovers and executes attachment generators
 - `EmailNotificationHandler` - Queues emails
 
 **Topics:**
@@ -1235,6 +1258,8 @@ All domain objects are created via factories for consistency, thread safety, and
 | `OutboundDeliveryJob` | Processes webhook and email retry queue |
 | `AbandonedCheckoutDetectionJob` | Detects abandoned carts, sends email sequence, expires old checkouts |
 | `InvoiceReminderJob` | Sends payment reminders and overdue notices |
+| `FulfilmentPollingJob` | Polls 3PLs for order status updates (pending implementation) |
+| `FulfilmentRetryJob` | Retries failed 3PL order submissions (pending implementation) |
 
 ---
 

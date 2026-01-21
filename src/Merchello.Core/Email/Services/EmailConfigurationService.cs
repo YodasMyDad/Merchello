@@ -1,4 +1,5 @@
 using Merchello.Core.Data;
+using Merchello.Core.Email.Attachments;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Email.Services.Interfaces;
 using Merchello.Core.Email.Services.Parameters;
@@ -18,6 +19,7 @@ public class EmailConfigurationService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IEmailTopicRegistry topicRegistry,
     IEmailTemplateDiscoveryService templateDiscovery,
+    IEmailAttachmentResolver attachmentResolver,
     ILogger<EmailConfigurationService> logger) : IEmailConfigurationService
 {
     public async Task<EmailConfiguration?> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -174,6 +176,23 @@ public class EmailConfigurationService(
             result.Messages.Add(new ResultMessage { ResultMessageType = ResultMessageType.Warning, Message = $"Template not found: {parameters.TemplatePath}. Email will fail until template is created." });
         }
 
+        // Validate attachment aliases
+        var attachmentAliases = parameters.AttachmentAliases ?? [];
+        if (attachmentAliases.Count > 0)
+        {
+            var invalidAliases = attachmentResolver.ValidateAliases(attachmentAliases, parameters.Topic);
+            if (invalidAliases.Count > 0)
+            {
+                var invalidList = string.Join(", ", (IEnumerable<string>)invalidAliases);
+                result.Messages.Add(new ResultMessage
+                {
+                    ResultMessageType = ResultMessageType.Error,
+                    Message = $"Invalid or incompatible attachment aliases: {invalidList}"
+                });
+                return result;
+            }
+        }
+
         var configuration = new EmailConfiguration
         {
             Id = GuidExtensions.NewSequentialGuid,
@@ -187,6 +206,7 @@ public class EmailConfigurationService(
             BccExpression = parameters.BccExpression,
             FromExpression = parameters.FromExpression,
             Description = parameters.Description,
+            AttachmentAliases = attachmentAliases,
             DateCreated = DateTime.UtcNow,
             DateModified = DateTime.UtcNow
         };
@@ -256,6 +276,23 @@ public class EmailConfigurationService(
             result.Messages.Add(new ResultMessage { ResultMessageType = ResultMessageType.Warning, Message = $"Template not found: {parameters.TemplatePath}. Email will fail until template is created." });
         }
 
+        // Validate attachment aliases
+        var attachmentAliases = parameters.AttachmentAliases ?? [];
+        if (attachmentAliases.Count > 0)
+        {
+            var invalidAliases = attachmentResolver.ValidateAliases(attachmentAliases, parameters.Topic);
+            if (invalidAliases.Count > 0)
+            {
+                var invalidList = string.Join(", ", (IEnumerable<string>)invalidAliases);
+                result.Messages.Add(new ResultMessage
+                {
+                    ResultMessageType = ResultMessageType.Error,
+                    Message = $"Invalid or incompatible attachment aliases: {invalidList}"
+                });
+                return result;
+            }
+        }
+
         using var scope = efCoreScopeProvider.CreateScope();
         var configuration = await scope.ExecuteWithContextAsync(async db =>
             await db.EmailConfigurations.FirstOrDefaultAsync(x => x.Id == parameters.Id, ct));
@@ -277,6 +314,7 @@ public class EmailConfigurationService(
         configuration.BccExpression = parameters.BccExpression;
         configuration.FromExpression = parameters.FromExpression;
         configuration.Description = parameters.Description;
+        configuration.AttachmentAliases = attachmentAliases;
         configuration.DateModified = DateTime.UtcNow;
 
         await scope.ExecuteWithContextAsync<Task>(async db =>

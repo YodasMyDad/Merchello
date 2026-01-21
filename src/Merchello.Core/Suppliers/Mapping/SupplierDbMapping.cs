@@ -1,3 +1,4 @@
+using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Suppliers.Models;
 using Microsoft.EntityFrameworkCore;
@@ -20,11 +21,17 @@ public class SupplierDbMapping : IEntityTypeConfiguration<Supplier>
         builder.Property(x => x.ContactEmail).HasMaxLength(250);
         builder.Property(x => x.ContactPhone).HasMaxLength(50);
         builder.Property(x => x.ExtendedData).ToJsonConversion(1000);
+        builder.Property(x => x.DefaultFulfilmentProviderConfigurationId).IsRequired(false);
 
         // One-to-many relationship with Warehouses
         builder.HasMany(x => x.Warehouses)
             .WithOne(w => w.Supplier)
             .HasForeignKey(w => w.SupplierId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(x => x.DefaultFulfilmentProviderConfiguration)
+            .WithMany()
+            .HasForeignKey(x => x.DefaultFulfilmentProviderConfigurationId)
             .OnDelete(DeleteBehavior.SetNull);
     }
 }

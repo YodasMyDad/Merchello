@@ -1,4 +1,5 @@
-﻿using Merchello.Core.Locality.Models;
+﻿using Merchello.Core.Fulfilment.Models;
+using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shipping.Models;
 
@@ -107,6 +108,43 @@ public class Order
     /// Internal notes for warehouse staff or admin
     /// </summary>
     public string? InternalNotes { get; set; }
+
+    /// <summary>
+    /// Extended data for provider-specific or custom information
+    /// </summary>
+    public Dictionary<string, object> ExtendedData { get; set; } = [];
+
+    // Fulfilment Provider Tracking
+
+    /// <summary>
+    /// FK to the fulfilment provider configuration used for this order
+    /// </summary>
+    public Guid? FulfilmentProviderConfigurationId { get; set; }
+
+    /// <summary>
+    /// The fulfilment provider configuration used for this order
+    /// </summary>
+    public virtual FulfilmentProviderConfiguration? FulfilmentProviderConfiguration { get; set; }
+
+    /// <summary>
+    /// The 3PL's order ID/reference (e.g., "SB-12345")
+    /// </summary>
+    public string? FulfilmentProviderReference { get; set; }
+
+    /// <summary>
+    /// When the order was submitted to the 3PL
+    /// </summary>
+    public DateTime? FulfilmentSubmittedAt { get; set; }
+
+    /// <summary>
+    /// Last error message from fulfilment submission
+    /// </summary>
+    public string? FulfilmentErrorMessage { get; set; }
+
+    /// <summary>
+    /// Number of retry attempts for fulfilment submission
+    /// </summary>
+    public int FulfilmentRetryCount { get; set; }
 
     /// <summary>
     /// Date created

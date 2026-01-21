@@ -55,4 +55,9 @@ public class CreateEmailConfigurationParameters
     /// Optional description for this email configuration.
     /// </summary>
     public string? Description { get; set; }
+
+    /// <summary>
+    /// Attachment aliases to enable for this configuration.
+    /// </summary>
+    public List<string>? AttachmentAliases { get; set; }
 }

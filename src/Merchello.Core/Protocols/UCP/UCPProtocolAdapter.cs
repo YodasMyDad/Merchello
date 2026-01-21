@@ -15,6 +15,7 @@ using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.Payments;
 using Merchello.Core.Protocols.UCP.Dtos;
 using Merchello.Core.Protocols.UCP.Models;
+using Merchello.Core.Protocols.UCP.Services;
 using Merchello.Core.Protocols.Webhooks;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
@@ -36,6 +37,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
     private readonly IProductService _productService;
     private readonly IPaymentHandlerExporter _paymentHandlerExporter;
     private readonly ISigningKeyStore _signingKeyStore;
+    private readonly IUcpAgentProfileService _agentProfileService;
     private readonly ILogger<UCPProtocolAdapter> _logger;
     private readonly ProtocolSettings _protocolSettings;
     private readonly MerchelloSettings _merchelloSettings;
@@ -48,6 +50,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         IProductService productService,
         IPaymentHandlerExporter paymentHandlerExporter,
         ISigningKeyStore signingKeyStore,
+        IUcpAgentProfileService agentProfileService,
         ILogger<UCPProtocolAdapter> logger,
         IOptions<ProtocolSettings> protocolSettings,
         IOptions<MerchelloSettings> merchelloSettings)
@@ -59,6 +62,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         _productService = productService;
         _paymentHandlerExporter = paymentHandlerExporter;
         _signingKeyStore = signingKeyStore;
+        _agentProfileService = agentProfileService;
         _logger = logger;
         _protocolSettings = protocolSettings.Value;
         _merchelloSettings = merchelloSettings.Value;
@@ -341,6 +345,9 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             var invoice = await _invoiceService.GetUnpaidInvoiceForBasketAsync(basketId, ct);
             if (invoice == null)
             {
+                // Fetch agent profile to get webhook URL for order updates
+                var sourceMetadata = await BuildSourceMetadataAsync(agentIdentity, ct);
+
                 // Build source tracking info from agent identity
                 var source = new InvoiceSource
                 {
@@ -350,16 +357,18 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                     SourceName = agentIdentity?.AgentId,
                     ProfileUri = agentIdentity?.ProfileUri,
                     ProtocolVersion = _protocolSettings.Ucp.Version,
-                    SessionId = sessionId
+                    SessionId = sessionId,
+                    Metadata = sourceMetadata
                 };
 
                 // Create invoice from basket with source tracking
                 invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession, source, ct);
                 _logger.LogInformation(
-                    "UCP: Invoice {InvoiceId} created from session {SessionId} via agent {AgentId}",
+                    "UCP: Invoice {InvoiceId} created from session {SessionId} via agent {AgentId}. Webhook URL: {WebhookUrl}",
                     invoice.Id,
                     sessionId,
-                    agentIdentity?.AgentId ?? "unknown");
+                    agentIdentity?.AgentId ?? "unknown",
+                    sourceMetadata?.GetValueOrDefault(Constants.UcpMetadataKeys.WebhookUrl) ?? "none");
             }
 
             // Build payment request
@@ -733,6 +742,64 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
     }
 
     #region Helper Methods
+
+    /// <summary>
+    /// Builds source metadata by fetching the agent profile and extracting webhook URL.
+    /// </summary>
+    private async Task<Dictionary<string, object>?> BuildSourceMetadataAsync(
+        AgentIdentity? agentIdentity,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(agentIdentity?.ProfileUri))
+        {
+            return null;
+        }
+
+        try
+        {
+            var profile = await _agentProfileService.GetProfileAsync(agentIdentity.ProfileUri, ct);
+            if (profile == null)
+            {
+                _logger.LogDebug("Could not fetch agent profile from {ProfileUri}", agentIdentity.ProfileUri);
+                return null;
+            }
+
+            var metadata = new Dictionary<string, object>();
+
+            // Store agent name if available
+            if (!string.IsNullOrEmpty(profile.Name))
+            {
+                metadata[Constants.UcpMetadataKeys.AgentName] = profile.Name;
+            }
+
+            // Extract and store webhook URL for order updates
+            var webhookUrl = _agentProfileService.GetOrderWebhookUrl(profile);
+            if (!string.IsNullOrEmpty(webhookUrl))
+            {
+                metadata[Constants.UcpMetadataKeys.WebhookUrl] = webhookUrl;
+                _logger.LogDebug(
+                    "Extracted order webhook URL from agent profile: {WebhookUrl}",
+                    webhookUrl);
+            }
+
+            // Store agent capabilities
+            if (profile.Ucp?.Capabilities is { Count: > 0 })
+            {
+                var capabilityNames = profile.Ucp.Capabilities
+                    .Where(c => !string.IsNullOrEmpty(c.Name))
+                    .Select(c => c.Name!)
+                    .ToList();
+                metadata[Constants.UcpMetadataKeys.AgentCapabilities] = capabilityNames;
+            }
+
+            return metadata.Count > 0 ? metadata : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to build source metadata from agent profile {ProfileUri}", agentIdentity.ProfileUri);
+            return null;
+        }
+    }
 
     private async Task AddLineItemToBasketAsync(Basket basket, UcpLineItemRequestDto lineItem, CancellationToken ct)
     {

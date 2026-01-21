@@ -92,4 +92,10 @@ public class EmailConfiguration
     /// Additional configuration data.
     /// </summary>
     public Dictionary<string, object> ExtendedData { get; set; } = [];
+
+    /// <summary>
+    /// Attachment aliases enabled for this configuration.
+    /// e.g., ["invoice-saved-pdf", "order-line-items-csv"]
+    /// </summary>
+    public List<string> AttachmentAliases { get; set; } = [];
 }

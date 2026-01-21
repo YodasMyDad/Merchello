@@ -14,6 +14,7 @@ import type {
   TokenInfoDto,
   CreateEmailConfigurationDto,
   UpdateEmailConfigurationDto,
+  EmailAttachmentDto,
 } from "@email/types/email.types.js";
 import type { MerchelloEmailsWorkspaceContext } from "../contexts/email-workspace.context.js";
 import { MerchelloApi } from "@api/merchello-api.js";
@@ -32,6 +33,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
   @state() private _topicCategories: EmailTopicCategoryDto[] = [];
   @state() private _templates: EmailTemplateDto[] = [];
   @state() private _availableTokens: TokenInfoDto[] = [];
+  @state() private _availableAttachments: EmailAttachmentDto[] = [];
   @state() private _isSaving = false;
   @state() private _isLoadingMetadata = true;
   @state() private _activePath = "tab/details";
@@ -101,9 +103,18 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
   }
 
   private async _loadTokensForTopic(topic: string): Promise<void> {
-    const { data } = await MerchelloApi.getTopicTokens(topic);
-    if (data) {
-      this._availableTokens = data;
+    const [tokensResult, attachmentsResult] = await Promise.all([
+      MerchelloApi.getTopicTokens(topic),
+      MerchelloApi.getTopicAttachments(topic),
+    ]);
+
+    if (tokensResult.data) {
+      this._availableTokens = tokensResult.data;
+    }
+    if (attachmentsResult.data) {
+      this._availableAttachments = attachmentsResult.data;
+    } else {
+      this._availableAttachments = [];
     }
   }
 
@@ -121,13 +132,30 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
   private _handleTopicChange(e: Event): void {
     const select = e.target as HTMLSelectElement;
     const topic = select.value;
-    this._formData = { ...this._formData, topic };
+    // Clear attachment aliases when topic changes since they may not be compatible
+    this._formData = { ...this._formData, topic, attachmentAliases: [] };
     this._clearFieldError("topic");
-    // Load tokens for the new topic
+    // Load tokens and attachments for the new topic
     if (topic) {
       this._loadTokensForTopic(topic);
     } else {
       this._availableTokens = [];
+      this._availableAttachments = [];
+    }
+  }
+
+  private _handleAttachmentToggle(alias: string, checked: boolean): void {
+    const currentAliases = this._formData.attachmentAliases || [];
+    if (checked) {
+      this._formData = {
+        ...this._formData,
+        attachmentAliases: [...currentAliases, alias],
+      };
+    } else {
+      this._formData = {
+        ...this._formData,
+        attachmentAliases: currentAliases.filter((a) => a !== alias),
+      };
     }
   }
 
@@ -225,6 +253,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
           bccExpression: this._formData.bccExpression,
           fromExpression: this._formData.fromExpression,
           description: this._formData.description,
+          attachmentAliases: this._formData.attachmentAliases || [],
         };
 
         const { data, error } = await MerchelloApi.createEmailConfiguration(createDto);
@@ -259,6 +288,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
           bccExpression: this._formData.bccExpression,
           fromExpression: this._formData.fromExpression,
           description: this._formData.description,
+          attachmentAliases: this._formData.attachmentAliases || [],
         };
 
         const { data, error } = await MerchelloApi.updateEmailConfiguration(this._email!.id, updateDto);
@@ -548,6 +578,47 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
         </umb-property-layout>
       </uui-box>
 
+      ${this._availableAttachments.length > 0
+        ? html`
+            <uui-box headline="Attachments">
+              <p class="attachments-description">
+                Select files to attach to this email. Attachments are generated dynamically
+                based on the notification data.
+              </p>
+              <div class="attachments-list">
+                ${this._availableAttachments.map(
+                  (attachment) => html`
+                    <label class="attachment-item">
+                      <uui-checkbox
+                        .checked=${(this._formData.attachmentAliases || []).includes(attachment.alias)}
+                        @change=${(e: Event) => {
+                          const checkbox = e.target as HTMLInputElement;
+                          this._handleAttachmentToggle(attachment.alias, checkbox.checked);
+                        }}>
+                      </uui-checkbox>
+                      <div class="attachment-info">
+                        ${attachment.iconSvg
+                          ? html`<span class="attachment-icon" .innerHTML=${attachment.iconSvg}></span>`
+                          : nothing}
+                        <span class="attachment-name">${attachment.displayName}</span>
+                        ${attachment.description
+                          ? html`<span class="attachment-description">${attachment.description}</span>`
+                          : nothing}
+                      </div>
+                    </label>
+                  `
+                )}
+              </div>
+            </uui-box>
+          `
+        : this._formData.topic
+          ? html`
+              <uui-box headline="Attachments">
+                <p class="no-attachments">No attachments available for this topic.</p>
+              </uui-box>
+            `
+          : nothing}
+
       ${this._availableTokens.length > 0
         ? html`
             <uui-box headline="Available Tokens">
@@ -779,6 +850,68 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
         justify-content: center;
         align-items: center;
         height: 100%;
+      }
+
+      .attachments-description {
+        color: var(--uui-color-text-alt);
+        margin-bottom: var(--uui-size-space-4);
+      }
+
+      .attachments-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-3);
+      }
+
+      .attachment-item {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--uui-size-space-3);
+        padding: var(--uui-size-space-3);
+        background: var(--uui-color-surface-alt);
+        border-radius: var(--uui-border-radius);
+        cursor: pointer;
+      }
+
+      .attachment-item:hover {
+        background: var(--uui-color-surface-emphasis);
+      }
+
+      .attachment-info {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+      }
+
+      .attachment-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        color: var(--uui-color-interactive);
+      }
+
+      .attachment-icon svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      .attachment-name {
+        font-weight: 500;
+      }
+
+      .attachment-description {
+        color: var(--uui-color-text-alt);
+        font-size: var(--uui-type-small-size);
+        flex-basis: 100%;
+        margin-left: 26px;
+      }
+
+      .no-attachments {
+        color: var(--uui-color-text-alt);
+        font-style: italic;
       }
     `,
   ];

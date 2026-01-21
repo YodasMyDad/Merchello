@@ -78,6 +78,11 @@ public class Shipment
     public DateTime? ActualDeliveryDate { get; set; }
 
     /// <summary>
+    /// Extended data for provider-specific or custom information
+    /// </summary>
+    public Dictionary<string, object> ExtendedData { get; set; } = [];
+
+    /// <summary>
     /// Date the shipment was created
     /// </summary>
     public DateTime DateCreated { get; set; } = DateTime.UtcNow;

@@ -1,3 +1,4 @@
+using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Warehouses.Models;
@@ -48,6 +49,17 @@ public class Supplier
     /// Warehouses owned by this supplier
     /// </summary>
     public virtual ICollection<Warehouse> Warehouses { get; set; } = [];
+
+    /// <summary>
+    /// Default fulfilment provider for all warehouses owned by this supplier
+    /// (can be overridden at warehouse level)
+    /// </summary>
+    public Guid? DefaultFulfilmentProviderConfigurationId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the default fulfilment provider configuration
+    /// </summary>
+    public virtual FulfilmentProviderConfiguration? DefaultFulfilmentProviderConfiguration { get; set; }
 
     /// <summary>
     /// General use extended data for storing additional supplier data

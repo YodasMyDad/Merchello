@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Merchello.Core.Data;
+using Merchello.Core.Email.Attachments;
 using Merchello.Core.Email.Dtos;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Email.Services.Interfaces;
@@ -22,6 +24,7 @@ public class EmailService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IEmailConfigurationService configurationService,
     IEmailTokenResolver tokenResolver,
+    IEmailAttachmentResolver attachmentResolver,
     IEmailSender emailSender,
     IOptions<EmailSettings> emailSettings,
     ILogger<EmailService> logger) : IEmailService
@@ -88,7 +91,45 @@ public class EmailService(
             templateError = "Template renderer not configured";
         }
 
+        // Generate attachments if configured
+        List<StoredAttachment>? storedAttachments = null;
+        if (config.AttachmentAliases.Count > 0 && templateError == null)
+        {
+            try
+            {
+                var attachmentResults = await attachmentResolver.GenerateAttachmentsAsync(
+                    emailModel, config.AttachmentAliases, ct);
+
+                if (attachmentResults.Count > 0)
+                {
+                    storedAttachments = attachmentResults
+                        .Select(StoredAttachment.FromResult)
+                        .ToList();
+
+                    logger.LogDebug(
+                        "Generated {Count} attachments for email configuration {ConfigurationId}",
+                        storedAttachments.Count, config.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to generate attachments for email configuration {ConfigurationId}", config.Id);
+                // Continue without attachments - don't fail the email
+            }
+        }
+
         // Create the delivery record - mark as failed if template couldn't render
+        var extendedData = new Dictionary<string, object>
+        {
+            ["cc"] = ccAddress ?? string.Empty,
+            ["bcc"] = bccAddress ?? string.Empty
+        };
+
+        if (storedAttachments != null && storedAttachments.Count > 0)
+        {
+            extendedData["attachments"] = JsonSerializer.Serialize(storedAttachments);
+        }
+
         var delivery = new OutboundDelivery
         {
             Id = GuidExtensions.NewSequentialGuid,
@@ -105,11 +146,7 @@ public class EmailService(
             EmailBody = body,
             DateCreated = DateTime.UtcNow,
             AttemptNumber = 0,
-            ExtendedData = new Dictionary<string, object>
-            {
-                ["cc"] = ccAddress ?? string.Empty,
-                ["bcc"] = bccAddress ?? string.Empty
-            }
+            ExtendedData = extendedData
         };
 
         using var scope = efCoreScopeProvider.CreateScope();
@@ -243,6 +280,49 @@ public class EmailService(
             var ccAddress = delivery.ExtendedData.TryGetValue("cc", out var cc) ? cc?.ToString() : null;
             var bccAddress = delivery.ExtendedData.TryGetValue("bcc", out var bcc) ? bcc?.ToString() : null;
 
+            // Deserialize attachments if present
+            IEnumerable<EmailMessageAttachment>? emailAttachments = null;
+            if (delivery.ExtendedData.TryGetValue("attachments", out var attachmentsJson) &&
+                attachmentsJson is string attachmentsStr &&
+                !string.IsNullOrWhiteSpace(attachmentsStr))
+            {
+                try
+                {
+                    var storedAttachments = JsonSerializer.Deserialize<List<StoredAttachment>>(attachmentsStr);
+                    if (storedAttachments != null && storedAttachments.Count > 0)
+                    {
+                        var loadedAttachments = new List<EmailMessageAttachment>();
+                        foreach (var attachment in storedAttachments)
+                        {
+                            if (attachment.TryGetContent(out var content))
+                            {
+                                loadedAttachments.Add(new EmailMessageAttachment(
+                                    new MemoryStream(content), attachment.FileName));
+                            }
+                            else
+                            {
+                                logger.LogWarning(
+                                    "Failed to decode attachment {FileName} for delivery {DeliveryId} - invalid base64",
+                                    attachment.FileName, deliveryId);
+                            }
+                        }
+
+                        if (loadedAttachments.Count > 0)
+                        {
+                            emailAttachments = loadedAttachments;
+                            logger.LogDebug(
+                                "Loaded {Count} attachments for delivery {DeliveryId}",
+                                loadedAttachments.Count, deliveryId);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to deserialize attachments for delivery {DeliveryId}", deliveryId);
+                    // Continue without attachments
+                }
+            }
+
             var message = new EmailMessage(
                 delivery.EmailFrom,
                 delivery.EmailRecipients.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries),
@@ -256,7 +336,7 @@ public class EmailService(
                 delivery.EmailSubject,
                 delivery.EmailBody,
                 true, // isBodyHtml
-                null  // attachments
+                emailAttachments
             );
 
             var startTime = DateTime.UtcNow;
@@ -383,6 +463,47 @@ public class EmailService(
 
             var body = await _renderTemplate(config.TemplatePath, emailModel!, ct);
 
+            // Generate attachments if configured
+            IEnumerable<EmailMessageAttachment>? emailAttachments = null;
+            if (config.AttachmentAliases.Count > 0)
+            {
+                try
+                {
+                    // Use reflection to call the generic GenerateAttachmentsAsync method
+                    var notificationType = sampleNotification.GetType();
+                    var method = typeof(IEmailAttachmentResolver)
+                        .GetMethod(nameof(IEmailAttachmentResolver.GenerateAttachmentsAsync))!
+                        .MakeGenericMethod(notificationType);
+
+                    var task = (Task)method.Invoke(attachmentResolver, [emailModel, config.AttachmentAliases, ct])!;
+                    await task;
+
+                    // Get the result from the task
+                    var resultProperty = task.GetType().GetProperty("Result")!;
+                    var attachmentResults = (IReadOnlyList<EmailAttachmentResult>)resultProperty.GetValue(task)!;
+
+                    if (attachmentResults.Count > 0)
+                    {
+                        var attachmentList = new List<EmailMessageAttachment>();
+                        foreach (var attachment in attachmentResults)
+                        {
+                            byte[] content = attachment.Content;
+                            attachmentList.Add(new EmailMessageAttachment(
+                                new MemoryStream(content),
+                                attachment.FileName));
+                        }
+                        emailAttachments = attachmentList;
+
+                        logger.LogDebug("Generated {Count} attachments for test email", attachmentResults.Count);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to generate attachments for test email, continuing without attachments");
+                    // Continue without attachments - don't fail the test email
+                }
+            }
+
             // Send to test recipient
             var message = new EmailMessage(
                 fromAddress,
@@ -393,7 +514,7 @@ public class EmailService(
                 $"[TEST] {subject}",
                 body,
                 true,
-                null
+                emailAttachments
             );
 
             await emailSender.SendAsync(message, "MerchelloEmailTest", enableNotification: true, expires: null);

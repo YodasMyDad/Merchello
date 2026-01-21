@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Merchello.Core.Email.Attachments;
 using Merchello.Core.Email.Dtos;
 using Merchello.Core.Email.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
@@ -7,14 +8,15 @@ using Microsoft.AspNetCore.Mvc;
 namespace Merchello.Controllers;
 
 /// <summary>
-/// API controller for email metadata (topics, tokens, templates).
+/// API controller for email metadata (topics, tokens, templates, attachments).
 /// </summary>
 [ApiVersion("1.0")]
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class EmailMetadataApiController(
     IEmailTopicRegistry topicRegistry,
     IEmailTokenResolver tokenResolver,
-    IEmailTemplateDiscoveryService templateDiscovery) : MerchelloApiControllerBase
+    IEmailTemplateDiscoveryService templateDiscovery,
+    IEmailAttachmentResolver attachmentResolver) : MerchelloApiControllerBase
 {
     /// <summary>
     /// Get all available email topics.
@@ -98,5 +100,51 @@ public class EmailMetadataApiController(
     public bool TemplateExists([FromQuery] string path)
     {
         return templateDiscovery.TemplateExists(path);
+    }
+
+    /// <summary>
+    /// Get all available email attachments.
+    /// </summary>
+    [HttpGet("emails/attachments")]
+    [ProducesResponseType<List<EmailAttachmentDto>>(StatusCodes.Status200OK)]
+    public List<EmailAttachmentDto> GetAttachments()
+    {
+        return attachmentResolver.GetAllAttachments()
+            .Select(a => new EmailAttachmentDto
+            {
+                Alias = a.Alias,
+                DisplayName = a.DisplayName,
+                Description = a.Description,
+                IconSvg = a.IconSvg,
+                Topic = a.Topic
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// Get available attachments for a specific topic.
+    /// </summary>
+    [HttpGet("emails/topics/{topic}/attachments")]
+    [ProducesResponseType<List<EmailAttachmentDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public IActionResult GetAttachmentsForTopic(string topic)
+    {
+        if (!topicRegistry.TopicExists(topic))
+        {
+            return NotFound($"Topic '{topic}' not found.");
+        }
+
+        var attachments = attachmentResolver.GetAttachmentsForTopic(topic)
+            .Select(a => new EmailAttachmentDto
+            {
+                Alias = a.Alias,
+                DisplayName = a.DisplayName,
+                Description = a.Description,
+                IconSvg = a.IconSvg,
+                Topic = a.Topic
+            })
+            .ToList();
+
+        return Ok(attachments);
     }
 }

@@ -20,7 +20,8 @@ A comprehensive email automation system for Merchello that allows users to creat
 12. [File Structure](#file-structure)
 13. [Sample Templates](#sample-templates)
 14. [MJML Email Templates](#mjml-email-templates)
-15. [Testing](#testing)
+15. [Email Attachments](#email-attachments)
+16. [Testing](#testing)
 
 ---
 
@@ -586,6 +587,8 @@ public class EmailSettings
 | GET | `/api/v1/emails/topics/{topic}/tokens` | Get tokens for topic |
 | GET | `/api/v1/emails/templates` | List available template files |
 | GET | `/api/v1/emails/templates/exists` | Check if template exists |
+| GET | `/api/v1/emails/attachments` | List all available attachment types |
+| GET | `/api/v1/emails/attachments?topic={topic}` | List attachments compatible with topic |
 
 ### Delivery Endpoints (via WebhooksApiController) ✅ IMPLEMENTED
 
@@ -642,10 +645,24 @@ Note: Delivery records are shared between webhooks and emails via the `OutboundD
 ```
 src/Merchello.Core/
 ├── Email/
+│   ├── Attachments/                       # Pluggable attachment system
+│   │   ├── IEmailAttachment.cs            # Base + generic interfaces
+│   │   ├── EmailAttachmentResult.cs       # Attachment result model
+│   │   ├── EmailAttachmentInfo.cs         # Metadata for UI
+│   │   ├── IEmailAttachmentResolver.cs    # Resolver interface
+│   │   ├── EmailAttachmentResolver.cs     # Resolver implementation
+│   │   ├── InvoiceSavedPdfAttachment.cs   # Built-in PDF invoice
+│   │   ├── OrderInvoicePdfAttachment.cs   # Built-in order PDF
+│   │   ├── OrderLineItemsCsvAttachment.cs # Built-in CSV export
+│   │   ├── AttachmentIcons.cs             # Shared SVG icons
+│   │   └── Helpers/
+│   │       └── CsvAttachmentHelper.cs     # CSV generation utility
 │   ├── Dtos/                              # ✅ Complete
 │   │   ├── EmailConfigurationDto.cs
 │   │   ├── EmailPreviewDto.cs
 │   │   ├── EmailSendTestResultDto.cs
+│   │   ├── EmailAttachmentDto.cs          # Attachment metadata DTO
+│   │   ├── EmailAttachmentListDto.cs      # Attachment list response
 │   │   └── EmailTopicDto.cs
 │   ├── Models/                            # ✅ Complete
 │   │   ├── EmailConfiguration.cs
@@ -1070,6 +1087,130 @@ You can freely mix `@Html.Mjml()` helpers with raw MJML tags:
 ### MJML Compilation
 
 The system automatically detects MJML content (by checking for `<mjml>` or `<mj-` tags) and compiles it to responsive HTML. If the template doesn't contain MJML, it's passed through unchanged, allowing plain HTML templates to work as before.
+
+---
+
+## Email Attachments
+
+A pluggable attachment system that allows developers to create typed attachment generators discovered via `ExtensionManager` and selectable in the backoffice UI.
+
+### Overview
+
+- **Typed attachment generators** - `IEmailAttachment<TNotification>` interface with compile-time type safety
+- **ExtensionManager discovery** - Attachments auto-discovered like shipping providers
+- **Backoffice selection** - Multi-select dropdown to choose attachments per EmailConfiguration
+- **Queue-time generation** - Attachments generated during `QueueDeliveryAsync()` and stored in delivery record
+- **No storage** - Attachments generated and sent, not persisted (database stays lean)
+
+### Interface
+
+```csharp
+public interface IEmailAttachment<TNotification> : IEmailAttachment
+    where TNotification : MerchelloNotification
+{
+    Task<EmailAttachmentResult?> GenerateAsync(
+        EmailModel<TNotification> model,
+        CancellationToken ct = default);
+}
+
+public interface IEmailAttachment
+{
+    string Alias { get; }           // Globally unique, lowercase-kebab-case (e.g., "order-invoice-pdf")
+    string DisplayName { get; }     // Shown in backoffice dropdown
+    string? Description { get; }
+    string? IconSvg { get; }        // Optional inline SVG for UI
+    Type NotificationType { get; }  // Used for topic filtering
+}
+```
+
+### Built-in Attachments
+
+| Alias | Display Name | Topic | Description |
+|-------|--------------|-------|-------------|
+| `invoice-saved-pdf` | PDF Invoice | invoice.saved | Professional PDF invoice with line items, totals, payment details |
+| `order-invoice-pdf` | PDF Invoice | order.created | PDF invoice for order confirmation emails |
+| `order-line-items-csv` | Order Lines CSV | order.created | CSV export of order line items |
+
+### Configuration
+
+Settings added to `EmailSettings`:
+
+```csharp
+public class EmailSettings
+{
+    // ... existing properties ...
+
+    /// <summary>
+    /// Maximum size in bytes for a single attachment. Default: 10 MB.
+    /// </summary>
+    public long MaxAttachmentSizeBytes { get; set; } = 10 * 1024 * 1024;
+
+    /// <summary>
+    /// Maximum combined size in bytes for all attachments. Default: 25 MB.
+    /// </summary>
+    public long MaxTotalAttachmentSizeBytes { get; set; } = 25 * 1024 * 1024;
+}
+```
+
+### Storage & Delivery
+
+1. **Queue Phase** - `IEmailAttachmentResolver.GenerateAttachmentsAsync()` generates attachments
+2. **Storage** - Attachments serialized as base64 JSON in `OutboundDelivery.ExtendedData["attachments"]`
+3. **Delivery Phase** - Attachments deserialized and passed to Umbraco `IEmailSender`
+
+### Error Handling
+
+- Failed attachment generation is **logged and skipped** - email still sends
+- Attachments returning `null` are silently skipped (for conditional attachments)
+- Attachments exceeding size limits are logged and skipped
+- Attachments processed **sequentially** and sorted **alphabetically by alias**
+
+### Backoffice UI
+
+The email editor includes:
+- **Attachments section** with multi-select dropdown filtered by selected topic
+- **Attachment badges** showing selected attachments with icons
+- **Topic change confirmation** when changing topic with incompatible attachments selected
+
+### Creating Custom Attachments
+
+```csharp
+public class ShippingLabelAttachment : IEmailAttachment<ShipmentCreatedNotification>
+{
+    private readonly IShippingLabelService _labelService;
+
+    public ShippingLabelAttachment(IShippingLabelService labelService)
+    {
+        _labelService = labelService;
+    }
+
+    public string Alias => "shipment-shipping-label-pdf";
+    public string DisplayName => "Shipping Label";
+    public string? Description => "Attaches the shipping label PDF";
+    public string? IconSvg => AttachmentIcons.Pdf;
+    public Type NotificationType => typeof(ShipmentCreatedNotification);
+
+    public async Task<EmailAttachmentResult?> GenerateAsync(
+        EmailModel<ShipmentCreatedNotification> model,
+        CancellationToken ct = default)
+    {
+        var shipment = model.Notification.Shipment;
+        if (string.IsNullOrEmpty(shipment.TrackingNumber)) return null;
+
+        var labelBytes = await _labelService.GetLabelPdfAsync(shipment.Id, ct);
+        if (labelBytes == null) return null;
+
+        return new EmailAttachmentResult
+        {
+            Content = labelBytes,
+            FileName = $"ShippingLabel-{shipment.TrackingNumber}.pdf",
+            ContentType = "application/pdf"
+        };
+    }
+}
+```
+
+Alias convention: `{notification-context}-{attachment-type}` (e.g., `order-invoice-pdf`, `shipment-shipping-label-pdf`)
 
 ---
 

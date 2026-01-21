@@ -58,6 +58,8 @@ public class EmailConfigurationDbMapping : IEntityTypeConfiguration<EmailConfigu
 
         builder.Property(x => x.ExtendedData).ToJsonConversion(4000);
 
+        builder.Property(x => x.AttachmentAliases).ToJsonConversion(2000);
+
         builder.HasIndex(x => x.Topic);
         builder.HasIndex(x => x.Enabled);
         builder.HasIndex(x => new { x.Topic, x.Enabled });

@@ -15,4 +15,9 @@ public class UpdateEmailConfigurationDto
     public string? BccExpression { get; set; }
     public string? FromExpression { get; set; }
     public string? Description { get; set; }
+
+    /// <summary>
+    /// Attachment aliases to enable for this configuration.
+    /// </summary>
+    public List<string>? AttachmentAliases { get; set; }
 }

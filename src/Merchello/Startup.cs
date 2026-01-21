@@ -39,6 +39,13 @@ using Merchello.Core.ExchangeRates.Providers;
 using Merchello.Core.ExchangeRates.Providers.Interfaces;
 using Merchello.Core.ExchangeRates.Services;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
+using Merchello.Core.Fulfilment;
+using Merchello.Core.Fulfilment.Handlers;
+using Merchello.Core.Fulfilment.Notifications;
+using Merchello.Core.Fulfilment.Providers;
+using Merchello.Core.Fulfilment.Providers.Interfaces;
+using Merchello.Core.Fulfilment.Services;
+using Merchello.Core.Fulfilment.Services.Interfaces;
 using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Providers.Interfaces;
@@ -83,8 +90,11 @@ using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.Payments;
+using Merchello.Core.Protocols.UCP.Handlers;
+using Merchello.Core.Protocols.UCP.Services;
 using Merchello.Core.Protocols.Webhooks;
 using Merchello.Core.Email;
+using Merchello.Core.Email.Attachments;
 using Merchello.Core.Email.Handlers;
 using Merchello.Core.Email.Services;
 using Merchello.Core.Email.Services.Interfaces;
@@ -164,6 +174,8 @@ public static class Startup
         builder.Services.Configure<InvoiceReminderSettings>(builder.Config.GetSection("Merchello:Invoices:Reminders"));
         // Protocol infrastructure settings (UCP, etc.)
         builder.Services.Configure<ProtocolSettings>(builder.Config.GetSection("Merchello:Protocols"));
+        // Fulfilment provider settings (retries, polling intervals)
+        builder.Services.Configure<Core.Fulfilment.FulfilmentSettings>(builder.Config.GetSection("Merchello:Fulfilment"));
 
         // =====================================================
         // Infrastructure (Singletons)
@@ -271,6 +283,10 @@ public static class Startup
         builder.Services.AddScoped<IShipmentService, ShipmentService>();
         builder.Services.AddSingleton<IShippingCostResolver, ShippingCostResolver>();
 
+        // Fulfilment
+        builder.Services.AddScoped<IFulfilmentProviderManager, FulfilmentProviderManager>();
+        builder.Services.AddScoped<IFulfilmentService, FulfilmentService>();
+
         // Tax
         builder.Services.AddScoped<ITaxService, TaxService>();
         builder.Services.AddScoped<ITaxProviderManager, TaxProviderManager>();
@@ -304,6 +320,7 @@ public static class Startup
         builder.Services.AddSingleton<IEmailTokenResolver, EmailTokenResolver>();
         builder.Services.AddSingleton<IEmailTemplateDiscoveryService, EmailTemplateDiscoveryService>();
         builder.Services.AddSingleton<IMjmlCompiler, MjmlCompiler>();
+        builder.Services.AddScoped<IEmailAttachmentResolver, EmailAttachmentResolver>();
         builder.Services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
         builder.Services.AddScoped<IEmailService, EmailService>();
 
@@ -321,6 +338,7 @@ public static class Startup
         builder.Services.AddScoped<IPaymentHandlerExporter, PaymentHandlerExporter>();
         builder.Services.AddScoped<ISigningKeyStore, SigningKeyStore>();
         builder.Services.AddScoped<IWebhookSigner, WebhookSigner>();
+        builder.Services.AddScoped<IUcpAgentProfileService, UcpAgentProfileService>();
         // UCPProtocolAdapter is auto-discovered by ExtensionManager (implements ICommerceProtocolAdapter)
 
         // =====================================================
@@ -349,6 +367,7 @@ public static class Startup
         builder.Services.AddHostedService<OutboundDeliveryJob>();           // Retries failed webhook/email deliveries, cleans up old logs
         builder.Services.AddHostedService<InvoiceReminderJob>();            // Sends payment reminder and overdue notifications
         builder.Services.AddHostedService<AbandonedCheckoutDetectionJob>(); // Detects abandoned carts and triggers recovery emails
+        builder.Services.AddHostedService<FulfilmentRetryJob>();              // Retries failed fulfilment submissions to 3PLs
 
         // =====================================================
         // Notification Handlers
@@ -419,6 +438,24 @@ public static class Startup
         // Creates download links and auto-completes digital-only orders.
 
         builder.AddNotificationAsyncHandler<PaymentCreatedNotification, Core.DigitalProducts.Handlers.DigitalProductPaymentHandler>();
+
+        // -----------------------------------------------------
+        // Fulfilment Handlers
+        // -----------------------------------------------------
+        // Auto-submit orders to 3PL fulfilment providers and handle cancellation.
+
+        builder.AddNotificationAsyncHandler<OrderCreatedNotification, FulfilmentOrderSubmissionHandler>();
+        builder.AddNotificationAsyncHandler<OrderStatusChangedNotification, FulfilmentCancellationHandler>();
+
+        // -----------------------------------------------------
+        // UCP Protocol Handlers
+        // -----------------------------------------------------
+        // Send signed webhooks to UCP agents for order lifecycle events.
+        // Webhook URLs are extracted from agent profiles at checkout completion.
+
+        builder.AddNotificationAsyncHandler<OrderStatusChangedNotification, UcpOrderWebhookHandler>();
+        builder.AddNotificationAsyncHandler<ShipmentCreatedNotification, UcpOrderWebhookHandler>();
+        builder.AddNotificationAsyncHandler<ShipmentSavedNotification, UcpOrderWebhookHandler>();
 
         // -----------------------------------------------------
         // Email Handlers
@@ -506,16 +543,18 @@ public static class Startup
     }
 
     /// <summary>
-    /// Discovers assemblies containing payment, shipping, or order grouping strategy implementations.
-    /// Scans all loaded assemblies for types implementing IPaymentProvider, IShippingProvider, or IOrderGroupingStrategy.
+    /// Discovers assemblies containing payment, shipping, fulfilment, or order grouping strategy implementations.
+    /// Scans all loaded assemblies for types implementing provider interfaces.
     /// </summary>
     private static IEnumerable<Assembly> DiscoverProviderAssemblies()
     {
         var paymentProviderType = typeof(IPaymentProvider);
         var shippingProviderType = typeof(IShippingProvider);
+        var fulfilmentProviderType = typeof(IFulfilmentProvider);
         var orderGroupingStrategyType = typeof(IOrderGroupingStrategy);
         var exchangeRateProviderType = typeof(IExchangeRateProvider);
         var taxProviderType = typeof(ITaxProvider);
+        var emailAttachmentType = typeof(IEmailAttachment);
 
         HashSet<Assembly> discoveredAssemblies = [];
 
@@ -539,9 +578,11 @@ public static class Startup
                     t.IsClass && !t.IsAbstract &&
                     (paymentProviderType.IsAssignableFrom(t) ||
                      shippingProviderType.IsAssignableFrom(t) ||
+                     fulfilmentProviderType.IsAssignableFrom(t) ||
                      orderGroupingStrategyType.IsAssignableFrom(t) ||
                      exchangeRateProviderType.IsAssignableFrom(t) ||
-                     taxProviderType.IsAssignableFrom(t)));
+                     taxProviderType.IsAssignableFrom(t) ||
+                     emailAttachmentType.IsAssignableFrom(t)));
 
                 if (hasProviders)
                 {
