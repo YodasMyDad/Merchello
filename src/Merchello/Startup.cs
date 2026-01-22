@@ -370,6 +370,7 @@ public static class Startup
         builder.Services.AddHostedService<AbandonedCheckoutDetectionJob>(); // Detects abandoned carts and triggers recovery emails
         builder.Services.AddHostedService<FulfilmentRetryJob>();              // Retries failed fulfilment submissions to 3PLs
         builder.Services.AddHostedService<FulfilmentPollingJob>();             // Polls 3PLs for order status updates
+        builder.Services.AddHostedService<FulfilmentCleanupJob>();             // Cleans up old fulfilment sync/webhook logs
 
         // =====================================================
         // Notification Handlers

@@ -51,7 +51,7 @@ public class FulfilmentSettings
     /// </summary>
     public TimeSpan GetNextRetryDelay(int retryCount)
     {
-        var index = Math.Min(retryCount, RetryDelaysMinutes.Length - 1);
+        var index = Math.Clamp(retryCount, 0, RetryDelaysMinutes.Length - 1);
         return TimeSpan.FromMinutes(RetryDelaysMinutes[index]);
     }
 }

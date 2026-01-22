@@ -48,5 +48,11 @@ public enum ConfigurationFieldType
     /// <summary>
     /// Percentage input (0-100).
     /// </summary>
-    Percentage
+    Percentage,
+
+    /// <summary>
+    /// Tax group to provider code mapping grid.
+    /// Renders a table of TaxGroups with text inputs for provider-specific codes.
+    /// </summary>
+    TaxGroupMapping
 }

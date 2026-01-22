@@ -102,6 +102,12 @@ public class LineItem
     public decimal TaxRate { get; set; }
 
     /// <summary>
+    /// Tax group ID for this line item. Used by API tax providers to lookup provider-specific tax codes.
+    /// Captured from ProductRoot.TaxGroupId at basket creation time.
+    /// </summary>
+    public Guid? TaxGroupId { get; set; }
+
+    /// <summary>
     /// Date the line item was created
     /// </summary>
     public DateTime DateCreated { get; set; } = DateTime.UtcNow;

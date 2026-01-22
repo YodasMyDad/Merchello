@@ -88,6 +88,24 @@ public class AvalaraTaxProvider : TaxProviderBase
                 FieldType = ConfigurationFieldType.Checkbox,
                 IsRequired = false,
                 DefaultValue = "false"
+            },
+            new TaxProviderConfigurationField
+            {
+                Key = "taxGroupMappings",
+                Label = "Tax Group Mappings",
+                Description = "Map your tax groups to Avalara tax codes. Find codes at taxcode.avatax.avalara.com",
+                FieldType = ConfigurationFieldType.TaxGroupMapping,
+                IsRequired = false
+            },
+            new TaxProviderConfigurationField
+            {
+                Key = "shippingTaxCode",
+                Label = "Shipping Tax Code",
+                Description = "Avalara tax code for shipping/freight (default: FR020100)",
+                FieldType = ConfigurationFieldType.Text,
+                IsRequired = false,
+                DefaultValue = "FR020100",
+                Placeholder = "FR020100"
             }
         ]);
     }
@@ -213,6 +231,9 @@ public class AvalaraTaxProvider : TaxProviderBase
             var lineNumber = 1;
             foreach (var item in request.LineItems)
             {
+                // Use mapped tax code from TaxGroupId, fall back to explicit TaxCode, then default
+                var taxCode = GetTaxCodeForTaxGroup(item.TaxGroupId) ?? item.TaxCode ?? DefaultTaxCode;
+
                 transaction.lines.Add(new LineItemModel
                 {
                     number = lineNumber.ToString(),
@@ -220,7 +241,7 @@ public class AvalaraTaxProvider : TaxProviderBase
                     description = item.Name,
                     quantity = item.Quantity,
                     amount = item.Amount * item.Quantity,
-                    taxCode = item.TaxCode ?? DefaultTaxCode,
+                    taxCode = taxCode,
                     taxIncluded = false
                 });
                 lineNumber++;
@@ -229,6 +250,7 @@ public class AvalaraTaxProvider : TaxProviderBase
             // Add shipping as a separate line item if applicable
             if (request.ShippingAmount > 0)
             {
+                var shippingCode = GetShippingTaxCode() ?? ShippingTaxCode;
                 transaction.lines.Add(new LineItemModel
                 {
                     number = "SHIPPING",
@@ -236,7 +258,7 @@ public class AvalaraTaxProvider : TaxProviderBase
                     description = "Shipping & Handling",
                     quantity = 1,
                     amount = request.ShippingAmount,
-                    taxCode = ShippingTaxCode,
+                    taxCode = shippingCode,
                     taxIncluded = false
                 });
             }

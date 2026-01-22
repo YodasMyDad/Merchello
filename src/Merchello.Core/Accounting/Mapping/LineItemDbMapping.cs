@@ -35,5 +35,8 @@ public class LineItemDbMapping : IEntityTypeConfiguration<LineItem>
 
         // Index for order lookups - best sellers, order detail loading
         builder.HasIndex(x => x.OrderId);
+
+        // Index for tax group lookups
+        builder.HasIndex(x => x.TaxGroupId);
     }
 }

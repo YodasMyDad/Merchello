@@ -2872,7 +2872,7 @@ public class InvoiceService(
                     Name = li.Name ?? string.Empty,
                     Amount = li.Amount,
                     Quantity = li.Quantity,
-                    TaxGroupId = null, // Not stored on LineItem - provider will use stored TaxRate for proportional
+                    TaxGroupId = li.TaxGroupId,
                     IsTaxable = li.IsTaxable
                 })
                 .ToList();

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Tax.Providers.Models;
 
@@ -91,5 +92,43 @@ public abstract class TaxProviderBase : ITaxProvider
     {
         var value = Configuration?.GetValue(key);
         return int.TryParse(value, out var result) ? result : defaultValue;
+    }
+
+    /// <summary>
+    /// Gets the provider-specific tax code for a TaxGroup from configuration.
+    /// </summary>
+    /// <param name="taxGroupId">The TaxGroup ID to look up</param>
+    /// <returns>The mapped tax code, or null if no mapping exists</returns>
+    protected string? GetTaxCodeForTaxGroup(Guid? taxGroupId)
+    {
+        if (!taxGroupId.HasValue)
+        {
+            return null;
+        }
+
+        var mappingsJson = GetConfigValue("taxGroupMappings");
+        if (string.IsNullOrWhiteSpace(mappingsJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            var mappings = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingsJson);
+            return mappings?.GetValueOrDefault(taxGroupId.Value.ToString());
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Gets the provider-specific shipping tax code from configuration.
+    /// </summary>
+    /// <returns>The configured shipping tax code, or null to use default</returns>
+    protected string? GetShippingTaxCode()
+    {
+        return GetConfigValue("shippingTaxCode");
     }
 }
