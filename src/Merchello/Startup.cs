@@ -76,6 +76,8 @@ using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Core.Reporting.Services;
 using Merchello.Core.Reporting.Services.Interfaces;
+using Merchello.Core.Developer.Services;
+using Merchello.Core.Developer.Services.Interfaces;
 using Merchello.Core.Tax.Handlers;
 using Merchello.Core.Tax.Providers;
 using Merchello.Core.Tax.Providers.Interfaces;
@@ -333,6 +335,9 @@ public static class Startup
         builder.Services.AddScoped<DbSeeder>();
         builder.Services.AddScoped<ExtensionManager>();
         builder.Services.AddScoped<IMerchelloNotificationPublisher, MerchelloNotificationPublisher>();
+
+        // Developer Tools
+        builder.Services.AddScoped<INotificationDiscoveryService, NotificationDiscoveryService>();
 
         // Protocols
         builder.Services.AddScoped<ICommerceProtocolManager, CommerceProtocolManager>();

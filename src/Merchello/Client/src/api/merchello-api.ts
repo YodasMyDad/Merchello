@@ -404,6 +404,9 @@ import type {
   ResendRecoveryEmailResultDto,
 } from '@abandoned-checkouts/types/abandoned-checkout.types.js';
 
+// Import notifications discovery types (developer tools)
+import type { NotificationDiscoveryResultDto } from '@notifications/types/notifications.types.js';
+
 // Import apply discount result from order types (for invoices)
 interface ApplyDiscountResultDto {
   success: boolean;
@@ -1735,4 +1738,12 @@ export const MerchelloApi = {
   /** Trigger an inventory sync for a provider */
   triggerInventorySync: (providerConfigId: string) =>
     apiPost<FulfilmentSyncLogDto>(`fulfilment-providers/${providerConfigId}/sync/inventory`),
+
+  // ============================================
+  // Notifications Discovery API (Developer Tools)
+  // ============================================
+
+  /** Get all notifications and handlers for developer view */
+  getNotifications: () =>
+    apiGet<NotificationDiscoveryResultDto>('notifications'),
 };

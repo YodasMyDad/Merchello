@@ -17,6 +17,7 @@ export default defineConfig({
       "@filters": resolve(__dirname, "src/filters"),
       "@fulfilment-providers": resolve(__dirname, "src/fulfilment-providers"),
       "@marketing": resolve(__dirname, "src/marketing"),
+      "@notifications": resolve(__dirname, "src/notifications"),
       "@orders": resolve(__dirname, "src/orders"),
       "@outstanding": resolve(__dirname, "src/outstanding"),
       "@payment-providers": resolve(__dirname, "src/payment-providers"),

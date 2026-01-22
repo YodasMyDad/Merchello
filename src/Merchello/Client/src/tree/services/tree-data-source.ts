@@ -24,6 +24,7 @@ import {
   MERCHELLO_EMAILS_ENTITY_TYPE,
   MERCHELLO_PROVIDERS_ENTITY_TYPE,
   MERCHELLO_WEBHOOKS_ENTITY_TYPE,
+  MERCHELLO_NOTIFICATIONS_ENTITY_TYPE,
 } from '@tree/types/tree.types.js';
 
 export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTreeDataSource<MerchelloTreeItemModel> {
@@ -153,6 +154,15 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
         hasChildren: false,
         isFolder: false,
         icon: "icon-link",
+        parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
+      },
+      {
+        entityType: MERCHELLO_NOTIFICATIONS_ENTITY_TYPE,
+        unique: "notifications",
+        name: "Notifications",
+        hasChildren: false,
+        isFolder: false,
+        icon: "icon-bell",
         parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
       },
     ];

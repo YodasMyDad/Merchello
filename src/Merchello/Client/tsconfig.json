@@ -36,6 +36,7 @@
       "@filters/*": [ "src/filters/*" ],
       "@fulfilment-providers/*": [ "src/fulfilment-providers/*" ],
       "@marketing/*": [ "src/marketing/*" ],
+      "@notifications/*": [ "src/notifications/*" ],
       "@orders/*": [ "src/orders/*" ],
       "@outstanding/*": [ "src/outstanding/*" ],
       "@payment-providers/*": [ "src/payment-providers/*" ],
