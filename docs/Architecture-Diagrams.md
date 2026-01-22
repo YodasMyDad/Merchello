@@ -365,6 +365,30 @@ Tax is calculated using `TaxGroup` entities. Each `ProductRoot` has a `TaxGroupI
 
 **ITaxService.GetApplicableRateAsync()** returns the rate for a specific location, considering country/state overrides in `TaxGroupRate`.
 
+#### TaxGroupId Data Flow
+
+`LineItem.TaxGroupId` preserves the tax category through checkout for API-based tax providers:
+
+```
+ProductRoot.TaxGroupId
+        ↓
+LineItemFactory.CreateFromProduct() captures TaxGroupId
+        ↓
+Basket.LineItems (TaxGroupId preserved)
+        ↓
+LineItemFactory.CreateForOrder() preserves TaxGroupId
+        ↓
+Order.LineItems (TaxGroupId preserved)
+        ↓
+InvoiceService creates TaxableLineItem with TaxGroupId
+        ↓
+Provider.CalculateOrderTaxAsync() uses GetTaxCodeForTaxGroup()
+        ↓
+Provider sends correct tax code to API (Avalara, TaxJar, etc.)
+```
+
+**Fallback Chain:** If `TaxGroupId` is null or no mapping configured, providers use their default tax code (e.g., Avalara uses `P0000000`).
+
 ### 3.2 Shipping Tax
 
 Shipping tax is calculated through the active tax provider, NOT hardcoded. The system supports:
