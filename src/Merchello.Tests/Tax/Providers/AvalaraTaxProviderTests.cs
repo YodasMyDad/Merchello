@@ -140,6 +140,30 @@ public class AvalaraTaxProviderTests
     }
 
     [Fact]
+    public async Task GetConfigurationFieldsAsync_ContainsTaxGroupMappingField()
+    {
+        var fields = (await _provider.GetConfigurationFieldsAsync()).ToList();
+
+        var mappingField = fields.FirstOrDefault(f => f.Key == "taxGroupMappings");
+        mappingField.ShouldNotBeNull();
+        mappingField.Label.ShouldBe("Tax Group Mappings");
+        mappingField.FieldType.ShouldBe(ConfigurationFieldType.TaxGroupMapping);
+        mappingField.IsRequired.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task GetConfigurationFieldsAsync_ContainsShippingTaxCodeField()
+    {
+        var fields = (await _provider.GetConfigurationFieldsAsync()).ToList();
+
+        var shippingField = fields.FirstOrDefault(f => f.Key == "shippingTaxCode");
+        shippingField.ShouldNotBeNull();
+        shippingField.Label.ShouldBe("Shipping Tax Code");
+        shippingField.FieldType.ShouldBe(ConfigurationFieldType.Text);
+        shippingField.DefaultValue.ShouldBe("FR020100");
+    }
+
+    [Fact]
     public async Task CalculateOrderTaxAsync_WhenNotConfigured_ReturnsFailed()
     {
         // Arrange - provider is not configured

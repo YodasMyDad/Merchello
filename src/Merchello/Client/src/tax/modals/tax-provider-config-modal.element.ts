@@ -41,6 +41,9 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
   @state() private _isLoadingOverrides = false;
   @state() private _deletedOverrideIds: string[] = [];
 
+  // Tax Group Mappings (for API providers like Avalara)
+  @state() private _mappings: Record<string, string> = {};
+
   #isConnected = false;
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
@@ -108,6 +111,21 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     // Load Tax Groups and Shipping Overrides for Manual provider
     if (this._isManualProvider) {
       await Promise.all([this._loadTaxGroups(), this._loadShippingOverrides()]);
+    }
+
+    // Load Tax Groups for non-manual providers that have TaxGroupMapping fields
+    if (!this._isManualProvider && this._fields.some((f) => f.fieldType === "TaxGroupMapping")) {
+      await this._loadTaxGroups();
+
+      // Parse existing mapping from config
+      const mappingJson = this._values["taxGroupMappings"];
+      if (mappingJson) {
+        try {
+          this._mappings = JSON.parse(mappingJson);
+        } catch {
+          this._mappings = {};
+        }
+      }
     }
   }
 
@@ -288,6 +306,75 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
 
   private _handleCheckboxChange(key: string, checked: boolean): void {
     this._values = { ...this._values, [key]: checked ? "true" : "false" };
+  }
+
+  // Tax Group Mapping handlers
+  private _handleMappingChange(taxGroupId: string, code: string): void {
+    if (code) {
+      this._mappings = { ...this._mappings, [taxGroupId]: code };
+    } else {
+      const { [taxGroupId]: _, ...rest } = this._mappings;
+      this._mappings = rest;
+    }
+    this._values = { ...this._values, taxGroupMappings: JSON.stringify(this._mappings) };
+  }
+
+  private _renderTaxGroupMappingField(field: TaxProviderFieldDto): unknown {
+    if (this._isLoadingTaxGroups) {
+      return html`
+        <div class="form-field">
+          <label>${field.label}</label>
+          <div class="loading-inline">
+            <uui-loader-circle></uui-loader-circle>
+            <span>Loading tax groups...</span>
+          </div>
+        </div>
+      `;
+    }
+
+    if (this._taxGroups.length === 0) {
+      return html`
+        <div class="form-field">
+          <label>${field.label}</label>
+          <div class="empty-state-inline">
+            <p>No tax groups configured. Create tax groups in the Manual tax provider settings first.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    return html`
+      <div class="form-field">
+        <label>${field.label}</label>
+        ${field.description ? html`<p class="field-description">${field.description}</p>` : nothing}
+        <div class="table-container">
+          <uui-table class="mapping-table">
+            <uui-table-head>
+              <uui-table-head-cell>Tax Group</uui-table-head-cell>
+              <uui-table-head-cell>Tax Code</uui-table-head-cell>
+            </uui-table-head>
+            ${this._taxGroups.map(
+              (group) => html`
+                <uui-table-row>
+                  <uui-table-cell>
+                    <span class="name-cell">${group.name}</span>
+                    <span class="rate-cell">(${group.taxPercentage}%)</span>
+                  </uui-table-cell>
+                  <uui-table-cell>
+                    <uui-input
+                      .value=${this._mappings[group.id] ?? ""}
+                      @input=${(e: Event) =>
+                        this._handleMappingChange(group.id, (e.target as HTMLInputElement).value)}
+                      placeholder="${field.placeholder || "P0000000"}"
+                    ></uui-input>
+                  </uui-table-cell>
+                </uui-table-row>
+              `
+            )}
+          </uui-table>
+        </div>
+      </div>
+    `;
   }
 
   // Save handler
@@ -477,6 +564,9 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
             ></uui-select>
           </div>
         `;
+
+      case "TaxGroupMapping":
+        return this._renderTaxGroupMappingField(field);
 
       default:
         return nothing;
@@ -995,8 +1085,26 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
       border-radius: var(--uui-border-radius);
     }
 
-    .data-table {
+    .data-table,
+    .mapping-table {
       width: 100%;
+    }
+
+    .mapping-table uui-input {
+      width: 100%;
+    }
+
+    .empty-state-inline {
+      padding: var(--uui-size-space-4);
+      background: var(--uui-color-surface-alt);
+      border: 1px dashed var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      color: var(--uui-color-text-alt);
+      font-style: italic;
+    }
+
+    .empty-state-inline p {
+      margin: 0;
     }
 
     uui-table-head-cell,

@@ -188,3 +188,20 @@ export interface UpdateShippingTaxOverrideDto {
   /** Tax group ID for shipping. Null means shipping is never taxed in this region. */
   shippingTaxGroupId?: string;
 }
+
+// ============================================
+// Tax Group Mapping Types
+// ============================================
+
+/**
+ * Represents a tax group mapping for provider configuration.
+ * Maps a Merchello TaxGroup to a provider-specific tax code.
+ */
+export interface TaxGroupMappingItem {
+  /** Tax group ID */
+  taxGroupId: string;
+  /** Tax group name (for display) */
+  taxGroupName: string;
+  /** Provider-specific tax code */
+  providerTaxCode: string;
+}

@@ -1222,16 +1222,16 @@ public static class FulfilmentRetryPolicy
 ## Implementation Phases
 
 ### Phase 1: Core Infrastructure (MVP)
-- [ ] Add `ExtendedData` to Order model (currently missing)
-- [ ] Add `ExtendedData` to Shipment model (currently missing)
-- [ ] Add fulfilment fields to Order model
-- [ ] Add FulfilmentProviderConfigurationId to Warehouse/Supplier
-- [ ] Add `FulfilmentFailed` to OrderStatus enum
-- [ ] Create FulfilmentProviderConfiguration table
-- [ ] Create FulfilmentSyncLog table
-- [ ] IFulfilmentProvider, IFulfilmentService interfaces
-- [ ] FulfilmentProviderManager (ExtensionManager discovery)
-- [ ] Basic API endpoints
+- [x] Add `ExtendedData` to Order model (currently missing)
+- [x] Add `ExtendedData` to Shipment model (currently missing)
+- [x] Add fulfilment fields to Order model
+- [x] Add FulfilmentProviderConfigurationId to Warehouse/Supplier
+- [x] Add `FulfilmentFailed` to OrderStatus enum
+- [x] Create FulfilmentProviderConfiguration table
+- [x] Create FulfilmentSyncLog table
+- [x] IFulfilmentProvider, IFulfilmentService interfaces
+- [x] FulfilmentProviderManager (ExtensionManager discovery)
+- [x] Basic API endpoints
 
 > **Note:** Shipment tracking fields (`TrackingNumber`, `TrackingUrl`, `Carrier`) already exist. `CreateShipmentParameters` already supports these fields.
 
@@ -1255,23 +1255,23 @@ public static class FulfilmentRetryPolicy
 - [x] FulfilmentPollingJob
 
 ### Phase 5: Backoffice UI
-- [ ] Fulfilment workspaceView tab in Providers workspace (see [Backoffice UI Architecture](#backoffice-ui-architecture) below)
-- [ ] Fulfilment providers list component with configured/available sections
-- [ ] Provider configuration modal
-- [ ] Provider brand icons (SVG) in `utils/brand-icons.ts`
-- [ ] Supplier UI: fulfilment provider dropdown
-- [ ] Warehouse UI: optional provider override dropdown
-- [ ] Sync logs viewer
-- [ ] **Test Provider Modal** (see [Admin Test UI](#admin-test-ui) section below)
-- [ ] **Service Level Mapping UI** - Provider config displays all ShippingOptions with text fields to enter 3PL service codes. Stored in `SettingsJson` under `ServiceMappings` key. Empty = use 3PL's default shipping method.
+- [x] Fulfilment workspaceView tab in Providers workspace (see [Backoffice UI Architecture](#backoffice-ui-architecture) below)
+- [x] Fulfilment providers list component with configured/available sections
+- [x] Provider configuration modal
+- [x] Provider brand icons (SVG) in `utils/brand-icons.ts`
+- [x] Supplier UI: fulfilment provider dropdown
+- [x] Warehouse UI: optional provider override dropdown
+- [x] Sync logs viewer
+- [x] **Test Provider Modal** (see [Admin Test UI](#admin-test-ui) section below)
+- [x] **Service Level Mapping UI** - Provider config displays all ShippingOptions with text fields to enter 3PL service codes. Stored in `SettingsJson` under `ServiceMappings` key. Empty = use 3PL's default shipping method.
 
 ### Phase 6: Integration Tests
-- [ ] Core infrastructure tests (FulfilmentProviderConfiguration, FulfilmentSyncLog models)
-- [ ] FulfilmentService tests (order submission, retry logic, status updates)
-- [ ] FulfilmentSyncService tests (product sync, inventory sync)
-- [ ] FulfilmentProviderBase tests (default implementations)
-- [ ] Webhook processing tests
-- [ ] Provider resolution tests (warehouse → supplier hierarchy)
+- [x] Core infrastructure tests (FulfilmentProviderConfiguration, FulfilmentSyncLog models)
+- [x] FulfilmentService tests (order submission, retry logic, status updates)
+- [x] FulfilmentSyncService tests (product sync, inventory sync)
+- [x] FulfilmentProviderBase tests (default implementations)
+- [x] Webhook processing tests
+- [x] Provider resolution tests (warehouse → supplier hierarchy)
 
 ---
 
@@ -2538,39 +2538,39 @@ Common error scenarios to handle:
 ## Testing Checklist
 
 ### Phase 1
-- [ ] Provider discovery works
-- [ ] Provider config CRUD works
-- [ ] Warehouse/Supplier resolution works
-- [ ] Order has fulfilment fields
-- [ ] Shipment has tracking fields
+- [x] Provider discovery works
+- [x] Provider config CRUD works
+- [x] Warehouse/Supplier resolution works
+- [x] Order has fulfilment fields
+- [x] Shipment has tracking fields
 
 ### Phase 2
-- [ ] Order auto-submits on creation (when provider configured)
-- [ ] Order.FulfilmentProviderReference populated
-- [ ] Order.Status transitions correctly
-- [ ] Webhook creates Shipment with tracking
-- [ ] Retry logic works
-- [ ] FulfilmentFailed status set after max retries
+- [x] Order auto-submits on creation (when provider configured)
+- [x] Order.FulfilmentProviderReference populated
+- [x] Order.Status transitions correctly
+- [x] Webhook creates Shipment with tracking
+- [x] Retry logic works
+- [x] FulfilmentFailed status set after max retries
 
 ### Phase 3
-- [ ] ShipmentCreatedNotification fires
-- [ ] StockAllocatedNotification fires
-- [ ] Outbound webhooks work
+- [x] ShipmentCreatedNotification fires
+- [x] StockAllocatedNotification fires
+- [x] Outbound webhooks work
 
 ### Phase 4
-- [ ] Product sync works
-- [ ] Inventory sync (Full) overwrites stock
-- [ ] Inventory sync (Delta) adjusts stock
-- [ ] Sync logs created
+- [x] Product sync works
+- [x] Inventory sync (Full) overwrites stock
+- [x] Inventory sync (Delta) adjusts stock
+- [x] Sync logs created
 
 ### Phase 5
-- [ ] Provider configuration workspace renders
-- [ ] Supplier UI shows fulfilment provider dropdown
-- [ ] Warehouse UI shows optional override dropdown
-- [ ] Sync logs viewer displays history
+- [x] Provider configuration workspace renders
+- [x] Supplier UI shows fulfilment provider dropdown
+- [x] Warehouse UI shows optional override dropdown
+- [x] Sync logs viewer displays history
 
 ### Phase 6
-- [ ] All integration tests pass
+- [x] All integration tests pass
 
 ### Optional Provider Tests
 

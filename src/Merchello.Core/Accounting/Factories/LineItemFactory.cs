@@ -23,7 +23,8 @@ public class LineItemFactory
             Cost = product.CostOfGoods,
             LineItemType = LineItemType.Product,
             IsTaxable = taxRate > 0,
-            TaxRate = taxRate
+            TaxRate = taxRate,
+            TaxGroupId = product.ProductRoot.TaxGroupId
         };
     }
 
@@ -70,6 +71,7 @@ public class LineItemFactory
             LineItemType = basketLineItem.LineItemType,
             IsTaxable = basketLineItem.IsTaxable,
             TaxRate = basketLineItem.TaxRate,
+            TaxGroupId = basketLineItem.TaxGroupId,
             DependantLineItemSku = basketLineItem.DependantLineItemSku,
             ExtendedData = basketLineItem.ExtendedData
         };
@@ -100,6 +102,7 @@ public class LineItemFactory
             LineItemType = addonItem.LineItemType,
             IsTaxable = addonItem.IsTaxable,
             TaxRate = addonItem.TaxRate,
+            TaxGroupId = addonItem.TaxGroupId,
             DependantLineItemSku = addonItem.DependantLineItemSku,
             ExtendedData = addonItem.ExtendedData
         };
