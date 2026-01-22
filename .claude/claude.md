@@ -4,6 +4,8 @@ Enterprise ecommerce NuGet. **Ethos: making enterprise ecommerce simple.**
 - **Services** - Feature-grouped, DI, parameter models
 - **Factories** - All key classes via factories
 
+Never make assumptions about code in the project before you are making changes, even if a document states something, before changes, ALWAYS trace through the actual code and check everything.
+
 ## Feature Structure
 ```
 Feature/

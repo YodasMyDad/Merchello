@@ -15,6 +15,7 @@ import { manifests as analytics } from "./analytics/manifest.js";
 import { manifests as discounts } from "./discounts/manifest.js";
 import { manifests as email } from "./email/manifest.js";
 import { manifests as webhooks } from "./webhooks/manifest.js";
+import { manifests as notifications } from "./notifications/manifest.js";
 import { manifests as tax } from "./tax/manifest.js";
 import { manifests as suppliers } from "./suppliers/manifest.js";
 import { manifests as warehouses } from "./warehouses/manifest.js";
@@ -50,6 +51,7 @@ export const manifests: Array<UmbExtensionManifest> = [
   ...discounts,
   ...email,
   ...webhooks,
+  ...notifications,
   ...tax,
   ...suppliers,
   ...warehouses,
