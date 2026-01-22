@@ -196,6 +196,7 @@ public class LineTaxResult
 | `Number` | Integer values |
 | `Currency` | Currency/decimal input with formatting |
 | `Percentage` | Percentage input (0-100) |
+| `TaxGroupMapping` | Tax group to provider tax code mapping grid |
 
 ---
 
@@ -662,6 +663,26 @@ public abstract class TaxProviderBase : ITaxProvider
 
     // Get integer configuration value
     protected int GetConfigInt(string key, int defaultValue = 0);
+
+    // Get provider-specific tax code for a TaxGroup from "taxGroupMappings" config
+    // Returns the mapped code, or null if no mapping exists (provider should use default)
+    protected string? GetTaxCodeForTaxGroup(Guid? taxGroupId);
+
+    // Get configured shipping tax code from "shippingTaxCode" config
+    protected string? GetShippingTaxCode();
+}
+```
+
+**Tax Code Mapping Flow:**
+
+The `GetTaxCodeForTaxGroup()` method reads mappings from the `taxGroupMappings` configuration field (stored as JSON: `{"taxGroupId": "providerCode", ...}`). Providers should fall back to their default tax code when this returns `null`.
+
+```csharp
+// In CalculateOrderTaxAsync:
+foreach (var item in request.LineItems)
+{
+    var taxCode = GetTaxCodeForTaxGroup(item.TaxGroupId) ?? DefaultTaxCode;
+    // Use taxCode in API call...
 }
 ```
 
