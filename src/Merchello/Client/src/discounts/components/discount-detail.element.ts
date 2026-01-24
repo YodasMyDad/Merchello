@@ -22,8 +22,6 @@ import {
   DiscountRequirementType,
   DiscountStatus,
   DISCOUNT_CATEGORIES,
-  DISCOUNT_STATUS_LABELS,
-  DISCOUNT_STATUS_COLORS,
 } from "@discounts/types/discount.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getStoreSettings } from "@api/store-settings.js";
@@ -896,8 +894,8 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
       `;
     }
 
-    const statusLabel = this._discount?.status !== undefined ? DISCOUNT_STATUS_LABELS[this._discount.status] : "";
-    const statusColor = this._discount?.status !== undefined ? DISCOUNT_STATUS_COLORS[this._discount.status] : "default";
+    const statusLabel = this._discount?.statusLabel ?? "";
+    const statusColor = this._discount?.statusColor ?? "default";
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>

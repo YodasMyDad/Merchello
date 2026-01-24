@@ -12,6 +12,8 @@ public class DiscountDetailDto
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public DiscountStatus Status { get; set; }
+    public string StatusLabel { get; set; } = string.Empty;
+    public string StatusColor { get; set; } = "default";
     public DiscountCategory Category { get; set; }
     public DiscountMethod Method { get; set; }
     public string? Code { get; set; }

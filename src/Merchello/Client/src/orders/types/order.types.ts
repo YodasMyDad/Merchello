@@ -185,6 +185,7 @@ export interface OrderListItemDto {
   isMultiCurrency: boolean;
   paymentStatus: InvoicePaymentStatus;
   paymentStatusDisplay: string;
+  paymentStatusCssClass: string;
   fulfillmentStatus: string;
   isCancelled: boolean;
   itemCount: number;
@@ -266,6 +267,7 @@ export interface OrderDetailDto {
   balanceStatusLabel: string;
   paymentStatus: InvoicePaymentStatus;
   paymentStatusDisplay: string;
+  paymentStatusCssClass: string;
   /** Maximum fraud/risk score across all payments (0-100 scale). */
   maxRiskScore?: number | null;
   /** Source of the maximum risk score. */
@@ -732,11 +734,11 @@ export interface AddProductToOrderDto {
   /** The shipping option for this product */
   shippingOptionId: string;
   /** Selected add-on options (non-variant product options) */
-  addons: SelectedAddonDto[];
+  addons: OrderAddonDto[];
 }
 
 /** A selected add-on option value for a product */
-export interface SelectedAddonDto {
+export interface OrderAddonDto {
   /** The option ID (ProductOption.Id) */
   optionId: string;
   /** The option value ID (ProductOptionValue.Id) */

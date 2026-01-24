@@ -23,7 +23,8 @@ public class CategoryController(
     AppCaches appCaches,
     IProfilingLogger profilingLogger,
     IPublishedUrlProvider publishedUrlProvider,
-    IProductService productService)
+    IProductService productService,
+    IProductFilterService productFilterService)
     : BaseController(options, umbracoContextAccessor, databaseFactory, services, appCaches, profilingLogger,
         publishedUrlProvider)
 {
@@ -70,7 +71,7 @@ public class CategoryController(
         var products = await productService.QueryProducts(parameters);
 
         // Get only filter groups that have products in this collection
-        var filterGroups = await productService.GetFilterGroupsForCollection(collection.Id);
+        var filterGroups = await productFilterService.GetFilterGroupsForCollection(collection.Id);
 
         // Build view model
         model.ViewModel = new CategoryPageViewModel

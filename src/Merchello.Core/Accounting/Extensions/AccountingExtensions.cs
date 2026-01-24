@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Payments.Models;
 using Merchello.Core.Products.Models;
 
 namespace Merchello.Core.Accounting.Extensions;
@@ -13,14 +14,19 @@ public static class AccountingExtensions
     /// <returns></returns>
     public static LineItem ToLineItem(this Product product, int qty)
     {
+        var taxRate = product.ProductRoot?.TaxGroup?.TaxPercentage ?? 0m;
         return new LineItem
         {
+            Id = Shared.Extensions.GuidExtensions.NewSequentialGuid,
             ProductId = product.Id,
-            Id = new Guid(),
             Name = product.Name,
+            Sku = product.Sku,
             Amount = product.Price,
             Quantity = qty,
-            Sku = product.Sku
+            LineItemType = LineItemType.Product,
+            IsTaxable = taxRate > 0,
+            TaxRate = taxRate,
+            TaxGroupId = product.ProductRoot?.TaxGroupId
         };
     }
 
@@ -77,6 +83,21 @@ public static class AccountingExtensions
             Constants.StatusLabels.Fulfillment.Fulfilled => Constants.StatusLabels.CssClasses.Positive,
             Constants.StatusLabels.Fulfillment.Partial => Constants.StatusLabels.CssClasses.Warning,
             _ => Constants.StatusLabels.CssClasses.Default
+        };
+    }
+
+    /// <summary>
+    /// Gets the CSS class for the payment status badge.
+    /// </summary>
+    public static string GetPaymentStatusCssClass(this InvoicePaymentStatus status)
+    {
+        return status switch
+        {
+            InvoicePaymentStatus.Paid => "paid",
+            InvoicePaymentStatus.PartiallyPaid => "partial",
+            InvoicePaymentStatus.Refunded or InvoicePaymentStatus.PartiallyRefunded => "refunded",
+            InvoicePaymentStatus.AwaitingPayment => "awaiting",
+            _ => "unpaid"
         };
     }
 }

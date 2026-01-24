@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Notifications.Interfaces;
@@ -11,7 +11,6 @@ using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Products.Extensions;
-using Merchello.Core.Products.Mapping;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.Razor.Compilation;
@@ -42,328 +41,6 @@ public class ProductService(
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = false
     };
-    /// <summary>
-    /// Updates a product root
-    /// </summary>
-    /// <param name="productRoot"></param>
-    /// <returns></returns>
-    public async Task<CrudResult<ProductRoot>> Update(ProductRoot productRoot)
-    {
-        var result = new CrudResult<ProductRoot>();
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            // First product root
-            var productRootDb = await db.RootProducts
-                .Include(x => x.Collections)
-                .Include(x => x.ProductType)
-                .Include(x => x.ProductRootWarehouses)
-                .Include(x => x.TaxGroup)
-                .AsSplitQuery()
-                .FirstOrDefaultAsync(x => x.Id == productRoot.Id);
-
-            if (productRootDb == null)
-            {
-                result.AddErrorMessage("Unable to find the product root with the same id");
-                return;
-            }
-
-            // If options are empty, check to see if the product DID have variants,
-            // if so, grab the first product as a template if request.Product is null
-            // Then delete the products and create a single default one
-            var products = db.Products.Where(x => x.ProductRootId == productRoot.Id);
-            var productsCount = products.Count();
-
-            // Map the data from updated product root to db root (manual mapping)
-            productRootDb.CopyFrom(productRoot);
-
-            // Check for change of product type
-            if (productRoot.ProductTypeId != productRootDb.ProductTypeId)
-            {
-                var newProductType = db.ProductTypes.FirstOrDefault(x => x.Id == productRoot.ProductTypeId);
-                if (newProductType == null)
-                {
-                    result.AddErrorMessage("Unable to find new product type");
-                    return;
-                }
-
-                productRootDb.ProductType = newProductType;
-            }
-
-            // Check for change of tax group
-            if (productRoot.TaxGroupId != productRootDb.TaxGroupId)
-            {
-                var newTaxGroup = db.TaxGroups.FirstOrDefault(x => x.Id == productRoot.TaxGroupId);
-                if (newTaxGroup == null)
-                {
-                    result.AddErrorMessage("Unable to find new tax group");
-                    return;
-                }
-
-                productRootDb.TaxGroup = newTaxGroup;
-            }
-
-            // Note: Warehouse changes are handled through the ProductRootWarehouses junction table
-            // and should be managed separately via the WarehouseService
-
-            var variantOptions = productRootDb.ProductOptions.Where(o => o.IsVariant).ToList();
-            if (!variantOptions.Any())
-            {
-                if (productsCount > 1)
-                {
-                    // Need to delete and keep one of the variants which
-                    // will now be the new single default
-                    var productDb = products.FirstOrDefault(x => x.Default);
-
-                    result.AddWarningMessage(
-                        $"Options removed, so removing {productsCount} products from {productRootDb.RootName} and turning it into a single product");
-
-                    // Explicitly cleanup ProductWarehouse records for products being deleted
-                    // (cascade delete should handle this, but being explicit for clarity)
-                    var productsToDelete = products.Where(x => x.Id != productDb!.Id).ToList();
-                    foreach (var product in productsToDelete)
-                    {
-                        db.Products.Remove(product);
-                    }
-
-                    // Map over the properties passed in
-                    productDb!.Default = true;
-
-                    // Set the variant name
-                    productDb.Name = productRootDb.RootName;
-
-                    // Remove the variant key
-                    productDb.VariantOptionsKey = null;
-                }
-            }
-            else
-            {
-                // We have options, need to check if we are changing from a single product to multiple variants
-                if (productsCount > 1)
-                {
-                    // We have variants already
-                    // we need to filter out the products to update, delete and add
-                    var updateOptionChoices = variantOptions.Select(option => option.ProductOptionValues);
-                    var updatedResults = updateOptionChoices.CartesianObjects().ToList();
-                    var updatedVariantIds = updatedResults.CreateVariantIds();
-
-                    var originalIds = products
-                        .Select(x => x.VariantOptionsKey)
-                        .Where(x => x != null)
-                        .ToList()
-                        .ToDictionary(x => x!, x => x!);
-
-                    // returns all elements in originalVariantIds that are not in optionItemsNew.
-                    var toBeDeleted = originalIds!.Except(updatedVariantIds).Select(x => x.Key);
-                    var productsToBeDeleted = products.Where(x => toBeDeleted.Contains(x.VariantOptionsKey)).ToList();
-                    var missingDefaultProduct = productsToBeDeleted.Any(x => x.Default);
-
-                    // Remove products - cascade delete will cleanup ProductWarehouse records
-                    db.Products.RemoveRange(productsToBeDeleted);
-
-                    // returns all elements in updatedResults that are not in result.
-                    var toBeAdded = updatedVariantIds.Except(originalIds!);
-                    foreach (var keyValuePair in toBeAdded)
-                    {
-                        var template = products.FirstOrDefault();
-
-                        var p = productFactory.Create(productRootDb, keyValuePair.Value,
-                            template!.Price,
-                            template.CostOfGoods, template.Gtin ?? "", template.Sku ?? "",
-                            false, keyValuePair.Key);
-
-                        db.Products.Add(p);
-                    }
-
-                    await db.SaveChangesAsyncLogged(logger, result);
-
-                    if (missingDefaultProduct)
-                    {
-                        // Do a save, then get the products again to check we have a default
-                        var updatedProducts = db.Products.Include(x => x.ProductRoot)
-                            .Where(x => x.ProductRoot.Id == productRootDb.Id);
-
-                        var firstProduct = updatedProducts.FirstOrDefault();
-                        firstProduct!.Default = true;
-
-                        // May not need to call this just update
-                        db.Products.Update(firstProduct);
-                    }
-                }
-                else
-                {
-                    var productTemplate = products.FirstOrDefault();
-
-                    // We are changing from a single product, to variants
-                    var duplicateSkus = await CreateVariantsNewAsync(db, productRootDb, productTemplate!.Price, productTemplate.CostOfGoods,
-                        productTemplate.Gtin ?? "", productTemplate.Sku ?? "");
-
-                    if (duplicateSkus.Count != 0)
-                    {
-                        result.AddErrorMessage($"Duplicate SKUs found: {string.Join(", ", duplicateSkus)}");
-                        return;
-                    }
-
-                    // Delete the initial product - cascade delete will cleanup ProductWarehouse records
-                    foreach (var product in products)
-                    {
-                        db.Products.Remove(product);
-                    }
-                }
-            }
-
-            await db.SaveChangesAsyncLogged(logger, result);
-        });
-
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
-    /// Creates a new product & product root
-    /// </summary>
-    public async Task<CrudResult<ProductRoot>> Create(string name, TaxGroup taxGroup, ProductType productType,
-        decimal price, decimal costOfGoods, string gtin, string sku, List<ProductOption> productOptions)
-    {
-        var result = new CrudResult<ProductRoot>();
-        ProductRoot? productRoot = null;
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            // Create the product root
-            productRoot = productRootFactory.Create(name, taxGroup, productType, productOptions);
-            db.RootProducts.Add(productRoot);
-
-            // Are there product options? If so we are creating variants, if not we are creating a single default product
-            if (productOptions.Any(o => o.IsVariant))
-            {
-                var duplicateSkus = await CreateVariantsNewAsync(db, productRoot, price, costOfGoods, gtin, sku);
-                if (duplicateSkus.Count != 0)
-                {
-                    result.AddErrorMessage($"Duplicate SKUs found: {string.Join(", ", duplicateSkus)}");
-                    return;
-                }
-            }
-            else
-            {
-                // Validate SKU uniqueness for single product
-                if (!string.IsNullOrEmpty(sku))
-                {
-                    var skuExists = await db.Products.AnyAsync(p => p.Sku == sku);
-                    if (skuExists)
-                    {
-                        result.AddErrorMessage($"SKU '{sku}' already exists");
-                        return;
-                    }
-                }
-
-                var product = productFactory.Create(productRoot, productRoot.RootName ?? "Missing Root Name", price,
-                    costOfGoods, gtin, sku, true);
-                db.Products.Add(product);
-            }
-
-            // Finally save changes
-            await db.SaveChangesAsyncLogged(logger, result);
-        });
-
-        scope.Complete();
-        result.ResultObject = productRoot;
-        return result;
-    }
-
-    /// <summary>
-    /// Update a product. Triggers default variant reassignment if:
-    /// - A default variant becomes unavailable (to find a replacement)
-    /// - A non-default variant becomes available (in case current default is unavailable)
-    /// </summary>
-    public async Task<CrudResult<Product>> Update(Product product)
-    {
-        var result = new CrudResult<Product>();
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        var shouldCheckDefaultReassignment = false;
-        Guid? productRootId = null;
-
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var productDb = await db.Products
-                .Include(p => p.ProductWarehouses)
-                .AsSplitQuery()
-                .FirstOrDefaultAsync(x => x.Id == product.Id);
-
-            if (productDb == null)
-            {
-                result.AddErrorMessage("Unable to find the product with the same id");
-                return;
-            }
-
-            var wasAvailable = productDb.AvailableForPurchase && productDb.CanPurchase;
-            var willBeAvailable = product.AvailableForPurchase && product.CanPurchase;
-
-            // Check if default variant becoming unavailable OR non-default becoming available
-            if (productDb.Default && wasAvailable && !willBeAvailable)
-            {
-                // Default variant became unavailable - find a replacement
-                shouldCheckDefaultReassignment = true;
-                productRootId = productDb.ProductRootId;
-            }
-            else if (!productDb.Default && !wasAvailable && willBeAvailable)
-            {
-                // Non-default variant became available - check if current default is unavailable
-                shouldCheckDefaultReassignment = true;
-                productRootId = productDb.ProductRootId;
-            }
-
-            productDb.CopyFrom(product);
-            await db.SaveChangesAsyncLogged(logger, result);
-        });
-
-        scope.Complete();
-
-        // After scope completes, check if we need to reassign default
-        if (shouldCheckDefaultReassignment && productRootId.HasValue)
-        {
-            await EnsureDefaultVariantIsAvailableAsync(productRootId.Value);
-        }
-
-        result.ResultObject = product;
-        return result;
-    }
-
-    /// <summary>
-    /// Deletes a product root
-    /// </summary>
-    public async Task<CrudResult<ProductRoot>> Delete(ProductRoot productRoot)
-    {
-        var result = new CrudResult<ProductRoot>();
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var toDelete = await db.RootProducts.Include(x => x.Products)
-                .AsSplitQuery()
-                .FirstOrDefaultAsync(x => x.Id == productRoot.Id);
-
-            if (toDelete != null)
-            {
-                var collection = toDelete.Products;
-                if (collection?.Any() == true)
-                {
-                    foreach (var product in collection)
-                    {
-                        db.Products.Remove(product);
-                    }
-                }
-                db.RootProducts.Remove(toDelete);
-                await db.SaveChangesAsyncLogged(logger, result);
-            }
-        });
-
-        scope.Complete();
-        return result;
-    }
 
     /// <summary>
     /// Creates a ProductRoot without variants (wizard step 1)
@@ -396,17 +73,12 @@ public class ProductService(
                 .Where(c => parameters.CollectionIds.Contains(c.Id))
                 .ToListAsync(cancellationToken);
 
-            productRoot = new ProductRoot
-            {
-                Id = Guid.NewGuid(),
-                RootName = parameters.Name,
-                RootUrl = slugHelper.GenerateSlug(parameters.Name),
-                TaxGroup = taxGroup,
-                TaxGroupId = parameters.TaxGroupId,
-                ProductType = productType,
-                ProductTypeId = parameters.ProductTypeId,
-                Collections = collections
-            };
+            productRoot = productRootFactory.Create(
+                name: parameters.Name,
+                rootUrl: slugHelper.GenerateSlug(parameters.Name),
+                taxGroup: taxGroup,
+                productType: productType,
+                collections: collections);
 
             // Note: weight parameter will be applied to Product variants when they are created
 
@@ -528,13 +200,11 @@ public class ProductService(
     /// Generates variants from ProductRoot options
     /// </summary>
     public async Task<CrudResult<List<Product>>> GenerateVariantsFromOptions(
-        Guid productRootId,
-        decimal defaultPrice,
-        decimal defaultCostOfGoods,
+        GenerateVariantsParameters parameters,
         CancellationToken cancellationToken = default)
     {
         // Delegate to the centralized RegenerateVariants with price/cost overrides
-        return await RegenerateVariants(productRootId, defaultPrice, defaultCostOfGoods, cancellationToken);
+        return await RegenerateVariants(parameters.ProductRootId, parameters.DefaultPrice, parameters.DefaultCostOfGoods, cancellationToken);
     }
 
     /// <summary>
@@ -685,271 +355,6 @@ public class ProductService(
         }
 
         result.ResultObject = true;
-        return result;
-    }
-
-    /// <summary>
-    /// Creates a new ProductType with auto-generated slug alias
-    /// </summary>
-    public async Task<CrudResult<ProductType>> CreateProductType(
-        string name,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<ProductType>();
-        ProductType? productType = null;
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var alias = slugHelper.GenerateSlug(name);
-
-            var existingType = await db.ProductTypes
-                .FirstOrDefaultAsync(pt => pt.Alias == alias, cancellationToken);
-
-            if (existingType != null)
-            {
-                result.AddErrorMessage($"A product type with alias '{alias}' already exists");
-                return;
-            }
-
-            productType = new ProductType
-            {
-                Id = Guid.NewGuid(),
-                Name = name,
-                Alias = alias
-            };
-
-            db.ProductTypes.Add(productType);
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-        });
-
-        scope.Complete();
-        result.ResultObject = productType;
-        return result;
-    }
-
-    /// <summary>
-    /// Updates an existing ProductType
-    /// </summary>
-    public async Task<CrudResult<ProductType>> UpdateProductType(
-        Guid id,
-        string name,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<ProductType>();
-        ProductType? productType = null;
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            productType = await db.ProductTypes.FirstOrDefaultAsync(pt => pt.Id == id, cancellationToken);
-
-            if (productType == null)
-            {
-                result.AddErrorMessage("Product type not found");
-                return;
-            }
-
-            var newAlias = slugHelper.GenerateSlug(name);
-
-            var existingType = await db.ProductTypes
-                .FirstOrDefaultAsync(pt => pt.Alias == newAlias && pt.Id != id, cancellationToken);
-
-            if (existingType != null)
-            {
-                result.AddErrorMessage($"A product type with alias '{newAlias}' already exists");
-                return;
-            }
-
-            productType.Name = name;
-            productType.Alias = newAlias;
-
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-        });
-
-        scope.Complete();
-        result.ResultObject = productType;
-        return result;
-    }
-
-    /// <summary>
-    /// Deletes a ProductType if it's not in use by any products
-    /// </summary>
-    public async Task<CrudResult<bool>> DeleteProductType(
-        Guid id,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<bool>();
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var productType = await db.ProductTypes
-                .Include(pt => pt.Products)
-                .FirstOrDefaultAsync(pt => pt.Id == id, cancellationToken);
-
-            if (productType == null)
-            {
-                result.AddErrorMessage("Product type not found");
-                return;
-            }
-
-            if (productType.Products.Any())
-            {
-                result.AddErrorMessage($"Cannot delete product type '{productType.Name}' because it is assigned to {productType.Products.Count} product(s)");
-                return;
-            }
-
-            db.ProductTypes.Remove(productType);
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = true;
-        });
-
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
-    /// Creates a new ProductCollection
-    /// </summary>
-    public async Task<CrudResult<ProductCollection>> CreateProductCollection(
-        string name,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<ProductCollection>();
-        ProductCollection? collection = null;
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            collection = new ProductCollection
-            {
-                Id = Guid.NewGuid(),
-                Name = name
-            };
-
-            db.ProductCollections.Add(collection);
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-        });
-
-        scope.Complete();
-        result.ResultObject = collection;
-        return result;
-    }
-
-    /// <summary>
-    /// Gets all product types
-    /// </summary>
-    public async Task<List<ProductType>> GetProductTypes(CancellationToken cancellationToken = default)
-    {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductTypes.AsNoTracking().OrderBy(pt => pt.Name).ToListAsync(cancellationToken));
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
-    /// Gets all product collections
-    /// </summary>
-    public async Task<List<ProductCollection>> GetProductCollections(CancellationToken cancellationToken = default)
-    {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductCollections.AsNoTracking().OrderBy(pc => pc.Name).ToListAsync(cancellationToken));
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
-    /// Gets all product collections with product counts
-    /// </summary>
-    public async Task<List<ProductCollectionDto>> GetProductCollectionsWithCounts(CancellationToken cancellationToken = default)
-    {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductCollections
-                .AsNoTracking()
-                .OrderBy(pc => pc.Name)
-                .Select(pc => new ProductCollectionDto
-                {
-                    Id = pc.Id,
-                    Name = pc.Name ?? string.Empty,
-                    ProductCount = pc.Products.Count
-                })
-                .ToListAsync(cancellationToken));
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
-    /// Updates a product collection
-    /// </summary>
-    public async Task<CrudResult<ProductCollection>> UpdateProductCollection(
-        Guid id,
-        string name,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<ProductCollection>();
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var collection = await db.ProductCollections.FindAsync([id], cancellationToken);
-            if (collection == null)
-            {
-                result.Messages.Add(new Shared.Models.ResultMessage
-                {
-                    Message = "Collection not found",
-                    ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
-                });
-                return;
-            }
-
-            collection.Name = name;
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = collection;
-        });
-
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
-    /// Deletes a product collection
-    /// </summary>
-    public async Task<CrudResult<bool>> DeleteProductCollection(
-        Guid id,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<bool>();
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var collection = await db.ProductCollections
-                .Include(c => c.Products)
-                .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
-
-            if (collection == null)
-            {
-                result.Messages.Add(new Shared.Models.ResultMessage
-                {
-                    Message = "Collection not found",
-                    ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
-                });
-                return;
-            }
-
-            // Remove collection from all products (clear the relationship)
-            collection.Products.Clear();
-
-            db.ProductCollections.Remove(collection);
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = true;
-        });
-
-        scope.Complete();
         return result;
     }
 
@@ -1512,67 +917,6 @@ public class ProductService(
 
 
     /// <summary>
-    /// Get all product filter groups with their filters
-    /// </summary>
-    public async Task<List<ProductFilterGroup>> GetFilterGroups(CancellationToken cancellationToken = default)
-    {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductFilterGroups
-                .Include(fg => fg.Filters)
-                .OrderBy(fg => fg.SortOrder)
-                .AsNoTracking()
-                .ToListAsync(cancellationToken));
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
-    /// Gets filter groups containing only filters that have products in the specified collection.
-    /// Empty groups (with no relevant filters) are excluded.
-    /// </summary>
-    public async Task<List<ProductFilterGroup>> GetFilterGroupsForCollection(Guid collectionId, CancellationToken cancellationToken = default)
-    {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-        {
-            // Get all filter IDs that have products in this collection
-            var relevantFilterIds = await db.Products
-                .Where(p => p.ProductRoot.Collections.Any(c => c.Id == collectionId))
-                .Where(p => p.AvailableForPurchase && p.CanPurchase)
-                .SelectMany(p => p.Filters)
-                .Select(f => f.Id)
-                .Distinct()
-                .ToListAsync(cancellationToken);
-
-            if (relevantFilterIds.Count == 0)
-                return [];
-
-            // Get filter groups with their filters
-            var groups = await db.ProductFilterGroups
-                .Include(g => g.Filters)
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
-
-            // Filter to only include relevant filters and remove empty groups
-            foreach (var group in groups)
-            {
-                group.Filters = group.Filters
-                    .Where(f => relevantFilterIds.Contains(f.Id))
-                    .OrderBy(f => f.SortOrder)
-                    .ToList();
-            }
-
-            return groups
-                .Where(g => g.Filters.Any())
-                .OrderBy(g => g.SortOrder)
-                .ToList();
-        });
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
     /// Gets the min and max price for products in a collection using SQL aggregation.
     /// More efficient than loading all products into memory.
     /// </summary>
@@ -1595,62 +939,6 @@ public class ProductService(
 
             return (prices.Min(), prices.Max());
         });
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
-    /// Get a product collection by ID
-    /// </summary>
-    public async Task<ProductCollection?> GetCollection(Guid collectionId, CancellationToken cancellationToken = default)
-    {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductCollections
-                .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.Id == collectionId, cancellationToken));
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
-    /// Get multiple product collections by their IDs
-    /// </summary>
-    public async Task<List<ProductCollection>> GetCollectionsByIds(IEnumerable<Guid> collectionIds, CancellationToken cancellationToken = default)
-    {
-        var idList = collectionIds.ToList();
-        if (idList.Count == 0)
-        {
-            return [];
-        }
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductCollections
-                .AsNoTracking()
-                .Where(c => idList.Contains(c.Id))
-                .ToListAsync(cancellationToken));
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
-    /// Get multiple product types by their IDs
-    /// </summary>
-    public async Task<List<ProductType>> GetProductTypesByIds(IEnumerable<Guid> productTypeIds, CancellationToken cancellationToken = default)
-    {
-        var idList = productTypeIds.ToList();
-        if (idList.Count == 0)
-        {
-            return [];
-        }
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductTypes
-                .AsNoTracking()
-                .Where(t => idList.Contains(t.Id))
-                .ToListAsync(cancellationToken));
         scope.Complete();
         return result;
     }
@@ -2309,19 +1597,14 @@ public class ProductService(
                 }
             }
 
-            productRoot = new ProductRoot
-            {
-                Id = Guid.NewGuid(),
-                RootName = request.RootName,
-                RootUrl = slugHelper.GenerateSlug(request.RootName),
-                TaxGroup = taxGroup,
-                TaxGroupId = request.TaxGroupId,
-                ProductType = productType,
-                ProductTypeId = request.ProductTypeId,
-                IsDigitalProduct = request.IsDigitalProduct,
-                Collections = collections,
-                RootImages = request.RootImages?.Select(g => g.ToString()).ToList() ?? []
-            };
+            productRoot = productRootFactory.Create(
+                name: request.RootName,
+                rootUrl: slugHelper.GenerateSlug(request.RootName),
+                taxGroup: taxGroup,
+                productType: productType,
+                collections: collections,
+                isDigitalProduct: request.IsDigitalProduct,
+                rootImages: request.RootImages?.Select(g => g.ToString()).ToList());
 
             // Publish "Before" notification - handlers can modify or cancel
             var creatingNotification = new ProductCreatingNotification(productRoot);
@@ -3193,398 +2476,12 @@ public class ProductService(
             ShoppingFeedSize = product.ShoppingFeedSize,
             RemoveFromFeed = product.RemoveFromFeed,
             TotalStock = warehouseStock.Sum(ws => ws.AvailableStock),
+            TotalReservedStock = warehouseStock.Sum(ws => ws.ReservedStock),
             StockStatus = CalculateAggregateStockStatus(warehouseStock),
             WarehouseStock = warehouseStock,
             ShippingRestrictionMode = product.ShippingRestrictionMode,
             ExcludedShippingOptionIds = product.ExcludedShippingOptions.Select(eso => eso.Id).ToList()
         };
-    }
-
-    #region Filter Operations
-
-    /// <summary>
-    /// Creates a new product filter group
-    /// </summary>
-    public async Task<CrudResult<ProductFilterGroup>> CreateFilterGroup(
-        string name,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<ProductFilterGroup>();
-
-        var filterGroup = new ProductFilterGroup
-        {
-            Id = GuidExtensions.NewSequentialGuid,
-            Name = name
-        };
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            db.ProductFilterGroups.Add(filterGroup);
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-        });
-        scope.Complete();
-
-        result.ResultObject = filterGroup;
-        return result;
-    }
-
-    /// <summary>
-    /// Creates a new product filter within a filter group
-    /// </summary>
-    public async Task<CrudResult<ProductFilter>> CreateFilter(
-        CreateFilterParameters parameters,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<ProductFilter>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            // Get the current filter count for sort order
-            var filterCount = await db.ProductFilters
-                .CountAsync(f => f.ProductFilterGroupId == parameters.FilterGroupId, cancellationToken);
-
-            // Verify filter group exists
-            var filterGroupExists = await db.ProductFilterGroups
-                .AnyAsync(fg => fg.Id == parameters.FilterGroupId, cancellationToken);
-
-            if (!filterGroupExists)
-            {
-                result.AddErrorMessage("Filter group with ID " + parameters.FilterGroupId + " not found");
-                return;
-            }
-
-            var filter = new ProductFilter
-            {
-                Id = GuidExtensions.NewSequentialGuid,
-                Name = parameters.Name,
-                HexColour = parameters.HexColour,
-                Image = parameters.Image,
-                SortOrder = filterCount,
-                ProductFilterGroupId = parameters.FilterGroupId
-            };
-
-            db.ProductFilters.Add(filter);
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-
-            result.ResultObject = filter;
-        });
-        scope.Complete();
-
-        return result;
-    }
-
-    /// <summary>
-    /// Gets a single filter group by ID
-    /// </summary>
-    public async Task<ProductFilterGroup?> GetFilterGroup(Guid filterGroupId, CancellationToken cancellationToken = default)
-    {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductFilterGroups
-                .Include(fg => fg.Filters)
-                .FirstOrDefaultAsync(fg => fg.Id == filterGroupId, cancellationToken));
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
-    /// Updates a filter group
-    /// </summary>
-    public async Task<CrudResult<ProductFilterGroup>> UpdateFilterGroup(
-        Guid filterGroupId,
-        string? name,
-        int? sortOrder,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<ProductFilterGroup>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var filterGroup = await db.ProductFilterGroups
-                .Include(fg => fg.Filters)
-                .FirstOrDefaultAsync(fg => fg.Id == filterGroupId, cancellationToken);
-
-            if (filterGroup == null)
-            {
-                result.AddErrorMessage($"Filter group with ID {filterGroupId} not found");
-                return;
-            }
-
-            if (name != null) filterGroup.Name = name;
-            if (sortOrder.HasValue) filterGroup.SortOrder = sortOrder.Value;
-
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = filterGroup;
-        });
-        scope.Complete();
-
-        return result;
-    }
-
-    /// <summary>
-    /// Deletes a filter group and all its filters
-    /// </summary>
-    public async Task<CrudResult<bool>> DeleteFilterGroup(Guid filterGroupId, CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<bool>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var filterGroup = await db.ProductFilterGroups
-                .Include(fg => fg.Filters)
-                .FirstOrDefaultAsync(fg => fg.Id == filterGroupId, cancellationToken);
-
-            if (filterGroup == null)
-            {
-                result.AddErrorMessage($"Filter group with ID {filterGroupId} not found");
-                return;
-            }
-
-            // Remove all filters in the group first
-            db.ProductFilters.RemoveRange(filterGroup.Filters);
-            db.ProductFilterGroups.Remove(filterGroup);
-
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = true;
-        });
-        scope.Complete();
-
-        return result;
-    }
-
-    /// <summary>
-    /// Reorders filter groups by setting their sort order based on the provided ordered list of IDs
-    /// </summary>
-    public async Task<CrudResult<bool>> ReorderFilterGroups(List<Guid> orderedIds, CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<bool>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var filterGroups = await db.ProductFilterGroups
-                .Where(fg => orderedIds.Contains(fg.Id))
-                .ToListAsync(cancellationToken);
-
-            for (var i = 0; i < orderedIds.Count; i++)
-            {
-                var filterGroup = filterGroups.FirstOrDefault(fg => fg.Id == orderedIds[i]);
-                if (filterGroup != null)
-                {
-                    filterGroup.SortOrder = i;
-                }
-            }
-
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = true;
-        });
-        scope.Complete();
-
-        return result;
-    }
-
-    /// <summary>
-    /// Gets a single filter by ID
-    /// </summary>
-    public async Task<ProductFilter?> GetFilter(Guid filterId, CancellationToken cancellationToken = default)
-    {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductFilters
-                .FirstOrDefaultAsync(f => f.Id == filterId, cancellationToken));
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
-    /// Updates a filter
-    /// </summary>
-    public async Task<CrudResult<ProductFilter>> UpdateFilter(
-        UpdateFilterParameters parameters,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<ProductFilter>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var filter = await db.ProductFilters
-                .FirstOrDefaultAsync(f => f.Id == parameters.FilterId, cancellationToken);
-
-            if (filter == null)
-            {
-                result.AddErrorMessage("Filter with ID " + parameters.FilterId + " not found");
-                return;
-            }
-
-            if (parameters.Name != null) filter.Name = parameters.Name;
-            if (parameters.HexColour != null) filter.HexColour = parameters.HexColour == "" ? null : parameters.HexColour;
-            if (parameters.Image.HasValue) filter.Image = parameters.Image.Value == Guid.Empty ? null : parameters.Image.Value;
-            if (parameters.SortOrder.HasValue) filter.SortOrder = parameters.SortOrder.Value;
-
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = filter;
-        });
-        scope.Complete();
-
-        return result;
-    }
-
-    /// <summary>
-    /// Deletes a filter
-    /// </summary>
-    public async Task<CrudResult<bool>> DeleteFilter(Guid filterId, CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<bool>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var filter = await db.ProductFilters
-                .FirstOrDefaultAsync(f => f.Id == filterId, cancellationToken);
-
-            if (filter == null)
-            {
-                result.AddErrorMessage($"Filter with ID {filterId} not found");
-                return;
-            }
-
-            db.ProductFilters.Remove(filter);
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = true;
-        });
-        scope.Complete();
-
-        return result;
-    }
-
-    /// <summary>
-    /// Reorders filters within a group by setting their sort order based on the provided ordered list of IDs
-    /// </summary>
-    public async Task<CrudResult<bool>> ReorderFilters(Guid filterGroupId, List<Guid> orderedIds, CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<bool>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var filters = await db.ProductFilters
-                .Where(f => f.ProductFilterGroupId == filterGroupId && orderedIds.Contains(f.Id))
-                .ToListAsync(cancellationToken);
-
-            for (var i = 0; i < orderedIds.Count; i++)
-            {
-                var filter = filters.FirstOrDefault(f => f.Id == orderedIds[i]);
-                if (filter != null)
-                {
-                    filter.SortOrder = i;
-                }
-            }
-
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = true;
-        });
-        scope.Complete();
-
-        return result;
-    }
-
-    /// <summary>
-    /// Assigns filters to a product, replacing any existing filter assignments
-    /// </summary>
-    public async Task<CrudResult<bool>> AssignFiltersToProduct(Guid productId, List<Guid> filterIds, CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<bool>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-        {
-            var product = await db.Products
-                .Include(p => p.Filters)
-                .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken);
-
-            if (product == null)
-            {
-                result.AddErrorMessage($"Product with ID {productId} not found");
-                return;
-            }
-
-            // Get the filters to assign
-            var filtersToAssign = await db.ProductFilters
-                .Where(f => filterIds.Contains(f.Id))
-                .ToListAsync(cancellationToken);
-
-            // Clear existing and add new assignments
-            product.Filters.Clear();
-            foreach (var filter in filtersToAssign)
-            {
-                product.Filters.Add(filter);
-            }
-
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = true;
-        });
-        scope.Complete();
-
-        return result;
-    }
-
-    /// <summary>
-    /// Gets all filters assigned to a product
-    /// </summary>
-    public async Task<List<ProductFilter>> GetFiltersForProduct(Guid productId, CancellationToken cancellationToken = default)
-    {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-        {
-            var product = await db.Products
-                .Include(p => p.Filters)
-                .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken);
-
-            return product?.Filters.ToList() ?? [];
-        });
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
-    /// Gets filter groups by their IDs for batch loading (used by value converters).
-    /// </summary>
-    public async Task<List<ProductFilterGroup>> GetFilterGroupsByIds(IEnumerable<Guid> filterGroupIds, CancellationToken cancellationToken = default)
-    {
-        var idList = filterGroupIds.ToList();
-        if (idList.Count == 0) return [];
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductFilterGroups
-                .Include(g => g.Filters)
-                .Where(g => idList.Contains(g.Id))
-                .ToListAsync(cancellationToken));
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
-    /// Gets filters by their IDs for batch loading (used by value converters).
-    /// </summary>
-    public async Task<List<ProductFilter>> GetFiltersByIds(IEnumerable<Guid> filterIds, CancellationToken cancellationToken = default)
-    {
-        var idList = filterIds.ToList();
-        if (idList.Count == 0) return [];
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.ProductFilters
-                .Include(f => f.ParentGroup)
-                .Where(f => idList.Contains(f.Id))
-                .ToListAsync(cancellationToken));
-        scope.Complete();
-        return result;
     }
 
     /// <summary>
@@ -3616,8 +2513,6 @@ public class ProductService(
         scope.Complete();
         return result;
     }
-
-    #endregion
 
     #region Query/Count Operations
 
@@ -3709,6 +2604,29 @@ public class ProductService(
             return products.ToDictionary(
                 p => p.Id,
                 p => p.Images.FirstOrDefault() ?? p.RootImages.FirstOrDefault());
+        });
+        scope.Complete();
+        return result;
+    }
+
+    public async Task<Dictionary<Guid, string>> GetProductNamesByIdsAsync(IEnumerable<Guid> productIds, CancellationToken cancellationToken = default)
+    {
+        var ids = productIds.ToList();
+        if (ids.Count == 0)
+            return [];
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var products = await db.Products
+                .Include(p => p.ProductRoot)
+                .Where(p => ids.Contains(p.Id))
+                .Select(p => new { p.Id, p.Sku, RootName = p.ProductRoot!.RootName })
+                .ToListAsync(cancellationToken);
+
+            return products.ToDictionary(
+                p => p.Id,
+                p => p.RootName ?? p.Sku ?? "Unknown Product");
         });
         scope.Complete();
         return result;

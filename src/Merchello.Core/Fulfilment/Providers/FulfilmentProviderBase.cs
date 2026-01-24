@@ -1,5 +1,6 @@
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
+using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Http;
 
 namespace Merchello.Core.Fulfilment.Providers;
@@ -18,10 +19,10 @@ public abstract class FulfilmentProviderBase : IFulfilmentProvider
     public abstract FulfilmentProviderMetadata Metadata { get; }
 
     /// <inheritdoc />
-    public virtual ValueTask<IEnumerable<FulfilmentProviderConfigurationField>> GetConfigurationFieldsAsync(
+    public virtual ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult(Enumerable.Empty<FulfilmentProviderConfigurationField>());
+        return ValueTask.FromResult(Enumerable.Empty<ProviderConfigurationField>());
     }
 
     /// <inheritdoc />
@@ -55,7 +56,7 @@ public abstract class FulfilmentProviderBase : IFulfilmentProvider
             return Task.FromResult(FulfilmentOrderResult.Failed("Provider does not support order submission"));
         }
 
-        throw new NotImplementedException($"Provider {Metadata.Key} has not implemented SubmitOrderAsync");
+        return Task.FromResult(FulfilmentOrderResult.Failed($"Provider {Metadata.Key} has not implemented SubmitOrderAsync"));
     }
 
     /// <inheritdoc />

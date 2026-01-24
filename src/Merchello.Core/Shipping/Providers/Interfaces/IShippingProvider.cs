@@ -1,4 +1,5 @@
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Shared.Providers;
 
 namespace Merchello.Core.Shipping.Providers.Interfaces;
 
@@ -16,7 +17,7 @@ public interface IShippingProvider
     /// Gets the global configuration fields required by this provider (API keys, account numbers, etc.).
     /// Used to generate dynamic configuration UI in the backoffice Providers section.
     /// </summary>
-    ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(
+    ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -27,7 +28,7 @@ public interface IShippingProvider
     /// <remarks>
     /// Service type selection is handled separately via <see cref="GetSupportedServiceTypesAsync"/>.
     /// </remarks>
-    ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetMethodConfigFieldsAsync(
+    ValueTask<IEnumerable<ProviderConfigurationField>> GetMethodConfigFieldsAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -71,6 +72,37 @@ public interface IShippingProvider
         ShippingQuoteRequest request,
         IReadOnlyList<string> serviceTypes,
         IReadOnlyList<ShippingOptionSnapshot> shippingOptions,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Discovers available services for a specific origin/destination route.
+    /// Returns null if provider doesn't support dynamic discovery (use GetSupportedServiceTypesAsync instead).
+    /// </summary>
+    /// <param name="originCountryCode">Warehouse country (ISO 2-letter code).</param>
+    /// <param name="originPostalCode">Warehouse postal/zip code.</param>
+    /// <param name="destinationCountryCode">Customer country.</param>
+    /// <param name="destinationPostalCode">Customer postal/zip code (optional for country-level check).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Available service types for the route, or null if dynamic discovery is not supported.</returns>
+    Task<IReadOnlyList<ShippingServiceType>?> GetAvailableServicesAsync(
+        string originCountryCode,
+        string originPostalCode,
+        string destinationCountryCode,
+        string? destinationPostalCode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches rates for ALL available services on the route without pre-filtering.
+    /// Used by dynamic providers instead of GetRatesForServicesAsync.
+    /// Applies exclusions and markup from the warehouse config.
+    /// </summary>
+    /// <param name="request">The shipping quote request.</param>
+    /// <param name="warehouseConfig">Per-warehouse provider configuration (markup, exclusions).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A quote with all available service levels after config is applied, or null.</returns>
+    Task<ShippingRateQuote?> GetRatesForAllServicesAsync(
+        ShippingQuoteRequest request,
+        WarehouseProviderConfig warehouseConfig,
         CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -1,11 +1,15 @@
 using System.Text.Json;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Order;
 using Merchello.Core.Notifications.Shipment;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.Webhooks;
+using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Models;
 using Microsoft.Extensions.Logging;
@@ -22,6 +26,7 @@ namespace Merchello.Core.Protocols.UCP.Handlers;
 [NotificationHandlerPriority(3000)]
 public class UcpOrderWebhookHandler(
     IInvoiceService invoiceService,
+    IPaymentService paymentService,
     IWebhookSigner webhookSigner,
     ISigningKeyStore signingKeyStore,
     IHttpClientFactory httpClientFactory,
@@ -313,23 +318,24 @@ public class UcpOrderWebhookHandler(
         return "unfulfilled";
     }
 
-    private static string DeterminePaymentStatus(Invoice invoice)
+    private string DeterminePaymentStatus(Invoice invoice)
     {
-        if (invoice.Payments == null || invoice.Payments.Count == 0)
+        var status = paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
         {
-            return "unpaid";
-        }
+            Payments = invoice.Payments ?? [],
+            InvoiceTotal = invoice.Total,
+            CurrencyCode = invoice.CurrencyCode
+        });
 
-        var totalPaid = invoice.Payments
-            .Where(p => p.PaymentSuccess)
-            .Sum(p => p.Amount);
-
-        if (totalPaid >= invoice.Total)
+        return status.Status switch
         {
-            return "paid";
-        }
-
-        return totalPaid > 0 ? "partially_paid" : "unpaid";
+            InvoicePaymentStatus.Paid => "paid",
+            InvoicePaymentStatus.PartiallyPaid => "partially_paid",
+            InvoicePaymentStatus.PartiallyRefunded => "partially_refunded",
+            InvoicePaymentStatus.Refunded => "refunded",
+            InvoicePaymentStatus.AwaitingPayment => "awaiting_payment",
+            _ => "unpaid"
+        };
     }
 
     private static int GetFulfilledQuantity(LineItem lineItem, ICollection<Order>? orders)

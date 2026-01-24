@@ -1,7 +1,7 @@
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
-using Merchello.Core.Customers.Models;
+using Merchello.Core.Customers.Factories;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Notifications.CustomerNotifications;
 using Merchello.Core.Notifications.Interfaces;
@@ -25,6 +25,7 @@ public class CheckoutMemberService(
     IMemberSignInManager memberSignInManager,
     IMemberGroupService memberGroupService,
     ICustomerService customerService,
+    CustomerFactory customerFactory,
     IMerchelloNotificationPublisher notificationPublisher,
     IOptions<MerchelloSettings> settings,
     IOptions<IdentityOptions> identityOptions,
@@ -179,11 +180,7 @@ public class CheckoutMemberService(
 
         // Find or create customer for the notification
         var customer = await customerService.GetByEmailAsync(email, ct);
-        customer ??= new Customer
-        {
-            Email = email,
-            FirstName = member.Name?.Split(' ').FirstOrDefault() ?? ""
-        };
+        customer ??= customerFactory.CreateFromEmail(email);
 
         // Generate reset token via Umbraco Identity
         var token = await memberManager.GeneratePasswordResetTokenAsync(member);
@@ -243,12 +240,10 @@ public class CheckoutMemberService(
 
     /// <inheritdoc />
     public async Task<ResetPasswordResultDto> ResetPasswordAsync(
-        string email,
-        string token,
-        string newPassword,
+        ResetPasswordParameters parameters,
         CancellationToken ct = default)
     {
-        var member = await memberManager.FindByEmailAsync(email);
+        var member = await memberManager.FindByEmailAsync(parameters.Email);
         if (member == null)
         {
             return new ResetPasswordResultDto
@@ -259,7 +254,7 @@ public class CheckoutMemberService(
         }
 
         // Validate new password against requirements
-        var passwordValidation = await memberManager.ValidatePasswordAsync(newPassword);
+        var passwordValidation = await memberManager.ValidatePasswordAsync(parameters.NewPassword);
         if (!passwordValidation.Succeeded)
         {
             return new ResetPasswordResultDto
@@ -271,7 +266,7 @@ public class CheckoutMemberService(
         }
 
         // Reset the password
-        var resetResult = await memberManager.ResetPasswordAsync(member, token, newPassword);
+        var resetResult = await memberManager.ResetPasswordAsync(member, parameters.Token, parameters.NewPassword);
 
         if (!resetResult.Succeeded)
         {
@@ -285,7 +280,7 @@ public class CheckoutMemberService(
             };
         }
 
-        logger.LogInformation("Password reset completed for member: {Email}", email);
+        logger.LogInformation("Password reset completed for member: {Email}", parameters.Email);
 
         return new ResetPasswordResultDto { Success = true };
     }

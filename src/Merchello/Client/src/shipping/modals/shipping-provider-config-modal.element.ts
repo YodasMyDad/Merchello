@@ -171,13 +171,13 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
       case "Text":
       case "Url":
         return html`
-          <div class="form-field">
-            <label for="${field.key}">${field.label}${field.isRequired ? " *" : ""}</label>
-            ${field.description
-              ? html`<p class="field-description">${field.description}</p>`
-              : nothing}
+          <umb-property-layout
+            label="${field.label}"
+            description="${field.description ?? ""}"
+            ?mandatory=${field.isRequired}>
             <uui-input
-              id="${field.key}"
+              slot="editor"
+              label="${field.label}"
               type="${field.fieldType === "Url" ? "url" : "text"}"
               .value=${value}
               placeholder="${field.placeholder ?? ""}"
@@ -185,18 +185,18 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
               @input=${(e: Event) =>
                 this._handleValueChange(field.key, (e.target as HTMLInputElement).value)}
             ></uui-input>
-          </div>
+          </umb-property-layout>
         `;
 
       case "Password":
         return html`
-          <div class="form-field">
-            <label for="${field.key}">${field.label}${field.isRequired ? " *" : ""}</label>
-            ${field.description
-              ? html`<p class="field-description">${field.description}</p>`
-              : nothing}
+          <umb-property-layout
+            label="${field.label}"
+            description="${field.description ?? ""}${field.isSensitive && value ? " (stored securely)" : ""}"
+            ?mandatory=${field.isRequired}>
             <uui-input
-              id="${field.key}"
+              slot="editor"
+              label="${field.label}"
               type="password"
               .value=${value}
               placeholder="${field.placeholder ?? ""}"
@@ -204,62 +204,58 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
               @input=${(e: Event) =>
                 this._handleValueChange(field.key, (e.target as HTMLInputElement).value)}
             ></uui-input>
-            ${field.isSensitive && value
-              ? html`<small class="sensitive-note">Value is stored securely</small>`
-              : nothing}
-          </div>
+          </umb-property-layout>
         `;
 
       case "Textarea":
         return html`
-          <div class="form-field">
-            <label for="${field.key}">${field.label}${field.isRequired ? " *" : ""}</label>
-            ${field.description
-              ? html`<p class="field-description">${field.description}</p>`
-              : nothing}
+          <umb-property-layout
+            label="${field.label}"
+            description="${field.description ?? ""}"
+            ?mandatory=${field.isRequired}>
             <uui-textarea
-              id="${field.key}"
+              slot="editor"
+              label="${field.label}"
               .value=${value}
               placeholder="${field.placeholder ?? ""}"
               ?required=${field.isRequired}
               @input=${(e: Event) =>
                 this._handleValueChange(field.key, (e.target as HTMLTextAreaElement).value)}
             ></uui-textarea>
-          </div>
+          </umb-property-layout>
         `;
 
       case "Checkbox":
         return html`
-          <div class="form-field checkbox-field">
+          <umb-property-layout
+            label="${field.label}"
+            description="${field.description ?? ""}">
             <uui-checkbox
-              id="${field.key}"
+              slot="editor"
               ?checked=${value === "true"}
               @change=${(e: Event) =>
                 this._handleCheckboxChange(field.key, (e.target as HTMLInputElement).checked)}
             >
               ${field.label}
             </uui-checkbox>
-            ${field.description
-              ? html`<p class="field-description">${field.description}</p>`
-              : nothing}
-          </div>
+          </umb-property-layout>
         `;
 
       case "Select":
         return html`
-          <div class="form-field">
-            <label for="${field.key}">${field.label}${field.isRequired ? " *" : ""}</label>
-            ${field.description
-              ? html`<p class="field-description">${field.description}</p>`
-              : nothing}
+          <umb-property-layout
+            label="${field.label}"
+            description="${field.description ?? ""}"
+            ?mandatory=${field.isRequired}>
             <uui-select
-              id="${field.key}"
+              slot="editor"
+              label="${field.label}"
               .options=${this._getSelectFieldOptions(field, value)}
               ?required=${field.isRequired}
               @change=${(e: Event) =>
                 this._handleValueChange(field.key, (e.target as HTMLSelectElement).value)}
             ></uui-select>
-          </div>
+          </umb-property-layout>
         `;
 
       default:
@@ -291,39 +287,35 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
                     `
                   : nothing}
 
-                <div class="form-field">
-                  <label for="displayName">Display Name *</label>
-                  <p class="field-description">
-                    The name shown to customers when selecting shipping.
-                  </p>
-                  <uui-input
-                    id="displayName"
-                    .value=${this._displayName}
-                    required
-                    @input=${(e: Event) =>
-                      (this._displayName = (e.target as HTMLInputElement).value)}
-                  ></uui-input>
-                </div>
+                <uui-box headline="Provider Settings">
+                  <umb-property-layout label="Display Name" description="The name shown to customers when selecting shipping" ?mandatory=${true}>
+                    <uui-input
+                      slot="editor"
+                      label="Display Name"
+                      .value=${this._displayName}
+                      required
+                      @input=${(e: Event) =>
+                        (this._displayName = (e.target as HTMLInputElement).value)}
+                    ></uui-input>
+                  </umb-property-layout>
 
-                <div class="form-field checkbox-field">
-                  <uui-checkbox
-                    id="isEnabled"
-                    ?checked=${this._isEnabled}
-                    @change=${(e: Event) =>
-                      (this._isEnabled = (e.target as HTMLInputElement).checked)}
-                  >
-                    Enabled
-                  </uui-checkbox>
-                  <p class="field-description">
-                    When enabled, this shipping provider will be active and available for use.
-                  </p>
-                </div>
+                  <umb-property-layout label="Enabled" description="When enabled, this shipping provider will be active and available for use">
+                    <uui-checkbox
+                      slot="editor"
+                      ?checked=${this._isEnabled}
+                      @change=${(e: Event) =>
+                        (this._isEnabled = (e.target as HTMLInputElement).checked)}
+                    >
+                      Enabled
+                    </uui-checkbox>
+                  </umb-property-layout>
+                </uui-box>
 
                 ${this._fields.length > 0
                   ? html`
-                      <hr />
-                      <h3>Provider Configuration</h3>
-                      ${this._fields.map((field) => this._renderField(field))}
+                      <uui-box headline="Provider Configuration">
+                        ${this._fields.map((field) => this._renderField(field))}
+                      </uui-box>
                     `
                   : nothing}
               `}
@@ -358,6 +350,12 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
       display: block;
     }
 
+    #main {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-5);
+    }
+
     .loading {
       display: flex;
       flex-direction: column;
@@ -375,51 +373,15 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
-      margin-bottom: var(--uui-size-space-4);
     }
 
-    h3 {
-      margin: var(--uui-size-space-4) 0;
-      font-size: 1rem;
-      font-weight: 600;
+    uui-box {
+      --uui-box-default-padding: var(--uui-size-space-5);
     }
 
-    hr {
-      border: none;
-      border-top: 1px solid var(--uui-color-border);
-      margin: var(--uui-size-space-5) 0;
-    }
-
-    .form-field {
-      margin-bottom: var(--uui-size-space-4);
-    }
-
-    .form-field label {
-      display: block;
-      font-weight: 600;
-      margin-bottom: var(--uui-size-space-1);
-    }
-
-    .field-description {
-      margin: 0 0 var(--uui-size-space-2) 0;
-      font-size: 0.875rem;
-      color: var(--uui-color-text-alt);
-    }
-
-    .checkbox-field .field-description {
-      margin-left: var(--uui-size-space-5);
-    }
-
-    .sensitive-note {
-      display: block;
-      margin-top: var(--uui-size-space-1);
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
-    }
-
-    uui-input,
-    uui-textarea,
-    uui-select {
+    umb-property-layout uui-input,
+    umb-property-layout uui-textarea,
+    umb-property-layout uui-select {
       width: 100%;
     }
 

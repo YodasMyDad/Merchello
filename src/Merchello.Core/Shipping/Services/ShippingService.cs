@@ -12,6 +12,7 @@ using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Shipping.Services.Parameters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -158,18 +159,13 @@ public class ShippingService(
     /// Gets shipping options for a basket, grouping products by warehouse and shipping option availability.
     /// Delegates to the configured order grouping strategy for custom grouping logic.
     /// </summary>
-    /// <param name="basket">The shopping basket</param>
-    /// <param name="shippingAddress">The shipping destination address</param>
-    /// <param name="selectedShippingOptions">Previously selected shipping options (keyed by WarehouseId or GroupId)</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Shipping groups with available options for each group</returns>
     public async Task<ShippingSelectionResult> GetShippingOptionsForBasket(
-        Basket basket,
-        Address shippingAddress,
-        Dictionary<Guid, Guid>? selectedShippingOptions = null,
+        GetShippingOptionsParameters parameters,
         CancellationToken cancellationToken = default)
     {
-        selectedShippingOptions ??= [];
+        var basket = parameters.Basket;
+        var shippingAddress = parameters.ShippingAddress;
+        var selectedShippingOptions = parameters.SelectedShippingOptions ?? [];
 
         if (string.IsNullOrWhiteSpace(shippingAddress.CountryCode))
         {
@@ -298,57 +294,111 @@ public class ShippingService(
     public async Task<OrderShippingSummary> GetShippingSummaryForReview(
         Basket basket,
         Address shippingAddress,
-        Dictionary<Guid, Guid> selectedShippingOptions,
+        Dictionary<Guid, string> selectedShippingOptions,
         CancellationToken cancellationToken = default)
     {
         // Get warehouse assignments using the same logic as GetShippingOptionsForBasket
-        var shippingResult = await GetShippingOptionsForBasket(
-            basket,
-            shippingAddress,
-            selectedShippingOptions,
-            cancellationToken);
+        var shippingResult = await GetShippingOptionsForBasket(new GetShippingOptionsParameters
+        {
+            Basket = basket,
+            ShippingAddress = shippingAddress,
+            SelectedShippingOptions = selectedShippingOptions
+        }, cancellationToken);
 
-        var shippingOptionIds = selectedShippingOptions.Values.ToList();
+        // Parse SelectionKeys to extract flat-rate ShippingOptionIds
+        var shippingOptionIds = new List<Guid>();
+        foreach (var selKey in selectedShippingOptions.Values)
+        {
+            if (Extensions.SelectionKeyExtensions.TryParse(selKey, out var optionId, out _, out _) && optionId.HasValue)
+            {
+                shippingOptionIds.Add(optionId.Value);
+            }
+        }
 
-        using var scope = efCoreScopeProvider.CreateScope();
-        var shippingOptions = await scope.ExecuteWithContextAsync(async db =>
-            await db.ShippingOptions
-                .AsNoTracking()
-                .Where(so => shippingOptionIds.Contains(so.Id))
-                .ToDictionaryAsync(so => so.Id, cancellationToken));
-        scope.Complete();
+        // Load flat-rate shipping options from database
+        Dictionary<Guid, ShippingOption> shippingOptions = [];
+        if (shippingOptionIds.Count > 0)
+        {
+            using var scope = efCoreScopeProvider.CreateScope();
+            shippingOptions = await scope.ExecuteWithContextAsync(async db =>
+                await db.ShippingOptions
+                    .AsNoTracking()
+                    .Where(so => shippingOptionIds.Contains(so.Id))
+                    .ToDictionaryAsync(so => so.Id, cancellationToken));
+            scope.Complete();
+        }
 
         List<ShipmentSummary> shipmentSummaries = [];
 
         foreach (var warehouseGroup in shippingResult.WarehouseGroups)
         {
             // Try to get selection by GroupId first, then fall back to WarehouseId for backward compatibility
-            var selectedOptionId = selectedShippingOptions.GetValueOrDefault(warehouseGroup.GroupId);
-            if (selectedOptionId == Guid.Empty)
+            var selectionKey = selectedShippingOptions.GetValueOrDefault(warehouseGroup.GroupId);
+            if (string.IsNullOrEmpty(selectionKey))
             {
-                selectedOptionId = selectedShippingOptions.GetValueOrDefault(warehouseGroup.WarehouseId);
+                selectionKey = selectedShippingOptions.GetValueOrDefault(warehouseGroup.WarehouseId);
             }
 
-            if (selectedOptionId == Guid.Empty || !shippingOptions.TryGetValue(selectedOptionId, out var shippingOption))
+            if (string.IsNullOrEmpty(selectionKey))
             {
                 continue;
             }
 
-            shipmentSummaries.Add(new ShipmentSummary
+            // Parse the SelectionKey
+            if (!Extensions.SelectionKeyExtensions.TryParse(selectionKey, out var optionId, out var providerKey, out var serviceCode))
             {
-                ShippingMethodName = shippingOption.Name ?? string.Empty,
-                DeliveryTimeDescription = shippingOption.IsNextDay
-                    ? "Next Day Delivery"
-                    : $"{shippingOption.DaysFrom}-{shippingOption.DaysTo} days",
-                ShippingCost = shippingOption.FixedCost ?? 0,
-                LineItems = warehouseGroup.LineItems.Select(li => new ShipmentLineItemSummary
+                continue;
+            }
+
+            ShipmentSummary? summary = null;
+
+            if (optionId.HasValue && shippingOptions.TryGetValue(optionId.Value, out var shippingOption))
+            {
+                // Flat-rate option from database
+                summary = new ShipmentSummary
                 {
-                    Name = li.Name,
-                    Sku = li.Sku,
-                    Quantity = li.Quantity,
-                    Amount = li.Amount
-                }).ToList()
-            });
+                    ShippingMethodName = shippingOption.Name ?? string.Empty,
+                    DeliveryTimeDescription = shippingOption.IsNextDay
+                        ? "Next Day Delivery"
+                        : $"{shippingOption.DaysFrom}-{shippingOption.DaysTo} days",
+                    ShippingCost = shippingOption.FixedCost ?? 0,
+                    LineItems = warehouseGroup.LineItems.Select(li => new ShipmentLineItemSummary
+                    {
+                        Name = li.Name,
+                        Sku = li.Sku,
+                        Quantity = li.Quantity,
+                        Amount = li.Amount
+                    }).ToList()
+                };
+            }
+            else if (!string.IsNullOrEmpty(providerKey))
+            {
+                // Dynamic provider option - find in AvailableShippingOptions
+                var dynamicOption = warehouseGroup.AvailableShippingOptions
+                    .FirstOrDefault(o => o.SelectionKey == selectionKey);
+
+                if (dynamicOption != null)
+                {
+                    summary = new ShipmentSummary
+                    {
+                        ShippingMethodName = dynamicOption.Name,
+                        DeliveryTimeDescription = dynamicOption.DeliveryTimeDescription,
+                        ShippingCost = dynamicOption.Cost,
+                        LineItems = warehouseGroup.LineItems.Select(li => new ShipmentLineItemSummary
+                        {
+                            Name = li.Name,
+                            Sku = li.Sku,
+                            Quantity = li.Quantity,
+                            Amount = li.Amount
+                        }).ToList()
+                    };
+                }
+            }
+
+            if (summary != null)
+            {
+                shipmentSummaries.Add(summary);
+            }
         }
 
         return new OrderShippingSummary
@@ -364,11 +414,11 @@ public class ShippingService(
         CancellationToken cancellationToken = default)
     {
         // Get warehouse assignments using the warehouse selection logic
-        var shippingResult = await GetShippingOptionsForBasket(
-            basket,
-            shippingAddress,
-            null,
-            cancellationToken);
+        var shippingResult = await GetShippingOptionsForBasket(new GetShippingOptionsParameters
+        {
+            Basket = basket,
+            ShippingAddress = shippingAddress
+        }, cancellationToken);
 
         return shippingResult.WarehouseGroups
             .Select(g => g.WarehouseId)
@@ -472,7 +522,12 @@ public class ShippingService(
                         continue;
 
                     // Check if this option can ship to the destination
-                    var cost = GetShippingCostForDestination(shippingOption, countryCode, stateOrProvinceCode);
+                    var cost = GetShippingCostForDestination(new ShippingCostQuery
+                    {
+                        ShippingOption = shippingOption,
+                        CountryCode = countryCode,
+                        StateOrProvinceCode = stateOrProvinceCode
+                    });
                     if (cost == null && shippingOption.FixedCost == null)
                         continue; // No rate available for this destination
 
@@ -534,17 +589,14 @@ public class ShippingService(
     }
 
     /// <inheritdoc />
-    public decimal? GetShippingCostForDestination(
-        ShippingOption shippingOption,
-        string countryCode,
-        string? stateOrProvinceCode)
+    public decimal? GetShippingCostForDestination(ShippingCostQuery query)
     {
-        var costs = shippingOption.ShippingCosts?.ToList() ?? [];
+        var costs = query.ShippingOption.ShippingCosts?.ToList() ?? [];
         return shippingCostResolver.ResolveBaseCost(
             costs,
-            countryCode,
-            stateOrProvinceCode,
-            shippingOption.FixedCost);
+            query.CountryCode,
+            query.StateOrProvinceCode,
+            query.ShippingOption.FixedCost);
     }
 
     /// <summary>
@@ -622,7 +674,12 @@ public class ShippingService(
 
             foreach (var shippingOption in warehouse.ShippingOptions)
             {
-                var cost = GetShippingCostForDestination(shippingOption, destinationCountryCode, destinationStateCode);
+                var cost = GetShippingCostForDestination(new ShippingCostQuery
+                {
+                    ShippingOption = shippingOption,
+                    CountryCode = destinationCountryCode,
+                    StateOrProvinceCode = destinationStateCode
+                });
 
                 // Check if provider uses live rates (external API) vs configured costs
                 var usesLiveRates = usesLiveRatesLookup.GetValueOrDefault(shippingOption.ProviderKey, false);

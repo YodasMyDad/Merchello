@@ -40,6 +40,7 @@ public class OrderListItemDto
     public bool IsMultiCurrency { get; set; }
     public InvoicePaymentStatus PaymentStatus { get; set; }
     public string PaymentStatusDisplay { get; set; } = string.Empty;
+    public string PaymentStatusCssClass { get; set; } = "unpaid";
     public string FulfillmentStatus { get; set; } = string.Empty;
     public bool IsCancelled { get; set; }
     public int ItemCount { get; set; }

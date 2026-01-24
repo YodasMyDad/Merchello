@@ -3,6 +3,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Core.Shared.Providers;
 
 namespace Merchello.Core.Payments.Providers;
 
@@ -24,10 +26,10 @@ public abstract class PaymentProviderBase : IPaymentProvider
     public abstract IReadOnlyList<PaymentMethodDefinition> GetAvailablePaymentMethods();
 
     /// <inheritdoc />
-    public virtual ValueTask<IEnumerable<PaymentProviderConfigurationField>> GetConfigurationFieldsAsync(
+    public virtual ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult<IEnumerable<PaymentProviderConfigurationField>>([]);
+        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>([]);
     }
 
     /// <inheritdoc />

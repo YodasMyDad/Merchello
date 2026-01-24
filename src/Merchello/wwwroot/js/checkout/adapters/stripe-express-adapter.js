@@ -44,9 +44,14 @@
                 // Each express method shares the same Elements instance
                 if (!elementsInstance) {
                     currentConfig = config;
+                    if (!sdkConfig.amount) {
+                        console.error('[StripeExpress] sdkConfig.amount not provided by backend - cannot initialize');
+                        return;
+                    }
+
                     elementsInstance = stripeInstance.elements({
                         mode: 'payment',
-                        amount: sdkConfig.amount || Math.round(config.amount * 100),
+                        amount: sdkConfig.amount,
                         currency: sdkConfig.currency || config.currency.toLowerCase(),
                         appearance: {
                             theme: 'stripe',

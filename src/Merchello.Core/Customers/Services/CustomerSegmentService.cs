@@ -54,6 +54,22 @@ public class CustomerSegmentService(
     }
 
     /// <inheritdoc />
+    public async Task<List<CustomerSegment>> GetByIdsAsync(List<Guid> segmentIds, CancellationToken ct = default)
+    {
+        if (segmentIds.Count == 0)
+            return [];
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.CustomerSegments
+                .AsNoTracking()
+                .Where(s => segmentIds.Contains(s.Id))
+                .ToListAsync(ct));
+        scope.Complete();
+        return result;
+    }
+
+    /// <inheritdoc />
     public async Task<CrudResult<CustomerSegment>> CreateAsync(CreateSegmentParameters parameters, CancellationToken ct = default)
     {
         var result = new CrudResult<CustomerSegment>();
@@ -285,34 +301,34 @@ public class CustomerSegmentService(
     }
 
     /// <inheritdoc />
-    public async Task<PaginatedList<CustomerSegmentMember>> GetMembersAsync(Guid segmentId, int page = 1, int pageSize = 50, CancellationToken ct = default)
+    public async Task<PaginatedList<CustomerSegmentMember>> GetMembersAsync(GetSegmentMembersParameters parameters, CancellationToken ct = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             var query = db.CustomerSegmentMembers
-                .Where(m => m.SegmentId == segmentId)
+                .Where(m => m.SegmentId == parameters.SegmentId)
                 .OrderByDescending(m => m.DateAdded);
 
             var totalCount = await query.CountAsync(ct);
             var items = await query
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip((parameters.Page - 1) * parameters.PageSize)
+                .Take(parameters.PageSize)
                 .AsNoTracking()
                 .ToListAsync(ct);
 
-            return new PaginatedList<CustomerSegmentMember>(items, totalCount, page, pageSize);
+            return new PaginatedList<CustomerSegmentMember>(items, totalCount, parameters.Page, parameters.PageSize);
         });
         scope.Complete();
         return result;
     }
 
     /// <inheritdoc />
-    public async Task<CrudResult<bool>> AddMembersAsync(Guid segmentId, List<Guid> customerIds, Guid? addedBy = null, string? notes = null, CancellationToken ct = default)
+    public async Task<CrudResult<bool>> AddMembersAsync(AddSegmentMembersParameters parameters, CancellationToken ct = default)
     {
         var result = new CrudResult<bool>();
 
-        if (customerIds.Count == 0)
+        if (parameters.CustomerIds.Count == 0)
         {
             result.AddErrorMessage("No customer IDs provided.");
             return result;
@@ -322,7 +338,7 @@ public class CustomerSegmentService(
 
         // Verify segment exists and is manual
         var segment = await scope.ExecuteWithContextAsync(async db =>
-            await db.CustomerSegments.FirstOrDefaultAsync(s => s.Id == segmentId, ct));
+            await db.CustomerSegments.FirstOrDefaultAsync(s => s.Id == parameters.SegmentId, ct));
 
         if (segment == null)
         {
@@ -341,11 +357,11 @@ public class CustomerSegmentService(
         // Get existing member IDs to avoid duplicates
         var existingMemberIds = await scope.ExecuteWithContextAsync(async db =>
             await db.CustomerSegmentMembers
-                .Where(m => m.SegmentId == segmentId && customerIds.Contains(m.CustomerId))
+                .Where(m => m.SegmentId == parameters.SegmentId && parameters.CustomerIds.Contains(m.CustomerId))
                 .Select(m => m.CustomerId)
                 .ToListAsync(ct));
 
-        var newCustomerIds = customerIds.Except(existingMemberIds).ToList();
+        var newCustomerIds = parameters.CustomerIds.Except(existingMemberIds).ToList();
 
         if (newCustomerIds.Count == 0)
         {
@@ -357,7 +373,7 @@ public class CustomerSegmentService(
 
         // Create membership records
         var newMembers = newCustomerIds.Select(customerId =>
-            segmentFactory.CreateMember(segmentId, customerId, addedBy, notes)).ToList();
+            segmentFactory.CreateMember(parameters.SegmentId, customerId, parameters.AddedBy, parameters.Notes)).ToList();
 
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
@@ -368,7 +384,7 @@ public class CustomerSegmentService(
 
         result.ResultObject = true;
         result.AddSuccessMessage($"Added {newMembers.Count} customer(s) to segment '{segment.Name}'.");
-        logger.LogInformation("Added {Count} customers to segment {SegmentId}", newMembers.Count, segmentId);
+        logger.LogInformation("Added {Count} customers to segment {SegmentId}", newMembers.Count, parameters.SegmentId);
 
         return result;
     }
@@ -487,7 +503,7 @@ public class CustomerSegmentService(
         if (segment.SegmentType == CustomerSegmentType.Manual)
         {
             // For manual segments, just return member IDs
-            var members = await GetMembersAsync(segmentId, page, pageSize, ct);
+            var members = await GetMembersAsync(new GetSegmentMembersParameters { SegmentId = segmentId, Page = page, PageSize = pageSize }, ct);
             return new PaginatedList<Guid>(
                 members.Items.Select(m => m.CustomerId),
                 members.TotalItems,

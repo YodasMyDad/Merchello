@@ -75,6 +75,7 @@ public class OrderDetailDto
 
     public InvoicePaymentStatus PaymentStatus { get; set; }
     public string PaymentStatusDisplay { get; set; } = string.Empty;
+    public string PaymentStatusCssClass { get; set; } = "unpaid";
     public string FulfillmentStatus { get; set; } = string.Empty;
 
     /// <summary>

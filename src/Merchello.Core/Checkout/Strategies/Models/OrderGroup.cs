@@ -39,9 +39,10 @@ public class OrderGroup
     public List<ShippingOptionInfo> AvailableShippingOptions { get; set; } = [];
 
     /// <summary>
-    /// Currently selected shipping option for this group (if any).
+    /// Currently selected shipping option SelectionKey for this group (if any).
+    /// Format: "so:{guid}" for flat-rate, "dyn:{provider}:{serviceCode}" for dynamic.
     /// </summary>
-    public Guid? SelectedShippingOptionId { get; set; }
+    public string? SelectedShippingOptionId { get; set; }
 
     /// <summary>
     /// Extended data for custom strategy implementations.

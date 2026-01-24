@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -102,18 +103,14 @@ public class CheckoutSessionService(
     }
 
     /// <inheritdoc />
-    public async Task SaveAddressesAsync(
-        Guid basketId,
-        Address billing,
-        Address? shipping,
-        bool sameAsBilling,
-        bool acceptsMarketing = false,
-        CancellationToken ct = default)
+    public async Task SaveAddressesAsync(SaveSessionAddressesParameters parameters, CancellationToken ct = default)
     {
-        var checkoutSession = await GetSessionAsync(basketId, ct);
+        var checkoutSession = await GetSessionAsync(parameters.BasketId, ct);
 
         // Determine new shipping address
-        var newShippingAddress = sameAsBilling ? billing : (shipping ?? billing);
+        var newShippingAddress = parameters.SameAsBilling
+            ? parameters.Billing
+            : (parameters.Shipping ?? parameters.Billing);
 
         // If shipping country changed, clear shipping selections as they may no longer be valid
         var oldShippingCountry = checkoutSession.ShippingAddress.CountryCode;
@@ -124,12 +121,12 @@ public class CheckoutSessionService(
             checkoutSession.SelectedDeliveryDates.Clear();
         }
 
-        checkoutSession.BillingAddress = billing;
+        checkoutSession.BillingAddress = parameters.Billing;
         checkoutSession.ShippingAddress = newShippingAddress;
-        checkoutSession.ShippingSameAsBilling = sameAsBilling;
-        checkoutSession.AcceptsMarketing = acceptsMarketing;
+        checkoutSession.ShippingSameAsBilling = parameters.SameAsBilling;
+        checkoutSession.AcceptsMarketing = parameters.AcceptsMarketing;
 
-        SaveSession(basketId, checkoutSession);
+        SaveSession(parameters.BasketId, checkoutSession);
     }
 
     /// <inheritdoc />
@@ -141,21 +138,22 @@ public class CheckoutSessionService(
     }
 
     /// <inheritdoc />
-    public async Task SaveShippingSelectionsAsync(
-        Guid basketId,
-        Dictionary<Guid, Guid> selections,
-        Dictionary<Guid, DateTime>? deliveryDates = null,
-        CancellationToken ct = default)
+    public async Task SaveShippingSelectionsAsync(SaveSessionShippingSelectionsParameters parameters, CancellationToken ct = default)
     {
-        var checkoutSession = await GetSessionAsync(basketId, ct);
-        checkoutSession.SelectedShippingOptions = selections;
+        var checkoutSession = await GetSessionAsync(parameters.BasketId, ct);
+        checkoutSession.SelectedShippingOptions = parameters.Selections;
 
-        if (deliveryDates != null)
+        if (parameters.DeliveryDates != null)
         {
-            checkoutSession.SelectedDeliveryDates = deliveryDates;
+            checkoutSession.SelectedDeliveryDates = parameters.DeliveryDates;
         }
 
-        SaveSession(basketId, checkoutSession);
+        if (parameters.QuotedCosts != null)
+        {
+            checkoutSession.QuotedShippingCosts = parameters.QuotedCosts;
+        }
+
+        SaveSession(parameters.BasketId, checkoutSession);
     }
 
     /// <inheritdoc />

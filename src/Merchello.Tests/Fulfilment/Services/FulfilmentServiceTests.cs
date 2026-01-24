@@ -5,6 +5,7 @@ using Merchello.Core.Fulfilment.Providers;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
 using Merchello.Core.Fulfilment.Services;
 using Merchello.Core.Fulfilment.Services.Interfaces;
+using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Tests.Fulfilment.Providers;
 using Merchello.Tests.TestInfrastructure;
@@ -469,6 +470,7 @@ public class FulfilmentServiceTests
         return new FulfilmentService(
             _fixture.DbContext,
             providerManagerMock.Object,
+            new ShipmentFactory(),
             Options.Create(new FulfilmentSettings { MaxRetryAttempts = 5 }),
             NullLogger<FulfilmentService>.Instance);
     }
@@ -487,6 +489,7 @@ public class FulfilmentServiceTests
         return new FulfilmentService(
             _fixture.DbContext,
             providerManagerMock.Object,
+            new ShipmentFactory(),
             Options.Create(new FulfilmentSettings { MaxRetryAttempts = 5 }),
             NullLogger<FulfilmentService>.Instance);
     }

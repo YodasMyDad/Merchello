@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Merchello.Core.Shared.Providers;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Tax.Providers.Models;
 
@@ -15,10 +16,10 @@ public abstract class TaxProviderBase : ITaxProvider
     public abstract TaxProviderMetadata Metadata { get; }
 
     /// <inheritdoc />
-    public virtual ValueTask<IEnumerable<TaxProviderConfigurationField>> GetConfigurationFieldsAsync(
+    public virtual ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult<IEnumerable<TaxProviderConfigurationField>>([]);
+        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>([]);
     }
 
     /// <inheritdoc />

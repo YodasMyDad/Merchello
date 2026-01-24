@@ -4,6 +4,7 @@ using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Tax.Providers.Models;
 using Merchello.Core.Tax.Services.Interfaces;
+using Merchello.Core.Shared.Providers;
 
 namespace Merchello.Core.Tax.Providers.BuiltIn;
 
@@ -27,10 +28,10 @@ public class ManualTaxProvider(
         SetupInstructions: "Configure tax rates by editing Tax Groups in the Merchello section."
     );
 
-    public override ValueTask<IEnumerable<TaxProviderConfigurationField>> GetConfigurationFieldsAsync(
+    public override ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult<IEnumerable<TaxProviderConfigurationField>>(
+        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>(
         [
             new()
             {

@@ -1,6 +1,7 @@
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Providers;
 using Merchello.Core.Shipping.Providers;
+using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Http;
 
 namespace Merchello.Tests.Fulfilment.Providers;
@@ -47,12 +48,12 @@ public class TestFulfilmentProvider : FulfilmentProviderBase
     // Exception simulation
     public Exception? ExceptionToThrow { get; set; }
 
-    public override ValueTask<IEnumerable<FulfilmentProviderConfigurationField>> GetConfigurationFieldsAsync(
+    public override ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult<IEnumerable<FulfilmentProviderConfigurationField>>(
+        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>(
         [
-            new FulfilmentProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "apiKey",
                 Label = "API Key",
@@ -61,7 +62,7 @@ public class TestFulfilmentProvider : FulfilmentProviderBase
                 IsSensitive = true,
                 Description = "Your test API key"
             },
-            new FulfilmentProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "warehouseId",
                 Label = "Warehouse ID",
@@ -69,7 +70,7 @@ public class TestFulfilmentProvider : FulfilmentProviderBase
                 IsRequired = false,
                 Description = "Optional warehouse identifier"
             },
-            new FulfilmentProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "sandbox",
                 Label = "Sandbox Mode",

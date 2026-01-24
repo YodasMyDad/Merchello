@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Settings.Dtos;
+using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

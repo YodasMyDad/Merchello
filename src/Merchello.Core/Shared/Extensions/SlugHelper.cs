@@ -5,17 +5,17 @@ namespace Merchello.Core.Shared.Extensions;
 
     public class SlugHelper
     {
-        private Config Configuration { get; }
+        private SlugHelperConfig Configuration { get; }
 
         public SlugHelper() :
-            this(new Config())
+            this(new SlugHelperConfig())
         {
 
         }
 
-        public SlugHelper(Config? config)
+        public SlugHelper(SlugHelperConfig? config)
         {
-            Configuration = config ?? new Config();
+            Configuration = config ?? new SlugHelperConfig();
         }
 
         public string GenerateSlug(string? str)
@@ -78,14 +78,6 @@ namespace Merchello.Core.Shared.Extensions;
         private static string CollapseConsecutiveHyphens(string str)
         {
             return Regex.Replace(str, @"-{2,}", "-");
-        }
-
-        public class Config
-        {
-            public Dictionary<string, string> CharacterReplacements { get; set; } = new() { { " ", "-" } };
-            public bool ForceLowerCase { get; set; } = true;
-            public bool CollapseWhiteSpace { get; set; } = true;
-            public string DeniedCharactersRegex { get; set; } = @"[^a-zA-Z0-9\-\._]";
         }
 
     }

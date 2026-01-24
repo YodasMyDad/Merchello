@@ -11,7 +11,10 @@ public class FulfilmentSyncLogDto
     public Guid ProviderConfigurationId { get; set; }
     public string? ProviderDisplayName { get; set; }
     public FulfilmentSyncType SyncType { get; set; }
+    public string SyncTypeLabel { get; set; } = string.Empty;
     public FulfilmentSyncStatus Status { get; set; }
+    public string StatusLabel { get; set; } = string.Empty;
+    public string StatusCssClass { get; set; } = string.Empty;
     public int ItemsProcessed { get; set; }
     public int ItemsSucceeded { get; set; }
     public int ItemsFailed { get; set; }

@@ -14,10 +14,14 @@ using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Core.Notifications.CheckoutNotifications;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Services;
+using Merchello.Core.Storefront.Services.Interfaces;
+using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -30,7 +34,10 @@ using Umbraco.Cms.Core.Services;
 namespace Merchello.Controllers;
 
 /// <summary>
-/// Public API controller for frontend checkout payment operations
+/// Public API controller for frontend checkout payment operations.
+/// AllowAnonymous is intentional: anti-forgery tokens are not required because
+/// SameSite cookies prevent CSRF, JSON content-type blocks form-based attacks,
+/// and session-based ownership validation ensures only the basket owner can proceed.
 /// </summary>
 [ApiController]
 [Route("api/merchello/checkout")]
@@ -41,9 +48,11 @@ public class CheckoutPaymentsApiController(
     IInvoiceService invoiceService,
     ICheckoutService checkoutService,
     ICheckoutSessionService checkoutSessionService,
+    ICheckoutMemberService checkoutMemberService,
     IStorefrontContextService storefrontContextService,
     ICurrencyService currencyService,
     IExchangeRateCache exchangeRateCache,
+    IMerchelloNotificationPublisher notificationPublisher,
     IMediaService mediaService,
     MediaUrlGeneratorCollection mediaUrlGenerators,
     IOptions<MerchelloSettings> settings,
@@ -381,6 +390,37 @@ public class CheckoutPaymentsApiController(
         // Get checkout session
         var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
 
+        // Validate checkout session has progressed far enough for payment.
+        // If the session is still at the Information step, the customer hasn't completed
+        // address entry or shipping selection (prevents stage-skipping via direct API calls).
+        if (session.CurrentStep < CheckoutStep.Shipping &&
+            string.IsNullOrWhiteSpace(session.BillingAddress.Email))
+        {
+            return BadRequest(new PaymentSessionResultDto
+            {
+                Success = false,
+                ErrorMessage = "Your checkout session has expired. Please restart checkout."
+            });
+        }
+
+        // Validate digital products require a customer account
+        if (await checkoutService.BasketHasDigitalProductsAsync(basket, cancellationToken))
+        {
+            var isAuthenticated = User.Identity?.IsAuthenticated == true;
+            var email = session.BillingAddress.Email;
+            var hasMemberAccount = !isAuthenticated && !string.IsNullOrEmpty(email) &&
+                await checkoutMemberService.GetMemberKeyByEmailAsync(email, cancellationToken) != null;
+
+            if (!isAuthenticated && !hasMemberAccount)
+            {
+                return BadRequest(new PaymentSessionResultDto
+                {
+                    Success = false,
+                    ErrorMessage = "An account is required to purchase digital products. Please sign in or create an account."
+                });
+            }
+        }
+
         // Fallback to basket addresses if session is empty (session expired, different browser, etc.)
         // The basket addresses are persisted to the database, while session is volatile (HTTP session)
         if (string.IsNullOrWhiteSpace(session.BillingAddress.Name) &&
@@ -451,6 +491,10 @@ public class CheckoutPaymentsApiController(
                 basket.Id,
                 string.Join(", ", unavailableItems));
 
+            await notificationPublisher.PublishAsync(
+                new StockValidationFailedAtCheckoutNotification(basket.Id, unavailableItems),
+                cancellationToken);
+
             return BadRequest(new PaymentSessionResultDto
             {
                 Success = false,
@@ -475,8 +519,15 @@ public class CheckoutPaymentsApiController(
             }
             else
             {
-                invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
+                var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
+                if (!createResult.Successful || createResult.ResultObject == null)
+                {
+                    var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
+                    logger.LogError("Invoice creation failed for basket {BasketId}: {Error}", basket.Id, errorMsg);
+                    return BadRequest(errorMsg);
+                }
 
+                invoice = createResult.ResultObject;
                 logger.LogInformation(
                     "Invoice {InvoiceId} created from basket {BasketId}",
                     invoice.Id,
@@ -814,7 +865,15 @@ public class CheckoutPaymentsApiController(
                 });
             }
 
-            invoice = await invoiceService.CreateOrderFromBasketAsync(currentBasket, session, source: null, cancellationToken);
+            var createResult = await invoiceService.CreateOrderFromBasketAsync(currentBasket, session, source: null, cancellationToken);
+            if (!createResult.Successful || createResult.ResultObject == null)
+            {
+                var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
+                logger.LogError("Invoice creation failed for basket {BasketId}: {Error}", currentBasket.Id, errorMsg);
+                return BadRequest(errorMsg);
+            }
+
+            invoice = createResult.ResultObject;
             await checkoutSessionService.SetInvoiceIdAsync(currentBasket.Id, invoice.Id, cancellationToken);
             invoiceCreatedInThisRequest = true;
 
@@ -1121,7 +1180,7 @@ public class CheckoutPaymentsApiController(
             // Check if user already has shipping selections in their session
             var existingSession = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
 
-            Dictionary<Guid, Guid> shippingSelections;
+            Dictionary<Guid, string> shippingSelections;
 
             if (existingSession.SelectedShippingOptions.Count > 0)
             {
@@ -1158,20 +1217,20 @@ public class CheckoutPaymentsApiController(
             }
 
             // Validation passed - NOW persist addresses to session
-            await checkoutSessionService.SaveAddressesAsync(
-                basket.Id,
-                billingAddress,
-                sameAsBilling ? null : shippingAddress,
-                sameAsBilling,
-                acceptsMarketing: false,
-                cancellationToken);
+            await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
+            {
+                BasketId = basket.Id,
+                Billing = billingAddress,
+                Shipping = sameAsBilling ? null : shippingAddress,
+                SameAsBilling = sameAsBilling
+            }, cancellationToken);
 
             // Save shipping selections to session
-            await checkoutSessionService.SaveShippingSelectionsAsync(
-                basket.Id,
-                shippingSelections,
-                null,
-                cancellationToken);
+            await checkoutSessionService.SaveShippingSelectionsAsync(new SaveSessionShippingSelectionsParameters
+            {
+                BasketId = basket.Id,
+                Selections = shippingSelections
+            }, cancellationToken);
 
             // Get the persisted session for subsequent operations
             var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
@@ -1195,7 +1254,15 @@ public class CheckoutPaymentsApiController(
             }
             else
             {
-                invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
+                var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
+                if (!createResult.Successful || createResult.ResultObject == null)
+                {
+                    var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
+                    logger.LogError("Express checkout invoice creation failed for basket {BasketId}: {Error}", basket.Id, errorMsg);
+                    return Ok(new ExpressCheckoutResponseDto { Success = false, ErrorMessage = errorMsg });
+                }
+
+                invoice = createResult.ResultObject;
                 logger.LogInformation(
                     "Express checkout: Invoice {InvoiceId} created from basket {BasketId} for {Email}",
                     invoice.Id,
@@ -1367,7 +1434,7 @@ public class CheckoutPaymentsApiController(
         var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, tempSession, cancellationToken);
         if (groupingResult.Success && groupingResult.Groups.Count > 0)
         {
-            Dictionary<Guid, Guid> shippingSelections;
+            Dictionary<Guid, string> shippingSelections;
 
             if (existingSession.SelectedShippingOptions.Count > 0)
             {
@@ -1397,7 +1464,12 @@ public class CheckoutPaymentsApiController(
 
         // Sync basket currency from storefront context (same as main checkout)
         var currencyCtx = await storefrontContextService.GetCurrencyContextAsync(cancellationToken);
-        basket = await checkoutService.EnsureBasketCurrencyAsync(basket, currencyCtx.CurrencyCode, currencyCtx.CurrencySymbol, cancellationToken);
+        basket = await checkoutService.EnsureBasketCurrencyAsync(new EnsureBasketCurrencyParameters
+        {
+            Basket = basket,
+            CurrencyCode = currencyCtx.CurrencyCode,
+            CurrencySymbol = currencyCtx.CurrencySymbol
+        }, cancellationToken);
 
         // Use same calculation path as invoice creation (NOT display amounts)
         // This ensures PayPal authorizes the exact amount that will be charged
@@ -1418,7 +1490,8 @@ public class CheckoutPaymentsApiController(
                     $"No exchange rate available for express checkout: {presentmentCurrency} → {storeCurrency}");
             }
 
-            // Convert using centralized method (divides by rate)
+            // Pre-invoice amount calculation: derives payment amount from basket totals before full invoice creation.
+            // Uses the same ConvertToPresentmentCurrency path as InvoiceService.ApplyPricingRateToStoreAmounts().
             total = currencyService.ConvertToPresentmentCurrency(basket.Total, pricingQuote.Rate, presentmentCurrency);
             subTotal = currencyService.ConvertToPresentmentCurrency(basket.SubTotal, pricingQuote.Rate, presentmentCurrency);
             shipping = currencyService.ConvertToPresentmentCurrency(basket.Shipping, pricingQuote.Rate, presentmentCurrency);
@@ -1440,6 +1513,7 @@ public class CheckoutPaymentsApiController(
             SubTotal = subTotal,
             Shipping = shipping,
             Tax = tax,
+            DecimalPlaces = currencyCtx.DecimalPlaces,
             Methods = []
         };
 
@@ -1566,7 +1640,7 @@ public class CheckoutPaymentsApiController(
         var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, tempSession, cancellationToken);
         if (groupingResult.Success && groupingResult.Groups.Count > 0)
         {
-            Dictionary<Guid, Guid> shippingSelections;
+            Dictionary<Guid, string> shippingSelections;
 
             if (existingSession.SelectedShippingOptions.Count > 0)
             {
@@ -1596,7 +1670,12 @@ public class CheckoutPaymentsApiController(
 
         // Sync basket currency from storefront context (same as main checkout)
         var currencyCtx2 = await storefrontContextService.GetCurrencyContextAsync(cancellationToken);
-        basket = await checkoutService.EnsureBasketCurrencyAsync(basket, currencyCtx2.CurrencyCode, currencyCtx2.CurrencySymbol, cancellationToken);
+        basket = await checkoutService.EnsureBasketCurrencyAsync(new EnsureBasketCurrencyParameters
+        {
+            Basket = basket,
+            CurrencyCode = currencyCtx2.CurrencyCode,
+            CurrencySymbol = currencyCtx2.CurrencySymbol
+        }, cancellationToken);
 
         // Calculate amounts using invoice path (divide by rate)
         var presentmentCurrency = currencyCtx2.CurrencyCode;
@@ -1790,7 +1869,15 @@ public class CheckoutPaymentsApiController(
             }
             else
             {
-                invoice = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
+                var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
+                if (!createResult.Successful || createResult.ResultObject == null)
+                {
+                    var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
+                    logger.LogError("Widget create-order ({Provider}) invoice creation failed for basket {BasketId}: {Error}", providerAlias, basket.Id, errorMsg);
+                    return Ok(new CreateWidgetOrderResultDto { Success = false, ErrorMessage = errorMsg });
+                }
+
+                invoice = createResult.ResultObject;
                 logger.LogInformation(
                     "Widget create-order ({Provider}): Invoice {InvoiceId} created from basket {BasketId}",
                     providerAlias,
@@ -1867,22 +1954,6 @@ public class CheckoutPaymentsApiController(
             });
         }
     }
-
-    /// <summary>
-    /// Create a PayPal order for the standard Widget payment flow.
-    /// </summary>
-    /// <remarks>
-    /// This endpoint is deprecated. Use POST /{providerAlias}/create-order instead.
-    /// </remarks>
-    [Obsolete("Use CreateWidgetOrder with providerAlias parameter instead.")]
-    [HttpPost("paypal/create-order")]
-    [ProducesResponseType<CreateWidgetOrderResultDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ApiExplorerSettings(IgnoreApi = true)]
-    public Task<IActionResult> CreatePayPalOrder(
-        [FromBody] CreateWidgetOrderDto request,
-        CancellationToken cancellationToken = default) =>
-        CreateWidgetOrder("paypal", request, cancellationToken);
 
     /// <summary>
     /// Capture an approved widget order.
@@ -2048,22 +2119,6 @@ public class CheckoutPaymentsApiController(
             });
         }
     }
-
-    /// <summary>
-    /// Capture an approved PayPal order.
-    /// </summary>
-    /// <remarks>
-    /// This endpoint is deprecated. Use POST /{providerAlias}/capture-order instead.
-    /// </remarks>
-    [Obsolete("Use CaptureWidgetOrder with providerAlias parameter instead.")]
-    [HttpPost("paypal/capture-order")]
-    [ProducesResponseType<CaptureWidgetOrderResultDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ApiExplorerSettings(IgnoreApi = true)]
-    public Task<IActionResult> CapturePayPalOrder(
-        [FromBody] CaptureWidgetOrderDto request,
-        CancellationToken cancellationToken = default) =>
-        CaptureWidgetOrder("paypal", request, cancellationToken);
 
     // =====================================================
     // Helper Methods

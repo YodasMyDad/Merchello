@@ -134,22 +134,24 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
     return html`
       <umb-body-layout headline="Test ${provider?.displayName ?? 'Provider'}">
         <div id="main">
-          <div class="provider-info">
-            <div class="info-row">
-              <span class="info-label">Provider</span>
-              <span class="info-value">${provider?.displayName}</span>
+          <uui-box>
+            <div class="provider-info">
+              <div class="info-row">
+                <span class="info-label">Provider</span>
+                <span class="info-value">${provider?.displayName}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Provider Key</span>
+                <span class="info-value monospace">${provider?.key}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Status</span>
+                <span class="status-badge ${provider?.isEnabled ? 'enabled' : 'disabled'}">
+                  ${provider?.isEnabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
             </div>
-            <div class="info-row">
-              <span class="info-label">Provider Key</span>
-              <span class="info-value monospace">${provider?.key}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Status</span>
-              <span class="status-badge ${provider?.isEnabled ? 'enabled' : 'disabled'}">
-                ${provider?.isEnabled ? 'Enabled' : 'Disabled'}
-              </span>
-            </div>
-          </div>
+          </uui-box>
 
           <uui-tab-group>
             <uui-tab
@@ -390,9 +392,7 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
     }
 
     .provider-info {
-      padding: var(--uui-size-space-4);
-      background: var(--uui-color-surface-alt);
-      border-radius: var(--uui-border-radius);
+      padding: 0;
     }
 
     .info-row {
@@ -439,7 +439,7 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
     }
 
     uui-tab-group {
-      border-bottom: 1px solid var(--uui-color-border);
+      --uui-tab-divider: var(--uui-color-border);
     }
 
     .tab-content {

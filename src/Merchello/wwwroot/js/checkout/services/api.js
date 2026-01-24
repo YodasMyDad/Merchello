@@ -107,7 +107,7 @@ export const checkoutApi = {
      * @param {Object} data
      * @param {string} data.countryCode
      * @param {string} [data.stateCode]
-     * @param {boolean} [data.autoSelectCheapestShipping]
+     * @param {boolean} [data.autoSelectShipping]
      * @param {string} [data.email]
      * @param {Object.<string, string>} [data.previousShippingSelections] - Previous shipping selections to restore (groupId -> optionId)
      * @returns {Promise<{success: boolean, message?: string, basket?: BasketTotals & {errors?: BasketError[]}, shippingGroups?: ShippingGroup[]}>}
@@ -139,13 +139,14 @@ export const checkoutApi = {
 
     /**
      * Save shipping selections
-     * @param {Object.<string, string>} selections - Map of groupId to shippingOptionId
+     * @param {Object.<string, string>} selections - Map of groupId to selectionKey
+     * @param {Object.<string, number>} [quotedCosts] - Map of groupId to quoted cost (preserves dynamic rates)
      * @returns {Promise<{success: boolean, message?: string, basket?: BasketTotals}>}
      */
-    saveShipping(selections) {
+    saveShipping(selections, quotedCosts) {
         return fetchJson(`${BASE_URL}/shipping`, {
             method: 'POST',
-            body: JSON.stringify({ selections })
+            body: JSON.stringify({ selections, quotedCosts })
         });
     },
 

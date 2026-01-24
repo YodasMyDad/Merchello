@@ -14,6 +14,9 @@ namespace Merchello.Core.Products.ValueConverters;
 /// Always returns IEnumerable&lt;ProductType&gt; for consistency.
 /// For single-select usage (maxItems=1), use .FirstOrDefault() in templates.
 /// Value converters are singletons, so we use IServiceScopeFactory to resolve scoped services.
+/// Uses sync-over-async (Task.Run + GetAwaiter().GetResult()) because Umbraco's IPropertyValueConverter
+/// interface is synchronous. This is a known Umbraco platform limitation that cannot be resolved
+/// without upstream API changes.
 /// </remarks>
 public class ProductTypePickerValueConverter(IServiceScopeFactory serviceScopeFactory) : PropertyValueConverterBase
 {
@@ -56,13 +59,13 @@ public class ProductTypePickerValueConverter(IServiceScopeFactory serviceScopeFa
             return Enumerable.Empty<ProductType>();
         }
 
-        // Value converters are singletons, so create a scope to resolve scoped IProductService
+        // Value converters are singletons, so create a scope to resolve scoped IProductTypeService
         using var scope = serviceScopeFactory.CreateScope();
-        var productService = scope.ServiceProvider.GetRequiredService<IProductService>();
+        var productTypeService = scope.ServiceProvider.GetRequiredService<IProductTypeService>();
 
         // Fetch product types using batch method to avoid N+1 queries
         // Use Task.Run to avoid sync-over-async deadlocks in ASP.NET contexts
-        var productTypes = Task.Run(() => productService.GetProductTypesByIds(ids)).GetAwaiter().GetResult();
+        var productTypes = Task.Run(() => productTypeService.GetProductTypesByIds(ids)).GetAwaiter().GetResult();
 
         // Preserve the original order from the stored value
         List<ProductType> orderedProductTypes = new(ids.Count);

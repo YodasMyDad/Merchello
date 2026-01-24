@@ -36,11 +36,15 @@ namespace Merchello.Core.Data;
 /// </summary>
 public class DbSeeder(
     IProductService productService,
+    IProductFilterService productFilterService,
+    IProductTypeService productTypeService,
+    IProductCollectionService productCollectionService,
     IShippingService shippingService,
     IShipmentService shipmentService,
     IInvoiceService invoiceService,
     IPaymentService paymentService,
     ICheckoutService checkoutService,
+    ICheckoutDiscountService checkoutDiscountService,
     ICustomerService customerService,
     ICustomerSegmentService customerSegmentService,
     IDiscountService discountService,
@@ -194,7 +198,7 @@ public class DbSeeder(
         Dictionary<string, ProductType> types = [];
         foreach (var (alias, name) in typeNames)
         {
-            var result = await productService.CreateProductType(name, cancellationToken);
+            var result = await productTypeService.CreateProductType(name, cancellationToken);
             if (result.ResultObject != null)
             {
                 types[alias] = result.ResultObject;
@@ -223,7 +227,7 @@ public class DbSeeder(
         Dictionary<string, ProductCollection> collections = [];
         foreach (var (alias, name) in collectionNames)
         {
-            var result = await productService.CreateProductCollection(name, cancellationToken);
+            var result = await productCollectionService.CreateProductCollection(name, cancellationToken);
             if (result.ResultObject != null)
             {
                 collections[alias] = result.ResultObject;
@@ -520,12 +524,12 @@ public class DbSeeder(
             ("Tan", "#D2B48C"), ("Pink", "#FFC0CB"), ("Sky Blue", "#87CEEB")
         };
 
-        var colorGroupResult = await productService.CreateFilterGroup("Color", cancellationToken);
+        var colorGroupResult = await productFilterService.CreateFilterGroup("Color", cancellationToken);
         if (colorGroupResult.ResultObject != null)
         {
             foreach (var (name, hexColour) in colors)
             {
-                var filterResult = await productService.CreateFilter(new CreateFilterParameters
+                var filterResult = await productFilterService.CreateFilter(new CreateFilterParameters
                 {
                     FilterGroupId = colorGroupResult.ResultObject.Id,
                     Name = name,
@@ -541,12 +545,12 @@ public class DbSeeder(
 
         // Extended sizes including XS
         var sizes = new[] { "XS", "S", "M", "L", "XL", "2XL" };
-        var sizeGroupResult = await productService.CreateFilterGroup("Size", cancellationToken);
+        var sizeGroupResult = await productFilterService.CreateFilterGroup("Size", cancellationToken);
         if (sizeGroupResult.ResultObject != null)
         {
             foreach (var size in sizes)
             {
-                var filterResult = await productService.CreateFilter(new CreateFilterParameters
+                var filterResult = await productFilterService.CreateFilter(new CreateFilterParameters
                 {
                     FilterGroupId = sizeGroupResult.ResultObject.Id,
                     Name = size
@@ -571,8 +575,12 @@ public class DbSeeder(
         {
             if (string.IsNullOrEmpty(billing.Email)) continue;
 
-            var customer = await customerService.GetOrCreateByEmailAsync(
-                billing.Email, billing, acceptsMarketing: false, cancellationToken);
+            var customer = await customerService.GetOrCreateByEmailAsync(new GetOrCreateCustomerParameters
+            {
+                Email = billing.Email,
+                BillingAddress = billing,
+                AcceptsMarketing = false
+            }, cancellationToken);
             customers.Add(customer);
         }
 
@@ -602,7 +610,11 @@ public class DbSeeder(
 
         // Add the first 5 customers as VIP members
         var vipCustomerIds = customers.Take(5).Select(c => c.Id).ToList();
-        await customerSegmentService.AddMembersAsync(segment.Id, vipCustomerIds, ct: cancellationToken);
+        await customerSegmentService.AddMembersAsync(new AddSegmentMembersParameters
+        {
+            SegmentId = segment.Id,
+            CustomerIds = vipCustomerIds
+        }, cancellationToken);
 
         return segment;
     }
@@ -977,6 +989,7 @@ public class DbSeeder(
             .ToList();
 
         await productService.CreateProductRootWithVariantsAsync(
+            productFilterService,
             name,
             description,
             price,
@@ -1005,6 +1018,7 @@ public class DbSeeder(
         {
             var variantName = $"{name} - £{amount:0}";
             await productService.CreateProductRootWithVariantsAsync(
+                productFilterService,
                 variantName,
                 description,
                 amount,
@@ -1049,6 +1063,7 @@ public class DbSeeder(
 
         // Create the product normally first
         var result = await productService.CreateProductRootWithVariantsAsync(
+            productFilterService,
             name,
             description,
             price,
@@ -1179,15 +1194,19 @@ public class DbSeeder(
         }
 
         // Apply automatic discounts
-        basket = await checkoutService.RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
+        basket = await checkoutDiscountService.RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
 
         // 4. Get shipping options - this will create warehouse groups via the strategy
         var shippingResult = await shippingService.GetShippingOptionsForBasket(
-            basket, shippingAddress, null, cancellationToken);
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            }, cancellationToken);
 
         if (shippingResult.WarehouseGroups.Count == 0)
         {
-            logger.LogWarning("No shipping options for multi-warehouse test case: {Description}", 
+            logger.LogWarning("No shipping options for multi-warehouse test case: {Description}",
                 testCaseDescription);
             return;
         }
@@ -1207,11 +1226,11 @@ public class DbSeeder(
         }
 
         // 5. Select first available shipping option for each group
-        Dictionary<Guid, Guid> selectedShippingOptions = [];
+        Dictionary<Guid, string> selectedShippingOptions = [];
         foreach (var group in shippingResult.WarehouseGroups)
         {
             var firstOption = group.AvailableShippingOptions.First();
-            selectedShippingOptions[group.GroupId] = firstOption.ShippingOptionId;
+            selectedShippingOptions[group.GroupId] = firstOption.SelectionKey;
         }
 
         // 6. Build checkout session
@@ -1224,8 +1243,14 @@ public class DbSeeder(
         };
 
         // 7. Create invoice/orders via InvoiceService
-        var invoice = await invoiceService.CreateOrderFromBasketAsync(
+        var invoiceResult = await invoiceService.CreateOrderFromBasketAsync(
             basket, checkoutSession, source: null, cancellationToken);
+        if (!invoiceResult.Successful || invoiceResult.ResultObject == null)
+        {
+            logger.LogError("Failed to create seeded invoice: {Error}", invoiceResult.Messages.FirstOrDefault()?.Message);
+            return;
+        }
+        var invoice = invoiceResult.ResultObject;
 
         // 8. Record payment (Stripe) via PaymentService
         await paymentService.RecordPaymentAsync(
@@ -1316,11 +1341,15 @@ public class DbSeeder(
             }
 
             // Apply automatic discounts (10% off T-Shirts, etc.)
-            basket = await checkoutService.RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
+            basket = await checkoutDiscountService.RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
 
             // 2. Get shipping options - THIS TESTS THE ORDER GROUPING STRATEGY
             var shippingResult = await shippingService.GetShippingOptionsForBasket(
-                basket, shippingAddress, null, cancellationToken);
+                new GetShippingOptionsParameters
+                {
+                    Basket = basket,
+                    ShippingAddress = shippingAddress
+                }, cancellationToken);
 
             // Skip if no shipping options (e.g., no warehouse serves this region)
             if (shippingResult.WarehouseGroups.Count == 0)
@@ -1331,7 +1360,7 @@ public class DbSeeder(
             }
 
             // 3. Build checkout session - select shipping option per group (mix of flat-rate and FedEx)
-            Dictionary<Guid, Guid> selectedShippingOptions = [];
+            Dictionary<Guid, string> selectedShippingOptions = [];
             foreach (var group in shippingResult.WarehouseGroups)
             {
                 // Prefer FedEx options ~40% of the time for US orders
@@ -1340,8 +1369,8 @@ public class DbSeeder(
                 var useFedex = fedexOptions.Count > 0 && random.Next(100) < 40;
 
                 selectedShippingOptions[group.GroupId] = useFedex
-                    ? fedexOptions[random.Next(fedexOptions.Count)].ShippingOptionId
-                    : options[random.Next(options.Count)].ShippingOptionId;
+                    ? fedexOptions[random.Next(fedexOptions.Count)].SelectionKey
+                    : options[random.Next(options.Count)].SelectionKey;
             }
 
             var checkoutSession = new CheckoutSession
@@ -1355,8 +1384,14 @@ public class DbSeeder(
             // 4. Create invoice/orders - THIS TESTS FULL ORDER CREATION
             try
             {
-                var invoice = await invoiceService.CreateOrderFromBasketAsync(
+                var invoiceResult = await invoiceService.CreateOrderFromBasketAsync(
                     basket, checkoutSession, source: null, cancellationToken);
+                if (!invoiceResult.Successful || invoiceResult.ResultObject == null)
+                {
+                    logger.LogWarning("Failed to create seeded invoice for basket: {Error}", invoiceResult.Messages.FirstOrDefault()?.Message);
+                    continue;
+                }
+                var invoice = invoiceResult.ResultObject;
 
                 // Track multi-warehouse orders
                 if (invoice.Orders?.Count > 1)
@@ -1859,7 +1894,11 @@ public class DbSeeder(
 
                     // Get shipping options
                     var shippingResult = await shippingService.GetShippingOptionsForBasket(
-                        basket, shippingAddress, null, cancellationToken);
+                        new GetShippingOptionsParameters
+                        {
+                            Basket = basket,
+                            ShippingAddress = shippingAddress
+                        }, cancellationToken);
 
                     if (shippingResult.WarehouseGroups.Count == 0)
                     {
@@ -1868,7 +1907,7 @@ public class DbSeeder(
 
                     // Select first shipping option per group
                     var selectedShippingOptions = shippingResult.WarehouseGroups
-                        .ToDictionary(g => g.GroupId, g => g.AvailableShippingOptions.First().ShippingOptionId);
+                        .ToDictionary(g => g.GroupId, g => g.AvailableShippingOptions.First().SelectionKey);
 
                     var checkoutSession = new CheckoutSession
                     {
@@ -1879,8 +1918,14 @@ public class DbSeeder(
                     };
 
                     // Create invoice (DueDate is set automatically from customer's PaymentTermsDays)
-                    var invoice = await invoiceService.CreateOrderFromBasketAsync(
+                    var invoiceResult = await invoiceService.CreateOrderFromBasketAsync(
                         basket, checkoutSession, source: null, cancellationToken);
+                    if (!invoiceResult.Successful || invoiceResult.ResultObject == null)
+                    {
+                        logger.LogWarning("Failed to create outstanding balance invoice: {Error}", invoiceResult.Messages.FirstOrDefault()?.Message);
+                        continue;
+                    }
+                    var invoice = invoiceResult.ResultObject;
 
                     // Adjust the DueDate to create the desired scenario
                     var targetDueDate = now.AddDays(dueDaysOffset);
@@ -2063,7 +2108,11 @@ public class DbSeeder(
 
         foreach (var status in transitionPath)
         {
-            var result = await invoiceService.UpdateOrderStatusAsync(orderId, status, null, cancellationToken);
+            var result = await invoiceService.UpdateOrderStatusAsync(new UpdateOrderStatusParameters
+            {
+                OrderId = orderId,
+                NewStatus = status
+            }, cancellationToken);
             if (!result.Successful)
             {
                 // Log but don't fail - seeding should be resilient

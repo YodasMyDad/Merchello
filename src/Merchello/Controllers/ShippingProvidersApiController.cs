@@ -8,6 +8,7 @@ using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
+using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -76,7 +77,7 @@ public class ShippingProvidersApiController(
     /// Get configuration fields for a shipping provider
     /// </summary>
     [HttpGet("shipping-providers/{key}/fields")]
-    [ProducesResponseType<List<ShippingProviderFieldDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<List<ProviderConfigurationFieldDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProviderFields(string key, CancellationToken cancellationToken = default)
     {
@@ -528,9 +529,9 @@ public class ShippingProvidersApiController(
         };
     }
 
-    private static ShippingProviderFieldDto MapToFieldDto(ShippingProviderConfigurationField field)
+    private static ProviderConfigurationFieldDto MapToFieldDto(ProviderConfigurationField field)
     {
-        return new ShippingProviderFieldDto
+        return new ProviderConfigurationFieldDto
         {
             Key = field.Key,
             Label = field.Label,

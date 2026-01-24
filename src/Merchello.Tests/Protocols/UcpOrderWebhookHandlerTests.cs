@@ -3,11 +3,15 @@ using System.Text.Json;
 using Merchello.Core;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Notifications.Order;
 using Merchello.Core.Notifications.Shipment;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.UCP.Handlers;
 using Merchello.Core.Protocols.Webhooks;
+using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Models;
 using Microsoft.Extensions.Logging;
@@ -24,6 +28,7 @@ namespace Merchello.Tests.Protocols;
 public class UcpOrderWebhookHandlerTests
 {
     private readonly Mock<IInvoiceService> _invoiceServiceMock;
+    private readonly Mock<IPaymentService> _paymentServiceMock;
     private readonly Mock<IWebhookSigner> _webhookSignerMock;
     private readonly Mock<ISigningKeyStore> _signingKeyStoreMock;
     private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
@@ -35,6 +40,10 @@ public class UcpOrderWebhookHandlerTests
     public UcpOrderWebhookHandlerTests()
     {
         _invoiceServiceMock = new Mock<IInvoiceService>();
+        _paymentServiceMock = new Mock<IPaymentService>();
+        _paymentServiceMock
+            .Setup(x => x.CalculatePaymentStatus(It.IsAny<CalculatePaymentStatusParameters>()))
+            .Returns(new PaymentStatusDetails { Status = InvoicePaymentStatus.AwaitingPayment });
         _webhookSignerMock = new Mock<IWebhookSigner>();
         _signingKeyStoreMock = new Mock<ISigningKeyStore>();
         _httpClientFactoryMock = new Mock<IHttpClientFactory>();
@@ -61,6 +70,7 @@ public class UcpOrderWebhookHandlerTests
 
         _handler = new UcpOrderWebhookHandler(
             _invoiceServiceMock.Object,
+            _paymentServiceMock.Object,
             _webhookSignerMock.Object,
             _signingKeyStoreMock.Object,
             _httpClientFactoryMock.Object,

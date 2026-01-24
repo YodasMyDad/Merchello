@@ -380,10 +380,12 @@ public class CustomerSegmentServiceTests
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
-        var result = await _segmentService.AddMembersAsync(
-            segment.Id,
-            [customer1.Id, customer2.Id],
-            notes: "Added via test");
+        var result = await _segmentService.AddMembersAsync(new AddSegmentMembersParameters
+        {
+            SegmentId = segment.Id,
+            CustomerIds = [customer1.Id, customer2.Id],
+            Notes = "Added via test"
+        });
 
         // Assert
         result.Successful.ShouldBeTrue();
@@ -404,10 +406,18 @@ public class CustomerSegmentServiceTests
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Add once
-        await _segmentService.AddMembersAsync(segment.Id, [customer.Id]);
+        await _segmentService.AddMembersAsync(new AddSegmentMembersParameters
+        {
+            SegmentId = segment.Id,
+            CustomerIds = [customer.Id]
+        });
 
         // Act - try to add again
-        var result = await _segmentService.AddMembersAsync(segment.Id, [customer.Id]);
+        var result = await _segmentService.AddMembersAsync(new AddSegmentMembersParameters
+        {
+            SegmentId = segment.Id,
+            CustomerIds = [customer.Id]
+        });
 
         // Assert
         result.Successful.ShouldBeTrue();
@@ -434,9 +444,11 @@ public class CustomerSegmentServiceTests
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
-        var result = await _segmentService.AddMembersAsync(
-            createResult.ResultObject!.Id,
-            [customer.Id]);
+        var result = await _segmentService.AddMembersAsync(new AddSegmentMembersParameters
+        {
+            SegmentId = createResult.ResultObject!.Id,
+            CustomerIds = [customer.Id]
+        });
 
         // Assert
         result.Successful.ShouldBeFalse();
@@ -483,7 +495,12 @@ public class CustomerSegmentServiceTests
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
-        var page1 = await _segmentService.GetMembersAsync(segment.Id, page: 1, pageSize: 5);
+        var page1 = await _segmentService.GetMembersAsync(new GetSegmentMembersParameters
+        {
+            SegmentId = segment.Id,
+            Page = 1,
+            PageSize = 5
+        });
 
         // Assert
         page1.ShouldNotBeNull();

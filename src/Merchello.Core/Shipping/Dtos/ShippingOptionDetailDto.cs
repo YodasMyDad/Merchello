@@ -3,7 +3,7 @@ namespace Merchello.Core.Shipping.Dtos;
 /// <summary>
 /// Full detail DTO including nested costs and weight tiers.
 /// </summary>
-public class ShippingOptionDetailDto : ShippingOptionDto
+public class ShippingOptionDetailDto : ShippingOptionListItemDto
 {
     public Dictionary<string, string>? ProviderSettings { get; set; }
     public TimeSpan? NextDayCutOffTime { get; set; }

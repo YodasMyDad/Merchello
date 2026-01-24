@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Models;
 
 namespace Merchello.Core.Products.Services.Interfaces;
@@ -40,5 +41,13 @@ public interface IInventoryService
     /// Checks if stock tracking is enabled for a product-warehouse combination
     /// </summary>
     Task<bool> IsStockTrackedAsync(Guid productId, Guid warehouseId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Validates stock availability for multiple items across warehouses in a single round-trip.
+    /// Returns detailed information about which items are unavailable.
+    /// </summary>
+    Task<ValidateBasketStockResult> ValidateBasketStockAsync(
+        IEnumerable<(Guid ProductId, Guid WarehouseId, int Quantity)> items,
+        CancellationToken cancellationToken = default);
 }
 

@@ -2,6 +2,7 @@ using Merchello.Core.Locality.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Tax.Providers.BuiltIn;
 using Merchello.Core.Tax.Providers.Models;
+using Merchello.Core.Shared.Providers;
 using Shouldly;
 using Xunit;
 
@@ -124,7 +125,7 @@ public class AvalaraTaxProviderTests
         environmentField.IsRequired.ShouldBeTrue();
         environmentField.DefaultValue.ShouldBe("sandbox");
         environmentField.Options.ShouldNotBeNull();
-        environmentField.Options.Count.ShouldBe(2);
+        environmentField.Options.Count().ShouldBe(2);
     }
 
     [Fact]

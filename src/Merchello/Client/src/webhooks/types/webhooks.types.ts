@@ -86,6 +86,7 @@ export interface OutboundDeliveryDto {
   entityType: string | null;
   status: OutboundDeliveryStatus;
   statusDisplay: string;
+  statusCssClass: string;
   responseStatusCode: number | null;
   errorMessage: string | null;
   dateCreated: string;
@@ -207,23 +208,6 @@ export interface DeliveryDetailModalData {
 
 export interface DeliveryDetailModalValue {
   retried: boolean;
-}
-
-// Helper function to get status badge class
-export function getDeliveryStatusBadgeClass(status: OutboundDeliveryStatus): string {
-  switch (status) {
-    case OutboundDeliveryStatus.Succeeded:
-      return "badge-positive";
-    case OutboundDeliveryStatus.Failed:
-    case OutboundDeliveryStatus.Abandoned:
-      return "badge-danger";
-    case OutboundDeliveryStatus.Retrying:
-      return "badge-warning";
-    case OutboundDeliveryStatus.Pending:
-    case OutboundDeliveryStatus.Sending:
-    default:
-      return "badge-default";
-  }
 }
 
 // Helper function to get auth type display options

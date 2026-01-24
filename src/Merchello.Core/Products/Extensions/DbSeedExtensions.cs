@@ -25,6 +25,7 @@ public static class ProductServiceDbSeedExtensions
     /// </summary>
     public static async Task<CrudResult<ProductRoot>> CreateProductRootWithVariantsAsync(
         this IProductService productService,
+        IProductFilterService productFilterService,
         string name,
         string? description,
         decimal price,
@@ -166,7 +167,7 @@ public static class ProductServiceDbSeedExtensions
                         var filterIds = GetFilterIdsForVariant(variant.Name, colors, sizes, colorFilters, sizeFilters);
                         if (filterIds.Count > 0)
                         {
-                            await productService.AssignFiltersToProduct(variant.Id, filterIds, cancellationToken);
+                            await productFilterService.AssignFiltersToProduct(variant.Id, filterIds, cancellationToken);
                         }
                     }
 

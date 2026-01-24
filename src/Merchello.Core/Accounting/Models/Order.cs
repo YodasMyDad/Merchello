@@ -28,14 +28,51 @@ public class Order
     public Guid WarehouseId { get; set; }
 
     /// <summary>
-    /// The selected shipping option/method for this order
+    /// The selected shipping option/method for this order.
+    /// For dynamic providers (FedEx, UPS), this will be Guid.Empty.
     /// </summary>
     public Guid ShippingOptionId { get; set; }
+
+    /// <summary>
+    /// The shipping provider key (e.g., "flat-rate", "fedex", "ups").
+    /// </summary>
+    public string? ShippingProviderKey { get; set; }
+
+    /// <summary>
+    /// The carrier service code for dynamic providers (e.g., "FEDEX_GROUND", "03").
+    /// Null for flat-rate options.
+    /// </summary>
+    public string? ShippingServiceCode { get; set; }
+
+    /// <summary>
+    /// The carrier service display name (e.g., "FedEx Ground").
+    /// Stored for historical display even if service codes change.
+    /// </summary>
+    public string? ShippingServiceName { get; set; }
+
+    /// <summary>
+    /// Classified speed tier for this order's shipping service.
+    /// Inferred from delivery time data at order creation (works for both flat-rate and dynamic options).
+    /// Used by fulfilment providers to determine 3PL-specific shipping methods.
+    /// Null when no delivery time data is available (uses DefaultShippingMethod fallback).
+    /// </summary>
+    public ShippingServiceCategory? ShippingServiceCategory { get; set; }
 
     /// <summary>
     /// Shipping cost for this order
     /// </summary>
     public decimal ShippingCost { get; set; }
+
+    /// <summary>
+    /// The shipping cost quoted to the customer at selection time.
+    /// Used for reconciliation if actual carrier rate differs at fulfillment.
+    /// </summary>
+    public decimal? QuotedShippingCost { get; set; }
+
+    /// <summary>
+    /// When the shipping rate was quoted to the customer.
+    /// </summary>
+    public DateTime? QuotedAt { get; set; }
 
     /// <summary>
     /// Store currency equivalent of ShippingCost (for reporting).

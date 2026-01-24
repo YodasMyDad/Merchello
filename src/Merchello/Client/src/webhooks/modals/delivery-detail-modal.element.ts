@@ -6,10 +6,7 @@ import type {
   DeliveryDetailModalValue,
   OutboundDeliveryDetailDto,
 } from "@webhooks/types/webhooks.types.js";
-import {
-  OutboundDeliveryStatus,
-  getDeliveryStatusBadgeClass,
-} from "@webhooks/types/webhooks.types.js";
+import { OutboundDeliveryStatus } from "@webhooks/types/webhooks.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
 @customElement("merchello-delivery-detail-modal")
@@ -123,9 +120,8 @@ export class MerchelloDeliveryDetailModalElement extends UmbModalBaseElement<
   private _renderStatusBadge(): unknown {
     if (!this._delivery) return nothing;
 
-    const badgeClass = getDeliveryStatusBadgeClass(this._delivery.status);
     return html`
-      <span class="status-badge ${badgeClass}">
+      <span class="status-badge ${this._delivery.statusCssClass}">
         ${this._delivery.statusDisplay}
       </span>
     `;

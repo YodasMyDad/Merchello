@@ -6,6 +6,8 @@ using Merchello.Core.Fulfilment.Providers;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
 using Merchello.Core.Fulfilment.Services.Interfaces;
 using Merchello.Core.Fulfilment.Services.Parameters;
+using Merchello.Core.Shared.Dtos;
+using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -69,7 +71,7 @@ public class FulfilmentProvidersApiController(
     /// Get configuration fields for a fulfilment provider.
     /// </summary>
     [HttpGet("fulfilment-providers/{key}/fields")]
-    [ProducesResponseType<List<FulfilmentProviderConfigurationFieldDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<List<ProviderConfigurationFieldDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProviderFields(string key, CancellationToken cancellationToken = default)
     {
@@ -411,6 +413,7 @@ public class FulfilmentProvidersApiController(
             SupportsProductSync = meta.SupportsProductSync,
             SupportsInventorySync = meta.SupportsInventorySync,
             ApiStyle = meta.ApiStyle,
+            ApiStyleLabel = GetApiStyleLabel(meta.ApiStyle),
             IsEnabled = registered.IsEnabled,
             ConfigurationId = registered.Configuration?.Id
         };
@@ -419,6 +422,7 @@ public class FulfilmentProvidersApiController(
     private static FulfilmentProviderListItemDto MapToListItemDto(RegisteredFulfilmentProvider registered)
     {
         var meta = registered.Metadata;
+        var syncMode = registered.Configuration?.InventorySyncMode ?? InventorySyncMode.Full;
         return new FulfilmentProviderListItemDto
         {
             Key = meta.Key,
@@ -429,8 +433,10 @@ public class FulfilmentProvidersApiController(
             IsEnabled = registered.IsEnabled,
             ConfigurationId = registered.Configuration?.Id,
             SortOrder = registered.SortOrder,
-            InventorySyncMode = registered.Configuration?.InventorySyncMode ?? InventorySyncMode.Full,
+            InventorySyncMode = syncMode,
+            InventorySyncModeLabel = GetInventorySyncModeLabel(syncMode),
             ApiStyle = meta.ApiStyle,
+            ApiStyleLabel = GetApiStyleLabel(meta.ApiStyle),
             SupportsOrderSubmission = meta.SupportsOrderSubmission,
             SupportsWebhooks = meta.SupportsWebhooks,
             SupportsProductSync = meta.SupportsProductSync,
@@ -438,9 +444,9 @@ public class FulfilmentProvidersApiController(
         };
     }
 
-    private static FulfilmentProviderConfigurationFieldDto MapToFieldDto(FulfilmentProviderConfigurationField field)
+    private static ProviderConfigurationFieldDto MapToFieldDto(ProviderConfigurationField field)
     {
-        return new FulfilmentProviderConfigurationFieldDto
+        return new ProviderConfigurationFieldDto
         {
             Key = field.Key,
             Label = field.Label,
@@ -466,13 +472,71 @@ public class FulfilmentProvidersApiController(
             ProviderConfigurationId = log.ProviderConfigurationId,
             ProviderDisplayName = providerLookup.TryGetValue(log.ProviderConfigurationId, out var name) ? name : null,
             SyncType = log.SyncType,
+            SyncTypeLabel = GetSyncTypeLabel(log.SyncType),
             Status = log.Status,
+            StatusLabel = GetStatusLabel(log.Status),
+            StatusCssClass = GetStatusCssClass(log.Status),
             ItemsProcessed = log.ItemsProcessed,
             ItemsSucceeded = log.ItemsSucceeded,
             ItemsFailed = log.ItemsFailed,
             ErrorMessage = log.ErrorMessage,
             StartedAt = log.StartedAt,
             CompletedAt = log.CompletedAt
+        };
+    }
+
+    private static string GetSyncTypeLabel(FulfilmentSyncType syncType)
+    {
+        return syncType switch
+        {
+            FulfilmentSyncType.ProductsOut => "Products Out",
+            FulfilmentSyncType.InventoryIn => "Inventory In",
+            _ => "Unknown"
+        };
+    }
+
+    private static string GetStatusLabel(FulfilmentSyncStatus status)
+    {
+        return status switch
+        {
+            FulfilmentSyncStatus.Pending => "Pending",
+            FulfilmentSyncStatus.Running => "Running",
+            FulfilmentSyncStatus.Completed => "Completed",
+            FulfilmentSyncStatus.Failed => "Failed",
+            _ => "Unknown"
+        };
+    }
+
+    private static string GetStatusCssClass(FulfilmentSyncStatus status)
+    {
+        return status switch
+        {
+            FulfilmentSyncStatus.Pending => "status-pending",
+            FulfilmentSyncStatus.Running => "status-running",
+            FulfilmentSyncStatus.Completed => "status-completed",
+            FulfilmentSyncStatus.Failed => "status-failed",
+            _ => ""
+        };
+    }
+
+    private static string GetApiStyleLabel(FulfilmentApiStyle apiStyle)
+    {
+        return apiStyle switch
+        {
+            FulfilmentApiStyle.Rest => "REST",
+            FulfilmentApiStyle.GraphQL => "GraphQL",
+            FulfilmentApiStyle.Sftp => "SFTP",
+            _ => "Unknown"
+        };
+    }
+
+    private static string GetInventorySyncModeLabel(InventorySyncMode mode)
+    {
+        return mode switch
+        {
+            InventorySyncMode.Full => "Full",
+            InventorySyncMode.Delta => "Delta",
+            _ => "Unknown"
         };
     }
 }

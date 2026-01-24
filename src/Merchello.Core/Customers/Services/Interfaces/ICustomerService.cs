@@ -1,7 +1,6 @@
 using Merchello.Core.Customers.Dtos;
 using Merchello.Core.Customers.Models;
 using Merchello.Core.Customers.Services.Parameters;
-using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.Models;
 
 namespace Merchello.Core.Customers.Services.Interfaces;
@@ -59,16 +58,7 @@ public interface ICustomerService
     /// This is the primary method used during checkout to ensure every invoice
     /// has a linked customer.
     /// </summary>
-    /// <param name="email">Customer's email address</param>
-    /// <param name="billingAddress">Optional billing address to extract name for new customers</param>
-    /// <param name="acceptsMarketing">Whether the customer accepts marketing communications. For new customers, sets the value directly. For existing customers, only upgrades from false to true (never downgrades).</param>
-    /// <param name="ct">Cancellation token</param>
-    /// <returns>Existing or newly created Customer</returns>
-    Task<Customer> GetOrCreateByEmailAsync(
-        string email,
-        Address? billingAddress = null,
-        bool acceptsMarketing = false,
-        CancellationToken ct = default);
+    Task<Customer> GetOrCreateByEmailAsync(GetOrCreateCustomerParameters parameters, CancellationToken ct = default);
 
     // =====================================================
     // Search & Query
@@ -80,9 +70,9 @@ public interface ICustomerService
     Task<List<Customer>> SearchAsync(string? searchTerm, int limit = 20, CancellationToken ct = default);
 
     /// <summary>
-    /// Gets paginated list of customers with optional search
+    /// Gets paginated list of customers with optional search.
     /// </summary>
-    Task<CustomerPageDto> GetPagedAsync(string? search, int page = 1, int pageSize = 50, CancellationToken ct = default);
+    Task<CustomerPageDto> GetPagedAsync(CustomerQueryParameters parameters, CancellationToken ct = default);
 
     /// <summary>
     /// Gets total customer count
@@ -132,4 +122,24 @@ public interface ICustomerService
     /// Gets all unique tags across all customers (for autocomplete).
     /// </summary>
     Task<List<string>> GetAllUniqueTagsAsync(CancellationToken ct = default);
+
+    // =====================================================
+    // Customer Lookup (Backoffice Order Creation)
+    // =====================================================
+
+    /// <summary>
+    /// Search for customers by email or name, returning their info and past shipping addresses.
+    /// Used for customer lookup when creating orders in the backoffice.
+    /// Searches both registered customers and guest customers from invoice billing addresses.
+    /// </summary>
+    /// <param name="email">Email to search (exact or partial match)</param>
+    /// <param name="name">Name to search (partial match)</param>
+    /// <param name="limit">Maximum number of results to return</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>List of matching customers with their de-duplicated past shipping addresses</returns>
+    Task<List<CustomerLookupResultDto>> SearchCustomersAsync(
+        string? email,
+        string? name,
+        int limit = 10,
+        CancellationToken ct = default);
 }

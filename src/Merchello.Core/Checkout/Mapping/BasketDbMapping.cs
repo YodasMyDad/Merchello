@@ -26,6 +26,7 @@ public class BasketDbMapping : IEntityTypeConfiguration<Basket>
         builder.Property(x => x.Shipping).HasPrecision(18, 4);
         builder.Property(x => x.DateCreated).IsRequired();
         builder.Property(x => x.DateUpdated).IsRequired();
+        builder.Property(x => x.ConcurrencyStamp).HasMaxLength(36).IsConcurrencyToken();
 
         builder.Ignore(x => x.Errors);
         builder.Ignore(x => x.AvailableShippingQuotes);

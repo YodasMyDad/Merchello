@@ -3,7 +3,9 @@ using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Tests.TestInfrastructure;
 using Shouldly;
@@ -125,12 +127,17 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
 
         // Get shipping options
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
-            basket, shippingAddress, new Dictionary<Guid, Guid>());
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         var group = shippingResult.WarehouseGroups.First();
-        var selectedShippingOptions = new Dictionary<Guid, Guid>
+        var selectedOption = group.AvailableShippingOptions.First();
+        var selectedShippingOptions = new Dictionary<Guid, string>
         {
-            [group.GroupId] = group.AvailableShippingOptions.First().ShippingOptionId
+            [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
         };
 
         var checkoutSession = new CheckoutSession
@@ -142,7 +149,9 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeTrue();
+        var invoice = result.ResultObject!;
 
         // Assert - Invoice should be in GBP
         invoice.ShouldNotBeNull();
@@ -257,22 +266,29 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         };
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
-            basket, shippingAddress, new Dictionary<Guid, Guid>());
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         var group = shippingResult.WarehouseGroups.First();
+        var selectedOption = group.AvailableShippingOptions.First();
         var checkoutSession = new CheckoutSession
         {
             BasketId = basket.Id,
             BillingAddress = billingAddress,
             ShippingAddress = shippingAddress,
-            SelectedShippingOptions = new Dictionary<Guid, Guid>
+            SelectedShippingOptions = new Dictionary<Guid, string>
             {
-                [group.GroupId] = group.AvailableShippingOptions.First().ShippingOptionId
+                [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
             }
         };
 
         // Act
-        var invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeTrue();
+        var invoice = result.ResultObject!;
 
         // Assert
         invoice.CurrencyCode.ShouldBe("GBP");
@@ -362,22 +378,29 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         };
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
-            basket, shippingAddress, new Dictionary<Guid, Guid>());
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         var group = shippingResult.WarehouseGroups.First();
+        var selectedOption = group.AvailableShippingOptions.First();
         var checkoutSession = new CheckoutSession
         {
             BasketId = basket.Id,
             BillingAddress = billingAddress,
             ShippingAddress = shippingAddress,
-            SelectedShippingOptions = new Dictionary<Guid, Guid>
+            SelectedShippingOptions = new Dictionary<Guid, string>
             {
-                [group.GroupId] = group.AvailableShippingOptions.First().ShippingOptionId
+                [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
             }
         };
 
         // Act
-        var invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeTrue();
+        var invoice = result.ResultObject!;
 
         // Assert - No conversion should occur
         invoice.CurrencyCode.ShouldBe("USD");
@@ -471,22 +494,29 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         };
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
-            basket, shippingAddress, new Dictionary<Guid, Guid>());
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         var group = shippingResult.WarehouseGroups.First();
+        var selectedOption = group.AvailableShippingOptions.First();
         var checkoutSession = new CheckoutSession
         {
             BasketId = basket.Id,
             BillingAddress = billingAddress,
             ShippingAddress = shippingAddress,
-            SelectedShippingOptions = new Dictionary<Guid, Guid>
+            SelectedShippingOptions = new Dictionary<Guid, string>
             {
-                [group.GroupId] = group.AvailableShippingOptions.First().ShippingOptionId
+                [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
             }
         };
 
         // Act
-        var invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeTrue();
+        var invoice = result.ResultObject!;
 
         // Assert
         invoice.CurrencyCode.ShouldBe("JPY");
@@ -593,22 +623,29 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         };
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
-            basket, shippingAddress, new Dictionary<Guid, Guid>());
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         var group = shippingResult.WarehouseGroups.First();
+        var selectedOption = group.AvailableShippingOptions.First();
         var checkoutSession = new CheckoutSession
         {
             BasketId = basket.Id,
             BillingAddress = billingAddress,
             ShippingAddress = shippingAddress,
-            SelectedShippingOptions = new Dictionary<Guid, Guid>
+            SelectedShippingOptions = new Dictionary<Guid, string>
             {
-                [group.GroupId] = group.AvailableShippingOptions.First().ShippingOptionId
+                [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
             }
         };
 
         // Act
-        var invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeTrue();
+        var invoice = result.ResultObject!;
 
         // Assert
         invoice.CurrencyCode.ShouldBe("EUR");
@@ -702,22 +739,29 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         };
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
-            basket, shippingAddress, new Dictionary<Guid, Guid>());
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         var group = shippingResult.WarehouseGroups.First();
+        var selectedOption = group.AvailableShippingOptions.First();
         var checkoutSession = new CheckoutSession
         {
             BasketId = basket.Id,
             BillingAddress = billingAddress,
             ShippingAddress = shippingAddress,
-            SelectedShippingOptions = new Dictionary<Guid, Guid>
+            SelectedShippingOptions = new Dictionary<Guid, string>
             {
-                [group.GroupId] = group.AvailableShippingOptions.First().ShippingOptionId
+                [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
             }
         };
 
         // Act
-        var invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeTrue();
+        var invoice = result.ResultObject!;
 
         // Assert
         invoice.CurrencyCode.ShouldBe("GBP");

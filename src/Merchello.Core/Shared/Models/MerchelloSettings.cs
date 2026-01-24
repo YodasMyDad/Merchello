@@ -1,4 +1,5 @@
 using System.Globalization;
+using Merchello.Core.Checkout.Services.Parameters;
 
 namespace Merchello.Core.Shared.Models;
 
@@ -92,6 +93,11 @@ public class MerchelloSettings
     /// </summary>
     public string? OrderGroupingStrategy { get; set; }
 
+    /// <summary>
+    /// Strategy for auto-selecting shipping options during checkout initialization.
+    /// Values: "cheapest" (default), "fastest", "cheapest-then-fastest".
+    /// </summary>
+    public string ShippingAutoSelectStrategy { get; set; } = "cheapest";
 
     /// <summary>
     /// Available option type aliases for product options.

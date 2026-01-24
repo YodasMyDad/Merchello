@@ -1,4 +1,3 @@
-using Merchello.Core.Data;
 using Merchello.Core.Fulfilment;
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
@@ -6,7 +5,6 @@ using Merchello.Core.Fulfilment.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -21,7 +19,6 @@ namespace Merchello.Controllers;
 public class FulfilmentWebhookController(
     IFulfilmentProviderManager providerManager,
     IFulfilmentService fulfilmentService,
-    MerchelloDbContext dbContext,
     IOptions<FulfilmentSettings> settings,
     ILogger<FulfilmentWebhookController> logger) : ControllerBase
 {
@@ -89,10 +86,8 @@ public class FulfilmentWebhookController(
         var messageId = GetWebhookMessageId(Request);
         if (!string.IsNullOrEmpty(messageId) && registeredProvider.Configuration != null)
         {
-            var isDuplicate = await dbContext.FulfilmentWebhookLogs
-                .AnyAsync(l => l.ProviderConfigurationId == registeredProvider.Configuration.Id &&
-                               l.MessageId == messageId,
-                    cancellationToken);
+            var isDuplicate = await fulfilmentService.IsDuplicateWebhookAsync(
+                registeredProvider.Configuration.Id, messageId, cancellationToken);
 
             if (isDuplicate)
             {
@@ -123,7 +118,24 @@ public class FulfilmentWebhookController(
         // Log the webhook
         if (registeredProvider.Configuration != null)
         {
-            await LogWebhookAsync(registeredProvider.Configuration.Id, messageId, result.EventType, cancellationToken);
+            string? payload = null;
+            try
+            {
+                if (Request.Body.CanSeek)
+                {
+                    Request.Body.Position = 0;
+                    using var reader = new StreamReader(Request.Body, leaveOpen: true);
+                    payload = await reader.ReadToEndAsync(cancellationToken);
+                    Request.Body.Position = 0;
+                }
+            }
+            catch
+            {
+                // Payload capture is optional
+            }
+
+            await fulfilmentService.LogWebhookAsync(
+                registeredProvider.Configuration.Id, messageId, result.EventType, payload, cancellationToken);
         }
 
         // Process status updates
@@ -199,41 +211,4 @@ public class FulfilmentWebhookController(
         return null;
     }
 
-    /// <summary>
-    /// Logs the webhook for idempotency tracking and debugging.
-    /// </summary>
-    private async Task LogWebhookAsync(
-        Guid providerConfigId,
-        string? messageId,
-        string? eventType,
-        CancellationToken cancellationToken)
-    {
-        var log = new FulfilmentWebhookLog
-        {
-            ProviderConfigurationId = providerConfigId,
-            MessageId = messageId ?? Guid.NewGuid().ToString(),
-            EventType = eventType,
-            ProcessedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddDays(_settings.WebhookLogRetentionDays)
-        };
-
-        // Try to capture payload for debugging (if body can be rewound)
-        try
-        {
-            if (Request.Body.CanSeek)
-            {
-                Request.Body.Position = 0;
-                using var reader = new StreamReader(Request.Body, leaveOpen: true);
-                log.Payload = await reader.ReadToEndAsync(cancellationToken);
-                Request.Body.Position = 0;
-            }
-        }
-        catch
-        {
-            // Payload capture is optional, don't fail on it
-        }
-
-        dbContext.FulfilmentWebhookLogs.Add(log);
-        await dbContext.SaveChangesAsync(cancellationToken);
-    }
 }

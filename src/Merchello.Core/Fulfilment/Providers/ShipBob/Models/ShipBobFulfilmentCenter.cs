@@ -49,12 +49,3 @@ public sealed record ShipBobFulfillmentCenter
     [JsonPropertyName("services")]
     public IReadOnlyList<string>? Services { get; init; }
 }
-
-/// <summary>
-/// Response containing list of fulfillment centers.
-/// </summary>
-public sealed record ShipBobFulfillmentCentersResponse
-{
-    [JsonPropertyName("fulfillment_centers")]
-    public IReadOnlyList<ShipBobFulfillmentCenter>? FulfillmentCenters { get; init; }
-}

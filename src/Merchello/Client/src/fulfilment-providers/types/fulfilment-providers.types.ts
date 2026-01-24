@@ -72,6 +72,7 @@ export interface FulfilmentProviderDto {
   supportsProductSync: boolean;
   supportsInventorySync: boolean;
   apiStyle: FulfilmentApiStyle;
+  apiStyleLabel: string;
   /** Whether this provider is enabled (has a configuration with IsEnabled = true) */
   isEnabled: boolean;
   /** The configuration ID if configured */
@@ -89,7 +90,9 @@ export interface FulfilmentProviderListItemDto {
   configurationId?: string;
   sortOrder: number;
   inventorySyncMode: InventorySyncMode;
+  inventorySyncModeLabel: string;
   apiStyle: FulfilmentApiStyle;
+  apiStyleLabel: string;
   // Capabilities summary
   supportsOrderSubmission: boolean;
   supportsWebhooks: boolean;
@@ -159,7 +162,10 @@ export interface FulfilmentSyncLogDto {
   providerConfigurationId: string;
   providerDisplayName?: string;
   syncType: FulfilmentSyncType;
+  syncTypeLabel: string;
   status: FulfilmentSyncStatus;
+  statusLabel: string;
+  statusCssClass: string;
   itemsProcessed: number;
   itemsSucceeded: number;
   itemsFailed: number;

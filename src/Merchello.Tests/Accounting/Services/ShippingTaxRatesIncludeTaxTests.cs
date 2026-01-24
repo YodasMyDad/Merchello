@@ -4,6 +4,7 @@ using Merchello.Core.Accounting.Handlers.Interfaces;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies.Interfaces;
 using Merchello.Core.Customers.Services.Interfaces;
@@ -91,6 +92,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         var paymentService = new Mock<IPaymentService>().Object;
         var customerService = new Mock<ICustomerService>().Object;
         var checkoutService = new Lazy<ICheckoutService>(() => new Mock<ICheckoutService>().Object);
+        var checkoutDiscountService = new Lazy<ICheckoutDiscountService>(() => new Mock<ICheckoutDiscountService>().Object);
         var notificationPublisher = new Mock<IMerchelloNotificationPublisher>().Object;
         var exchangeRateCacheMock = new Mock<IExchangeRateCache>();
         exchangeRateCacheMock.Setup(x => x.GetRateQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -98,7 +100,8 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         var settings = Options.Create(new MerchelloSettings { DefaultRounding = MidpointRounding.AwayFromZero, StoreCurrencyCode = "USD" });
         var currencyService = new CurrencyService(settings);
         var taxCalculationService = new TaxCalculationService(currencyService);
-        var lineItemService = new LineItemService(currencyService, taxCalculationService);
+        var lineItemFactory = new LineItemFactory(currencyService);
+        var lineItemService = new LineItemService(currencyService, taxCalculationService, lineItemFactory);
         var discountService = new Mock<IDiscountService>().Object;
 
         // Mock tax service to return tax rates
@@ -118,7 +121,6 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
 
         var invoiceFactory = new InvoiceFactory(currencyService);
         var orderFactory = new OrderFactory();
-        var lineItemFactory = new LineItemFactory();
 
         return new InvoiceService(
             scopeProvider,
@@ -129,6 +131,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             paymentService,
             customerService,
             checkoutService,
+            checkoutDiscountService,
             strategyResolver,
             notificationPublisher,
             exchangeRateCacheMock.Object,
@@ -137,7 +140,6 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             discountService,
             taxServiceMock.Object,
             taxProviderManagerMock.Object,
-            taxCalculationService,
             invoiceFactory,
             orderFactory,
             lineItemFactory,
@@ -277,7 +279,11 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         await dataBuilder.SaveChangesAsync();
 
         // Act - Update the order to trigger recalculation
-        var result = await invoiceService.UpdateOrderStatusAsync(order.Id, OrderStatus.Processing);
+        var result = await invoiceService.UpdateOrderStatusAsync(new UpdateOrderStatusParameters
+        {
+            OrderId = order.Id,
+            NewStatus = OrderStatus.Processing
+        });
 
         // Assert - Provider not found, so full shipping should be taxed
         // With 10% tax rate on $20 shipping = $2 shipping tax
@@ -305,7 +311,11 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         await dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await invoiceService.UpdateOrderStatusAsync(order.Id, OrderStatus.Processing);
+        var result = await invoiceService.UpdateOrderStatusAsync(new UpdateOrderStatusParameters
+        {
+            OrderId = order.Id,
+            NewStatus = OrderStatus.Processing
+        });
 
         // Assert - RatesIncludeTax = false, so full shipping should be taxed
         result.ResultObject.ShouldBeTrue();
@@ -333,7 +343,11 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         await dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await invoiceService.UpdateOrderStatusAsync(order.Id, OrderStatus.Processing);
+        var result = await invoiceService.UpdateOrderStatusAsync(new UpdateOrderStatusParameters
+        {
+            OrderId = order.Id,
+            NewStatus = OrderStatus.Processing
+        });
 
         // Assert - RatesIncludeTax = true, so shipping should be excluded from tax
         result.ResultObject.ShouldBeTrue();
@@ -384,7 +398,11 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         await dataBuilder.SaveChangesAsync();
 
         // Act - Update first order to trigger recalculation
-        var result = await invoiceService.UpdateOrderStatusAsync(order1.Id, OrderStatus.Processing);
+        var result = await invoiceService.UpdateOrderStatusAsync(new UpdateOrderStatusParameters
+        {
+            OrderId = order1.Id,
+            NewStatus = OrderStatus.Processing
+        });
 
         // Assert
         result.ResultObject.ShouldBeTrue();
@@ -434,7 +452,11 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         await dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await invoiceService.UpdateOrderStatusAsync(order1.Id, OrderStatus.Processing);
+        var result = await invoiceService.UpdateOrderStatusAsync(new UpdateOrderStatusParameters
+        {
+            OrderId = order1.Id,
+            NewStatus = OrderStatus.Processing
+        });
 
         // Assert
         result.ResultObject.ShouldBeTrue();
@@ -458,7 +480,11 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         await dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await invoiceService.UpdateOrderStatusAsync(order.Id, OrderStatus.Processing);
+        var result = await invoiceService.UpdateOrderStatusAsync(new UpdateOrderStatusParameters
+        {
+            OrderId = order.Id,
+            NewStatus = OrderStatus.Processing
+        });
 
         // Assert
         result.ResultObject.ShouldBeTrue();
@@ -500,6 +526,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         var paymentService = new Mock<IPaymentService>().Object;
         var customerService = new Mock<ICustomerService>().Object;
         var checkoutService = new Lazy<ICheckoutService>(() => new Mock<ICheckoutService>().Object);
+        var checkoutDiscountService = new Lazy<ICheckoutDiscountService>(() => new Mock<ICheckoutDiscountService>().Object);
         var notificationPublisher = new Mock<IMerchelloNotificationPublisher>().Object;
         var exchangeRateCacheMock = new Mock<IExchangeRateCache>();
         exchangeRateCacheMock.Setup(x => x.GetRateQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -512,7 +539,8 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         });
         var currencyService = new CurrencyService(settings);
         var taxCalculationService = new TaxCalculationService(currencyService);
-        var lineItemService = new LineItemService(currencyService, taxCalculationService);
+        var lineItemFactory = new LineItemFactory(currencyService);
+        var lineItemService = new LineItemService(currencyService, taxCalculationService, lineItemFactory);
         var discountService = new Mock<IDiscountService>().Object;
 
         var taxServiceMock = new Mock<ITaxService>();
@@ -522,11 +550,11 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         // Configure tax provider manager for PROPORTIONAL shipping tax (returns null for rate)
         var taxProviderManagerMock = new Mock<ITaxProviderManager>();
         taxProviderManagerMock
-            .Setup(x => x.IsShippingTaxedForLocationAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.IsShippingTaxedForLocationAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true); // Shipping IS taxable
 
         taxProviderManagerMock
-            .Setup(x => x.GetShippingTaxRateForLocationAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.GetShippingTaxRateForLocationAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((decimal?)null); // null = proportional calculation
 
         var strategyResolver = new Mock<IOrderGroupingStrategyResolver>().Object;
@@ -534,7 +562,6 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
 
         var invoiceFactory = new InvoiceFactory(currencyService);
         var orderFactory = new OrderFactory();
-        var lineItemFactory = new LineItemFactory();
 
         return new InvoiceService(
             scopeProvider,
@@ -545,6 +572,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             paymentService,
             customerService,
             checkoutService,
+            checkoutDiscountService,
             strategyResolver,
             notificationPublisher,
             exchangeRateCacheMock.Object,
@@ -553,7 +581,6 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             discountService,
             taxServiceMock.Object,
             taxProviderManagerMock.Object,
-            taxCalculationService,
             invoiceFactory,
             orderFactory,
             lineItemFactory,
@@ -651,7 +678,11 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         await dataBuilder.SaveChangesAsync();
 
         // Act - Trigger order processing with proportional tax mode configured
-        var result = await invoiceService.UpdateOrderStatusAsync(order.Id, OrderStatus.Processing);
+        var result = await invoiceService.UpdateOrderStatusAsync(new UpdateOrderStatusParameters
+        {
+            OrderId = order.Id,
+            NewStatus = OrderStatus.Processing
+        });
 
         // Assert - Verifies the proportional tax configuration flows through without error
         // The tax provider manager mock is configured to return null for ShippingTaxRate
@@ -693,7 +724,11 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         await dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await invoiceService.UpdateOrderStatusAsync(order.Id, OrderStatus.Processing);
+        var result = await invoiceService.UpdateOrderStatusAsync(new UpdateOrderStatusParameters
+        {
+            OrderId = order.Id,
+            NewStatus = OrderStatus.Processing
+        });
 
         // Assert - Processing succeeds with proportional tax mode
         result.ResultObject.ShouldBeTrue();

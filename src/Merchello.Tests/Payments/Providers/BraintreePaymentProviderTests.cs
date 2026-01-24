@@ -1,5 +1,6 @@
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers.Braintree;
+using Merchello.Core.Payments.Services.Parameters;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Shouldly;

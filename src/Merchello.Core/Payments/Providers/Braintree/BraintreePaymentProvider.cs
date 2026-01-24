@@ -1,6 +1,8 @@
 using Braintree;
 using Braintree.Exceptions;
 using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Core.Shared.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace Merchello.Core.Payments.Providers.Braintree;
@@ -349,10 +351,10 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
     ];
 
     /// <inheritdoc />
-    public override ValueTask<IEnumerable<PaymentProviderConfigurationField>> GetConfigurationFieldsAsync(
+    public override ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult<IEnumerable<PaymentProviderConfigurationField>>(
+        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>(
         [
             new()
             {

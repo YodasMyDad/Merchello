@@ -7,7 +7,6 @@ namespace Merchello.Core.Discounts.Dtos;
 /// </summary>
 public class DiscountTargetRuleDto
 {
-    public Guid Id { get; set; }
     public DiscountTargetType TargetType { get; set; }
     public List<Guid>? TargetIds { get; set; }
     public List<string>? TargetNames { get; set; }

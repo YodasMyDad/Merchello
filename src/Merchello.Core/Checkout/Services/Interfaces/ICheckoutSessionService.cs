@@ -1,4 +1,5 @@
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
 
 namespace Merchello.Core.Checkout.Services.Interfaces;
@@ -16,19 +17,7 @@ public interface ICheckoutSessionService
     /// <summary>
     /// Saves billing and shipping addresses to the session.
     /// </summary>
-    /// <param name="basketId">The basket ID.</param>
-    /// <param name="billing">Billing address.</param>
-    /// <param name="shipping">Shipping address (null if same as billing).</param>
-    /// <param name="sameAsBilling">Whether shipping is same as billing.</param>
-    /// <param name="acceptsMarketing">Whether customer accepts marketing communications.</param>
-    /// <param name="ct">Cancellation token.</param>
-    Task SaveAddressesAsync(
-        Guid basketId,
-        Address billing,
-        Address? shipping,
-        bool sameAsBilling,
-        bool acceptsMarketing = false,
-        CancellationToken ct = default);
+    Task SaveAddressesAsync(SaveSessionAddressesParameters parameters, CancellationToken ct = default);
 
     /// <summary>
     /// Sets the current checkout step.
@@ -38,15 +27,7 @@ public interface ICheckoutSessionService
     /// <summary>
     /// Saves shipping selections to the session.
     /// </summary>
-    /// <param name="basketId">The basket ID.</param>
-    /// <param name="selections">Shipping selections per group (GroupId -> ShippingOptionId).</param>
-    /// <param name="deliveryDates">Optional delivery date selections per group.</param>
-    /// <param name="ct">Cancellation token.</param>
-    Task SaveShippingSelectionsAsync(
-        Guid basketId,
-        Dictionary<Guid, Guid> selections,
-        Dictionary<Guid, DateTime>? deliveryDates = null,
-        CancellationToken ct = default);
+    Task SaveShippingSelectionsAsync(SaveSessionShippingSelectionsParameters parameters, CancellationToken ct = default);
 
     /// <summary>
     /// Clears the checkout session for a basket.
@@ -80,4 +61,5 @@ public interface ICheckoutSessionService
     /// <param name="invoiceId">The invoice ID created from this checkout.</param>
     /// <param name="ct">Cancellation token.</param>
     Task SetInvoiceIdAsync(Guid basketId, Guid invoiceId, CancellationToken ct = default);
+
 }

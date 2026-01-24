@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Extensions;
+using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
@@ -17,7 +18,6 @@ using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -33,12 +33,14 @@ public class CheckoutApiController(
     ICheckoutSessionService checkoutSessionService,
     ICheckoutValidator checkoutValidator,
     ICheckoutMemberService checkoutMemberService,
+    ICheckoutDiscountService checkoutDiscountService,
     IRateLimiter rateLimiter,
     IStorefrontContextService storefrontContext,
     ICurrencyConversionService currencyConversion,
     ICurrencyService currencyService,
     IOptions<MerchelloSettings> merchelloSettings,
-    ILogger<CheckoutApiController> logger) : ControllerBase
+    ILogger<CheckoutApiController> logger,
+    IAbandonedCheckoutService? abandonedCheckoutService = null) : ControllerBase
 {
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
 
@@ -76,7 +78,7 @@ public class CheckoutApiController(
     public async Task<IActionResult> GetShippingCountries(CancellationToken ct)
     {
         var countries = await checkoutService.GetAvailableCountriesAsync(ct);
-        var dtos = countries.Select(c => new CountryDto(c.Code, c.Name)).ToList();
+        var dtos = countries.Select(c => new CountryDto { Code = c.Code, Name = c.Name }).ToList();
         return Ok(dtos);
     }
 
@@ -92,7 +94,7 @@ public class CheckoutApiController(
         }
 
         var regions = await checkoutService.GetAvailableRegionsAsync(countryCode, ct);
-        var dtos = regions.Select(r => new RegionDto(r.RegionCode, r.Name)).ToList();
+        var dtos = regions.Select(r => new RegionDto { RegionCode = r.RegionCode, Name = r.Name }).ToList();
         return Ok(dtos);
     }
 
@@ -103,7 +105,7 @@ public class CheckoutApiController(
     public async Task<IActionResult> GetBillingCountries(CancellationToken ct)
     {
         var countries = await checkoutService.GetAllCountriesAsync(ct);
-        var dtos = countries.Select(c => new CountryDto(c.Code, c.Name)).ToList();
+        var dtos = countries.Select(c => new CountryDto { Code = c.Code, Name = c.Name }).ToList();
         return Ok(dtos);
     }
 
@@ -119,7 +121,7 @@ public class CheckoutApiController(
         }
 
         var regions = await checkoutService.GetAllRegionsAsync(countryCode, ct);
-        var dtos = regions.Select(r => new RegionDto(r.RegionCode, r.Name)).ToList();
+        var dtos = regions.Select(r => new RegionDto { RegionCode = r.RegionCode, Name = r.Name }).ToList();
         return Ok(dtos);
     }
 
@@ -211,7 +213,7 @@ public class CheckoutApiController(
             });
         }
 
-        var result = await checkoutService.ApplyDiscountCodeAsync(
+        var result = await checkoutDiscountService.ApplyDiscountCodeAsync(
             basket,
             request.Code.Trim(),
             basket.ShippingAddress?.CountryCode,
@@ -223,7 +225,7 @@ public class CheckoutApiController(
                 .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
                 ?? "Failed to apply discount code.";
 
-            return Ok(new ApplyDiscountResponseDto
+            return BadRequest(new ApplyDiscountResponseDto
             {
                 Success = false,
                 Message = errorMessage
@@ -278,14 +280,19 @@ public class CheckoutApiController(
 
         // Sync basket currency from storefront context (centralized service method)
         var currencyCtx = await storefrontContext.GetCurrencyContextAsync(ct);
-        basket = await checkoutService.EnsureBasketCurrencyAsync(basket, currencyCtx.CurrencyCode, currencyCtx.CurrencySymbol, ct);
+        basket = await checkoutService.EnsureBasketCurrencyAsync(new EnsureBasketCurrencyParameters
+        {
+            Basket = basket,
+            CurrencyCode = currencyCtx.CurrencyCode,
+            CurrencySymbol = currencyCtx.CurrencySymbol
+        }, ct);
 
         var result = await checkoutService.InitializeCheckoutAsync(new InitializeCheckoutParameters
         {
             Basket = basket,
             CountryCode = request.CountryCode,
             StateCode = request.StateCode,
-            AutoSelectCheapestShipping = request.AutoSelectCheapestShipping,
+            AutoSelectShipping = request.AutoSelectShipping,
             Email = request.Email,
             PreviousShippingSelections = request.PreviousShippingSelections
         }, ct);
@@ -300,7 +307,7 @@ public class CheckoutApiController(
             // The basket.Errors collection contains specific messages like "Product X cannot ship to Country Y"
             var errorResult = result.ResultObject;
 
-            return Ok(new InitializeCheckoutResponseDto
+            return UnprocessableEntity(new InitializeCheckoutResponseDto
             {
                 Success = false,
                 Message = errorMessage,
@@ -344,7 +351,8 @@ public class CheckoutApiController(
             ShippingGroups = shippingGroups,
             CombinedShippingTotal = displayCombinedShippingTotal,
             FormattedCombinedShippingTotal = currencyConversion.Format(displayCombinedShippingTotal, displayCurrencySymbol),
-            ShippingAutoSelected = initResult.ShippingAutoSelected
+            ShippingAutoSelected = initResult.ShippingAutoSelected,
+            CurrencyDecimalPlaces = displayContext.DecimalPlaces
         });
     }
 
@@ -370,7 +378,7 @@ public class CheckoutApiController(
 
         if (!groupingResult.Success)
         {
-            return Ok(new SelectShippingResponseDto
+            return UnprocessableEntity(new SelectShippingResponseDto
             {
                 Success = false,
                 Message = "Unable to determine shipping options.",
@@ -429,7 +437,7 @@ public class CheckoutApiController(
         var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, session, ct);
         if (!groupingResult.Success)
         {
-            return Ok(new SelectShippingResponseDto
+            return UnprocessableEntity(new SelectShippingResponseDto
             {
                 Success = false,
                 Message = "Unable to validate shipping options.",
@@ -439,51 +447,11 @@ public class CheckoutApiController(
             });
         }
 
-        // Validate that all groups have a selection
-        // Try lookup by GroupId first, then fall back to WarehouseId, then search all request entries
-        // This handles GroupId changes between PRE/POST selection modes
-        var errors = new Dictionary<string, string>();
-        foreach (var group in groupingResult.Groups)
-        {
-            Guid selectedOptionId = Guid.Empty;
-
-            // Try 1: lookup by GroupId
-            if (request.Selections.TryGetValue(group.GroupId, out var foundById))
-            {
-                selectedOptionId = foundById;
-            }
-            // Try 2: lookup by WarehouseId
-            else if (group.WarehouseId.HasValue && request.Selections.TryGetValue(group.WarehouseId.Value, out var foundByWarehouse))
-            {
-                selectedOptionId = foundByWarehouse;
-            }
-            // Try 3: search all request selections for one that matches this group's available options
-            else
-            {
-                var availableOptionIds = group.AvailableShippingOptions.Select(o => o.ShippingOptionId).ToHashSet();
-                var matchingSelection = request.Selections.FirstOrDefault(kvp => availableOptionIds.Contains(kvp.Value));
-                if (matchingSelection.Value != Guid.Empty)
-                {
-                    selectedOptionId = matchingSelection.Value;
-                }
-            }
-
-            if (selectedOptionId == Guid.Empty)
-            {
-                errors[group.GroupId.ToString()] = $"Please select a shipping method for {group.GroupName}.";
-                continue;
-            }
-
-            // Validate the selected option exists in this group
-            if (!group.AvailableShippingOptions.Any(o => o.ShippingOptionId == selectedOptionId))
-            {
-                errors[group.GroupId.ToString()] = $"Invalid shipping option selected for {group.GroupName}.";
-            }
-        }
-
+        // Validate that all groups have a valid shipping selection
+        var errors = checkoutValidator.ValidateShippingSelections(groupingResult.Groups, request.Selections);
         if (errors.Count > 0)
         {
-            return Ok(new SelectShippingResponseDto
+            return UnprocessableEntity(new SelectShippingResponseDto
             {
                 Success = false,
                 Message = "Please select shipping for all items.",
@@ -492,40 +460,7 @@ public class CheckoutApiController(
         }
 
         // Augment selections with WarehouseId and GroupId keys for stable lookups
-        // This ensures selections can be found regardless of GroupId changes between PRE/POST selection modes
-        var augmentedSelections = new Dictionary<Guid, Guid>(request.Selections);
-        foreach (var group in groupingResult.Groups)
-        {
-            // Find the selected option using the same smart lookup as validation
-            Guid selectedOption = Guid.Empty;
-            if (request.Selections.TryGetValue(group.GroupId, out var foundById))
-            {
-                selectedOption = foundById;
-            }
-            else if (group.WarehouseId.HasValue && request.Selections.TryGetValue(group.WarehouseId.Value, out var foundByWarehouse))
-            {
-                selectedOption = foundByWarehouse;
-            }
-            else
-            {
-                var availableOptionIds = group.AvailableShippingOptions.Select(o => o.ShippingOptionId).ToHashSet();
-                var matchingSelection = request.Selections.FirstOrDefault(kvp => availableOptionIds.Contains(kvp.Value));
-                if (matchingSelection.Value != Guid.Empty)
-                {
-                    selectedOption = matchingSelection.Value;
-                }
-            }
-
-            if (selectedOption != Guid.Empty)
-            {
-                // Store by both GroupId and WarehouseId for maximum compatibility
-                augmentedSelections[group.GroupId] = selectedOption;
-                if (group.WarehouseId.HasValue)
-                {
-                    augmentedSelections[group.WarehouseId.Value] = selectedOption;
-                }
-            }
-        }
+        var augmentedSelections = checkoutValidator.AugmentShippingSelections(groupingResult.Groups, request.Selections);
 
         // Delegate to service (handles calculation, discounts, DB save, and session updates)
         var saveResult = await checkoutService.SaveShippingSelectionsAsync(new SaveShippingSelectionsParameters
@@ -533,6 +468,7 @@ public class CheckoutApiController(
             Basket = basket,
             Session = session,
             Selections = augmentedSelections,
+            QuotedCosts = request.QuotedCosts,
             DeliveryDates = request.DeliveryDates
         }, ct);
 
@@ -542,7 +478,7 @@ public class CheckoutApiController(
                 .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
                 ?? "Failed to save shipping selections.";
 
-            return Ok(new SelectShippingResponseDto
+            return UnprocessableEntity(new SelectShippingResponseDto
             {
                 Success = false,
                 Message = errorMessage
@@ -590,7 +526,7 @@ public class CheckoutApiController(
             });
         }
 
-        var result = await checkoutService.RemovePromotionalDiscountAsync(
+        var result = await checkoutDiscountService.RemovePromotionalDiscountAsync(
             basket,
             discountId,
             basket.ShippingAddress?.CountryCode,
@@ -602,7 +538,7 @@ public class CheckoutApiController(
                 .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
                 ?? "Failed to remove discount.";
 
-            return Ok(new ApplyDiscountResponseDto
+            return BadRequest(new ApplyDiscountResponseDto
             {
                 Success = false,
                 Message = errorMessage
@@ -758,9 +694,12 @@ public class CheckoutApiController(
         }
 
         var result = await checkoutMemberService.ResetPasswordAsync(
-            request.Email,
-            request.Token,
-            request.NewPassword,
+            new ResetPasswordParameters
+            {
+                Email = request.Email,
+                Token = request.Token,
+                NewPassword = request.NewPassword
+            },
             ct);
 
         return Ok(result);
@@ -798,9 +737,6 @@ public class CheckoutApiController(
         await checkoutService.SaveBasketAsync(basket, ct);
 
         // Track for abandoned checkout (optional service)
-        var abandonedCheckoutService = HttpContext.RequestServices
-            .GetService<IAbandonedCheckoutService>();
-
         if (abandonedCheckoutService != null)
         {
             await abandonedCheckoutService.TrackCheckoutActivityAsync(basket, email, ct);
@@ -824,106 +760,21 @@ public class CheckoutApiController(
             return BadRequest(new { success = false, message = "No items in basket." });
         }
 
-        var hasChanges = false;
-
-        // Update email if provided
-        if (!string.IsNullOrWhiteSpace(request.Email))
+        var saved = await checkoutService.CaptureAddressAsync(new CaptureAddressParameters
         {
-            basket.BillingAddress.Email = request.Email.Trim();
-            hasChanges = true;
-        }
+            Basket = basket,
+            Email = request.Email,
+            BillingAddress = request.BillingAddress,
+            ShippingAddress = request.ShippingAddress,
+            ShippingSameAsBilling = request.ShippingSameAsBilling
+        }, ct);
 
-        // Update billing address fields
-        if (request.BillingAddress != null)
+        if (saved)
         {
-            UpdateAddressFromDto(basket.BillingAddress, request.BillingAddress);
-            hasChanges = true;
-        }
-
-        // Update shipping address
-        if (request.ShippingSameAsBilling && request.BillingAddress != null)
-        {
-            // Copy billing to shipping only if billing data was provided
-            CopyAddress(basket.BillingAddress, basket.ShippingAddress);
-            // hasChanges already set by billing address update above
-        }
-        else if (!request.ShippingSameAsBilling && request.ShippingAddress != null)
-        {
-            UpdateAddressFromDto(basket.ShippingAddress, request.ShippingAddress);
-            hasChanges = true;
-        }
-
-        if (hasChanges)
-        {
-            // Save to database
-            await checkoutService.SaveBasketAsync(basket, ct);
-
-            // Update checkout session
-            await checkoutSessionService.SaveAddressesAsync(
-                basket.Id,
-                basket.BillingAddress,
-                basket.ShippingAddress,
-                request.ShippingSameAsBilling,
-                ct: ct);
-
-            // Track for abandoned checkout (optional service)
-            var abandonedCheckoutService = HttpContext.RequestServices
-                .GetService<IAbandonedCheckoutService>();
-
-            if (abandonedCheckoutService != null)
-            {
-                await abandonedCheckoutService.TrackCheckoutActivityAsync(
-                    basket,
-                    basket.BillingAddress.Email ?? "",
-                    ct);
-            }
-
             logger.LogDebug("Address captured for basket: {BasketId}", basket.Id);
         }
 
         return Ok(new { success = true });
-    }
-
-    private static void UpdateAddressFromDto(Address address, CheckoutAddressDto dto)
-    {
-        if (!string.IsNullOrEmpty(dto.Name)) address.Name = dto.Name;
-        if (!string.IsNullOrEmpty(dto.Company)) address.Company = dto.Company;
-        if (!string.IsNullOrEmpty(dto.Address1)) address.AddressOne = dto.Address1;
-        if (dto.Address2 != null) address.AddressTwo = dto.Address2;
-        if (!string.IsNullOrEmpty(dto.City)) address.TownCity = dto.City;
-        if (!string.IsNullOrEmpty(dto.PostalCode)) address.PostalCode = dto.PostalCode;
-        if (!string.IsNullOrEmpty(dto.Country)) address.Country = dto.Country;
-        if (!string.IsNullOrEmpty(dto.CountryCode)) address.CountryCode = dto.CountryCode;
-        if (!string.IsNullOrEmpty(dto.Phone)) address.Phone = dto.Phone;
-
-        // Handle state/region
-        if (!string.IsNullOrEmpty(dto.State) || !string.IsNullOrEmpty(dto.StateCode))
-        {
-            address.CountyState ??= new CountyState();
-            if (!string.IsNullOrEmpty(dto.State)) address.CountyState.Name = dto.State;
-            if (!string.IsNullOrEmpty(dto.StateCode)) address.CountyState.RegionCode = dto.StateCode;
-        }
-    }
-
-    private static void CopyAddress(Address source, Address target)
-    {
-        target.Name = source.Name;
-        target.Company = source.Company;
-        target.AddressOne = source.AddressOne;
-        target.AddressTwo = source.AddressTwo;
-        target.TownCity = source.TownCity;
-        target.PostalCode = source.PostalCode;
-        target.Country = source.Country;
-        target.CountryCode = source.CountryCode;
-        target.Phone = source.Phone;
-        target.Email = source.Email;
-
-        if (source.CountyState != null)
-        {
-            target.CountyState ??= new CountyState();
-            target.CountyState.Name = source.CountyState.Name;
-            target.CountyState.RegionCode = source.CountyState.RegionCode;
-        }
     }
 
     /// <summary>
@@ -951,9 +802,6 @@ public class CheckoutApiController(
                 retryAfterSeconds = rateLimitResult.RetryAfter?.TotalSeconds
             });
         }
-
-        var abandonedCheckoutService = HttpContext.RequestServices
-            .GetService<IAbandonedCheckoutService>();
 
         if (abandonedCheckoutService == null)
         {
@@ -1036,9 +884,6 @@ public class CheckoutApiController(
                 retryAfterSeconds = rateLimitResult.RetryAfter?.TotalSeconds
             });
         }
-
-        var abandonedCheckoutService = HttpContext.RequestServices
-            .GetService<IAbandonedCheckoutService>();
 
         if (abandonedCheckoutService == null)
         {
@@ -1358,7 +1203,7 @@ public class CheckoutApiController(
     private static List<ShippingGroupDto> MapOrderGroupsToDto(
         OrderGroupingResult result,
         string currencySymbol,
-        Dictionary<Guid, Guid>? selectedOptions,
+        Dictionary<Guid, string>? selectedOptions,
         StorefrontDisplayContext displayContext,
         ICurrencyService currencyService,
         decimal? effectiveShippingTaxRate = null)
@@ -1400,7 +1245,7 @@ public class CheckoutApiController(
             {
                 var displayCost = DisplayCurrencyExtensions.GetDisplayShippingOptionCost(
                     opt.Cost, effectiveContext, currencyService);
-                return new ShippingOptionDto
+                return new CheckoutShippingOptionDto
                 {
                     Id = opt.ShippingOptionId,
                     Name = opt.Name,
@@ -1410,12 +1255,18 @@ public class CheckoutApiController(
                     Cost = displayCost,
                     FormattedCost = displayCost.FormatWithSymbol(currencySymbol),
                     DeliveryDescription = opt.DeliveryTimeDescription,
-                    ProviderKey = opt.ProviderKey
+                    ProviderKey = opt.ProviderKey,
+                    SelectionKey = opt.SelectionKey,
+                    ServiceCode = opt.ServiceCode,
+                    EstimatedDeliveryDate = opt.EstimatedDeliveryDate,
+                    IsFallbackRate = opt.IsFallbackRate,
+                    FallbackReason = opt.FallbackReason
                 };
             }).ToList(),
             SelectedShippingOptionId = selectedOptions?.TryGetValue(group.GroupId, out var selectedId) == true
                 ? selectedId
-                : group.SelectedShippingOptionId
+                : group.SelectedShippingOptionId,
+            HasFallbackRates = group.AvailableShippingOptions.Any(o => o.IsFallbackRate)
         }).ToList();
     }
 

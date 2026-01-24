@@ -1,5 +1,5 @@
 using Merchello.Core.Accounting;
-using Merchello.Core.Accounting.Models;
+using Merchello.Core.Accounting.Services.Parameters;
 
 namespace Merchello.Core.Accounting.Services.Interfaces;
 

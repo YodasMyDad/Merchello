@@ -180,8 +180,8 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       data.variants.map(async (v) => this._mapToPickerVariant(v, data))
     );
 
-    // Use backend-calculated aggregate stock status (single source of truth)
-    const totalStock = variants.reduce((sum, v) => sum + v.availableStock, 0);
+    // Use backend-calculated aggregate stock (single source of truth)
+    const totalStock = data.variants.reduce((sum, v) => sum + v.totalStock, 0);
     const stockStatus = data.aggregateStockStatus as PickerProductRoot["stockStatus"];
 
     // Update the root with loaded variants and backend-calculated stock status
@@ -196,9 +196,8 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     variant: ProductRootDetailDto["variants"][0],
     root: ProductRootDetailDto
   ): Promise<PickerVariant> {
-    // Use backend-calculated available stock (Stock - ReservedStock)
-    // For untracked stock, availableStock will still be the raw stock value
-    const availableStock = variant.warehouseStock.reduce((sum, ws) => sum + ws.availableStock, 0);
+    // Use backend-calculated available stock from the variant DTO (single source of truth)
+    const availableStock = variant.totalStock;
 
     // Check if any warehouse tracks stock
     const trackStock = variant.warehouseStock.some((ws) => ws.trackStock);

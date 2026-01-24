@@ -445,6 +445,8 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       <div class="tab-content">
         <merchello-variant-stock-display
           .warehouseStock=${this._formData.warehouseStock ?? []}
+          .totalAvailableStock=${this._formData.totalStock ?? 0}
+          .totalReservedStock=${this._formData.totalReservedStock ?? 0}
           @stock-settings-change=${this._handleStockSettingsChange}>
         </merchello-variant-stock-display>
       </div>

@@ -5,7 +5,9 @@ using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Providers;
 using Merchello.Core.ExchangeRates.Providers.Interfaces;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
+using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -50,7 +52,7 @@ public class ExchangeRateProvidersApiController(
     /// Get configuration fields for an exchange rate provider
     /// </summary>
     [HttpGet("exchange-rate-providers/{alias}/fields")]
-    [ProducesResponseType<List<ExchangeRateProviderFieldDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<List<ProviderConfigurationFieldDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProviderFields(string alias, CancellationToken cancellationToken = default)
     {
@@ -275,9 +277,9 @@ public class ExchangeRateProvidersApiController(
         };
     }
 
-    private static ExchangeRateProviderFieldDto MapToFieldDto(ExchangeRateProviderConfigurationField field)
+    private static ProviderConfigurationFieldDto MapToFieldDto(ProviderConfigurationField field)
     {
-        return new ExchangeRateProviderFieldDto
+        return new ProviderConfigurationFieldDto
         {
             Key = field.Key,
             Label = field.Label,
@@ -286,7 +288,12 @@ public class ExchangeRateProvidersApiController(
             IsRequired = field.IsRequired,
             IsSensitive = field.IsSensitive,
             DefaultValue = field.DefaultValue,
-            Placeholder = field.Placeholder
+            Placeholder = field.Placeholder,
+            Options = field.Options?.Select(o => new SelectOptionDto
+            {
+                Value = o.Value,
+                Label = o.Label
+            }).ToList()
         };
     }
 }

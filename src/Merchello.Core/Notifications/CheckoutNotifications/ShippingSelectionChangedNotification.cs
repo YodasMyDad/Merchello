@@ -8,7 +8,7 @@ namespace Merchello.Core.Notifications.CheckoutNotifications;
 /// </summary>
 public class ShippingSelectionChangedNotification(
     BasketModel basket,
-    Dictionary<Guid, Guid> shippingSelections) : MerchelloNotification
+    Dictionary<Guid, string> shippingSelections) : MerchelloNotification
 {
     /// <summary>
     /// Gets the updated basket.
@@ -16,7 +16,7 @@ public class ShippingSelectionChangedNotification(
     public BasketModel Basket { get; } = basket;
 
     /// <summary>
-    /// Gets the new shipping selections (GroupId -> ShippingOptionId).
+    /// Gets the new shipping selections (GroupId -> SelectionKey).
     /// </summary>
-    public Dictionary<Guid, Guid> ShippingSelections { get; } = shippingSelections;
+    public Dictionary<Guid, string> ShippingSelections { get; } = shippingSelections;
 }

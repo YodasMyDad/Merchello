@@ -45,6 +45,9 @@ public class ProductRootDbMapping : IEntityTypeConfiguration<ProductRoot>
         // Extended data for digital products and plugin metadata
         builder.Property(x => x.ExtendedData).ToJsonConversion(3000);
 
+        // Shipping restriction
+        builder.Property(x => x.AllowExternalCarrierShipping).HasDefaultValue(true);
+
         // Index for front-end URL routing performance
         builder.HasIndex(x => x.RootUrl);
         builder.HasIndex(x => x.ProductTypeId);

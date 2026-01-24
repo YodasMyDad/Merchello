@@ -4,6 +4,7 @@ using Merchello.Core.Customers.Models;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Customers.Services.Parameters;
 using Merchello.Core.Data;
+using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Interfaces;
@@ -167,12 +168,10 @@ public class CustomerService(
 
     /// <inheritdoc />
     public async Task<Customer> GetOrCreateByEmailAsync(
-        string email,
-        Address? billingAddress = null,
-        bool acceptsMarketing = false,
+        GetOrCreateCustomerParameters parameters,
         CancellationToken ct = default)
     {
-        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var normalizedEmail = parameters.Email.Trim().ToLowerInvariant();
 
         using var scope = efCoreScopeProvider.CreateScope();
         var customer = await scope.ExecuteWithContextAsync(async db =>
@@ -186,16 +185,16 @@ public class CustomerService(
                 var updated = false;
 
                 // Update name if we have newer info from billing address and current is empty
-                if (billingAddress != null && string.IsNullOrEmpty(existing.FirstName) && !string.IsNullOrEmpty(billingAddress.Name))
+                if (parameters.BillingAddress != null && string.IsNullOrEmpty(existing.FirstName) && !string.IsNullOrEmpty(parameters.BillingAddress.Name))
                 {
-                    var parts = billingAddress.Name.Trim().Split(' ', 2);
+                    var parts = parameters.BillingAddress.Name.Trim().Split(' ', 2);
                     existing.FirstName = parts.Length > 0 ? parts[0] : null;
                     existing.LastName = parts.Length > 1 ? parts[1] : null;
                     updated = true;
                 }
 
                 // Ratchet up marketing preference: only upgrade from false to true, never downgrade
-                if (acceptsMarketing && !existing.AcceptsMarketing)
+                if (parameters.AcceptsMarketing && !existing.AcceptsMarketing)
                 {
                     existing.AcceptsMarketing = true;
                     updated = true;
@@ -212,12 +211,12 @@ public class CustomerService(
             }
 
             // Create new customer
-            var newCustomer = customerFactory.CreateFromEmail(normalizedEmail, billingAddress, acceptsMarketing);
+            var newCustomer = customerFactory.CreateFromEmail(normalizedEmail, parameters.BillingAddress, parameters.AcceptsMarketing);
             db.Customers.Add(newCustomer);
             await db.SaveChangesAsync(ct);
 
             logger.LogInformation("Auto-created customer {CustomerId} for email {Email}, AcceptsMarketing={AcceptsMarketing}",
-                newCustomer.Id, normalizedEmail, acceptsMarketing);
+                newCustomer.Id, normalizedEmail, parameters.AcceptsMarketing);
             return newCustomer;
         });
 
@@ -452,8 +451,10 @@ public class CustomerService(
     }
 
     /// <inheritdoc />
-    public async Task<CustomerPageDto> GetPagedAsync(string? search, int page = 1, int pageSize = 50, CancellationToken ct = default)
+    public async Task<CustomerPageDto> GetPagedAsync(CustomerQueryParameters parameters, CancellationToken ct = default)
     {
+        var page = parameters.Page;
+        var pageSize = parameters.PageSize;
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 50;
         if (pageSize > 200) pageSize = 200;
@@ -464,13 +465,19 @@ public class CustomerService(
             var query = db.Customers.AsNoTracking();
 
             // Apply search filter
-            if (!string.IsNullOrWhiteSpace(search))
+            if (!string.IsNullOrWhiteSpace(parameters.Search))
             {
-                var term = search.Trim().ToLowerInvariant();
+                var term = parameters.Search.Trim().ToLowerInvariant();
                 query = query.Where(c =>
                     c.Email.Contains(term) ||
                     (c.FirstName != null && c.FirstName.ToLower().Contains(term)) ||
                     (c.LastName != null && c.LastName.ToLower().Contains(term)));
+            }
+
+            // Exclude specific IDs (applied before pagination for consistent page sizes)
+            if (parameters.ExcludeIds is { Count: > 0 })
+            {
+                query = query.Where(c => !parameters.ExcludeIds.Contains(c.Id));
             }
 
             // Get total count for pagination
@@ -644,5 +651,179 @@ public class CustomerService(
                 .ToListAsync(ct));
         scope.Complete();
         return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<List<CustomerLookupResultDto>> SearchCustomersAsync(
+        string? email,
+        string? name,
+        int limit = 10,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(email) && string.IsNullOrWhiteSpace(name))
+        {
+            return [];
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var searchEmail = email?.Trim().ToLower();
+            var searchName = name?.Trim().ToLower();
+            List<CustomerLookupResultDto> customers = [];
+            var seenEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // First, search registered Customers table for best matches
+            var customerQuery = db.Customers.AsNoTracking();
+
+            if (!string.IsNullOrEmpty(searchEmail))
+            {
+                customerQuery = customerQuery.Where(c => c.Email.ToLower().Contains(searchEmail));
+            }
+
+            if (!string.IsNullOrEmpty(searchName))
+            {
+                customerQuery = customerQuery.Where(c =>
+                    (c.FirstName != null && c.FirstName.ToLower().Contains(searchName)) ||
+                    (c.LastName != null && c.LastName.ToLower().Contains(searchName)));
+            }
+
+            var registeredCustomers = await customerQuery
+                .OrderByDescending(c => c.DateCreated)
+                .Take(limit)
+                .ToListAsync(ct);
+
+            // Add registered customers first
+            foreach (var customer in registeredCustomers)
+            {
+                if (!seenEmails.Add(customer.Email))
+                    continue;
+
+                // Get past addresses from invoices for this customer
+                var customerInvoices = await db.Invoices
+                    .AsNoTracking()
+                    .Where(i => i.CustomerId == customer.Id && !i.IsDeleted)
+                    .OrderByDescending(i => i.DateCreated)
+                    .Take(10)
+                    .ToListAsync(ct);
+
+                var mostRecentInvoice = customerInvoices.FirstOrDefault();
+
+                var dto = new CustomerLookupResultDto
+                {
+                    CustomerId = customer.Id,
+                    Name = $"{customer.FirstName} {customer.LastName}".Trim(),
+                    Email = customer.Email,
+                    Phone = mostRecentInvoice?.BillingAddress.Phone,
+                    PastShippingAddresses = customerInvoices
+                        .Select(i => i.ShippingAddress)
+                        .Where(a => !string.IsNullOrWhiteSpace(a.AddressOne))
+                        .DistinctBy(NormalizeAddressKey)
+                        .Select(MapAddressToDto)
+                        .ToList(),
+                    HasAccountTerms = customer.HasAccountTerms,
+                    CreditLimit = customer.CreditLimit
+                };
+
+                if (mostRecentInvoice != null)
+                {
+                    dto.BillingAddress = MapAddressToDto(mostRecentInvoice.BillingAddress);
+                }
+
+                customers.Add(dto);
+            }
+
+            // If we haven't reached the limit, search invoices for guest customers
+            if (customers.Count < limit)
+            {
+                // Query invoices matching the search criteria
+                var query = db.Invoices
+                    .AsNoTracking()
+                    .Where(i => !i.IsDeleted);
+
+                // Apply search filters for invoice-based search
+                if (!string.IsNullOrEmpty(searchEmail))
+                {
+                    query = query.Where(i => i.BillingAddress.Email != null &&
+                        i.BillingAddress.Email.ToLower().Contains(searchEmail));
+                }
+
+                if (!string.IsNullOrEmpty(searchName))
+                {
+                    query = query.Where(i => i.BillingAddress.Name != null &&
+                        i.BillingAddress.Name.ToLower().Contains(searchName));
+                }
+
+                // Get matching invoices, ordered by most recent
+                // Load full entities to ensure owned entities (Address, CountyState) are properly included
+                var invoices = await query
+                    .OrderByDescending(i => i.DateCreated)
+                    .Take(100) // Limit to prevent scanning too many records
+                    .ToListAsync(ct);
+
+                // Group by billing email to get unique customers (skip already-found registered customers)
+                var remainingLimit = limit - customers.Count;
+                var customerGroups = invoices
+                    .Where(i => !string.IsNullOrWhiteSpace(i.BillingAddress.Email) &&
+                                !seenEmails.Contains(i.BillingAddress.Email!))
+                    .GroupBy(i => i.BillingAddress.Email!.ToLower())
+                    .Take(remainingLimit);
+
+                foreach (var group in customerGroups)
+                {
+                    var firstInvoice = group.First();
+                    var billingAddress = firstInvoice.BillingAddress;
+
+                    if (!seenEmails.Add(billingAddress.Email!))
+                        continue;
+
+                    // Collect unique shipping addresses from all invoices for this customer
+                    var shippingAddresses = group
+                        .Select(i => i.ShippingAddress)
+                        .Where(a => !string.IsNullOrWhiteSpace(a.AddressOne))
+                        .DistinctBy(NormalizeAddressKey)
+                        .Select(MapAddressToDto)
+                        .ToList();
+
+                    customers.Add(new CustomerLookupResultDto
+                    {
+                        Name = billingAddress.Name ?? string.Empty,
+                        Email = billingAddress.Email ?? string.Empty,
+                        Phone = billingAddress.Phone,
+                        BillingAddress = MapAddressToDto(billingAddress),
+                        PastShippingAddresses = shippingAddresses
+                    });
+                }
+            }
+
+            return customers;
+        });
+
+        scope.Complete();
+        return result;
+    }
+
+    private static string NormalizeAddressKey(Address address)
+    {
+        var key = $"{address.AddressOne?.Trim().ToLower()}|{address.TownCity?.Trim().ToLower()}|{address.PostalCode?.Trim().ToLower()}|{address.CountryCode?.Trim().ToLower()}";
+        return key;
+    }
+
+    private static AddressDto MapAddressToDto(Address address)
+    {
+        return new AddressDto
+        {
+            Name = address.Name,
+            Company = address.Company,
+            AddressOne = address.AddressOne,
+            AddressTwo = address.AddressTwo,
+            TownCity = address.TownCity,
+            CountyState = address.CountyState?.Name,
+            PostalCode = address.PostalCode,
+            Country = address.Country,
+            CountryCode = address.CountryCode,
+            Email = address.Email,
+            Phone = address.Phone
+        };
     }
 }

@@ -1,4 +1,5 @@
 using Merchello.Core.Checkout.Dtos;
+using Merchello.Core.Checkout.Strategies.Models;
 
 namespace Merchello.Core.Checkout.Services.Interfaces;
 
@@ -7,6 +8,24 @@ namespace Merchello.Core.Checkout.Services.Interfaces;
 /// </summary>
 public interface ICheckoutValidator
 {
+    /// <summary>
+    /// Validates that all order groups have a shipping selection and that selected options are valid.
+    /// Uses multi-fallback key matching: GroupId, then WarehouseId, then available options search.
+    /// </summary>
+    /// <param name="groups">The order groups to validate against.</param>
+    /// <param name="selections">The shipping selections (key = GroupId or WarehouseId, value = SelectionKey).</param>
+    /// <returns>Dictionary of validation errors (group ID -> error message). Empty if valid.</returns>
+    Dictionary<string, string> ValidateShippingSelections(List<OrderGroup> groups, Dictionary<Guid, string> selections);
+
+    /// <summary>
+    /// Augments shipping selections with both GroupId and WarehouseId keys for stable lookups.
+    /// Ensures selections can be found regardless of GroupId changes between PRE/POST selection modes.
+    /// </summary>
+    /// <param name="groups">The order groups.</param>
+    /// <param name="selections">The original shipping selections.</param>
+    /// <returns>Augmented selections dictionary with additional keys.</returns>
+    Dictionary<Guid, string> AugmentShippingSelections(List<OrderGroup> groups, Dictionary<Guid, string> selections);
+
     /// <summary>
     /// Validates a checkout address request including email and billing/shipping addresses.
     /// </summary>

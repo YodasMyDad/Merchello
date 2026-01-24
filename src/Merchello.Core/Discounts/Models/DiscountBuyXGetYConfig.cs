@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Merchello.Core.Accounting.Models;
-using Merchello.Core.Shared.Extensions;
 
 namespace Merchello.Core.Discounts.Models;
 
@@ -9,16 +8,6 @@ namespace Merchello.Core.Discounts.Models;
 /// </summary>
 public class DiscountBuyXGetYConfig
 {
-    /// <summary>
-    /// Unique identifier for the configuration.
-    /// </summary>
-    public Guid Id { get; set; } = GuidExtensions.NewSequentialGuid;
-
-    /// <summary>
-    /// The discount this configuration belongs to.
-    /// </summary>
-    public Guid DiscountId { get; set; }
-
     // =====================================================
     // Customer Buys (Trigger)
     // =====================================================
@@ -83,28 +72,19 @@ public class DiscountBuyXGetYConfig
     public BuyXGetYSelectionMethod SelectionMethod { get; set; }
 
     /// <summary>
-    /// Navigation property to the parent discount.
-    /// </summary>
-    public virtual Discount Discount { get; set; } = null!;
-
-    /// <summary>
     /// Gets the Buy target IDs as a list of Guids.
     /// </summary>
     public List<Guid> GetBuyTargetIdsList()
     {
         if (string.IsNullOrEmpty(BuyTargetIds))
-        {
             return [];
-        }
 
         try
         {
             return JsonSerializer.Deserialize<List<Guid>>(BuyTargetIds) ?? [];
         }
-        catch (JsonException ex)
+        catch (JsonException)
         {
-            // Log warning - malformed JSON in BuyTargetIds
-            System.Diagnostics.Debug.WriteLine($"[DiscountBuyXGetYConfig] Failed to deserialize BuyTargetIds JSON for config {Id}: {ex.Message}");
             return [];
         }
     }
@@ -115,18 +95,14 @@ public class DiscountBuyXGetYConfig
     public List<Guid> GetGetTargetIdsList()
     {
         if (string.IsNullOrEmpty(GetTargetIds))
-        {
             return [];
-        }
 
         try
         {
             return JsonSerializer.Deserialize<List<Guid>>(GetTargetIds) ?? [];
         }
-        catch (JsonException ex)
+        catch (JsonException)
         {
-            // Log warning - malformed JSON in GetTargetIds
-            System.Diagnostics.Debug.WriteLine($"[DiscountBuyXGetYConfig] Failed to deserialize GetTargetIds JSON for config {Id}: {ex.Message}");
             return [];
         }
     }

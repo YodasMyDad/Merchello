@@ -17,6 +17,13 @@ const EMAIL_PATTERN = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-
 const PHONE_PATTERN = /^\+?[\d\s\-()]*\d[\d\s\-()]*$/;
 
 /**
+ * Minimum postal code length to trigger shipping calculation (UX-only gate).
+ * The backend CheckoutValidator performs full postal code validation on submission.
+ * @type {number}
+ */
+export const MIN_POSTAL_CODE_LENGTH = 3;
+
+/**
  * Required address fields
  * @type {string[]}
  */
@@ -170,6 +177,7 @@ export function validateCheckoutForm(form, shippingSameAsBilling) {
 }
 
 export default {
+    MIN_POSTAL_CODE_LENGTH,
     validateEmail,
     validatePhone,
     validateAddress,

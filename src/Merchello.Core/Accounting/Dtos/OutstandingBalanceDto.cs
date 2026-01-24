@@ -59,6 +59,14 @@ public record OutstandingBalanceDto
     /// Computed property - never stored.
     /// </summary>
     public decimal? CreditUtilizationPercent => CreditLimit.HasValue && CreditLimit.Value > 0
-        ? (TotalOutstanding / CreditLimit.Value) * 100
+        ? Math.Round((TotalOutstanding / CreditLimit.Value) * 100, 2)
         : null;
+
+    /// <summary>
+    /// Credit warning level: "ok", "warning" (>=80% utilized), "exceeded" (over limit).
+    /// Computed property - never stored.
+    /// </summary>
+    public string CreditWarningLevel => CreditLimitExceeded ? "exceeded"
+        : CreditUtilizationPercent >= 80 ? "warning"
+        : "ok";
 }

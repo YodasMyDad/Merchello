@@ -11,6 +11,7 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services.Parameters;
+using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
@@ -416,7 +417,6 @@ public class StorefrontContextService(
             _settings.DisplayPricesIncTax,
             shippingLocation.CountryCode,
             shippingLocation.RegionCode,
-            DefaultTaxRate: 0, // Tax rates come from line items/TaxGroups
             IsShippingTaxable: isShippingTaxed,
             ShippingTaxRate: shippingTaxRate);
     }

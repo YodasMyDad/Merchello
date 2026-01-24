@@ -5,6 +5,7 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers.FedEx.Models;
+using Merchello.Core.Shared.Providers;
 using Microsoft.Extensions.Options;
 
 namespace Merchello.Core.Shipping.Providers.FedEx;
@@ -120,12 +121,12 @@ public class FedExShippingProvider(
     }
 
     /// <inheritdoc />
-    public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(
+    public override ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult<IEnumerable<ShippingProviderConfigurationField>>(
+        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>(
         [
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = Constants.ShippingProviders.ConfigKeys.ClientId,
                 Label = "API Key (Client ID)",
@@ -134,7 +135,7 @@ public class FedExShippingProvider(
                 IsRequired = true,
                 Placeholder = "l7xx..."
             },
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = Constants.ShippingProviders.ConfigKeys.ClientSecret,
                 Label = "Secret Key",
@@ -143,7 +144,7 @@ public class FedExShippingProvider(
                 IsSensitive = true,
                 IsRequired = true
             },
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = Constants.ShippingProviders.ConfigKeys.AccountNumber,
                 Label = "Account Number",
@@ -152,7 +153,7 @@ public class FedExShippingProvider(
                 IsRequired = true,
                 Placeholder = "123456789"
             },
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = Constants.ShippingProviders.ConfigKeys.Environment,
                 Label = "Environment",
@@ -174,12 +175,12 @@ public class FedExShippingProvider(
     /// Service type selection is handled via GetSupportedServiceTypesAsync - the UI generates
     /// the dropdown from that list. This method only returns additional configuration fields.
     /// </remarks>
-    public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetMethodConfigFieldsAsync(
+    public override ValueTask<IEnumerable<ProviderConfigurationField>> GetMethodConfigFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult<IEnumerable<ShippingProviderConfigurationField>>(
+        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>(
         [
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = Constants.ShippingProviders.ConfigKeys.Name,
                 Label = "Method Name",
@@ -188,7 +189,7 @@ public class FedExShippingProvider(
                 IsRequired = false,
                 Placeholder = "e.g., FedEx Ground"
             },
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = Constants.ShippingProviders.ConfigKeys.Markup,
                 Label = "Markup %",
@@ -269,8 +270,9 @@ public class FedExShippingProvider(
         if (_apiClient == null)
             return false;
 
-        // Must have shippable items with weight
-        return request.Items.Any(i => i.IsShippable && (i.TotalWeightKg ?? 0) > 0);
+        // Must have shippable items with weight, or pre-built packages (warehouse-level quotes)
+        return request.Items.Any(i => i.IsShippable && (i.TotalWeightKg ?? 0) > 0)
+            || request.Packages.Any(p => p.WeightKg > 0);
     }
 
     /// <inheritdoc />
@@ -399,16 +401,29 @@ public class FedExShippingProvider(
                         transitTime = TimeSpan.FromDays(days);
                     }
 
+                    // Parse estimated delivery date from FedEx commit details
+                    DateTime? estimatedDelivery = null;
+                    if (DateTime.TryParse(detail.Commit?.DateDetail?.DayCxsFormat,
+                        CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
+                    {
+                        estimatedDelivery = parsedDate;
+                    }
+                    else if (transitTime.HasValue)
+                    {
+                        estimatedDelivery = DateTime.UtcNow.Date.AddDays(transitTime.Value.TotalDays);
+                    }
+
                     // Resolve the concrete service type from our defined list
                     var serviceType = ServiceTypeLookup.GetValueOrDefault(detail.ServiceType);
 
                     serviceLevels.Add(new ShippingServiceLevel
                     {
-                        ServiceCode = $"fedex-{detail.ServiceType.ToLowerInvariant()}",
+                        ServiceCode = detail.ServiceType,
                         ServiceName = serviceType?.DisplayName ?? detail.ServiceName ?? detail.ServiceType,
                         TotalCost = totalCost,
                         CurrencyCode = displayCurrency,
                         TransitTime = transitTime,
+                        EstimatedDeliveryDate = estimatedDelivery,
                         Description = BuildTransitDescription(detail),
                         ServiceType = serviceType ?? new ShippingServiceType
                         {
@@ -538,6 +553,94 @@ public class FedExShippingProvider(
             ProviderKey = quote.ProviderKey,
             ProviderName = quote.ProviderName,
             ServiceLevels = filteredLevels,
+            Errors = quote.Errors
+        };
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// FedEx approach: returns static supported service types as a fallback.
+    /// The FedEx Rate API already returns only services available for the route,
+    /// so dynamic filtering happens at the rate-fetching level.
+    /// </remarks>
+    public override Task<IReadOnlyList<ShippingServiceType>?> GetAvailableServicesAsync(
+        string originCountryCode,
+        string originPostalCode,
+        string destinationCountryCode,
+        string? destinationPostalCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        // FedEx Rate API handles service availability filtering inherently -
+        // it only returns services available for the given route.
+        // Return the full static list here; actual availability is determined
+        // when GetRatesForAllServicesAsync calls the Rate API.
+        return Task.FromResult<IReadOnlyList<ShippingServiceType>?>(SupportedServiceTypes);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// FedEx dynamic: gets all rates from the Rate API, then applies warehouse config
+    /// (exclusions and markup). The Rate API already filters to available services for the route.
+    /// </remarks>
+    public override async Task<ShippingRateQuote?> GetRatesForAllServicesAsync(
+        ShippingQuoteRequest request,
+        WarehouseProviderConfig warehouseConfig,
+        CancellationToken cancellationToken = default)
+    {
+        // Get all available rates from FedEx
+        var quote = await GetRatesAsync(request, cancellationToken);
+        if (quote == null)
+        {
+            return null;
+        }
+
+        // Apply warehouse config: exclusions and per-service markup
+        List<ShippingServiceLevel> filteredLevels = [];
+
+        foreach (var sl in quote.ServiceLevels)
+        {
+            var serviceCode = sl.ServiceType?.Code ?? sl.ServiceCode;
+
+            // Skip excluded services
+            if (warehouseConfig.IsServiceExcluded(serviceCode))
+            {
+                continue;
+            }
+
+            // Apply markup
+            var markupPercent = warehouseConfig.GetMarkupForService(serviceCode);
+            var totalCost = sl.TotalCost;
+
+            if (markupPercent > 0m)
+            {
+                totalCost = sl.TotalCost * (1 + (markupPercent / 100m));
+                totalCost = _currencyService.Round(totalCost, sl.CurrencyCode);
+            }
+
+            filteredLevels.Add(new ShippingServiceLevel
+            {
+                ServiceCode = sl.ServiceCode,
+                ServiceName = sl.ServiceName,
+                TotalCost = totalCost,
+                CurrencyCode = sl.CurrencyCode,
+                TransitTime = sl.TransitTime,
+                EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
+                Description = sl.Description,
+                ServiceType = sl.ServiceType,
+                ExtendedProperties = sl.ExtendedProperties
+            });
+        }
+
+        // Sort by cost
+        filteredLevels = filteredLevels.OrderBy(s => s.TotalCost).ToList();
+
+        return new ShippingRateQuote
+        {
+            ProviderKey = quote.ProviderKey,
+            ProviderName = quote.ProviderName,
+            ServiceLevels = filteredLevels,
+            IsFallbackRate = quote.IsFallbackRate,
+            FallbackReason = quote.FallbackReason,
             Errors = quote.Errors
         };
     }

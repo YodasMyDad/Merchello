@@ -1,4 +1,5 @@
 using Merchello.Core;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Parameters;
@@ -29,7 +30,8 @@ public class LineItemCalculationTests
         });
         var currencyService = new CurrencyService(settings);
         var taxCalculationService = new TaxCalculationService(currencyService);
-        _lineItemService = new LineItemService(currencyService, taxCalculationService);
+        var lineItemFactory = new LineItemFactory(currencyService);
+        _lineItemService = new LineItemService(currencyService, taxCalculationService, lineItemFactory);
     }
 
     #region CalculateFromLineItems - Basic Tests
@@ -46,7 +48,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(200m); // 100 + (50 * 2)
@@ -68,7 +70,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 10m, 20, _currencyCode, isShippingTaxable: true);
+            Calculate(lineItems, 10m, _currencyCode, isShippingTaxable: true);
 
         // Assert
         subTotal.ShouldBe(100m);
@@ -89,7 +91,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 10m, 20, _currencyCode, isShippingTaxable: false);
+            Calculate(lineItems, 10m, _currencyCode, isShippingTaxable: false);
 
         // Assert
         tax.ShouldBe(20m); // Only product tax, no shipping tax
@@ -112,7 +114,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(100m);
@@ -135,7 +137,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(150m);
@@ -162,7 +164,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(100m);
@@ -185,7 +187,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(300m);
@@ -213,7 +215,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(200m);
@@ -237,7 +239,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(0m);
@@ -258,7 +260,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode, isShippingTaxable: false);
+            Calculate(lineItems, 0, _currencyCode, isShippingTaxable: false);
 
         // Assert
         tax.ShouldBe(0m);
@@ -277,7 +279,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(50m);
@@ -298,7 +300,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(100m);
@@ -433,7 +435,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert - Both discounts applied
         subTotal.ShouldBe(100m);
@@ -459,7 +461,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(100m);
@@ -486,7 +488,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 0, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(100m);
@@ -509,7 +511,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 0, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(100m);
@@ -536,7 +538,7 @@ public class LineItemCalculationTests
 
         // Act - £15 shipping, taxable
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 15m, 20, _currencyCode, isShippingTaxable: true);
+            Calculate(lineItems, 15m, _currencyCode, isShippingTaxable: true);
 
         // Assert
         subTotal.ShouldBe(100m);
@@ -564,7 +566,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(50m); // Only SKU2 counts
@@ -584,7 +586,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(100m);
@@ -603,7 +605,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert - Should round properly
         subTotal.ShouldBe(0.01m);
@@ -622,7 +624,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 0, 20, _currencyCode);
+            Calculate(lineItems, 0, _currencyCode);
 
         // Assert
         subTotal.ShouldBe(999m); // 9.99 * 100
@@ -642,7 +644,7 @@ public class LineItemCalculationTests
 
         // Act - with shipping that also has fractional value
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 3.716m, 30.05m, _currencyCode, isShippingTaxable: true);
+            Calculate(lineItems, 3.716m, _currencyCode);
 
         // Assert - displayed values MUST sum exactly to total (no penny discrepancy)
         var displaySum = adjustedSubTotal + tax + shipping;
@@ -662,7 +664,7 @@ public class LineItemCalculationTests
 
         // Act
         var (subTotal, discount, adjustedSubTotal, tax, total, shipping) =
-            Calculate(lineItems, 9.99m, 20, _currencyCode, isShippingTaxable: true);
+            Calculate(lineItems, 9.99m, _currencyCode);
 
         // Assert - displayed values MUST sum exactly to total
         var displaySum = adjustedSubTotal + tax + shipping;
@@ -737,13 +739,12 @@ public class LineItemCalculationTests
     /// Helper method to call CalculateFromLineItems with the old parameter style for test compatibility
     /// </summary>
     private (decimal subTotal, decimal discount, decimal adjustedSubTotal, decimal tax, decimal total, decimal shipping)
-        Calculate(List<LineItem> lineItems, decimal shippingAmount, decimal defaultTaxRate, string currencyCode, bool isShippingTaxable = true)
+        Calculate(List<LineItem> lineItems, decimal shippingAmount, string currencyCode, bool isShippingTaxable = true)
     {
         var result = _lineItemService.CalculateFromLineItems(new CalculateLineItemsParameters
         {
             LineItems = lineItems,
             ShippingAmount = shippingAmount,
-            DefaultTaxRate = defaultTaxRate,
             CurrencyCode = currencyCode,
             IsShippingTaxable = isShippingTaxable
         });

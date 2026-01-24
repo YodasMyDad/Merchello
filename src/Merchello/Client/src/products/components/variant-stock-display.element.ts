@@ -19,6 +19,10 @@ export interface StockSettingsChangeDetail {
 @customElement("merchello-variant-stock-display")
 export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElement) {
   @property({ type: Array }) warehouseStock: VariantWarehouseStockDto[] = [];
+  /** Pre-calculated total available stock from the backend DTO */
+  @property({ type: Number }) totalAvailableStock: number = 0;
+  /** Pre-calculated total reserved stock from the backend DTO */
+  @property({ type: Number }) totalReservedStock: number = 0;
 
   private _emitChange(detail: StockSettingsChangeDetail): void {
     this.dispatchEvent(
@@ -49,10 +53,6 @@ export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElem
   }
 
   override render() {
-    // Use backend-calculated available stock for the summary
-    const totalAvailableStock = this.warehouseStock.reduce((sum, ws) => sum + ws.availableStock, 0);
-    const totalReservedStock = this.warehouseStock.reduce((sum, ws) => sum + ws.reservedStock, 0);
-
     return html`
       <uui-box class="info-banner">
         <div class="info-content">
@@ -68,8 +68,8 @@ export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElem
         ${this.warehouseStock.length > 0
           ? html`
               <div class="stock-summary">
-                <strong>Available Stock:</strong> ${totalAvailableStock} units
-                ${totalReservedStock > 0 ? html`<span class="reserved-info">(${totalReservedStock} reserved)</span>` : ""}
+                <strong>Available Stock:</strong> ${this.totalAvailableStock} units
+                ${this.totalReservedStock > 0 ? html`<span class="reserved-info">(${this.totalReservedStock} reserved)</span>` : ""}
               </div>
               <div class="table-container">
                 <uui-table>

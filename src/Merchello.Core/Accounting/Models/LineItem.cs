@@ -92,6 +92,11 @@ public class LineItem
     public decimal? OriginalAmount { get; set; }
 
     /// <summary>
+    /// Original amount in store currency (for multi-currency reporting).
+    /// </summary>
+    public decimal? OriginalAmountInStoreCurrency { get; set; }
+
+    /// <summary>
     /// Defines whether this line item is taxable. Might be zero rated tax product
     /// </summary>
     public bool IsTaxable { get; set; }

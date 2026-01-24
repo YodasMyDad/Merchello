@@ -3,6 +3,7 @@ using Merchello.Core.Data;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.Inventory;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -586,6 +587,66 @@ public class InventoryService(
         }
 
         return result;
+    }
+
+    public async Task<ValidateBasketStockResult> ValidateBasketStockAsync(
+        IEnumerable<(Guid ProductId, Guid WarehouseId, int Quantity)> items,
+        CancellationToken cancellationToken = default)
+    {
+        var itemList = items.ToList();
+        if (itemList.Count == 0)
+            return new ValidateBasketStockResult(true, []);
+
+        // Aggregate quantities per product-warehouse combination (handles split quantities)
+        var aggregated = itemList
+            .GroupBy(i => (i.ProductId, i.WarehouseId))
+            .Select(g => (g.Key.ProductId, g.Key.WarehouseId, Quantity: g.Sum(x => x.Quantity)))
+            .ToList();
+
+        var productIds = aggregated.Select(i => i.ProductId).Distinct().ToList();
+        var warehouseIds = aggregated.Select(i => i.WarehouseId).Distinct().ToList();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var unavailable = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var productWarehouses = await db.ProductWarehouses
+                .Include(pw => pw.Product)
+                .Where(pw => productIds.Contains(pw.ProductId) && warehouseIds.Contains(pw.WarehouseId))
+                .ToListAsync(cancellationToken);
+
+            var lookup = productWarehouses.ToDictionary(pw => (pw.ProductId, pw.WarehouseId));
+
+            List<StockValidationItem> issues = [];
+            foreach (var (productId, warehouseId, quantity) in aggregated)
+            {
+                if (!lookup.TryGetValue((productId, warehouseId), out var pw))
+                {
+                    issues.Add(new StockValidationItem(productId, "Unknown product", quantity, 0, warehouseId));
+                    continue;
+                }
+
+                // Skip untracked items - they're always available
+                if (!pw.TrackStock)
+                    continue;
+
+                var available = Math.Max(0, pw.Stock - pw.ReservedStock);
+                if (available < quantity)
+                {
+                    issues.Add(new StockValidationItem(
+                        productId,
+                        pw.Product?.Name ?? "Unknown",
+                        quantity,
+                        available,
+                        warehouseId));
+                }
+            }
+
+            return issues;
+        });
+
+        scope.Complete();
+        var issues = unavailable ?? new List<StockValidationItem>();
+        return new ValidateBasketStockResult(issues.Count == 0, issues);
     }
 
     /// <summary>

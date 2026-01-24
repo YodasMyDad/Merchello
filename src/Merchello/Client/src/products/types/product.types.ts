@@ -217,7 +217,10 @@ export interface ProductVariantDto {
   removeFromFeed: boolean;
 
   // Stock
+  /** Total available stock across all warehouses (sum of AvailableStock per warehouse) */
   totalStock: number;
+  /** Total reserved stock across all warehouses (sum of ReservedStock per warehouse) */
+  totalReservedStock: number;
   /** Stock status classification calculated by backend - use this instead of comparing totalStock to threshold locally */
   stockStatus: StockStatus;
   warehouseStock: VariantWarehouseStockDto[];

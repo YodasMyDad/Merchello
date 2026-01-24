@@ -3,6 +3,7 @@ using System.Text;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Data;
+using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Extensions;
 using Merchello.Core.Caching.Services.Interfaces;
@@ -20,6 +21,7 @@ public class ShippingQuoteService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IShippingProviderManager providerRegistry,
     IShippingCostResolver shippingCostResolver,
+    IWarehouseProviderConfigService warehouseProviderConfigService,
     ICacheService cacheService,
     ILogger<ShippingQuoteService> logger) : IShippingQuoteService
 {
@@ -54,6 +56,160 @@ public class ShippingQuoteService(
             cancellationToken);
 
         return quotes;
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyCollection<ShippingRateQuote>> GetQuotesForWarehouseAsync(
+        Guid warehouseId,
+        Address warehouseAddress,
+        IReadOnlyCollection<ShipmentPackage> packages,
+        string destinationCountry,
+        string? destinationState,
+        string? destinationPostal,
+        string currency,
+        CancellationToken cancellationToken = default)
+    {
+        if (packages.Count == 0)
+        {
+            return [];
+        }
+
+        // Build cache key specific to this warehouse and destination
+        var cacheKey = BuildWarehouseCacheKey(warehouseId, destinationCountry, destinationState, destinationPostal, currency, packages);
+
+        var quotes = await cacheService.GetOrCreateAsync(
+            cacheKey,
+            async ct => await FetchQuotesForWarehouseAsync(warehouseId, warehouseAddress, packages, destinationCountry, destinationState, destinationPostal, currency, ct),
+            _quoteCacheTtl,
+            [Constants.CacheTags.ShippingQuotes],
+            cancellationToken);
+
+        return quotes;
+    }
+
+    private async Task<List<ShippingRateQuote>> FetchQuotesForWarehouseAsync(
+        Guid warehouseId,
+        Address warehouseAddress,
+        IReadOnlyCollection<ShipmentPackage> packages,
+        string destinationCountry,
+        string? destinationState,
+        string? destinationPostal,
+        string currency,
+        CancellationToken cancellationToken)
+    {
+        var providers = await providerRegistry.GetEnabledProvidersAsync(cancellationToken);
+        List<ShippingRateQuote> quotes = [];
+
+        // Build a minimal request for the providers
+        var request = new ShippingQuoteRequest
+        {
+            OriginWarehouseId = warehouseId,
+            OriginAddress = warehouseAddress,
+            CountryCode = destinationCountry,
+            StateOrProvinceCode = destinationState,
+            PostalCode = destinationPostal,
+            CurrencyCode = currency,
+            Packages = packages.ToList(),
+            Items = [], // No product-specific items - we're fetching warehouse-level rates
+            ItemsSubtotal = 0 // Will be set by caller if needed for threshold-based shipping
+        };
+
+        // Pre-load warehouse provider configs for dynamic providers
+        var warehouseConfigs = await warehouseProviderConfigService.GetByWarehouseAsync(warehouseId, cancellationToken);
+        var configLookup = warehouseConfigs.ToDictionary(c => c.ProviderKey, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var provider in providers)
+        {
+            if (!provider.Provider.IsAvailableFor(request))
+            {
+                continue;
+            }
+
+            try
+            {
+                var providerKey = provider.Metadata.Key;
+                var capabilities = provider.Metadata.ConfigCapabilities;
+
+                if (capabilities?.UsesLiveRates == true)
+                {
+                    // Dynamic provider: use WarehouseProviderConfig for exclusions and markup
+                    if (!configLookup.TryGetValue(providerKey, out var warehouseConfig))
+                    {
+                        // No warehouse config = use provider with default settings (no markup, no exclusions)
+                        warehouseConfig = new WarehouseProviderConfig
+                        {
+                            WarehouseId = warehouseId,
+                            ProviderKey = providerKey,
+                            IsEnabled = true,
+                            DefaultMarkupPercent = 0
+                        };
+                    }
+
+                    if (!warehouseConfig.IsEnabled)
+                    {
+                        continue;
+                    }
+
+                    var quote = await provider.Provider.GetRatesForAllServicesAsync(
+                        request, warehouseConfig, cancellationToken);
+
+                    if (quote != null)
+                    {
+                        quotes.Add(new ShippingRateQuote
+                        {
+                            ProviderKey = quote.ProviderKey,
+                            ProviderName = quote.ProviderName,
+                            ServiceLevels = quote.ServiceLevels,
+                            Metadata = provider.Metadata,
+                            IsFallbackRate = quote.IsFallbackRate,
+                            FallbackReason = quote.FallbackReason,
+                            Errors = quote.Errors
+                        });
+                    }
+                }
+                // Non-dynamic and flat-rate providers are handled via the basket-level
+                // GetQuotesAsync flow with configured ShippingOption records
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "Shipping provider {ProviderKey} failed while retrieving quotes for warehouse {WarehouseId}",
+                    provider.Metadata.Key, warehouseId);
+            }
+        }
+
+        return quotes;
+    }
+
+    private static string BuildWarehouseCacheKey(
+        Guid warehouseId,
+        string destinationCountry,
+        string? destinationState,
+        string? destinationPostal,
+        string currency,
+        IReadOnlyCollection<ShipmentPackage> packages)
+    {
+        var destination = string.IsNullOrEmpty(destinationState)
+            ? destinationCountry
+            : $"{destinationCountry}-{destinationState}";
+
+        if (!string.IsNullOrEmpty(destinationPostal))
+        {
+            destination = $"{destination}-{destinationPostal}";
+        }
+
+        // Hash the packages to create a deterministic key
+        var packagesString = string.Join("|", packages
+            .OrderBy(p => p.WeightKg)
+            .ThenBy(p => p.LengthCm)
+            .ThenBy(p => p.WidthCm)
+            .ThenBy(p => p.HeightCm)
+            .Select(p => $"{p.WeightKg}:{p.LengthCm}x{p.WidthCm}x{p.HeightCm}"));
+
+        var packagesHash = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(packagesString)))[..16];
+
+        return $"{Constants.CacheKeys.ShippingQuotePrefix}wh:{warehouseId}:{destination}:{currency}:{packagesHash}";
     }
 
     private static string BuildCacheKey(Basket basket, string countryCode, string? stateOrProvinceCode)
@@ -146,7 +302,12 @@ public class ShippingQuoteService(
                     var quote = await provider.Provider.GetRatesAsync(request, cancellationToken);
                     if (quote != null)
                     {
-                        quotes.Add(quote);
+                        // Apply warehouse-level markup/exclusions for flat-rate provider
+                        quote = await ApplyWarehouseConfigToQuoteAsync(quote, request, providerKey, cancellationToken);
+                        if (quote != null)
+                        {
+                            quotes.Add(quote);
+                        }
                     }
                 }
             }
@@ -157,6 +318,97 @@ public class ShippingQuoteService(
         }
 
         return quotes;
+    }
+
+    /// <summary>
+    /// Applies per-warehouse markup and exclusions to a flat-rate quote.
+    /// </summary>
+    private async Task<ShippingRateQuote?> ApplyWarehouseConfigToQuoteAsync(
+        ShippingRateQuote quote,
+        ShippingQuoteRequest request,
+        string providerKey,
+        CancellationToken cancellationToken)
+    {
+        // Build ShippingOptionId → WarehouseId lookup from request items
+        var warehouseByOptionId = request.Items
+            .Where(i => i.ProductSnapshot?.ShippingOptions != null)
+            .SelectMany(i => i.ProductSnapshot!.ShippingOptions)
+            .Where(o => o.Id != Guid.Empty && o.WarehouseId.HasValue)
+            .DistinctBy(o => o.Id)
+            .ToDictionary(o => o.Id, o => o.WarehouseId!.Value);
+
+        if (warehouseByOptionId.Count == 0)
+        {
+            return quote;
+        }
+
+        // Get all warehouse configs for this provider
+        var configs = await warehouseProviderConfigService.GetByProviderAsync(providerKey, cancellationToken);
+        if (configs is not { Count: > 0 })
+        {
+            return quote;
+        }
+
+        var configByWarehouse = configs.ToDictionary(c => c.WarehouseId);
+
+        // Filter and apply markup to each service level
+        List<ShippingServiceLevel> filteredLevels = [];
+        foreach (var sl in quote.ServiceLevels)
+        {
+            // Extract ShippingOptionId from ExtendedProperties
+            if (sl.ExtendedProperties?.TryGetValue("ShippingOptionId", out var optionIdStr) != true ||
+                !Guid.TryParse(optionIdStr, out var optionId))
+            {
+                filteredLevels.Add(sl);
+                continue;
+            }
+
+            if (!warehouseByOptionId.TryGetValue(optionId, out var warehouseId) ||
+                !configByWarehouse.TryGetValue(warehouseId, out var config))
+            {
+                filteredLevels.Add(sl);
+                continue;
+            }
+
+            if (!config.IsEnabled)
+            {
+                continue;
+            }
+
+            if (config.IsServiceExcluded(sl.ServiceCode))
+            {
+                continue;
+            }
+
+            var markup = config.GetMarkupForService(sl.ServiceCode);
+            if (markup > 0m)
+            {
+                var markedUpCost = sl.TotalCost * (1 + (markup / 100m));
+                filteredLevels.Add(new ShippingServiceLevel
+                {
+                    ServiceCode = sl.ServiceCode,
+                    ServiceName = sl.ServiceName,
+                    TotalCost = Math.Round(markedUpCost, 2, MidpointRounding.AwayFromZero),
+                    CurrencyCode = sl.CurrencyCode,
+                    TransitTime = sl.TransitTime,
+                    EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
+                    Description = sl.Description,
+                    ServiceType = sl.ServiceType,
+                    ExtendedProperties = sl.ExtendedProperties
+                });
+            }
+            else
+            {
+                filteredLevels.Add(sl);
+            }
+        }
+
+        if (filteredLevels.Count == 0)
+        {
+            return null;
+        }
+
+        return quote with { ServiceLevels = filteredLevels };
     }
 
     private async Task<(ShippingQuoteRequest Request, List<BasketError> Errors)> BuildRequestAsync(

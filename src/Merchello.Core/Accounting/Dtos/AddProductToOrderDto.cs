@@ -28,5 +28,5 @@ public class AddProductToOrderDto
     /// <summary>
     /// Selected add-on options (non-variant product options)
     /// </summary>
-    public List<SelectedAddonDto> Addons { get; set; } = [];
+    public List<OrderAddonDto> Addons { get; set; } = [];
 }

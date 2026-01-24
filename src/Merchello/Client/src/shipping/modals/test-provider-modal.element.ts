@@ -266,67 +266,66 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
     const currencySymbol = getCurrencySymbol();
 
     return html`
-      <div class="form-section">
-        <h3>Origin</h3>
-        <div class="form-row">
-          <label>Warehouse <span class="required">*</span></label>
+      <uui-box headline="Origin">
+        <umb-property-layout label="Warehouse" description="The warehouse to ship from" ?mandatory=${true}>
           <uui-select
+            slot="editor"
             label="Warehouse"
             .options=${this._getWarehouseOptions()}
             @change=${(e: Event) => (this._warehouseId = (e.target as HTMLSelectElement).value)}
           ></uui-select>
-        </div>
-      </div>
+        </umb-property-layout>
+      </uui-box>
 
-      <div class="form-section">
-        <h3>Destination</h3>
-        <div class="form-row">
-          <label>Country <span class="required">*</span></label>
+      <uui-box headline="Destination">
+        <umb-property-layout label="Country" description="Destination country" ?mandatory=${true}>
           <uui-select
+            slot="editor"
             label="Country"
             .options=${this._getCountryOptions()}
             @change=${this._handleCountryChange}
           ></uui-select>
-        </div>
+        </umb-property-layout>
 
-        <div class="form-row">
-          <label>State/Province</label>
+        <umb-property-layout label="State/Province" description="Narrow down to a specific region">
           <uui-select
+            slot="editor"
             label="State/Province"
             .options=${this._getRegionOptions()}
             ?disabled=${!this._countryCode || this._isLoadingRegions}
             @change=${(e: Event) =>
               (this._stateOrProvinceCode = (e.target as HTMLSelectElement).value)}
           ></uui-select>
-        </div>
+        </umb-property-layout>
 
-        <div class="form-row">
-          <label>Postal Code</label>
+        <umb-property-layout label="Postal Code" description="Required for accurate rate quotes from most carriers">
           <uui-input
+            slot="editor"
+            label="Postal Code"
             type="text"
             .value=${this._postalCode}
             placeholder="e.g., SW1A 1AA"
             @input=${(e: Event) => (this._postalCode = (e.target as HTMLInputElement).value)}
           ></uui-input>
-          <span class="hint">Required for accurate rate quotes from most carriers</span>
-        </div>
+        </umb-property-layout>
 
-        <div class="form-row">
-          <label>City</label>
+        <umb-property-layout label="City">
           <uui-input
+            slot="editor"
+            label="City"
             type="text"
             .value=${this._city}
             placeholder="e.g., London"
             @input=${(e: Event) => (this._city = (e.target as HTMLInputElement).value)}
           ></uui-input>
-        </div>
-      </div>
+        </umb-property-layout>
+      </uui-box>
 
-      <div class="form-section">
-        <h3>Package</h3>
-        <div class="form-row">
-          <label>Weight (kg) <span class="required">*</span></label>
+      <uui-box headline="Package">
+        <umb-property-layout label="Weight (kg)" description="Package weight" ?mandatory=${true}>
           <uui-input
+            slot="editor"
+            label="Weight"
             type="number"
             min="0.01"
             step="0.1"
@@ -334,47 +333,44 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
             @input=${(e: Event) =>
               (this._weightKg = parseFloat((e.target as HTMLInputElement).value) || 1)}
           ></uui-input>
-        </div>
+        </umb-property-layout>
 
-        <div class="form-row-group">
-          <div class="form-row">
-            <label>Length (cm)</label>
+        <umb-property-layout label="Dimensions (cm)" description="Length x Width x Height (optional)">
+          <div slot="editor" class="dimensions-group">
             <uui-input
+              label="Length"
               type="number"
               min="0"
               step="1"
               .value=${this._lengthCm}
-              placeholder="Optional"
+              placeholder="L"
               @input=${(e: Event) => (this._lengthCm = (e.target as HTMLInputElement).value)}
             ></uui-input>
-          </div>
-          <div class="form-row">
-            <label>Width (cm)</label>
             <uui-input
+              label="Width"
               type="number"
               min="0"
               step="1"
               .value=${this._widthCm}
-              placeholder="Optional"
+              placeholder="W"
               @input=${(e: Event) => (this._widthCm = (e.target as HTMLInputElement).value)}
             ></uui-input>
-          </div>
-          <div class="form-row">
-            <label>Height (cm)</label>
             <uui-input
+              label="Height"
               type="number"
               min="0"
               step="1"
               .value=${this._heightCm}
-              placeholder="Optional"
+              placeholder="H"
               @input=${(e: Event) => (this._heightCm = (e.target as HTMLInputElement).value)}
             ></uui-input>
           </div>
-        </div>
+        </umb-property-layout>
 
-        <div class="form-row">
-          <label>Item Value (${currencySymbol})</label>
+        <umb-property-layout label="Item Value (${currencySymbol})" description="Used for value-based shipping calculations (e.g., free shipping thresholds)">
           <uui-input
+            slot="editor"
+            label="Item Value"
             type="number"
             min="0"
             step="0.01"
@@ -382,9 +378,8 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
             @input=${(e: Event) =>
               (this._itemsSubtotal = parseFloat((e.target as HTMLInputElement).value) || 0)}
           ></uui-input>
-          <span class="hint">Used for value-based shipping calculations (e.g., free shipping thresholds)</span>
-        </div>
-      </div>
+        </umb-property-layout>
+      </uui-box>
     `;
   }
 
@@ -400,9 +395,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
     const hasConfigured = configuredLevels.length > 0;
 
     return html`
-      <div class="results-section">
-        <h3>Results</h3>
-
+      <uui-box headline="Results">
         ${errors.length > 0
           ? html`
               <div class="result-errors">
@@ -439,7 +432,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
         ${serviceLevels.length === 0 && success
           ? html`<p class="no-results">No service levels returned for this destination.</p>`
           : nothing}
-      </div>
+      </uui-box>
     `;
   }
 
@@ -576,62 +569,23 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
       flex: 1;
     }
 
-    .form-section {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-3);
+    uui-box {
+      --uui-box-default-padding: var(--uui-size-space-5);
     }
 
-    .form-section h3 {
-      margin: 0;
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: var(--uui-color-text-alt);
-      border-bottom: 1px solid var(--uui-color-border);
-      padding-bottom: var(--uui-size-space-2);
+    umb-property-layout uui-select,
+    umb-property-layout uui-input {
+      width: 100%;
     }
 
-    .form-row {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-1);
-    }
-
-    .form-row-group {
+    .dimensions-group {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
       gap: var(--uui-size-space-3);
     }
 
-    label {
-      font-weight: 600;
-      font-size: 0.8125rem;
-    }
-
-    .required {
-      color: var(--uui-color-danger);
-    }
-
-    .hint {
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
-    }
-
-    uui-select,
-    uui-input {
+    .dimensions-group uui-input {
       width: 100%;
-    }
-
-    .results-section {
-      border-top: 1px solid var(--uui-color-border);
-      padding-top: var(--uui-size-space-4);
-    }
-
-    .results-section h3 {
-      margin: 0 0 var(--uui-size-space-3) 0;
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: var(--uui-color-text-alt);
     }
 
     .result-errors {

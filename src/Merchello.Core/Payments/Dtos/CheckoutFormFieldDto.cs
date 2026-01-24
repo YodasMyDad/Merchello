@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Merchello.Core.Shared.Dtos;
+using Merchello.Core.Shared.Providers;
 
 namespace Merchello.Core.Payments.Dtos;
 

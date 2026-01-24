@@ -1,4 +1,5 @@
 using Merchello.Core.Protocols.Webhooks;
+using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;

@@ -50,4 +50,14 @@ public interface IFulfilmentService
     /// Gets orders that are ready for retry based on retry count and delay.
     /// </summary>
     Task<IReadOnlyList<Order>> GetOrdersReadyForRetryAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks if a webhook with the given message ID has already been processed.
+    /// </summary>
+    Task<bool> IsDuplicateWebhookAsync(Guid providerConfigId, string messageId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Logs a processed webhook for idempotency tracking.
+    /// </summary>
+    Task LogWebhookAsync(Guid providerConfigId, string? messageId, string? eventType, string? payload, CancellationToken cancellationToken = default);
 }

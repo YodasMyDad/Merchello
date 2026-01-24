@@ -17,6 +17,7 @@ using Merchello.Core.Storefront.Dtos;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Core.Storefront.Services.Parameters;
+using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 

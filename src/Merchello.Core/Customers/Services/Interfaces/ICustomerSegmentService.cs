@@ -24,6 +24,11 @@ public interface ICustomerSegmentService
     Task<CustomerSegment?> GetByIdAsync(Guid segmentId, CancellationToken ct = default);
 
     /// <summary>
+    /// Gets customer segments by their IDs in a single batch query.
+    /// </summary>
+    Task<List<CustomerSegment>> GetByIdsAsync(List<Guid> segmentIds, CancellationToken ct = default);
+
+    /// <summary>
     /// Creates a new customer segment.
     /// </summary>
     Task<CrudResult<CustomerSegment>> CreateAsync(CreateSegmentParameters parameters, CancellationToken ct = default);
@@ -48,12 +53,12 @@ public interface ICustomerSegmentService
     /// <summary>
     /// Gets paginated members of a segment with customer details.
     /// </summary>
-    Task<PaginatedList<CustomerSegmentMember>> GetMembersAsync(Guid segmentId, int page = 1, int pageSize = 50, CancellationToken ct = default);
+    Task<PaginatedList<CustomerSegmentMember>> GetMembersAsync(GetSegmentMembersParameters parameters, CancellationToken ct = default);
 
     /// <summary>
     /// Adds customers to a manual segment.
     /// </summary>
-    Task<CrudResult<bool>> AddMembersAsync(Guid segmentId, List<Guid> customerIds, Guid? addedBy = null, string? notes = null, CancellationToken ct = default);
+    Task<CrudResult<bool>> AddMembersAsync(AddSegmentMembersParameters parameters, CancellationToken ct = default);
 
     /// <summary>
     /// Removes customers from a manual segment.

@@ -34,4 +34,9 @@ public class InitializeCheckoutResponseDto
     /// Whether shipping was auto-selected (true) or needs manual selection (false).
     /// </summary>
     public bool ShippingAutoSelected { get; set; }
+
+    /// <summary>
+    /// Number of decimal places for the display currency (e.g., 2 for GBP, 0 for JPY, 3 for BHD).
+    /// </summary>
+    public int CurrencyDecimalPlaces { get; set; } = 2;
 }

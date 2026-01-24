@@ -9,20 +9,6 @@ namespace Merchello.Core.Products.Services.Interfaces;
 
 public interface IProductService
 {
-    Task<CrudResult<ProductRoot>> Update(ProductRoot productRoot);
-    Task<CrudResult<ProductRoot>> Create(string name, TaxGroup taxGroup, ProductType productType, decimal price, decimal costOfGoods, string gtin, string sku, List<ProductOption> productOptions);
-    Task<CrudResult<Product>> Update(Product product);
-    Task<CrudResult<ProductRoot>> Delete(ProductRoot productRoot);
-    Task<List<ProductFilterGroup>> GetFilterGroups(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets filter groups containing only filters that have products in the specified collection.
-    /// Empty groups (with no relevant filters) are excluded.
-    /// </summary>
-    Task<List<ProductFilterGroup>> GetFilterGroupsForCollection(Guid collectionId, CancellationToken cancellationToken = default);
-
-    Task<ProductCollection?> GetCollection(Guid collectionId, CancellationToken cancellationToken = default);
-    Task<List<ProductCollection>> GetCollectionsByIds(IEnumerable<Guid> collectionIds, CancellationToken cancellationToken = default);
     Task<Product?> GetProduct(GetProductParameters parameters, CancellationToken cancellationToken = default);
     Task<PaginatedList<Product>> QueryProducts(ProductQueryParameters parameters, CancellationToken cancellationToken = default);
 
@@ -44,7 +30,7 @@ public interface IProductService
     Task<CrudResult<ProductRoot>> CreateProductRootOnly(CreateProductRootOnlyParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<ProductOption>> AddProductOption(AddProductOptionParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> RemoveProductOption(Guid productRootId, Guid optionId, CancellationToken cancellationToken = default);
-    Task<CrudResult<List<Product>>> GenerateVariantsFromOptions(Guid productRootId, decimal defaultPrice, decimal defaultCostOfGoods, CancellationToken cancellationToken = default);
+    Task<CrudResult<List<Product>>> GenerateVariantsFromOptions(GenerateVariantsParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> UpdateVariantStock(UpdateVariantStockParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> ApplyStockTemplateToAllVariants(ApplyStockTemplateParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> UpdateVariantExcludedShippingOptions(Guid variantId, List<Guid> excludedShippingOptionIds, CancellationToken cancellationToken = default);
@@ -66,16 +52,6 @@ public interface IProductService
     /// </summary>
     Task<CrudResult<bool>> EnsureDefaultVariantIsAvailableAsync(Guid productRootId, CancellationToken cancellationToken = default);
 
-    Task<CrudResult<ProductType>> CreateProductType(string name, CancellationToken cancellationToken = default);
-    Task<CrudResult<ProductType>> UpdateProductType(Guid id, string name, CancellationToken cancellationToken = default);
-    Task<CrudResult<bool>> DeleteProductType(Guid id, CancellationToken cancellationToken = default);
-    Task<CrudResult<ProductCollection>> CreateProductCollection(string name, CancellationToken cancellationToken = default);
-    Task<CrudResult<ProductCollection>> UpdateProductCollection(Guid id, string name, CancellationToken cancellationToken = default);
-    Task<CrudResult<bool>> DeleteProductCollection(Guid id, CancellationToken cancellationToken = default);
-    Task<List<ProductType>> GetProductTypes(CancellationToken cancellationToken = default);
-    Task<List<ProductType>> GetProductTypesByIds(IEnumerable<Guid> productTypeIds, CancellationToken cancellationToken = default);
-    Task<List<ProductCollection>> GetProductCollections(CancellationToken cancellationToken = default);
-    Task<List<ProductCollectionDto>> GetProductCollectionsWithCounts(CancellationToken cancellationToken = default);
     Task<ProductRoot?> GetProductRoot(Guid productRootId, bool includeProducts = false, bool includeWarehouses = false, CancellationToken cancellationToken = default);
 
     // Product detail view methods
@@ -90,30 +66,6 @@ public interface IProductService
 
     // Options operations (variants are automatically regenerated when options are saved)
     Task<CrudResult<List<ProductOption>>> SaveProductOptions(Guid productRootId, List<SaveProductOptionDto> options, CancellationToken cancellationToken = default);
-
-    // Filter operations
-    Task<CrudResult<ProductFilterGroup>> CreateFilterGroup(string name, CancellationToken cancellationToken = default);
-    Task<CrudResult<ProductFilter>> CreateFilter(CreateFilterParameters parameters, CancellationToken cancellationToken = default);
-    Task<ProductFilterGroup?> GetFilterGroup(Guid filterGroupId, CancellationToken cancellationToken = default);
-    Task<CrudResult<ProductFilterGroup>> UpdateFilterGroup(Guid filterGroupId, string? name, int? sortOrder, CancellationToken cancellationToken = default);
-    Task<CrudResult<bool>> DeleteFilterGroup(Guid filterGroupId, CancellationToken cancellationToken = default);
-    Task<CrudResult<bool>> ReorderFilterGroups(List<Guid> orderedIds, CancellationToken cancellationToken = default);
-    Task<ProductFilter?> GetFilter(Guid filterId, CancellationToken cancellationToken = default);
-    Task<CrudResult<ProductFilter>> UpdateFilter(UpdateFilterParameters parameters, CancellationToken cancellationToken = default);
-    Task<CrudResult<bool>> DeleteFilter(Guid filterId, CancellationToken cancellationToken = default);
-    Task<CrudResult<bool>> ReorderFilters(Guid filterGroupId, List<Guid> orderedIds, CancellationToken cancellationToken = default);
-    Task<CrudResult<bool>> AssignFiltersToProduct(Guid productId, List<Guid> filterIds, CancellationToken cancellationToken = default);
-    Task<List<ProductFilter>> GetFiltersForProduct(Guid productId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets filter groups by their IDs for batch loading (used by value converters).
-    /// </summary>
-    Task<List<ProductFilterGroup>> GetFilterGroupsByIds(IEnumerable<Guid> filterGroupIds, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets filters by their IDs for batch loading (used by value converters).
-    /// </summary>
-    Task<List<ProductFilter>> GetFiltersByIds(IEnumerable<Guid> filterIds, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets product variants by their IDs for batch loading (used by property editors).
@@ -135,6 +87,12 @@ public interface IProductService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Dictionary mapping ProductId to first available image GUID (or null if no images)</returns>
     Task<Dictionary<Guid, string?>> GetProductImagesAsync(IEnumerable<Guid> productIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets product display names by their IDs in a single batch query.
+    /// Returns the ProductRoot name or SKU for each product.
+    /// </summary>
+    Task<Dictionary<Guid, string>> GetProductNamesByIdsAsync(IEnumerable<Guid> productIds, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the configured Element Type for products, if any.

@@ -1,5 +1,5 @@
 ## Overview
-Enterprise ecommerce NuGet. **Ethos: making enterprise ecommerce simple.**
+Enterprise ecommerce NuGet. **Ethos: making enterprise ecommerce simple. no over-engineered code**
 - **Modular** - `ExtensionManager` for plugins (ShippingProviders, etc.)
 - **Services** - Feature-grouped, DI, parameter models
 - **Factories** - All key classes via factories

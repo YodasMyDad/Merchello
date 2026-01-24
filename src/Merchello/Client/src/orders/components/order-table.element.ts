@@ -12,7 +12,6 @@ import {
   formatCurrency,
   formatRelativeDate,
   formatItemCount,
-  getPaymentStatusBadgeClass,
   getFulfillmentStatusBadgeClass,
 } from "@shared/utils/formatting.js";
 import { getOrderDetailHref } from "@shared/utils/navigation.js";
@@ -187,7 +186,7 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
       case "paymentStatus":
         return html`
           <uui-table-cell>
-            <span class="badge ${getPaymentStatusBadgeClass(order.paymentStatus)}">
+            <span class="badge ${order.paymentStatusCssClass}">
               ${order.paymentStatusDisplay}
             </span>
           </uui-table-cell>

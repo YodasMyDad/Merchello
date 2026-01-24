@@ -2,6 +2,7 @@ using Merchello.Core.Fulfilment;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
 using Merchello.Core.Fulfilment.Services;
 using Merchello.Core.Fulfilment.Services.Interfaces;
+using Merchello.Core.Shipping.Factories;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -272,6 +273,7 @@ public class ProviderResolutionTests
         return new FulfilmentService(
             _fixture.DbContext,
             providerManagerMock.Object,
+            new ShipmentFactory(),
             Options.Create(new FulfilmentSettings { MaxRetryAttempts = 5 }),
             NullLogger<FulfilmentService>.Instance);
     }

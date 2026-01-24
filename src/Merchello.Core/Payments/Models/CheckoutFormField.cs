@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Merchello.Core.Payments.Providers;
+using Merchello.Core.Shared.Providers;
 
 namespace Merchello.Core.Payments.Models;
 

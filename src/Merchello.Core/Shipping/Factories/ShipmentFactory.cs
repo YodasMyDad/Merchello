@@ -57,4 +57,30 @@ public class ShipmentFactory
             DateCreated = DateTime.UtcNow
         };
     }
+
+    /// <summary>
+    /// Creates a shipment from a fulfilment provider webhook update.
+    /// </summary>
+    public Shipment CreateFromWebhook(
+        Order order,
+        string? trackingNumber = null,
+        string? trackingUrl = null,
+        string? carrier = null,
+        DateTime? shippedDate = null)
+    {
+        return new Shipment
+        {
+            Id = GuidExtensions.NewSequentialGuid,
+            OrderId = order.Id,
+            WarehouseId = order.WarehouseId,
+            TrackingNumber = trackingNumber,
+            TrackingUrl = trackingUrl,
+            Carrier = carrier,
+            Status = shippedDate.HasValue ? ShipmentStatus.Shipped : ShipmentStatus.Preparing,
+            ShippedDate = shippedDate,
+            RequestedDeliveryDate = order.RequestedDeliveryDate,
+            IsDeliveryDateGuaranteed = order.IsDeliveryDateGuaranteed,
+            DateCreated = DateTime.UtcNow
+        };
+    }
 }

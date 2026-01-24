@@ -1,3 +1,5 @@
+using Merchello.Core.Shared.Dtos;
+
 namespace Merchello.Core.Shipping.Dtos;
 
 /// <summary>
@@ -18,7 +20,7 @@ public class ProviderMethodConfigDto
     /// <summary>
     /// Configuration fields for per-warehouse shipping method setup
     /// </summary>
-    public List<ShippingProviderFieldDto> Fields { get; set; } = [];
+    public List<ProviderConfigurationFieldDto> Fields { get; set; } = [];
 
     /// <summary>
     /// Provider capabilities for UI rendering

@@ -401,6 +401,7 @@ public class WebhooksApiController(
         EntityType = delivery.EntityType,
         Status = delivery.Status,
         StatusDisplay = GetStatusDisplay(delivery.Status),
+        StatusCssClass = GetStatusCssClass(delivery.Status),
         ResponseStatusCode = delivery.ResponseStatusCode,
         ErrorMessage = delivery.ErrorMessage,
         DateCreated = delivery.DateCreated,
@@ -420,6 +421,7 @@ public class WebhooksApiController(
         EntityType = delivery.EntityType,
         Status = delivery.Status,
         StatusDisplay = GetStatusDisplay(delivery.Status),
+        StatusCssClass = GetStatusCssClass(delivery.Status),
         ResponseStatusCode = delivery.ResponseStatusCode,
         ErrorMessage = delivery.ErrorMessage,
         DateCreated = delivery.DateCreated,
@@ -458,6 +460,18 @@ public class WebhooksApiController(
         OutboundDeliveryStatus.Abandoned => "Abandoned",
         _ => status.ToString()
     };
+
+    private static string GetStatusCssClass(OutboundDeliveryStatus status)
+    {
+        return status switch
+        {
+            OutboundDeliveryStatus.Succeeded => "badge-positive",
+            OutboundDeliveryStatus.Failed => "badge-danger",
+            OutboundDeliveryStatus.Abandoned => "badge-danger",
+            OutboundDeliveryStatus.Retrying => "badge-warning",
+            _ => "badge-default"
+        };
+    }
 
     private static string GetDeliveryTypeDisplay(OutboundDeliveryType type) => type switch
     {

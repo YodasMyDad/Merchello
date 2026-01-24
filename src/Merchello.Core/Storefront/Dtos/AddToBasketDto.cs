@@ -18,5 +18,5 @@ public class AddToBasketDto
     /// <summary>
     /// Selected add-on options (non-variant options with price adjustments)
     /// </summary>
-    public List<SelectedAddonDto> Addons { get; set; } = [];
+    public List<StorefrontAddonDto> Addons { get; set; } = [];
 }

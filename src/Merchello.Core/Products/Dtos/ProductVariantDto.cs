@@ -53,7 +53,16 @@ public class ProductVariantDto
     public bool RemoveFromFeed { get; set; }
 
     // Stock (aggregated from ProductWarehouses)
+
+    /// <summary>
+    /// Total available stock across all warehouses (sum of AvailableStock per warehouse).
+    /// </summary>
     public int TotalStock { get; set; }
+
+    /// <summary>
+    /// Total reserved stock across all warehouses (sum of ReservedStock per warehouse).
+    /// </summary>
+    public int TotalReservedStock { get; set; }
 
     /// <summary>
     /// Overall stock status for the variant across all warehouses.

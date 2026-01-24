@@ -1,5 +1,6 @@
 using Merchello.Core.Data;
 using Merchello.Core.Email.Attachments;
+using Merchello.Core.Email.Interfaces;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Email.Services.Interfaces;
 using Merchello.Core.Email.Services.Parameters;

@@ -1,4 +1,5 @@
 using Merchello.Core.Storefront.Services;
+using Merchello.Core.Storefront.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Merchello.Site.Shared.Components.PriceRangeSlider;

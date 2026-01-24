@@ -1,5 +1,6 @@
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers.Interfaces;
+using Merchello.Core.Shared.Providers;
 
 namespace Merchello.Core.Shipping.Providers;
 
@@ -17,17 +18,17 @@ public abstract class ShippingProviderBase : IShippingProvider
     public abstract ShippingProviderMetadata Metadata { get; }
 
     /// <inheritdoc />
-    public virtual ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(
+    public virtual ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult(Enumerable.Empty<ShippingProviderConfigurationField>());
+        return ValueTask.FromResult(Enumerable.Empty<ProviderConfigurationField>());
     }
 
     /// <inheritdoc />
-    public virtual ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetMethodConfigFieldsAsync(
+    public virtual ValueTask<IEnumerable<ProviderConfigurationField>> GetMethodConfigFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult(Enumerable.Empty<ShippingProviderConfigurationField>());
+        return ValueTask.FromResult(Enumerable.Empty<ProviderConfigurationField>());
     }
 
     /// <inheritdoc />
@@ -94,6 +95,85 @@ public abstract class ShippingProviderBase : IShippingProvider
             ProviderName = quote.ProviderName,
             ServiceLevels = filteredLevels,
             Errors = quote.Errors
+        };
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Default implementation returns null, signalling that this provider does not support
+    /// dynamic service discovery. Override in external providers (FedEx, UPS) to query
+    /// carrier APIs for available services on a route.
+    /// </remarks>
+    public virtual Task<IReadOnlyList<ShippingServiceType>?> GetAvailableServicesAsync(
+        string originCountryCode,
+        string originPostalCode,
+        string destinationCountryCode,
+        string? destinationPostalCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<ShippingServiceType>?>(null);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Default implementation calls GetRatesAsync, then applies warehouse config
+    /// (exclusions and markup). External providers should override for efficiency
+    /// if they can filter at the API level.
+    /// </remarks>
+    public virtual async Task<ShippingRateQuote?> GetRatesForAllServicesAsync(
+        ShippingQuoteRequest request,
+        WarehouseProviderConfig warehouseConfig,
+        CancellationToken cancellationToken = default)
+    {
+        var quote = await GetRatesAsync(request, cancellationToken);
+        if (quote == null)
+        {
+            return null;
+        }
+
+        // Apply warehouse config: exclusions and markup
+        var filteredLevels = quote.ServiceLevels
+            .Where(sl => !warehouseConfig.IsServiceExcluded(sl.ServiceType?.Code ?? sl.ServiceCode))
+            .Select(sl => ApplyMarkup(sl, warehouseConfig))
+            .ToList();
+
+        return new ShippingRateQuote
+        {
+            ProviderKey = quote.ProviderKey,
+            ProviderName = quote.ProviderName,
+            ServiceLevels = filteredLevels,
+            Metadata = quote.Metadata,
+            IsFallbackRate = quote.IsFallbackRate,
+            FallbackReason = quote.FallbackReason,
+            Errors = quote.Errors
+        };
+    }
+
+    /// <summary>
+    /// Applies markup from warehouse config to a service level.
+    /// </summary>
+    protected static ShippingServiceLevel ApplyMarkup(ShippingServiceLevel sl, WarehouseProviderConfig config)
+    {
+        var serviceCode = sl.ServiceType?.Code ?? sl.ServiceCode;
+        var markupPercent = config.GetMarkupForService(serviceCode);
+
+        if (markupPercent == 0m)
+        {
+            return sl;
+        }
+
+        var markedUpCost = sl.TotalCost * (1 + (markupPercent / 100m));
+        return new ShippingServiceLevel
+        {
+            ServiceCode = sl.ServiceCode,
+            ServiceName = sl.ServiceName,
+            TotalCost = Math.Round(markedUpCost, 2, MidpointRounding.AwayFromZero),
+            CurrencyCode = sl.CurrencyCode,
+            TransitTime = sl.TransitTime,
+            EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
+            Description = sl.Description,
+            ServiceType = sl.ServiceType,
+            ExtendedProperties = sl.ExtendedProperties
         };
     }
 

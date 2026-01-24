@@ -92,11 +92,15 @@ using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.Payments;
+using Merchello.Core.Protocols.Payments.Interfaces;
 using Merchello.Core.Protocols.UCP.Handlers;
 using Merchello.Core.Protocols.UCP.Services;
+using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Merchello.Core.Protocols.Webhooks;
+using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Core.Email;
 using Merchello.Core.Email.Attachments;
+using Merchello.Core.Email.Interfaces;
 using Merchello.Core.Email.Handlers;
 using Merchello.Core.Email.Services;
 using Merchello.Core.Email.Services.Interfaces;
@@ -239,9 +243,12 @@ public static class Startup
         // Checkout & Orders
         builder.Services.AddScoped<ICheckoutService, CheckoutService>();
         builder.Services.AddScoped(sp => new Lazy<ICheckoutService>(() => sp.GetRequiredService<ICheckoutService>()));
+        builder.Services.AddScoped<ICheckoutDiscountService, CheckoutDiscountService>();
+        builder.Services.AddScoped(sp => new Lazy<ICheckoutDiscountService>(() => sp.GetRequiredService<ICheckoutDiscountService>()));
         builder.Services.AddScoped<ICheckoutSessionService, CheckoutSessionService>();
         builder.Services.AddScoped<ICheckoutValidator, CheckoutValidator>();
         builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+        builder.Services.AddScoped<IInvoiceEditService, InvoiceEditService>();
         builder.Services.AddScoped<IInvoiceReminderService, InvoiceReminderService>();
         builder.Services.AddScoped<ILineItemService, LineItemService>();
         builder.Services.AddScoped<IOrderStatusHandler, DefaultOrderStatusHandler>();
@@ -256,11 +263,15 @@ public static class Startup
 
         // Discounts
         builder.Services.AddScoped<IDiscountService, DiscountService>();
+        builder.Services.AddScoped<IDiscountRuleNameResolver, DiscountRuleNameResolver>();
         builder.Services.AddScoped<IDiscountEngine, DiscountEngine>();
         builder.Services.AddScoped<IBuyXGetYCalculator, BuyXGetYCalculator>();
 
         // Products & Inventory
         builder.Services.AddScoped<IProductService, ProductService>();
+        builder.Services.AddScoped<IProductFilterService, ProductFilterService>();
+        builder.Services.AddScoped<IProductTypeService, ProductTypeService>();
+        builder.Services.AddScoped<IProductCollectionService, ProductCollectionService>();
         builder.Services.AddScoped<IInventoryService, InventoryService>();
 
         // Digital Products
@@ -283,6 +294,7 @@ public static class Startup
         builder.Services.AddScoped<IShippingService, ShippingService>();
         builder.Services.AddScoped<IShippingOptionService, ShippingOptionService>();
         builder.Services.AddScoped<IShipmentService, ShipmentService>();
+        builder.Services.AddScoped<IWarehouseProviderConfigService, WarehouseProviderConfigService>();
         builder.Services.AddSingleton<IShippingCostResolver, ShippingCostResolver>();
 
         // Fulfilment

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Merchello.Core.Protocols.Webhooks;
+using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;

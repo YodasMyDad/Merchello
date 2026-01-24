@@ -8,6 +8,8 @@
  */
 
 import { createAnnouncer } from '../utils/announcer.js';
+import { formatCurrencyLocale } from '../utils/formatters.js';
+import { MIN_POSTAL_CODE_LENGTH } from '../services/validation.js';
 
 /**
  * @typedef {Object} BasketState
@@ -51,7 +53,7 @@ import { createAnnouncer } from '../utils/announcer.js';
 
 /**
  * @typedef {Object} ShippingOption
- * @property {string} id
+ * @property {string} id - The ShippingOption GUID (empty for dynamic providers)
  * @property {string} name
  * @property {number} cost
  * @property {string} formattedCost
@@ -59,6 +61,12 @@ import { createAnnouncer } from '../utils/announcer.js';
  * @property {number} daysTo
  * @property {boolean} isNextDay
  * @property {string} deliveryDescription
+ * @property {string} providerKey - Provider key (e.g., "flat-rate", "fedex", "ups")
+ * @property {string} selectionKey - Unified selection ID ("so:{guid}" or "dyn:{provider}:{serviceCode}")
+ * @property {string|null} serviceCode - Carrier service code for dynamic providers (e.g., "FEDEX_GROUND")
+ * @property {string|null} estimatedDeliveryDate - ISO date string for estimated delivery
+ * @property {boolean} isFallbackRate - True if rate is from cache due to carrier API failure
+ * @property {string|null} fallbackReason - Reason for using fallback rate
  */
 
 /**
@@ -68,7 +76,9 @@ import { createAnnouncer } from '../utils/announcer.js';
  * @property {string} warehouseId
  * @property {Array} lineItems
  * @property {ShippingOption[]} shippingOptions
- * @property {string|null} selectedShippingOptionId
+ * @property {string|null} selectedShippingOptionId - SelectionKey of selected option
+ * @property {string|null} rateError - Error message if rate fetching failed
+ * @property {boolean} hasFallbackRates - True if any options are fallback rates
  */
 
 /**
@@ -198,6 +208,9 @@ export function initCheckoutStore(initialData = {}) {
             symbol: initialData.currency?.symbol ?? '£'
         },
 
+        /** @type {number} Number of decimal places for display currency */
+        currencyDecimalPlaces: initialData.currencyDecimalPlaces ?? 2,
+
         /** @type {AppliedDiscount[]} */
         appliedDiscounts: initialData.appliedDiscounts ?? [],
 
@@ -274,7 +287,7 @@ export function initCheckoutStore(initialData = {}) {
          */
         canCalculateShipping() {
             const addr = this.form.sameAsBilling ? this.form.billing : this.form.shipping;
-            return !!(addr.countryCode && addr.postalCode && addr.postalCode.length >= 3);
+            return !!(addr.countryCode && addr.postalCode && addr.postalCode.length >= MIN_POSTAL_CODE_LENGTH);
         },
 
         /**
@@ -440,10 +453,11 @@ export function initCheckoutStore(initialData = {}) {
          * @returns {string}
          */
         formatCurrency(value) {
-            if (typeof value !== 'number' || isNaN(value)) {
-                return `${this.currency.symbol}0.00`;
-            }
-            return `${this.currency.symbol}${value.toFixed(2)}`;
+            return formatCurrencyLocale(
+                typeof value === 'number' && !isNaN(value) ? value : 0,
+                undefined,
+                this.currency.code
+            );
         },
 
         // ============================================
@@ -467,17 +481,17 @@ export function initCheckoutStore(initialData = {}) {
          * Set shipping selection for a group
          * Also stores by warehouseId for fallback when groupId changes
          * @param {string} groupId
-         * @param {string} optionId
+         * @param {string} selectionKey - SelectionKey ("so:{guid}" or "dyn:{provider}:{serviceCode}")
          */
-        setShippingSelection(groupId, optionId) {
+        setShippingSelection(groupId, selectionKey) {
             // Find the warehouseId for this group (for fallback when groupId changes)
             const group = this.shippingGroups?.find(g => g.groupId === groupId);
             const warehouseId = group?.warehouseId;
 
             this.shippingSelections = {
                 ...this.shippingSelections,
-                [groupId]: optionId,
-                ...(warehouseId ? { [warehouseId]: optionId } : {})
+                [groupId]: selectionKey,
+                ...(warehouseId ? { [warehouseId]: selectionKey } : {})
             };
         },
 

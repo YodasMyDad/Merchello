@@ -22,6 +22,7 @@ public class FulfilmentProviderDto
     public bool SupportsProductSync { get; set; }
     public bool SupportsInventorySync { get; set; }
     public FulfilmentApiStyle ApiStyle { get; set; }
+    public string ApiStyleLabel { get; set; } = string.Empty;
 
     /// <summary>
     /// Whether this provider is enabled (has a configuration with IsEnabled = true)

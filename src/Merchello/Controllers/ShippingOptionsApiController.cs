@@ -17,8 +17,8 @@ public class ShippingOptionsApiController(
     /// Get all shipping options
     /// </summary>
     [HttpGet("shipping-options")]
-    [ProducesResponseType<List<ShippingOptionDto>>(StatusCodes.Status200OK)]
-    public async Task<List<ShippingOptionDto>> GetAll(CancellationToken ct)
+    [ProducesResponseType<List<ShippingOptionListItemDto>>(StatusCodes.Status200OK)]
+    public async Task<List<ShippingOptionListItemDto>> GetAll(CancellationToken ct)
     {
         return await service.GetAllAsync(ct);
     }

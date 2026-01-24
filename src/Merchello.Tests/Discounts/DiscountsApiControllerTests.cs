@@ -1,15 +1,11 @@
 using Merchello.Controllers;
 using Merchello.Core.Accounting.Models;
-using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Discounts.Dtos;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Discounts.Services.Parameters;
-using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
-using Merchello.Core.Suppliers.Services.Interfaces;
-using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using Shouldly;
@@ -24,35 +20,17 @@ namespace Merchello.Tests.Discounts;
 public class DiscountsApiControllerTests
 {
     private readonly Mock<IDiscountService> _discountServiceMock;
-    private readonly Mock<IProductService> _productServiceMock;
-    private readonly Mock<ISupplierService> _supplierServiceMock;
-    private readonly Mock<IWarehouseService> _warehouseServiceMock;
-    private readonly Mock<ICustomerService> _customerServiceMock;
-    private readonly Mock<ICustomerSegmentService> _customerSegmentServiceMock;
+    private readonly Mock<IDiscountRuleNameResolver> _ruleNameResolverMock;
     private readonly DiscountsApiController _controller;
 
     public DiscountsApiControllerTests()
     {
         _discountServiceMock = new Mock<IDiscountService>();
-        _productServiceMock = new Mock<IProductService>();
-        _supplierServiceMock = new Mock<ISupplierService>();
-        _warehouseServiceMock = new Mock<IWarehouseService>();
-        _customerServiceMock = new Mock<ICustomerService>();
-        _customerSegmentServiceMock = new Mock<ICustomerSegmentService>();
-
-        // Set up default returns for customer services
-        _customerServiceMock.Setup(s => s.GetByIdsAsync(It.IsAny<List<Guid>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
-        _customerSegmentServiceMock.Setup(s => s.GetAllAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
+        _ruleNameResolverMock = new Mock<IDiscountRuleNameResolver>();
 
         _controller = new DiscountsApiController(
             _discountServiceMock.Object,
-            _productServiceMock.Object,
-            _supplierServiceMock.Object,
-            _warehouseServiceMock.Object,
-            _customerServiceMock.Object,
-            _customerSegmentServiceMock.Object);
+            _ruleNameResolverMock.Object);
     }
 
     #region A. GetDiscounts Tests
@@ -549,7 +527,7 @@ public class DiscountsApiControllerTests
         };
 
         _discountServiceMock.Setup(s => s.GetPerformanceAsync(
-            discountId, null, null, It.IsAny<CancellationToken>()))
+            It.IsAny<GetDiscountPerformanceParameters>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(performance);
 
         // Act
@@ -568,7 +546,7 @@ public class DiscountsApiControllerTests
         // Arrange
         var discountId = Guid.NewGuid();
         _discountServiceMock.Setup(s => s.GetPerformanceAsync(
-            discountId, null, null, It.IsAny<CancellationToken>()))
+            It.IsAny<GetDiscountPerformanceParameters>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((DiscountPerformanceDto?)null);
 
         // Act
@@ -589,14 +567,12 @@ public class DiscountsApiControllerTests
         DateTime? capturedEnd = null;
 
         _discountServiceMock.Setup(s => s.GetPerformanceAsync(
-            discountId,
-            It.IsAny<DateTime?>(),
-            It.IsAny<DateTime?>(),
+            It.IsAny<GetDiscountPerformanceParameters>(),
             It.IsAny<CancellationToken>()))
-            .Callback<Guid, DateTime?, DateTime?, CancellationToken>((_, s, e, _) =>
+            .Callback<GetDiscountPerformanceParameters, CancellationToken>((p, _) =>
             {
-                capturedStart = s;
-                capturedEnd = e;
+                capturedStart = p.StartDate;
+                capturedEnd = p.EndDate;
             })
             .ReturnsAsync(new DiscountPerformanceDto { DiscountId = discountId });
 
@@ -641,8 +617,11 @@ public class DiscountsApiControllerTests
 
         // Act
         var result = await _controller.GetUsageReport(
-            null, null, null, null, null, null,
-            DiscountReportOrderBy.TotalUsage, true,
+            new DiscountReportParameters
+            {
+                OrderBy = DiscountReportOrderBy.TotalUsage,
+                Descending = true
+            },
             CancellationToken.None);
 
         // Assert
@@ -667,13 +646,17 @@ public class DiscountsApiControllerTests
 
         // Act
         await _controller.GetUsageReport(
-            startDate, endDate,
-            DiscountStatus.Active,
-            DiscountCategory.AmountOffProducts,
-            DiscountMethod.Code,
-            top: 10,
-            DiscountReportOrderBy.TotalDiscountAmount,
-            descending: false,
+            new DiscountReportParameters
+            {
+                StartDate = startDate,
+                EndDate = endDate,
+                Status = DiscountStatus.Active,
+                Category = DiscountCategory.AmountOffProducts,
+                Method = DiscountMethod.Code,
+                Top = 10,
+                OrderBy = DiscountReportOrderBy.TotalDiscountAmount,
+                Descending = false
+            },
             CancellationToken.None);
 
         // Assert
@@ -721,32 +704,31 @@ public class DiscountsApiControllerTests
             CanCombineWithShippingDiscounts = true,
             Priority = 10,
             DateCreated = new DateTime(2024, 1, 1),
-            DateUpdated = new DateTime(2024, 6, 1),
-            TargetRules = [new DiscountTargetRule
-            {
-                Id = Guid.NewGuid(),
-                TargetType = DiscountTargetType.Collections,
-                TargetIds = "[\"" + Guid.NewGuid() + "\"]",
-                IsExclusion = false
-            }],
-            EligibilityRules = [new DiscountEligibilityRule
-            {
-                Id = Guid.NewGuid(),
-                EligibilityType = DiscountEligibilityType.CustomerSegments,
-                EligibilityIds = "[\"" + Guid.NewGuid() + "\"]"
-            }],
-            BuyXGetYConfig = new DiscountBuyXGetYConfig
-            {
-                BuyTriggerType = BuyXTriggerType.MinimumQuantity,
-                BuyTriggerValue = 2,
-                BuyTargetType = DiscountTargetType.AllProducts,
-                GetQuantity = 1,
-                GetTargetType = DiscountTargetType.AllProducts,
-                GetValueType = DiscountValueType.Free,
-                GetValue = 0m,
-                SelectionMethod = BuyXGetYSelectionMethod.Cheapest
-            }
+            DateUpdated = new DateTime(2024, 6, 1)
         };
+
+        discount.SetTargetRules([new DiscountTargetRule
+        {
+            TargetType = DiscountTargetType.Collections,
+            TargetIds = "[\"" + Guid.NewGuid() + "\"]",
+            IsExclusion = false
+        }]);
+        discount.SetEligibilityRules([new DiscountEligibilityRule
+        {
+            EligibilityType = DiscountEligibilityType.CustomerSegments,
+            EligibilityIds = "[\"" + Guid.NewGuid() + "\"]"
+        }]);
+        discount.SetBuyXGetYConfig(new DiscountBuyXGetYConfig
+        {
+            BuyTriggerType = BuyXTriggerType.MinimumQuantity,
+            BuyTriggerValue = 2,
+            BuyTargetType = DiscountTargetType.AllProducts,
+            GetQuantity = 1,
+            GetTargetType = DiscountTargetType.AllProducts,
+            GetValueType = DiscountValueType.Free,
+            GetValue = 0m,
+            SelectionMethod = BuyXGetYSelectionMethod.Cheapest
+        });
 
         _discountServiceMock.Setup(s => s.GetByIdAsync(discountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(discount);

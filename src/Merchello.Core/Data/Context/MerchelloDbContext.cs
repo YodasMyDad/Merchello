@@ -71,6 +71,7 @@ public class MerchelloDbContext : DbContext
     public DbSet<ShippingCost> ShippingCosts => Set<ShippingCost>();
     public DbSet<ShippingWeightTier> ShippingWeightTiers => Set<ShippingWeightTier>();
     public DbSet<ShippingProviderConfiguration> ShippingProviderConfigurations => Set<ShippingProviderConfiguration>();
+    public DbSet<WarehouseProviderConfig> WarehouseProviderConfigs => Set<WarehouseProviderConfig>();
 
     // Fulfilment DbSets
     public DbSet<FulfilmentProviderConfiguration> FulfilmentProviderConfigurations => Set<FulfilmentProviderConfiguration>();
@@ -89,10 +90,6 @@ public class MerchelloDbContext : DbContext
 
     // Discount DbSets
     public DbSet<Discount> Discounts => Set<Discount>();
-    public DbSet<DiscountTargetRule> DiscountTargetRules => Set<DiscountTargetRule>();
-    public DbSet<DiscountEligibilityRule> DiscountEligibilityRules => Set<DiscountEligibilityRule>();
-    public DbSet<DiscountBuyXGetYConfig> DiscountBuyXGetYConfigs => Set<DiscountBuyXGetYConfig>();
-    public DbSet<DiscountFreeShippingConfig> DiscountFreeShippingConfigs => Set<DiscountFreeShippingConfig>();
     public DbSet<DiscountUsage> DiscountUsages => Set<DiscountUsage>();
 
     // Webhook DbSets

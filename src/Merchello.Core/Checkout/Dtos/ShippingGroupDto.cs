@@ -29,15 +29,26 @@ public class ShippingGroupDto
     /// <summary>
     /// Available shipping options for this group.
     /// </summary>
-    public List<ShippingOptionDto> ShippingOptions { get; set; } = [];
+    public List<CheckoutShippingOptionDto> ShippingOptions { get; set; } = [];
 
     /// <summary>
-    /// Currently selected shipping option ID (null if not yet selected).
+    /// Currently selected shipping option SelectionKey (null if not yet selected).
+    /// Format: "so:{guid}" for flat-rate, "dyn:{provider}:{serviceCode}" for dynamic.
     /// </summary>
-    public Guid? SelectedShippingOptionId { get; set; }
+    public string? SelectedShippingOptionId { get; set; }
 
     /// <summary>
     /// Selected delivery date (if applicable and supported by the shipping option).
     /// </summary>
     public DateTime? SelectedDeliveryDate { get; set; }
+
+    /// <summary>
+    /// Error message if rate fetching failed for this group.
+    /// </summary>
+    public string? RateError { get; set; }
+
+    /// <summary>
+    /// True if any shipping options in this group are fallback rates.
+    /// </summary>
+    public bool HasFallbackRates { get; set; }
 }

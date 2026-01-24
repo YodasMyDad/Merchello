@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Dtos;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Handlers.Interfaces;
 using Merchello.Core.Accounting.Models;
@@ -14,6 +15,7 @@ using Merchello.Core.Shared;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Dtos;
+using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
@@ -34,6 +36,7 @@ public class ShipmentService(
     IProductService productService,
     IMerchelloNotificationPublisher notificationPublisher,
     ShipmentFactory shipmentFactory,
+    LineItemFactory lineItemFactory,
     ILogger<ShipmentService> logger) : IShipmentService
 {
     /// <inheritdoc />
@@ -129,20 +132,7 @@ public class ShipmentService(
                     quantityToShip = Math.Min(parameters.LineItemsToShip[lineItem.Id], lineItem.Quantity);
                 }
 
-                var shipmentLineItem = new LineItem
-                {
-                    ProductId = lineItem.ProductId,
-                    Name = lineItem.Name,
-                    Sku = lineItem.Sku,
-                    Quantity = quantityToShip,
-                    Amount = lineItem.Amount,
-                    OriginalAmount = lineItem.OriginalAmount,
-                    LineItemType = lineItem.LineItemType,
-                    IsTaxable = lineItem.IsTaxable,
-                    TaxRate = lineItem.TaxRate,
-                    DependantLineItemSku = lineItem.DependantLineItemSku,
-                    ExtendedData = lineItem.ExtendedData
-                };
+                var shipmentLineItem = lineItemFactory.CreateForShipment(lineItem, quantityToShip);
 
                 warehouseGroups[warehouseId].Add(shipmentLineItem);
             }
@@ -265,15 +255,7 @@ public class ShipmentService(
                 if (sourceLineItem.LineItemType == LineItemType.Discount)
                     continue;
 
-                shipmentLineItems.Add(new LineItem
-                {
-                    Id = sourceLineItem.Id,
-                    Sku = sourceLineItem.Sku,
-                    Name = sourceLineItem.Name,
-                    Quantity = quantity,
-                    Amount = sourceLineItem.Amount,
-                    LineItemType = sourceLineItem.LineItemType,
-                });
+                shipmentLineItems.Add(LineItemFactory.CreateShipmentTrackingLineItem(sourceLineItem, quantity));
             }
 
             // Create shipment

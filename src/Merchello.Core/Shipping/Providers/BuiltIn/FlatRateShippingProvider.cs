@@ -1,6 +1,7 @@
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Shared.Providers;
 using Microsoft.Extensions.Options;
 
 namespace Merchello.Core.Shipping.Providers.BuiltIn;
@@ -40,12 +41,12 @@ public class FlatRateShippingProvider(
     };
 
     /// <inheritdoc />
-    public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetMethodConfigFieldsAsync(
+    public override ValueTask<IEnumerable<ProviderConfigurationField>> GetMethodConfigFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult<IEnumerable<ShippingProviderConfigurationField>>(
+        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>(
         [
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "name",
                 Label = "Method Name",
@@ -53,7 +54,7 @@ public class FlatRateShippingProvider(
                 IsRequired = true,
                 Placeholder = "e.g., Standard Shipping"
             },
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "fixedCost",
                 Label = "Fixed Cost",
@@ -61,21 +62,21 @@ public class FlatRateShippingProvider(
                 IsRequired = false,
                 Description = "Leave empty to use location-based costs"
             },
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "daysFrom",
                 Label = "Min Delivery Days",
                 FieldType = ConfigurationFieldType.Number,
                 DefaultValue = "3"
             },
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "daysTo",
                 Label = "Max Delivery Days",
                 FieldType = ConfigurationFieldType.Number,
                 DefaultValue = "5"
             },
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "isNextDay",
                 Label = "Next Day Delivery",

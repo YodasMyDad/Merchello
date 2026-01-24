@@ -1,3 +1,5 @@
+using Merchello.Core.Storefront.Services.Interfaces;
+
 namespace Merchello.Core.Storefront.Services;
 
 /// <summary>

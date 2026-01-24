@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
+using Merchello.Core.Protocols.Webhooks.Interfaces;
+
 namespace Merchello.Core.Protocols.Webhooks;
 
 /// <summary>

@@ -35,8 +35,8 @@ public interface IInvoiceService
     /// <para><b>Multi-warehouse:</b> Creates separate Order entities per warehouse group.</para>
     /// <para><b>Stock:</b> Reserves stock immediately upon order creation.</para>
     /// </remarks>
-    Task<Invoice> CreateOrderFromBasketAsync(Basket basket, CheckoutSession checkoutSession, InvoiceSource? source = null, CancellationToken cancellationToken = default);
-    Task<CrudResult<bool>> UpdateOrderStatusAsync(Guid orderId, OrderStatus newStatus, string? reason = null, CancellationToken cancellationToken = default);
+    Task<CrudResult<Invoice>> CreateOrderFromBasketAsync(Basket basket, CheckoutSession checkoutSession, InvoiceSource? source = null, CancellationToken cancellationToken = default);
+    Task<CrudResult<bool>> UpdateOrderStatusAsync(UpdateOrderStatusParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> CancelOrderAsync(Guid orderId, string reason, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -111,29 +111,6 @@ public interface IInvoiceService
     Task<Dictionary<Guid, string>> GetShippingOptionNamesAsync(IEnumerable<Guid> shippingOptionIds, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Get invoice data prepared for editing (includes stock availability checks)
-    /// </summary>
-    Task<InvoiceForEditDto?> GetInvoiceForEditAsync(Guid invoiceId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Edit an invoice (update quantities, apply discounts, add custom items, etc.)
-    /// Validates stock availability for products and uses product tax groups for tax calculations.
-    /// </summary>
-    /// <param name="parameters">Parameters for editing the invoice</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    Task<OperationResult<EditInvoiceResultDto>> EditInvoiceAsync(EditInvoiceParameters parameters, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Preview the calculated totals for proposed invoice changes without persisting.
-    /// This is the single source of truth for all invoice calculations.
-    /// Frontend should call this instead of calculating locally.
-    /// </summary>
-    Task<PreviewEditResultDto?> PreviewInvoiceEditAsync(
-        Guid invoiceId,
-        EditInvoiceDto request,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Create a draft order from the admin backoffice.
     /// Creates an invoice with a single order, ready for products to be added via edit.
     /// </summary>
@@ -146,21 +123,6 @@ public interface IInvoiceService
         CreateDraftOrderDto request,
         Guid? authorId,
         string? authorName,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Search for customers by email or name, returning their info and past shipping addresses.
-    /// Used for customer lookup when creating orders in the backoffice.
-    /// </summary>
-    /// <param name="email">Email to search (exact or partial match)</param>
-    /// <param name="name">Name to search (partial match)</param>
-    /// <param name="limit">Maximum number of results to return</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>List of matching customers with their de-duplicated past shipping addresses</returns>
-    Task<List<CustomerLookupResultDto>> SearchCustomersAsync(
-        string? email,
-        string? name,
-        int limit = 10,
         CancellationToken cancellationToken = default);
 
     /// <summary>

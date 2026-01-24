@@ -40,9 +40,7 @@ export function initOrderSummary() {
          */
         formatCurrency(value) {
             // @ts-ignore - Alpine store
-            const symbol = this.$store.checkout?.currency?.symbol ?? '£';
-            const numValue = (typeof value === 'number' && !isNaN(value)) ? value : 0;
-            return `${symbol}${numValue.toFixed(2)}`;
+            return this.$store.checkout?.formatCurrency?.(value) ?? String(value);
         },
 
         /**

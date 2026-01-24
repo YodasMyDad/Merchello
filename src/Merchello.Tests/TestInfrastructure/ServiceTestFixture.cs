@@ -14,8 +14,12 @@ using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.Payments;
+using Merchello.Core.Protocols.Payments.Interfaces;
 using Merchello.Core.Protocols.Webhooks;
+using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Core.Protocols.UCP;
+using Merchello.Core.Protocols.UCP.Services;
+using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Merchello.Core.Shared.Reflection;
 using Merchello.Core.Checkout;
 using Merchello.Core.Checkout.Factories;
@@ -27,6 +31,7 @@ using Merchello.Core.Checkout.Strategies.Interfaces;
 using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Providers.Interfaces;
+using Merchello.Core.Customers.Dtos;
 using Merchello.Core.Customers.Factories;
 using Merchello.Core.Customers.Models;
 using Merchello.Core.Customers.Services;
@@ -320,6 +325,7 @@ public class ServiceTestFixture : IDisposable
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<IWarehouseService, WarehouseService>();
         services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<IProductCollectionService, ProductCollectionService>();
 
         // Customer segment services
         services.AddScoped<ISegmentCriteriaEvaluator, SegmentCriteriaEvaluator>();
@@ -373,6 +379,13 @@ public class ServiceTestFixture : IDisposable
 
         services.AddSingleton<IShippingCostResolver, ShippingCostResolver>();
         services.AddScoped<IShippingService, ShippingService>();
+
+        // Mock WarehouseProviderConfigService (returns empty configs for tests)
+        var warehouseProviderConfigServiceMock = new Mock<IWarehouseProviderConfigService>();
+        warehouseProviderConfigServiceMock
+            .Setup(s => s.GetByWarehouseAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WarehouseProviderConfig>());
+        services.AddScoped<IWarehouseProviderConfigService>(_ => warehouseProviderConfigServiceMock.Object);
         services.AddScoped<ITaxService, TaxService>();
 
         // Tax calculation service (P1 tests)
@@ -461,14 +474,30 @@ public class ServiceTestFixture : IDisposable
             .ReturnsAsync((RegisteredShippingProvider?)null);
         services.AddSingleton(shippingProviderManagerMock.Object);
 
-        // Mock payment provider manager (returns empty list - no payment providers configured)
+        // Mock payment provider manager with a manual provider that supports refunds
         var paymentProviderManagerMock = new Mock<IPaymentProviderManager>();
+        var mockPaymentProvider = new Mock<IPaymentProvider>();
+        mockPaymentProvider.Setup(p => p.Metadata).Returns(new PaymentProviderMetadata
+        {
+            Alias = "manual",
+            DisplayName = "Manual Payment",
+            SupportsRefunds = true,
+            SupportsPartialRefunds = true
+        });
+        mockPaymentProvider
+            .Setup(p => p.RefundPaymentAsync(It.IsAny<RefundRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((RefundRequest req, CancellationToken _) => RefundResult.Successful(
+                $"manual_refund_{Guid.NewGuid():N}", req.Amount ?? 0m));
+        var registeredManualProvider = new RegisteredPaymentProvider(mockPaymentProvider.Object, null);
+        paymentProviderManagerMock
+            .Setup(x => x.GetProviderAsync("manual", It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(registeredManualProvider);
         paymentProviderManagerMock
             .Setup(x => x.GetAvailableProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<RegisteredPaymentProvider>());
+            .ReturnsAsync([registeredManualProvider]);
         paymentProviderManagerMock
             .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<RegisteredPaymentProvider>());
+            .ReturnsAsync([registeredManualProvider]);
         services.AddSingleton(paymentProviderManagerMock.Object);
 
         // Mock payment idempotency service (returns null - no cached results)
@@ -576,6 +605,8 @@ public class ServiceTestFixture : IDisposable
         // Important: This creates a proper Lazy<ICheckoutService> that resolves to the real service
         services.AddScoped<ICheckoutService, CheckoutService>();
         services.AddScoped(sp => new Lazy<ICheckoutService>(() => sp.GetRequiredService<ICheckoutService>()));
+        services.AddScoped<ICheckoutDiscountService, CheckoutDiscountService>();
+        services.AddScoped(sp => new Lazy<ICheckoutDiscountService>(() => sp.GetRequiredService<ICheckoutDiscountService>()));
 
         // ============================================
         // UCP Protocol Services (Protocol Integration Tests)
@@ -631,6 +662,9 @@ public class ServiceTestFixture : IDisposable
 
         // ExtensionManager for protocol adapter discovery
         services.AddScoped<ExtensionManager>();
+
+        // UCP Agent Profile Service (required by UCPProtocolAdapter)
+        services.AddScoped<IUcpAgentProfileService, UcpAgentProfileService>();
 
         // Register UCPProtocolAdapter directly (ExtensionManager will discover it)
         services.AddScoped<ICommerceProtocolAdapter, UCPProtocolAdapter>();
@@ -911,6 +945,10 @@ public class ServiceTestFixture : IDisposable
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Payment>>>>()))
                     .Returns((Func<MerchelloDbContext, Task<List<Payment>>> func) => func(dbContext));
 
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<(decimal InvoiceTotal, string CurrencyCode, List<Payment> Payments)>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<(decimal, string, List<Payment>)>> func) => func(dbContext));
+
                 // Discount return types
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Discount?>>>()))
@@ -942,7 +980,7 @@ public class ServiceTestFixture : IDisposable
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<ShippingTaxOverride>>>>()))
                     .Returns((Func<MerchelloDbContext, Task<List<ShippingTaxOverride>>> func) => func(dbContext));
 
-                // Customer lookup DTO for InvoiceService.SearchCustomersAsync
+                // Customer lookup DTO for CustomerService.SearchCustomersAsync
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<CustomerLookupResultDto>>>>()))
                     .Returns((Func<MerchelloDbContext, Task<List<CustomerLookupResultDto>>> func) => func(dbContext));
@@ -971,6 +1009,10 @@ public class ServiceTestFixture : IDisposable
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Core.Checkout.Dtos.AbandonedCheckoutStatsDto>>>()))
                     .Returns((Func<MerchelloDbContext, Task<Core.Checkout.Dtos.AbandonedCheckoutStatsDto>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Core.Checkout.Dtos.AbandonedCheckoutPageDto>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Core.Checkout.Dtos.AbandonedCheckoutPageDto>> func) => func(dbContext));
 
                 // GetUnpaidInvoiceForBasketAsync return type (tuple of Invoice and Basket)
                 scopeMock
@@ -1072,6 +1114,38 @@ public class ServiceTestFixture : IDisposable
             .Options;
 
         return new MerchelloDbContext(options);
+    }
+
+    /// <summary>
+    /// Resets all configurable mocks to their default state.
+    /// Call this in test constructors or IAsyncLifetime.InitializeAsync for isolation.
+    /// </summary>
+    public void ResetMocks()
+    {
+        // Reset exchange rate cache to default 1:1 rates
+        _exchangeRateCacheMock.Reset();
+        _exchangeRateCacheMock
+            .Setup(x => x.GetRateQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExchangeRateQuote(1m, DateTime.UtcNow, "mock"));
+        _exchangeRateCacheMock
+            .Setup(x => x.GetRateAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1m);
+
+        // Reset fulfilment provider manager to empty providers
+        _fulfilmentProviderManagerMock.Reset();
+        _fulfilmentProviderManagerMock
+            .Setup(x => x.GetProvidersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<RegisteredFulfilmentProvider>());
+        _fulfilmentProviderManagerMock
+            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<RegisteredFulfilmentProvider>());
+
+        // Reset HTTP message handler (clear accumulated requests)
+        var mockHandler = _serviceProvider.GetService<MockHttpMessageHandler>();
+        mockHandler?.Reset();
+
+        // Clear session state
+        _mockHttpContextAccessor.ClearSession();
     }
 
     public void Dispose()

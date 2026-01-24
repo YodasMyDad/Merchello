@@ -33,11 +33,6 @@ public class OrderTaxInput
     public bool IsShippingTaxable { get; init; }
 
     /// <summary>
-    /// Default tax rate used when line items don't have their own TaxRate set.
-    /// </summary>
-    public decimal DefaultTaxRate { get; init; }
-
-    /// <summary>
     /// The specific shipping tax rate to use. Should come from ITaxProviderManager.GetShippingTaxRateForLocationAsync().
     /// - null = use proportional calculation (weighted average of line item rates)
     /// - 0m = shipping is explicitly not taxable

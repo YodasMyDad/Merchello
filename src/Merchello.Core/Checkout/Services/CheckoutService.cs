@@ -13,9 +13,6 @@ using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Checkout.Strategies.Interfaces;
 using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Data;
-using Merchello.Core.Discounts.Models;
-using Merchello.Core.Discounts.Services;
-using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Checkout.Notifications;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Notifications;
@@ -29,7 +26,6 @@ using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Locality.Models;
-using Merchello.Core.Shared.RateLimiting.Interfaces;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Customers.Services.Interfaces;
@@ -37,6 +33,7 @@ using Merchello.Core.Customers.Services.Parameters;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Models;
+using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -61,24 +58,19 @@ public class CheckoutService(
     IInvoiceService invoiceService,
     ILocalityCatalog localityCatalog,
     ICheckoutSessionService checkoutSessionService,
-    IRateLimiter rateLimiter,
     IExchangeRateCache exchangeRateCache,
     ICurrencyService currencyService,
     ILogger<CheckoutService> logger,
-    IDiscountEngine? discountEngine = null,
-    IDiscountService? discountService = null,
     ILocationsService? locationsService = null,
     ICheckoutMemberService? checkoutMemberService = null,
     ICustomerService? customerService = null,
     IAbandonedCheckoutService? abandonedCheckoutService = null,
-    ITaxProviderManager? taxProviderManager = null) : ICheckoutService
+    ITaxProviderManager? taxProviderManager = null,
+    ITaxService? taxService = null,
+    Lazy<ICheckoutDiscountService>? checkoutDiscountService = null) : ICheckoutService
 {
     private readonly ILocationsService _locationsService = locationsService ?? new NoopLocationsService();
     private readonly MerchelloSettings _settings = settings.Value;
-
-    // Rate limiting constants for discount code attempts
-    private const int MaxDiscountCodeAttemptsPerMinute = 5;
-    private static readonly TimeSpan DiscountCodeRateLimitWindow = TimeSpan.FromMinutes(1);
 
     // JSON serialization options - must match CheckoutSessionService for session interop
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -133,96 +125,6 @@ public class CheckoutService(
     }
 
     /// <summary>
-    /// Add a discount to the basket as a discount line item.
-    /// </summary>
-    /// <param name="parameters">Parameters for adding the discount</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    public async Task AddDiscountToBasketAsync(
-        AddDiscountToBasketParameters parameters,
-        CancellationToken cancellationToken = default)
-    {
-        var basket = parameters.Basket;
-        var amount = parameters.Amount;
-        var discountValueType = parameters.DiscountValueType;
-        var linkedSku = parameters.LinkedSku;
-        var name = parameters.Name;
-        var reason = parameters.Reason;
-        var countryCode = parameters.CountryCode;
-
-        var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
-        var errors = lineItemService.AddDiscountLineItem(new AddDiscountLineItemParameters
-        {
-            LineItems = basket.LineItems,
-            Amount = amount,
-            DiscountValueType = discountValueType,
-            CurrencyCode = currencyCode,
-            LinkedSku = linkedSku,
-            Name = name,
-            Reason = reason
-        });
-
-        basket.Errors = errors.Select(x => new BasketError { Message = x }).ToList();
-        if (basket.Errors.Count > 0)
-        {
-            return;
-        }
-
-        await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
-        basket.DateUpdated = DateTime.UtcNow;
-    }
-
-    /// <summary>
-    /// Remove a discount line item from the basket
-    /// </summary>
-    /// <param name="basket">The basket</param>
-    /// <param name="discountLineItemId">The ID of the discount line item to remove</param>
-    /// <param name="countryCode">Country code for recalculation</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    public async Task RemoveDiscountFromBasketAsync(
-        Basket basket,
-        Guid discountLineItemId,
-        string? countryCode = null,
-        CancellationToken cancellationToken = default)
-    {
-        // Find the discount line item BEFORE removing to get discount info for notification
-        var discountLineItem = basket.LineItems.FirstOrDefault(li =>
-            li.Id == discountLineItemId && li.LineItemType == LineItemType.Discount);
-
-        if (discountLineItem == null)
-        {
-            basket.Errors.Add(new BasketError
-            {
-                Message = "Discount line item not found",
-                RelatedLineItemId = discountLineItemId
-            });
-            return;
-        }
-
-        // Get the discount ID from ExtendedData to look up the discount for notification
-        Discount? discount = null;
-        if (discountLineItem.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var discountIdObj) &&
-            Guid.TryParse(discountIdObj.ToString(), out var discountId) &&
-            discountService != null)
-        {
-            discount = await discountService.GetByIdAsync(discountId, cancellationToken);
-        }
-
-        // Remove the line item
-        basket.LineItems.Remove(discountLineItem);
-
-        // Publish notification if we have the discount info
-        if (discount != null)
-        {
-            await notificationPublisher.PublishAsync(
-                new DiscountCodeRemovedNotification(basket, discount),
-                cancellationToken);
-        }
-
-        await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
-        basket.DateUpdated = DateTime.UtcNow;
-    }
-
-    /// <summary>
     /// Remove item from basket
     /// </summary>
     /// <param name="basket"></param>
@@ -234,13 +136,27 @@ public class CheckoutService(
         var itemToRemove = basket.LineItems.FirstOrDefault(item => item.Id == lineItemId);
         if (itemToRemove != null)
         {
+            var removingNotification = new BasketItemRemovingNotification(basket, itemToRemove);
+            if (await notificationPublisher.PublishCancelableAsync(removingNotification, cancellationToken))
+            {
+                basket.Errors.Add(new()
+                {
+                    Message = removingNotification.CancelReason ?? "Item removal was cancelled",
+                    RelatedLineItemId = lineItemId
+                });
+                return;
+            }
+
             basket.LineItems.Remove(itemToRemove);
             await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
             basket.DateUpdated = DateTime.UtcNow;
+
+            await notificationPublisher.PublishAsync(
+                new BasketItemRemovedNotification(basket, itemToRemove), cancellationToken);
         }
         else
         {
-            basket.Errors.Add(new ()
+            basket.Errors.Add(new()
             {
                 Message = "Unable to find line item to remove",
                 RelatedLineItemId = lineItemId
@@ -253,10 +169,10 @@ public class CheckoutService(
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <strong>Tax Preview vs Final Order:</strong> This method uses a simplified tax calculation
-    /// with the provided <c>DefaultTaxRate</c> parameter for performance during checkout preview.
+    /// <strong>Tax Rates:</strong> This method resolves location-specific tax rates for each line item
+    /// using <c>TaxService.GetApplicableRateAsync</c> (state-specific → country-level → TaxGroup default).
     /// The final order (created via <see cref="IInvoiceService.CreateOrderFromBasketAsync"/>)
-    /// uses the active tax provider (e.g., Avalara, TaxJar) for accurate, address-based tax calculation.
+    /// additionally supports external tax providers (Avalara, TaxJar) for street-level precision.
     /// </para>
     /// <para>
     /// With external tax providers, the preview tax amount may differ from the final order tax.
@@ -265,10 +181,6 @@ public class CheckoutService(
     /// - Product tax categories
     /// - Current tax rates from tax authority databases
     /// </para>
-    /// <para>
-    /// For high-value carts or jurisdictions with complex tax rules, consider calling
-    /// the tax provider during preview if exact tax amounts are required before order confirmation.
-    /// </para>
     /// </remarks>
     /// <param name="parameters">Parameters for calculating the basket</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -276,11 +188,17 @@ public class CheckoutService(
     {
         var basket = parameters.Basket;
         var countryCode = parameters.CountryCode;
-        var defaultTaxRate = parameters.DefaultTaxRate;
 
         // Resolve country code from settings if not provided
         var resolvedCountryCode = countryCode ?? _settings.DefaultShippingCountry ?? "US";
         var stateCode = basket.ShippingAddress.CountyState.RegionCode;
+
+        // Resolve location-specific tax rates for basket line items
+        if (taxService != null && !string.IsNullOrWhiteSpace(resolvedCountryCode))
+        {
+            await ResolveLineItemTaxRatesAsync(
+                basket.LineItems, resolvedCountryCode, stateCode, cancellationToken);
+        }
 
         // Query tax provider for shipping taxability and rate if not explicitly provided
         var isShippingTaxable = parameters.IsShippingTaxable
@@ -331,7 +249,6 @@ public class CheckoutService(
         {
             LineItems = basket.LineItems,
             ShippingAmount = shippingCost,
-            DefaultTaxRate = defaultTaxRate,
             CurrencyCode = currencyCode,
             IsShippingTaxable = isShippingTaxable,
             ShippingTaxRate = shippingTaxRate
@@ -344,6 +261,44 @@ public class CheckoutService(
         basket.Total = calcResult.Total;
         basket.Shipping = calcResult.Shipping;
         basket.EffectiveShippingTaxRate = calcResult.EffectiveShippingTaxRate;
+    }
+
+    /// <summary>
+    /// Resolves location-specific tax rates for basket line items using TaxGroupRates.
+    /// Groups items by TaxGroupId for batch efficiency, then updates each item's TaxRate.
+    /// When no location-specific rate exists, GetApplicableRateAsync returns the TaxGroup default.
+    /// </summary>
+    private async Task ResolveLineItemTaxRatesAsync(
+        List<LineItem> lineItems,
+        string countryCode,
+        string? stateCode,
+        CancellationToken cancellationToken)
+    {
+        var taxableItems = lineItems
+            .Where(li => li is { TaxGroupId: not null, LineItemType: LineItemType.Product or LineItemType.Custom or LineItemType.Addon })
+            .ToList();
+
+        if (taxableItems.Count == 0)
+        {
+            return;
+        }
+
+        // Batch by distinct TaxGroupId (typically 1-3 per basket)
+        var resolvedRates = new Dictionary<Guid, decimal>();
+        foreach (var taxGroupId in taxableItems.Select(li => li.TaxGroupId!.Value).Distinct())
+        {
+            resolvedRates[taxGroupId] = await taxService!.GetApplicableRateAsync(
+                taxGroupId, countryCode, stateCode, cancellationToken);
+        }
+
+        foreach (var item in taxableItems)
+        {
+            if (resolvedRates.TryGetValue(item.TaxGroupId!.Value, out var rate))
+            {
+                item.TaxRate = rate;
+                item.IsTaxable = rate > 0;
+            }
+        }
     }
 
     /// <summary>
@@ -562,26 +517,8 @@ public class CheckoutService(
                 if (!valueLookup.TryGetValue(addon.ValueId, out var ov))
                     continue;
 
-                // Create addon line item
-                var addonLineItem = new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    Name = $"{ov.Option.Name}: {ov.Value.Name}",
-                    Sku = string.IsNullOrWhiteSpace(ov.Value.SkuSuffix)
-                        ? $"ADDON-{ov.Value.Id.ToString()[..8]}"
-                        : $"{product.Sku}-{ov.Value.SkuSuffix}",
-                    DependantLineItemSku = productLineItem.Sku,
-                    Quantity = parameters.Quantity,
-                    Amount = ov.Value.PriceAdjustment,
-                    LineItemType = LineItemType.Addon,
-                    IsTaxable = true,
-                    TaxRate = product.ProductRoot.TaxGroup?.TaxPercentage ?? 20m
-                };
-
-                addonLineItem.ExtendedData["AddonOptionId"] = ov.Option.Id.ToString();
-                addonLineItem.ExtendedData["AddonValueId"] = ov.Value.Id.ToString();
-                addonLineItem.ExtendedData["CostAdjustment"] = ov.Value.CostAdjustment;
-                addonLineItem.ExtendedData["WeightKg"] = ov.Value.WeightKg ?? 0m;
+                var addonLineItem = lineItemFactory.CreateAddonForBasket(
+                    product, ov.Option, ov.Value, productLineItem.Sku!, parameters.Quantity);
 
                 await AddToBasket(new AddToBasketParameters
                 {
@@ -613,6 +550,15 @@ public class CheckoutService(
             var lineItem = basket.LineItems.FirstOrDefault(li => li.Id == lineItemId);
             if (lineItem != null)
             {
+                var oldQuantity = lineItem.Quantity;
+
+                // Publish cancelable notification before changing quantity
+                var changingNotification = new BasketItemQuantityChangingNotification(basket, lineItem, oldQuantity, quantity);
+                if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
+                {
+                    return;
+                }
+
                 // Note: Stock validation happens at order submission time via IInventoryService.
                 // The basket accepts any quantity; final validation occurs when creating the order.
                 lineItem.Quantity = quantity;
@@ -635,6 +581,9 @@ public class CheckoutService(
                 {
                     await abandonedCheckoutService.TrackCheckoutActivityAsync(basket.Id, cancellationToken);
                 }
+
+                await notificationPublisher.PublishAsync(
+                    new BasketItemQuantityChangedNotification(basket, lineItem, oldQuantity, quantity), cancellationToken);
             }
         }
     }
@@ -677,8 +626,17 @@ public class CheckoutService(
 
             if (basketToDelete != null)
             {
+                var clearingNotification = new BasketClearingNotification(basketToDelete);
+                if (await notificationPublisher.PublishCancelableAsync(clearingNotification, cancellationToken))
+                {
+                    return;
+                }
+
                 db.Baskets.Remove(basketToDelete);
                 await db.SaveChangesAsync(cancellationToken);
+
+                await notificationPublisher.PublishAsync(
+                    new BasketClearedNotification(basketToDelete), cancellationToken);
             }
         });
         scope.Complete();
@@ -870,20 +828,18 @@ public class CheckoutService(
 
     /// <inheritdoc />
     public async Task<Basket> EnsureBasketCurrencyAsync(
-        Basket basket,
-        string currencyCode,
-        string currencySymbol,
+        EnsureBasketCurrencyParameters parameters,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(basket.Currency) ||
-            !string.Equals(basket.Currency, currencyCode, StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrEmpty(parameters.Basket.Currency) ||
+            !string.Equals(parameters.Basket.Currency, parameters.CurrencyCode, StringComparison.OrdinalIgnoreCase))
         {
-            basket.Currency = currencyCode;
-            basket.CurrencySymbol = currencySymbol;
-            await SaveBasketAsync(basket, cancellationToken);
+            parameters.Basket.Currency = parameters.CurrencyCode;
+            parameters.Basket.CurrencySymbol = parameters.CurrencySymbol;
+            await SaveBasketAsync(parameters.Basket, cancellationToken);
         }
 
-        return basket;
+        return parameters.Basket;
     }
 
     /// <summary>
@@ -976,378 +932,6 @@ public class CheckoutService(
         return selected;
     }
 
-    /// <summary>
-    /// Applies a discount code to the basket.
-    /// Rate limited to prevent brute-force attacks on discount codes.
-    /// </summary>
-    public async Task<CrudResult<Basket>> ApplyDiscountCodeAsync(
-        Basket basket,
-        string code,
-        string? countryCode = null,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<Basket>();
-
-        if (discountEngine == null || discountService == null)
-        {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = "Discount engine not configured.",
-                ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
-            });
-            return result;
-        }
-
-        // Rate limiting: Check if too many discount code attempts
-        var rateLimitResult = await CheckDiscountCodeRateLimitAsync(basket.Id, cancellationToken);
-        if (!rateLimitResult.Allowed)
-        {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = rateLimitResult.ErrorMessage ?? "Too many discount code attempts. Please try again later.",
-                ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
-            });
-            return result;
-        }
-
-        // Build discount context from basket
-        var context = BuildDiscountContext(basket);
-
-        // Validate the code
-        var validationResult = await discountEngine.ValidateCodeAsync(code, context, cancellationToken);
-        if (!validationResult.IsValid)
-        {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = validationResult.ErrorMessage ?? "Invalid discount code.",
-                ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
-            });
-            return result;
-        }
-
-        var discount = validationResult.Discount!;
-
-        // Publish "Before" notification - handlers can cancel
-        var applyingNotification = new DiscountCodeApplyingNotification(basket, code);
-        if (await notificationPublisher.PublishCancelableAsync(applyingNotification, cancellationToken))
-        {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = applyingNotification.CancelReason ?? "Discount code application cancelled.",
-                ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
-            });
-            return result;
-        }
-
-        // Calculate the discount
-        var calculationResult = await discountEngine.CalculateAsync(discount, context, cancellationToken);
-        if (!calculationResult.Success || calculationResult.TotalDiscountAmount <= 0)
-        {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = calculationResult.ErrorMessage ?? "Discount does not apply to items in your cart.",
-                ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
-            });
-            return result;
-        }
-
-        // Add discount as a line item
-        var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
-        var errors = lineItemService.AddDiscountLineItem(new AddDiscountLineItemParameters
-        {
-            LineItems = basket.LineItems,
-            Amount = calculationResult.TotalDiscountAmount,
-            DiscountValueType = DiscountValueType.FixedAmount,
-            CurrencyCode = currencyCode,
-            LinkedSku = null,
-            Name = discount.Name,
-            Reason = discount.Code,
-            ExtendedData = new Dictionary<string, string>
-            {
-                [Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString(),
-                [Constants.ExtendedDataKeys.DiscountCode] = discount.Code ?? string.Empty,
-                [Constants.ExtendedDataKeys.DiscountName] = discount.Name,
-                [Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString(),
-                [Constants.ExtendedDataKeys.ApplyAfterTax] = discount.ApplyAfterTax.ToString()
-            }
-        });
-
-        if (errors.Count > 0)
-        {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = errors.First(),
-                ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
-            });
-            return result;
-        }
-
-        await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
-
-        // Refresh automatic discounts - the applied code may conflict with existing automatic discounts
-        // This is done here (not in controller) to ensure consistent behavior across all code paths
-        basket = await RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
-        basket.DateUpdated = DateTime.UtcNow;
-
-        // Publish "After" notification
-        await notificationPublisher.PublishAsync(new DiscountCodeAppliedNotification(basket, discount), cancellationToken);
-
-        // Track checkout activity for abandoned cart recovery
-        if (abandonedCheckoutService != null)
-        {
-            await abandonedCheckoutService.TrackCheckoutActivityAsync(basket.Id, cancellationToken);
-        }
-
-        result.ResultObject = basket;
-        return result;
-    }
-
-    /// <summary>
-    /// Gets all applicable automatic discounts for the basket.
-    /// </summary>
-    public async Task<List<ApplicableDiscount>> GetApplicableAutomaticDiscountsAsync(
-        Basket basket,
-        CancellationToken cancellationToken = default)
-    {
-        if (discountEngine == null)
-        {
-            return [];
-        }
-
-        var context = BuildDiscountContext(basket);
-        return await discountEngine.GetApplicableAutomaticDiscountsAsync(context, cancellationToken);
-    }
-
-    /// <summary>
-    /// Refreshes automatic discounts on the basket.
-    /// </summary>
-    public async Task<Basket> RefreshAutomaticDiscountsAsync(
-        Basket basket,
-        string? countryCode = null,
-        CancellationToken cancellationToken = default)
-    {
-        if (discountEngine == null)
-        {
-            return basket;
-        }
-
-        // Remove existing automatic discount line items
-        var automaticDiscountLineItems = basket.LineItems
-            .Where(li => li.LineItemType == LineItemType.Discount &&
-                         li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCategory, out var category) &&
-                         !li.ExtendedData.ContainsKey(Constants.ExtendedDataKeys.DiscountCode))
-            .ToList();
-
-        foreach (var lineItem in automaticDiscountLineItems)
-        {
-            basket.LineItems.Remove(lineItem);
-        }
-
-        // Get applicable automatic discounts
-        var context = BuildDiscountContext(basket);
-        var applicableDiscounts = await discountEngine.GetApplicableAutomaticDiscountsAsync(context, cancellationToken);
-
-        // Get existing code-based discounts from basket to consider in combination filtering
-        var existingCodeDiscountIds = basket.LineItems
-            .Where(li => li.LineItemType == LineItemType.Discount &&
-                         li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out _) &&
-                         li.ExtendedData.ContainsKey(Constants.ExtendedDataKeys.DiscountCode))
-            .Select(li => Guid.TryParse(li.ExtendedData[Constants.ExtendedDataKeys.DiscountId] as string, out var id) ? id : Guid.Empty)
-            .Where(id => id != Guid.Empty)
-            .ToList();
-
-        List<Discount> existingCodeDiscounts = [];
-        if (discountService != null)
-        {
-            foreach (var discountId in existingCodeDiscountIds)
-            {
-                var discount = await discountService.GetByIdAsync(discountId, cancellationToken);
-                if (discount != null)
-                {
-                    existingCodeDiscounts.Add(discount);
-                }
-            }
-        }
-
-        // Filter automatic discounts based on combination rules with both:
-        // - Each other (automatic discounts)
-        // - Existing code-based discounts in basket
-        var allDiscountsToConsider = existingCodeDiscounts
-            .Concat(applicableDiscounts.Select(ad => ad.Discount))
-            .ToList();
-
-        var filteredDiscounts = discountEngine.FilterCombinableDiscounts(allDiscountsToConsider);
-
-        // Only apply automatic discounts that made it through the filter
-        var discountsToApply = applicableDiscounts
-            .Where(ad => filteredDiscounts.Contains(ad.Discount))
-            .ToList();
-
-        // Apply each automatic discount that passed combination filtering
-        var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
-        foreach (var applicableDiscount in discountsToApply)
-        {
-            var discount = applicableDiscount.Discount;
-
-            lineItemService.AddDiscountLineItem(new AddDiscountLineItemParameters
-            {
-                LineItems = basket.LineItems,
-                Amount = applicableDiscount.CalculatedAmount,
-                DiscountValueType = DiscountValueType.FixedAmount,
-                CurrencyCode = currencyCode,
-                LinkedSku = null,
-                Name = discount.Name,
-                Reason = "Automatic discount",
-                ExtendedData = new Dictionary<string, string>
-                {
-                    [Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString(),
-                    [Constants.ExtendedDataKeys.DiscountName] = discount.Name,
-                    [Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString(),
-                    [Constants.ExtendedDataKeys.ApplyAfterTax] = discount.ApplyAfterTax.ToString()
-                }
-            });
-        }
-
-        await CalculateBasketAsync(new CalculateBasketParameters
-        {
-            Basket = basket,
-            CountryCode = countryCode,
-            ShippingAmountOverride = basket.Shipping  // Preserve existing shipping amount
-        }, cancellationToken);
-        basket.DateUpdated = DateTime.UtcNow;
-
-        return basket;
-    }
-
-    /// <summary>
-    /// Removes a promotional discount from the basket.
-    /// </summary>
-    public async Task<CrudResult<Basket>> RemovePromotionalDiscountAsync(
-        Basket basket,
-        Guid discountId,
-        string? countryCode = null,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<Basket>();
-
-        // Find the discount line item with matching discount ID
-        var discountLineItem = basket.LineItems
-            .FirstOrDefault(li => li.LineItemType == LineItemType.Discount &&
-                                  li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id) &&
-                                  Guid.TryParse(id?.ToString(), out var parsedId) &&
-                                  parsedId == discountId);
-
-        if (discountLineItem == null)
-        {
-            result.Messages.Add(new ResultMessage
-            {
-                Message = "Discount not found in basket.",
-                ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
-            });
-            return result;
-        }
-
-        basket.LineItems.Remove(discountLineItem);
-
-        await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
-
-        // Refresh automatic discounts - a removed code may have been blocking automatic discounts
-        // This is done here (not in controller) to ensure consistent behavior across all code paths
-        basket = await RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
-        basket.DateUpdated = DateTime.UtcNow;
-
-        result.ResultObject = basket;
-        return result;
-    }
-
-    /// <summary>
-    /// Builds a discount context from the basket for discount engine calculations.
-    /// </summary>
-    private DiscountContext BuildDiscountContext(Basket basket)
-    {
-        var context = new DiscountContext
-        {
-            CustomerId = basket.CustomerId,
-            SubTotal = basket.SubTotal,
-            ShippingTotal = basket.Shipping,
-            CurrencyCode = basket.Currency ?? _settings.StoreCurrencyCode,
-            ShippingAddress = basket.ShippingAddress,
-            AppliedDiscountIds = basket.LineItems
-                .Where(li => li.LineItemType == LineItemType.Discount)
-                .Select(li => li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id) &&
-                              Guid.TryParse(id as string, out var parsedId)
-                    ? parsedId
-                    : Guid.Empty)
-                .Where(id => id != Guid.Empty)
-                .ToList()
-        };
-
-        // Build lookup of product line items by SKU for add-on parent linking
-        var productLineItemsBySku = basket.LineItems
-            .Where(li => li.LineItemType == LineItemType.Product && !string.IsNullOrEmpty(li.Sku))
-            .ToDictionary(li => li.Sku!, li => li);
-
-        // Convert basket line items to discount context line items (products and add-ons)
-        foreach (var lineItem in basket.LineItems.Where(li =>
-            li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Addon))
-        {
-            var isAddon = lineItem.LineItemType == LineItemType.Addon;
-            LineItem? parentLineItem = null;
-
-            // For add-ons, find the parent product line item
-            if (isAddon && !string.IsNullOrEmpty(lineItem.DependantLineItemSku))
-            {
-                productLineItemsBySku.TryGetValue(lineItem.DependantLineItemSku, out parentLineItem);
-            }
-
-            var ctxLineItem = new DiscountContextLineItem
-            {
-                LineItemId = lineItem.Id,
-                ProductId = lineItem.ProductId ?? parentLineItem?.ProductId ?? Guid.Empty,
-                Sku = lineItem.Sku ?? string.Empty,
-                Quantity = lineItem.Quantity,
-                UnitPrice = lineItem.Amount,
-                LineTotal = lineItem.Quantity * lineItem.Amount,
-                IsAddon = isAddon,
-                ParentLineItemId = parentLineItem?.Id
-            };
-
-            // Read product metadata from ExtendedData (for products) or parent (for add-ons)
-            var metadataSource = isAddon && parentLineItem != null ? parentLineItem : lineItem;
-
-            if (metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ProductRootId, out var rootIdObj) &&
-                rootIdObj is string rootIdStr &&
-                Guid.TryParse(rootIdStr, out var productRootId))
-            {
-                ctxLineItem.ProductRootId = productRootId;
-            }
-
-            if (metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ProductTypeId, out var typeIdObj) &&
-                typeIdObj is string typeIdStr &&
-                Guid.TryParse(typeIdStr, out var productTypeId))
-            {
-                ctxLineItem.ProductTypeId = productTypeId;
-            }
-
-            if (metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.CollectionIds, out var collectionIdsObj) &&
-                collectionIdsObj is string collectionIdsJson)
-            {
-                try
-                {
-                    ctxLineItem.CollectionIds = JsonSerializer.Deserialize<List<Guid>>(collectionIdsJson) ?? [];
-                }
-                catch (JsonException)
-                {
-                    // Invalid JSON format - continue with empty collection IDs
-                }
-            }
-
-            context.LineItems.Add(ctxLineItem);
-        }
-
-        return context;
-    }
-
     // Order Grouping Methods
 
     /// <inheritdoc />
@@ -1402,6 +986,17 @@ public class CheckoutService(
         var basket = parameters.Basket;
         var result = new CrudResult<Basket>();
 
+        if (!string.IsNullOrWhiteSpace(parameters.Email) &&
+            !System.Net.Mail.MailAddress.TryCreate(parameters.Email, out _))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Invalid email address format.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
         // Map DTOs to Address models
         var billingAddress = MapDtoToAddress(parameters.BillingAddress);
         billingAddress.Email = parameters.Email;
@@ -1455,7 +1050,10 @@ public class CheckoutService(
         }, cancellationToken);
 
         // Apply automatic discounts (e.g., "Free shipping in UK", "10% off orders over £100")
-        basket = await RefreshAutomaticDiscountsAsync(basket, shippingAddress.CountryCode, cancellationToken);
+        if (checkoutDiscountService != null)
+        {
+            basket = await checkoutDiscountService.Value.RefreshAutomaticDiscountsAsync(basket, shippingAddress.CountryCode, cancellationToken);
+        }
 
         // Update timestamp if addresses changed OR if totals changed after recalculation
         // This ensures invoice dedup creates a new invoice when discounts/taxes change
@@ -1481,13 +1079,14 @@ public class CheckoutService(
         httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
 
         // Update checkout session
-        await checkoutSessionService.SaveAddressesAsync(
-            basket.Id,
-            billingAddress,
-            shippingAddress,
-            parameters.ShippingSameAsBilling,
-            parameters.AcceptsMarketing,
-            cancellationToken);
+        await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
+        {
+            BasketId = basket.Id,
+            Billing = billingAddress,
+            Shipping = shippingAddress,
+            SameAsBilling = parameters.ShippingSameAsBilling,
+            AcceptsMarketing = parameters.AcceptsMarketing
+        }, cancellationToken);
 
         await checkoutSessionService.SetCurrentStepAsync(basket.Id, CheckoutStep.Shipping, cancellationToken);
 
@@ -1518,7 +1117,10 @@ public class CheckoutService(
                 if (memberKey.HasValue)
                 {
                     // Get or create customer and link to member
-                    var customer = await customerService.GetOrCreateByEmailAsync(parameters.Email, ct: cancellationToken);
+                    var customer = await customerService.GetOrCreateByEmailAsync(new GetOrCreateCustomerParameters
+                    {
+                        Email = parameters.Email
+                    }, cancellationToken);
                     if (customer != null && !customer.MemberKey.HasValue)
                     {
                         await customerService.UpdateAsync(new UpdateCustomerParameters
@@ -1566,25 +1168,153 @@ public class CheckoutService(
     /// <inheritdoc />
     public async Task SaveBasketAsync(Basket basket, CancellationToken cancellationToken = default)
     {
+        // Update concurrency stamp before saving
+        basket.ConcurrencyStamp = Guid.NewGuid().ToString();
+
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        try
         {
-            // Check if basket exists in the database
-            var exists = await db.Baskets.AnyAsync(b => b.Id == basket.Id, cancellationToken);
-            if (exists)
+            await scope.ExecuteWithContextAsync<Task>(async db =>
             {
-                db.Baskets.Update(basket);
-            }
-            else
+                var exists = await db.Baskets.AnyAsync(b => b.Id == basket.Id, cancellationToken);
+                if (exists)
+                {
+                    db.Baskets.Update(basket);
+                }
+                else
+                {
+                    db.Baskets.Add(basket);
+                }
+                await db.SaveChangesAsync(cancellationToken);
+            });
+            scope.Complete();
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            logger.LogWarning(ex, "Basket {BasketId} was modified concurrently. Reloading and retrying.", basket.Id);
+
+            // Retry once with fresh data
+            using var retryScope = efCoreScopeProvider.CreateScope();
+            await retryScope.ExecuteWithContextAsync<Task>(async db =>
             {
-                db.Baskets.Add(basket);
-            }
-            await db.SaveChangesAsync(cancellationToken);
-        });
-        scope.Complete();
+                var freshBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basket.Id, cancellationToken);
+                if (freshBasket != null)
+                {
+                    // Apply current values to the fresh entity
+                    db.Entry(freshBasket).CurrentValues.SetValues(basket);
+                    freshBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                    await db.SaveChangesAsync(cancellationToken);
+                    basket.ConcurrencyStamp = freshBasket.ConcurrencyStamp;
+                }
+                else
+                {
+                    db.Baskets.Add(basket);
+                    await db.SaveChangesAsync(cancellationToken);
+                }
+            });
+            retryScope.Complete();
+        }
 
         // Update HTTP session to keep in sync
         httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> CaptureAddressAsync(
+        CaptureAddressParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var basket = parameters.Basket;
+        var hasChanges = false;
+
+        // Update email if provided
+        if (!string.IsNullOrWhiteSpace(parameters.Email))
+        {
+            basket.BillingAddress.Email = parameters.Email.Trim();
+            hasChanges = true;
+        }
+
+        // Update billing address fields
+        if (parameters.BillingAddress != null)
+        {
+            UpdateAddressFromDto(basket.BillingAddress, parameters.BillingAddress);
+            hasChanges = true;
+        }
+
+        // Update shipping address
+        if (parameters.ShippingSameAsBilling && parameters.BillingAddress != null)
+        {
+            CopyAddress(basket.BillingAddress, basket.ShippingAddress);
+        }
+        else if (!parameters.ShippingSameAsBilling && parameters.ShippingAddress != null)
+        {
+            UpdateAddressFromDto(basket.ShippingAddress, parameters.ShippingAddress);
+            hasChanges = true;
+        }
+
+        if (hasChanges)
+        {
+            await SaveBasketAsync(basket, cancellationToken);
+
+            await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
+            {
+                BasketId = basket.Id,
+                Billing = basket.BillingAddress,
+                Shipping = basket.ShippingAddress,
+                SameAsBilling = parameters.ShippingSameAsBilling
+            }, cancellationToken);
+
+            if (abandonedCheckoutService != null)
+            {
+                await abandonedCheckoutService.TrackCheckoutActivityAsync(
+                    basket,
+                    basket.BillingAddress.Email ?? "",
+                    cancellationToken);
+            }
+        }
+
+        return hasChanges;
+    }
+
+    private static void UpdateAddressFromDto(Locality.Models.Address address, CheckoutAddressDto dto)
+    {
+        if (!string.IsNullOrEmpty(dto.Name)) address.Name = dto.Name;
+        if (!string.IsNullOrEmpty(dto.Company)) address.Company = dto.Company;
+        if (!string.IsNullOrEmpty(dto.Address1)) address.AddressOne = dto.Address1;
+        if (dto.Address2 != null) address.AddressTwo = dto.Address2;
+        if (!string.IsNullOrEmpty(dto.City)) address.TownCity = dto.City;
+        if (!string.IsNullOrEmpty(dto.PostalCode)) address.PostalCode = dto.PostalCode;
+        if (!string.IsNullOrEmpty(dto.Country)) address.Country = dto.Country;
+        if (!string.IsNullOrEmpty(dto.CountryCode)) address.CountryCode = dto.CountryCode;
+        if (!string.IsNullOrEmpty(dto.Phone)) address.Phone = dto.Phone;
+
+        if (!string.IsNullOrEmpty(dto.State) || !string.IsNullOrEmpty(dto.StateCode))
+        {
+            address.CountyState ??= new Locality.Models.CountyState();
+            if (!string.IsNullOrEmpty(dto.State)) address.CountyState.Name = dto.State;
+            if (!string.IsNullOrEmpty(dto.StateCode)) address.CountyState.RegionCode = dto.StateCode;
+        }
+    }
+
+    private static void CopyAddress(Locality.Models.Address source, Locality.Models.Address target)
+    {
+        target.Name = source.Name;
+        target.Company = source.Company;
+        target.AddressOne = source.AddressOne;
+        target.AddressTwo = source.AddressTwo;
+        target.TownCity = source.TownCity;
+        target.PostalCode = source.PostalCode;
+        target.Country = source.Country;
+        target.CountryCode = source.CountryCode;
+        target.Phone = source.Phone;
+        target.Email = source.Email;
+
+        if (source.CountyState != null)
+        {
+            target.CountyState ??= new Locality.Models.CountyState();
+            target.CountyState.Name = source.CountyState.Name;
+            target.CountyState.RegionCode = source.CountyState.RegionCode;
+        }
     }
 
     /// <inheritdoc />
@@ -1598,7 +1328,7 @@ public class CheckoutService(
         var deliveryDates = parameters.DeliveryDates;
 
         // Publish "Before" notification - handlers can cancel or modify selections
-        var changingNotification = new ShippingSelectionChangingNotification(basket, new Dictionary<Guid, Guid>(selections));
+        var changingNotification = new ShippingSelectionChangingNotification(basket, new Dictionary<Guid, string>(selections));
 
         if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
         {
@@ -1644,18 +1374,48 @@ public class CheckoutService(
             return result;
         }
 
-        // Calculate total shipping cost from selected options
+        // Calculate total shipping cost from selected options and store quoted costs
         decimal totalShipping = 0;
+        var quotedCosts = parameters.QuotedCosts ?? [];
         foreach (var group in groupingResult.Groups)
         {
-            if (group.SelectedShippingOptionId.HasValue)
+            if (!string.IsNullOrEmpty(group.SelectedShippingOptionId))
             {
                 var selectedOption = group.AvailableShippingOptions
-                    .FirstOrDefault(o => o.ShippingOptionId == group.SelectedShippingOptionId.Value);
+                    .FirstOrDefault(o => o.SelectionKey == group.SelectedShippingOptionId);
 
                 if (selectedOption != null)
                 {
-                    totalShipping += selectedOption.Cost;
+                    var costToCharge = selectedOption.Cost;
+                    if (quotedCosts.TryGetValue(group.GroupId, out var customerQuoted) && customerQuoted > 0)
+                    {
+                        // Only honor quoted cost if within reasonable bounds of the live rate.
+                        // Prevents frontend tampering while protecting customers from rate increases.
+                        var floor = selectedOption.Cost * 0.8m;
+                        if (customerQuoted >= floor)
+                        {
+                            // Take the lower of quoted vs live: customer never pays more than
+                            // quoted, but also benefits from any rate decrease.
+                            costToCharge = Math.Min(selectedOption.Cost, customerQuoted);
+                        }
+
+                        var smallestUnit = 1m / (decimal)Math.Pow(10, currencyService.GetDecimalPlaces(basket.Currency ?? _settings.StoreCurrencyCode));
+                        if (Math.Abs(selectedOption.Cost - costToCharge) > smallestUnit)
+                        {
+                            logger.LogWarning(
+                                "Shipping rate adjusted for group {GroupId}: quoted {QuotedCost}, live {LiveCost}, charged {ChargedCost}",
+                                group.GroupId, customerQuoted, selectedOption.Cost, costToCharge);
+                        }
+                    }
+
+                    totalShipping += costToCharge;
+                    session.QuotedShippingCosts[group.GroupId] = new QuotedShippingCost(costToCharge, DateTime.UtcNow);
+                }
+                else if (quotedCosts.TryGetValue(group.GroupId, out var quotedCost))
+                {
+                    // Fallback to quoted cost from parameters (for dynamic provider selections)
+                    totalShipping += quotedCost;
+                    session.QuotedShippingCosts[group.GroupId] = new QuotedShippingCost(quotedCost, DateTime.UtcNow);
                 }
             }
         }
@@ -1669,10 +1429,13 @@ public class CheckoutService(
         }, cancellationToken);
 
         // Refresh automatic discounts (shipping costs may affect free shipping thresholds)
-        basket = await RefreshAutomaticDiscountsAsync(
-            basket,
-            session.ShippingAddress.CountryCode,
-            cancellationToken);
+        if (checkoutDiscountService != null)
+        {
+            basket = await checkoutDiscountService.Value.RefreshAutomaticDiscountsAsync(
+                basket,
+                session.ShippingAddress.CountryCode,
+                cancellationToken);
+        }
 
         // Update timestamp if selections changed OR if totals changed after recalculation
         // This ensures invoice dedup creates a new invoice when shipping/discounts/taxes change
@@ -1698,12 +1461,14 @@ public class CheckoutService(
         // Update HTTP session
         httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
 
-        // Persist shipping selections to checkout session
-        await checkoutSessionService.SaveShippingSelectionsAsync(
-            basket.Id,
-            selections,
-            deliveryDates,
-            cancellationToken);
+        // Persist shipping selections and quoted costs to checkout session
+        await checkoutSessionService.SaveShippingSelectionsAsync(new SaveSessionShippingSelectionsParameters
+        {
+            BasketId = basket.Id,
+            Selections = selections,
+            DeliveryDates = deliveryDates,
+            QuotedCosts = session.QuotedShippingCosts
+        }, cancellationToken);
 
         // Set checkout step to Payment
         await checkoutSessionService.SetCurrentStepAsync(basket.Id, CheckoutStep.Payment, cancellationToken);
@@ -1972,7 +1737,7 @@ public class CheckoutService(
         }
 
         // Determine shipping selections: restore previous selections if valid, otherwise auto-select
-        var finalSelections = new Dictionary<Guid, Guid>();
+        var finalSelections = new Dictionary<Guid, string>();
         decimal combinedShippingTotal = 0;
         var shippingAutoSelected = false;
 
@@ -1989,8 +1754,8 @@ public class CheckoutService(
                 finalSelections[selection.Key] = selection.Value;
             }
 
-            // For groups without a valid previous selection, auto-select cheapest if enabled
-            if (parameters.AutoSelectCheapestShipping)
+            // For groups without a valid previous selection, auto-select using configured strategy
+            if (parameters.AutoSelectShipping)
             {
                 var groupsNeedingAutoSelect = groupingResult.Groups
                     .Where(g => !finalSelections.ContainsKey(g.GroupId))
@@ -1998,9 +1763,11 @@ public class CheckoutService(
 
                 if (groupsNeedingAutoSelect.Count > 0)
                 {
+                    var strategy = ParseAutoSelectStrategy(_settings.ShippingAutoSelectStrategy);
+
                     var autoSelectedOptions = ShippingAutoSelector.SelectOptions(
                         groupsNeedingAutoSelect,
-                        ShippingAutoSelectStrategy.Cheapest);
+                        strategy);
 
                     foreach (var selection in autoSelectedOptions)
                     {
@@ -2029,15 +1796,18 @@ public class CheckoutService(
             }, cancellationToken);
 
             // Save selections to session
-            await checkoutSessionService.SaveShippingSelectionsAsync(
-                basket.Id,
-                finalSelections,
-                null,
-                cancellationToken);
+            await checkoutSessionService.SaveShippingSelectionsAsync(new SaveSessionShippingSelectionsParameters
+            {
+                BasketId = basket.Id,
+                Selections = finalSelections
+            }, cancellationToken);
         }
 
         // Refresh automatic discounts (may include free shipping based on threshold)
-        basket = await RefreshAutomaticDiscountsAsync(basket, parameters.CountryCode, cancellationToken);
+        if (checkoutDiscountService != null)
+        {
+            basket = await checkoutDiscountService.Value.RefreshAutomaticDiscountsAsync(basket, parameters.CountryCode, cancellationToken);
+        }
 
         // Save basket to database
         using var scope = efCoreScopeProvider.CreateScope();
@@ -2052,13 +1822,13 @@ public class CheckoutService(
         httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
 
         // Update checkout session with shipping address
-        await checkoutSessionService.SaveAddressesAsync(
-            basket.Id,
-            shippingAddress,
-            shippingAddress,
-            sameAsBilling: true,
-            acceptsMarketing: false,
-            cancellationToken);
+        await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
+        {
+            BasketId = basket.Id,
+            Billing = shippingAddress,
+            Shipping = shippingAddress,
+            SameAsBilling = true
+        }, cancellationToken);
 
         result.ResultObject = new InitializeCheckoutResult
         {
@@ -2103,30 +1873,6 @@ public class CheckoutService(
     }
 
     /// <summary>
-    /// Checks rate limit for discount code attempts.
-    /// Returns whether the request is allowed and atomically increments the counter.
-    /// </summary>
-    private Task<(bool Allowed, string? ErrorMessage)> CheckDiscountCodeRateLimitAsync(
-        Guid basketId,
-        CancellationToken cancellationToken)
-    {
-        var rateLimitKey = $"discount-code-attempts:{basketId}";
-
-        // Use atomic rate limiter - check and increment happen together
-        var result = rateLimiter.TryAcquire(rateLimitKey, MaxDiscountCodeAttemptsPerMinute, DiscountCodeRateLimitWindow);
-
-        if (!result.IsAllowed)
-        {
-            var retryMessage = result.RetryAfter.HasValue
-                ? $" Please wait {result.RetryAfter.Value.TotalSeconds:F0} seconds before trying again."
-                : " Please wait a minute before trying again.";
-            return Task.FromResult<(bool, string?)>((false, $"Too many discount code attempts.{retryMessage}"));
-        }
-
-        return Task.FromResult<(bool, string?)>((true, null));
-    }
-
-    /// <summary>
     /// Compares two addresses for equality.
     /// Used to detect if addresses have actually changed to avoid unnecessary basket timestamp updates.
     /// </summary>
@@ -2159,8 +1905,8 @@ public class CheckoutService(
     /// Used to detect if shipping selections have actually changed to avoid unnecessary basket timestamp updates.
     /// </summary>
     private static bool ShippingSelectionsEqual(
-        IReadOnlyDictionary<Guid, Guid>? existing,
-        IReadOnlyDictionary<Guid, Guid>? newSelections)
+        IReadOnlyDictionary<Guid, string>? existing,
+        IReadOnlyDictionary<Guid, string>? newSelections)
     {
         if (existing == null && newSelections == null)
         {
@@ -2307,7 +2053,7 @@ public class CheckoutService(
             if (orderGroups?.Groups.Count > 0)
             {
                 var allGroupsHaveSelection = orderGroups.Groups
-                    .All(g => g.SelectedShippingOptionId.HasValue ||
+                    .All(g => !string.IsNullOrEmpty(g.SelectedShippingOptionId) ||
                               session.SelectedShippingOptions.ContainsKey(g.GroupId));
 
                 if (!allGroupsHaveSelection)
@@ -2325,6 +2071,13 @@ public class CheckoutService(
     {
         return li.ExtendedData.TryGetValue("IsDigital", out var isDigital) && isDigital is true;
     }
+
+    private static ShippingAutoSelectStrategy ParseAutoSelectStrategy(string? value) => value switch
+    {
+        "fastest" => ShippingAutoSelectStrategy.Fastest,
+        "cheapest-then-fastest" => ShippingAutoSelectStrategy.CheapestThenFastest,
+        _ => ShippingAutoSelectStrategy.Cheapest
+    };
 
     private static IReadOnlyList<CheckoutLineItemState> MapLineItems(Basket basket)
     {

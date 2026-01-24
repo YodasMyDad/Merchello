@@ -547,8 +547,7 @@ public class BuyXGetYCalculatorTests
 
         var discount = new Discount
         {
-            Category = DiscountCategory.BuyXGetY,
-            BuyXGetYConfig = null
+            Category = DiscountCategory.BuyXGetY
         };
 
         // Act
@@ -673,31 +672,34 @@ public class BuyXGetYCalculatorTests
         BuyXGetYSelectionMethod selectionMethod = BuyXGetYSelectionMethod.Cheapest,
         int? perOrderUsageLimit = null)
     {
-        return new Discount
+        var discount = new Discount
         {
             Id = Guid.NewGuid(),
             Name = "BOGO Test",
             Category = DiscountCategory.BuyXGetY,
             Status = DiscountStatus.Active,
-            PerOrderUsageLimit = perOrderUsageLimit,
-            BuyXGetYConfig = new DiscountBuyXGetYConfig
-            {
-                BuyTriggerType = buyTriggerType,
-                BuyTriggerValue = buyTriggerValue,
-                BuyTargetType = buyTargetType,
-                BuyTargetIds = buyTargetIds != null
-                    ? System.Text.Json.JsonSerializer.Serialize(buyTargetIds)
-                    : null,
-                GetQuantity = getQuantity,
-                GetTargetType = getTargetType,
-                GetTargetIds = getTargetIds != null
-                    ? System.Text.Json.JsonSerializer.Serialize(getTargetIds)
-                    : null,
-                GetValueType = getValueType,
-                GetValue = getValue,
-                SelectionMethod = selectionMethod
-            }
+            PerOrderUsageLimit = perOrderUsageLimit
         };
+
+        discount.SetBuyXGetYConfig(new DiscountBuyXGetYConfig
+        {
+            BuyTriggerType = buyTriggerType,
+            BuyTriggerValue = buyTriggerValue,
+            BuyTargetType = buyTargetType,
+            BuyTargetIds = buyTargetIds != null
+                ? System.Text.Json.JsonSerializer.Serialize(buyTargetIds)
+                : null,
+            GetQuantity = getQuantity,
+            GetTargetType = getTargetType,
+            GetTargetIds = getTargetIds != null
+                ? System.Text.Json.JsonSerializer.Serialize(getTargetIds)
+                : null,
+            GetValueType = getValueType,
+            GetValue = getValue,
+            SelectionMethod = selectionMethod
+        });
+
+        return discount;
     }
 
     private static DiscountContext CreateContext(DiscountContextLineItem[] lineItems)

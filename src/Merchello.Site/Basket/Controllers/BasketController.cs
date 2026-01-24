@@ -1,11 +1,13 @@
-﻿using Merchello.Core.Accounting.Extensions;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Extensions;
+using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Services;
+using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Site.Shared.Controllers;
 using Merchello.Core.Storefront.Dtos;
 using Microsoft.AspNetCore.Mvc;
@@ -35,12 +37,12 @@ public class BasketController(
 {
     private readonly MerchelloSettings _settings = options.Value;
 
-    public async Task<IActionResult> Basket(Umbraco.Cms.Web.Common.PublishedModels.Basket model)
+    public async Task<IActionResult> Basket(Umbraco.Cms.Web.Common.PublishedModels.Basket model, CancellationToken cancellationToken = default)
     {
-        var basket = await checkoutService.GetBasket(new GetBasketParameters());
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), cancellationToken);
 
         // Get full display context (currency + tax-inclusive settings)
-        var displayContext = await storefrontContext.GetDisplayContextAsync();
+        var displayContext = await storefrontContext.GetDisplayContextAsync(cancellationToken);
         var rate = displayContext.ExchangeRate;
         var symbol = displayContext.CurrencySymbol;
 
@@ -96,7 +98,7 @@ public class BasketController(
             }).ToList();
 
             // Get availability for basket items (SSR) - pass line items to avoid duplicate basket fetch
-            var availability = await storefrontContext.GetBasketAvailabilityAsync(basket.LineItems, ct: default);
+            var availability = await storefrontContext.GetBasketAvailabilityAsync(basket.LineItems, ct: cancellationToken);
             var itemAvailability = availability.Items.ToDictionary(
                 i => i.LineItemId.ToString(),
                 i => new BasketItemAvailabilityDto

@@ -85,6 +85,13 @@ public class ProductRoot
     public bool IsDigitalProduct { get; set; }
 
     /// <summary>
+    /// Whether this product can be shipped via external carrier providers (FedEx, UPS, etc.).
+    /// When false, only flat-rate shipping options are available for this product.
+    /// Defaults to true so products are carrier-eligible by default.
+    /// </summary>
+    public bool AllowExternalCarrierShipping { get; set; } = true;
+
+    /// <summary>
     /// The product description
     /// </summary>
     public string? Description { get; set; }

@@ -84,14 +84,17 @@ public class FulfilmentProviderBaseTests
     }
 
     [Fact]
-    public async Task SubmitOrderAsync_WhenSupportedButNotImplemented_ThrowsNotImplemented()
+    public async Task SubmitOrderAsync_WhenSupportedButNotImplemented_ReturnsFailed()
     {
         // Arrange
         var request = CreateTestOrderRequest();
 
-        // Act & Assert
-        await Should.ThrowAsync<NotImplementedException>(
-            () => _provider.SubmitOrderAsync(request));
+        // Act
+        var result = await _provider.SubmitOrderAsync(request);
+
+        // Assert
+        result.Success.ShouldBeFalse();
+        result.ErrorMessage!.ShouldContain("has not implemented SubmitOrderAsync");
     }
 
     [Fact]

@@ -52,6 +52,7 @@
     formattedTaxInclusiveDisplaySubTotal = Model.FormattedTaxInclusiveDisplaySubTotal ?? "",
     taxIncludedMessage = Model.TaxIncludedMessage,
     exchangeRate = exchangeRate,
+    currencyDecimalPlaces = decimalPlaces,
     isLoggedIn = Model.IsLoggedIn,
     hasDigitalProducts = Model.HasDigitalProducts,
     email = basket?.BillingAddress?.Email ?? "",
@@ -91,7 +92,10 @@
             deliveryDescription = o.DeliveryDescription,
             formattedCost = o.FormattedCost,
             cost = o.Cost,
-            isNextDay = o.IsNextDay
+            isNextDay = o.IsNextDay,
+            selectionKey = o.SelectionKey,
+            providerKey = o.ProviderKey,
+            isFallbackRate = o.IsFallbackRate
         }),
         selectedOptionId = g.SelectedShippingOptionId?.ToString()
     }),
@@ -323,6 +327,12 @@
                         <div class="h-16 checkout-skeleton rounded-lg"></div>
                     </div>
 
+                    <!-- Slow shipping message (shown after 8s timeout) -->
+                    <div x-show="shippingLoading && showSlowShippingMessage" x-cloak x-transition
+                         class="text-sm text-gray-500 text-center py-2">
+                        Taking longer than expected...
+                    </div>
+
                     <!-- Content wrapper - dims during loading but stays visible -->
                     <div :class="{ 'opacity-50 pointer-events-none select-none': shippingLoading && shippingGroups.length > 0 }"
                          class="transition-opacity duration-200">
@@ -335,6 +345,11 @@
                         <!-- Shipping error -->
                         <div x-show="!shippingLoading && shippingError" x-cloak x-transition class="p-3 bg-red-50 border border-red-200 rounded-lg">
                             <p class="text-sm text-red-700" x-text="shippingError"></p>
+                            <button type="button"
+                                    @@click="calculateShipping()"
+                                    class="mt-2 text-sm text-red-700 underline hover:text-red-900">
+                                Try Again
+                            </button>
                         </div>
 
                         <!-- Multi-warehouse notification -->
@@ -374,12 +389,12 @@
 
                                     <!-- Shipping options for this group -->
                                     <div class="p-2 space-y-2">
-                                        <template x-for="option in group.shippingOptions" :key="option.id">
+                                        <template x-for="option in group.shippingOptions" :key="option.selectionKey">
                                             <label class="flex items-center gap-3 p-2 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
-                                                   :class="{ 'border-accent bg-accent/5': shippingSelections[group.groupId] === option.id }">
+                                                   :class="{ 'border-accent bg-accent/5': shippingSelections[group.groupId] === option.selectionKey }">
                                                 <input type="radio"
                                                        :name="'shipping-' + group.groupId"
-                                                       :value="option.id"
+                                                       :value="option.selectionKey"
                                                        x-model="shippingSelections[group.groupId]"
                                                        @@change="onShippingOptionChange(group.groupId, option)"
                                                        class="w-4 h-4 text-accent focus:ring-accent" />
@@ -391,6 +406,9 @@
                                                         </template>
                                                     </p>
                                                     <p class="text-xs text-gray-500" x-text="option.deliveryDescription"></p>
+                                                    <template x-if="option.isFallbackRate">
+                                                        <p class="text-xs text-amber-600 mt-0.5">Estimated rate - final cost confirmed at payment</p>
+                                                    </template>
                                                 </div>
                                                 <template x-if="option.cost === 0">
                                                     <span class="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 rounded-full">FREE</span>

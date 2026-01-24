@@ -1,5 +1,6 @@
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Shared.Dtos;
 
 namespace Merchello.Models;
 

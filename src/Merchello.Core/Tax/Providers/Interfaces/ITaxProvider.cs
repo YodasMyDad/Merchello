@@ -1,3 +1,4 @@
+using Merchello.Core.Shared.Providers;
 using Merchello.Core.Tax.Providers.Models;
 
 namespace Merchello.Core.Tax.Providers.Interfaces;
@@ -15,7 +16,7 @@ public interface ITaxProvider
     /// <summary>
     /// Configuration fields required by this provider for the admin UI.
     /// </summary>
-    ValueTask<IEnumerable<TaxProviderConfigurationField>> GetConfigurationFieldsAsync(
+    ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>

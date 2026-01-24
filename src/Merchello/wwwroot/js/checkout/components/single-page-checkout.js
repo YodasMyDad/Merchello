@@ -17,9 +17,8 @@
  */
 
 import { checkoutApi } from '../services/api.js';
-import { validatePhone } from '../services/validation.js';
+import { validateEmail, validatePhone, MIN_POSTAL_CODE_LENGTH } from '../services/validation.js';
 import { createDebouncer } from '../utils/debounce.js';
-import { calculateShippingTotal } from '../utils/shipping-calculator.js';
 import { safeRedirect } from '../utils/security.js';
 import { loadRegions } from '../utils/regions.js';
 import { formatCurrency } from '../utils/formatters.js';
@@ -137,6 +136,8 @@ export function initSinglePageCheckout() {
             _paymentReinitTimeout: null,
             /** @type {boolean} Whether shipping has been calculated at least once */
             _shippingCalculated: false,
+            /** @type {boolean} Whether shipping calculation is taking longer than expected */
+            showSlowShippingMessage: false,
             announcement: '',
 
             // ============================================
@@ -173,7 +174,7 @@ export function initSinglePageCheckout() {
             get canCalculateShipping() {
                 return this.form.shipping.countryCode &&
                        this.form.shipping.postalCode &&
-                       this.form.shipping.postalCode.length >= 3;
+                       this.form.shipping.postalCode.length >= MIN_POSTAL_CODE_LENGTH;
             },
 
             get allShippingSelected() {
@@ -222,7 +223,7 @@ export function initSinglePageCheckout() {
             },
 
             get calculatedShipping() {
-                return calculateShippingTotal(this.shippingGroups, this.shippingSelections);
+                return this.$store.checkout?.basket?.shipping ?? 0;
             },
 
             /**
@@ -584,12 +585,29 @@ export function initSinglePageCheckout() {
                 const store = this.$store.checkout;
                 store?.setShippingLoading(true);
                 store?.setShippingError(null);
+                this.showSlowShippingMessage = false;
+
+                // TIMEOUT HANDLING: Show "taking longer" message after 8s,
+                // and error with retry option after 15s.
+                const slowTimeout = setTimeout(() => {
+                    if (requestId === this._shippingRequestId) {
+                        this.showSlowShippingMessage = true;
+                    }
+                }, 8000);
+
+                const errorTimeout = setTimeout(() => {
+                    if (requestId === this._shippingRequestId) {
+                        this.showSlowShippingMessage = false;
+                        store?.setShippingLoading(false);
+                        store?.setShippingError('Shipping calculation timed out. Please try again.');
+                    }
+                }, 15000);
 
                 try {
                     const data = await checkoutApi.initialize({
                         countryCode: this.form.shipping.countryCode,
                         stateCode: this.form.shipping.stateCode,
-                        autoSelectCheapestShipping: true,
+                        autoSelectShipping: true,
                         email: this.form.email,
                         previousShippingSelections: this.shippingSelections
                     });
@@ -660,8 +678,11 @@ export function initSinglePageCheckout() {
                     store.allItemsShippable = false;
                     store?.updateShipping([], {});
                 } finally {
+                    clearTimeout(slowTimeout);
+                    clearTimeout(errorTimeout);
                     if (requestId === this._shippingRequestId) {
                         store?.setShippingLoading(false);
+                        this.showSlowShippingMessage = false;
                     }
                 }
             },
@@ -674,9 +695,23 @@ export function initSinglePageCheckout() {
                 await this.updateShippingAndRecalculate();
             },
 
+            _buildQuotedCosts() {
+                const quotedCosts = {};
+                for (const group of this.shippingGroups) {
+                    const selKey = this.shippingSelections[group.groupId];
+                    if (selKey) {
+                        const option = group.shippingOptions?.find(o => o.selectionKey === selKey);
+                        if (option) {
+                            quotedCosts[group.groupId] = option.cost;
+                        }
+                    }
+                }
+                return quotedCosts;
+            },
+
             async updateShippingAndRecalculate() {
                 try {
-                    const data = await checkoutApi.saveShipping(this.shippingSelections);
+                    const data = await checkoutApi.saveShipping(this.shippingSelections, this._buildQuotedCosts());
                     if (data.success && data.basket) {
                         await this.updateBasketAndReinitPayment({
                             total: data.basket.displayTotal ?? data.basket.total,
@@ -1071,10 +1106,9 @@ export function initSinglePageCheckout() {
                 store?.clearError(field);
 
                 if (field === 'email') {
-                    if (!this.form.email) {
-                        store?.setError('email', 'Email is required.');
-                    } else if (!/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/.test(this.form.email)) {
-                        store?.setError('email', 'Please enter a valid email address.');
+                    const emailResult = validateEmail(this.form.email);
+                    if (!emailResult.isValid) {
+                        store?.setError('email', emailResult.error);
                     } else {
                         if (window.MerchelloSinglePageAnalytics) {
                             window.MerchelloSinglePageAnalytics.trackContactInfo(this.form.email);
@@ -1186,7 +1220,7 @@ export function initSinglePageCheckout() {
                     });
                     if (!addressData.success) throw new Error(addressData.message || 'Failed to save addresses');
 
-                    const shippingData = await checkoutApi.saveShipping(this.shippingSelections);
+                    const shippingData = await checkoutApi.saveShipping(this.shippingSelections, this._buildQuotedCosts());
                     if (!shippingData.success) throw new Error(shippingData.message || 'Failed to save shipping');
 
                     // PAYMENT SESSION REUSE: If we already have a valid payment session

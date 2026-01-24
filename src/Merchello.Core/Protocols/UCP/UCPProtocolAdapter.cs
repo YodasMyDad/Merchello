@@ -1,3 +1,4 @@
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Dtos;
@@ -7,16 +8,20 @@ using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Protocols.Authentication;
 using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.Payments;
+using Merchello.Core.Protocols.Payments.Interfaces;
 using Merchello.Core.Protocols.UCP.Dtos;
 using Merchello.Core.Protocols.UCP.Models;
 using Merchello.Core.Protocols.UCP.Services;
+using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Merchello.Core.Protocols.Webhooks;
+using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Microsoft.Extensions.Logging;
@@ -32,12 +37,14 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
 {
     private readonly ICheckoutService _checkoutService;
     private readonly ICheckoutSessionService _checkoutSessionService;
+    private readonly ICheckoutDiscountService _checkoutDiscountService;
     private readonly IInvoiceService _invoiceService;
     private readonly IPaymentService _paymentService;
     private readonly IProductService _productService;
     private readonly IPaymentHandlerExporter _paymentHandlerExporter;
     private readonly ISigningKeyStore _signingKeyStore;
     private readonly IUcpAgentProfileService _agentProfileService;
+    private readonly LineItemFactory _lineItemFactory;
     private readonly ILogger<UCPProtocolAdapter> _logger;
     private readonly ProtocolSettings _protocolSettings;
     private readonly MerchelloSettings _merchelloSettings;
@@ -45,24 +52,28 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
     public UCPProtocolAdapter(
         ICheckoutService checkoutService,
         ICheckoutSessionService checkoutSessionService,
+        ICheckoutDiscountService checkoutDiscountService,
         IInvoiceService invoiceService,
         IPaymentService paymentService,
         IProductService productService,
         IPaymentHandlerExporter paymentHandlerExporter,
         ISigningKeyStore signingKeyStore,
         IUcpAgentProfileService agentProfileService,
+        LineItemFactory lineItemFactory,
         ILogger<UCPProtocolAdapter> logger,
         IOptions<ProtocolSettings> protocolSettings,
         IOptions<MerchelloSettings> merchelloSettings)
     {
         _checkoutService = checkoutService;
         _checkoutSessionService = checkoutSessionService;
+        _checkoutDiscountService = checkoutDiscountService;
         _invoiceService = invoiceService;
         _paymentService = paymentService;
         _productService = productService;
         _paymentHandlerExporter = paymentHandlerExporter;
         _signingKeyStore = signingKeyStore;
         _agentProfileService = agentProfileService;
+        _lineItemFactory = lineItemFactory;
         _logger = logger;
         _protocolSettings = protocolSettings.Value;
         _merchelloSettings = merchelloSettings.Value;
@@ -164,7 +175,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 var countryCode = basket.ShippingAddress?.CountryCode ?? _merchelloSettings.DefaultShippingCountry;
                 foreach (var code in ucpRequest.Discounts.Codes)
                 {
-                    await _checkoutService.ApplyDiscountCodeAsync(basket, code, countryCode, ct);
+                    await _checkoutDiscountService.ApplyDiscountCodeAsync(basket, code, countryCode, ct);
                 }
             }
 
@@ -244,7 +255,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 var countryCode = basket.ShippingAddress?.CountryCode ?? _merchelloSettings.DefaultShippingCountry;
                 foreach (var code in codes)
                 {
-                    await _checkoutService.ApplyDiscountCodeAsync(basket, code, countryCode, ct);
+                    await _checkoutDiscountService.ApplyDiscountCodeAsync(basket, code, countryCode, ct);
                 }
             }
 
@@ -252,14 +263,20 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             if (ucpRequest?.Fulfillment?.Groups is { Count: > 0 } fulfillmentGroups)
             {
                 var checkoutSession = await _checkoutSessionService.GetSessionAsync(basketId, ct);
-                var selections = new Dictionary<Guid, Guid>();
+                var selections = new Dictionary<Guid, string>();
 
                 foreach (var group in fulfillmentGroups)
                 {
                     if (Guid.TryParse(group.Id, out var groupId) &&
                         Guid.TryParse(group.SelectedOptionId, out var optionId))
                     {
-                        selections[groupId] = optionId;
+                        // Convert Guid to SelectionKey format for flat-rate options
+                        selections[groupId] = Shipping.Extensions.SelectionKeyExtensions.ForShippingOption(optionId);
+                    }
+                    else if (Guid.TryParse(group.Id, out groupId) && !string.IsNullOrEmpty(group.SelectedOptionId))
+                    {
+                        // Already in SelectionKey format (dyn:provider:serviceCode)
+                        selections[groupId] = group.SelectedOptionId;
                     }
                 }
 
@@ -362,7 +379,13 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 };
 
                 // Create invoice from basket with source tracking
-                invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession, source, ct);
+                var invoiceResult = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession, source, ct);
+                if (!invoiceResult.Successful || invoiceResult.ResultObject == null)
+                {
+                    var errorMsg = invoiceResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
+                    return ProtocolResponse.BadRequest($"Invoice creation failed: {errorMsg}");
+                }
+                invoice = invoiceResult.ResultObject;
                 _logger.LogInformation(
                     "UCP: Invoice {InvoiceId} created from session {SessionId} via agent {AgentId}. Webhook URL: {WebhookUrl}",
                     invoice.Id,
@@ -665,29 +688,27 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         return "unfulfilled";
     }
 
-    private static string DeterminePaymentStatus(Invoice invoice)
+    private string DeterminePaymentStatus(Invoice invoice)
     {
-        if (invoice.Payments == null || invoice.Payments.Count == 0)
+        var status = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
         {
-            return "unpaid";
-        }
+            Payments = invoice.Payments ?? [],
+            InvoiceTotal = invoice.Total,
+            CurrencyCode = invoice.CurrencyCode ?? _merchelloSettings.StoreCurrencyCode
+        });
 
-        var totalPaid = invoice.Payments
-            .Where(p => p.PaymentSuccess)
-            .Sum(p => p.Amount);
-
-        if (totalPaid >= invoice.Total)
-        {
-            return "paid";
-        }
-
-        if (totalPaid > 0)
-        {
-            return "partially_paid";
-        }
-
-        return "unpaid";
+        return MapPaymentStatusToUcp(status.Status);
     }
+
+    private static string MapPaymentStatusToUcp(InvoicePaymentStatus status) => status switch
+    {
+        InvoicePaymentStatus.Paid => "paid",
+        InvoicePaymentStatus.PartiallyPaid => "partially_paid",
+        InvoicePaymentStatus.PartiallyRefunded => "partially_refunded",
+        InvoicePaymentStatus.Refunded => "refunded",
+        InvoicePaymentStatus.AwaitingPayment => "awaiting_payment",
+        _ => "unpaid"
+    };
 
     private static long ToMinorUnits(decimal amount) => (long)Math.Round(amount * 100);
 
@@ -827,17 +848,9 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             return;
         }
 
-        // Create line item from product
-        var newLineItem = new LineItem
-        {
-            Id = Guid.NewGuid(),
-            ProductId = product.Id,
-            Sku = product.Sku ?? string.Empty,
-            Name = product.Name ?? product.ProductRoot?.RootName ?? lineItem.Item?.Title ?? "Unknown Product",
-            Quantity = lineItem.Quantity,
-            Amount = product.Price,
-            IsTaxable = (product.ProductRoot?.TaxGroupId ?? Guid.Empty) != Guid.Empty
-        };
+        // Create line item from product via factory (ensures TaxRate/TaxGroupId are set correctly)
+        var newLineItem = _lineItemFactory.CreateFromProduct(product, lineItem.Quantity);
+        newLineItem.Name = product.Name ?? product.ProductRoot?.RootName ?? lineItem.Item!.Title ?? "Unknown Product";
 
         var countryCode = basket.ShippingAddress?.CountryCode ?? _merchelloSettings.DefaultShippingCountry ?? "US";
         await _checkoutService.AddToBasketAsync(basket, newLineItem, countryCode, ct);

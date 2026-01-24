@@ -13,6 +13,8 @@ public class DiscountListItemDto
     public string? Description { get; set; }
     public string? Code { get; set; }
     public DiscountStatus Status { get; set; }
+    public string StatusLabel { get; set; } = string.Empty;
+    public string StatusColor { get; set; } = "default";
     public DiscountCategory Category { get; set; }
     public DiscountMethod Method { get; set; }
     public DiscountValueType ValueType { get; set; }

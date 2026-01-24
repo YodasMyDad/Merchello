@@ -3,11 +3,9 @@ import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import type { DiscountListItemDto } from "@discounts/types/discount.types.js";
 import {
-  DiscountStatus,
   DiscountCategory,
   DiscountMethod,
   DiscountValueType,
-  DISCOUNT_STATUS_LABELS,
 } from "@discounts/types/discount.types.js";
 import { formatRelativeDate, formatCurrency } from "@shared/utils/formatting.js";
 import { getDiscountDetailHref } from "@shared/utils/navigation.js";
@@ -93,17 +91,6 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
         composed: true,
       })
     );
-  }
-
-  private _getStatusBadgeClass(status: DiscountStatus): string {
-    const colorMap: Record<DiscountStatus, string> = {
-      [DiscountStatus.Draft]: "default",
-      [DiscountStatus.Active]: "positive",
-      [DiscountStatus.Scheduled]: "warning",
-      [DiscountStatus.Expired]: "danger",
-      [DiscountStatus.Disabled]: "default",
-    };
-    return colorMap[status] || "default";
   }
 
   private _getCategoryLabel(category: DiscountCategory): string {
@@ -206,8 +193,8 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
               </uui-table-cell>
 
               <uui-table-cell>
-                <span class="badge ${this._getStatusBadgeClass(discount.status)}">
-                  ${DISCOUNT_STATUS_LABELS[discount.status]}
+                <span class="badge ${discount.statusColor}">
+                  ${discount.statusLabel}
                 </span>
               </uui-table-cell>
 

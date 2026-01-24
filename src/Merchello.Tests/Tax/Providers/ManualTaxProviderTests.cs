@@ -7,6 +7,7 @@ using Merchello.Core.Tax.Providers.BuiltIn;
 using Merchello.Core.Tax.Providers.Models;
 using Merchello.Core.Tax.Services;
 using Merchello.Core.Tax.Services.Interfaces;
+using Merchello.Core.Shared.Providers;
 using Moq;
 using Shouldly;
 using Xunit;

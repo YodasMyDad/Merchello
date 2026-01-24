@@ -290,7 +290,6 @@ public record StorefrontDisplayContext(
     bool DisplayPricesIncTax,         // Global setting from MerchelloSettings
     string TaxCountryCode,            // Customer's country for rate lookup
     string? TaxRegionCode,            // Region for state-specific rates
-    decimal DefaultTaxRate = 0,       // Fallback rate
     bool IsShippingTaxable = true,    // From tax provider
     decimal? ShippingTaxRate = null); // Specific rate or null for proportional
 ```

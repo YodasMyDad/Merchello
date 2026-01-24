@@ -18,11 +18,6 @@ public class CalculateLineItemsParameters
     public required decimal ShippingAmount { get; init; }
 
     /// <summary>
-    /// Default tax rate used when line items don't have their own TaxRate set
-    /// </summary>
-    public required decimal DefaultTaxRate { get; init; }
-
-    /// <summary>
     /// Currency code for rounding
     /// </summary>
     public required string CurrencyCode { get; init; }

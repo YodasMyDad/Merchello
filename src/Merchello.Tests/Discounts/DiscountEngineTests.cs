@@ -244,12 +244,12 @@ public class DiscountEngineTests
         var context = CreateBasicContext(productId: productId);
         var discount = CreateDiscount(category: DiscountCategory.AmountOffProducts);
         // Add a target rule that doesn't match the product
-        discount.TargetRules.Add(new DiscountTargetRule
+        discount.SetTargetRules([new DiscountTargetRule
         {
             TargetType = DiscountTargetType.SpecificProducts,
             TargetIds = System.Text.Json.JsonSerializer.Serialize((Guid[])[Guid.NewGuid()]),
             IsExclusion = false
-        });
+        }]);
         _discountServiceMock.Setup(s => s.GetByCodeAsync("SPECIFIC", It.IsAny<CancellationToken>()))
             .ReturnsAsync(discount);
         _discountServiceMock.Setup(s => s.GetUsageCountAsync(discount.Id, It.IsAny<CancellationToken>()))
@@ -420,12 +420,12 @@ public class DiscountEngineTests
         var productId = Guid.NewGuid();
         var context = CreateBasicContext(productId: productId);
         var discount = CreateDiscount(category: DiscountCategory.AmountOffProducts);
-        discount.TargetRules.Add(new DiscountTargetRule
+        discount.SetTargetRules([new DiscountTargetRule
         {
             TargetType = DiscountTargetType.SpecificProducts,
             TargetIds = System.Text.Json.JsonSerializer.Serialize((Guid[])[Guid.NewGuid()]),
             IsExclusion = false
-        });
+        }]);
 
         // Act
         var result = await _engine.CalculateAsync(discount, context);
@@ -559,14 +559,14 @@ public class DiscountEngineTests
         // Arrange
         var context = CreateBasicContext();
         var discount = CreateDiscount(category: DiscountCategory.BuyXGetY);
-        discount.BuyXGetYConfig = new DiscountBuyXGetYConfig
+        discount.SetBuyXGetYConfig(new DiscountBuyXGetYConfig
         {
             BuyTriggerType = BuyXTriggerType.MinimumQuantity,
             BuyTriggerValue = 2,
             GetQuantity = 1,
             GetValueType = DiscountValueType.Free,
             GetValue = 100m
-        };
+        });
 
         var expectedResult = new DiscountCalculationResult
         {
@@ -591,7 +591,7 @@ public class DiscountEngineTests
         // Arrange
         var context = CreateBasicContext();
         var discount = CreateDiscount(category: DiscountCategory.BuyXGetY);
-        discount.BuyXGetYConfig = null;
+        // BuyXGetYConfig is null by default when BuyXGetYConfigJson is not set
 
         // Act
         var result = await _engine.CalculateAsync(discount, context);

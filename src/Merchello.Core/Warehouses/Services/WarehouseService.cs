@@ -672,9 +672,7 @@ public class WarehouseService(
     /// Updates the priority order of a warehouse for a product root
     /// </summary>
     public async Task<CrudResult<bool>> UpdateWarehousePriority(
-        Guid productRootId,
-        Guid warehouseId,
-        int newPriorityOrder,
+        UpdateWarehousePriorityParameters parameters,
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
@@ -684,7 +682,7 @@ public class WarehouseService(
         {
             var productRootWarehouse = await db.ProductRootWarehouses
                 .FirstOrDefaultAsync(
-                    prw => prw.ProductRootId == productRootId && prw.WarehouseId == warehouseId,
+                    prw => prw.ProductRootId == parameters.ProductRootId && prw.WarehouseId == parameters.WarehouseId,
                     cancellationToken);
 
             if (productRootWarehouse == null)
@@ -697,7 +695,7 @@ public class WarehouseService(
                 return;
             }
 
-            productRootWarehouse.PriorityOrder = newPriorityOrder;
+            productRootWarehouse.PriorityOrder = parameters.NewPriorityOrder;
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = true;

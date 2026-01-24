@@ -4,6 +4,7 @@ using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Suppliers.Services.Interfaces;
 using Merchello.Core.Suppliers.Services.Parameters;
+using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Warehouses.Dtos;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Parameters;

@@ -1,4 +1,5 @@
 using Merchello.Core.ExchangeRates.Models;
+using Merchello.Core.Shared.Providers;
 
 namespace Merchello.Core.ExchangeRates.Providers.Interfaces;
 
@@ -6,7 +7,7 @@ public interface IExchangeRateProvider
 {
     ExchangeRateProviderMetadata Metadata { get; }
 
-    ValueTask<IEnumerable<ExchangeRateProviderConfigurationField>> GetConfigurationFieldsAsync(
+    ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default);
 
     ValueTask ConfigureAsync(

@@ -9,8 +9,6 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import type {
   FulfilmentProviderDto,
   FulfilmentProviderListItemDto,
-  FulfilmentApiStyle,
-  InventorySyncMode,
 } from "@fulfilment-providers/types/fulfilment-providers.types.js";
 import { MERCHELLO_FULFILMENT_PROVIDER_CONFIG_MODAL } from "../modals/fulfilment-provider-config-modal.token.js";
 import { MERCHELLO_TEST_FULFILMENT_PROVIDER_MODAL } from "../modals/test-provider-modal.token.js";
@@ -178,22 +176,6 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
     return html`<uui-icon name="${fallbackIcon ?? 'icon-box'}"></uui-icon>`;
   }
 
-  private _getApiStyleLabel(apiStyle: FulfilmentApiStyle): string {
-    switch (apiStyle) {
-      case 0: return "REST";
-      case 1: return "GraphQL";
-      case 2: return "SFTP";
-      default: return "Unknown";
-    }
-  }
-
-  private _getInventorySyncModeLabel(mode: InventorySyncMode): string {
-    switch (mode) {
-      case 0: return "Full";
-      case 1: return "Delta";
-      default: return "Unknown";
-    }
-  }
 
   private _renderConfiguredProvider(provider: FulfilmentProviderListItemDto): unknown {
     const availableProvider = this._availableProviders.find(p => p.key === provider.key);
@@ -244,8 +226,8 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
           : nothing}
         <div class="provider-footer">
           <div class="provider-features">
-            <span class="feature-badge api-style">${this._getApiStyleLabel(provider.apiStyle)}</span>
-            <span class="feature-badge sync-mode">Sync: ${this._getInventorySyncModeLabel(provider.inventorySyncMode)}</span>
+            <span class="feature-badge api-style">${provider.apiStyleLabel}</span>
+            <span class="feature-badge sync-mode">Sync: ${provider.inventorySyncModeLabel}</span>
             ${provider.supportsOrderSubmission
               ? html`<span class="feature-badge">Orders</span>`
               : nothing}
@@ -288,7 +270,7 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
             ? html`<p class="provider-description">${provider.description}</p>`
             : nothing}
           <div class="provider-features">
-            <span class="feature-badge api-style">${this._getApiStyleLabel(provider.apiStyle)}</span>
+            <span class="feature-badge api-style">${provider.apiStyleLabel}</span>
             ${provider.supportsOrderSubmission
               ? html`<span class="feature-badge">Orders</span>`
               : nothing}
@@ -531,7 +513,7 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
 
     .feature-badge.sync-mode {
       background: var(--uui-color-interactive-emphasis);
-      color: white;
+      color: var(--uui-color-interactive-contrast);
     }
   `;
 }

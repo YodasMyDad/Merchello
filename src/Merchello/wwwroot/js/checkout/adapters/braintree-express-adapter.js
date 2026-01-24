@@ -277,7 +277,7 @@
                     const paymentRequest = applePayInstance.createPaymentRequest({
                         total: {
                             label: sdkConfig.displayName || 'Total',
-                            amount: config.amount.toFixed(2)
+                            amount: config.amount.toFixed(config.decimalPlaces)
                         },
                         requiredBillingContactFields: ['postalAddress', 'name'],
                         requiredShippingContactFields: ['postalAddress', 'name', 'email', 'phone']
@@ -398,7 +398,7 @@
                         const paymentDataRequest = googlePayInstance.createPaymentDataRequest({
                             transactionInfo: {
                                 totalPriceStatus: 'FINAL',
-                                totalPrice: config.amount.toFixed(2),
+                                totalPrice: config.amount.toFixed(config.decimalPlaces),
                                 currencyCode: config.currency
                             }
                         });

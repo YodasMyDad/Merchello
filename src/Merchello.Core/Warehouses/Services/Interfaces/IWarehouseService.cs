@@ -28,7 +28,7 @@ public interface IWarehouseService
     // ProductRootWarehouse Management
     Task<CrudResult<bool>> AddWarehouseToProductRoot(AddWarehouseToProductRootParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> RemoveWarehouseFromProductRoot(Guid productRootId, Guid warehouseId, CancellationToken cancellationToken = default);
-    Task<CrudResult<bool>> UpdateWarehousePriority(Guid productRootId, Guid warehouseId, int newPriorityOrder, CancellationToken cancellationToken = default);
+    Task<CrudResult<bool>> UpdateWarehousePriority(UpdateWarehousePriorityParameters parameters, CancellationToken cancellationToken = default);
 
     // Stock Management
     Task<CrudResult<bool>> SetProductStock(SetProductStockParameters parameters, CancellationToken cancellationToken = default);

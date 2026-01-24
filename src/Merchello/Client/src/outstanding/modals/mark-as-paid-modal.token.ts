@@ -6,6 +6,8 @@ export interface MarkAsPaidModalData {
   invoices: OrderListItemDto[];
   /** Currency code for formatting */
   currencyCode: string;
+  /** Pre-calculated total balance due across all invoices */
+  totalBalanceDue: number;
 }
 
 export interface MarkAsPaidModalValue {

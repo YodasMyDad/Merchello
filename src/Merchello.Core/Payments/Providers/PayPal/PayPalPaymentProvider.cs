@@ -2,6 +2,9 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Providers.PayPal.Models;
+using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Core.Shared.Providers;
 using PaypalServerSdk.Standard;
 using PaypalServerSdk.Standard.Authentication;
 using PaypalServerSdk.Standard.Exceptions;
@@ -159,10 +162,10 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
     ];
 
     /// <inheritdoc />
-    public override ValueTask<IEnumerable<PaymentProviderConfigurationField>> GetConfigurationFieldsAsync(
+    public override ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult<IEnumerable<PaymentProviderConfigurationField>>(
+        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>(
         [
             new()
             {
@@ -681,7 +684,7 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
 
     /// <inheritdoc />
     public override async Task<RefundResult> RefundPaymentAsync(
-        Models.RefundRequest request,
+        Merchello.Core.Payments.Models.RefundRequest request,
         CancellationToken cancellationToken = default)
     {
         if (_client is null)
@@ -1633,45 +1636,4 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
 
         return JsonSerializer.Serialize(invoice, jsonOptions);
     }
-}
-
-/// <summary>
-/// PayPal webhook event model for deserialization.
-/// </summary>
-internal class PayPalWebhookEvent
-{
-    public string? Id { get; set; }
-    public string? EventType { get; set; }
-    public string? ResourceType { get; set; }
-    public PayPalWebhookResource? Resource { get; set; }
-}
-
-/// <summary>
-/// PayPal webhook resource model.
-/// </summary>
-internal class PayPalWebhookResource
-{
-    public string? Id { get; set; }
-    public string? Status { get; set; }
-    public string? CustomId { get; set; }
-    public PayPalWebhookAmount? Amount { get; set; }
-    public List<PayPalWebhookPurchaseUnit>? PurchaseUnits { get; set; }
-}
-
-/// <summary>
-/// PayPal webhook amount model.
-/// </summary>
-internal class PayPalWebhookAmount
-{
-    public string? CurrencyCode { get; set; }
-    public string? Value { get; set; }
-}
-
-/// <summary>
-/// PayPal webhook purchase unit model.
-/// </summary>
-internal class PayPalWebhookPurchaseUnit
-{
-    public string? ReferenceId { get; set; }
-    public string? CustomId { get; set; }
 }

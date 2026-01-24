@@ -8,5 +8,5 @@ public class AddonPricePreviewRequestDto
     /// <summary>
     /// Selected add-on values
     /// </summary>
-    public List<SelectedAddonDto> SelectedAddons { get; set; } = [];
+    public List<ProductAddonDto> SelectedAddons { get; set; } = [];
 }

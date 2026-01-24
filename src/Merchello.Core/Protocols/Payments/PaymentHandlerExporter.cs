@@ -1,6 +1,7 @@
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Protocols.Models;
+using Merchello.Core.Protocols.Payments.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace Merchello.Core.Protocols.Payments;

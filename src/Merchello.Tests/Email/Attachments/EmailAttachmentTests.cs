@@ -2,6 +2,7 @@ using System.Text;
 using Merchello.Core;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Email.Attachments;
+using Merchello.Core.Email.Interfaces;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.Invoice;

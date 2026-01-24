@@ -3,7 +3,9 @@ using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Tests.TestInfrastructure;
 using Shouldly;
@@ -130,9 +132,11 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
 
         // Act - Step 1: Get shipping options (simulates checkout UI call)
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
-            basket,
-            shippingAddress,
-            new Dictionary<Guid, Guid>());  // Empty selections - PRE-SELECTION
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });  // Empty selections - PRE-SELECTION
 
         // Verify shipping options were returned
         shippingResult.ShouldNotBeNull();
@@ -142,9 +146,10 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
 
         // Act - Step 2: Build checkout session with selected shipping option
         // Key by GroupId as the frontend would (this is what caused the original bug)
-        var selectedShippingOptions = new Dictionary<Guid, Guid>
+        var selectedOption = group.AvailableShippingOptions.First();
+        var selectedShippingOptions = new Dictionary<Guid, string>
         {
-            [group.GroupId] = group.AvailableShippingOptions.First().ShippingOptionId
+            [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
         };
 
         var checkoutSession = new CheckoutSession
@@ -156,7 +161,9 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act - Step 3: Create invoice from basket (the critical test)
-        var invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeTrue();
+        var invoice = result.ResultObject!;
 
         // Assert
         invoice.ShouldNotBeNull();
@@ -292,14 +299,17 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
 
         // Get shipping options
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
-            basket,
-            shippingAddress,
-            new Dictionary<Guid, Guid>());
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         var group = shippingResult.WarehouseGroups.First();
-        var selectedShippingOptions = new Dictionary<Guid, Guid>
+        var selectedOption = group.AvailableShippingOptions.First();
+        var selectedShippingOptions = new Dictionary<Guid, string>
         {
-            [group.GroupId] = group.AvailableShippingOptions.First().ShippingOptionId
+            [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
         };
 
         var checkoutSession = new CheckoutSession
@@ -311,7 +321,9 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeTrue();
+        var invoice = result.ResultObject!;
 
         // Assert
         invoice.ShouldNotBeNull();
@@ -415,9 +427,11 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         // Step 1: Get shipping options (PRE-SELECTION)
         // The GroupId here is based on warehouse + [ALL available options]
         var preSelectionResult = await _shippingService.GetShippingOptionsForBasket(
-            basket,
-            shippingAddress,
-            new Dictionary<Guid, Guid>());
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         preSelectionResult.WarehouseGroups.ShouldNotBeEmpty();
         var preSelectionGroup = preSelectionResult.WarehouseGroups.First();
@@ -428,9 +442,9 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
 
         // Step 2: User selects a shipping option - key by the PRE-SELECTION GroupId
         var selectedOptionId = preSelectionGroup.AvailableShippingOptions.First().ShippingOptionId;
-        var selectedShippingOptions = new Dictionary<Guid, Guid>
+        var selectedShippingOptions = new Dictionary<Guid, string>
         {
-            [preSelectionGroupId] = selectedOptionId  // This is what the frontend sends
+            [preSelectionGroupId] = SelectionKeyExtensions.ForShippingOption(selectedOptionId)  // This is what the frontend sends
         };
 
         var checkoutSession = new CheckoutSession
@@ -444,7 +458,9 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         // Act - This is where the bug manifested: CreateOrderFromBasketAsync calls
         // GetShippingOptionsForBasket again, which now returns POST-SELECTION groups
         // with DIFFERENT GroupIds (based on just the selected option)
-        var invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeTrue();
+        var invoice = result.ResultObject!;
 
         // Assert - The fix ensures this works even though GroupIds changed
         invoice.ShouldNotBeNull();
@@ -530,9 +546,11 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         // Don't select any shipping option - should still get warehouse groups
         // but fail to create order because no selection was made
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
-            basket,
-            shippingAddress,
-            new Dictionary<Guid, Guid>());
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         // Verify shipping groups exist (the bug was about selection lookup, not about finding warehouses)
         shippingResult.WarehouseGroups.ShouldNotBeEmpty();
@@ -542,13 +560,11 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
             BasketId = basket.Id,
             BillingAddress = billingAddress,
             ShippingAddress = shippingAddress,
-            SelectedShippingOptions = new Dictionary<Guid, Guid>()  // Empty!
+            SelectedShippingOptions = []  // Empty!
         };
 
-        // Act & Assert - Should throw because no shipping option was selected
-        await Should.ThrowAsync<InvalidOperationException>(async () =>
-        {
-            await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        });
+        // Act & Assert - Should fail because no shipping option was selected
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeFalse();
     }
 }

@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Providers.ShipBob.Models;
 using Merchello.Core.Shipping.Providers;
+using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
@@ -69,12 +70,12 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
     #region Configuration
 
     /// <inheritdoc />
-    public override ValueTask<IEnumerable<FulfilmentProviderConfigurationField>> GetConfigurationFieldsAsync(
+    public override ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult<IEnumerable<FulfilmentProviderConfigurationField>>(
+        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>(
         [
-            new FulfilmentProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "PersonalAccessToken",
                 Label = "Personal Access Token",
@@ -84,7 +85,7 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
                 Description = "API token from ShipBob Developer Settings",
                 Placeholder = "pat_..."
             },
-            new FulfilmentProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "ChannelId",
                 Label = "Channel ID",
@@ -92,7 +93,7 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
                 IsRequired = true,
                 Description = "Your ShipBob channel identifier (found in Settings → Channels)"
             },
-            new FulfilmentProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "WebhookSecret",
                 Label = "Webhook Secret",
@@ -101,7 +102,7 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
                 IsSensitive = true,
                 Description = "Secret for validating webhook signatures (optional but recommended)"
             },
-            new FulfilmentProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "ApiVersion",
                 Label = "API Version",
@@ -110,7 +111,7 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
                 DefaultValue = "2025-07",
                 Description = "ShipBob API version (default: 2025-07)"
             },
-            new FulfilmentProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "DefaultFulfillmentCenterId",
                 Label = "Default Fulfillment Center",
@@ -118,7 +119,7 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
                 IsRequired = false,
                 Description = "Optional: Force all orders to a specific fulfillment center"
             },
-            new FulfilmentProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "EnableDebugLogging",
                 Label = "Debug Logging",
@@ -126,6 +127,51 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
                 IsRequired = false,
                 DefaultValue = "false",
                 Description = "Log API requests and responses for troubleshooting"
+            },
+            new ProviderConfigurationField
+            {
+                Key = "DefaultShippingMethod",
+                Label = "Default Shipping Method",
+                FieldType = ConfigurationFieldType.Text,
+                IsRequired = false,
+                DefaultValue = "Standard",
+                Description = "Fallback ShipBob shipping method when no category mapping matches"
+            },
+            new ProviderConfigurationField
+            {
+                Key = "ServiceCategoryMapping_Standard",
+                Label = "Standard (4-7 days)",
+                FieldType = ConfigurationFieldType.Text,
+                IsRequired = false,
+                DefaultValue = "Ground",
+                Description = "ShipBob shipping method for Standard speed tier"
+            },
+            new ProviderConfigurationField
+            {
+                Key = "ServiceCategoryMapping_Express",
+                Label = "Express (2-3 days)",
+                FieldType = ConfigurationFieldType.Text,
+                IsRequired = false,
+                DefaultValue = "2-Day",
+                Description = "ShipBob shipping method for Express speed tier"
+            },
+            new ProviderConfigurationField
+            {
+                Key = "ServiceCategoryMapping_Overnight",
+                Label = "Overnight (next day)",
+                FieldType = ConfigurationFieldType.Text,
+                IsRequired = false,
+                DefaultValue = "Overnight",
+                Description = "ShipBob shipping method for Overnight speed tier"
+            },
+            new ProviderConfigurationField
+            {
+                Key = "ServiceCategoryMapping_Economy",
+                Label = "Economy (8+ days)",
+                FieldType = ConfigurationFieldType.Text,
+                IsRequired = false,
+                DefaultValue = "Standard",
+                Description = "ShipBob shipping method for Economy speed tier"
             }
         ]);
     }

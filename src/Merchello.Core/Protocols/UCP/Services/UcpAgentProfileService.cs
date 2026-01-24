@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Protocols.UCP.Models;
+using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace Merchello.Core.Protocols.UCP.Services;

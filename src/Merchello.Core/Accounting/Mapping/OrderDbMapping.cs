@@ -20,8 +20,14 @@ public class OrderDbMapping : IEntityTypeConfiguration<Order>
 
         builder.Property(x => x.WarehouseId).IsRequired();
         builder.Property(x => x.ShippingOptionId).IsRequired();
+        builder.Property(x => x.ShippingProviderKey).HasMaxLength(100);
+        builder.Property(x => x.ShippingServiceCode).HasMaxLength(100);
+        builder.Property(x => x.ShippingServiceName).HasMaxLength(255);
+        builder.Property(x => x.ShippingServiceCategory).IsRequired(false);
         builder.Property(x => x.ShippingCost).HasPrecision(18, 4);
         builder.Property(x => x.ShippingCostInStoreCurrency).HasPrecision(18, 4);
+        builder.Property(x => x.QuotedShippingCost).HasPrecision(18, 4);
+        builder.Property(x => x.QuotedAt).IsRequired(false);
         builder.Property(x => x.DeliveryDateSurcharge).HasPrecision(18, 4);
         builder.Property(x => x.DeliveryDateSurchargeInStoreCurrency).HasPrecision(18, 4);
 

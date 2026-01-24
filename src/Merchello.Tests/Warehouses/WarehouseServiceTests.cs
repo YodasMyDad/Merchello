@@ -254,8 +254,12 @@ public class WarehouseServiceTests
         await _dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await _warehouseService.UpdateWarehousePriority(
-            productRoot.Id, warehouse.Id, newPriorityOrder: 5);
+        var result = await _warehouseService.UpdateWarehousePriority(new UpdateWarehousePriorityParameters
+        {
+            ProductRootId = productRoot.Id,
+            WarehouseId = warehouse.Id,
+            NewPriorityOrder = 5
+        });
 
         // Assert
         result.Successful.ShouldBeTrue();

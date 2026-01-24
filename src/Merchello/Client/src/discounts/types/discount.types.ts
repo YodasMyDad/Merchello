@@ -90,6 +90,8 @@ export interface DiscountListItemDto {
   description?: string | null;
   code?: string | null;
   status: DiscountStatus;
+  statusLabel: string;
+  statusColor: string;
   category: DiscountCategory;
   method: DiscountMethod;
   valueType: DiscountValueType;
@@ -115,6 +117,8 @@ export interface DiscountDetailDto {
   name: string;
   description?: string | null;
   status: DiscountStatus;
+  statusLabel: string;
+  statusColor: string;
   category: DiscountCategory;
   method: DiscountMethod;
   code?: string | null;
@@ -145,7 +149,6 @@ export interface DiscountDetailDto {
 
 /** Discount target rule DTO */
 export interface DiscountTargetRuleDto {
-  id: string;
   targetType: DiscountTargetType;
   targetIds?: string[] | null;
   targetNames?: string[] | null;
@@ -154,7 +157,6 @@ export interface DiscountTargetRuleDto {
 
 /** Discount eligibility rule DTO */
 export interface DiscountEligibilityRuleDto {
-  id: string;
   eligibilityType: DiscountEligibilityType;
   eligibilityIds?: string[] | null;
   eligibilityNames?: string[] | null;
@@ -298,23 +300,6 @@ export const DISCOUNT_CATEGORIES: DiscountCategoryInfo[] = [
   },
 ];
 
-/** Status display labels */
-export const DISCOUNT_STATUS_LABELS: Record<DiscountStatus, string> = {
-  [DiscountStatus.Draft]: "Draft",
-  [DiscountStatus.Active]: "Active",
-  [DiscountStatus.Scheduled]: "Scheduled",
-  [DiscountStatus.Expired]: "Expired",
-  [DiscountStatus.Disabled]: "Disabled",
-};
-
-/** Status colors for badges */
-export const DISCOUNT_STATUS_COLORS: Record<DiscountStatus, "default" | "positive" | "warning" | "danger"> = {
-  [DiscountStatus.Draft]: "default",
-  [DiscountStatus.Active]: "positive",
-  [DiscountStatus.Scheduled]: "warning",
-  [DiscountStatus.Expired]: "danger",
-  [DiscountStatus.Disabled]: "default",
-};
 
 /** Entity types for workspace routing */
 export const MERCHELLO_DISCOUNTS_ENTITY_TYPE = "merchello-discounts";

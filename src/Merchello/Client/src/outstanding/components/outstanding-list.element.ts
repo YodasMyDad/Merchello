@@ -155,10 +155,15 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
       this._selectedInvoices.has(i.id)
     );
 
+    const totalBalanceDue = selectedInvoices.reduce(
+      (sum, inv) => sum + (inv.balanceDue ?? inv.total), 0
+    );
+
     const result = await this.#modalManager?.open(this, MERCHELLO_MARK_AS_PAID_MODAL, {
       data: {
         invoices: selectedInvoices,
         currencyCode: this._currencyCode,
+        totalBalanceDue,
       },
     })?.onSubmit();
 

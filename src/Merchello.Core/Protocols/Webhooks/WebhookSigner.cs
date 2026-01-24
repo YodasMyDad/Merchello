@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Logging;
 

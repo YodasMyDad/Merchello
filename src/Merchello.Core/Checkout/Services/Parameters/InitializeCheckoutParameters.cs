@@ -23,9 +23,9 @@ public class InitializeCheckoutParameters
     public string? StateCode { get; init; }
 
     /// <summary>
-    /// Whether to auto-select the cheapest shipping option for each group.
+    /// Whether to auto-select a shipping option for each group using the configured strategy.
     /// </summary>
-    public bool AutoSelectCheapestShipping { get; init; } = true;
+    public bool AutoSelectShipping { get; init; } = true;
 
     /// <summary>
     /// Optional email for session tracking.

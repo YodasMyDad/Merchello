@@ -7,7 +7,7 @@ namespace Merchello.Core.Shipping.Services.Interfaces;
 public interface IShippingOptionService
 {
     // Shipping Options
-    Task<List<ShippingOptionDto>> GetAllAsync(CancellationToken ct = default);
+    Task<List<ShippingOptionListItemDto>> GetAllAsync(CancellationToken ct = default);
     Task<ShippingOptionDetailDto?> GetByIdAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>

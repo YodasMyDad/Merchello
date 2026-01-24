@@ -39,19 +39,20 @@ public class TestDataBuilder
     private readonly CustomerFactory _customerFactory = new();
     private readonly OrderFactory _orderFactory = new();
     private readonly AddressFactory _addressFactory = new();
-    private readonly LineItemFactory _lineItemFactory = new();
     private readonly ShipmentFactory _shipmentFactory = new();
     private readonly CustomerSegmentFactory _customerSegmentFactory = new();
 
     // Factories requiring ICurrencyService
     private readonly InvoiceFactory _invoiceFactory;
     private readonly PaymentFactory _paymentFactory;
+    private readonly LineItemFactory _lineItemFactory;
 
     public TestDataBuilder(MerchelloDbContext dbContext, ICurrencyService currencyService)
     {
         _dbContext = dbContext;
         _invoiceFactory = new InvoiceFactory(currencyService);
         _paymentFactory = new PaymentFactory(currencyService);
+        _lineItemFactory = new LineItemFactory(currencyService);
     }
 
     /// <summary>

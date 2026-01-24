@@ -21,6 +21,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture;
     private readonly ICheckoutService _checkoutService;
+    private readonly ICheckoutDiscountService _checkoutDiscountService;
     private readonly ICheckoutSessionService _checkoutSessionService;
 
     public CheckoutServiceTests(ServiceTestFixture fixture)
@@ -29,6 +30,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
         _fixture.ResetDatabase();
         _fixture.MockHttpContext.ClearSession();
         _checkoutService = fixture.GetService<ICheckoutService>();
+        _checkoutDiscountService = fixture.GetService<ICheckoutDiscountService>();
         _checkoutSessionService = fixture.GetService<ICheckoutSessionService>();
     }
 
@@ -368,7 +370,12 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        await _checkoutSessionService.SaveAddressesAsync(basketId, billing, null, sameAsBilling: true);
+        await _checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
+        {
+            BasketId = basketId,
+            Billing = billing,
+            SameAsBilling = true
+        });
 
         // Assert
         var session = await _checkoutSessionService.GetSessionAsync(basketId);
@@ -400,7 +407,13 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        await _checkoutSessionService.SaveAddressesAsync(basketId, billing, shipping, sameAsBilling: false);
+        await _checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
+        {
+            BasketId = basketId,
+            Billing = billing,
+            Shipping = shipping,
+            SameAsBilling = false
+        });
 
         // Assert
         var session = await _checkoutSessionService.GetSessionAsync(basketId);
@@ -444,7 +457,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
         });
 
         // Act
-        var result = await _checkoutService.ApplyDiscountCodeAsync(basket, "INVALID-CODE", "GB");
+        var result = await _checkoutDiscountService.ApplyDiscountCodeAsync(basket, "INVALID-CODE", "GB");
 
         // Assert
         result.Messages.ShouldNotBeEmpty();
@@ -476,7 +489,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
         });
 
         // Act
-        var result = await _checkoutService.RemovePromotionalDiscountAsync(basket, discountId, "GB");
+        var result = await _checkoutDiscountService.RemovePromotionalDiscountAsync(basket, discountId, "GB");
 
         // Assert
         result.ResultObject.ShouldNotBeNull();

@@ -6,7 +6,7 @@
 @inject Umbraco.Cms.Core.PublishedCache.IPublishedMediaCache MediaCache
 @inject Microsoft.Extensions.Options.IOptions<Merchello.Core.Shared.Models.MerchelloSettings> Settings
 @inject Merchello.Services.IRichTextRenderer RichTextRenderer
-@inject Merchello.Core.Storefront.Services.IStorefrontContextService StorefrontContext
+@inject Merchello.Core.Storefront.Services.Interfaces.IStorefrontContextService StorefrontContext
 @inject Merchello.Core.Accounting.Services.Interfaces.ITaxService TaxService
 @inject Merchello.Core.Shared.Services.Interfaces.ICurrencyService CurrencyService
 @inherits UmbracoViewPage<MerchelloProductViewModel>

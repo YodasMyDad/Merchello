@@ -1,6 +1,8 @@
 using Asp.Versioning;
 using Merchello.Core.Email.Attachments;
+using Merchello.Core.Email.Interfaces;
 using Merchello.Core.Email.Dtos;
+using Merchello.Core.Email.Extensions;
 using Merchello.Core.Email.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

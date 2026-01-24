@@ -19,8 +19,13 @@ public record ProviderConfigCapabilities
     public bool HasWeightTiers { get; init; }
 
     /// <summary>
-    /// Whether this provider fetches rates from an external API.
-    /// If true, rates come from the provider at runtime.
+    /// Whether this provider fetches rates from an external carrier API (e.g. FedEx, UPS).
+    /// When true:
+    /// - ShippingQuoteService calls GetRatesForServicesAsync (per-ShippingOption path)
+    ///   and GetRatesForAllServicesAsync (warehouse-level dynamic path)
+    /// - WarehouseProviderConfig controls per-warehouse markup and service exclusions
+    /// - Provider discovers available services for the route at runtime
+    /// When false: rates come from static cost tables (flat-rate).
     /// </summary>
     public bool UsesLiveRates { get; init; }
 

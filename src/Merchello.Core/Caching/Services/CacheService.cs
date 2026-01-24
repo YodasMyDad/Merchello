@@ -9,6 +9,10 @@ namespace Merchello.Core.Caching.Services;
 /// <summary>
 /// Cache service using Umbraco's AppCaches for automatic distributed cache support.
 /// </summary>
+/// <remarks>
+/// Uses sync-over-async (.GetAwaiter().GetResult()) in the cache factory because Umbraco's
+/// AppCaches/RuntimeCache API is synchronous. This is a known Umbraco platform limitation.
+/// </remarks>
 public class CacheService(AppCaches appCaches, IOptions<CacheOptions> options) : ICacheService
 {
     private readonly CacheOptions _options = options.Value;

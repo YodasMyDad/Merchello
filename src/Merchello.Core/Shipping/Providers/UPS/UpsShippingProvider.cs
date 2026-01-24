@@ -6,6 +6,7 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers.UPS.Models;
+using Merchello.Core.Shared.Providers;
 using Microsoft.Extensions.Options;
 
 namespace Merchello.Core.Shipping.Providers.UPS;
@@ -122,12 +123,12 @@ public class UpsShippingProvider(
     }
 
     /// <inheritdoc />
-    public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetConfigurationFieldsAsync(
+    public override ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult<IEnumerable<ShippingProviderConfigurationField>>(
+        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>(
         [
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = Constants.ShippingProviders.ConfigKeys.ClientId,
                 Label = "Client ID",
@@ -136,7 +137,7 @@ public class UpsShippingProvider(
                 IsRequired = true,
                 Placeholder = "Your Client ID"
             },
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = Constants.ShippingProviders.ConfigKeys.ClientSecret,
                 Label = "Client Secret",
@@ -145,7 +146,7 @@ public class UpsShippingProvider(
                 IsSensitive = true,
                 IsRequired = true
             },
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = Constants.ShippingProviders.ConfigKeys.AccountNumber,
                 Label = "Account Number",
@@ -154,7 +155,7 @@ public class UpsShippingProvider(
                 IsRequired = true,
                 Placeholder = "123456"
             },
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = Constants.ShippingProviders.ConfigKeys.Environment,
                 Label = "Environment",
@@ -168,7 +169,7 @@ public class UpsShippingProvider(
                     new SelectOption { Value = Constants.ShippingProviders.Environments.Production, Label = "Production (Live)" }
                 ]
             },
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = Constants.ShippingProviders.ConfigKeys.UseNegotiatedRates,
                 Label = "Use Negotiated Rates",
@@ -185,12 +186,12 @@ public class UpsShippingProvider(
     /// Service type selection is handled via GetSupportedServiceTypesAsync - the UI generates
     /// the dropdown from that list. This method only returns additional configuration fields.
     /// </remarks>
-    public override ValueTask<IEnumerable<ShippingProviderConfigurationField>> GetMethodConfigFieldsAsync(
+    public override ValueTask<IEnumerable<ProviderConfigurationField>> GetMethodConfigFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult<IEnumerable<ShippingProviderConfigurationField>>(
+        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>(
         [
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = Constants.ShippingProviders.ConfigKeys.Name,
                 Label = "Method Name",
@@ -199,7 +200,7 @@ public class UpsShippingProvider(
                 IsRequired = false,
                 Placeholder = "e.g., UPS Ground"
             },
-            new ShippingProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = Constants.ShippingProviders.ConfigKeys.Markup,
                 Label = "Markup %",
@@ -281,8 +282,9 @@ public class UpsShippingProvider(
         if (_apiClient == null)
             return false;
 
-        // Must have shippable items with weight
-        return request.Items.Any(i => i.IsShippable && (i.TotalWeightKg ?? 0) > 0);
+        // Must have shippable items with weight, or pre-built packages (warehouse-level quotes)
+        return request.Items.Any(i => i.IsShippable && (i.TotalWeightKg ?? 0) > 0)
+            || request.Packages.Any(p => p.WeightKg > 0);
     }
 
     /// <inheritdoc />
@@ -413,7 +415,7 @@ public class UpsShippingProvider(
 
                     serviceLevels.Add(new ShippingServiceLevel
                     {
-                        ServiceCode = $"ups-{serviceCode}",
+                        ServiceCode = serviceCode,
                         ServiceName = serviceType?.DisplayName ?? rated.Service?.Description ?? serviceCode,
                         TotalCost = totalCost,
                         CurrencyCode = displayCurrency,
@@ -552,10 +554,96 @@ public class UpsShippingProvider(
         };
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// UPS approach: returns static supported service types.
+    /// The UPS Rate API uses "Shop" request type which returns all available services for the route,
+    /// so actual availability is determined at rate-fetching time.
+    /// </remarks>
+    public override Task<IReadOnlyList<ShippingServiceType>?> GetAvailableServicesAsync(
+        string originCountryCode,
+        string originPostalCode,
+        string destinationCountryCode,
+        string? destinationPostalCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<ShippingServiceType>?>(SupportedServiceTypes);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// UPS dynamic: gets all rates from the Rate API (Shop request returns all services),
+    /// then applies warehouse config (exclusions and markup).
+    /// </remarks>
+    public override async Task<ShippingRateQuote?> GetRatesForAllServicesAsync(
+        ShippingQuoteRequest request,
+        WarehouseProviderConfig warehouseConfig,
+        CancellationToken cancellationToken = default)
+    {
+        // Get all available rates from UPS
+        var quote = await GetRatesAsync(request, cancellationToken);
+        if (quote == null)
+        {
+            return null;
+        }
+
+        // Apply warehouse config: exclusions and per-service markup
+        List<ShippingServiceLevel> filteredLevels = [];
+
+        foreach (var sl in quote.ServiceLevels)
+        {
+            var serviceCode = sl.ServiceType?.Code ?? sl.ServiceCode;
+
+            // Skip excluded services
+            if (warehouseConfig.IsServiceExcluded(serviceCode))
+            {
+                continue;
+            }
+
+            // Apply markup
+            var markupPercent = warehouseConfig.GetMarkupForService(serviceCode);
+            var totalCost = sl.TotalCost;
+
+            if (markupPercent > 0m)
+            {
+                totalCost = sl.TotalCost * (1 + (markupPercent / 100m));
+                totalCost = _currencyService.Round(totalCost, sl.CurrencyCode);
+            }
+
+            filteredLevels.Add(new ShippingServiceLevel
+            {
+                ServiceCode = sl.ServiceCode,
+                ServiceName = sl.ServiceName,
+                TotalCost = totalCost,
+                CurrencyCode = sl.CurrencyCode,
+                TransitTime = sl.TransitTime,
+                EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
+                Description = sl.Description,
+                ServiceType = sl.ServiceType,
+                ExtendedProperties = sl.ExtendedProperties
+            });
+        }
+
+        // Sort by cost
+        filteredLevels = filteredLevels.OrderBy(s => s.TotalCost).ToList();
+
+        return new ShippingRateQuote
+        {
+            ProviderKey = quote.ProviderKey,
+            ProviderName = quote.ProviderName,
+            ServiceLevels = filteredLevels,
+            IsFallbackRate = quote.IsFallbackRate,
+            FallbackReason = quote.FallbackReason,
+            Errors = quote.Errors
+        };
+    }
+
     private static decimal GetMarkupFromSettings(string? providerSettingsJson)
     {
         if (string.IsNullOrEmpty(providerSettingsJson))
+        {
             return 0;
+        }
 
         try
         {

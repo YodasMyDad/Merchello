@@ -1,5 +1,6 @@
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Tests.TestInfrastructure;
 using Shouldly;
 using Xunit;
@@ -21,7 +22,7 @@ public class TaxCodeMappingIntegrationTests : IClassFixture<ServiceTestFixture>
     {
         _fixture = fixture;
         _fixture.ResetDatabase();
-        _lineItemFactory = new LineItemFactory();
+        _lineItemFactory = new LineItemFactory(fixture.GetService<ICurrencyService>());
     }
 
     [Fact]

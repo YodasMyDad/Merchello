@@ -5,6 +5,7 @@ using Merchello.Core.Fulfilment.Providers.Interfaces;
 using Merchello.Core.Fulfilment.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,7 @@ namespace Merchello.Core.Fulfilment.Services;
 public class FulfilmentService(
     MerchelloDbContext dbContext,
     IFulfilmentProviderManager providerManager,
+    ShipmentFactory shipmentFactory,
     IOptions<FulfilmentSettings> settings,
     ILogger<FulfilmentService> logger) : IFulfilmentService
 {
@@ -97,7 +99,7 @@ public class FulfilmentService(
         order.DateUpdated = DateTime.UtcNow;
 
         // Build fulfilment request
-        var request = await BuildFulfilmentRequestAsync(order, cancellationToken);
+        var request = await BuildFulfilmentRequestAsync(order, providerConfig, cancellationToken);
 
         try
         {
@@ -386,18 +388,12 @@ public class FulfilmentService(
         else
         {
             // Create new shipment
-            shipment = new Shipment
-            {
-                OrderId = order.Id,
-                WarehouseId = order.WarehouseId,
-                TrackingNumber = update.TrackingNumber,
-                TrackingUrl = update.TrackingUrl,
-                Carrier = update.Carrier,
-                Status = update.ShippedDate.HasValue ? ShipmentStatus.Shipped : ShipmentStatus.Preparing,
-                ShippedDate = update.ShippedDate,
-                RequestedDeliveryDate = order.RequestedDeliveryDate,
-                IsDeliveryDateGuaranteed = order.IsDeliveryDateGuaranteed
-            };
+            shipment = shipmentFactory.CreateFromWebhook(
+                order,
+                trackingNumber: update.TrackingNumber,
+                trackingUrl: update.TrackingUrl,
+                carrier: update.Carrier,
+                shippedDate: update.ShippedDate);
 
             shipment.ExtendedData["Fulfilment:ProviderShipmentId"] = update.ProviderShipmentId;
 
@@ -495,7 +491,10 @@ public class FulfilmentService(
         }).ToList();
     }
 
-    private async Task<FulfilmentOrderRequest> BuildFulfilmentRequestAsync(Order order, CancellationToken cancellationToken)
+    private async Task<FulfilmentOrderRequest> BuildFulfilmentRequestAsync(
+        Order order,
+        FulfilmentProviderConfiguration providerConfig,
+        CancellationToken cancellationToken)
     {
         // Get invoice for customer details
         var invoice = order.Invoice ?? await dbContext.Invoices
@@ -521,6 +520,9 @@ public class FulfilmentService(
 
         var shippingAddress = MapToFulfilmentAddress(invoice?.ShippingAddress);
 
+        // Resolve 3PL shipping method via fallback chain
+        var shippingServiceCode = ResolveShippingServiceCode(order, providerConfig.SettingsJson);
+
         return new FulfilmentOrderRequest
         {
             OrderId = order.Id,
@@ -529,10 +531,62 @@ public class FulfilmentService(
             ShippingAddress = shippingAddress,
             BillingAddress = invoice?.BillingAddress != null ? MapToFulfilmentAddress(invoice.BillingAddress) : null,
             CustomerEmail = invoice?.BillingAddress?.Email,
+            ShippingServiceCode = shippingServiceCode,
             RequestedDeliveryDate = order.RequestedDeliveryDate,
             InternalNotes = order.InternalNotes,
             ExtendedData = order.ExtendedData
         };
+    }
+
+    internal static string? ResolveShippingServiceCode(Order order, string? settingsJson)
+    {
+        if (string.IsNullOrEmpty(settingsJson)) return order.ShippingServiceCode;
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(settingsJson);
+            var root = doc.RootElement;
+
+            // 1. Flat-rate: lookup by ShippingOptionId in ServiceMappings
+            if (order.ShippingOptionId != Guid.Empty &&
+                root.TryGetProperty("ServiceMappings", out var mappingsElement))
+            {
+                var optionKey = order.ShippingOptionId.ToString();
+                // ServiceMappings is stored as a JSON string value (serialized by frontend)
+                var mappingsJson = mappingsElement.GetString();
+                if (!string.IsNullOrEmpty(mappingsJson))
+                {
+                    using var mappingsDoc = System.Text.Json.JsonDocument.Parse(mappingsJson);
+                    if (mappingsDoc.RootElement.TryGetProperty(optionKey, out var mapped))
+                    {
+                        var code = mapped.GetString();
+                        if (!string.IsNullOrEmpty(code)) return code;
+                    }
+                }
+            }
+
+            // 2. Category inference (works for both flat-rate and dynamic)
+            if (order.ShippingServiceCategory.HasValue)
+            {
+                var categoryKey = $"ServiceCategoryMapping_{order.ShippingServiceCategory.Value}";
+                if (root.TryGetProperty(categoryKey, out var categoryMapping))
+                {
+                    var code = categoryMapping.GetString();
+                    if (!string.IsNullOrEmpty(code)) return code;
+                }
+            }
+
+            // 3. DefaultShippingMethod
+            if (root.TryGetProperty("DefaultShippingMethod", out var defaultVal))
+            {
+                var code = defaultVal.GetString();
+                if (!string.IsNullOrEmpty(code)) return code;
+            }
+        }
+        catch (System.Text.Json.JsonException) { /* fall through */ }
+
+        // 4. Raw carrier code (last resort)
+        return order.ShippingServiceCode;
     }
 
     private static FulfilmentAddress MapToFulfilmentAddress(Locality.Models.Address? address)
@@ -605,5 +659,29 @@ public class FulfilmentService(
             logger.LogInformation("Order {OrderId} status updated from {OldStatus} to {NewStatus} based on shipments",
                 order.Id, oldStatus, order.Status);
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> IsDuplicateWebhookAsync(Guid providerConfigId, string messageId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.FulfilmentWebhookLogs
+            .AnyAsync(l => l.ProviderConfigurationId == providerConfigId && l.MessageId == messageId, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task LogWebhookAsync(Guid providerConfigId, string? messageId, string? eventType, string? payload, CancellationToken cancellationToken = default)
+    {
+        var log = new FulfilmentWebhookLog
+        {
+            ProviderConfigurationId = providerConfigId,
+            MessageId = messageId ?? Guid.NewGuid().ToString(),
+            EventType = eventType,
+            Payload = payload,
+            ProcessedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(_settings.WebhookLogRetentionDays)
+        };
+
+        dbContext.FulfilmentWebhookLogs.Add(log);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

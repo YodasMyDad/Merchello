@@ -8,8 +8,6 @@ import {
   DiscountValueType,
   DiscountRequirementType,
   DISCOUNT_CATEGORIES,
-  DISCOUNT_STATUS_LABELS,
-  DISCOUNT_STATUS_COLORS,
 } from "@discounts/types/discount.types.js";
 
 @customElement("merchello-discount-summary-card")
@@ -64,8 +62,8 @@ export class MerchelloDiscountSummaryCardElement extends UmbElementMixin(LitElem
     if (!this.discount) return nothing;
 
     const categoryInfo = this._getCategoryInfo(this.discount.category);
-    const statusLabel = DISCOUNT_STATUS_LABELS[this.discount.status];
-    const statusColor = DISCOUNT_STATUS_COLORS[this.discount.status];
+    const statusLabel = this.discount.statusLabel;
+    const statusColor = this.discount.statusColor;
 
     return html`
       <uui-box>

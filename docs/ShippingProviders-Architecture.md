@@ -25,6 +25,8 @@ Pluggable shipping provider system with built-in carriers (Flat Rate, FedEx, UPS
 | `ShippingProviderManager` | [ShippingProviderManager.cs](../src/Merchello.Core/Shipping/Providers/ShippingProviderManager.cs) |
 | `IShippingQuoteService` | [IShippingQuoteService.cs](../src/Merchello.Core/Shipping/Services/Interfaces/IShippingQuoteService.cs) |
 | `ShippingQuoteService` | [ShippingQuoteService.cs](../src/Merchello.Core/Shipping/Services/ShippingQuoteService.cs) |
+| `IWarehouseProviderConfigService` | [IWarehouseProviderConfigService.cs](../src/Merchello.Core/Shipping/Services/Interfaces/IWarehouseProviderConfigService.cs) |
+| `WarehouseProviderConfigService` | [WarehouseProviderConfigService.cs](../src/Merchello.Core/Shipping/Services/WarehouseProviderConfigService.cs) |
 
 ## Key Models
 
@@ -37,6 +39,10 @@ Pluggable shipping provider system with built-in carriers (Flat Rate, FedEx, UPS
 | `ShippingQuoteItem` | [ShippingQuoteItem.cs](../src/Merchello.Core/Shipping/Providers/ShippingQuoteItem.cs) |
 | `ShipmentPackage` | [ShipmentPackage.cs](../src/Merchello.Core/Shipping/Providers/ShipmentPackage.cs) |
 | `ShippingProviderConfiguration` | [ShippingProviderConfiguration.cs](../src/Merchello.Core/Shipping/Models/ShippingProviderConfiguration.cs) |
+| `WarehouseProviderConfig` | [WarehouseProviderConfig.cs](../src/Merchello.Core/Shipping/Models/WarehouseProviderConfig.cs) |
+| `ShippingOptionInfo` | [ShippingOptionInfo.cs](../src/Merchello.Core/Shipping/Models/ShippingOptionInfo.cs) |
+| `ShippingServiceCategory` | [ShippingServiceCategory.cs](../src/Merchello.Core/Shipping/Models/ShippingServiceCategory.cs) |
+| `SelectionKeyExtensions` | [SelectionKeyExtensions.cs](../src/Merchello.Core/Shipping/Extensions/SelectionKeyExtensions.cs) |
 
 ## Design Decisions
 
@@ -78,6 +84,7 @@ Pluggable shipping provider system with built-in carriers (Flat Rate, FedEx, UPS
 | `SupportsInternational` | Handles international shipments |
 | `RequiresFullAddress` | Needs complete address for quotes (vs just country/postal) |
 | `SupportedCountries` | List of countries provider operates in (null = all) |
+| `RatesIncludeTax` | Provider returns tax-inclusive rates (default false) |
 
 ## Provider Configuration Capabilities
 
@@ -100,9 +107,19 @@ public record ProviderConfigCapabilities
 }
 ```
 
+**`UsesLiveRates`** indicates the provider fetches rates from an external carrier API and returns services dynamically based on origin/destination route rather than requiring pre-configured `ShippingOption` records per service type. When true:
+- No `ShippingOption` records needed for external services
+- Uses `WarehouseProviderConfig` for per-warehouse settings (markup, exclusions)
+- `GetRatesForAllServicesAsync()` fetches all available rates from carrier
+- `GetAvailableServicesAsync()` discovers available services for a route
+
 ## ShippingOption-Provider Linkage
 
-Each `ShippingOption` (per-warehouse shipping method) is linked to a provider via `ProviderKey` and optionally `ServiceType`:
+**For flat-rate providers:** Each `ShippingOption` (per-warehouse shipping method) is linked to a provider via `ProviderKey` and optionally `ServiceType`.
+
+**For dynamic providers (`UsesLiveRates = true`):** ShippingOption records are NOT used. Instead, `WarehouseProviderConfig` controls per-warehouse settings. See [WarehouseProviderConfig](#warehouseproviderconfig) section below.
+
+### Flat-Rate ShippingOption Model
 
 ```csharp
 public class ShippingOption
@@ -158,6 +175,8 @@ This ensures:
 
 ## Quote Flow
 
+### Basket-Level Quotes (ShippingQuoteService.GetQuotesAsync)
+
 ```
 1. ShippingQuoteService.GetQuotesAsync(basket, countryCode, stateCode)
        │
@@ -175,12 +194,12 @@ This ensures:
        └── Cache Miss ↓
                       ▼
 4. FetchQuotesFromProvidersAsync()
-       │ - Get enabled ShippingOptions for warehouse
-       │ - Group ShippingOptions by ProviderKey
        │ - For each provider:
-       │     - Get serviceTypes from that provider's ShippingOptions
        │     - Check IsAvailableFor(request)
-       │     - If provider.UsesLiveRates && serviceTypes.Any():
+       │     - If UsesLiveRates:
+       │         Load WarehouseProviderConfig
+       │         Call GetRatesForAllServicesAsync(request, warehouseConfig)
+       │     - Elif UsesLiveRates && serviceTypes.Any():
        │         Call GetRatesForServicesAsync(request, serviceTypes, options)
        │     - Else:
        │         Call GetRatesAsync(request)
@@ -188,12 +207,32 @@ This ensures:
 5. Return List<ShippingRateQuote> (cached for 10 min)
 ```
 
-### GetRatesForServicesAsync vs GetRatesAsync
+### Per-Warehouse Quotes (ShippingQuoteService.GetQuotesForWarehouseAsync)
+
+Used by `DefaultOrderGroupingStrategy` for per-group rate fetching in multi-warehouse scenarios:
+
+```
+1. GetQuotesForWarehouseAsync(warehouseId, warehouseAddress, packages, dest, currency)
+       │
+       ▼
+2. Build ShippingQuoteRequest with warehouse origin address
+       │
+       ▼
+3. For each enabled dynamic provider (WarehouseProviderConfig.IsEnabled):
+       │ - Call GetRatesForAllServicesAsync(request, warehouseConfig)
+       │ - Apply exclusions from WarehouseProviderConfig.ExcludedServiceTypes
+       │ - Apply markup from WarehouseProviderConfig.DefaultMarkupPercent or ServiceMarkups
+       ▼
+4. Return per-warehouse ShippingRateQuotes
+```
+
+### Rate Fetching Methods
 
 | Method | When Used | Purpose |
 |--------|-----------|---------|
 | `GetRatesAsync` | Flat-rate providers | Returns all configured rates |
-| `GetRatesForServicesAsync` | External providers (FedEx, UPS) | Fetches rates filtered to only enabled service types |
+| `GetRatesForServicesAsync` | External providers (static service list) | Fetches rates filtered to pre-configured service types |
+| `GetRatesForAllServicesAsync` | Dynamic providers (`UsesLiveRates=true`) | Fetches ALL available rates, applies `WarehouseProviderConfig` exclusions/markup |
 
 ### Package Resolution
 
@@ -236,12 +275,62 @@ public class ShippingServiceLevel
     public string ServiceName { get; init; }      // e.g., "FedEx Ground", "UPS Next Day Air"
     public decimal TotalCost { get; init; }       // Shipping cost
     public string CurrencyCode { get; init; }     // e.g., "USD", "GBP"
-    public TimeSpan? TransitTime { get; init; }   // Estimated transit duration
+    public TimeSpan? TransitTime { get; init; }   // Estimated transit duration (used for 3PL category inference)
     public DateTime? EstimatedDeliveryDate { get; init; }
     public string? Description { get; init; }
     public IDictionary<string, string>? ExtendedProperties { get; init; }
 }
 ```
+
+## SelectionKey Format
+
+Shipping selections use a unified key format (`SelectionKeyExtensions`) supporting both flat-rate and dynamic providers:
+
+| Format | Example | Description |
+|--------|---------|-------------|
+| `so:{guid}` | `so:a1b2c3d4-...` | Flat-rate ShippingOption |
+| `dyn:{provider}:{serviceCode}` | `dyn:fedex:FEDEX_GROUND` | Dynamic provider service |
+| Plain GUID | `a1b2c3d4-...` | Legacy format (backward compatible) |
+
+**Helper methods:**
+- `TryParse(key, out shippingOptionId, out providerKey, out serviceCode)` - parse any format
+- `IsDynamicProvider(key)` - checks `dyn:` prefix
+- `IsShippingOption(key)` - checks `so:` prefix or legacy Guid
+- `ForShippingOption(id)` - creates `so:{guid}`
+- `ForDynamicProvider(providerKey, serviceCode)` - creates `dyn:{provider}:{code}`
+
+## ShippingOptionInfo (Checkout Display Model)
+
+`DefaultOrderGroupingStrategy` converts rate quotes to `ShippingOptionInfo` for the checkout UI:
+
+```csharp
+public class ShippingOptionInfo
+{
+    // Identification
+    public Guid ShippingOptionId { get; set; }     // For flat-rate (Guid.Empty for dynamic)
+    public string ProviderKey { get; set; }        // "flat-rate", "fedex", "ups"
+    public string? ServiceCode { get; set; }       // "FEDEX_GROUND" (null for flat-rate)
+    public string? ServiceName { get; set; }       // "FedEx Ground" (display name)
+
+    // Cost & Delivery
+    public string Name { get; set; }
+    public decimal Cost { get; set; }              // NET cost in basket currency
+    public int DaysFrom { get; set; }              // Min delivery days
+    public int DaysTo { get; set; }                // Max delivery days
+    public bool IsNextDay { get; set; }
+    public DateTime? EstimatedDeliveryDate { get; set; }
+
+    // Fallback state
+    public bool IsFallbackRate { get; set; }       // From cache due to API failure
+    public string? FallbackReason { get; set; }
+
+    // Computed
+    public string SelectionKey { get; }            // "so:{id}" or "dyn:{provider}:{code}"
+    public string DeliveryTimeDescription { get; } // "Next Day Delivery" or "4-7 days"
+}
+```
+
+**Transit time flow:** `ShippingServiceLevel.TransitTime` → `ShippingOptionInfo.DaysFrom/DaysTo` → `Order.ShippingServiceCategory` (inferred at order creation) → fulfilment service code resolution.
 
 ## Delivery Date Selection
 
@@ -269,7 +358,61 @@ Task<bool> ValidateDeliveryDateAsync(
     CancellationToken ct);
 ```
 
+## WarehouseProviderConfig
+
+Per-warehouse configuration for dynamic (external) shipping providers. Replaces the need for per-service-type `ShippingOption` records for carriers like FedEx/UPS.
+
+```csharp
+public class WarehouseProviderConfig
+{
+    public Guid Id { get; set; }
+    public Guid WarehouseId { get; set; }
+    public string ProviderKey { get; set; }           // "fedex", "ups"
+    public bool IsEnabled { get; set; } = true;
+
+    // Markup
+    public decimal DefaultMarkupPercent { get; set; } // e.g., 10 = 10% markup on all services
+    public string? ServiceMarkupsJson { get; set; }   // JSON: {"FEDEX_GROUND": 5, "FEDEX_2_DAY": 15}
+
+    // Exclusions (blocklist approach)
+    public string? ExcludedServiceTypesJson { get; set; }  // JSON: ["FIRST_OVERNIGHT"]
+
+    // Delivery time overrides (optional)
+    public int? DefaultDaysFromOverride { get; set; }
+    public int? DefaultDaysToOverride { get; set; }
+
+    // Helper methods
+    public decimal GetMarkupForService(string serviceCode);  // Per-service or default
+    public bool IsServiceExcluded(string serviceCode);       // Checks exclusion list
+}
+```
+
+**Database constraint:** Unique on `(WarehouseId, ProviderKey)` - one config per provider per warehouse.
+
+**Configuration Hierarchy:**
+```
+Global Config (ShippingProviderConfiguration)     Per-Warehouse Config (WarehouseProviderConfig)
+├── API credentials, account numbers              ├── Enable/disable provider for warehouse
+├── Required before provider can be used          ├── Default markup %
+└── Stored in merchelloShippingProviderConfigs    ├── Per-service markup overrides
+                                                  ├── Excluded service types
+                                                  └── Delivery time overrides
+```
+
 ## Database Schema
+
+**merchelloWarehouseProviderConfigs**
+- `Id` (Guid) - Primary key
+- `WarehouseId` (Guid, FK) - References warehouse
+- `ProviderKey` (string) - Matches provider metadata key
+- `IsEnabled` (bool) - Whether provider active for this warehouse
+- `DefaultMarkupPercent` (decimal) - Markup percentage
+- `ServiceMarkupsJson` (string, nullable) - JSON per-service markups
+- `ExcludedServiceTypesJson` (string, nullable) - JSON excluded services
+- `DefaultDaysFromOverride` (int, nullable)
+- `DefaultDaysToOverride` (int, nullable)
+- `CreateDate`, `UpdateDate` (DateTime)
+- Unique constraint: `(WarehouseId, ProviderKey)`
 
 **merchelloShippingProviderConfigurations**
 - `Id` (Guid) - Primary key
@@ -317,6 +460,8 @@ src/Merchello.Core/Shipping/
 │   ├── ShippingOptionSnapshot.cs
 │   ├── ShippingCostSnapshot.cs
 │   └── ShippingWeightTierSnapshot.cs
+├── Extensions/
+│   └── SelectionKeyExtensions.cs           # Parses/creates so:/dyn:/legacy selection keys
 ├── Models/
 │   ├── ShippingProviderConfiguration.cs
 │   ├── ShippingOption.cs
@@ -324,6 +469,9 @@ src/Merchello.Core/Shipping/
 │   ├── ShippingWeightTier.cs
 │   ├── ShippingOptionCountry.cs
 │   ├── ShippingServiceType.cs              # Service type model (FedEx Ground, UPS Next Day, etc.)
+│   ├── ShippingOptionInfo.cs               # Checkout display model (DaysFrom/DaysTo/IsNextDay)
+│   ├── ShippingServiceCategory.cs          # Speed tier enum (Standard/Economy/Express/Overnight)
+│   ├── WarehouseProviderConfig.cs          # Per-warehouse dynamic provider settings
 │   ├── Shipment.cs
 │   └── ...
 ├── Services/
@@ -331,16 +479,19 @@ src/Merchello.Core/Shipping/
 │   │   ├── IShippingService.cs
 │   │   ├── IShippingQuoteService.cs
 │   │   ├── IShippingOptionService.cs
-│   │   └── IShippingCostResolver.cs
+│   │   ├── IShippingCostResolver.cs
+│   │   └── IWarehouseProviderConfigService.cs
 │   ├── ShippingService.cs
 │   ├── ShippingQuoteService.cs
 │   ├── ShippingOptionService.cs
-│   └── ShippingCostResolver.cs
+│   ├── ShippingCostResolver.cs
+│   └── WarehouseProviderConfigService.cs
 ├── Mapping/
 │   ├── ShippingProviderConfigurationDbMapping.cs
 │   ├── ShippingOptionDbMapping.cs
 │   ├── ShippingCostDbMapping.cs
-│   └── ShippingWeightTierDbMapping.cs
+│   ├── ShippingWeightTierDbMapping.cs
+│   └── WarehouseProviderConfigDbMapping.cs
 └── Dtos/
     ├── ShippingProviderDto.cs
     ├── ShippingProviderConfigurationDto.cs
@@ -427,6 +578,11 @@ The `/available-for-warehouse` endpoint returns providers with availability stat
 - [x] Provider enable/disable/ordering works
 - [x] IsAvailableFor filtering works correctly
 - [x] Estimate mode vs full address mode
+- [x] SelectionKey parsing (so:/dyn:/legacy formats)
+- [x] Dynamic provider rates appear in order groups (not $0)
+- [x] WarehouseProviderConfig markup and exclusions applied
+- [x] Quoted rate preserved through checkout to order creation
+- [x] ShippingServiceCategory inferred from transit time
 - [ ] Delivery date selection flow
 - [ ] Tracking URL generation
 - [ ] Label generation (future)

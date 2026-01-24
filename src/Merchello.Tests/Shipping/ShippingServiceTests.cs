@@ -2,6 +2,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
@@ -216,7 +217,12 @@ public class ShippingServiceTests
         var shippingAddress = new Address { CountryCode = "" };
 
         // Act
-        var result = await _shippingService.GetShippingOptionsForBasket(basket, shippingAddress);
+        var result = await _shippingService.GetShippingOptionsForBasket(
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         // Assert
         result.WarehouseGroups.ShouldBeEmpty();
@@ -230,7 +236,12 @@ public class ShippingServiceTests
         var shippingAddress = new Address { CountryCode = "GB" };
 
         // Act
-        var result = await _shippingService.GetShippingOptionsForBasket(basket, shippingAddress);
+        var result = await _shippingService.GetShippingOptionsForBasket(
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         // Assert
         result.WarehouseGroups.ShouldBeEmpty();
@@ -253,7 +264,12 @@ public class ShippingServiceTests
         var shippingAddress = new Address { CountryCode = "GB" };
 
         // Act
-        var result = await _shippingService.GetShippingOptionsForBasket(basket, shippingAddress);
+        var result = await _shippingService.GetShippingOptionsForBasket(
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         // Assert
         result.WarehouseGroups.ShouldNotBeEmpty();
@@ -282,7 +298,12 @@ public class ShippingServiceTests
         var shippingAddress = new Address { CountryCode = "GB" };
 
         // Act
-        var result = await _shippingService.GetShippingOptionsForBasket(basket, shippingAddress);
+        var result = await _shippingService.GetShippingOptionsForBasket(
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         // Assert - Both products should be in the same group
         result.WarehouseGroups.Count.ShouldBe(1);

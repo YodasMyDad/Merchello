@@ -1,5 +1,6 @@
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Extensions;
+using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
@@ -9,6 +10,7 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services;
+using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
@@ -339,10 +341,10 @@ public class MerchelloCheckoutController(
 
         // Load available countries for billing (all countries) and shipping (restricted by warehouse regions)
         var billingCountriesResult = await checkoutService.GetAllCountriesAsync(ct);
-        var billingCountries = billingCountriesResult.Select(c => new CountryDto(c.Code, c.Name)).ToList();
+        var billingCountries = billingCountriesResult.Select(c => new CountryDto { Code = c.Code, Name = c.Name }).ToList();
 
         var shippingCountriesResult = await checkoutService.GetAvailableCountriesAsync(ct);
-        var shippingCountries = shippingCountriesResult.Select(c => new CountryDto(c.Code, c.Name)).ToList();
+        var shippingCountries = shippingCountriesResult.Select(c => new CountryDto { Code = c.Code, Name = c.Name }).ToList();
 
         // Determine default country - prioritize storefront cookie (user's current selection) over saved data
         var storefrontLocation = await storefrontContext.GetShippingLocationAsync(ct);
@@ -366,7 +368,7 @@ public class MerchelloCheckoutController(
                     Basket = basket,
                     CountryCode = defaultCountryCode,
                     StateCode = defaultStateCode,
-                    AutoSelectCheapestShipping = true,
+                    AutoSelectShipping = true,
                     Email = session?.BillingAddress.Email
                 }, ct);
 
@@ -439,7 +441,7 @@ public class MerchelloCheckoutController(
     private static List<ShippingGroupDto> MapOrderGroupsToDto(
         Core.Checkout.Strategies.Models.OrderGroupingResult result,
         string currencySymbol,
-        Dictionary<Guid, Guid>? selectedOptions,
+        Dictionary<Guid, string>? selectedOptions,
         StorefrontDisplayContext displayContext,
         ICurrencyService currencyService,
         decimal? effectiveShippingTaxRate = null)
@@ -481,7 +483,7 @@ public class MerchelloCheckoutController(
             {
                 var displayCost = DisplayCurrencyExtensions.GetDisplayShippingOptionCost(
                     opt.Cost, effectiveContext, currencyService);
-                return new ShippingOptionDto
+                return new CheckoutShippingOptionDto
                 {
                     Id = opt.ShippingOptionId,
                     Name = opt.Name,
@@ -491,12 +493,18 @@ public class MerchelloCheckoutController(
                     Cost = displayCost,
                     FormattedCost = displayCost.FormatWithSymbol(currencySymbol),
                     DeliveryDescription = opt.DeliveryTimeDescription,
-                    ProviderKey = opt.ProviderKey
+                    ProviderKey = opt.ProviderKey,
+                    SelectionKey = opt.SelectionKey,
+                    ServiceCode = opt.ServiceCode,
+                    EstimatedDeliveryDate = opt.EstimatedDeliveryDate,
+                    IsFallbackRate = opt.IsFallbackRate,
+                    FallbackReason = opt.FallbackReason
                 };
             }).ToList(),
             SelectedShippingOptionId = selectedOptions?.TryGetValue(group.GroupId, out var selectedId) == true
                 ? selectedId
-                : group.SelectedShippingOptionId
+                : group.SelectedShippingOptionId,
+            HasFallbackRates = group.AvailableShippingOptions.Any(o => o.IsFallbackRate)
         }).ToList();
     }
 }

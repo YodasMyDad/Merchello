@@ -25,6 +25,7 @@ export interface OutstandingBalanceDto {
   creditLimitExceeded: boolean;
   availableCredit: number | null;
   creditUtilizationPercent: number | null;
+  creditWarningLevel: "ok" | "warning" | "exceeded";
 }
 
 // Paginated outstanding invoices result

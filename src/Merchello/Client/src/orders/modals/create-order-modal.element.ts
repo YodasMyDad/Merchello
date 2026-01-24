@@ -144,11 +144,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
       const { data, error } = await MerchelloApi.getCustomerOutstandingBalance(customer.customerId);
 
       if (!error && data) {
-        const utilization = customer.creditLimit > 0
-          ? (data.totalOutstanding / customer.creditLimit) * 100
-          : 0;
-
-        if (data.totalOutstanding >= customer.creditLimit) {
+        if (data.creditWarningLevel === "exceeded") {
           this._creditWarning = {
             type: "danger",
             message: `Credit limit exceeded: ${formatCurrency(data.totalOutstanding, data.currencyCode)} outstanding exceeds ${formatCurrency(customer.creditLimit, data.currencyCode)} limit`,
@@ -156,10 +152,10 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
             creditLimit: customer.creditLimit,
             currencyCode: data.currencyCode,
           };
-        } else if (utilization >= 80) {
+        } else if (data.creditWarningLevel === "warning") {
           this._creditWarning = {
             type: "warning",
-            message: `Customer has ${formatCurrency(data.totalOutstanding, data.currencyCode)} outstanding of ${formatCurrency(customer.creditLimit, data.currencyCode)} limit (${Math.round(utilization)}% utilized)`,
+            message: `Customer has ${formatCurrency(data.totalOutstanding, data.currencyCode)} outstanding of ${formatCurrency(customer.creditLimit, data.currencyCode)} limit (${Math.round(data.creditUtilizationPercent ?? 0)}% utilized)`,
             outstanding: data.totalOutstanding,
             creditLimit: customer.creditLimit,
             currencyCode: data.currencyCode,

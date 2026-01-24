@@ -16,6 +16,7 @@ public class OutboundDeliveryDto
     public string? EntityType { get; set; }
     public OutboundDeliveryStatus Status { get; set; }
     public string StatusDisplay { get; set; } = string.Empty;
+    public string StatusCssClass { get; set; } = string.Empty;
     public int? ResponseStatusCode { get; set; }
     public string? ErrorMessage { get; set; }
     public DateTime DateCreated { get; set; }

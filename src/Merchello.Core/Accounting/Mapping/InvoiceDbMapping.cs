@@ -15,6 +15,7 @@ public class InvoiceDbMapping : IEntityTypeConfiguration<Invoice>
 
         // Invoice number and channel
         builder.Property(x => x.InvoiceNumber).HasMaxLength(50);
+        builder.HasIndex(x => x.InvoiceNumber).IsUnique();
         builder.Property(x => x.Channel).HasMaxLength(100);
         builder.Property(x => x.PurchaseOrder).HasMaxLength(100);
 

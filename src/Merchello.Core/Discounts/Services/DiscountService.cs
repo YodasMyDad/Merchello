@@ -36,9 +36,6 @@ public class DiscountService(
         {
             var query = db.Discounts
                 .AsNoTracking()
-                .Include(d => d.TargetRules)
-                .Include(d => d.EligibilityRules)
-                .AsSplitQuery()
                 .AsQueryable();
 
             // Apply filters
@@ -113,11 +110,6 @@ public class DiscountService(
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.Discounts
                 .AsNoTracking()
-                .Include(d => d.TargetRules)
-                .Include(d => d.EligibilityRules)
-                .Include(d => d.BuyXGetYConfig)
-                .Include(d => d.FreeShippingConfig)
-                .AsSplitQuery()
                 .FirstOrDefaultAsync(d => d.Id == discountId, ct));
         scope.Complete();
         return result;
@@ -131,11 +123,6 @@ public class DiscountService(
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.Discounts
                 .AsNoTracking()
-                .Include(d => d.TargetRules)
-                .Include(d => d.EligibilityRules)
-                .Include(d => d.BuyXGetYConfig)
-                .Include(d => d.FreeShippingConfig)
-                .AsSplitQuery()
                 .FirstOrDefaultAsync(d => d.Code == normalizedCode, ct));
         scope.Complete();
         return result;
@@ -247,44 +234,37 @@ public class DiscountService(
 
         using var scope = efCoreScopeProvider.CreateScope();
 
+        // Set target rules
+        if (parameters.TargetRules != null)
+        {
+            var rules = parameters.TargetRules.Select(discountFactory.CreateTargetRule).ToList();
+            discount.SetTargetRules(rules);
+        }
+
+        // Set eligibility rules
+        if (parameters.EligibilityRules != null)
+        {
+            var rules = parameters.EligibilityRules.Select(discountFactory.CreateEligibilityRule).ToList();
+            discount.SetEligibilityRules(rules);
+        }
+
+        // Set BOGO config
+        if (parameters.Category == DiscountCategory.BuyXGetY && parameters.BuyXGetYConfig != null)
+        {
+            var bogoConfig = discountFactory.CreateBuyXGetYConfig(parameters.BuyXGetYConfig);
+            discount.SetBuyXGetYConfig(bogoConfig);
+        }
+
+        // Set Free Shipping config
+        if (parameters.Category == DiscountCategory.FreeShipping && parameters.FreeShippingConfig != null)
+        {
+            var shippingConfig = discountFactory.CreateFreeShippingConfig(parameters.FreeShippingConfig);
+            discount.SetFreeShippingConfig(shippingConfig);
+        }
+
         await scope.ExecuteWithContextAsync<Task>(async db =>
         {
             db.Discounts.Add(discount);
-
-            // Add target rules
-            if (parameters.TargetRules != null)
-            {
-                foreach (var ruleParams in parameters.TargetRules)
-                {
-                    var rule = discountFactory.CreateTargetRule(discount.Id, ruleParams);
-                    db.DiscountTargetRules.Add(rule);
-                }
-            }
-
-            // Add eligibility rules
-            if (parameters.EligibilityRules != null)
-            {
-                foreach (var ruleParams in parameters.EligibilityRules)
-                {
-                    var rule = discountFactory.CreateEligibilityRule(discount.Id, ruleParams);
-                    db.DiscountEligibilityRules.Add(rule);
-                }
-            }
-
-            // Add BOGO config
-            if (parameters.Category == DiscountCategory.BuyXGetY && parameters.BuyXGetYConfig != null)
-            {
-                var bogoConfig = discountFactory.CreateBuyXGetYConfig(discount.Id, parameters.BuyXGetYConfig);
-                db.DiscountBuyXGetYConfigs.Add(bogoConfig);
-            }
-
-            // Add Free Shipping config
-            if (parameters.Category == DiscountCategory.FreeShipping && parameters.FreeShippingConfig != null)
-            {
-                var shippingConfig = discountFactory.CreateFreeShippingConfig(discount.Id, parameters.FreeShippingConfig);
-                db.DiscountFreeShippingConfigs.Add(shippingConfig);
-            }
-
             await db.SaveChangesAsync(ct);
         });
 
@@ -308,11 +288,6 @@ public class DiscountService(
         using var scope = efCoreScopeProvider.CreateScope();
         var discount = await scope.ExecuteWithContextAsync(async db =>
             await db.Discounts
-                .Include(d => d.TargetRules)
-                .Include(d => d.EligibilityRules)
-                .Include(d => d.BuyXGetYConfig)
-                .Include(d => d.FreeShippingConfig)
-                .AsSplitQuery()
                 .FirstOrDefaultAsync(d => d.Id == discountId, ct));
 
         if (discount == null)
@@ -443,57 +418,29 @@ public class DiscountService(
         // Update target rules if provided
         if (parameters.TargetRules != null)
         {
-            await scope.ExecuteWithContextAsync<Task>(async db =>
-            {
-                db.DiscountTargetRules.RemoveRange(discount.TargetRules);
-                foreach (var ruleParams in parameters.TargetRules)
-                {
-                    var rule = discountFactory.CreateTargetRule(discount.Id, ruleParams);
-                    db.DiscountTargetRules.Add(rule);
-                }
-            });
+            var rules = parameters.TargetRules.Select(discountFactory.CreateTargetRule).ToList();
+            discount.SetTargetRules(rules);
         }
 
         // Update eligibility rules if provided
         if (parameters.EligibilityRules != null)
         {
-            await scope.ExecuteWithContextAsync<Task>(async db =>
-            {
-                db.DiscountEligibilityRules.RemoveRange(discount.EligibilityRules);
-                foreach (var ruleParams in parameters.EligibilityRules)
-                {
-                    var rule = discountFactory.CreateEligibilityRule(discount.Id, ruleParams);
-                    db.DiscountEligibilityRules.Add(rule);
-                }
-            });
+            var rules = parameters.EligibilityRules.Select(discountFactory.CreateEligibilityRule).ToList();
+            discount.SetEligibilityRules(rules);
         }
 
         // Update BOGO config if provided
         if (parameters.BuyXGetYConfig != null && discount.Category == DiscountCategory.BuyXGetY)
         {
-            await scope.ExecuteWithContextAsync<Task>(async db =>
-            {
-                if (discount.BuyXGetYConfig != null)
-                {
-                    db.DiscountBuyXGetYConfigs.Remove(discount.BuyXGetYConfig);
-                }
-                var bogoConfig = discountFactory.CreateBuyXGetYConfig(discount.Id, parameters.BuyXGetYConfig);
-                db.DiscountBuyXGetYConfigs.Add(bogoConfig);
-            });
+            var bogoConfig = discountFactory.CreateBuyXGetYConfig(parameters.BuyXGetYConfig);
+            discount.SetBuyXGetYConfig(bogoConfig);
         }
 
         // Update Free Shipping config if provided
         if (parameters.FreeShippingConfig != null && discount.Category == DiscountCategory.FreeShipping)
         {
-            await scope.ExecuteWithContextAsync<Task>(async db =>
-            {
-                if (discount.FreeShippingConfig != null)
-                {
-                    db.DiscountFreeShippingConfigs.Remove(discount.FreeShippingConfig);
-                }
-                var shippingConfig = discountFactory.CreateFreeShippingConfig(discount.Id, parameters.FreeShippingConfig);
-                db.DiscountFreeShippingConfigs.Add(shippingConfig);
-            });
+            var shippingConfig = discountFactory.CreateFreeShippingConfig(parameters.FreeShippingConfig);
+            discount.SetFreeShippingConfig(shippingConfig);
         }
 
         await scope.ExecuteWithContextAsync<Task>(async db => await db.SaveChangesAsync(ct));
@@ -563,11 +510,6 @@ public class DiscountService(
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.Discounts
                 .AsNoTracking()
-                .Include(d => d.TargetRules)
-                .Include(d => d.EligibilityRules)
-                .Include(d => d.BuyXGetYConfig)
-                .Include(d => d.FreeShippingConfig)
-                .AsSplitQuery()
                 .Where(d =>
                     d.Method == DiscountMethod.Automatic &&
                     d.Status == DiscountStatus.Active &&
@@ -620,11 +562,6 @@ public class DiscountService(
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.Discounts
                 .AsNoTracking()
-                .Include(d => d.TargetRules)
-                .Include(d => d.EligibilityRules)
-                .Include(d => d.BuyXGetYConfig)
-                .Include(d => d.FreeShippingConfig)
-                .AsSplitQuery()
                 .Where(d => discountIds.Contains(d.Id))
                 .ToListAsync(ct));
         scope.Complete();
@@ -739,10 +676,21 @@ public class DiscountService(
                     d.EndsAt < now)
                 .ToListAsync(ct);
 
+            var expiredCount = 0;
             foreach (var discount in expiredDiscounts)
             {
+                var changingNotification = new DiscountStatusChangingNotification(discount, DiscountStatus.Active, DiscountStatus.Expired);
+                if (await notificationPublisher.PublishCancelableAsync(changingNotification, ct))
+                {
+                    continue;
+                }
+
                 discount.Status = DiscountStatus.Expired;
                 discount.DateUpdated = now;
+                expiredCount++;
+
+                await notificationPublisher.PublishAsync(
+                    new DiscountStatusChangedNotification(discount, DiscountStatus.Active, DiscountStatus.Expired), ct);
             }
 
             // Activate scheduled discounts that have reached their start date
@@ -752,19 +700,30 @@ public class DiscountService(
                     d.StartsAt <= now)
                 .ToListAsync(ct);
 
+            var activatedCount = 0;
             foreach (var discount in scheduledDiscounts)
             {
+                var changingNotification = new DiscountStatusChangingNotification(discount, DiscountStatus.Scheduled, DiscountStatus.Active);
+                if (await notificationPublisher.PublishCancelableAsync(changingNotification, ct))
+                {
+                    continue;
+                }
+
                 discount.Status = DiscountStatus.Active;
                 discount.DateUpdated = now;
+                activatedCount++;
+
+                await notificationPublisher.PublishAsync(
+                    new DiscountStatusChangedNotification(discount, DiscountStatus.Scheduled, DiscountStatus.Active), ct);
             }
 
-            if (expiredDiscounts.Count > 0 || scheduledDiscounts.Count > 0)
+            if (expiredCount > 0 || activatedCount > 0)
             {
                 await db.SaveChangesAsync(ct);
                 logger.LogInformation(
                     "Discount status update: {ExpiredCount} expired, {ActivatedCount} activated",
-                    expiredDiscounts.Count,
-                    scheduledDiscounts.Count);
+                    expiredCount,
+                    activatedCount);
             }
         });
 
@@ -971,12 +930,10 @@ public class DiscountService(
 
     /// <inheritdoc />
     public async Task<Dtos.DiscountPerformanceDto?> GetPerformanceAsync(
-        Guid discountId,
-        DateTime? startDate = null,
-        DateTime? endDate = null,
+        GetDiscountPerformanceParameters parameters,
         CancellationToken ct = default)
     {
-        var discountIdString = discountId.ToString();
+        var discountIdString = parameters.DiscountId.ToString();
 
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
@@ -984,7 +941,7 @@ public class DiscountService(
             // Get discount
             var discount = await db.Discounts
                 .AsNoTracking()
-                .FirstOrDefaultAsync(d => d.Id == discountId, ct);
+                .FirstOrDefaultAsync(d => d.Id == parameters.DiscountId, ct);
 
             if (discount == null)
             {
@@ -992,8 +949,8 @@ public class DiscountService(
             }
 
             // Default date range: last 30 days
-            var effectiveEndDate = endDate ?? DateTime.UtcNow;
-            var effectiveStartDate = startDate ?? effectiveEndDate.AddDays(-30);
+            var effectiveEndDate = parameters.EndDate ?? DateTime.UtcNow;
+            var effectiveStartDate = parameters.StartDate ?? effectiveEndDate.AddDays(-30);
 
             // Get all discount line items from valid invoices
             var allDiscountLineItems = await db.LineItems
@@ -1069,7 +1026,7 @@ public class DiscountService(
 
             return new Dtos.DiscountPerformanceDto
             {
-                DiscountId = discountId,
+                DiscountId = parameters.DiscountId,
                 Name = discount.Name,
                 Code = discount.Code,
                 TotalUsageCount = totalUsageCount,

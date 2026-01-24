@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Extensions;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
@@ -10,7 +11,8 @@ namespace Merchello.Core.Accounting.Services;
 
 public class LineItemService(
     ICurrencyService currencyService,
-    ITaxCalculationService taxCalculationService) : ILineItemService
+    ITaxCalculationService taxCalculationService,
+    LineItemFactory lineItemFactory) : ILineItemService
 {
     public List<string> AddLineItem(List<LineItem> currentLineItems, LineItem newLineItem)
     {
@@ -49,7 +51,6 @@ public class LineItemService(
     {
         var lineItems = parameters.LineItems;
         var shippingAmount = parameters.ShippingAmount;
-        var defaultTaxRate = parameters.DefaultTaxRate;
         var currencyCode = parameters.CurrencyCode;
         var isShippingTaxable = parameters.IsShippingTaxable;
         var shippingTaxRate = parameters.ShippingTaxRate;
@@ -229,7 +230,6 @@ public class LineItemService(
                 TotalTaxableAmount = totalTaxableAmount,
                 ShippingAmount = shippingAmount,
                 IsShippingTaxable = isShippingTaxable,
-                DefaultTaxRate = defaultTaxRate,
                 ShippingTaxRate = shippingTaxRate
             },
             currencyCode);
@@ -443,25 +443,16 @@ public class LineItemService(
             storedAmount = -amount; // Placeholder - will be recalculated
         }
 
-        var discountLineItem = new LineItem
-        {
-            Id = Guid.NewGuid(),
-            LineItemType = LineItemType.Discount,
-            Name = name ?? (discountValueType == DiscountValueType.Percentage ? amount + "% discount" : discountValueType == DiscountValueType.Free ? "Free" : "Discount"),
-            Sku = $"DISCOUNT-{Guid.NewGuid():N}",
-            Amount = storedAmount,
-            Quantity = 1,
-            IsTaxable = false,
-            TaxRate = 0,
-            DependantLineItemSku = linkedSku,
-            DateCreated = DateTime.UtcNow,
-            DateUpdated = DateTime.UtcNow,
-            ExtendedData = new Dictionary<string, object>
+        var discountLineItem = lineItemFactory.CreateDiscountLineItem(
+            name: name ?? (discountValueType == DiscountValueType.Percentage ? amount + "% discount" : discountValueType == DiscountValueType.Free ? "Free" : "Discount"),
+            sku: $"DISCOUNT-{Guid.NewGuid():N}",
+            amount: storedAmount,
+            dependantLineItemSku: linkedSku,
+            extendedData: new Dictionary<string, object>
             {
                 [Constants.ExtendedDataKeys.DiscountValueType] = discountValueType.ToString(),
                 [Constants.ExtendedDataKeys.DiscountValue] = amount
-            }
-        };
+            });
 
         if (!string.IsNullOrEmpty(reason))
         {

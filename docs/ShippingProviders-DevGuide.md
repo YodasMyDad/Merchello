@@ -47,7 +47,7 @@ public record ProviderConfigCapabilities
 {
     public bool HasLocationBasedCosts { get; init; }  // Show costs table
     public bool HasWeightTiers { get; init; }         // Show weight tiers table
-    public bool UsesLiveRates { get; init; }          // Rates from API, not config
+    public bool UsesLiveRates { get; init; }          // Fetches rates from external carrier API
     public bool RequiresGlobalConfig { get; init; }   // Needs API credentials first
 }
 ```
@@ -58,20 +58,29 @@ public record ProviderConfigCapabilities
 | UPS/FedEx | false | false | true | true |
 | Free Shipping | false | false | false | false |
 
-## Two Types of Configuration
+**`UsesLiveRates`**: When `true`, the provider fetches rates from an external carrier API (e.g. FedEx, UPS). It does not require pre-configured `ShippingOption` records per service type. Instead, it queries the carrier API and returns all available services for the route. Per-warehouse configuration (markup, exclusions) is managed via `WarehouseProviderConfig` rather than individual ShippingOptions.
 
-Providers can have two types of configuration:
+## Types of Configuration
+
+Providers can have up to three types of configuration:
 
 1. **Global Configuration** (`GetConfigurationFieldsAsync`)
    - API credentials, account numbers, environment selection
    - Stored in `merchelloShippingProviderConfigurations` table
    - Required before provider can be used (if `RequiresGlobalConfig = true`)
 
-2. **Per-Method Configuration** (`GetMethodConfigFieldsAsync`)
+2. **Per-Method Configuration** (`GetMethodConfigFieldsAsync`) — *non-dynamic providers only*
    - Method name, delivery days, markup percentage
    - Stored in `ShippingOption.ProviderSettings` as JSON
    - Each warehouse can have multiple methods from same provider
    - Service type selection is handled via `GetSupportedServiceTypesAsync`
+
+3. **Per-Warehouse Provider Configuration** (`WarehouseProviderConfig`) — *dynamic providers only*
+   - Default markup percentage, per-service markup overrides
+   - Service exclusions (hide specific services at a warehouse)
+   - Delivery time overrides
+   - Stored in `merchelloWarehouseProviderConfigs` table
+   - One record per provider/warehouse combination
 
 ---
 
@@ -166,9 +175,9 @@ public override async Task<ShippingRateQuote?> GetRatesAsync(
 
 ---
 
-## GetRatesForServicesAsync
+## GetRatesForServicesAsync (Non-Dynamic Providers)
 
-External providers (FedEx, UPS, etc.) should implement `GetRatesForServicesAsync` to support per-warehouse service filtering:
+For providers with `UsesLiveRates = false`, implement `GetRatesForServicesAsync` to support per-warehouse service filtering via ShippingOption records:
 
 ```csharp
 public override async Task<ShippingRateQuote?> GetRatesForServicesAsync(
@@ -221,6 +230,156 @@ public override async Task<ShippingRateQuote?> GetRatesForServicesAsync(
 - Each warehouse can enable different services (East Coast: Ground only, West Coast: Ground + 2Day)
 
 The default `ShippingProviderBase` implementation calls `GetRatesAsync` and filters by `serviceLevel.ServiceType?.Code`.
+
+---
+
+## Dynamic Provider Methods
+
+When `UsesLiveRates = true`, providers use a different set of methods. Instead of requiring pre-configured `ShippingOption` records per service type, dynamic providers query the carrier API and return all available services, with per-warehouse settings managed via `WarehouseProviderConfig`.
+
+### GetAvailableServicesAsync
+
+Discovers available services for a specific origin/destination route. Used by the UI to show which services are available before fetching rates.
+
+```csharp
+public override Task<IReadOnlyList<ShippingServiceType>?> GetAvailableServicesAsync(
+    string originCountryCode,
+    string originPostalCode,
+    string destinationCountryCode,
+    string? destinationPostalCode = null,
+    CancellationToken cancellationToken = default)
+{
+    // Option A: Return static list if carrier API handles route filtering at rate time
+    // (FedEx and UPS use this approach - their Rate API only returns available services)
+    return Task.FromResult<IReadOnlyList<ShippingServiceType>?>(SupportedServiceTypes);
+
+    // Option B: Query carrier's Service Availability API for route-specific services
+    // var services = await _apiClient.GetServicesForRouteAsync(
+    //     originCountryCode, destinationCountryCode, cancellationToken);
+    // return services;
+}
+```
+
+**Return `null`** from the base implementation if your provider does not support dynamic discovery (the default `ShippingProviderBase` behaviour). This signals the system to fall back to `GetSupportedServiceTypesAsync`.
+
+### GetRatesForAllServicesAsync
+
+Fetches rates for ALL available services on the route, then applies `WarehouseProviderConfig` settings (exclusions and markup). This is the primary rate-fetching method for dynamic providers.
+
+```csharp
+public override async Task<ShippingRateQuote?> GetRatesForAllServicesAsync(
+    ShippingQuoteRequest request,
+    WarehouseProviderConfig warehouseConfig,
+    CancellationToken cancellationToken = default)
+{
+    // 1. Get all available rates from carrier API
+    var quote = await GetRatesAsync(request, cancellationToken);
+    if (quote == null) return null;
+
+    // 2. Apply warehouse config: exclusions and per-service markup
+    List<ShippingServiceLevel> filteredLevels = [];
+
+    foreach (var sl in quote.ServiceLevels)
+    {
+        var serviceCode = sl.ServiceType?.Code ?? sl.ServiceCode;
+
+        // Skip excluded services
+        if (warehouseConfig.IsServiceExcluded(serviceCode))
+            continue;
+
+        // Apply markup (per-service override or default)
+        var markupPercent = warehouseConfig.GetMarkupForService(serviceCode);
+        var totalCost = sl.TotalCost;
+
+        if (markupPercent > 0m)
+        {
+            totalCost = sl.TotalCost * (1 + (markupPercent / 100m));
+            totalCost = _currencyService.Round(totalCost, sl.CurrencyCode);
+        }
+
+        filteredLevels.Add(new ShippingServiceLevel
+        {
+            ServiceCode = sl.ServiceCode,
+            ServiceName = sl.ServiceName,
+            TotalCost = totalCost,
+            CurrencyCode = sl.CurrencyCode,
+            TransitTime = sl.TransitTime,
+            EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
+            Description = sl.Description,
+            ServiceType = sl.ServiceType,
+            ExtendedProperties = sl.ExtendedProperties
+        });
+    }
+
+    return new ShippingRateQuote
+    {
+        ProviderKey = quote.ProviderKey,
+        ProviderName = quote.ProviderName,
+        ServiceLevels = filteredLevels.OrderBy(s => s.TotalCost).ToList(),
+        Errors = quote.Errors
+    };
+}
+```
+
+### WarehouseProviderConfig Model
+
+Per-warehouse configuration for dynamic providers. The system passes this to `GetRatesForAllServicesAsync`:
+
+```csharp
+public class WarehouseProviderConfig
+{
+    public Guid Id { get; set; }
+    public Guid WarehouseId { get; set; }
+    public string ProviderKey { get; set; }
+    public bool IsEnabled { get; set; } = true;
+
+    // Markup
+    public decimal DefaultMarkupPercent { get; set; }           // Applied to all services
+    public string? ServiceMarkupsJson { get; set; }             // {"FEDEX_GROUND": 5, "FEDEX_2_DAY": 15}
+
+    // Exclusions
+    public string? ExcludedServiceTypesJson { get; set; }       // ["FIRST_OVERNIGHT"]
+
+    // Delivery time overrides
+    public int? DefaultDaysFromOverride { get; set; }
+    public int? DefaultDaysToOverride { get; set; }
+
+    // Helper methods
+    public decimal GetMarkupForService(string serviceCode);     // Per-service override or default
+    public bool IsServiceExcluded(string serviceCode);          // Check exclusion list
+}
+```
+
+**Configuration hierarchy**: Per-service markup override → Default markup percent → 0% (no markup).
+
+### Dynamic vs Non-Dynamic: When to Use Each
+
+| Aspect | Non-Dynamic (`UsesLiveRates = false`) | Dynamic (`UsesLiveRates = true`) |
+|--------|---------------------------------------------|---------------------------------------|
+| Config model | `ShippingOption` per service type | `WarehouseProviderConfig` per provider |
+| Rate method | `GetRatesForServicesAsync` | `GetRatesForAllServicesAsync` |
+| Service discovery | Admin selects from `GetSupportedServiceTypesAsync` | Carrier API returns available services |
+| Markup | Per-ShippingOption `ProviderSettings` JSON | `WarehouseProviderConfig` markup fields |
+| Exclusions | Don't create ShippingOption for unwanted services | `ExcludedServiceTypesJson` list |
+| SelectionKey | `so:{shippingOptionId}` | `dyn:{providerKey}:{serviceCode}` |
+| Use case | Providers where admin pre-selects specific services | Carriers where all services should be available |
+
+### Fallback Rates
+
+Dynamic providers can signal that rates are from cache (when the carrier API is unavailable):
+
+```csharp
+return new ShippingRateQuote
+{
+    ProviderKey = Metadata.Key,
+    ProviderName = Metadata.DisplayName,
+    ServiceLevels = cachedLevels,
+    IsFallbackRate = true,
+    FallbackReason = "carrier_api_unavailable"
+};
+```
+
+The `IsFallbackRate` and `FallbackReason` are propagated to `ShippingOptionInfo` so the frontend can display a warning to the customer.
 
 ---
 
@@ -393,7 +552,7 @@ When implementing a new provider, verify that:
 
 ---
 
-## Example 1: FedEx (Real-Time Rates)
+## Example 1: FedEx (Dynamic Real-Time Rates)
 
 ```csharp
 public class FedExShippingProvider(
@@ -619,6 +778,57 @@ public class FedExShippingProvider(
         };
     }
 
+    // Dynamic service discovery: FedEx Rate API inherently filters by route,
+    // so return the full static list. Actual availability determined at rate time.
+    public override Task<IReadOnlyList<ShippingServiceType>?> GetAvailableServicesAsync(
+        string originCountryCode, string originPostalCode,
+        string destinationCountryCode, string? destinationPostalCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<ShippingServiceType>?>(SupportedServiceTypes);
+    }
+
+    // Dynamic: get all rates then apply WarehouseProviderConfig
+    public override async Task<ShippingRateQuote?> GetRatesForAllServicesAsync(
+        ShippingQuoteRequest request,
+        WarehouseProviderConfig warehouseConfig,
+        CancellationToken cancellationToken = default)
+    {
+        var quote = await GetRatesAsync(request, cancellationToken);
+        if (quote == null) return null;
+
+        List<ShippingServiceLevel> filteredLevels = [];
+        foreach (var sl in quote.ServiceLevels)
+        {
+            var serviceCode = sl.ServiceType?.Code ?? sl.ServiceCode;
+            if (warehouseConfig.IsServiceExcluded(serviceCode)) continue;
+
+            var markupPercent = warehouseConfig.GetMarkupForService(serviceCode);
+            var totalCost = sl.TotalCost;
+            if (markupPercent > 0m)
+            {
+                totalCost = sl.TotalCost * (1 + (markupPercent / 100m));
+                totalCost = _currencyService.Round(totalCost, sl.CurrencyCode);
+            }
+
+            filteredLevels.Add(new ShippingServiceLevel
+            {
+                ServiceCode = sl.ServiceCode, ServiceName = sl.ServiceName,
+                TotalCost = totalCost, CurrencyCode = sl.CurrencyCode,
+                TransitTime = sl.TransitTime, EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
+                Description = sl.Description, ServiceType = sl.ServiceType,
+                ExtendedProperties = sl.ExtendedProperties
+            });
+        }
+
+        return new ShippingRateQuote
+        {
+            ProviderKey = quote.ProviderKey, ProviderName = quote.ProviderName,
+            ServiceLevels = filteredLevels.OrderBy(s => s.TotalCost).ToList(),
+            Errors = quote.Errors
+        };
+    }
+
     private static decimal GetMarkupFromSettings(string? providerSettingsJson)
     {
         if (string.IsNullOrEmpty(providerSettingsJson)) return 0;
@@ -637,7 +847,7 @@ public class FedExShippingProvider(
 
 ---
 
-## Example 2: UPS (with Tracking)
+## Example 2: UPS (Dynamic with Tracking)
 
 ```csharp
 public class UpsShippingProvider(
@@ -814,6 +1024,56 @@ public class UpsShippingProvider(
                     }
                 };
             }).ToList() ?? []
+        };
+    }
+
+    // Dynamic: UPS "Shop" request returns all available services for route
+    public override Task<IReadOnlyList<ShippingServiceType>?> GetAvailableServicesAsync(
+        string originCountryCode, string originPostalCode,
+        string destinationCountryCode, string? destinationPostalCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<ShippingServiceType>?>(SupportedServiceTypes);
+    }
+
+    // Dynamic: get all rates then apply WarehouseProviderConfig
+    public override async Task<ShippingRateQuote?> GetRatesForAllServicesAsync(
+        ShippingQuoteRequest request,
+        WarehouseProviderConfig warehouseConfig,
+        CancellationToken cancellationToken = default)
+    {
+        var quote = await GetRatesAsync(request, cancellationToken);
+        if (quote == null) return null;
+
+        List<ShippingServiceLevel> filteredLevels = [];
+        foreach (var sl in quote.ServiceLevels)
+        {
+            var serviceCode = sl.ServiceType?.Code ?? sl.ServiceCode;
+            if (warehouseConfig.IsServiceExcluded(serviceCode)) continue;
+
+            var markupPercent = warehouseConfig.GetMarkupForService(serviceCode);
+            var totalCost = sl.TotalCost;
+            if (markupPercent > 0m)
+            {
+                totalCost = sl.TotalCost * (1 + (markupPercent / 100m));
+                totalCost = _currencyService.Round(totalCost, sl.CurrencyCode);
+            }
+
+            filteredLevels.Add(new ShippingServiceLevel
+            {
+                ServiceCode = sl.ServiceCode, ServiceName = sl.ServiceName,
+                TotalCost = totalCost, CurrencyCode = sl.CurrencyCode,
+                TransitTime = sl.TransitTime, EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
+                Description = sl.Description, ServiceType = sl.ServiceType,
+                ExtendedProperties = sl.ExtendedProperties
+            });
+        }
+
+        return new ShippingRateQuote
+        {
+            ProviderKey = quote.ProviderKey, ProviderName = quote.ProviderName,
+            ServiceLevels = filteredLevels.OrderBy(s => s.TotalCost).ToList(),
+            Errors = quote.Errors
         };
     }
 
@@ -1286,6 +1546,46 @@ return new ShippingServiceLevel
 
 ---
 
+## TransitTime, ShippingServiceCategory, and 3PL Fulfilment Routing
+
+`ShippingServiceLevel.TransitTime` is used by the fulfilment system to determine the correct 3PL shipping method. When a store uses a 3PL (ShipBob, ShipMonk, etc.), the system infers a `ShippingServiceCategory` speed tier from transit time data:
+
+```csharp
+public enum ShippingServiceCategory
+{
+    Standard = 0,    // Ground/standard (4-7 business days)
+    Economy = 10,    // Budget/slow (8+ business days)
+    Express = 20,    // 2-3 day express
+    Overnight = 30   // Next business day
+}
+```
+
+| TransitTime (days) | ShippingServiceCategory | Typical 3PL Method |
+|---------------------|------------------------|-------------------|
+| ≤ 1 | `Overnight` | "Overnight", "Next Day" |
+| 2-3 | `Express` | "2-Day", "Expedited" |
+| 4-7 | `Standard` | "Ground", "Standard" |
+| 8+ | `Economy` | "Economy", "Standard" |
+| Not set (null) | null | DefaultShippingMethod fallback |
+
+**Providers should always set `TransitTime`** on `ShippingServiceLevel` when the carrier API returns transit data. This enables correct 3PL routing without hardcoding carrier-specific service codes.
+
+```csharp
+// In GetRatesAsync - always populate TransitTime from carrier response
+return new ShippingServiceLevel
+{
+    ServiceCode = $"fedex-{rate.ServiceType.ToLowerInvariant()}",
+    ServiceName = serviceType?.DisplayName ?? rate.ServiceName,
+    TotalCost = totalCost,
+    TransitTime = TimeSpan.FromDays(rate.TransitDays),  // Critical for 3PL routing
+    // ...
+};
+```
+
+If a carrier API doesn't return transit time, the fulfilment system falls through to `DefaultShippingMethod` configured on the fulfilment provider.
+
+---
+
 ## Notes
 
 - Sensitive config values (API keys) should be encrypted at rest
@@ -1298,13 +1598,14 @@ return new ShippingServiceLevel
 - Use `ExtendedProperties` only for truly optional metadata (tracking URL templates, etc.)
 - Weight should be in kilograms, dimensions in centimeters
 - Always check `IsAvailableFor` before making expensive API calls
-- Override `GetRatesForServicesAsync` for efficient per-service filtering with markup support
+- Override `GetRatesForServicesAsync` for efficient per-service filtering with markup support (non-dynamic providers)
+- **Dynamic providers** (`UsesLiveRates = true`): override `GetRatesForAllServicesAsync` and `GetAvailableServicesAsync` instead of `GetRatesForServicesAsync`
+- **Dynamic providers** use `WarehouseProviderConfig` for per-warehouse markup/exclusions, not individual `ShippingOption` records
+- **Dynamic providers** generate SelectionKeys in the format `dyn:{providerKey}:{serviceCode}` (e.g., `dyn:fedex:FEDEX_GROUND`)
+- **Fallback rates**: Set `IsFallbackRate = true` and `FallbackReason` on `ShippingRateQuote` when returning cached rates due to carrier API failure
 - **External providers must convert rates to request currency** using `IExchangeRateCache` and `ICurrencyService` (see "Currency Conversion for External Providers" section)
 - **Rates are assumed tax-exclusive by default** - if your provider returns tax-inclusive rates, set `RatesIncludeTax = true` in metadata (see "Tax Handling for Shipping Rates" section)
-
-
-
-
+- **Always populate `TransitTime`** on `ShippingServiceLevel` when carrier API provides transit data - this enables automatic `ShippingServiceCategory` inference for 3PL speed-tier routing
 
 
 

@@ -1,6 +1,7 @@
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Payments.Models;
+using Merchello.Core.Shared.Providers;
 
 namespace Merchello.Core.Payments.Providers.BuiltIn;
 

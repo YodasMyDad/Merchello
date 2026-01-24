@@ -65,14 +65,36 @@ Feature/
 ### 2.1 Products
 
 **IProductService:**
-- `RegenerateVariants()` - Regenerate variants from options
+- `GenerateVariantsFromOptions()` - Generate variants from product options
 - `PreviewAddonPriceAsync()` - Preview add-on pricing
+
+**IProductCollectionService:**
+- `GetProductCollections()` - Get all collections
+- `GetProductCollectionsWithCounts()` - Get collections with product counts
+- `GetCollection()` - Get single collection
+- `GetCollectionsByIds()` - Get multiple collections by ID
+- `CreateProductCollection()` - Create collection
+- `UpdateProductCollection()` - Update collection
+- `DeleteProductCollection()` - Delete collection
+
+**IProductTypeService:**
+- `GetProductTypesAsync()` - Get all product types
+- `GetProductTypeAsync()` - Get single product type
+- `CreateProductTypeAsync()` - Create product type
+- `UpdateProductTypeAsync()` - Update product type
+- `DeleteProductTypeAsync()` - Delete product type
+
+**IProductFilterService:**
+- Filter group and filter value CRUD operations
+- `GetFilterGroupsAsync()`, `CreateFilterGroupAsync()`, `UpdateFilterGroupAsync()`, `DeleteFilterGroupAsync()`
+- `GetFiltersAsync()`, `CreateFilterAsync()`, `UpdateFilterAsync()`, `DeleteFilterAsync()`
+- Product-filter association management
 
 **Stock Status Calculation:**
 Backend calculates `StockStatus` enum: `InStock` | `LowStock` | `OutOfStock` | `Untracked`
 
 **Model Hierarchy:**
-- `ProductRoot` - Parent with options, TaxGroupId, DefaultPackageConfigurations
+- `ProductRoot` - Parent with options, TaxGroupId, DefaultPackageConfigurations, AllowExternalCarrierShipping
 - `Product` - Variant with specific SKU, price, stock per warehouse, PackageConfigurations, HsCode
 
 **Front-End Product Routing:**
@@ -121,13 +143,18 @@ Handles link/media resolution, block rendering, and HTML cleanup.
 ### 2.2 Inventory & Warehouses
 
 **IInventoryService:**
-- `ReserveAsync()` - Reserve stock on order creation
-- `AllocateAsync()` - Allocate stock on shipment (Stock -= qty, Reserved -= qty)
-- `ReleaseAsync()` - Release reserved stock on cancellation
+- `ReserveStockAsync()` - Reserve stock on order creation
+- `AllocateStockAsync()` - Allocate stock on shipment (Stock -= qty, Reserved -= qty)
+- `ReleaseReservationAsync()` - Release reserved stock on cancellation
+- `ReverseAllocationAsync()` - Reverse a previous allocation
+- `GetAvailableStockAsync()` - Get available stock for a product/warehouse
+- `ValidateStockAvailabilityAsync()` - Validate stock is available for quantity
+- `IsStockTrackedAsync()` - Check if stock tracking is enabled
+- `ValidateBasketStockAsync()` - Validate all basket items have sufficient stock
 
 **IWarehouseService:**
-- `AdjustStockAsync()` - Manual stock corrections
-- `TransferStockAsync()` - Transfer between warehouses
+- `AdjustStock()` - Manual stock corrections
+- `TransferStock()` - Transfer between warehouses
 
 **Stock Flow (TrackStock=true):**
 ```
@@ -142,9 +169,15 @@ Cancel       → Release (Reserved -= qty)
 
 **ICheckoutService:**
 - `CalculateBasketAsync()` - Recalculate totals with tax and shipping
-- `ApplyDiscountCodeAsync()` - Apply promotional discount codes
-- `RefreshAutomaticDiscountsAsync()` - Check and apply automatic discounts
 - `SaveAddressesAsync()` - Save addresses (stores marketing opt-in in `CheckoutSession.AcceptsMarketing`)
+
+**ICheckoutDiscountService:**
+- `ApplyDiscountCodeAsync()` - Apply promotional discount codes
+- `RemovePromotionalDiscountAsync()` - Remove applied promotional discount
+- `RefreshAutomaticDiscountsAsync()` - Check and apply automatic discounts
+- `GetApplicableAutomaticDiscountsAsync()` - Get applicable automatic discounts for basket
+- `AddDiscountToBasketAsync()` - Add a discount to the basket
+- `RemoveDiscountFromBasketAsync()` - Remove a discount from the basket
 
 **IAbandonedCheckoutService:**
 - `TrackCheckoutActivityAsync()` - Track customer checkout progress (resets Recovered/Abandoned → Active for re-abandonment)
@@ -166,11 +199,14 @@ Active → Abandoned → Recovered → Converted
 
 **IInvoiceService:**
 - `CreateOrderFromBasketAsync(basket, session, source?)` - Create invoice and orders from basket with optional source tracking
-- `PreviewInvoiceEditAsync()` - Preview edit without saving
-- `EditInvoiceAsync()` - Apply edits to invoice
 - `CreateDraftOrderAsync()` - Create draft order for manual entry
 - `CancelInvoiceAsync()` - Cancel invoice and release stock
 - `QueryInvoices(parameters)` - Query with filtering including `SourceType`
+
+**IInvoiceEditService:**
+- `GetInvoiceForEditAsync()` - Get invoice data prepared for editing
+- `PreviewInvoiceEditAsync()` - Preview edit without saving
+- `EditInvoiceAsync()` - Apply edits to invoice
 
 **Invoice Source Tracking:**
 
@@ -196,8 +232,10 @@ await invoiceService.QueryInvoices(new InvoiceQueryParameters { SourceType = "uc
 **Calculation Flow:**
 ```
 CheckoutService.CalculateBasketAsync()
+    → ResolveLineItemTaxRatesAsync()              ← Resolves per-location rates via TaxService
+        → TaxService.GetApplicableRateAsync()        (state → country → TaxGroup default)
     → LineItemService.CalculateFromLineItems()
-        → TaxCalculationService.CalculateOrderTax()
+        → TaxCalculationService.CalculateOrderTax()  ← Uses resolved li.TaxRate values
 ```
 
 **Shared Calculation Logic:**
@@ -208,7 +246,7 @@ CheckoutService.CalculateBasketAsync()
 | Tax pro-rating | `ITaxCalculationService.CalculateOrderTax()` |
 | Rounding | `ICurrencyService.Round()` |
 
-**Difference:** Basket uses `DefaultTaxRate` (fast preview); Invoice uses stored `TaxRate` + provider (accurate final).
+**Difference:** Basket resolves rates from `TaxGroupRate` by location (accurate for ManualTaxProvider); Invoice additionally supports external tax providers (Avalara, TaxJar) for street-level precision.
 
 **Order Lifecycle:**
 ```
@@ -219,7 +257,8 @@ Any (except Shipped/Completed) → Cancelled | OnHold
 ### 2.5 Shipping & Fulfillment
 
 **IShippingService:**
-- `GetShippingOptionsForBasket()` - Get available options for basket
+- `GetShippingOptionsForBasket()` - Get available options for basket (calls order grouping strategy internally)
+- `GetShippingSummaryForReview()` - Get summary for order review page
 - `GetRequiredWarehouses()` - Determine warehouses needed
 - `GetShippingOptionsForWarehouseAsync()` - Options for specific warehouse
 - `GetFulfillmentOptionsForProductAsync()` - Fulfillment options for product
@@ -227,7 +266,14 @@ Any (except Shipped/Completed) → Cancelled | OnHold
 - `GetShippingOptionsForProductAsync()` - Options available for product
 
 **IShippingQuoteService:**
-- `GetQuotesAsync()` - Get shipping rate quotes
+- `GetQuotesAsync()` - Get shipping rate quotes (basket-level, may involve multiple warehouses)
+- `GetQuotesForWarehouseAsync()` - Get quotes for a specific warehouse origin (used by order grouping)
+
+**IWarehouseProviderConfigService:**
+- `GetByWarehouseAndProviderAsync()` - Get config for warehouse/provider pair
+- `GetByWarehouseAsync()` - All configs for a warehouse
+- `GetAllEnabledAsync()` - All enabled configs
+- `CreateAsync()` / `UpdateAsync()` / `DeleteAsync()` - CRUD operations
 
 **IShipmentService:**
 - `CreateShipmentAsync()` - Create single shipment
@@ -298,7 +344,7 @@ See [Section 3: Tax System](#3-tax-system) for detailed shipping tax documentati
 - `Calculate()` - Calculate BOGO discounts
 
 **IInvoiceService:**
-- `PreviewDiscountAsync()` - Preview discount application
+- `ApplyPromotionalDiscountAsync()` - Apply promotional discount to invoice
 
 ### 2.10 Reporting
 
@@ -372,9 +418,11 @@ Tax is calculated using `TaxGroup` entities. Each `ProductRoot` has a `TaxGroupI
 ```
 ProductRoot.TaxGroupId
         ↓
-LineItemFactory.CreateFromProduct() captures TaxGroupId
+LineItemFactory.CreateFromProduct() captures TaxGroupId + TaxRate (TaxGroup default)
         ↓
 Basket.LineItems (TaxGroupId preserved)
+        ↓
+CheckoutService.ResolveLineItemTaxRatesAsync() updates TaxRate per-location
         ↓
 LineItemFactory.CreateForOrder() preserves TaxGroupId
         ↓
@@ -481,12 +529,27 @@ public class ExtensionManager(IServiceProvider serviceProvider)
 |----------|---------|
 | **Configuration** | `Metadata`, `GetConfigurationFieldsAsync()`, `GetMethodConfigFieldsAsync()`, `ConfigureAsync()` |
 | **Availability** | `IsAvailableFor()` |
-| **Rates** | `GetRatesAsync()`, `GetRatesForServicesAsync()`, `GetSupportedServiceTypesAsync()` |
+| **Rates (Static)** | `GetRatesAsync()`, `GetRatesForServicesAsync()`, `GetSupportedServiceTypesAsync()` |
+| **Rates (Dynamic)** | `GetAvailableServicesAsync()`, `GetRatesForAllServicesAsync()` |
 | **Delivery Dates** | `GetAvailableDeliveryDatesAsync()`, `CalculateDeliveryDateSurchargeAsync()`, `ValidateDeliveryDateAsync()` |
 
-**Built-in:** `FlatRateShippingProvider`
+**Provider Types:**
 
-**Currency Conversion:** Providers use `IExchangeRateCache` for currency conversion.
+| Type | UsesLiveRates | ShippingOptions | Rates Source |
+|------|--------------------|-----------------|--------------|
+| **Flat Rate** | `false` | Per-warehouse ShippingOption records with costs/weight tiers | `ShippingCostResolver` (DB lookup) |
+| **External Carriers** | `true` | Not needed - uses `WarehouseProviderConfig` | Carrier API via `GetRatesForAllServicesAsync()` |
+
+**Dynamic Provider Flow:**
+1. `WarehouseProviderConfig` enables provider per-warehouse (markup, exclusions)
+2. At checkout, `ShippingQuoteService.GetQuotesForWarehouseAsync()` calls provider
+3. Provider fetches ALL available rates from carrier API
+4. Excluded services filtered, markup applied from `WarehouseProviderConfig`
+5. Rates returned in basket currency
+
+**Built-in:** `FlatRateShippingProvider`, `FedExShippingProvider`, `UpsShippingProvider`
+
+**Currency Conversion:** External providers use `IExchangeRateCache` for currency conversion.
 
 ### 4.3 Payment Providers
 
@@ -541,14 +604,17 @@ Single active provider at a time. **Built-in:** `ManualTaxProvider` (uses TaxGro
 | `CustomerEmail` | `string?` | Customer email |
 | `Products` | `Dictionary<Guid, Product>` | Product lookup |
 | `Warehouses` | `Dictionary<Guid, Warehouse>` | Warehouse lookup |
-| `SelectedShippingOptions` | `Dictionary<Guid, Guid>` | Group → Option selections |
+| `SelectedShippingOptions` | `Dictionary<Guid, string>` | Group → SelectionKey (e.g., `"so:{id}"` or `"dyn:fedex:FEDEX_GROUND"`) |
 | `ExtendedData` | `Dictionary<string, object>` | Custom strategy data |
 
 **Output:** `OrderGroupingResult` with `GroupId` (deterministic GUID), `GroupName`, `WarehouseId?`, `LineItems`, `AvailableShippingOptions`, `Metadata`
 
 **Config:** `"Merchello:OrderGroupingStrategy": "vendor-grouping"` (empty = warehouse default)
 
-**Default Strategy:** Groups by warehouse (stock → priority → region)
+**Default Strategy:** Groups by warehouse (stock → priority → region). For each group:
+- Flat-rate options resolved via `ShippingCostResolver` (DB lookup)
+- Dynamic provider options resolved via `ShippingQuoteService.GetQuotesForWarehouseAsync()` (carrier API calls)
+- Products with `ProductRoot.AllowExternalCarrierShipping = false` only show flat-rate options
 
 ### 4.6 Commerce Protocol Adapters
 
@@ -612,8 +678,6 @@ Protocol adapters enable Merchello to expose checkout and order capabilities to 
 
 ### 4.7 Fulfilment Providers
 
-> **Note:** Fulfilment Provider system pending implementation. See [Fulfilment.md](Fulfilment.md) for full architecture spec. This section will be expanded after implementation.
-
 Pluggable system for 3PL (third-party logistics) integration. **Separate from Shipping Providers** - shipping calculates rates, fulfilment handles physical work.
 
 **IFulfilmentProvider Interface:**
@@ -626,7 +690,30 @@ Pluggable system for 3PL (third-party logistics) integration. **Separate from Sh
 | **Polling** | `PollOrderStatusAsync()` |
 | **Sync** | `SyncProductsAsync()`, `GetInventoryLevelsAsync()` |
 
-**Built-in:** `ManualFulfilmentProvider`
+**Built-in:** `ManualFulfilmentProvider`, `ShipBobFulfilmentProvider`
+
+**Shipping → Fulfilment Bridge (Service Category Inference):**
+
+3PLs don't use carrier-specific codes (e.g., `FEDEX_GROUND`). They need speed tiers (`Standard`, `Express`, `Overnight`). The system infers the speed tier from carrier transit time data:
+
+```
+Carrier API → TransitTime → DaysFrom/DaysTo on ShippingOptionInfo
+  → InferServiceCategory() at order creation → Order.ShippingServiceCategory
+  → ResolveShippingServiceCode() at fulfilment submission → 3PL-specific method code
+```
+
+**ShippingServiceCategory enum:** `Standard` (4-7 days), `Economy` (8+), `Express` (2-3), `Overnight` (≤1)
+
+**Resolution Priority (ResolveShippingServiceCode):**
+1. `ServiceMappings` lookup by ShippingOptionId (flat-rate explicit mapping)
+2. `ServiceCategoryMapping_{Category}` from provider settings (category-based)
+3. `DefaultShippingMethod` from provider settings (catch-all)
+4. Raw carrier code from `Order.ShippingServiceCode` (last resort)
+
+Each fulfilment provider defines category mappings via `GetConfigurationFieldsAsync()` (auto-rendered in config UI):
+```
+ShipBob: { Standard → "Ground", Express → "2-Day", Overnight → "Overnight", Economy → "Standard" }
+```
 
 ### Configuration Field Types
 
@@ -799,8 +886,15 @@ config.Amount = total;  // PayPal sees same amount as invoice will have
 **Order:**
 | Field | Description |
 |-------|-------------|
+| `ShippingOptionId` | Flat-rate ShippingOption reference (`Guid.Empty` for dynamic providers) |
+| `ShippingProviderKey` | Provider key (e.g., "flat-rate", "fedex", "ups") |
+| `ShippingServiceCode` | Carrier service code (e.g., "FEDEX_GROUND") - null for flat-rate |
+| `ShippingServiceName` | Display name of carrier service |
+| `ShippingServiceCategory` | Inferred speed tier (`ShippingServiceCategory?`) for 3PL routing |
 | `ShippingCost` | In presentment currency |
 | `ShippingCostInStoreCurrency` | For reporting |
+| `QuotedShippingCost` | Rate shown to customer at selection time |
+| `QuotedAt` | When the shipping quote was obtained |
 | `DeliveryDateSurcharge` | In presentment currency |
 | `DeliveryDateSurchargeInStoreCurrency` | For reporting |
 
@@ -814,8 +908,10 @@ config.Amount = total;  // PayPal sees same amount as invoice will have
 
 ### 5.7 Tax-Inclusive Display: Products vs Shipping
 
-**Product Tax (Simple):**
-- Rate from `TaxGroup` → `TaxGroupRate` (by customer location)
+**Product Tax:**
+- Product display: `DisplayPriceExtensions.GetDisplayPriceAsync()` calls `TaxService.GetApplicableRateAsync()` directly
+- Basket line items: `CheckoutService.ResolveLineItemTaxRatesAsync()` updates each `li.TaxRate` before calculation
+- Basket display: `GetDisplayAmounts()` / `GetDisplayLineItemTotal()` uses resolved `li.TaxRate`
 - Priority: State-specific → Country-level → TaxGroup default
 - Calculation: `NET × (1 + taxRate/100)`
 
@@ -853,14 +949,13 @@ public record StorefrontDisplayContext(
     string CurrencyCode,              // Customer's display currency ("GBP")
     string CurrencySymbol,            // Symbol for display ("£")
     int DecimalPlaces,                // Rounding precision (2 for most, 0 for JPY)
-    decimal ExchangeRate,             // Presentment → Store rate (1.25)
+    decimal ExchangeRate,             // Store → Presentment rate (0.80 for USD→GBP)
     string StoreCurrencyCode,         // Base store currency ("USD")
 
     // Tax Display
     bool DisplayPricesIncTax,         // Global setting from MerchelloSettings
     string TaxCountryCode,            // Customer's country for rate lookup
     string? TaxRegionCode,            // Region for state-specific rates
-    decimal DefaultTaxRate = 0,       // Fallback rate
 
     // Shipping Tax
     bool IsShippingTaxable = true,    // From tax provider
@@ -946,8 +1041,8 @@ Customer → 1:N → Invoice (required, auto-created)
 Customer → M:N → CustomerSegment (via member/criteria)
 CustomerSegment → 1:N → CustomerSegmentMember (manual only)
 
-Discount → 1:N → TargetRule, EligibilityRule, Usage
-Discount → 1:1 → BuyXGetYConfig?, FreeShippingConfig?
+Discount → 1:N → Usage
+Discount → JSON → TargetRules[], EligibilityRules[], BuyXGetYConfig?, FreeShippingConfig?
 
 Invoice → 1:N → Order → Shipment (N:1 Warehouse)
 Invoice → 1:N → Payment (IdempotencyKey, WebhookEventId for dedup)
@@ -955,6 +1050,8 @@ Invoice → 1:N → DownloadLink (digital product downloads)
 Order → 1:N → LineItems
 
 DownloadLink → N:1 → Invoice, LineItem, Customer
+
+Warehouse → 0:N → WarehouseProviderConfig (per-provider config: markup, exclusions)
 
 Order → 0:1 → FulfilmentProviderConfiguration
 Warehouse → 0:1 → FulfilmentProviderConfiguration
@@ -1005,10 +1102,21 @@ Different restrictions = separate groups (even from same warehouse)
 
 `ProductPackage`: Weight(kg), LengthCm?, WidthCm?, HeightCm?
 
+### Shipping Selection Format
+
+Shipping selections use the `SelectionKey` format (stored in `CheckoutSession.SelectedShippingOptions` as `Dict<Guid, string>`):
+
+| Format | Example | Description |
+|--------|---------|-------------|
+| `so:{guid}` | `so:a1b2c3d4-...` | Flat-rate ShippingOption |
+| `dyn:{provider}:{serviceCode}` | `dyn:fedex:FEDEX_GROUND` | Dynamic provider service |
+
+At order creation, `SelectionKey` is parsed to populate `Order.ShippingProviderKey`, `Order.ShippingServiceCode`, and `Order.ShippingServiceName`. The quoted rate (from `CheckoutSession.QuotedShippingCosts`) is honored rather than re-fetching.
+
 ### Flow
 
 ```
-Basket → GroupItemsAsync() → Groups → Customer selects shipping → Invoice (1) → Orders (/group) → Shipments (1+/order)
+Basket → GroupItemsAsync() → Groups (flat-rate + dynamic quotes) → Customer selects shipping (SelectionKey) → Invoice (1) → Orders (/group) → Shipments (1+/order)
 ```
 
 ---
@@ -1265,12 +1373,20 @@ All domain objects are created via factories for consistency, thread safety, and
 | `ProductFactory` | `Create(productRoot, name, price, ...)` |
 | `ProductRootFactory` | `Create(name, taxGroup, productType, options)` |
 | `ProductOptionFactory` | `Create(params)`, `CreateEmpty()`, `CreateEmptyValue()` |
-| `LineItemFactory` | `CreateFromProduct()`, `CreateShippingLineItem()`, `CreateForOrder()`, `CreateAddonForOrder()`, `CreateDiscountForOrder()` |
+| `LineItemFactory` | `CreateFromProduct()`, `CreateAddonForBasket()`, `CreateShippingLineItem()`, `CreateForOrder()`, `CreateAddonForOrder()`, `CreateDiscountForOrder()`, `CreateForShipment()`, `CreateDiscountLineItem()`, `CreateShipmentTrackingLineItem()`, `CreateCustomLineItem()` |
 | `TaxGroupFactory` | `Create(name, taxPercentage)` |
 | `CustomerFactory` | `CreateFromEmail()`, `Create(params)` |
 | `CustomerSegmentFactory` | `Create(params)`, `CreateMember()` |
-| `DiscountFactory` | `Create(params)`, `CreateTargetRule()`, `CreateEligibilityRule()`, `CreateBuyXGetYConfig()`, `CreateFreeShippingConfig()` |
+| `DiscountFactory` | `Create(params)`, `CreateTargetRule()`, `CreateEligibilityRule()`, `CreateBuyXGetYConfig()`, `CreateFreeShippingConfig()` (sub-entities are JSON-stored POCOs) |
 | `DownloadLinkFactory` | `Create(params)` - Creates secure download link with HMAC token |
+| `AddressFactory` | `Create(params)` - Creates locality addresses |
+| `ProductCollectionFactory` | `Create(params)` - Creates product collections |
+| `ProductFilterFactory` | `Create(params)` - Creates product filters |
+| `ProductFilterGroupFactory` | `Create(params)` - Creates product filter groups |
+| `ProductTypeFactory` | `Create(params)` - Creates product types |
+| `ShippingOptionFactory` | `Create(params)` - Creates shipping options |
+| `SupplierFactory` | `Create(params)` - Creates supplier entities |
+| `WarehouseFactory` | `Create(params)` - Creates warehouse entities |
 
 ---
 
@@ -1282,8 +1398,8 @@ All domain objects are created via factories for consistency, thread safety, and
 | `OutboundDeliveryJob` | Processes webhook and email retry queue |
 | `AbandonedCheckoutDetectionJob` | Detects abandoned carts, sends email sequence, expires old checkouts |
 | `InvoiceReminderJob` | Sends payment reminders and overdue notices |
-| `FulfilmentPollingJob` | Polls 3PLs for order status updates (pending implementation) |
-| `FulfilmentRetryJob` | Retries failed 3PL order submissions (pending implementation) |
+| `FulfilmentPollingJob` | Polls 3PLs for order status updates |
+| `FulfilmentRetryJob` | Retries failed 3PL order submissions |
 
 ---
 

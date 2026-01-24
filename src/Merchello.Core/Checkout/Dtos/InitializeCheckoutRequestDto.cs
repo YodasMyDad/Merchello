@@ -17,10 +17,10 @@ public class InitializeCheckoutRequestDto
     public string? StateCode { get; set; }
 
     /// <summary>
-    /// Whether to auto-select the cheapest shipping option for each group.
+    /// Whether to auto-select shipping. Strategy is determined by store settings.
     /// Defaults to true for single-page and express checkout scenarios.
     /// </summary>
-    public bool AutoSelectCheapestShipping { get; set; } = true;
+    public bool AutoSelectShipping { get; set; } = true;
 
     /// <summary>
     /// Optional email for session tracking.

@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Shared.Extensions;
 
@@ -173,26 +175,66 @@ public class Discount
     public Guid? CreatedBy { get; set; }
 
     // =====================================================
-    // Navigation Properties
+    // JSON Columns
     // =====================================================
 
     /// <summary>
-    /// Target rules defining what products/categories this discount applies to.
+    /// Serialized JSON for target rules.
     /// </summary>
-    public virtual ICollection<DiscountTargetRule> TargetRules { get; set; } = [];
+    public string? TargetRulesJson { get; set; }
 
     /// <summary>
-    /// Eligibility rules defining who can use this discount.
+    /// Serialized JSON for eligibility rules.
     /// </summary>
-    public virtual ICollection<DiscountEligibilityRule> EligibilityRules { get; set; } = [];
+    public string? EligibilityRulesJson { get; set; }
 
     /// <summary>
-    /// Buy X Get Y configuration (only for BuyXGetY discounts).
+    /// Serialized JSON for Buy X Get Y configuration.
     /// </summary>
-    public virtual DiscountBuyXGetYConfig? BuyXGetYConfig { get; set; }
+    public string? BuyXGetYConfigJson { get; set; }
 
     /// <summary>
-    /// Free shipping configuration (only for FreeShipping discounts).
+    /// Serialized JSON for Free Shipping configuration.
     /// </summary>
-    public virtual DiscountFreeShippingConfig? FreeShippingConfig { get; set; }
+    public string? FreeShippingConfigJson { get; set; }
+
+    // =====================================================
+    // Computed Properties (not mapped to DB)
+    // =====================================================
+
+    [NotMapped]
+    public List<DiscountTargetRule> TargetRules =>
+        string.IsNullOrEmpty(TargetRulesJson) ? [] :
+        JsonSerializer.Deserialize<List<DiscountTargetRule>>(TargetRulesJson) ?? [];
+
+    [NotMapped]
+    public List<DiscountEligibilityRule> EligibilityRules =>
+        string.IsNullOrEmpty(EligibilityRulesJson) ? [] :
+        JsonSerializer.Deserialize<List<DiscountEligibilityRule>>(EligibilityRulesJson) ?? [];
+
+    [NotMapped]
+    public DiscountBuyXGetYConfig? BuyXGetYConfig =>
+        string.IsNullOrEmpty(BuyXGetYConfigJson) ? null :
+        JsonSerializer.Deserialize<DiscountBuyXGetYConfig>(BuyXGetYConfigJson);
+
+    [NotMapped]
+    public DiscountFreeShippingConfig? FreeShippingConfig =>
+        string.IsNullOrEmpty(FreeShippingConfigJson) ? null :
+        JsonSerializer.Deserialize<DiscountFreeShippingConfig>(FreeShippingConfigJson);
+
+    // =====================================================
+    // Setter Helpers
+    // =====================================================
+
+    public void SetTargetRules(List<DiscountTargetRule>? rules) =>
+        TargetRulesJson = rules is { Count: > 0 } ? JsonSerializer.Serialize(rules) : null;
+
+    public void SetEligibilityRules(List<DiscountEligibilityRule>? rules) =>
+        EligibilityRulesJson = rules is { Count: > 0 } ? JsonSerializer.Serialize(rules) : null;
+
+    public void SetBuyXGetYConfig(DiscountBuyXGetYConfig? config) =>
+        BuyXGetYConfigJson = config != null ? JsonSerializer.Serialize(config) : null;
+
+    public void SetFreeShippingConfig(DiscountFreeShippingConfig? config) =>
+        FreeShippingConfigJson = config != null ? JsonSerializer.Serialize(config) : null;
 }

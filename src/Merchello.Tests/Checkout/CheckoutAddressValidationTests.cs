@@ -4,7 +4,9 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Tests.TestInfrastructure;
 using Shouldly;
@@ -134,14 +136,17 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         var shippingAddress = CreateCompleteAddress("John Smith", "john@example.com");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
-            basket,
-            shippingAddress,
-            new Dictionary<Guid, Guid>());
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         var group = shippingResult.WarehouseGroups.First();
-        var selectedShippingOptions = new Dictionary<Guid, Guid>
+        var selectedOption = group.AvailableShippingOptions.First();
+        var selectedShippingOptions = new Dictionary<Guid, string>
         {
-            [group.GroupId] = group.AvailableShippingOptions.First().ShippingOptionId
+            [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
         };
 
         var checkoutSession = new CheckoutSession
@@ -153,7 +158,9 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeTrue();
+        var invoice = result.ResultObject!;
 
         // Assert
         invoice.ShouldNotBeNull();
@@ -180,14 +187,17 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         var shippingAddress = CreateCompleteAddress("John Smith", "john@example.com");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
-            basket,
-            shippingAddress,
-            new Dictionary<Guid, Guid>());
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         var group = shippingResult.WarehouseGroups.First();
-        var selectedShippingOptions = new Dictionary<Guid, Guid>
+        var selectedOption = group.AvailableShippingOptions.First();
+        var selectedShippingOptions = new Dictionary<Guid, string>
         {
-            [group.GroupId] = group.AvailableShippingOptions.First().ShippingOptionId
+            [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
         };
 
         var checkoutSession = new CheckoutSession
@@ -199,7 +209,9 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeTrue();
+        var invoice = result.ResultObject!;
 
         // Assert
         invoice.ShouldNotBeNull();
@@ -273,14 +285,17 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         };
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
-            basket,
-            shippingAddress,
-            new Dictionary<Guid, Guid>());
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
 
         var group = shippingResult.WarehouseGroups.First();
-        var selectedShippingOptions = new Dictionary<Guid, Guid>
+        var selectedOption = group.AvailableShippingOptions.First();
+        var selectedShippingOptions = new Dictionary<Guid, string>
         {
-            [group.GroupId] = group.AvailableShippingOptions.First().ShippingOptionId
+            [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
         };
 
         var checkoutSession = new CheckoutSession
@@ -292,7 +307,9 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeTrue();
+        var invoice = result.ResultObject!;
 
         // Assert
         invoice.ShouldNotBeNull();
@@ -316,14 +333,17 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         basket.ShippingAddress = CreateCompleteAddress("John Smith", "john@example.com");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
-            basket,
-            basket.ShippingAddress,
-            new Dictionary<Guid, Guid>());
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = basket.ShippingAddress
+            });
 
         var group = shippingResult.WarehouseGroups.First();
-        var selectedShippingOptions = new Dictionary<Guid, Guid>
+        var selectedOption = group.AvailableShippingOptions.First();
+        var selectedShippingOptions = new Dictionary<Guid, string>
         {
-            [group.GroupId] = group.AvailableShippingOptions.First().ShippingOptionId
+            [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
         };
 
         // Session has empty addresses (simulating expired HTTP session)
@@ -335,11 +355,11 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
             SelectedShippingOptions = selectedShippingOptions
         };
 
-        // Act & Assert - Invoice creation throws because billing email is required
+        // Act & Assert - Invoice creation fails because billing email is required
         // This validates that the InvoiceService has proper validation at the service level.
         // The controller's ValidateCheckoutSession method catches this earlier with better error messages.
-        await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession));
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeFalse();
     }
 
     #endregion
@@ -361,14 +381,17 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         var sessionShippingAddress = CreateCompleteAddress("Session Name", "session@example.com");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
-            basket,
-            sessionShippingAddress,
-            new Dictionary<Guid, Guid>());
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = sessionShippingAddress
+            });
 
         var group = shippingResult.WarehouseGroups.First();
-        var selectedShippingOptions = new Dictionary<Guid, Guid>
+        var selectedOption = group.AvailableShippingOptions.First();
+        var selectedShippingOptions = new Dictionary<Guid, string>
         {
-            [group.GroupId] = group.AvailableShippingOptions.First().ShippingOptionId
+            [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
         };
 
         var checkoutSession = new CheckoutSession
@@ -380,7 +403,9 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         };
 
         // Act
-        var invoice = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        result.Successful.ShouldBeTrue();
+        var invoice = result.ResultObject!;
 
         // Assert - Session addresses are used (not basket addresses)
         invoice.ShouldNotBeNull();

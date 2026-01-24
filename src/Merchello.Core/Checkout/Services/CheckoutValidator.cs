@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Strategies.Models;
 using Microsoft.Extensions.Options;
 
 namespace Merchello.Core.Checkout.Services;
@@ -101,6 +102,74 @@ public partial class CheckoutValidator(IOptions<CheckoutSettings> checkoutSettin
     /// <inheritdoc />
     public bool IsValidEmail(string? email) =>
         !string.IsNullOrWhiteSpace(email) && EmailRegex().IsMatch(email);
+
+    /// <inheritdoc />
+    public Dictionary<string, string> ValidateShippingSelections(List<OrderGroup> groups, Dictionary<Guid, string> selections)
+    {
+        var errors = new Dictionary<string, string>();
+
+        foreach (var group in groups)
+        {
+            var selectionKey = ResolveSelectionKey(group, selections);
+
+            if (string.IsNullOrEmpty(selectionKey))
+            {
+                errors[group.GroupId.ToString()] = $"Please select a shipping method for {group.GroupName}.";
+                continue;
+            }
+
+            if (!group.AvailableShippingOptions.Any(o => o.SelectionKey == selectionKey))
+            {
+                errors[group.GroupId.ToString()] = $"Invalid shipping option selected for {group.GroupName}.";
+            }
+        }
+
+        return errors;
+    }
+
+    /// <inheritdoc />
+    public Dictionary<Guid, string> AugmentShippingSelections(List<OrderGroup> groups, Dictionary<Guid, string> selections)
+    {
+        var augmented = new Dictionary<Guid, string>(selections);
+
+        foreach (var group in groups)
+        {
+            var selectedKey = ResolveSelectionKey(group, selections);
+            if (string.IsNullOrEmpty(selectedKey)) continue;
+
+            augmented[group.GroupId] = selectedKey;
+            if (group.WarehouseId.HasValue)
+            {
+                augmented[group.WarehouseId.Value] = selectedKey;
+            }
+        }
+
+        return augmented;
+    }
+
+    /// <summary>
+    /// Resolves a shipping selection key for a group using multi-fallback lookup:
+    /// GroupId, then WarehouseId, then searching available options.
+    /// </summary>
+    private static string? ResolveSelectionKey(OrderGroup group, Dictionary<Guid, string> selections)
+    {
+        // Try 1: lookup by GroupId
+        if (selections.TryGetValue(group.GroupId, out var foundById) && !string.IsNullOrEmpty(foundById))
+            return foundById;
+
+        // Try 2: lookup by WarehouseId
+        if (group.WarehouseId.HasValue &&
+            selections.TryGetValue(group.WarehouseId.Value, out var foundByWarehouse) &&
+            !string.IsNullOrEmpty(foundByWarehouse))
+            return foundByWarehouse;
+
+        // Try 3: search all selections for one matching this group's available options
+        var availableSelectionKeys = group.AvailableShippingOptions.Select(o => o.SelectionKey).ToHashSet();
+        var matchingSelection = selections.FirstOrDefault(kvp =>
+            !string.IsNullOrEmpty(kvp.Value) && availableSelectionKeys.Contains(kvp.Value));
+
+        return !string.IsNullOrEmpty(matchingSelection.Value) ? matchingSelection.Value : null;
+    }
 
     [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.IgnoreCase)]
     private static partial Regex EmailRegex();

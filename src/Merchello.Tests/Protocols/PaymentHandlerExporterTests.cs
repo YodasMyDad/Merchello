@@ -178,7 +178,7 @@ public class PaymentHandlerExporterTests
         var handlers = await _exporter.ExportHandlersAsync("ucp");
 
         // Assert
-        handlers[0].InstrumentSchemas.ShouldContain("card_payment_instrument");
+        handlers[0].InstrumentSchemas!.ShouldContain("card_payment_instrument");
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public class PaymentHandlerExporterTests
         var handlers = await _exporter.ExportHandlersAsync("ucp");
 
         // Assert
-        handlers[0].InstrumentSchemas.ShouldContain("wallet_instrument");
+        handlers[0].InstrumentSchemas!.ShouldContain("wallet_instrument");
     }
 
     [Fact]
@@ -216,7 +216,7 @@ public class PaymentHandlerExporterTests
         var handlers = await _exporter.ExportHandlersAsync("ucp");
 
         // Assert
-        handlers[0].InstrumentSchemas.ShouldContain("wallet_instrument");
+        handlers[0].InstrumentSchemas!.ShouldContain("wallet_instrument");
     }
 
     [Fact]
@@ -235,7 +235,7 @@ public class PaymentHandlerExporterTests
         var handlers = await _exporter.ExportHandlersAsync("ucp");
 
         // Assert
-        handlers[0].InstrumentSchemas.ShouldContain("wallet_instrument");
+        handlers[0].InstrumentSchemas!.ShouldContain("wallet_instrument");
     }
 
     [Fact]
@@ -254,7 +254,7 @@ public class PaymentHandlerExporterTests
         var handlers = await _exporter.ExportHandlersAsync("ucp");
 
         // Assert
-        handlers[0].InstrumentSchemas.ShouldContain("bank_transfer_instrument");
+        handlers[0].InstrumentSchemas!.ShouldContain("bank_transfer_instrument");
     }
 
     [Fact]
@@ -273,7 +273,7 @@ public class PaymentHandlerExporterTests
         var handlers = await _exporter.ExportHandlersAsync("ucp");
 
         // Assert
-        handlers[0].InstrumentSchemas.ShouldContain("bank_transfer_instrument");
+        handlers[0].InstrumentSchemas!.ShouldContain("bank_transfer_instrument");
     }
 
     [Fact]
@@ -292,7 +292,7 @@ public class PaymentHandlerExporterTests
         var handlers = await _exporter.ExportHandlersAsync("ucp");
 
         // Assert
-        handlers[0].InstrumentSchemas.ShouldContain("buy_now_pay_later_instrument");
+        handlers[0].InstrumentSchemas!.ShouldContain("buy_now_pay_later_instrument");
     }
 
     [Fact]

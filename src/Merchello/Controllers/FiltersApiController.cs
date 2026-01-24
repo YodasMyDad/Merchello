@@ -12,7 +12,7 @@ namespace Merchello.Controllers;
 /// </summary>
 [ApiVersion("1.0")]
 [ApiExplorerSettings(GroupName = "Merchello")]
-public class FiltersApiController(IProductService productService) : MerchelloApiControllerBase
+public class FiltersApiController(IProductFilterService productFilterService) : MerchelloApiControllerBase
 {
     /// <summary>
     /// Get all filter groups with their filters
@@ -21,7 +21,7 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType<List<ProductFilterGroupDto>>(StatusCodes.Status200OK)]
     public async Task<List<ProductFilterGroupDto>> GetFilterGroups(CancellationToken ct)
     {
-        var groups = await productService.GetFilterGroups(ct);
+        var groups = await productFilterService.GetFilterGroups(ct);
         return groups
             .OrderBy(g => g.SortOrder)
             .Select(MapGroupToDto)
@@ -36,7 +36,7 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetFilterGroup(Guid id, CancellationToken ct)
     {
-        var filterGroup = await productService.GetFilterGroup(id, ct);
+        var filterGroup = await productFilterService.GetFilterGroup(id, ct);
         if (filterGroup == null)
         {
             return NotFound();
@@ -53,7 +53,7 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateFilterGroup([FromBody] CreateFilterGroupDto dto, CancellationToken ct)
     {
-        var result = await productService.CreateFilterGroup(dto.Name, ct);
+        var result = await productFilterService.CreateFilterGroup(dto.Name, ct);
         if (!result.Successful)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to create filter group.");
@@ -74,7 +74,7 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateFilterGroup(Guid id, [FromBody] UpdateFilterGroupDto dto, CancellationToken ct)
     {
-        var result = await productService.UpdateFilterGroup(id, dto.Name, dto.SortOrder, ct);
+        var result = await productFilterService.UpdateFilterGroup(id, dto.Name, dto.SortOrder, ct);
 
         if (!result.Successful)
         {
@@ -96,7 +96,7 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteFilterGroup(Guid id, CancellationToken ct)
     {
-        var result = await productService.DeleteFilterGroup(id, ct);
+        var result = await productFilterService.DeleteFilterGroup(id, ct);
         if (!result.Successful)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
@@ -118,7 +118,7 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ReorderFilterGroups([FromBody] List<Guid> orderedIds, CancellationToken ct)
     {
-        var result = await productService.ReorderFilterGroups(orderedIds, ct);
+        var result = await productFilterService.ReorderFilterGroups(orderedIds, ct);
         if (!result.Successful)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to reorder filter groups.");
@@ -136,7 +136,7 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CreateFilter(Guid groupId, [FromBody] CreateFilterDto dto, CancellationToken ct)
     {
-        var result = await productService.CreateFilter(new CreateFilterParameters
+        var result = await productFilterService.CreateFilter(new CreateFilterParameters
         {
             FilterGroupId = groupId,
             Name = dto.Name,
@@ -165,7 +165,7 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetFilter(Guid id, CancellationToken ct)
     {
-        var filter = await productService.GetFilter(id, ct);
+        var filter = await productFilterService.GetFilter(id, ct);
         if (filter == null)
         {
             return NotFound();
@@ -183,7 +183,7 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateFilter(Guid id, [FromBody] UpdateFilterDto dto, CancellationToken ct)
     {
-        var result = await productService.UpdateFilter(new UpdateFilterParameters
+        var result = await productFilterService.UpdateFilter(new UpdateFilterParameters
         {
             FilterId = id,
             Name = dto.Name,
@@ -212,7 +212,7 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteFilter(Guid id, CancellationToken ct)
     {
-        var result = await productService.DeleteFilter(id, ct);
+        var result = await productFilterService.DeleteFilter(id, ct);
         if (!result.Successful)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
@@ -234,7 +234,7 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ReorderFilters(Guid groupId, [FromBody] List<Guid> orderedIds, CancellationToken ct)
     {
-        var result = await productService.ReorderFilters(groupId, orderedIds, ct);
+        var result = await productFilterService.ReorderFilters(groupId, orderedIds, ct);
         if (!result.Successful)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to reorder filters.");
@@ -252,7 +252,7 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> AssignFiltersToProduct(Guid productId, [FromBody] AssignFiltersDto dto, CancellationToken ct)
     {
-        var result = await productService.AssignFiltersToProduct(productId, dto.FilterIds, ct);
+        var result = await productFilterService.AssignFiltersToProduct(productId, dto.FilterIds, ct);
 
         if (!result.Successful)
         {
@@ -272,7 +272,7 @@ public class FiltersApiController(IProductService productService) : MerchelloApi
     [ProducesResponseType<List<ProductFilterDto>>(StatusCodes.Status200OK)]
     public async Task<List<ProductFilterDto>> GetFiltersForProduct(Guid productId, CancellationToken ct)
     {
-        var filters = await productService.GetFiltersForProduct(productId, ct);
+        var filters = await productFilterService.GetFiltersForProduct(productId, ct);
         return filters.Select(MapFilterToDto).ToList();
     }
 

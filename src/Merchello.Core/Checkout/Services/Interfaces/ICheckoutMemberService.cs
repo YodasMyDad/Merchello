@@ -79,10 +79,5 @@ public interface ICheckoutMemberService
     /// <summary>
     /// Completes a password reset using a valid token.
     /// </summary>
-    /// <param name="email">The member's email address.</param>
-    /// <param name="token">The reset token from the email link.</param>
-    /// <param name="newPassword">The new password.</param>
-    /// <param name="ct">Cancellation token.</param>
-    /// <returns>Result with success status and any validation errors.</returns>
-    Task<ResetPasswordResultDto> ResetPasswordAsync(string email, string token, string newPassword, CancellationToken ct = default);
+    Task<ResetPasswordResultDto> ResetPasswordAsync(ResetPasswordParameters parameters, CancellationToken ct = default);
 }

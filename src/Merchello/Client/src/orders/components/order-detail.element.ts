@@ -18,7 +18,7 @@ import { MERCHELLO_EDIT_ORDER_MODAL } from "@orders/modals/edit-order-modal.toke
 import { MERCHELLO_CUSTOMER_ORDERS_MODAL } from "@orders/modals/customer-orders-modal.token.js";
 import { MERCHELLO_CANCEL_INVOICE_MODAL } from "@orders/modals/cancel-invoice-modal.token.js";
 import { MERCHELLO_CUSTOMER_EDIT_MODAL } from "@customers/modals/customer-edit-modal.token.js";
-import { formatCurrency, formatDateTime, getPaymentStatusBadgeClass } from "@shared/utils/formatting.js";
+import { formatCurrency, formatDateTime } from "@shared/utils/formatting.js";
 import { MerchelloApi, type CountryDto } from "@api/merchello-api.js";
 import { getOrdersListHref } from "@shared/utils/navigation.js";
 
@@ -747,7 +747,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <h1>${order.invoiceNumber || "Order"}</h1>
             <span class="order-meta">${formatDateTime(order.dateCreated)} from ${order.channel}</span>
           </div>
-          <span class="badge ${getPaymentStatusBadgeClass(order.paymentStatus)}">${order.paymentStatusDisplay}</span>
+          <span class="badge ${order.paymentStatusCssClass}">${order.paymentStatusDisplay}</span>
           <span class="badge ${order.fulfillmentStatusCssClass}">${order.fulfillmentStatus}</span>
           ${order.isCancelled ? html`<span class="badge cancelled">Cancelled</span>` : nothing}
           ${this._renderSourceBadge(order)}

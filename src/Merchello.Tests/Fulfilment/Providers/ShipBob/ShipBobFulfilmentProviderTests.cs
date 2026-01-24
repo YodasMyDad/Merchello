@@ -2,6 +2,7 @@ using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Providers;
 using Merchello.Core.Fulfilment.Providers.ShipBob;
 using Merchello.Core.Shipping.Providers;
+using Merchello.Core.Shared.Providers;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Xunit;

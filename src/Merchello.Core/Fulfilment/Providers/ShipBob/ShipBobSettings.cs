@@ -55,6 +55,11 @@ public sealed record ShipBobSettings
     public bool EnableDebugLogging { get; init; }
 
     /// <summary>
+    /// Default shipping method when no category mapping matches or category is null.
+    /// </summary>
+    public string? DefaultShippingMethod { get; init; }
+
+    /// <summary>
     /// Validates the settings are complete for API operations.
     /// </summary>
     public bool IsValid =>

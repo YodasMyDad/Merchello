@@ -25,6 +25,7 @@
  * @property {number} tax
  * @property {string} currency
  * @property {string} country
+ * @property {number} decimalPlaces - Decimal places for the active currency (e.g., 2 for GBP, 0 for JPY)
  */
 
 import { safeRedirect } from '../utils/security.js';
@@ -149,9 +150,9 @@ export function initExpressCheckout() {
                         this.config.subTotal = e.detail.subTotal;
                     }
 
-                    // Check if amount changed significantly (more than 1 cent)
-                    // If so, re-render express buttons to show updated amounts
-                    const amountChanged = Math.abs(newAmount - oldAmount) > 0.01;
+                    // Check if amount changed by at least one minor unit for this currency
+                    const threshold = Math.pow(10, -(this.config.decimalPlaces ?? 2));
+                    const amountChanged = Math.abs(newAmount - oldAmount) > threshold;
                     if (amountChanged) {
                         // Skip actual re-render during payment form initialization
                         // but mark that we need to re-render later

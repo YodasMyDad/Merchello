@@ -1,6 +1,8 @@
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Shared.Services.Interfaces;
+using Moq;
 using Shouldly;
 using Xunit;
 
@@ -15,7 +17,10 @@ public class LineItemFactoryTests
 
     public LineItemFactoryTests()
     {
-        _factory = new LineItemFactory();
+        var currencyService = new Mock<ICurrencyService>();
+        currencyService.Setup(x => x.Round(It.IsAny<decimal>(), It.IsAny<string>()))
+            .Returns((decimal amount, string _) => Math.Round(amount, 2));
+        _factory = new LineItemFactory(currencyService.Object);
     }
 
     #region CreateFromProduct Tests

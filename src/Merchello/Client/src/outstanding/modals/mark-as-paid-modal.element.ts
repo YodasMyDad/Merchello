@@ -75,9 +75,7 @@ export class MerchelloMarkAsPaidModalElement extends UmbModalBaseElement<
   }
 
   private get _totalAmount(): number {
-    return (
-      this.data?.invoices.reduce((sum, inv) => sum + (inv.balanceDue ?? inv.total), 0) ?? 0
-    );
+    return this.data?.totalBalanceDue ?? 0;
   }
 
   private async _handleConfirm(): Promise<void> {

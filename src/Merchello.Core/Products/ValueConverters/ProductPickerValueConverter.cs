@@ -14,6 +14,9 @@ namespace Merchello.Core.Products.ValueConverters;
 /// Always returns IEnumerable&lt;Product&gt; for consistency.
 /// For single-select usage (maxItems=1), use .FirstOrDefault() in templates.
 /// Value converters are singletons, so we use IServiceScopeFactory to resolve scoped services.
+/// Uses sync-over-async (Task.Run + GetAwaiter().GetResult()) because Umbraco's IPropertyValueConverter
+/// interface is synchronous. This is a known Umbraco platform limitation that cannot be resolved
+/// without upstream API changes.
 /// </remarks>
 public class ProductPickerValueConverter(IServiceScopeFactory serviceScopeFactory) : PropertyValueConverterBase
 {

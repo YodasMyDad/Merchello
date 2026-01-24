@@ -50,15 +50,15 @@ public class OrderGroupingContext
 
     /// <summary>
     /// Previously selected shipping options per group (if any).
-    /// Key: GroupId, Value: ShippingOptionId
+    /// Key: GroupId, Value: SelectionKey ("so:{guid}" for flat-rate, "dyn:{provider}:{serviceCode}" for dynamic)
     /// </summary>
-    public Dictionary<Guid, Guid> SelectedShippingOptions { get; init; } = [];
+    public Dictionary<Guid, string> SelectedShippingOptions { get; init; } = [];
 
     /// <summary>
     /// Per-line-item shipping selections. Used when adding products with specific shipping options.
-    /// Key: LineItemId (or ProductId for pending items), Value: (WarehouseId, ShippingOptionId)
+    /// Key: LineItemId (or ProductId for pending items), Value: (WarehouseId, SelectionKey)
     /// </summary>
-    public Dictionary<Guid, (Guid WarehouseId, Guid ShippingOptionId)> LineItemShippingSelections { get; init; } = [];
+    public Dictionary<Guid, (Guid WarehouseId, string SelectionKey)> LineItemShippingSelections { get; init; } = [];
 
     /// <summary>
     /// Extended data for custom strategy implementations.

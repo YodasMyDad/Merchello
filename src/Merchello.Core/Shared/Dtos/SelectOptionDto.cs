@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Merchello.Core.Shared.Providers;
 
 namespace Merchello.Core.Shared.Dtos;
 

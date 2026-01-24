@@ -1,4 +1,5 @@
 using Merchello.Core.Fulfilment.Models;
+using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Http;
 
 namespace Merchello.Core.Fulfilment.Providers.Interfaces;
@@ -17,7 +18,7 @@ public interface IFulfilmentProvider
     /// Gets the configuration fields required by this provider (API keys, credentials, etc.).
     /// Used to generate dynamic configuration UI in the backoffice.
     /// </summary>
-    ValueTask<IEnumerable<FulfilmentProviderConfigurationField>> GetConfigurationFieldsAsync(
+    ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>

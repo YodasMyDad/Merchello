@@ -8,12 +8,17 @@
 
 /**
  * @typedef {Object} ShippingOption
- * @property {string} id
+ * @property {string} id - The ShippingOption GUID (empty for dynamic providers)
  * @property {string} name
  * @property {number} cost
  * @property {string} formattedCost
  * @property {string} deliveryDescription
  * @property {boolean} isNextDay
+ * @property {string} providerKey - Provider key (e.g., "flat-rate", "fedex")
+ * @property {string} selectionKey - Unified selection ID ("so:{guid}" or "dyn:{provider}:{serviceCode}")
+ * @property {string|null} serviceCode - Carrier service code for dynamic providers
+ * @property {string|null} estimatedDeliveryDate - ISO date string for estimated delivery
+ * @property {boolean} isFallbackRate - True if rate is from cache due to API failure
  */
 
 /**
@@ -22,7 +27,9 @@
  * @property {string} groupName
  * @property {Array} lineItems
  * @property {ShippingOption[]} shippingOptions
- * @property {string|null} selectedShippingOptionId
+ * @property {string|null} selectedShippingOptionId - SelectionKey of selected option
+ * @property {string|null} rateError - Error message if rate fetching failed
+ * @property {boolean} hasFallbackRates - True if any options are fallback rates
  */
 
 /**
@@ -98,23 +105,24 @@ export function initCheckoutShipping() {
          * @param {ShippingOption} option
          */
         selectOption(groupId, option) {
-            // Update store
-            this.$store.checkout?.setShippingSelection(groupId, option.id);
+            // Update store using selectionKey
+            this.$store.checkout?.setShippingSelection(groupId, option.selectionKey);
 
             // Dispatch event for orchestrator
             this.$dispatch('shipping-selection-changed', {
                 groupId,
-                optionId: option.id,
+                selectionKey: option.selectionKey,
+                cost: option.cost,
                 option
             });
         },
 
         /**
-         * Get the selected option ID for a group
+         * Get the selected selectionKey for a group
          * @param {string} groupId
          * @returns {string|undefined}
          */
-        getSelectedId(groupId) {
+        getSelectedKey(groupId) {
             return this.selections[groupId];
         },
 
@@ -124,9 +132,9 @@ export function initCheckoutShipping() {
          * @returns {ShippingOption|undefined}
          */
         getSelectedOption(group) {
-            const selectedId = this.selections[group.groupId];
-            if (!selectedId) return undefined;
-            return group.shippingOptions?.find(o => o.id === selectedId);
+            const selectedKey = this.selections[group.groupId];
+            if (!selectedKey) return undefined;
+            return group.shippingOptions?.find(o => o.selectionKey === selectedKey);
         },
 
         /**
@@ -142,11 +150,11 @@ export function initCheckoutShipping() {
         /**
          * Check if an option is selected
          * @param {string} groupId
-         * @param {string} optionId
+         * @param {string} selectionKey
          * @returns {boolean}
          */
-        isSelected(groupId, optionId) {
-            return this.selections[groupId] === optionId;
+        isSelected(groupId, selectionKey) {
+            return this.selections[groupId] === selectionKey;
         },
 
         /**
@@ -156,7 +164,7 @@ export function initCheckoutShipping() {
          */
         formatCost(cost) {
             if (cost === 0) return 'FREE';
-            return this.$store.checkout?.formatCurrency?.(cost) ?? `£${cost.toFixed(2)}`;
+            return this.$store.checkout?.formatCurrency?.(cost) ?? String(cost);
         },
 
         /**
@@ -183,13 +191,13 @@ export function initCheckoutShipping() {
 /**
  * Get selected shipping name for a group (standalone function)
  * @param {ShippingGroup} group
- * @param {Object.<string, string>} selections
+ * @param {Object.<string, string>} selections - Map of groupId to selectionKey
  * @returns {string}
  */
 export function getSelectedShippingName(group, selections) {
-    const selectedId = selections[group.groupId];
-    if (selectedId && group.shippingOptions) {
-        const selected = group.shippingOptions.find(o => o.id === selectedId);
+    const selectedKey = selections[group.groupId];
+    if (selectedKey && group.shippingOptions) {
+        const selected = group.shippingOptions.find(o => o.selectionKey === selectedKey);
         if (selected) return selected.name;
     }
     return 'Select shipping method';

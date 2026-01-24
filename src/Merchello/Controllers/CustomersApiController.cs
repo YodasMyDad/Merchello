@@ -31,7 +31,12 @@ public class CustomersApiController(
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
     {
-        return await customerService.GetPagedAsync(search, page, pageSize, ct);
+        return await customerService.GetPagedAsync(new CustomerQueryParameters
+        {
+            Search = search,
+            Page = page,
+            PageSize = pageSize
+        }, ct);
     }
 
     /// <summary>
@@ -105,22 +110,23 @@ public class CustomersApiController(
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
     {
-        var result = await customerService.GetPagedAsync(search, 1, pageSize, ct);
-
-        // Filter out excluded IDs if provided
+        HashSet<Guid>? excludeIdSet = null;
         if (!string.IsNullOrWhiteSpace(excludeIds))
         {
-            var excludeIdList = excludeIds.Split(',')
+            excludeIdSet = excludeIds.Split(',')
                 .Select(id => Guid.TryParse(id.Trim(), out var guid) ? guid : (Guid?)null)
                 .Where(g => g.HasValue)
                 .Select(g => g!.Value)
                 .ToHashSet();
-
-            result.Items = result.Items.Where(c => !excludeIdList.Contains(c.Id)).ToList();
-            result.TotalItems = result.Items.Count;
         }
 
-        return result;
+        return await customerService.GetPagedAsync(new CustomerQueryParameters
+        {
+            Search = search,
+            Page = 1,
+            PageSize = pageSize,
+            ExcludeIds = excludeIdSet
+        }, ct);
     }
 
     /// <summary>
@@ -154,21 +160,17 @@ public class CustomersApiController(
         }
 
         var segmentIds = await segmentService.GetCustomerSegmentIdsAsync(customer.Id, ct);
+        var segments = await segmentService.GetByIdsAsync(segmentIds, ct);
 
-        List<CustomerSegmentBadgeDto> badges = [];
-        foreach (var segmentId in segmentIds)
-        {
-            var segment = await segmentService.GetByIdAsync(segmentId, ct);
-            if (segment != null && segment.IsActive)
+        var badges = segments
+            .Where(s => s.IsActive)
+            .Select(s => new CustomerSegmentBadgeDto
             {
-                badges.Add(new CustomerSegmentBadgeDto
-                {
-                    Id = segment.Id,
-                    Name = segment.Name,
-                    SegmentType = segment.SegmentType
-                });
-            }
-        }
+                Id = s.Id,
+                Name = s.Name,
+                SegmentType = s.SegmentType
+            })
+            .ToList();
 
         return Ok(badges);
     }

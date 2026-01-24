@@ -86,8 +86,12 @@ public class ProductServiceTests
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act - generate variants with no variant options
-        var result = await _productService.GenerateVariantsFromOptions(
-            productRootId, defaultPrice: 19.99m, defaultCostOfGoods: 10.00m);
+        var result = await _productService.GenerateVariantsFromOptions(new GenerateVariantsParameters
+        {
+            ProductRootId = productRootId,
+            DefaultPrice = 19.99m,
+            DefaultCostOfGoods = 10.00m
+        });
 
         // Assert - service creates a single default product when no variant options exist
         result.Successful.ShouldBeTrue();
@@ -145,8 +149,12 @@ public class ProductServiceTests
         optionResult.Successful.ShouldBeTrue();
 
         // Generate variants
-        var generateResult = await _productService.GenerateVariantsFromOptions(
-            productRootId, defaultPrice: 25.00m, defaultCostOfGoods: 12.00m);
+        var generateResult = await _productService.GenerateVariantsFromOptions(new GenerateVariantsParameters
+        {
+            ProductRootId = productRootId,
+            DefaultPrice = 25.00m,
+            DefaultCostOfGoods = 12.00m
+        });
         generateResult.Successful.ShouldBeTrue();
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -217,8 +225,12 @@ public class ProductServiceTests
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act - generate variants
-        var generateResult = await _productService.GenerateVariantsFromOptions(
-            productRootId, defaultPrice: 35.00m, defaultCostOfGoods: 18.00m);
+        var generateResult = await _productService.GenerateVariantsFromOptions(new GenerateVariantsParameters
+        {
+            ProductRootId = productRootId,
+            DefaultPrice = 35.00m,
+            DefaultCostOfGoods = 18.00m
+        });
 
         // Assert - should be 3 colors × 2 sizes = 6 variants
         generateResult.Successful.ShouldBeTrue();
@@ -273,8 +285,12 @@ public class ProductServiceTests
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
-        await _productService.GenerateVariantsFromOptions(
-            productRootId, defaultPrice: 20.00m, defaultCostOfGoods: 10.00m);
+        await _productService.GenerateVariantsFromOptions(new GenerateVariantsParameters
+        {
+            ProductRootId = productRootId,
+            DefaultPrice = 20.00m,
+            DefaultCostOfGoods = 10.00m
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Assert - each variant should have a VariantOptionsKey
@@ -338,8 +354,12 @@ public class ProductServiceTests
         var optionId = optionResult.ResultObject!.Id;
         _fixture.DbContext.ChangeTracker.Clear();
 
-        await _productService.GenerateVariantsFromOptions(
-            productRootId, defaultPrice: 30.00m, defaultCostOfGoods: 15.00m);
+        await _productService.GenerateVariantsFromOptions(new GenerateVariantsParameters
+        {
+            ProductRootId = productRootId,
+            DefaultPrice = 30.00m,
+            DefaultCostOfGoods = 15.00m
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Verify we have 3 variants before removing option
@@ -416,8 +436,12 @@ public class ProductServiceTests
         });
         _fixture.DbContext.ChangeTracker.Clear();
 
-        await _productService.GenerateVariantsFromOptions(
-            productRootId, defaultPrice: 40.00m, defaultCostOfGoods: 20.00m);
+        await _productService.GenerateVariantsFromOptions(new GenerateVariantsParameters
+        {
+            ProductRootId = productRootId,
+            DefaultPrice = 40.00m,
+            DefaultCostOfGoods = 20.00m
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         var variants = await _fixture.DbContext.Products
@@ -487,15 +511,16 @@ public class ProductServiceTests
         });
         _fixture.DbContext.ChangeTracker.Clear();
 
-        await _productService.GenerateVariantsFromOptions(
-            productRootId, defaultPrice: 50.00m, defaultCostOfGoods: 25.00m);
+        await _productService.GenerateVariantsFromOptions(new GenerateVariantsParameters
+        {
+            ProductRootId = productRootId,
+            DefaultPrice = 50.00m,
+            DefaultCostOfGoods = 25.00m
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
-        // Re-fetch product root for deletion
-        productRoot = (await _productService.GetProductRoot(productRootId, includeProducts: true))!;
-
         // Act
-        var deleteResult = await _productService.Delete(productRoot);
+        var deleteResult = await _productService.DeleteProductRoot(productRootId);
 
         // Assert
         deleteResult.Successful.ShouldBeTrue();
@@ -553,8 +578,12 @@ public class ProductServiceTests
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Generate variants
-        await _productService.GenerateVariantsFromOptions(
-            productRootId, defaultPrice: 60.00m, defaultCostOfGoods: 30.00m);
+        await _productService.GenerateVariantsFromOptions(new GenerateVariantsParameters
+        {
+            ProductRootId = productRootId,
+            DefaultPrice = 60.00m,
+            DefaultCostOfGoods = 30.00m
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
@@ -648,8 +677,12 @@ public class ProductServiceTests
         });
         _fixture.DbContext.ChangeTracker.Clear();
 
-        await _productService.GenerateVariantsFromOptions(
-            productRootId, defaultPrice: 45.00m, defaultCostOfGoods: 22.00m);
+        await _productService.GenerateVariantsFromOptions(new GenerateVariantsParameters
+        {
+            ProductRootId = productRootId,
+            DefaultPrice = 45.00m,
+            DefaultCostOfGoods = 22.00m
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Verify we have 2 products
@@ -755,8 +788,12 @@ public class ProductServiceTests
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Generate variants
-        await _productService.GenerateVariantsFromOptions(
-            productRootId, defaultPrice: 25.00m, defaultCostOfGoods: 12.00m);
+        await _productService.GenerateVariantsFromOptions(new GenerateVariantsParameters
+        {
+            ProductRootId = productRootId,
+            DefaultPrice = 25.00m,
+            DefaultCostOfGoods = 12.00m
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act - call the SAME method the API uses
@@ -875,8 +912,12 @@ public class ProductServiceTests
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Generate variants
-        await _productService.GenerateVariantsFromOptions(
-            productRootId, defaultPrice: 24.99m, defaultCostOfGoods: 10.00m);
+        await _productService.GenerateVariantsFromOptions(new GenerateVariantsParameters
+        {
+            ProductRootId = productRootId,
+            DefaultPrice = 24.99m,
+            DefaultCostOfGoods = 10.00m
+        });
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Get a variant with options (any variant that has a VariantOptionsKey)

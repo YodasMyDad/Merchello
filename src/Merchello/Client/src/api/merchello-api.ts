@@ -416,10 +416,10 @@ interface ApplyDiscountResultDto {
 
 // Addon price preview types (for product picker modal)
 interface AddonPricePreviewRequestDto {
-  selectedAddons: SelectedAddonDto[];
+  selectedAddons: ProductAddonDto[];
 }
 
-interface SelectedAddonDto {
+interface ProductAddonDto {
   optionId: string;
   valueId: string;
 }

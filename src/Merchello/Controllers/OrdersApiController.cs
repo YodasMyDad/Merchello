@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using FluentValidation;
 using Merchello.Controllers.Dtos;
 using Merchello.Core;
 using Merchello.Core.Accounting.Dtos;
@@ -6,6 +7,9 @@ using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
+using Merchello.Core.Accounting.Validators;
+using Merchello.Core.Customers.Dtos;
+using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Payments.Models;
@@ -16,6 +20,7 @@ using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Dtos;
+using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
@@ -33,6 +38,8 @@ namespace Merchello.Controllers;
 public class OrdersApiController(
     IPaymentService paymentService,
     IInvoiceService invoiceService,
+    IInvoiceEditService invoiceEditService,
+    ICustomerService customerService,
     IShipmentService shipmentService,
     IReportingService reportingService,
     IStatementService statementService,
@@ -50,7 +57,7 @@ public class OrdersApiController(
     /// </summary>
     [HttpGet("orders")]
     [ProducesResponseType<OrderPageDto>(StatusCodes.Status200OK)]
-    public async Task<OrderPageDto> GetOrders([FromQuery] OrderQueryDto query)
+    public async Task<OrderPageDto> GetOrders([FromQuery] OrderQueryDto query, CancellationToken ct)
     {
         // Map query to parameters
         var parameters = new InvoiceQueryParameters
@@ -95,7 +102,7 @@ public class OrdersApiController(
         }
 
         // Execute query using service with real DB paging
-        var result = await invoiceService.QueryInvoices(parameters);
+        var result = await invoiceService.QueryInvoices(parameters, ct);
 
         // Lookup shipping option names for delivery method display
         var shippingOptionIds = result.Items
@@ -103,7 +110,7 @@ public class OrdersApiController(
             .Select(o => o.ShippingOptionId)
             .Distinct()
             .ToList();
-        var shippingOptionNames = await invoiceService.GetShippingOptionNamesAsync(shippingOptionIds);
+        var shippingOptionNames = await invoiceService.GetShippingOptionNamesAsync(shippingOptionIds, ct);
 
         // Map to DTOs
         var items = result.Items.Select(i => MapToListItem(i, shippingOptionNames)).ToList();
@@ -135,9 +142,9 @@ public class OrdersApiController(
     /// </summary>
     [HttpGet("orders/stats")]
     [ProducesResponseType<OrderStatsDto>(StatusCodes.Status200OK)]
-    public async Task<OrderStatsDto> GetOrderStats()
+    public async Task<OrderStatsDto> GetOrderStats(CancellationToken ct)
     {
-        return await reportingService.GetOrderStatsAsync();
+        return await reportingService.GetOrderStatsAsync(ct);
     }
 
     /// <summary>
@@ -145,9 +152,9 @@ public class OrdersApiController(
     /// </summary>
     [HttpGet("orders/dashboard-stats")]
     [ProducesResponseType<DashboardStatsDto>(StatusCodes.Status200OK)]
-    public async Task<DashboardStatsDto> GetDashboardStats()
+    public async Task<DashboardStatsDto> GetDashboardStats(CancellationToken ct)
     {
-        return await reportingService.GetDashboardStatsAsync();
+        return await reportingService.GetDashboardStatsAsync(ct);
     }
 
     /// <summary>
@@ -179,9 +186,9 @@ public class OrdersApiController(
     [HttpGet("orders/{id:guid}")]
     [ProducesResponseType<OrderDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetOrder(Guid id)
+    public async Task<IActionResult> GetOrder(Guid id, CancellationToken ct)
     {
-        var invoice = await invoiceService.GetInvoiceAsync(id);
+        var invoice = await invoiceService.GetInvoiceAsync(id, ct);
 
         if (invoice == null)
         {
@@ -190,7 +197,7 @@ public class OrdersApiController(
 
         // Lookup shipping option names for delivery method display
         var shippingOptionIds = invoice.Orders?.Select(o => o.ShippingOptionId).Distinct().ToList() ?? [];
-        var shippingOptionNames = await invoiceService.GetShippingOptionNamesAsync(shippingOptionIds);
+        var shippingOptionNames = await invoiceService.GetShippingOptionNamesAsync(shippingOptionIds, ct);
 
         // Lookup product images for line items
         var productIds = invoice.Orders?
@@ -198,7 +205,7 @@ public class OrdersApiController(
             .Where(li => li.ProductId.HasValue)
             .Select(li => li.ProductId!.Value)
             .Distinct() ?? [];
-        var productImages = await productService.GetProductImagesAsync(productIds);
+        var productImages = await productService.GetProductImagesAsync(productIds, ct);
 
         var detail = await MapToDetailAsync(invoice, shippingOptionNames, productImages);
 
@@ -206,7 +213,7 @@ public class OrdersApiController(
         var billingEmail = invoice.BillingAddress?.Email;
         if (!string.IsNullOrWhiteSpace(billingEmail))
         {
-            detail.CustomerOrderCount = await invoiceService.GetInvoiceCountByBillingEmailAsync(billingEmail);
+            detail.CustomerOrderCount = await invoiceService.GetInvoiceCountByBillingEmailAsync(billingEmail, ct);
         }
 
         return Ok(detail);
@@ -218,14 +225,14 @@ public class OrdersApiController(
     [HttpPost("orders/delete")]
     [ProducesResponseType<DeleteOrdersResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> DeleteOrders([FromBody] DeleteOrdersDto request)
+    public async Task<IActionResult> DeleteOrders([FromBody] DeleteOrdersDto request, CancellationToken ct)
     {
         if (request.Ids == null || request.Ids.Count == 0)
         {
             return BadRequest("At least one order ID is required");
         }
 
-        var deletedCount = await invoiceService.SoftDeleteInvoicesAsync(request.Ids);
+        var deletedCount = await invoiceService.SoftDeleteInvoicesAsync(request.Ids, ct);
 
         return Ok(new DeleteOrdersResultDto
         {
@@ -240,7 +247,7 @@ public class OrdersApiController(
     [ProducesResponseType<CancelInvoiceResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> CancelInvoice(Guid invoiceId, [FromBody] CancelInvoiceDto request)
+    public async Task<IActionResult> CancelInvoice(Guid invoiceId, [FromBody] CancelInvoiceDto request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Reason))
         {
@@ -255,7 +262,7 @@ public class OrdersApiController(
             Reason = request.Reason,
             AuthorId = currentUser?.Key,
             AuthorName = currentUser?.Name ?? currentUser?.Username
-        });
+        }, ct);
 
         if (result.Messages.Any(m => m.ResultMessageType == ResultMessageType.Error))
         {
@@ -281,7 +288,7 @@ public class OrdersApiController(
     [ProducesResponseType<InvoiceNoteDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> AddNote(Guid invoiceId, [FromBody] AddInvoiceNoteDto request)
+    public async Task<IActionResult> AddNote(Guid invoiceId, [FromBody] AddInvoiceNoteDto request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Text))
         {
@@ -300,7 +307,7 @@ public class OrdersApiController(
             VisibleToCustomer = request.IsVisibleToCustomer,
             AuthorId = authorId,
             AuthorName = authorName
-        });
+        }, ct);
 
         if (result.ResultObject == null)
         {
@@ -324,10 +331,10 @@ public class OrdersApiController(
     [HttpPut("orders/{invoiceId:guid}/billing-address")]
     [ProducesResponseType<AddressDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateBillingAddress(Guid invoiceId, [FromBody] AddressDto request)
+    public async Task<IActionResult> UpdateBillingAddress(Guid invoiceId, [FromBody] AddressDto request, CancellationToken ct)
     {
         var address = MapDtoToAddress(request);
-        var result = await invoiceService.UpdateBillingAddressAsync(invoiceId, address);
+        var result = await invoiceService.UpdateBillingAddressAsync(invoiceId, address, ct);
 
         if (result.ResultObject == null)
         {
@@ -343,10 +350,10 @@ public class OrdersApiController(
     [HttpPut("orders/{invoiceId:guid}/shipping-address")]
     [ProducesResponseType<AddressDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateShippingAddress(Guid invoiceId, [FromBody] AddressDto request)
+    public async Task<IActionResult> UpdateShippingAddress(Guid invoiceId, [FromBody] AddressDto request, CancellationToken ct)
     {
         var address = MapDtoToAddress(request);
-        var result = await invoiceService.UpdateShippingAddressAsync(invoiceId, address);
+        var result = await invoiceService.UpdateShippingAddressAsync(invoiceId, address, ct);
 
         if (result.ResultObject == null)
         {
@@ -362,9 +369,9 @@ public class OrdersApiController(
     [HttpPut("orders/{invoiceId:guid}/purchase-order")]
     [ProducesResponseType<UpdatePurchaseOrderResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdatePurchaseOrder(Guid invoiceId, [FromBody] UpdatePurchaseOrderDto request)
+    public async Task<IActionResult> UpdatePurchaseOrder(Guid invoiceId, [FromBody] UpdatePurchaseOrderDto request, CancellationToken ct)
     {
-        var result = await invoiceService.UpdatePurchaseOrderAsync(invoiceId, request.PurchaseOrder);
+        var result = await invoiceService.UpdatePurchaseOrderAsync(invoiceId, request.PurchaseOrder, ct);
 
         if (result.Messages.Any(m => m.ResultMessageType == ResultMessageType.Error))
         {
@@ -384,9 +391,9 @@ public class OrdersApiController(
     [HttpGet("orders/{invoiceId:guid}/edit")]
     [ProducesResponseType<InvoiceForEditDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetInvoiceForEdit(Guid invoiceId)
+    public async Task<IActionResult> GetInvoiceForEdit(Guid invoiceId, CancellationToken ct)
     {
-        var invoiceData = await invoiceService.GetInvoiceForEditAsync(invoiceId);
+        var invoiceData = await invoiceEditService.GetInvoiceForEditAsync(invoiceId, ct);
 
         if (invoiceData == null)
         {
@@ -404,9 +411,9 @@ public class OrdersApiController(
     [HttpPost("orders/{invoiceId:guid}/preview-edit")]
     [ProducesResponseType<PreviewEditResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> PreviewEditInvoice(Guid invoiceId, [FromBody] EditInvoiceDto request)
+    public async Task<IActionResult> PreviewEditInvoice(Guid invoiceId, [FromBody] EditInvoiceDto request, CancellationToken ct)
     {
-        var result = await invoiceService.PreviewInvoiceEditAsync(invoiceId, request);
+        var result = await invoiceEditService.PreviewInvoiceEditAsync(invoiceId, request, ct);
 
         if (result == null)
         {
@@ -453,20 +460,20 @@ public class OrdersApiController(
     [ProducesResponseType<EditInvoiceResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> EditInvoice(Guid invoiceId, [FromBody] EditInvoiceDto request)
+    public async Task<IActionResult> EditInvoice(Guid invoiceId, [FromBody] EditInvoiceDto request, CancellationToken ct)
     {
         // Get current backoffice user
         var currentUser = backOfficeSecurityAccessor.BackOfficeSecurity?.CurrentUser;
         var authorId = currentUser?.Key;
         var authorName = currentUser?.Name;
 
-        var result = await invoiceService.EditInvoiceAsync(new EditInvoiceParameters
+        var result = await invoiceEditService.EditInvoiceAsync(new EditInvoiceParameters
         {
             InvoiceId = invoiceId,
             Request = request,
             AuthorId = authorId,
             AuthorName = authorName
-        });
+        }, ct);
 
         if (!result.IsSuccess)
         {
@@ -642,6 +649,7 @@ public class OrdersApiController(
             },
             PaymentStatus = paymentDetails.Status,
             PaymentStatusDisplay = paymentDetails.StatusDisplay,
+            PaymentStatusCssClass = paymentDetails.Status.GetPaymentStatusCssClass(),
             MaxRiskScore = paymentDetails.MaxRiskScore,
             MaxRiskScoreSource = paymentDetails.MaxRiskScoreSource,
             FulfillmentStatus = GetFulfillmentStatus(orders),
@@ -822,9 +830,9 @@ public class OrdersApiController(
     [HttpGet("orders/{invoiceId:guid}/fulfillment-summary")]
     [ProducesResponseType<FulfillmentSummaryDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetFulfillmentSummary(Guid invoiceId)
+    public async Task<IActionResult> GetFulfillmentSummary(Guid invoiceId, CancellationToken ct)
     {
-        var summary = await shipmentService.GetFulfillmentSummaryAsync(invoiceId);
+        var summary = await shipmentService.GetFulfillmentSummaryAsync(invoiceId, ct);
 
         if (summary == null)
         {
@@ -841,7 +849,7 @@ public class OrdersApiController(
     [ProducesResponseType<ShipmentDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> CreateShipment(Guid orderId, [FromBody] CreateShipmentDto request)
+    public async Task<IActionResult> CreateShipment(Guid orderId, [FromBody] CreateShipmentDto request, CancellationToken ct)
     {
         if (request.LineItems == null || request.LineItems.Count == 0)
         {
@@ -857,7 +865,7 @@ public class OrdersApiController(
             TrackingUrl = request.TrackingUrl
         };
 
-        var result = await shipmentService.CreateShipmentAsync(parameters);
+        var result = await shipmentService.CreateShipmentAsync(parameters, ct);
 
         if (result.ResultObject == null)
         {
@@ -865,7 +873,7 @@ public class OrdersApiController(
             return error.Contains("not found") ? NotFound(error) : BadRequest(error);
         }
 
-        var productImages = await GetProductImagesForShipment(result.ResultObject);
+        var productImages = await GetProductImagesForShipment(result.ResultObject, ct);
         return Ok(MapToShipmentDetail(result.ResultObject, productImages));
     }
 
@@ -875,7 +883,7 @@ public class OrdersApiController(
     [HttpPut("shipments/{shipmentId:guid}")]
     [ProducesResponseType<ShipmentDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateShipment(Guid shipmentId, [FromBody] UpdateShipmentDto request)
+    public async Task<IActionResult> UpdateShipment(Guid shipmentId, [FromBody] UpdateShipmentDto request, CancellationToken ct)
     {
         var parameters = new UpdateShipmentParameters
         {
@@ -886,14 +894,14 @@ public class OrdersApiController(
             ActualDeliveryDate = request.ActualDeliveryDate
         };
 
-        var result = await shipmentService.UpdateShipmentAsync(parameters);
+        var result = await shipmentService.UpdateShipmentAsync(parameters, ct);
 
         if (result.ResultObject == null)
         {
             return NotFound();
         }
 
-        var productImages = await GetProductImagesForShipment(result.ResultObject);
+        var productImages = await GetProductImagesForShipment(result.ResultObject, ct);
         return Ok(MapToShipmentDetail(result.ResultObject, productImages));
     }
 
@@ -904,7 +912,7 @@ public class OrdersApiController(
     [ProducesResponseType<ShipmentDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateShipmentStatus(Guid shipmentId, [FromBody] UpdateShipmentStatusDto request)
+    public async Task<IActionResult> UpdateShipmentStatus(Guid shipmentId, [FromBody] UpdateShipmentStatusDto request, CancellationToken ct)
     {
         var parameters = new UpdateShipmentStatusParameters
         {
@@ -915,7 +923,7 @@ public class OrdersApiController(
             TrackingUrl = request.TrackingUrl
         };
 
-        var result = await shipmentService.UpdateShipmentStatusAsync(parameters);
+        var result = await shipmentService.UpdateShipmentStatusAsync(parameters, ct);
 
         if (!result.Successful)
         {
@@ -927,7 +935,7 @@ public class OrdersApiController(
             return BadRequest(new { error = errorMessage ?? "Failed to update shipment status" });
         }
 
-        var productImages = await GetProductImagesForShipment(result.ResultObject!);
+        var productImages = await GetProductImagesForShipment(result.ResultObject!, ct);
         return Ok(MapToShipmentDetail(result.ResultObject!, productImages));
     }
 
@@ -937,9 +945,9 @@ public class OrdersApiController(
     [HttpDelete("shipments/{shipmentId:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeleteShipment(Guid shipmentId)
+    public async Task<IActionResult> DeleteShipment(Guid shipmentId, CancellationToken ct)
     {
-        var success = await shipmentService.DeleteShipmentAsync(shipmentId);
+        var success = await shipmentService.DeleteShipmentAsync(shipmentId, ct);
 
         if (!success)
         {
@@ -959,37 +967,12 @@ public class OrdersApiController(
     [HttpPost("orders/draft")]
     [ProducesResponseType<CreateDraftOrderResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreateDraftOrder([FromBody] CreateDraftOrderDto request)
+    public async Task<IActionResult> CreateDraftOrder([FromBody] CreateDraftOrderDto request, CancellationToken ct)
     {
-        // Validate billing address required fields
-        if (string.IsNullOrWhiteSpace(request.BillingAddress.Name))
+        var validation = await new CreateDraftOrderDtoValidator().ValidateAsync(request, ct);
+        if (!validation.IsValid)
         {
-            return BadRequest("Billing address name is required");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.BillingAddress.Email))
-        {
-            return BadRequest("Billing address email is required");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.BillingAddress.AddressOne))
-        {
-            return BadRequest("Billing address line 1 is required");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.BillingAddress.TownCity))
-        {
-            return BadRequest("Billing address town/city is required");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.BillingAddress.PostalCode))
-        {
-            return BadRequest("Billing address postal code is required");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.BillingAddress.CountryCode))
-        {
-            return BadRequest("Billing address country is required");
+            return BadRequest((object)validation.Errors[0].ErrorMessage);
         }
 
         // Get current backoffice user
@@ -1000,7 +983,8 @@ public class OrdersApiController(
         var result = await invoiceService.CreateDraftOrderAsync(
             request,
             authorId,
-            authorName);
+            authorName,
+            ct);
 
         if (!result.IsSuccess)
         {
@@ -1017,9 +1001,10 @@ public class OrdersApiController(
     [ProducesResponseType<List<CustomerLookupResultDto>>(StatusCodes.Status200OK)]
     public async Task<IActionResult> SearchCustomers(
         [FromQuery] string? email,
-        [FromQuery] string? name)
+        [FromQuery] string? name,
+        CancellationToken ct)
     {
-        var results = await invoiceService.SearchCustomersAsync(email, name);
+        var results = await customerService.SearchCustomersAsync(email, name, ct: ct);
         return Ok(results);
     }
 
@@ -1028,7 +1013,7 @@ public class OrdersApiController(
     /// </summary>
     [HttpGet("orders/customer/{email}")]
     [ProducesResponseType<List<OrderListItemDto>>(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetCustomerOrders(string email)
+    public async Task<IActionResult> GetCustomerOrders(string email, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(email))
         {
@@ -1038,7 +1023,7 @@ public class OrdersApiController(
         // URL decode the email in case it contains special characters
         var decodedEmail = Uri.UnescapeDataString(email);
 
-        var invoices = await invoiceService.GetInvoicesByBillingEmailAsync(decodedEmail);
+        var invoices = await invoiceService.GetInvoicesByBillingEmailAsync(decodedEmail, ct);
 
         // Lookup shipping option names for delivery method display
         var shippingOptionIds = invoices
@@ -1046,7 +1031,7 @@ public class OrdersApiController(
             .Select(o => o.ShippingOptionId)
             .Distinct()
             .ToList();
-        var shippingOptionNames = await invoiceService.GetShippingOptionNamesAsync(shippingOptionIds);
+        var shippingOptionNames = await invoiceService.GetShippingOptionNamesAsync(shippingOptionIds, ct);
 
         // Map to DTOs
         var items = invoices.Select(i => MapToListItem(i, shippingOptionNames)).ToList();
@@ -1065,7 +1050,7 @@ public class OrdersApiController(
     [ProducesResponseType<ApplyDiscountResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ApplyDiscount(Guid invoiceId, [FromBody] ApplyDiscountDto request)
+    public async Task<IActionResult> ApplyDiscount(Guid invoiceId, [FromBody] ApplyDiscountDto request, CancellationToken ct)
     {
         if (request.DiscountId == Guid.Empty)
         {
@@ -1080,7 +1065,7 @@ public class OrdersApiController(
             DiscountId = request.DiscountId,
             AuthorId = currentUser?.Key,
             AuthorName = currentUser?.Name ?? currentUser?.Username
-        });
+        }, ct);
 
         if (result.Messages.Any(m => m.ResultMessageType == ResultMessageType.Error))
         {
@@ -1097,7 +1082,7 @@ public class OrdersApiController(
         });
     }
 
-    private async Task<Dictionary<Guid, string?>> GetProductImagesForShipment(Shipment shipment)
+    private async Task<Dictionary<Guid, string?>> GetProductImagesForShipment(Shipment shipment, CancellationToken ct)
     {
         var productIds = shipment.LineItems
             .Where(li => li.ProductId.HasValue)
@@ -1110,7 +1095,7 @@ public class OrdersApiController(
             return [];
         }
 
-        return await productService.GetProductImagesAsync(productIds);
+        return await productService.GetProductImagesAsync(productIds, ct);
     }
 
     private static ShipmentDetailDto MapToShipmentDetail(Shipment shipment, Dictionary<Guid, string?> productImages)

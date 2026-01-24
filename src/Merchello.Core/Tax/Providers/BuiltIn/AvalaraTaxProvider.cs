@@ -1,6 +1,7 @@
 using Avalara.AvaTax.RestClient;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Tax.Providers.Models;
+using Merchello.Core.Shared.Providers;
 
 namespace Merchello.Core.Tax.Providers.BuiltIn;
 
@@ -33,12 +34,12 @@ public class AvalaraTaxProvider : TaxProviderBase
                           "Use Sandbox environment for testing before switching to Production."
     );
 
-    public override ValueTask<IEnumerable<TaxProviderConfigurationField>> GetConfigurationFieldsAsync(
+    public override ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult<IEnumerable<TaxProviderConfigurationField>>(
+        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>(
         [
-            new TaxProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "accountId",
                 Label = "Account ID",
@@ -47,7 +48,7 @@ public class AvalaraTaxProvider : TaxProviderBase
                 IsRequired = true,
                 Placeholder = "2000000000"
             },
-            new TaxProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "licenseKey",
                 Label = "License Key",
@@ -56,7 +57,7 @@ public class AvalaraTaxProvider : TaxProviderBase
                 IsRequired = true,
                 IsSensitive = true
             },
-            new TaxProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "companyCode",
                 Label = "Company Code",
@@ -66,7 +67,7 @@ public class AvalaraTaxProvider : TaxProviderBase
                 DefaultValue = "DEFAULT",
                 Placeholder = "DEFAULT"
             },
-            new TaxProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "environment",
                 Label = "Environment",
@@ -80,7 +81,7 @@ public class AvalaraTaxProvider : TaxProviderBase
                     new SelectOption { Value = "production", Label = "Production (Live)" }
                 ]
             },
-            new TaxProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "enableLogging",
                 Label = "Enable API Logging",
@@ -89,7 +90,7 @@ public class AvalaraTaxProvider : TaxProviderBase
                 IsRequired = false,
                 DefaultValue = "false"
             },
-            new TaxProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "taxGroupMappings",
                 Label = "Tax Group Mappings",
@@ -97,7 +98,7 @@ public class AvalaraTaxProvider : TaxProviderBase
                 FieldType = ConfigurationFieldType.TaxGroupMapping,
                 IsRequired = false
             },
-            new TaxProviderConfigurationField
+            new ProviderConfigurationField
             {
                 Key = "shippingTaxCode",
                 Label = "Shipping Tax Code",

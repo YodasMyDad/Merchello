@@ -103,46 +103,6 @@ export class MerchelloSyncLogsListElement extends UmbElementMixin(LitElement) {
     this._loadLogs();
   }
 
-  private _getSyncTypeLabel(syncType: FulfilmentSyncType): string {
-    switch (syncType) {
-      case 0:
-        return "Products Out";
-      case 1:
-        return "Inventory In";
-      default:
-        return "Unknown";
-    }
-  }
-
-  private _getStatusLabel(status: FulfilmentSyncStatus): string {
-    switch (status) {
-      case 0:
-        return "Pending";
-      case 1:
-        return "Running";
-      case 2:
-        return "Completed";
-      case 3:
-        return "Failed";
-      default:
-        return "Unknown";
-    }
-  }
-
-  private _getStatusClass(status: FulfilmentSyncStatus): string {
-    switch (status) {
-      case 0:
-        return "status-pending";
-      case 1:
-        return "status-running";
-      case 2:
-        return "status-completed";
-      case 3:
-        return "status-failed";
-      default:
-        return "";
-    }
-  }
 
   override render() {
     return html`
@@ -250,11 +210,11 @@ export class MerchelloSyncLogsListElement extends UmbElementMixin(LitElement) {
             <uui-table-row>
               <uui-table-cell>${log.providerDisplayName ?? "Unknown"}</uui-table-cell>
               <uui-table-cell>
-                <span class="sync-type-badge">${this._getSyncTypeLabel(log.syncType)}</span>
+                <span class="sync-type-badge">${log.syncTypeLabel}</span>
               </uui-table-cell>
               <uui-table-cell>
-                <span class="status-badge ${this._getStatusClass(log.status)}">
-                  ${this._getStatusLabel(log.status)}
+                <span class="status-badge ${log.statusCssClass}">
+                  ${log.statusLabel}
                 </span>
               </uui-table-cell>
               <uui-table-cell>

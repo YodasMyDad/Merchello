@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Core.Shared.Providers;
 
 namespace Merchello.Core.Payments.Providers.Interfaces;
 
@@ -70,7 +72,7 @@ public interface IPaymentProvider
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Field definitions for dynamic configuration UI.</returns>
-    ValueTask<IEnumerable<PaymentProviderConfigurationField>> GetConfigurationFieldsAsync(
+    ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>

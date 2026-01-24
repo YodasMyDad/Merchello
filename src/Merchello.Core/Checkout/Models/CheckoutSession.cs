@@ -25,11 +25,19 @@ public class CheckoutSession
     public bool ShippingSameAsBilling { get; set; }
 
     /// <summary>
-    /// Selected shipping option per warehouse shipping group
-    /// Key: GroupId (or WarehouseId for backward compatibility), Value: ShippingOptionId
+    /// Selected shipping option per warehouse shipping group.
+    /// Key: GroupId (or WarehouseId for backward compatibility)
+    /// Value: SelectionKey ("so:{guid}" for flat-rate, "dyn:{provider}:{serviceCode}" for dynamic)
     /// Note: Multiple groups can exist for the same warehouse when products have different shipping restrictions
     /// </summary>
-    public Dictionary<Guid, Guid> SelectedShippingOptions { get; set; } = [];
+    public Dictionary<Guid, string> SelectedShippingOptions { get; set; } = [];
+
+    /// <summary>
+    /// Quoted shipping costs at the time of selection.
+    /// Key: GroupId, Value: QuotedShippingCost record
+    /// Used to preserve the rate shown to the customer through checkout completion.
+    /// </summary>
+    public Dictionary<Guid, QuotedShippingCost> QuotedShippingCosts { get; set; } = [];
 
     /// <summary>
     /// Selected delivery date per warehouse shipping group (if applicable)
@@ -66,5 +74,6 @@ public class CheckoutSession
     /// Set when the invoice is created during checkout.
     /// </summary>
     public Guid? InvoiceId { get; set; }
+
 }
 

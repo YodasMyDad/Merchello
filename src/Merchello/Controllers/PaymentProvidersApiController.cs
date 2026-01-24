@@ -4,9 +4,11 @@ using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Providers.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Dtos;
+using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -82,7 +84,7 @@ public class PaymentProvidersApiController(
     /// Get configuration fields for a payment provider
     /// </summary>
     [HttpGet("payment-providers/{alias}/fields")]
-    [ProducesResponseType<List<PaymentProviderFieldDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<List<ProviderConfigurationFieldDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProviderFields(string alias, CancellationToken cancellationToken = default)
     {
@@ -855,9 +857,9 @@ public class PaymentProvidersApiController(
         };
     }
 
-    private static PaymentProviderFieldDto MapToFieldDto(PaymentProviderConfigurationField field)
+    private static ProviderConfigurationFieldDto MapToFieldDto(ProviderConfigurationField field)
     {
-        return new PaymentProviderFieldDto
+        return new ProviderConfigurationFieldDto
         {
             Key = field.Key,
             Label = field.Label,

@@ -151,7 +151,7 @@ public interface IDiscountService
     /// <summary>
     /// Gets performance metrics for a discount.
     /// </summary>
-    Task<Dtos.DiscountPerformanceDto?> GetPerformanceAsync(Guid discountId, DateTime? startDate = null, DateTime? endDate = null, CancellationToken ct = default);
+    Task<Dtos.DiscountPerformanceDto?> GetPerformanceAsync(GetDiscountPerformanceParameters parameters, CancellationToken ct = default);
 
     /// <summary>
     /// Gets aggregated usage summary for multiple discounts.

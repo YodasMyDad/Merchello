@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Providers.Interfaces;
+using Merchello.Core.Shared.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace Merchello.Core.ExchangeRates.Providers;
@@ -20,9 +21,9 @@ public class FrankfurterExchangeRateProvider(
         SupportsHistoricalRates: true,
         SupportedCurrencies: []);
 
-    public ValueTask<IEnumerable<ExchangeRateProviderConfigurationField>> GetConfigurationFieldsAsync(
+    public ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
-        => ValueTask.FromResult<IEnumerable<ExchangeRateProviderConfigurationField>>([]);
+        => ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>([]);
 
     public ValueTask ConfigureAsync(
         ExchangeRateProviderConfiguration? configuration,

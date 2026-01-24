@@ -2,6 +2,7 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Shipping.Services.Parameters;
 
 namespace Merchello.Core.Shipping.Services.Interfaces;
 
@@ -20,21 +21,23 @@ namespace Merchello.Core.Shipping.Services.Interfaces;
 public interface IShippingService
 {
     /// <summary>
-    /// Gets shipping options grouped by warehouse for basket items based on stock availability and region serviceability
+    /// Gets shipping options grouped by warehouse for basket items based on stock availability and region serviceability.
     /// </summary>
     Task<ShippingSelectionResult> GetShippingOptionsForBasket(
-        Basket basket,
-        Address shippingAddress,
-        Dictionary<Guid, Guid>? selectedShippingOptions = null,
+        GetShippingOptionsParameters parameters,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets shipping summary for order review
     /// </summary>
+    /// <param name="basket">The shopping basket</param>
+    /// <param name="shippingAddress">The shipping destination address</param>
+    /// <param name="selectedShippingOptions">Selected shipping options (keyed by GroupId). Value is SelectionKey format.</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     Task<OrderShippingSummary> GetShippingSummaryForReview(
         Basket basket,
         Address shippingAddress,
-        Dictionary<Guid, Guid> selectedShippingOptions,
+        Dictionary<Guid, string> selectedShippingOptions,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -118,13 +121,8 @@ public interface IShippingService
     /// Gets the shipping cost for a shipping option to a specific destination.
     /// Lookup priority: State-specific cost → Country-level cost → Fixed cost.
     /// </summary>
-    /// <param name="shippingOption">The shipping option with its costs</param>
-    /// <param name="countryCode">Destination country code</param>
-    /// <param name="stateOrProvinceCode">Optional destination state/province code</param>
+    /// <param name="query">The shipping cost query parameters.</param>
     /// <returns>The shipping cost, or null if no cost is configured</returns>
-    decimal? GetShippingCostForDestination(
-        ShippingOption shippingOption,
-        string countryCode,
-        string? stateOrProvinceCode);
+    decimal? GetShippingCostForDestination(ShippingCostQuery query);
 }
 

@@ -10,7 +10,7 @@ import type {
   OutboundDeliveryDto,
   OutboundDeliveryQueryParams,
 } from "@webhooks/types/webhooks.types.js";
-import { OutboundDeliveryStatus, getDeliveryStatusBadgeClass } from "@webhooks/types/webhooks.types.js";
+import { OutboundDeliveryStatus } from "@webhooks/types/webhooks.types.js";
 import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getStoreSettings } from "@api/store-settings.js";
@@ -394,7 +394,7 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
       <uui-table-row class="clickable" @click=${() => this._handleViewDelivery(delivery)}>
         <uui-table-cell>${formatRelativeDate(delivery.dateCreated)}</uui-table-cell>
         <uui-table-cell class="center">
-          <span class="badge ${getDeliveryStatusBadgeClass(delivery.status)}">
+          <span class="badge ${delivery.statusCssClass}">
             ${delivery.statusDisplay}
           </span>
         </uui-table-cell>

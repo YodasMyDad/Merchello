@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Merchello.Core.Shared.Extensions;
 
 namespace Merchello.Core.Discounts.Models;
 
@@ -8,16 +7,6 @@ namespace Merchello.Core.Discounts.Models;
 /// </summary>
 public class DiscountFreeShippingConfig
 {
-    /// <summary>
-    /// Unique identifier for the configuration.
-    /// </summary>
-    public Guid Id { get; set; } = GuidExtensions.NewSequentialGuid;
-
-    /// <summary>
-    /// The discount this configuration belongs to.
-    /// </summary>
-    public Guid DiscountId { get; set; }
-
     /// <summary>
     /// Whether free shipping applies to all countries or selected countries.
     /// </summary>
@@ -44,28 +33,19 @@ public class DiscountFreeShippingConfig
     public string? AllowedShippingOptionIds { get; set; }
 
     /// <summary>
-    /// Navigation property to the parent discount.
-    /// </summary>
-    public virtual Discount Discount { get; set; } = null!;
-
-    /// <summary>
     /// Gets the country codes as a list of strings.
     /// </summary>
     public List<string> GetCountryCodesList()
     {
         if (string.IsNullOrEmpty(CountryCodes))
-        {
             return [];
-        }
 
         try
         {
             return JsonSerializer.Deserialize<List<string>>(CountryCodes) ?? [];
         }
-        catch (JsonException ex)
+        catch (JsonException)
         {
-            // Log warning - malformed JSON in CountryCodes
-            System.Diagnostics.Debug.WriteLine($"[DiscountFreeShippingConfig] Failed to deserialize CountryCodes JSON for config {Id}: {ex.Message}");
             return [];
         }
     }
@@ -76,18 +56,14 @@ public class DiscountFreeShippingConfig
     public List<Guid> GetAllowedShippingOptionIdsList()
     {
         if (string.IsNullOrEmpty(AllowedShippingOptionIds))
-        {
             return [];
-        }
 
         try
         {
             return JsonSerializer.Deserialize<List<Guid>>(AllowedShippingOptionIds) ?? [];
         }
-        catch (JsonException ex)
+        catch (JsonException)
         {
-            // Log warning - malformed JSON in AllowedShippingOptionIds
-            System.Diagnostics.Debug.WriteLine($"[DiscountFreeShippingConfig] Failed to deserialize AllowedShippingOptionIds JSON for config {Id}: {ex.Message}");
             return [];
         }
     }

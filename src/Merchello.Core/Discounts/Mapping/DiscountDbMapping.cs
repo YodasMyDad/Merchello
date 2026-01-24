@@ -83,28 +83,16 @@ public class DiscountDbMapping : IEntityTypeConfiguration<Discount>
         builder.Property(x => x.DateUpdated);
         builder.Property(x => x.CreatedBy);
 
-        // Navigation: One Discount -> Many TargetRules
-        builder.HasMany(x => x.TargetRules)
-            .WithOne(x => x.Discount)
-            .HasForeignKey(x => x.DiscountId)
-            .OnDelete(DeleteBehavior.Cascade);
+        // JSON columns
+        builder.Property(x => x.TargetRulesJson);
+        builder.Property(x => x.EligibilityRulesJson);
+        builder.Property(x => x.BuyXGetYConfigJson);
+        builder.Property(x => x.FreeShippingConfigJson);
 
-        // Navigation: One Discount -> Many EligibilityRules
-        builder.HasMany(x => x.EligibilityRules)
-            .WithOne(x => x.Discount)
-            .HasForeignKey(x => x.DiscountId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        // Navigation: One Discount -> One BuyXGetYConfig
-        builder.HasOne(x => x.BuyXGetYConfig)
-            .WithOne(x => x.Discount)
-            .HasForeignKey<DiscountBuyXGetYConfig>(x => x.DiscountId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        // Navigation: One Discount -> One FreeShippingConfig
-        builder.HasOne(x => x.FreeShippingConfig)
-            .WithOne(x => x.Discount)
-            .HasForeignKey<DiscountFreeShippingConfig>(x => x.DiscountId)
-            .OnDelete(DeleteBehavior.Cascade);
+        // Ignore computed properties
+        builder.Ignore(x => x.TargetRules);
+        builder.Ignore(x => x.EligibilityRules);
+        builder.Ignore(x => x.BuyXGetYConfig);
+        builder.Ignore(x => x.FreeShippingConfig);
     }
 }

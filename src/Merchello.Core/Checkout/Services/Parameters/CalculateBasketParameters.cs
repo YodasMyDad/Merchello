@@ -18,11 +18,6 @@ public class CalculateBasketParameters
     public string? CountryCode { get; init; }
 
     /// <summary>
-    /// Default tax rate percentage. Defaults to 20%.
-    /// </summary>
-    public decimal DefaultTaxRate { get; init; } = 20m;
-
-    /// <summary>
     /// Whether shipping should be taxable. When null (default), queries the tax provider config.
     /// </summary>
     public bool? IsShippingTaxable { get; init; }

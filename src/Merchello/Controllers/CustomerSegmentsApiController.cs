@@ -177,7 +177,12 @@ public class CustomerSegmentsApiController(
             return NotFound();
         }
 
-        var members = await segmentService.GetMembersAsync(id, page, pageSize, ct);
+        var members = await segmentService.GetMembersAsync(new GetSegmentMembersParameters
+        {
+            SegmentId = id,
+            Page = page,
+            PageSize = pageSize
+        }, ct);
 
         // Batch fetch all customers for this page
         var customerIds = members.Items.Select(m => m.CustomerId).Distinct().ToList();
@@ -220,7 +225,12 @@ public class CustomerSegmentsApiController(
         [FromBody] AddSegmentMembersDto dto,
         CancellationToken ct)
     {
-        var result = await segmentService.AddMembersAsync(id, dto.CustomerIds, null, dto.Notes, ct);
+        var result = await segmentService.AddMembersAsync(new AddSegmentMembersParameters
+        {
+            SegmentId = id,
+            CustomerIds = dto.CustomerIds,
+            Notes = dto.Notes
+        }, ct);
         if (!result.Successful)
         {
             var errors = result.Messages

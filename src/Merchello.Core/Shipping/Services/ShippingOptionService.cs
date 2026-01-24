@@ -24,7 +24,7 @@ public class ShippingOptionService(
 {
     #region Shipping Options
 
-    public async Task<List<ShippingOptionDto>> GetAllAsync(CancellationToken ct = default)
+    public async Task<List<ShippingOptionListItemDto>> GetAllAsync(CancellationToken ct = default)
     {
         using var scope = scopeProvider.CreateScope();
         var options = await scope.ExecuteWithContextAsync(async db =>
@@ -35,7 +35,7 @@ public class ShippingOptionService(
                 .AsSplitQuery()
                 .OrderBy(o => o.Warehouse!.Name)
                 .ThenBy(o => o.Name)
-                .Select(o => new ShippingOptionDto
+                .Select(o => new ShippingOptionListItemDto
                 {
                     Id = o.Id,
                     Name = o.Name,

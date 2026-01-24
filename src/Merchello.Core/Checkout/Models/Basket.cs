@@ -33,6 +33,11 @@ public class Basket
     public DateTime DateUpdated { get; set; } = DateTime.UtcNow;
 
     /// <summary>
+    /// Concurrency token to detect conflicting basket modifications (e.g., multiple tabs)
+    /// </summary>
+    public string ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>
     /// Currency of this basket
     /// </summary>
     public string? Currency { get; set; }

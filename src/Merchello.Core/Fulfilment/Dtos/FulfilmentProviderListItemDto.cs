@@ -17,7 +17,9 @@ public class FulfilmentProviderListItemDto
     public Guid? ConfigurationId { get; set; }
     public int SortOrder { get; set; }
     public InventorySyncMode InventorySyncMode { get; set; }
+    public string InventorySyncModeLabel { get; set; } = string.Empty;
     public FulfilmentApiStyle ApiStyle { get; set; }
+    public string ApiStyleLabel { get; set; } = string.Empty;
 
     // Capabilities summary
     public bool SupportsOrderSubmission { get; set; }

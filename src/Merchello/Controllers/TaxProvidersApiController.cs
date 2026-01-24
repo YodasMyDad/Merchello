@@ -3,7 +3,8 @@ using Asp.Versioning;
 using Merchello.Core.Tax.Dtos;
 using Merchello.Core.Tax.Providers;
 using Merchello.Core.Tax.Providers.Interfaces;
-using Merchello.Core.Tax.Providers.Models;
+using Merchello.Core.Shared.Dtos;
+using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -49,7 +50,7 @@ public class TaxProvidersApiController(
     /// Get configuration fields for a tax provider
     /// </summary>
     [HttpGet("tax-providers/{alias}/fields")]
-    [ProducesResponseType<List<TaxProviderFieldDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<List<ProviderConfigurationFieldDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProviderFields(string alias, CancellationToken cancellationToken = default)
     {
@@ -195,9 +196,9 @@ public class TaxProvidersApiController(
         };
     }
 
-    private static TaxProviderFieldDto MapToFieldDto(TaxProviderConfigurationField field)
+    private static ProviderConfigurationFieldDto MapToFieldDto(ProviderConfigurationField field)
     {
-        return new TaxProviderFieldDto
+        return new ProviderConfigurationFieldDto
         {
             Key = field.Key,
             Label = field.Label,
@@ -207,7 +208,7 @@ public class TaxProvidersApiController(
             IsSensitive = field.IsSensitive,
             DefaultValue = field.DefaultValue,
             Placeholder = field.Placeholder,
-            Options = field.Options?.Select(o => new TaxProviderFieldOptionDto
+            Options = field.Options?.Select(o => new SelectOptionDto
             {
                 Value = o.Value,
                 Label = o.Label

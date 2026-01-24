@@ -45,67 +45,48 @@ namespace Merchello.Tests.Accounting;
 public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture;
-    private readonly InvoiceService _invoiceService;
+    private readonly InvoiceEditService _invoiceEditService;
 
     public InvoiceDiscountCalculationTests(ServiceTestFixture fixture)
     {
         _fixture = fixture;
         _fixture.ResetDatabase();
-        _invoiceService = CreateInvoiceService();
+        _invoiceEditService = CreateInvoiceEditService();
     }
 
-    private InvoiceService CreateInvoiceService()
+    private InvoiceEditService CreateInvoiceEditService()
     {
         var scopeProvider = CreateScopeProvider();
         var shippingService = new Mock<IShippingService>().Object;
         var shippingProviderManager = new Mock<IShippingProviderManager>().Object;
         var inventoryService = new Mock<IInventoryService>().Object;
-        var statusHandler = _fixture.GetService<IOrderStatusHandler>();
-        var paymentService = new Mock<IPaymentService>().Object;
-        var customerService = new Mock<ICustomerService>().Object;
-        var checkoutService = new Lazy<ICheckoutService>(() => new Mock<ICheckoutService>().Object);
-        var notificationPublisher = new Mock<IMerchelloNotificationPublisher>().Object;
-        var exchangeRateCacheMock = new Mock<IExchangeRateCache>();
-        exchangeRateCacheMock.Setup(x => x.GetRateQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ExchangeRateQuote(1m, DateTime.UtcNow, "mock"));
         var settings = Options.Create(new MerchelloSettings { DefaultRounding = MidpointRounding.AwayFromZero, StoreCurrencyCode = "USD" });
         var currencyService = new CurrencyService(settings);
         var taxCalculationService = new TaxCalculationService(currencyService);
-        var lineItemService = new LineItemService(currencyService, taxCalculationService);
-        var discountService = new Mock<IDiscountService>().Object;
         var taxServiceMock = new Mock<ITaxService>();
         taxServiceMock.Setup(x => x.GetApplicableRateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(0m);
         var taxProviderManager = new Mock<ITaxProviderManager>().Object;
         var strategyResolver = new Mock<IOrderGroupingStrategyResolver>().Object;
-        var logger = new Mock<ILogger<InvoiceService>>().Object;
+        var logger = new Mock<ILogger<InvoiceEditService>>().Object;
 
         // Factories
-        var invoiceFactory = new InvoiceFactory(currencyService);
         var orderFactory = new OrderFactory();
-        var lineItemFactory = new LineItemFactory();
+        var lineItemFactory = new LineItemFactory(currencyService);
+        var lineItemService = new LineItemService(currencyService, taxCalculationService, lineItemFactory);
 
-        return new InvoiceService(
+        return new InvoiceEditService(
             scopeProvider,
             shippingService,
             shippingProviderManager,
             inventoryService,
-            statusHandler,
-            paymentService,
-            customerService,
-            checkoutService,
-            strategyResolver,
-            notificationPublisher,
-            exchangeRateCacheMock.Object,
             currencyService,
             lineItemService,
-            discountService,
             taxServiceMock.Object,
             taxProviderManager,
-            taxCalculationService,
-            invoiceFactory,
-            orderFactory,
+            strategyResolver,
             lineItemFactory,
+            orderFactory,
             settings,
             logger);
     }
@@ -169,7 +150,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -199,7 +180,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -229,7 +210,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -257,7 +238,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -286,7 +267,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -314,7 +295,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -344,7 +325,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -375,7 +356,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -403,7 +384,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -426,7 +407,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -452,7 +433,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -480,7 +461,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -505,7 +486,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -528,7 +509,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -555,7 +536,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -582,7 +563,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -611,7 +592,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -635,13 +616,13 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Verify initial state
-        var initialResult = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var initialResult = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
         initialResult.ShouldNotBeNull();
         initialResult.DiscountTotal.ShouldBe(10m);
         initialResult.OrderDiscounts.Count.ShouldBe(1);
 
         // Act: Remove the order discount
-        var editResult = await _invoiceService.EditInvoiceAsync(new EditInvoiceParameters
+        var editResult = await _invoiceEditService.EditInvoiceAsync(new EditInvoiceParameters
         {
             InvoiceId = invoice.Id,
             Request = new EditInvoiceDto
@@ -664,7 +645,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         editResult.Data.IsSuccessful.ShouldBeTrue();
 
         // Verify updated state
-        var updatedResult = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var updatedResult = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
         updatedResult.ShouldNotBeNull();
         updatedResult.DiscountTotal.ShouldBe(0m);
         updatedResult.AdjustedSubTotal.ShouldBe(100m);
@@ -692,7 +673,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -720,7 +701,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview with no changes
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -754,7 +735,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview quantity change from 1 to 3
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -786,7 +767,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview adding 20% discount
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -829,7 +810,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview removing first item
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -862,7 +843,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview adding custom item
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -901,7 +882,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview removing order discount
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -936,7 +917,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview updating shipping cost
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -969,7 +950,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview with tax removed
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -1002,7 +983,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -1036,7 +1017,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview adding discount larger than item value
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -1068,7 +1049,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
     public async Task PreviewEdit_NonExistentInvoice_ReturnsNull()
     {
         // Act
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             Guid.NewGuid(),
             new EditInvoiceDto
             {
@@ -1105,7 +1086,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview with quantity change and custom item
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -1150,7 +1131,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview adding £15 order discount
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -1191,7 +1172,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview adding 10% order discount
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -1232,7 +1213,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview adding £5 fixed + 10% percentage discounts
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -1282,7 +1263,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Add £5 order discount on top of existing line discount
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -1323,7 +1304,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview adding £10 order discount
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -1365,7 +1346,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview adding £100 order discount (exceeds £50 subtotal)
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -1405,7 +1386,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Preview adding 150% discount
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -1443,13 +1424,13 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Verify initial state - no discounts
-        var initialResult = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var initialResult = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
         initialResult.ShouldNotBeNull();
         initialResult.DiscountTotal.ShouldBe(0m);
         initialResult.OrderDiscounts.Count.ShouldBe(0);
 
         // Act: Add order discount
-        var editResult = await _invoiceService.EditInvoiceAsync(new EditInvoiceParameters
+        var editResult = await _invoiceEditService.EditInvoiceAsync(new EditInvoiceParameters
         {
             InvoiceId = invoice.Id,
             Request = new EditInvoiceDto
@@ -1479,7 +1460,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         editResult.Data.IsSuccessful.ShouldBeTrue();
 
         // Verify persisted state
-        var updatedResult = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var updatedResult = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
         updatedResult.ShouldNotBeNull();
         updatedResult.SubTotal.ShouldBe(100m);
         updatedResult.DiscountTotal.ShouldBe(20m);
@@ -1502,7 +1483,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Add 25% order discount
-        var editResult = await _invoiceService.EditInvoiceAsync(new EditInvoiceParameters
+        var editResult = await _invoiceEditService.EditInvoiceAsync(new EditInvoiceParameters
         {
             InvoiceId = invoice.Id,
             Request = new EditInvoiceDto
@@ -1529,7 +1510,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         editResult.IsSuccess.ShouldBeTrue();
 
         // Verify: 25% of £80 = £20 discount
-        var updatedResult = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var updatedResult = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
         updatedResult.ShouldNotBeNull();
         updatedResult.SubTotal.ShouldBe(80m);
         updatedResult.DiscountTotal.ShouldBe(20m);
@@ -1551,7 +1532,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Add order discount
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -1592,7 +1573,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act: Add another order discount
-        var result = await _invoiceService.PreviewInvoiceEditAsync(
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(
             invoice.Id,
             new EditInvoiceDto
             {
@@ -1655,7 +1636,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -1698,7 +1679,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -1738,7 +1719,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -1774,7 +1755,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -1811,7 +1792,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -1850,7 +1831,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -1900,7 +1881,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -1942,7 +1923,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -1990,7 +1971,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert
         result.ShouldNotBeNull();
@@ -2025,7 +2006,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         await builder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.GetInvoiceForEditAsync(invoice.Id);
+        var result = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
 
         // Assert - Customer expectation: £120 - £12 = £108
         result.ShouldNotBeNull();

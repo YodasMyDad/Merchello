@@ -19,9 +19,9 @@ public class InitializeCheckoutResult
     public required OrderGroupingResult GroupingResult { get; init; }
 
     /// <summary>
-    /// Auto-selected shipping options by GroupId.
+    /// Auto-selected shipping options by GroupId. Value is SelectionKey format.
     /// </summary>
-    public Dictionary<Guid, Guid> AutoSelectedShippingOptions { get; init; } = [];
+    public Dictionary<Guid, string> AutoSelectedShippingOptions { get; init; } = [];
 
     /// <summary>
     /// Combined shipping total for all groups.

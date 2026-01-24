@@ -192,7 +192,11 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         await dataBuilder.SaveChangesAsync();
 
         // Act
-        var result = await _invoiceService.UpdateOrderStatusAsync(order.Id, OrderStatus.Processing);
+        var result = await _invoiceService.UpdateOrderStatusAsync(new UpdateOrderStatusParameters
+        {
+            OrderId = order.Id,
+            NewStatus = OrderStatus.Processing
+        });
 
         // Assert
         result.Messages.ShouldBeEmpty();
@@ -208,7 +212,11 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
     public async Task UpdateOrderStatusAsync_WithNonExistentOrder_ReturnsError()
     {
         // Act
-        var result = await _invoiceService.UpdateOrderStatusAsync(Guid.NewGuid(), OrderStatus.Processing);
+        var result = await _invoiceService.UpdateOrderStatusAsync(new UpdateOrderStatusParameters
+        {
+            OrderId = Guid.NewGuid(),
+            NewStatus = OrderStatus.Processing
+        });
 
         // Assert
         result.Messages.ShouldNotBeEmpty();
@@ -423,47 +431,6 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
 
     #endregion
 
-    #region Customer Search Tests
-
-    [Fact]
-    public async Task SearchCustomersAsync_FindsByEmail()
-    {
-        // Arrange
-        var dataBuilder = _fixture.CreateDataBuilder();
-        dataBuilder.CreateCustomer(email: "john@example.com", firstName: "John", lastName: "Doe");
-        dataBuilder.CreateCustomer(email: "jane@example.com", firstName: "Jane", lastName: "Doe");
-        dataBuilder.CreateCustomer(email: "bob@test.com", firstName: "Bob", lastName: "Smith");
-        await dataBuilder.SaveChangesAsync();
-
-        // Act
-        var result = await _invoiceService.SearchCustomersAsync(email: "john@example.com", name: null);
-
-        // Assert
-        result.ShouldNotBeEmpty();
-        result.Count.ShouldBe(1);
-        result[0].Email.ShouldBe("john@example.com");
-    }
-
-    [Fact]
-    public async Task SearchCustomersAsync_FindsByPartialName()
-    {
-        // Arrange
-        var dataBuilder = _fixture.CreateDataBuilder();
-        dataBuilder.CreateCustomer(email: "john@example.com", firstName: "John", lastName: "Doe");
-        dataBuilder.CreateCustomer(email: "jane@example.com", firstName: "Jane", lastName: "Doe");
-        dataBuilder.CreateCustomer(email: "bob@test.com", firstName: "Bob", lastName: "Smith");
-        await dataBuilder.SaveChangesAsync();
-
-        // Act
-        var result = await _invoiceService.SearchCustomersAsync(email: null, name: "Doe");
-
-        // Assert
-        result.ShouldNotBeEmpty();
-        result.Count.ShouldBe(2);
-        result.All(c => c.Name.Contains("Doe")).ShouldBeTrue();
-    }
-
-    #endregion
 
     #region Invoice Count Tests
 

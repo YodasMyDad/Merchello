@@ -19,6 +19,8 @@ namespace Merchello.Controllers;
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class ProductsApiController(
     IProductService productService,
+    IProductTypeService productTypeService,
+    IProductCollectionService productCollectionService,
     IShippingService shippingService,
     IDataTypeService dataTypeService,
     IOptions<MerchelloSettings> merchelloSettings) : MerchelloApiControllerBase
@@ -32,9 +34,9 @@ public class ProductsApiController(
     [HttpGet("products/{id:guid}")]
     [ProducesResponseType<ProductRootDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetProductDetail(Guid id)
+    public async Task<IActionResult> GetProductDetail(Guid id, CancellationToken ct)
     {
-        var product = await productService.GetProductRootWithDetails(id);
+        var product = await productService.GetProductRootWithDetails(id, ct);
         if (product == null)
         {
             return NotFound();
@@ -48,15 +50,15 @@ public class ProductsApiController(
     [HttpPost("products")]
     [ProducesResponseType<ProductRootDetailDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreateProduct([FromBody] CreateProductRootDto request)
+    public async Task<IActionResult> CreateProduct([FromBody] CreateProductRootDto request, CancellationToken ct)
     {
-        var result = await productService.CreateProductRoot(request);
+        var result = await productService.CreateProductRoot(request, ct);
         if (!result.Successful)
         {
             return BadRequest(new { errors = result.Messages.Where(m => m.ResultMessageType == ResultMessageType.Error).Select(m => m.Message) });
         }
 
-        var detail = await productService.GetProductRootWithDetails(result.ResultObject!.Id);
+        var detail = await productService.GetProductRootWithDetails(result.ResultObject!.Id, ct);
         return CreatedAtAction(nameof(GetProductDetail), new { id = result.ResultObject!.Id }, detail);
     }
 
@@ -67,9 +69,9 @@ public class ProductsApiController(
     [ProducesResponseType<ProductRootDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UpdateProduct(Guid id, [FromBody] UpdateProductRootDto request)
+    public async Task<IActionResult> UpdateProduct(Guid id, [FromBody] UpdateProductRootDto request, CancellationToken ct)
     {
-        var result = await productService.UpdateProductRoot(id, request);
+        var result = await productService.UpdateProductRoot(id, request, ct);
         if (!result.Successful)
         {
             var errors = result.Messages.Where(m => m.ResultMessageType == ResultMessageType.Error).Select(m => m.Message).ToList();
@@ -80,7 +82,7 @@ public class ProductsApiController(
             return BadRequest(new { errors });
         }
 
-        var detail = await productService.GetProductRootWithDetails(id);
+        var detail = await productService.GetProductRootWithDetails(id, ct);
         return Ok(detail);
     }
 
@@ -90,9 +92,9 @@ public class ProductsApiController(
     [HttpDelete("products/{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeleteProduct(Guid id)
+    public async Task<IActionResult> DeleteProduct(Guid id, CancellationToken ct)
     {
-        var result = await productService.DeleteProductRoot(id);
+        var result = await productService.DeleteProductRoot(id, ct);
         if (!result.Successful)
         {
             return NotFound();
@@ -110,9 +112,9 @@ public class ProductsApiController(
     [HttpGet("products/{productRootId:guid}/variants/{variantId:guid}")]
     [ProducesResponseType<ProductVariantDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetVariant(Guid productRootId, Guid variantId)
+    public async Task<IActionResult> GetVariant(Guid productRootId, Guid variantId, CancellationToken ct)
     {
-        var variant = await productService.GetVariant(productRootId, variantId);
+        var variant = await productService.GetVariant(productRootId, variantId, ct);
         if (variant == null)
         {
             return NotFound();
@@ -128,9 +130,9 @@ public class ProductsApiController(
     [ProducesResponseType<ProductVariantDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UpdateVariant(Guid productRootId, Guid variantId, [FromBody] UpdateVariantDto request)
+    public async Task<IActionResult> UpdateVariant(Guid productRootId, Guid variantId, [FromBody] UpdateVariantDto request, CancellationToken ct)
     {
-        var result = await productService.UpdateVariant(productRootId, variantId, request);
+        var result = await productService.UpdateVariant(productRootId, variantId, request, ct);
         if (!result.Successful)
         {
             var errors = result.Messages.Where(m => m.ResultMessageType == ResultMessageType.Error).Select(m => m.Message).ToList();
@@ -150,9 +152,9 @@ public class ProductsApiController(
     [HttpPut("products/{productRootId:guid}/variants/{variantId:guid}/set-default")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> SetDefaultVariant(Guid productRootId, Guid variantId)
+    public async Task<IActionResult> SetDefaultVariant(Guid productRootId, Guid variantId, CancellationToken ct)
     {
-        var result = await productService.SetDefaultVariant(variantId);
+        var result = await productService.SetDefaultVariant(variantId, ct);
         if (!result.Successful)
         {
             return NotFound();
@@ -167,9 +169,9 @@ public class ProductsApiController(
     /// </summary>
     [HttpPost("products/variants/by-ids")]
     [ProducesResponseType<List<VariantLookupDto>>(StatusCodes.Status200OK)]
-    public async Task<List<VariantLookupDto>> GetVariantsByIds([FromBody] List<Guid> variantIds)
+    public async Task<List<VariantLookupDto>> GetVariantsByIds([FromBody] List<Guid> variantIds, CancellationToken ct)
     {
-        var variants = await productService.GetVariantsByIds(variantIds);
+        var variants = await productService.GetVariantsByIds(variantIds, ct);
 
         // Build results for all requested IDs, marking missing ones as not found
         List<VariantLookupDto> results = [];
@@ -220,9 +222,9 @@ public class ProductsApiController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProductShippingOptions(
         Guid productRootId,
-        CancellationToken cancellationToken)
+        CancellationToken ct)
     {
-        var options = await productService.GetAvailableShippingOptionsAsync(productRootId, cancellationToken);
+        var options = await productService.GetAvailableShippingOptionsAsync(productRootId, ct);
         if (options == null) return NotFound();
         return Ok(options);
     }
@@ -236,12 +238,12 @@ public class ProductsApiController(
     public async Task<IActionResult> UpdateProductShippingExclusions(
         Guid productRootId,
         [FromBody] UpdateShippingExclusionsDto request,
-        CancellationToken cancellationToken)
+        CancellationToken ct)
     {
         var result = await productService.UpdateProductRootExcludedShippingOptionsAsync(
             productRootId,
             request.ExcludedShippingOptionIds,
-            cancellationToken);
+            ct);
 
         if (!result.Successful) return NotFound();
         return NoContent();
@@ -257,12 +259,12 @@ public class ProductsApiController(
         Guid productRootId,
         Guid variantId,
         [FromBody] UpdateShippingExclusionsDto request,
-        CancellationToken cancellationToken)
+        CancellationToken ct)
     {
         var result = await productService.UpdateVariantExcludedShippingOptions(
             variantId,
             request.ExcludedShippingOptionIds,
-            cancellationToken);
+            ct);
 
         if (!result.Successful) return NotFound();
         return NoContent();
@@ -277,15 +279,14 @@ public class ProductsApiController(
     [ProducesResponseType<ProductFulfillmentOptionsDto>(StatusCodes.Status200OK)]
     public async Task<ProductFulfillmentOptionsDto> GetFulfillmentOptionsForProduct(
         Guid variantId,
-        [FromQuery] string destinationCountryCode,
-        [FromQuery] string? destinationStateCode = null,
-        CancellationToken cancellationToken = default)
+        [FromQuery] GetFulfillmentOptionsQuery query,
+        CancellationToken ct = default)
     {
         return await shippingService.GetFulfillmentOptionsForProductAsync(
             variantId,
-            destinationCountryCode,
-            destinationStateCode,
-            cancellationToken);
+            query.DestinationCountryCode,
+            query.DestinationStateCode,
+            ct);
     }
 
     /// <summary>
@@ -297,9 +298,9 @@ public class ProductsApiController(
     [ProducesResponseType<ProductFulfillmentOptionsDto>(StatusCodes.Status200OK)]
     public async Task<ProductFulfillmentOptionsDto> GetDefaultFulfillingWarehouse(
         Guid variantId,
-        CancellationToken cancellationToken = default)
+        CancellationToken ct = default)
     {
-        return await shippingService.GetDefaultFulfillingWarehouseAsync(variantId, cancellationToken);
+        return await shippingService.GetDefaultFulfillingWarehouseAsync(variantId, ct);
     }
 
     /// <summary>
@@ -313,9 +314,9 @@ public class ProductsApiController(
     public async Task<IActionResult> PreviewAddonPrice(
         Guid variantId,
         [FromBody] AddonPricePreviewRequestDto request,
-        CancellationToken cancellationToken = default)
+        CancellationToken ct = default)
     {
-        var result = await productService.PreviewAddonPriceAsync(variantId, request, cancellationToken);
+        var result = await productService.PreviewAddonPriceAsync(variantId, request, ct);
         if (result == null)
         {
             return NotFound();
@@ -334,9 +335,9 @@ public class ProductsApiController(
     [ProducesResponseType<List<ProductOptionDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> SaveOptions(Guid productRootId, [FromBody] List<SaveProductOptionDto> options)
+    public async Task<IActionResult> SaveOptions(Guid productRootId, [FromBody] List<SaveProductOptionDto> options, CancellationToken ct)
     {
-        var result = await productService.SaveProductOptions(productRootId, options);
+        var result = await productService.SaveProductOptions(productRootId, options, ct);
         if (!result.Successful)
         {
             var errors = result.Messages.Where(m => m.ResultMessageType == ResultMessageType.Error).Select(m => m.Message).ToList();
@@ -356,7 +357,7 @@ public class ProductsApiController(
 
     [HttpGet("products")]
     [ProducesResponseType<ProductPageDto>(StatusCodes.Status200OK)]
-    public async Task<ProductPageDto> GetProducts([FromQuery] ProductQueryDto query)
+    public async Task<ProductPageDto> GetProducts([FromQuery] ProductQueryDto query, CancellationToken ct)
     {
         var parameters = new ProductQueryParameters
         {
@@ -376,7 +377,7 @@ public class ProductsApiController(
         }
 
         // Use summary projection query - returns DTOs directly
-        var result = await productService.QueryProductsSummary(parameters);
+        var result = await productService.QueryProductsSummary(parameters, ct);
 
         return new ProductPageDto
         {
@@ -417,18 +418,18 @@ public class ProductsApiController(
 
     [HttpGet("products/types")]
     [ProducesResponseType<List<ProductTypeDto>>(StatusCodes.Status200OK)]
-    public async Task<List<ProductTypeDto>> GetProductTypes()
+    public async Task<List<ProductTypeDto>> GetProductTypes(CancellationToken ct)
     {
-        var types = await productService.GetProductTypes();
+        var types = await productTypeService.GetProductTypes(ct);
         return types.Select(t => new ProductTypeDto { Id = t.Id, Name = t.Name ?? string.Empty, Alias = t.Alias }).ToList();
     }
 
     [HttpPost("products/types")]
     [ProducesResponseType<ProductTypeDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreateProductType([FromBody] CreateProductTypeDto request)
+    public async Task<IActionResult> CreateProductType([FromBody] CreateProductTypeDto request, CancellationToken ct)
     {
-        var result = await productService.CreateProductType(request.Name);
+        var result = await productTypeService.CreateProductType(request.Name, ct);
         if (!result.Successful)
         {
             var errorMessage = result.Messages.FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message;
@@ -443,9 +444,9 @@ public class ProductsApiController(
     [ProducesResponseType<ProductTypeDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateProductType(Guid id, [FromBody] UpdateProductTypeDto request)
+    public async Task<IActionResult> UpdateProductType(Guid id, [FromBody] UpdateProductTypeDto request, CancellationToken ct)
     {
-        var result = await productService.UpdateProductType(id, request.Name);
+        var result = await productTypeService.UpdateProductType(id, request.Name, ct);
         if (!result.Successful)
         {
             var errorMessage = result.Messages.FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message;
@@ -464,9 +465,9 @@ public class ProductsApiController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeleteProductType(Guid id)
+    public async Task<IActionResult> DeleteProductType(Guid id, CancellationToken ct)
     {
-        var result = await productService.DeleteProductType(id);
+        var result = await productTypeService.DeleteProductType(id, ct);
         if (!result.Successful)
         {
             var errorMessage = result.Messages.FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message;
@@ -484,22 +485,22 @@ public class ProductsApiController(
 
     [HttpGet("products/collections")]
     [ProducesResponseType<List<ProductCollectionDto>>(StatusCodes.Status200OK)]
-    public async Task<List<ProductCollectionDto>> GetProductCollections()
+    public async Task<List<ProductCollectionDto>> GetProductCollections(CancellationToken ct)
     {
-        return await productService.GetProductCollectionsWithCounts();
+        return await productCollectionService.GetProductCollectionsWithCounts(ct);
     }
 
     [HttpPost("products/collections")]
     [ProducesResponseType<ProductCollectionDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreateProductCollection([FromBody] CreateProductCollectionDto dto)
+    public async Task<IActionResult> CreateProductCollection([FromBody] CreateProductCollectionDto dto, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(dto.Name))
         {
             return BadRequest("Collection name is required");
         }
 
-        var result = await productService.CreateProductCollection(dto.Name.Trim());
+        var result = await productCollectionService.CreateProductCollection(dto.Name.Trim(), ct);
 
         if (!result.Successful)
         {
@@ -522,14 +523,14 @@ public class ProductsApiController(
     [ProducesResponseType<ProductCollectionDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateProductCollection(Guid id, [FromBody] UpdateProductCollectionDto dto)
+    public async Task<IActionResult> UpdateProductCollection(Guid id, [FromBody] UpdateProductCollectionDto dto, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(dto.Name))
         {
             return BadRequest("Collection name is required");
         }
 
-        var result = await productService.UpdateProductCollection(id, dto.Name.Trim());
+        var result = await productCollectionService.UpdateProductCollection(id, dto.Name.Trim(), ct);
 
         if (!result.Successful)
         {
@@ -543,7 +544,7 @@ public class ProductsApiController(
 
         var collection = result.ResultObject!;
         // Get the updated product count
-        var collections = await productService.GetProductCollectionsWithCounts();
+        var collections = await productCollectionService.GetProductCollectionsWithCounts(ct);
         var updatedCollection = collections.FirstOrDefault(c => c.Id == id);
 
         return Ok(new ProductCollectionDto
@@ -558,9 +559,9 @@ public class ProductsApiController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeleteProductCollection(Guid id)
+    public async Task<IActionResult> DeleteProductCollection(Guid id, CancellationToken ct)
     {
-        var result = await productService.DeleteProductCollection(id);
+        var result = await productCollectionService.DeleteProductCollection(id, ct);
 
         if (!result.Successful)
         {
@@ -587,13 +588,13 @@ public class ProductsApiController(
     /// </summary>
     [HttpGet("products/element-type")]
     [ProducesResponseType<ElementTypeDto>(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetProductElementType()
+    public async Task<IActionResult> GetProductElementType(CancellationToken ct)
     {
-        var contentType = await productService.GetProductElementTypeAsync();
+        var contentType = await productService.GetProductElementTypeAsync(ct);
         if (contentType is null)
             return Ok(null);
 
-        var model = await MapToElementTypeResponse(contentType);
+        var model = await MapToElementTypeResponse(contentType, ct);
         return Ok(model);
     }
 
@@ -614,7 +615,7 @@ public class ProductsApiController(
         return Ok(response);
     }
 
-    private async Task<ElementTypeDto> MapToElementTypeResponse(IContentType contentType)
+    private async Task<ElementTypeDto> MapToElementTypeResponse(IContentType contentType, CancellationToken ct = default)
     {
         // Match Umbraco's content type mapping logic:
         // - Containers can be nested by encoding hierarchy in aliases using "/" (e.g. "tabAlias/groupAlias")
@@ -649,7 +650,7 @@ public class ProductsApiController(
         foreach (var prop in contentType.PropertyTypes)
         {
             var containerId = containerKeyByPropertyKey.TryGetValue(prop.Key, out var groupKey) ? groupKey : (Guid?)null;
-            var elementProp = await MapPropertyType(prop, containerId);
+            var elementProp = await MapPropertyType(prop, containerId, ct);
             properties.Add(elementProp);
         }
 
@@ -663,7 +664,7 @@ public class ProductsApiController(
         };
     }
 
-    private async Task<ElementTypePropertyDto> MapPropertyType(IPropertyType prop, Guid? containerId)
+    private async Task<ElementTypePropertyDto> MapPropertyType(IPropertyType prop, Guid? containerId, CancellationToken ct = default)
     {
         var dataType = await dataTypeService.GetAsync(prop.DataTypeKey);
         var configuration = dataType?.ConfigurationData

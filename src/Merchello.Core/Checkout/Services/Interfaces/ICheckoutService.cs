@@ -4,8 +4,6 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Notifications;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Checkout.Strategies.Models;
-using Merchello.Core.Discounts.Models;
-using Merchello.Core.Discounts.Services;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Shared.Models;
@@ -25,28 +23,6 @@ public interface ICheckoutService
     /// <param name="countryCode"></param>
     /// <param name="cancellationToken"></param>
     Task AddToBasketAsync(Basket basket, LineItem newLineItem, string countryCode, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Add a discount to the basket as a discount line item.
-    /// </summary>
-    /// <param name="parameters">Parameters for adding the discount</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    Task AddDiscountToBasketAsync(
-        AddDiscountToBasketParameters parameters,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Remove a discount line item from the basket
-    /// </summary>
-    /// <param name="basket">The basket</param>
-    /// <param name="discountLineItemId">The ID of the discount line item to remove</param>
-    /// <param name="countryCode">Country code for recalculation</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    Task RemoveDiscountFromBasketAsync(
-        Basket basket,
-        Guid discountLineItemId,
-        string? countryCode = null,
-        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Remove item from basket
@@ -132,12 +108,7 @@ public interface ICheckoutService
     /// Should be called before any operation that depends on basket.Currency (invoice creation, payment processing).
     /// This is a silent sync - no notifications are published. For user-initiated currency changes, use ConvertBasketCurrencyAsync.
     /// </summary>
-    /// <param name="basket">The basket to sync.</param>
-    /// <param name="currencyCode">The customer's display currency code.</param>
-    /// <param name="currencySymbol">The customer's display currency symbol.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The basket with currency synced.</returns>
-    Task<Basket> EnsureBasketCurrencyAsync(Basket basket, string currencyCode, string currencySymbol, CancellationToken cancellationToken = default);
+    Task<Basket> EnsureBasketCurrencyAsync(EnsureBasketCurrencyParameters parameters, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates a line item for a product
@@ -167,58 +138,6 @@ public interface ICheckoutService
     /// Gets all regions for a country from the locality catalog (for billing address which has no restrictions).
     /// </summary>
     Task<IReadOnlyCollection<SubdivisionInfo>> GetAllRegionsAsync(string countryCode, CancellationToken cancellationToken = default);
-
-    // Promotional discount methods
-
-    /// <summary>
-    /// Applies a discount code to the basket.
-    /// </summary>
-    /// <param name="basket">The basket to apply the discount to.</param>
-    /// <param name="code">The discount code to apply.</param>
-    /// <param name="countryCode">Country code for recalculation.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Result with updated basket or error.</returns>
-    Task<CrudResult<Basket>> ApplyDiscountCodeAsync(
-        Basket basket,
-        string code,
-        string? countryCode = null,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets all applicable automatic discounts for the basket.
-    /// </summary>
-    /// <param name="basket">The basket to check.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>List of applicable automatic discounts with calculated amounts.</returns>
-    Task<List<ApplicableDiscount>> GetApplicableAutomaticDiscountsAsync(
-        Basket basket,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Refreshes automatic discounts on the basket, adding new ones and removing expired ones.
-    /// </summary>
-    /// <param name="basket">The basket to refresh.</param>
-    /// <param name="countryCode">Country code for recalculation.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The updated basket.</returns>
-    Task<Basket> RefreshAutomaticDiscountsAsync(
-        Basket basket,
-        string? countryCode = null,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Removes a promotional discount from the basket.
-    /// </summary>
-    /// <param name="basket">The basket.</param>
-    /// <param name="discountId">The discount ID to remove.</param>
-    /// <param name="countryCode">Country code for recalculation.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Result with updated basket or error.</returns>
-    Task<CrudResult<Basket>> RemovePromotionalDiscountAsync(
-        Basket basket,
-        Guid discountId,
-        string? countryCode = null,
-        CancellationToken cancellationToken = default);
 
     // Order grouping methods
 
@@ -253,6 +172,17 @@ public interface ICheckoutService
     /// <param name="basket">The basket to save.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task SaveBasketAsync(Basket basket, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Captures partial address data during checkout for progressive saving.
+    /// Updates only the fields that are provided without triggering recalculation.
+    /// </summary>
+    /// <param name="parameters">Parameters with partial address data.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if any changes were saved.</returns>
+    Task<bool> CaptureAddressAsync(
+        CaptureAddressParameters parameters,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Saves shipping selections to the checkout session, updates basket totals,

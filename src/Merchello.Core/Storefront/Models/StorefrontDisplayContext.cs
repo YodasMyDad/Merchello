@@ -12,7 +12,6 @@ namespace Merchello.Core.Storefront.Models;
 /// <param name="DisplayPricesIncTax">Whether to display prices including tax</param>
 /// <param name="TaxCountryCode">Customer's country code for tax rate lookup</param>
 /// <param name="TaxRegionCode">Customer's region code for tax rate lookup (optional)</param>
-/// <param name="DefaultTaxRate">Default tax rate percentage for products (e.g., 20 for 20%)</param>
 /// <param name="IsShippingTaxable">Whether shipping is taxable</param>
 /// <param name="ShippingTaxRate">Shipping tax rate percentage from provider, or null if rate requires full calculation</param>
 public record StorefrontDisplayContext(
@@ -24,6 +23,5 @@ public record StorefrontDisplayContext(
     bool DisplayPricesIncTax,
     string TaxCountryCode,
     string? TaxRegionCode,
-    decimal DefaultTaxRate = 0,
     bool IsShippingTaxable = true,
     decimal? ShippingTaxRate = null);

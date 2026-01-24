@@ -1,3 +1,4 @@
+using Merchello.Core.Email.Interfaces;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Notifications.Invoice;
 using Merchello.Core.Shared.Services.Interfaces;
