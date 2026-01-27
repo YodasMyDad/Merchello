@@ -8,7 +8,7 @@ namespace Merchello.Core.Notifications.CheckoutNotifications;
 /// </summary>
 public class CheckoutAbandonedNotification(
     Guid abandonedCheckoutId,
-    Guid basketId,
+    Guid? basketId,
     string? customerEmail,
     string? customerName,
     decimal basketTotal,
@@ -23,7 +23,7 @@ public class CheckoutAbandonedNotification(
     /// <summary>
     /// The ID of the basket that was abandoned.
     /// </summary>
-    public Guid BasketId { get; } = basketId;
+    public Guid? BasketId { get; } = basketId;
 
     /// <summary>
     /// The customer's email address.

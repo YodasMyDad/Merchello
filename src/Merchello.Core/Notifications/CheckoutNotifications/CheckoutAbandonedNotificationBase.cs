@@ -15,7 +15,7 @@ public abstract class CheckoutAbandonedNotificationBase : MerchelloNotification
     /// <summary>
     /// The ID of the abandoned basket.
     /// </summary>
-    public Guid BasketId { get; set; }
+    public Guid? BasketId { get; set; }
 
     /// <summary>
     /// The customer's email address.

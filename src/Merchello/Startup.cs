@@ -116,6 +116,8 @@ using Merchello.Factories;
 using Merchello.Routing;
 using Merchello.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
@@ -160,6 +162,11 @@ public static class Startup
         builder.Services.AddUmbracoDbContext<MerchelloDbContext>((serviceProvider, options, connectionString, providerName) =>
         {
             options.UseUmbracoDatabaseProvider(serviceProvider);
+            options.ConfigureWarnings(w =>
+            {
+                w.Ignore(SqlServerEventId.SavepointsDisabledBecauseOfMARS);
+                w.Ignore(RelationalEventId.MultipleCollectionIncludeWarning);
+            });
         });
 
         // Core settings (currency, tax, store defaults)

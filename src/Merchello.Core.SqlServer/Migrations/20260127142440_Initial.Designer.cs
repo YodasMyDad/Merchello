@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Merchello.Core.SqlServer.Migrations
 {
     [DbContext(typeof(MerchelloDbContext))]
-    [Migration("20260125091341_Initial")]
+    [Migration("20260127142440_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -242,7 +242,8 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<decimal?>("OriginalAmountInStoreCurrency")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<Guid?>("ProductId")
                         .HasColumnType("uniqueidentifier");
@@ -626,7 +627,7 @@ namespace Merchello.Core.SqlServer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("BasketId")
+                    b.Property<Guid?>("BasketId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("BasketTotal")
@@ -1881,10 +1882,12 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal?>("CostOfGoods")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<decimal?>("Price")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uniqueidentifier");
